@@ -48,12 +48,9 @@ echo -e "${BOLD}═════════════════════�
 echo -e "${BOLD}  ATLAS_008 Acceptance Tests${RESET}"
 echo -e "${BOLD}═══════════════════════════════════════════${RESET}"
 
-# Check DATABASE_URL
-if [[ -z "$DATABASE_URL" ]]; then
-  echo -e "${RED}ERROR${RESET}: DATABASE_URL not set"
-  echo "Run: set -a && source .env && set +a"
-  exit 1
-fi
+# Database preflight check (validates DATABASE_URL, host, DNS)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_lib/db_preflight.sh"
 
 # ============================================
 # 1. MIG_010: Extensions + Normalizers

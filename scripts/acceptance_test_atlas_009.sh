@@ -45,14 +45,10 @@ echo ""
 echo -e "${BOLD}═══════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  ATLAS_009 Acceptance Tests${RESET}"
 echo -e "${BOLD}═══════════════════════════════════════════${RESET}"
-echo ""
 
-# Check DATABASE_URL
-if [[ -z "$DATABASE_URL" ]]; then
-  echo -e "${RED}ERROR:${RESET} DATABASE_URL not set"
-  echo "Run: set -a && source .env && set +a"
-  exit 1
-fi
+# Database preflight check (validates DATABASE_URL, host, DNS)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_lib/db_preflight.sh"
 
 # ============================================
 # TEST 1: New source_tables exist in registry

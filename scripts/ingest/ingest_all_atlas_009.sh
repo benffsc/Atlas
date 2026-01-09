@@ -50,18 +50,15 @@ echo ""
 echo -e "${BOLD}═══════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  ATLAS_009 Batch Ingest${RESET}"
 echo -e "${BOLD}═══════════════════════════════════════════${RESET}"
-echo ""
+
+# Database preflight check (validates DATABASE_URL, host, DNS)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../_lib/db_preflight.sh"
+
 echo -e "${CYAN}Date:${RESET} $RUN_DATE"
 echo -e "${CYAN}Geocode Limit:${RESET} $GEOCODE_LIMIT"
 echo -e "${CYAN}Dry Run:${RESET} $DRY_RUN"
 echo ""
-
-# Check DATABASE_URL
-if [[ -z "$DATABASE_URL" ]]; then
-  echo -e "${RED}ERROR:${RESET} DATABASE_URL not set"
-  echo "Run: set -a && source .env && set +a"
-  exit 1
-fi
 
 WARNINGS=()
 SUCCESSES=()
