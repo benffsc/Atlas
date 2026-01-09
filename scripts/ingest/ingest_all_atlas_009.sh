@@ -94,11 +94,10 @@ run_ingest "airtable/appointment_requests" "scripts/ingest/airtable_appointment_
 run_ingest "airtable/project75_survey" "scripts/ingest/airtable_project75_survey_csv.mjs"
 run_ingest "airtable/trappers" "scripts/ingest/airtable_trappers_csv.mjs"
 
-# ClinicHQ (note: these can be large)
+# ClinicHQ (note: these can be large - appointment_info uses batched ingest)
 run_ingest "clinichq/cat_info" "scripts/ingest/clinichq_cat_info_xlsx.mjs"
 run_ingest "clinichq/owner_info" "scripts/ingest/clinichq_owner_info_xlsx.mjs"
-# Appointment info is very large - skip in batch mode or limit
-# run_ingest "clinichq/appointment_info" "scripts/ingest/clinichq_appointment_info_xlsx.mjs"
+run_ingest "clinichq/appointment_info" "scripts/ingest/clinichq_appointment_info_xlsx.mjs"
 
 # VolunteerHub
 run_ingest "volunteerhub/users" "scripts/ingest/volunteerhub_users_xlsx.mjs"
