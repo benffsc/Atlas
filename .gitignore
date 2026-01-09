@@ -1,0 +1,120 @@
+# ============================================================
+# Atlas .gitignore
+# CRITICAL: Ensure no data exports or secrets are ever committed
+# ============================================================
+
+# ============================================================
+# Data Exports (NEVER COMMIT)
+# ============================================================
+*.csv
+*.xlsx
+*.xls
+*.tsv
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!.vscode/*.json
+
+# Data directories
+data/
+exports/
+incoming/
+raw/
+
+# Specific export patterns
+*-Grid view*.csv
+*Submissions*.csv
+*Export*.csv
+*export*.csv
+clinichq_*.xlsx
+airtable_*.csv
+
+# ============================================================
+# Environment & Secrets (NEVER COMMIT)
+# ============================================================
+.env
+.env.*
+!.env.example
+.envrc
+
+# Credentials files
+credentials.json
+service-account*.json
+*_credentials.json
+*.pem
+*.key
+
+# ============================================================
+# Dependencies
+# ============================================================
+node_modules/
+.pnpm-store/
+*.tgz
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.Python
+pip-log.txt
+
+# ============================================================
+# Build Outputs
+# ============================================================
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# ============================================================
+# IDE & OS
+# ============================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+.idea/
+*.swp
+*.swo
+*~
+.vscode/settings.json
+
+# ============================================================
+# Logs & Debug
+# ============================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# ============================================================
+# Test & Coverage
+# ============================================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ============================================================
+# Temporary
+# ============================================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+
+# ============================================================
+# Supabase (local dev)
+# ============================================================
+.supabase/
+supabase/.temp/
