@@ -617,7 +617,7 @@ SELECT
     pl.has_cat_activity,
     sa.locality,
     sa.postal_code,
-    sa.state_province,
+    sa.admin_area_1 AS state_province,  -- admin_area_1 = state in sot_addresses
     CASE WHEN pl.location IS NOT NULL THEN
         jsonb_build_object(
             'lat', ST_Y(pl.location::geometry),

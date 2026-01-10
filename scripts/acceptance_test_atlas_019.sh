@@ -188,11 +188,19 @@ echo ""
 
 # -------- Test 7: deep search executes (may return 0; just must not error)
 echo "Test 7: Deep search should execute (no error)..."
-if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "SELECT * FROM trapper.search_deep('${prefix}', 5);" >/dev/null 2>&1; then
+deep_err_file=$(mktemp)
+if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "SELECT * FROM trapper.search_deep('${prefix}', 5);" >/dev/null 2>"$deep_err_file"; then
     pass "search_deep('${prefix}') executed successfully"
 else
+    # Show error details without exposing DATABASE_URL
+    deep_err=$(cat "$deep_err_file" | head -10)
     fail "search_deep('${prefix}') failed to execute"
+    if [[ -n "$deep_err" ]]; then
+        echo -e "  ${YELLOW}Error details:${NC}"
+        echo "$deep_err" | sed 's/^/    /'
+    fi
 fi
+rm -f "$deep_err_file"
 echo ""
 
 # -------- Test 8: trigram indexes exist
