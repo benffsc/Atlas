@@ -182,7 +182,9 @@ export default function CatDetailPage() {
               <tbody>
                 {cat.owners.map((owner) => (
                   <tr key={owner.person_id}>
-                    <td>{owner.display_name}</td>
+                    <td>
+                      <a href={`/people/${owner.person_id}`}>{owner.display_name}</a>
+                    </td>
                     <td>
                       <span className="badge">{owner.role}</span>
                     </td>
@@ -209,7 +211,9 @@ export default function CatDetailPage() {
               <tbody>
                 {cat.places.map((place) => (
                   <tr key={place.place_id}>
-                    <td>{place.label}</td>
+                    <td>
+                      <a href={`/places/${place.place_id}`}>{place.label}</a>
+                    </td>
                     <td>
                       <span className="badge badge-primary">
                         {place.place_kind || "place"}

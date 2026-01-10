@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import GlobalSearch from "@/components/GlobalSearch";
 
 export const metadata: Metadata = {
   title: "Atlas TNR",
@@ -19,12 +20,16 @@ export default function RootLayout({
             <a href="/" className="nav-brand">
               Atlas TNR
             </a>
+            <GlobalSearch />
             <div className="nav-links">
-              <a href="/" className="nav-link">
-                Dashboard
-              </a>
               <a href="/cats" className="nav-link">
                 Cats
+              </a>
+              <a href="/people" className="nav-link">
+                People
+              </a>
+              <a href="/places" className="nav-link">
+                Places
               </a>
               <a href="/search" className="nav-link">
                 Search
