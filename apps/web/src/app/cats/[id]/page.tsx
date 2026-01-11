@@ -31,6 +31,8 @@ interface CatDetail {
   color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
+  quality_tier: string | null;
+  quality_reason: string | null;
   notes: string | null;
   identifiers: Identifier[];
   owners: Owner[];
@@ -83,8 +85,14 @@ export default function CatDetailPage() {
     return (
       <div>
         <a href="/cats">&larr; Back to cats</a>
-        <div className="empty" style={{ color: "red", marginTop: "2rem" }}>
-          {error}
+        <div className="empty" style={{ marginTop: "2rem" }}>
+          <h2 style={{ color: "#dc3545" }}>{error}</h2>
+          <p className="text-muted" style={{ marginTop: "0.5rem" }}>
+            Cat ID: <code>{id}</code>
+          </p>
+          <p className="text-muted text-sm" style={{ marginTop: "1rem" }}>
+            This record may be incomplete, filtered, or not yet imported.
+          </p>
         </div>
       </div>
     );
@@ -99,7 +107,24 @@ export default function CatDetailPage() {
       <a href="/cats">&larr; Back to cats</a>
 
       <div className="detail-header" style={{ marginTop: "1rem" }}>
-        <h1>{cat.display_name}</h1>
+        <h1>
+          {cat.display_name}
+          {cat.quality_tier && (
+            <span
+              className="badge"
+              style={{
+                marginLeft: "0.5rem",
+                fontSize: "0.5em",
+                verticalAlign: "middle",
+                background: cat.quality_tier === 'A' ? '#198754' : cat.quality_tier === 'B' ? '#ffc107' : '#dc3545',
+                color: cat.quality_tier === 'B' ? '#000' : '#fff'
+              }}
+              title={cat.quality_reason || undefined}
+            >
+              {cat.quality_tier === 'A' ? 'Verified' : cat.quality_tier === 'B' ? 'Clinic ID' : 'Unverified'}
+            </span>
+          )}
+        </h1>
         <p className="text-muted text-sm">
           ID: {cat.cat_id}
         </p>

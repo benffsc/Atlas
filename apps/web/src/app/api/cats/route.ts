@@ -8,6 +8,9 @@ interface CatListRow {
   altered_status: string | null;
   breed: string | null;
   microchip: string | null;
+  quality_tier: string;
+  quality_reason: string;
+  has_microchip: boolean;
   owner_count: number;
   owner_names: string | null;
   primary_place_id: string | null;
@@ -31,12 +34,11 @@ export async function GET(request: NextRequest) {
   const params: unknown[] = [];
   let paramIndex = 1;
 
-  // Search query
+  // Search query (name or microchip)
   if (q) {
     conditions.push(`(
       display_name ILIKE $${paramIndex}
       OR microchip ILIKE $${paramIndex}
-      OR identifiers::text ILIKE $${paramIndex}
     )`);
     params.push(`%${q}%`);
     paramIndex++;
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   try {
-    // Get data
+    // Get data - order by quality tier then name (high confidence first)
     const sql = `
       SELECT
         cat_id,
@@ -75,6 +77,9 @@ export async function GET(request: NextRequest) {
         altered_status,
         breed,
         microchip,
+        quality_tier,
+        quality_reason,
+        has_microchip,
         owner_count,
         owner_names,
         primary_place_id,
@@ -84,7 +89,7 @@ export async function GET(request: NextRequest) {
         created_at
       FROM trapper.v_cat_list
       ${whereClause}
-      ORDER BY display_name ASC
+      ORDER BY quality_tier ASC, display_name ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 

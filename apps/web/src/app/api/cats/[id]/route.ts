@@ -10,6 +10,8 @@ interface CatDetailRow {
   color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
+  quality_tier: string | null;
+  quality_reason: string | null;
   notes: string | null;
   identifiers: object[];
   owners: object[];
@@ -42,6 +44,8 @@ export async function GET(
         color,
         coat_pattern,
         microchip,
+        quality_tier,
+        quality_reason,
         notes,
         identifiers,
         owners,

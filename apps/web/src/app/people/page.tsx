@@ -5,6 +5,11 @@ import { useState, useEffect, useCallback } from "react";
 interface Person {
   person_id: string;
   display_name: string;
+  account_type: string | null;
+  surface_quality: string | null;
+  quality_reason: string | null;
+  has_email: boolean;
+  has_phone: boolean;
   cat_count: number;
   place_count: number;
   cat_names: string | null;
@@ -25,6 +30,8 @@ export default function PeoplePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
+  const [includeLow, setIncludeLow] = useState(false);
+  const [includeNonPerson, setIncludeNonPerson] = useState(false);
   const [page, setPage] = useState(0);
   const limit = 25;
 
@@ -34,6 +41,8 @@ export default function PeoplePage() {
 
     const params = new URLSearchParams();
     if (search) params.set("q", search);
+    if (includeLow) params.set("include_low", "true");
+    if (includeNonPerson) params.set("include_non_person", "true");
     params.set("limit", String(limit));
     params.set("offset", String(page * limit));
 
@@ -49,7 +58,7 @@ export default function PeoplePage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page]);
+  }, [search, includeLow, includeNonPerson, page]);
 
   useEffect(() => {
     fetchPeople();
@@ -75,6 +84,22 @@ export default function PeoplePage() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ minWidth: "250px" }}
         />
+        <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.875rem" }}>
+          <input
+            type="checkbox"
+            checked={includeLow}
+            onChange={(e) => { setIncludeLow(e.target.checked); setPage(0); }}
+          />
+          Include low-confidence
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.875rem" }}>
+          <input
+            type="checkbox"
+            checked={includeNonPerson}
+            onChange={(e) => { setIncludeNonPerson(e.target.checked); setPage(0); }}
+          />
+          Include organizations
+        </label>
         <button type="submit">Search</button>
       </form>
 
@@ -93,21 +118,50 @@ export default function PeoplePage() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Confidence</th>
+                  <th>Contact</th>
                   <th>Cats</th>
                   <th>Places</th>
-                  <th>Primary Place</th>
                 </tr>
               </thead>
               <tbody>
                 {data.people.map((person) => (
-                  <tr key={person.person_id}>
+                  <tr key={person.person_id} style={person.surface_quality === 'Low' ? { opacity: 0.7 } : {}}>
                     <td>
                       <a href={`/people/${person.person_id}`}>{person.display_name}</a>
+                      {person.account_type && person.account_type !== 'person' && (
+                        <span
+                          className="badge"
+                          style={{ marginLeft: "0.5rem", fontSize: "0.7em", background: "#6c757d" }}
+                        >
+                          {person.account_type}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {person.surface_quality === 'High' ? (
+                        <span className="badge badge-primary" title={person.quality_reason || undefined}>High</span>
+                      ) : person.surface_quality === 'Medium' ? (
+                        <span className="badge" title={person.quality_reason || undefined} style={{ background: '#ffc107', color: '#000' }}>Medium</span>
+                      ) : (
+                        <span className="badge" title={person.quality_reason || undefined} style={{ background: '#dc3545' }}>Low</span>
+                      )}
+                    </td>
+                    <td>
+                      {person.has_email && person.has_phone ? (
+                        <span title="Has email and phone">📧📱</span>
+                      ) : person.has_email ? (
+                        <span title="Has email">📧</span>
+                      ) : person.has_phone ? (
+                        <span title="Has phone">📱</span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
                     </td>
                     <td>
                       {person.cat_count > 0 ? (
                         <span title={person.cat_names || ""}>
-                          {person.cat_count} cat{person.cat_count !== 1 ? "s" : ""}
+                          {person.cat_count}
                         </span>
                       ) : (
                         <span className="text-muted">0</span>
@@ -120,7 +174,6 @@ export default function PeoplePage() {
                         <span className="text-muted">0</span>
                       )}
                     </td>
-                    <td>{person.primary_place || <span className="text-muted">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

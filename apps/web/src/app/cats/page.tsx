@@ -9,6 +9,9 @@ interface Cat {
   altered_status: string | null;
   breed: string | null;
   microchip: string | null;
+  quality_tier: string;
+  quality_reason: string;
+  has_microchip: boolean;
   owner_count: number;
   owner_names: string | null;
   primary_place_id: string | null;
@@ -123,6 +126,7 @@ export default function CatsPage() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Confidence</th>
                   <th>Sex</th>
                   <th>Altered</th>
                   <th>Breed</th>
@@ -133,9 +137,18 @@ export default function CatsPage() {
               </thead>
               <tbody>
                 {data.cats.map((cat) => (
-                  <tr key={cat.cat_id}>
+                  <tr key={cat.cat_id} style={cat.quality_tier !== 'A' ? { opacity: 0.8 } : {}}>
                     <td>
                       <a href={`/cats/${cat.cat_id}`}>{cat.display_name}</a>
+                    </td>
+                    <td>
+                      {cat.quality_tier === 'A' ? (
+                        <span className="badge badge-primary" title="Has microchip">Verified</span>
+                      ) : cat.quality_tier === 'B' ? (
+                        <span className="badge" title={cat.quality_reason} style={{ background: '#ffc107', color: '#000' }}>Clinic ID</span>
+                      ) : (
+                        <span className="badge" title={cat.quality_reason} style={{ background: '#dc3545' }}>Unverified</span>
+                      )}
                     </td>
                     <td>{cat.sex || "—"}</td>
                     <td>{cat.altered_status || "—"}</td>
