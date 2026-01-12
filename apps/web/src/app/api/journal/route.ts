@@ -1,90 +1,120 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, query, queryOne } from "@/lib/db";
 
+// Modern journal entry schema (MIG_140)
 interface JournalEntryRow {
-  entry_id: string;
-  content: string;
-  entry_type: string;
-  cat_id: string | null;
-  person_id: string | null;
-  place_id: string | null;
-  appointment_id: string | null;
-  created_by: string;
+  id: string;
+  entry_kind: string;
+  title: string | null;
+  body: string;
+  primary_cat_id: string | null;
+  primary_person_id: string | null;
+  primary_place_id: string | null;
+  primary_request_id: string | null;
+  created_by: string | null;
   created_at: string;
-  observed_at: string | null;
-  source_system: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  occurred_at: string | null;
+  is_archived: boolean;
+  is_pinned: boolean;
+  edit_count: number;
+  tags: string[];
+  // Joined fields
+  cat_name?: string;
+  person_name?: string;
+  place_name?: string;
 }
 
+// GET /api/journal - Fetch journal entries
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
   const catId = searchParams.get("cat_id");
   const personId = searchParams.get("person_id");
   const placeId = searchParams.get("place_id");
-  const appointmentId = searchParams.get("appointment_id");
-  const entryType = searchParams.get("entry_type");
+  const requestId = searchParams.get("request_id");
+  const entryKind = searchParams.get("entry_kind");
+  const includeArchived = searchParams.get("include_archived") === "true";
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
   const offset = parseInt(searchParams.get("offset") || "0", 10);
 
-  const conditions: string[] = ["NOT is_deleted"];
+  const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
 
+  // Filter by archived status
+  if (!includeArchived) {
+    conditions.push("je.is_archived = FALSE");
+  }
+
   if (catId) {
-    conditions.push(`cat_id = $${paramIndex}`);
+    conditions.push(`je.primary_cat_id = $${paramIndex}`);
     params.push(catId);
     paramIndex++;
   }
 
   if (personId) {
-    conditions.push(`person_id = $${paramIndex}`);
+    conditions.push(`je.primary_person_id = $${paramIndex}`);
     params.push(personId);
     paramIndex++;
   }
 
   if (placeId) {
-    conditions.push(`place_id = $${paramIndex}`);
+    conditions.push(`je.primary_place_id = $${paramIndex}`);
     params.push(placeId);
     paramIndex++;
   }
 
-  if (appointmentId) {
-    conditions.push(`appointment_id = $${paramIndex}`);
-    params.push(appointmentId);
+  if (requestId) {
+    conditions.push(`je.primary_request_id = $${paramIndex}`);
+    params.push(requestId);
     paramIndex++;
   }
 
-  if (entryType) {
-    conditions.push(`entry_type = $${paramIndex}::trapper.journal_entry_type`);
-    params.push(entryType);
+  if (entryKind) {
+    conditions.push(`je.entry_kind = $${paramIndex}::trapper.journal_entry_kind`);
+    params.push(entryKind);
     paramIndex++;
   }
 
-  const whereClause = `WHERE ${conditions.join(" AND ")}`;
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   try {
     const sql = `
       SELECT
-        entry_id,
-        content,
-        entry_type::TEXT AS entry_type,
-        cat_id,
-        person_id,
-        place_id,
-        appointment_id,
-        created_by,
-        created_at,
-        observed_at,
-        source_system
-      FROM trapper.journal_entries
+        je.id,
+        je.entry_kind::TEXT AS entry_kind,
+        je.title,
+        je.body,
+        je.primary_cat_id,
+        je.primary_person_id,
+        je.primary_place_id,
+        je.primary_request_id,
+        je.created_by,
+        je.created_at,
+        je.updated_by,
+        je.updated_at,
+        je.occurred_at,
+        je.is_archived,
+        je.is_pinned,
+        je.edit_count,
+        je.tags,
+        c.display_name AS cat_name,
+        p.display_name AS person_name,
+        pl.display_name AS place_name
+      FROM trapper.journal_entries je
+      LEFT JOIN trapper.sot_cats c ON c.cat_id = je.primary_cat_id
+      LEFT JOIN trapper.sot_people p ON p.person_id = je.primary_person_id
+      LEFT JOIN trapper.places pl ON pl.place_id = je.primary_place_id
       ${whereClause}
-      ORDER BY COALESCE(observed_at, created_at) DESC
+      ORDER BY je.is_pinned DESC, COALESCE(je.occurred_at, je.created_at) DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.journal_entries
+      FROM trapper.journal_entries je
       ${whereClause}
     `;
 
@@ -110,82 +140,79 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST /api/journal - Create a new journal entry
 interface CreateEntryBody {
-  content: string;
-  entry_type?: string;
+  body: string;
+  entry_kind?: string;
+  title?: string;
   cat_id?: string;
   person_id?: string;
   place_id?: string;
-  appointment_id?: string;
-  observed_at?: string;
-  created_by: string;
-}
-
-interface EntryRow {
-  entry_id: string;
+  request_id?: string;
+  occurred_at?: string;
+  created_by?: string;
+  tags?: string[];
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateEntryBody = await request.json();
+    const data: CreateEntryBody = await request.json();
 
     // Validation
-    if (!body.content || body.content.trim() === "") {
+    if (!data.body || data.body.trim() === "") {
       return NextResponse.json(
-        { error: "content is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!body.created_by) {
-      return NextResponse.json(
-        { error: "created_by is required" },
+        { error: "body is required" },
         { status: 400 }
       );
     }
 
     // At least one entity must be linked
-    if (!body.cat_id && !body.person_id && !body.place_id && !body.appointment_id) {
+    if (!data.cat_id && !data.person_id && !data.place_id && !data.request_id) {
       return NextResponse.json(
-        { error: "At least one of cat_id, person_id, place_id, or appointment_id is required" },
+        { error: "At least one of cat_id, person_id, place_id, or request_id is required" },
         { status: 400 }
       );
     }
 
-    const entryType = body.entry_type || "note";
+    const entryKind = data.entry_kind || "note";
+    const createdBy = data.created_by || "app_user"; // TODO: Get from auth context
 
-    const result = await queryOne<EntryRow>(
+    const result = await queryOne<{ id: string }>(
       `INSERT INTO trapper.journal_entries (
-        content,
-        entry_type,
-        cat_id,
-        person_id,
-        place_id,
-        appointment_id,
+        body,
+        entry_kind,
+        title,
+        primary_cat_id,
+        primary_person_id,
+        primary_place_id,
+        primary_request_id,
         created_by,
-        observed_at,
-        source_system
+        occurred_at,
+        tags
       ) VALUES (
         $1,
-        $2::trapper.journal_entry_type,
+        $2::trapper.journal_entry_kind,
         $3,
         $4,
         $5,
         $6,
         $7,
         $8,
-        'app'
+        $9,
+        $10
       )
-      RETURNING entry_id`,
+      RETURNING id`,
       [
-        body.content.trim(),
-        entryType,
-        body.cat_id || null,
-        body.person_id || null,
-        body.place_id || null,
-        body.appointment_id || null,
-        body.created_by,
-        body.observed_at || null,
+        data.body.trim(),
+        entryKind,
+        data.title?.trim() || null,
+        data.cat_id || null,
+        data.person_id || null,
+        data.place_id || null,
+        data.request_id || null,
+        createdBy,
+        data.occurred_at || null,
+        data.tags || [],
       ]
     );
 
@@ -197,7 +224,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      entry_id: result.entry_id,
+      id: result.id,
       success: true,
     });
   } catch (error) {

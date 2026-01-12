@@ -74,16 +74,22 @@ interface PersonDetail {
 }
 
 interface JournalEntry {
-  entry_id: string;
-  content: string;
-  entry_type: string;
-  created_by: string;
+  id: string;
+  body: string;
+  title: string | null;
+  entry_kind: string;
+  created_by: string | null;
   created_at: string;
-  observed_at: string | null;
-  source_system: string | null;
-  cat_id: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  occurred_at: string | null;
+  is_archived: boolean;
+  is_pinned: boolean;
+  edit_count: number;
+  tags: string[];
+  primary_cat_id: string | null;
   cat_name?: string | null;
-  place_id: string | null;
+  primary_place_id: string | null;
   place_name?: string | null;
 }
 
@@ -475,10 +481,10 @@ export default function PersonDetailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: newNote,
+          body: newNote,
           person_id: id,
-          entry_type: "note",
-          created_by: "app_user", // TODO: Replace with actual user
+          entry_kind: "note",
+          // created_by defaults to "app_user" - TODO: auth context
         }),
       });
 
@@ -807,54 +813,70 @@ export default function PersonDetailPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {journal.map((entry) => (
               <div
-                key={entry.entry_id}
+                key={entry.id}
                 style={{
                   padding: "1rem",
-                  background: entry.entry_type === "legacy_note" ? "#fff8e1" : "#f8f9fa",
+                  background: entry.is_pinned ? "#e3f2fd" : "#f8f9fa",
                   borderRadius: "8px",
                   borderLeft: `4px solid ${
-                    entry.entry_type === "legacy_note"
-                      ? "#ffc107"
-                      : entry.entry_type === "contact_attempt"
+                    entry.entry_kind === "contact"
                       ? "#17a2b8"
+                      : entry.entry_kind === "medical"
+                      ? "#dc3545"
                       : "#0d6efd"
                   }`,
                 }}
               >
                 <div style={{ marginBottom: "0.5rem" }}>
+                  {entry.is_pinned && (
+                    <span
+                      className="badge"
+                      style={{ marginRight: "0.5rem", background: "#6c757d", fontSize: "0.65rem" }}
+                    >
+                      pinned
+                    </span>
+                  )}
                   <span
                     className="badge"
                     style={{
                       marginRight: "0.5rem",
                       background:
-                        entry.entry_type === "legacy_note"
-                          ? "#ffc107"
-                          : entry.entry_type === "contact_attempt"
+                        entry.entry_kind === "contact"
                           ? "#17a2b8"
+                          : entry.entry_kind === "medical"
+                          ? "#dc3545"
                           : "#0d6efd",
-                      color: entry.entry_type === "legacy_note" ? "#000" : "#fff",
+                      color: "#fff",
                       fontSize: "0.7rem",
                     }}
                   >
-                    {entry.entry_type}
+                    {entry.entry_kind}
                   </span>
                   <span className="text-muted text-sm">
-                    {entry.created_by} &middot;{" "}
-                    {new Date(entry.observed_at || entry.created_at).toLocaleDateString()}
+                    {entry.created_by || "unknown"} &middot;{" "}
+                    {new Date(entry.occurred_at || entry.created_at).toLocaleDateString()}
+                    {entry.edit_count > 0 && (
+                      <span style={{ marginLeft: "0.5rem", fontStyle: "italic" }}>
+                        (edited)
+                      </span>
+                    )}
                   </span>
                 </div>
-                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{entry.content}</p>
+                {entry.title && (
+                  <p style={{ margin: "0 0 0.5rem 0", fontWeight: "bold" }}>{entry.title}</p>
+                )}
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{entry.body}</p>
                 {/* Show linked entities */}
-                {(entry.cat_id || entry.place_id) && (
+                {(entry.primary_cat_id || entry.primary_place_id) && (
                   <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
-                    {entry.cat_id && (
-                      <a href={`/cats/${entry.cat_id}`} className="text-sm">
-                        Cat: {entry.cat_name || entry.cat_id}
+                    {entry.primary_cat_id && (
+                      <a href={`/cats/${entry.primary_cat_id}`} className="text-sm">
+                        Cat: {entry.cat_name || entry.primary_cat_id}
                       </a>
                     )}
-                    {entry.place_id && (
-                      <a href={`/places/${entry.place_id}`} className="text-sm">
-                        Place: {entry.place_name || entry.place_id}
+                    {entry.primary_place_id && (
+                      <a href={`/places/${entry.primary_place_id}`} className="text-sm">
+                        Place: {entry.place_name || entry.primary_place_id}
                       </a>
                     )}
                   </div>
