@@ -72,7 +72,12 @@ export default function PlacesPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: "1.5rem" }}>Places</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <h1 style={{ margin: 0 }}>Places</h1>
+        <a href="/places/new" className="btn btn-primary" style={{ textDecoration: "none" }}>
+          + New Place
+        </a>
+      </div>
 
       <form onSubmit={handleSearch} className="filters">
         <input

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import EntityPreview from "@/components/EntityPreview";
 
 interface SearchResult {
   entity_type: string;
@@ -23,11 +24,26 @@ interface DeepSearchResult {
   score: number;
 }
 
+interface IntakeResult {
+  record_type: string;
+  record_id: string;
+  display_name: string;
+  subtitle: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  submitted_at: string | null;
+  status: string | null;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
 interface SearchResponse {
   query: string;
   mode: string;
   results: SearchResult[];
   possible_matches?: SearchResult[];
+  intake_records?: IntakeResult[];
   counts_by_type?: Record<string, number>;
   total: number;
   timing_ms: number;
@@ -209,9 +225,14 @@ function SearchContent() {
                                 {result.match_strength}
                               </span>
                               {link ? (
-                                <a href={link} className="search-result-title">
-                                  {result.display_name}
-                                </a>
+                                <EntityPreview
+                                  entityType={result.entity_type as "cat" | "person" | "place"}
+                                  entityId={result.entity_id}
+                                >
+                                  <a href={link} className="search-result-title">
+                                    {result.display_name}
+                                  </a>
+                                </EntityPreview>
                               ) : (
                                 <span className="search-result-title">
                                   {result.display_name}
@@ -246,9 +267,14 @@ function SearchContent() {
                               <span className="text-sm">{getEntityIcon(result.entity_type)}</span>
                               <span className="badge">weak</span>
                               {link ? (
-                                <a href={link} className="search-result-title">
-                                  {result.display_name}
-                                </a>
+                                <EntityPreview
+                                  entityType={result.entity_type as "cat" | "person" | "place"}
+                                  entityId={result.entity_id}
+                                >
+                                  <a href={link} className="search-result-title">
+                                    {result.display_name}
+                                  </a>
+                                </EntityPreview>
                               ) : (
                                 <span className="search-result-title">
                                   {result.display_name}
@@ -261,6 +287,46 @@ function SearchContent() {
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {data.intake_records && data.intake_records.length > 0 && (
+                    <div className="results-section" style={{ marginTop: "2rem" }}>
+                      <h2 style={{ fontSize: "1.1rem", marginBottom: "1rem", color: "var(--muted)" }}>
+                        Unlinked Records
+                      </h2>
+                      <p className="text-sm text-muted mb-4">
+                        Raw intake records that need review. These may contain typos or incomplete data.
+                      </p>
+                      {data.intake_records.map((record) => (
+                        <div key={`intake-${record.record_type}-${record.record_id}`} className="search-result" style={{ borderLeft: "3px solid var(--muted)" }}>
+                          <div className="search-result-header">
+                            <span className="badge" style={{ background: "#f0ad4e", color: "#000" }}>
+                              {record.record_type === "appointment_request" ? "Appt Request" : "Trapping Request"}
+                            </span>
+                            <span className="search-result-title">
+                              {record.display_name}
+                            </span>
+                          </div>
+                          <div className="search-result-subtitle">
+                            {record.address && <div>{record.address}</div>}
+                            {(record.phone || record.email) && (
+                              <div style={{ marginTop: "0.25rem" }}>
+                                {record.phone && <span>{record.phone}</span>}
+                                {record.phone && record.email && <span> &bull; </span>}
+                                {record.email && <span>{record.email}</span>}
+                              </div>
+                            )}
+                          </div>
+                          <div className="search-result-match">
+                            {record.status && <span>Status: {record.status} &bull; </span>}
+                            {record.submitted_at && (
+                              <span>Submitted: {new Date(record.submitted_at).toLocaleDateString()}</span>
+                            )}
+                            <span> (score: {record.score})</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </>

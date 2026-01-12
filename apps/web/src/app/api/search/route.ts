@@ -29,21 +29,39 @@ interface CountResult {
   weak_count: string;
 }
 
+interface IntakeResult {
+  record_type: string;
+  record_id: string;
+  display_name: string;
+  subtitle: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  submitted_at: string | null;
+  status: string | null;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
 const STRONG_THRESHOLD = 5;  // If fewer than this many strong results, include possible matches
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const searchParams = request.nextUrl.searchParams;
 
-  const q = searchParams.get("q");
+  const rawQuery = searchParams.get("q");
   const entityType = searchParams.get("type");
   const mode = searchParams.get("mode") || "canonical";
   const limit = Math.min(parseInt(searchParams.get("limit") || "25", 10), 100);
   const offset = parseInt(searchParams.get("offset") || "0", 10);
   const includePossible = searchParams.get("include_possible") !== "false";
+  const includeIntake = searchParams.get("include_intake") !== "false";
   const suggestionsOnly = searchParams.get("suggestions") === "true";
 
-  if (!q || q.trim().length === 0) {
+  // Normalize query: trim whitespace, collapse multiple spaces
+  const q = rawQuery?.trim().replace(/\s+/g, ' ') || "";
+
+  if (!q || q.length === 0) {
     return NextResponse.json(
       { error: "Search query 'q' is required" },
       { status: 400 }
@@ -180,12 +198,38 @@ export async function GET(request: NextRequest) {
 
     const suggestions = await queryRows<SearchResult>(suggestionsSql, [q]);
 
+    // Search intake records (unlinked appointment requests, trapping requests)
+    let intakeResults: IntakeResult[] = [];
+    if (includeIntake && !typeParam) {
+      try {
+        const intakeSql = `
+          SELECT
+            record_type,
+            record_id,
+            display_name,
+            subtitle,
+            address,
+            phone,
+            email,
+            submitted_at,
+            status,
+            score,
+            metadata
+          FROM trapper.search_intake($1, $2)
+        `;
+        intakeResults = await queryRows<IntakeResult>(intakeSql, [q, 10]);
+      } catch {
+        // search_intake may not exist yet, ignore error
+      }
+    }
+
     return NextResponse.json({
       query: q,
       mode: "canonical",
       suggestions,
       results: strongResults.length > 0 ? strongResults : results.slice(0, limit),
       possible_matches: possibleMatches,
+      intake_records: intakeResults,
       counts_by_type: countsByType,
       total: totalCount,
       limit,

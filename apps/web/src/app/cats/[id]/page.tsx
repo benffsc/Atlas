@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 
 interface Owner {
@@ -22,23 +22,231 @@ interface Identifier {
   source: string | null;
 }
 
+interface ClinicVisit {
+  visit_date: string;
+  appt_number: string;
+  client_name: string;
+  client_address: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  ownership_type: string | null;
+}
+
 interface CatDetail {
   cat_id: string;
   display_name: string;
   sex: string | null;
   altered_status: string | null;
+  altered_by_clinic: boolean | null; // TRUE if we performed the spay/neuter
   breed: string | null;
   color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
+  data_source: string | null; // clinichq, petlink, or legacy_import
+  ownership_type: string | null; // Community Cat (Feral), Owned, etc.
   quality_tier: string | null;
   quality_reason: string | null;
   notes: string | null;
   identifiers: Identifier[];
   owners: Owner[];
   places: Place[];
+  clinic_history: ClinicVisit[];
   created_at: string;
   updated_at: string;
+}
+
+interface Appointment {
+  appointment_id: string;
+  scheduled_at: string;
+  scheduled_date: string;
+  status: string;
+  appointment_type: string;
+  provider_name: string | null;
+  person_name: string | null;
+  person_id: string | null;
+  place_name: string | null;
+  source_system: string;
+}
+
+interface JournalEntry {
+  entry_id: string;
+  content: string;
+  entry_type: string;
+  created_by: string;
+  created_at: string;
+  observed_at: string | null;
+  source_system: string | null;
+  person_id: string | null;
+  person_name?: string | null;
+  place_id: string | null;
+  place_name?: string | null;
+}
+
+// Data source badge - ClinicHQ patients vs PetLink-only
+function DataSourceBadge({ dataSource }: { dataSource: string | null }) {
+  if (dataSource === "clinichq") {
+    return (
+      <span
+        className="badge"
+        style={{ background: "#198754", color: "#fff", fontSize: "0.5em" }}
+        title="This cat has been to the clinic - verified ClinicHQ patient"
+      >
+        ClinicHQ Patient
+      </span>
+    );
+  }
+  if (dataSource === "petlink") {
+    return (
+      <span
+        className="badge"
+        style={{ background: "#6c757d", color: "#fff", fontSize: "0.5em" }}
+        title="PetLink microchip registration only - no clinic history"
+      >
+        PetLink Only
+      </span>
+    );
+  }
+  if (dataSource === "legacy_import") {
+    return (
+      <span
+        className="badge"
+        style={{ background: "#ffc107", color: "#000", fontSize: "0.5em" }}
+        title="Imported from legacy system"
+      >
+        Legacy Import
+      </span>
+    );
+  }
+  return null;
+}
+
+// Ownership type badge - Unowned (community cats) vs Owned vs Foster
+function OwnershipTypeBadge({ ownershipType }: { ownershipType: string | null }) {
+  if (!ownershipType) return null;
+
+  const lowerType = ownershipType.toLowerCase();
+
+  // Community Cat (Feral) and Community Cat (Friendly) both → Unowned
+  if (lowerType.includes("community") || lowerType.includes("feral") || lowerType.includes("stray")) {
+    return (
+      <span
+        className="badge"
+        style={{ background: "#dc3545", color: "#fff", fontSize: "0.5em" }}
+        title={`Unowned (${ownershipType})`}
+      >
+        Unowned
+      </span>
+    );
+  }
+  if (lowerType === "owned") {
+    return (
+      <span
+        className="badge"
+        style={{ background: "#0d6efd", color: "#fff", fontSize: "0.5em" }}
+        title="Owned cat - has an owner"
+      >
+        Owned
+      </span>
+    );
+  }
+  if (lowerType === "foster") {
+    return (
+      <span
+        className="badge"
+        style={{ background: "#6f42c1", color: "#fff", fontSize: "0.5em" }}
+        title="Foster cat - in foster care"
+      >
+        Foster
+      </span>
+    );
+  }
+  // Unknown type - show as-is
+  return (
+    <span
+      className="badge"
+      style={{ background: "#6c757d", color: "#fff", fontSize: "0.5em" }}
+      title={ownershipType}
+    >
+      {ownershipType}
+    </span>
+  );
+}
+
+// Section component for read-only display with edit toggle
+function Section({
+  title,
+  children,
+  onEdit,
+  editMode = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onEdit?: () => void;
+  editMode?: boolean;
+}) {
+  return (
+    <div className="detail-section">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2>{title}</h2>
+        {onEdit && !editMode && (
+          <button
+            onClick={onEdit}
+            style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Clickable link pill for related entities
+function EntityLink({
+  href,
+  label,
+  badge,
+  badgeColor,
+}: {
+  href: string;
+  label: string;
+  badge?: string;
+  badgeColor?: string;
+}) {
+  return (
+    <a
+      href={href}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.5rem 1rem",
+        background: "var(--card-bg, #f8f9fa)",
+        borderRadius: "8px",
+        textDecoration: "none",
+        color: "var(--foreground, #212529)",
+        border: "1px solid var(--border, #dee2e6)",
+        transition: "all 0.15s",
+      }}
+      onMouseOver={(e) => {
+        e.currentTarget.style.borderColor = "#adb5bd";
+      }}
+      onMouseOut={(e) => {
+        e.currentTarget.style.borderColor = "var(--border, #dee2e6)";
+      }}
+    >
+      <span>{label}</span>
+      {badge && (
+        <span
+          className="badge"
+          style={{ background: badgeColor || "#6c757d", color: "#fff", fontSize: "0.7rem" }}
+        >
+          {badge}
+        </span>
+      )}
+    </a>
+  );
 }
 
 export default function CatDetailPage() {
@@ -46,36 +254,98 @@ export default function CatDetailPage() {
   const id = params.id as string;
 
   const [cat, setCat] = useState<CatDetail | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit modes per section
+  const [editingBasic, setEditingBasic] = useState(false);
+
+  // New journal entry
+  const [newNote, setNewNote] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+
+  const fetchCat = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/cats/${id}`);
+      if (response.status === 404) {
+        setError("Cat not found");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error("Failed to fetch cat details");
+      }
+      const result: CatDetail = await response.json();
+      setCat(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  }, [id]);
+
+  const fetchAppointments = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/appointments?cat_id=${id}&limit=20`);
+      if (response.ok) {
+        const data = await response.json();
+        setAppointments(data.appointments || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch appointments:", err);
+    }
+  }, [id]);
+
+  const fetchJournal = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/journal?cat_id=${id}&limit=50`);
+      if (response.ok) {
+        const data = await response.json();
+        setJournal(data.entries || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch journal:", err);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
 
-    const fetchCat = async () => {
+    const loadData = async () => {
       setLoading(true);
       setError(null);
-
-      try {
-        const response = await fetch(`/api/cats/${id}`);
-        if (response.status === 404) {
-          setError("Cat not found");
-          return;
-        }
-        if (!response.ok) {
-          throw new Error("Failed to fetch cat details");
-        }
-        const result: CatDetail = await response.json();
-        setCat(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
-      }
+      await Promise.all([fetchCat(), fetchAppointments(), fetchJournal()]);
+      setLoading(false);
     };
 
-    fetchCat();
-  }, [id]);
+    loadData();
+  }, [id, fetchCat, fetchAppointments, fetchJournal]);
+
+  const handleAddNote = async () => {
+    if (!newNote.trim()) return;
+
+    setAddingNote(true);
+    try {
+      const response = await fetch("/api/journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: newNote,
+          cat_id: id,
+          entry_type: "note",
+          created_by: "app_user", // TODO: Replace with actual user
+        }),
+      });
+
+      if (response.ok) {
+        setNewNote("");
+        await fetchJournal();
+      }
+    } catch (err) {
+      console.error("Failed to add note:", err);
+    } finally {
+      setAddingNote(false);
+    }
+  };
 
   if (loading) {
     return <div className="loading">Loading cat details...</div>;
@@ -90,9 +360,6 @@ export default function CatDetailPage() {
           <p className="text-muted" style={{ marginTop: "0.5rem" }}>
             Cat ID: <code>{id}</code>
           </p>
-          <p className="text-muted text-sm" style={{ marginTop: "1rem" }}>
-            This record may be incomplete, filtered, or not yet imported.
-          </p>
         </div>
       </div>
     );
@@ -102,159 +369,348 @@ export default function CatDetailPage() {
     return <div className="empty">Cat not found</div>;
   }
 
+  const tierColors: Record<string, string> = {
+    A: "#198754",
+    B: "#ffc107",
+    C: "#fd7e14",
+    D: "#dc3545",
+  };
+
   return (
     <div>
       <a href="/cats">&larr; Back to cats</a>
 
+      {/* Header */}
       <div className="detail-header" style={{ marginTop: "1rem" }}>
-        <h1>
+        <h1 style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           {cat.display_name}
+          <DataSourceBadge dataSource={cat.data_source} />
+          <OwnershipTypeBadge ownershipType={cat.ownership_type} />
           {cat.quality_tier && (
             <span
               className="badge"
               style={{
-                marginLeft: "0.5rem",
                 fontSize: "0.5em",
-                verticalAlign: "middle",
-                background: cat.quality_tier === 'A' ? '#198754' : cat.quality_tier === 'B' ? '#ffc107' : '#dc3545',
-                color: cat.quality_tier === 'B' ? '#000' : '#fff'
+                background: tierColors[cat.quality_tier] || "#6c757d",
+                color: cat.quality_tier === "B" ? "#000" : "#fff",
               }}
               title={cat.quality_reason || undefined}
             >
-              {cat.quality_tier === 'A' ? 'Verified' : cat.quality_tier === 'B' ? 'Clinic ID' : 'Unverified'}
+              {cat.quality_tier === "A"
+                ? "Verified (Microchip)"
+                : cat.quality_tier === "B"
+                ? "Clinic ID"
+                : cat.quality_tier === "C"
+                ? "Other ID"
+                : "Name Only"}
             </span>
           )}
         </h1>
-        <p className="text-muted text-sm">
-          ID: {cat.cat_id}
-        </p>
+        <p className="text-muted text-sm">ID: {cat.cat_id}</p>
       </div>
 
-      <div className="detail-section">
-        <h2>Basic Information</h2>
-        <div className="detail-grid">
-          <div className="detail-item">
-            <span className="detail-label">Sex</span>
-            <span className="detail-value">{cat.sex || "Unknown"}</span>
+      {/* Basic Information */}
+      <Section
+        title="Basic Information"
+        onEdit={() => setEditingBasic(true)}
+        editMode={editingBasic}
+      >
+        {editingBasic ? (
+          <div>
+            <p className="text-muted text-sm">
+              Editing not yet implemented. <button onClick={() => setEditingBasic(false)}>Cancel</button>
+            </p>
           </div>
-          <div className="detail-item">
-            <span className="detail-label">Altered Status</span>
-            <span className="detail-value">{cat.altered_status || "Unknown"}</span>
+        ) : (
+          <div className="detail-grid">
+            <div className="detail-item">
+              <span className="detail-label">Sex</span>
+              <span className="detail-value">{cat.sex || "Unknown"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Altered Status</span>
+              <span className="detail-value">
+                {cat.altered_status || "Unknown"}
+                {cat.altered_status === "Yes" && (
+                  <span
+                    className="badge"
+                    style={{
+                      marginLeft: "0.5rem",
+                      background: cat.altered_by_clinic ? "#198754" : "#6c757d",
+                      color: "#fff",
+                      fontSize: "0.7rem",
+                    }}
+                    title={cat.altered_by_clinic
+                      ? "We performed this spay/neuter (billed service item)"
+                      : "Already altered or done elsewhere"}
+                  >
+                    {cat.altered_by_clinic ? "By Clinic" : "Prior/Other"}
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Breed</span>
+              <span className="detail-value">{cat.breed || "Unknown"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Color</span>
+              <span className="detail-value">{cat.color || "Unknown"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Coat Pattern</span>
+              <span className="detail-value">{cat.coat_pattern || "Unknown"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Microchip</span>
+              <span className="detail-value" style={{ fontFamily: "monospace" }}>
+                {cat.microchip || "None"}
+              </span>
+            </div>
           </div>
-          <div className="detail-item">
-            <span className="detail-label">Breed</span>
-            <span className="detail-value">{cat.breed || "Unknown"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Color</span>
-            <span className="detail-value">{cat.color || "Unknown"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Coat Pattern</span>
-            <span className="detail-value">{cat.coat_pattern || "Unknown"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Microchip</span>
-            <span className="detail-value">{cat.microchip || "None"}</span>
-          </div>
-        </div>
-      </div>
+        )}
+      </Section>
 
-      {cat.notes && (
-        <div className="detail-section">
-          <h2>Notes</h2>
-          <p>{cat.notes}</p>
-        </div>
-      )}
-
+      {/* Identifiers */}
       {cat.identifiers && cat.identifiers.length > 0 && (
-        <div className="detail-section">
-          <h2>Identifiers</h2>
+        <Section title="Identifiers">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+            {cat.identifiers.map((ident, idx) => (
+              <div
+                key={idx}
+                className="identifier-badge"
+              >
+                <strong>{ident.type}:</strong>{" "}
+                <code>{ident.value}</code>
+                {ident.source && (
+                  <span className="text-muted" style={{ marginLeft: "0.5rem" }}>
+                    ({ident.source})
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Owners - Clickable Links */}
+      <Section title="People">
+        {cat.owners && cat.owners.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+            {cat.owners.map((owner) => (
+              <EntityLink
+                key={owner.person_id}
+                href={`/people/${owner.person_id}`}
+                label={owner.display_name}
+                badge={owner.role}
+                badgeColor={owner.role === "owner" ? "#0d6efd" : "#6c757d"}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted">No people linked to this cat.</p>
+        )}
+      </Section>
+
+      {/* Places - Clickable Links */}
+      <Section title="Places">
+        {cat.places && cat.places.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+            {cat.places.map((place) => (
+              <EntityLink
+                key={place.place_id}
+                href={`/places/${place.place_id}`}
+                label={place.label}
+                badge={place.place_kind || place.role}
+                badgeColor={place.role === "residence" ? "#198754" : "#6c757d"}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted">No places linked to this cat.</p>
+        )}
+      </Section>
+
+      {/* Clinic History - Who brought this cat to clinic */}
+      {cat.clinic_history && cat.clinic_history.length > 0 && (
+        <Section title="Clinic History">
+          <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
+            Who brought this cat to clinic (from ClinicHQ records)
+          </p>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
+                  <th>Date</th>
+                  <th>Client</th>
+                  <th>Address</th>
                   <th>Type</th>
-                  <th>Value</th>
-                  <th>Source</th>
                 </tr>
               </thead>
               <tbody>
-                {cat.identifiers.map((ident, idx) => (
+                {cat.clinic_history.map((visit, idx) => (
                   <tr key={idx}>
-                    <td>{ident.type}</td>
-                    <td>{ident.value}</td>
-                    <td>{ident.source || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {cat.owners && cat.owners.length > 0 && (
-        <div className="detail-section">
-          <h2>Owners</h2>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Role</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cat.owners.map((owner) => (
-                  <tr key={owner.person_id}>
+                    <td>{new Date(visit.visit_date).toLocaleDateString()}</td>
                     <td>
-                      <a href={`/people/${owner.person_id}`}>{owner.display_name}</a>
+                      <div style={{ fontWeight: 500 }}>{visit.client_name}</div>
+                      {visit.client_email && (
+                        <div className="text-muted text-sm">{visit.client_email}</div>
+                      )}
+                      {visit.client_phone && (
+                        <div className="text-muted text-sm">{visit.client_phone}</div>
+                      )}
                     </td>
                     <td>
-                      <span className="badge">{owner.role}</span>
+                      {visit.client_address || <span className="text-muted">—</span>}
+                    </td>
+                    <td>
+                      {visit.ownership_type && (
+                        <span
+                          className="badge"
+                          style={{
+                            background: visit.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd",
+                            color: "#fff",
+                            fontSize: "0.7rem",
+                          }}
+                        >
+                          {visit.ownership_type}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </Section>
       )}
 
-      {cat.places && cat.places.length > 0 && (
-        <div className="detail-section">
-          <h2>Places</h2>
+      {/* Appointments */}
+      <Section title="Appointments">
+        {appointments.length > 0 ? (
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Location</th>
+                  <th>Date</th>
+                  <th>Status</th>
                   <th>Type</th>
-                  <th>Relationship</th>
+                  <th>Provider</th>
+                  <th>Client</th>
                 </tr>
               </thead>
               <tbody>
-                {cat.places.map((place) => (
-                  <tr key={place.place_id}>
+                {appointments.map((appt) => (
+                  <tr key={appt.appointment_id}>
+                    <td>{new Date(appt.scheduled_date).toLocaleDateString()}</td>
                     <td>
-                      <a href={`/places/${place.place_id}`}>{place.label}</a>
-                    </td>
-                    <td>
-                      <span className="badge badge-primary">
-                        {place.place_kind || "place"}
+                      <span
+                        className="badge"
+                        style={{
+                          background:
+                            appt.status === "completed"
+                              ? "#198754"
+                              : appt.status === "scheduled"
+                              ? "#0d6efd"
+                              : appt.status === "cancelled"
+                              ? "#dc3545"
+                              : "#6c757d",
+                        }}
+                      >
+                        {appt.status}
                       </span>
                     </td>
-                    <td>{place.role}</td>
+                    <td>{appt.appointment_type !== "unknown" ? appt.appointment_type : "—"}</td>
+                    <td>{appt.provider_name || "—"}</td>
+                    <td>
+                      {appt.person_id ? (
+                        <a href={`/people/${appt.person_id}`}>{appt.person_name}</a>
+                      ) : (
+                        appt.person_name || "—"
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-muted">No appointments found for this cat.</p>
+        )}
+      </Section>
 
-      <div className="detail-section">
-        <h2>Metadata</h2>
+      {/* Journal / Notes */}
+      <Section title="Journal">
+        {/* Add new note */}
+        <div style={{ marginBottom: "1rem" }}>
+          <textarea
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            placeholder="Add a note..."
+            rows={2}
+            style={{ width: "100%", resize: "vertical" }}
+          />
+          <button
+            onClick={handleAddNote}
+            disabled={addingNote || !newNote.trim()}
+            style={{ marginTop: "0.5rem" }}
+          >
+            {addingNote ? "Adding..." : "Add Note"}
+          </button>
+        </div>
+
+        {/* Existing entries */}
+        {journal.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {journal.map((entry) => (
+              <div
+                key={entry.entry_id}
+                style={{
+                  padding: "1rem",
+                  background: entry.entry_type === "legacy_note" ? "#fff8e1" : "#f8f9fa",
+                  borderRadius: "8px",
+                  borderLeft: `4px solid ${
+                    entry.entry_type === "legacy_note"
+                      ? "#ffc107"
+                      : entry.entry_type === "medical"
+                      ? "#dc3545"
+                      : "#0d6efd"
+                  }`,
+                }}
+              >
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <span
+                    className="badge"
+                    style={{
+                      marginRight: "0.5rem",
+                      background:
+                        entry.entry_type === "legacy_note"
+                          ? "#ffc107"
+                          : entry.entry_type === "medical"
+                          ? "#dc3545"
+                          : "#0d6efd",
+                      color: entry.entry_type === "legacy_note" ? "#000" : "#fff",
+                      fontSize: "0.7rem",
+                    }}
+                  >
+                    {entry.entry_type}
+                  </span>
+                  <span className="text-muted text-sm">
+                    {entry.created_by} &middot;{" "}
+                    {new Date(entry.observed_at || entry.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{entry.content}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted">No journal entries yet.</p>
+        )}
+      </Section>
+
+      {/* Metadata */}
+      <Section title="Metadata">
         <div className="detail-grid">
           <div className="detail-item">
             <span className="detail-label">Created</span>
@@ -269,7 +725,7 @@ export default function CatDetailPage() {
             </span>
           </div>
         </div>
-      </div>
+      </Section>
     </div>
   );
 }
