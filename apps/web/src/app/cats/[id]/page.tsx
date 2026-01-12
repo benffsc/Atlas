@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import JournalSection, { JournalEntry } from "@/components/JournalSection";
 
 interface Owner {
   person_id: string;
@@ -66,26 +67,6 @@ interface Appointment {
   person_id: string | null;
   place_name: string | null;
   source_system: string;
-}
-
-interface JournalEntry {
-  id: string;
-  body: string;
-  title: string | null;
-  entry_kind: string;
-  created_by: string | null;
-  created_at: string;
-  updated_by: string | null;
-  updated_at: string;
-  occurred_at: string | null;
-  is_archived: boolean;
-  is_pinned: boolean;
-  edit_count: number;
-  tags: string[];
-  primary_person_id: string | null;
-  person_name?: string | null;
-  primary_place_id: string | null;
-  place_name?: string | null;
 }
 
 // Data source badge - ClinicHQ patients vs PetLink-only
@@ -268,10 +249,6 @@ export default function CatDetailPage() {
   // Edit modes per section
   const [editingBasic, setEditingBasic] = useState(false);
 
-  // New journal entry
-  const [newNote, setNewNote] = useState("");
-  const [addingNote, setAddingNote] = useState(false);
-
   const fetchCat = useCallback(async () => {
     try {
       const response = await fetch(`/api/cats/${id}`);
@@ -325,33 +302,6 @@ export default function CatDetailPage() {
 
     loadData();
   }, [id, fetchCat, fetchAppointments, fetchJournal]);
-
-  const handleAddNote = async () => {
-    if (!newNote.trim()) return;
-
-    setAddingNote(true);
-    try {
-      const response = await fetch("/api/journal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          body: newNote,
-          cat_id: id,
-          entry_kind: "note",
-          // created_by will default to "app_user" in API - TODO: auth context
-        }),
-      });
-
-      if (response.ok) {
-        setNewNote("");
-        await fetchJournal();
-      }
-    } catch (err) {
-      console.error("Failed to add note:", err);
-    } finally {
-      setAddingNote(false);
-    }
-  };
 
   if (loading) {
     return <div className="loading">Loading cat details...</div>;
@@ -647,97 +597,26 @@ export default function CatDetailPage() {
 
       {/* Journal / Notes */}
       <Section title="Journal">
-        {/* Add new note */}
-        <div style={{ marginBottom: "1rem" }}>
-          <textarea
-            value={newNote}
-            onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Add a note..."
-            rows={2}
-            style={{ width: "100%", resize: "vertical" }}
-          />
-          <button
-            onClick={handleAddNote}
-            disabled={addingNote || !newNote.trim()}
-            style={{ marginTop: "0.5rem" }}
-          >
-            {addingNote ? "Adding..." : "Add Note"}
-          </button>
-        </div>
-
-        {/* Existing entries */}
-        {journal.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {journal.map((entry) => (
-              <div
-                key={entry.id}
-                style={{
-                  padding: "1rem",
-                  background: entry.is_pinned ? "#e3f2fd" : "#f8f9fa",
-                  borderRadius: "8px",
-                  borderLeft: `4px solid ${
-                    entry.entry_kind === "medical"
-                      ? "#dc3545"
-                      : entry.entry_kind === "contact"
-                      ? "#17a2b8"
-                      : entry.entry_kind === "field_visit"
-                      ? "#28a745"
-                      : "#0d6efd"
-                  }`,
-                }}
-              >
-                <div style={{ marginBottom: "0.5rem" }}>
-                  {entry.is_pinned && (
-                    <span
-                      className="badge"
-                      style={{ marginRight: "0.5rem", background: "#6c757d", fontSize: "0.65rem" }}
-                    >
-                      pinned
-                    </span>
-                  )}
-                  <span
-                    className="badge"
-                    style={{
-                      marginRight: "0.5rem",
-                      background:
-                        entry.entry_kind === "medical"
-                          ? "#dc3545"
-                          : entry.entry_kind === "contact"
-                          ? "#17a2b8"
-                          : entry.entry_kind === "field_visit"
-                          ? "#28a745"
-                          : "#0d6efd",
-                      color: "#fff",
-                      fontSize: "0.7rem",
-                    }}
-                  >
-                    {entry.entry_kind}
-                  </span>
-                  <span className="text-muted text-sm">
-                    {entry.created_by || "unknown"} &middot;{" "}
-                    {new Date(entry.occurred_at || entry.created_at).toLocaleDateString()}
-                    {entry.edit_count > 0 && (
-                      <span style={{ marginLeft: "0.5rem", fontStyle: "italic" }}>
-                        (edited)
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {entry.title && (
-                  <p style={{ margin: "0 0 0.5rem 0", fontWeight: "bold" }}>{entry.title}</p>
-                )}
-                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{entry.body}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">No journal entries yet.</p>
-        )}
+        <JournalSection
+          entries={journal}
+          entityType="cat"
+          entityId={id}
+          onEntryAdded={fetchJournal}
+        />
       </Section>
 
       {/* Metadata */}
       <Section title="Metadata">
         <div className="detail-grid">
+          <div className="detail-item">
+            <span className="detail-label">Data Source</span>
+            <span className="detail-value">
+              {cat.data_source === "clinichq" ? "ClinicHQ" :
+               cat.data_source === "petlink" ? "PetLink (microchip only)" :
+               cat.data_source === "legacy_import" ? "Legacy Import" :
+               cat.data_source || "Unknown"}
+            </span>
+          </div>
           <div className="detail-item">
             <span className="detail-label">Created</span>
             <span className="detail-value">

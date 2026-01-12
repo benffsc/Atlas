@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import JournalSection, { JournalEntry } from "@/components/JournalSection";
 
 interface Cat {
   cat_id: string;
@@ -71,26 +72,6 @@ interface PersonDetail {
   data_source: string | null;
   identifiers: PersonIdentifier[] | null;
   entity_type: string | null;
-}
-
-interface JournalEntry {
-  id: string;
-  body: string;
-  title: string | null;
-  entry_kind: string;
-  created_by: string | null;
-  created_at: string;
-  updated_by: string | null;
-  updated_at: string;
-  occurred_at: string | null;
-  is_archived: boolean;
-  is_pinned: boolean;
-  edit_count: number;
-  tags: string[];
-  primary_cat_id: string | null;
-  cat_name?: string | null;
-  primary_place_id: string | null;
-  place_name?: string | null;
 }
 
 interface RelatedRequest {
@@ -368,10 +349,6 @@ export default function PersonDetailPage() {
   const [addressInput, setAddressInput] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
 
-  // New journal entry
-  const [newNote, setNewNote] = useState("");
-  const [addingNote, setAddingNote] = useState(false);
-
   const fetchPerson = useCallback(async () => {
     try {
       const response = await fetch(`/api/people/${id}`);
@@ -469,33 +446,6 @@ export default function PersonDetailPage() {
       console.error("Failed to remove address:", err);
     } finally {
       setSavingAddress(false);
-    }
-  };
-
-  const handleAddNote = async () => {
-    if (!newNote.trim()) return;
-
-    setAddingNote(true);
-    try {
-      const response = await fetch("/api/journal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          body: newNote,
-          person_id: id,
-          entry_kind: "note",
-          // created_by defaults to "app_user" - TODO: auth context
-        }),
-      });
-
-      if (response.ok) {
-        setNewNote("");
-        await fetchJournal();
-      }
-    } catch (err) {
-      console.error("Failed to add note:", err);
-    } finally {
-      setAddingNote(false);
     }
   };
 
@@ -790,103 +740,12 @@ export default function PersonDetailPage() {
 
       {/* Journal / Notes */}
       <Section title="Journal">
-        {/* Add new note */}
-        <div style={{ marginBottom: "1rem" }}>
-          <textarea
-            value={newNote}
-            onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Add a note..."
-            rows={2}
-            style={{ width: "100%", resize: "vertical" }}
-          />
-          <button
-            onClick={handleAddNote}
-            disabled={addingNote || !newNote.trim()}
-            style={{ marginTop: "0.5rem" }}
-          >
-            {addingNote ? "Adding..." : "Add Note"}
-          </button>
-        </div>
-
-        {/* Existing entries */}
-        {journal.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {journal.map((entry) => (
-              <div
-                key={entry.id}
-                style={{
-                  padding: "1rem",
-                  background: entry.is_pinned ? "#e3f2fd" : "#f8f9fa",
-                  borderRadius: "8px",
-                  borderLeft: `4px solid ${
-                    entry.entry_kind === "contact"
-                      ? "#17a2b8"
-                      : entry.entry_kind === "medical"
-                      ? "#dc3545"
-                      : "#0d6efd"
-                  }`,
-                }}
-              >
-                <div style={{ marginBottom: "0.5rem" }}>
-                  {entry.is_pinned && (
-                    <span
-                      className="badge"
-                      style={{ marginRight: "0.5rem", background: "#6c757d", fontSize: "0.65rem" }}
-                    >
-                      pinned
-                    </span>
-                  )}
-                  <span
-                    className="badge"
-                    style={{
-                      marginRight: "0.5rem",
-                      background:
-                        entry.entry_kind === "contact"
-                          ? "#17a2b8"
-                          : entry.entry_kind === "medical"
-                          ? "#dc3545"
-                          : "#0d6efd",
-                      color: "#fff",
-                      fontSize: "0.7rem",
-                    }}
-                  >
-                    {entry.entry_kind}
-                  </span>
-                  <span className="text-muted text-sm">
-                    {entry.created_by || "unknown"} &middot;{" "}
-                    {new Date(entry.occurred_at || entry.created_at).toLocaleDateString()}
-                    {entry.edit_count > 0 && (
-                      <span style={{ marginLeft: "0.5rem", fontStyle: "italic" }}>
-                        (edited)
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {entry.title && (
-                  <p style={{ margin: "0 0 0.5rem 0", fontWeight: "bold" }}>{entry.title}</p>
-                )}
-                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{entry.body}</p>
-                {/* Show linked entities */}
-                {(entry.primary_cat_id || entry.primary_place_id) && (
-                  <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
-                    {entry.primary_cat_id && (
-                      <a href={`/cats/${entry.primary_cat_id}`} className="text-sm">
-                        Cat: {entry.cat_name || entry.primary_cat_id}
-                      </a>
-                    )}
-                    {entry.primary_place_id && (
-                      <a href={`/places/${entry.primary_place_id}`} className="text-sm">
-                        Place: {entry.place_name || entry.primary_place_id}
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">No journal entries yet.</p>
-        )}
+        <JournalSection
+          entries={journal}
+          entityType="person"
+          entityId={id}
+          onEntryAdded={fetchJournal}
+        />
       </Section>
 
       {/* Data Sources - shows where this person's data came from */}
