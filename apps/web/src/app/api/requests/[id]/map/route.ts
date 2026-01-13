@@ -68,10 +68,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   );
 
   // Build Google Static Maps URL
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  // Try multiple possible env var names for the Google API key
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Google Maps API key not configured" },
+      { error: "Google Maps API key not configured (set GOOGLE_MAPS_API_KEY or GOOGLE_PLACES_API_KEY)" },
       { status: 500 }
     );
   }
