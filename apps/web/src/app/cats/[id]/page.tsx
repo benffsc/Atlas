@@ -33,6 +33,57 @@ interface ClinicVisit {
   ownership_type: string | null;
 }
 
+interface CatVital {
+  vital_id: string;
+  recorded_at: string;
+  temperature_f: number | null;
+  weight_lbs: number | null;
+  is_pregnant: boolean;
+  is_lactating: boolean;
+  is_in_heat: boolean;
+}
+
+interface CatCondition {
+  condition_id: string;
+  condition_type: string;
+  severity: string | null;
+  diagnosed_at: string;
+  resolved_at: string | null;
+  is_chronic: boolean;
+}
+
+interface CatTestResult {
+  test_id: string;
+  test_type: string;
+  test_date: string;
+  result: string;
+  result_detail: string | null;
+}
+
+interface CatProcedure {
+  procedure_id: string;
+  procedure_type: string;
+  procedure_date: string;
+  status: string;
+  performed_by: string | null;
+  is_spay: boolean;
+  is_neuter: boolean;
+  complications: string[] | null;
+  post_op_notes: string | null;
+}
+
+interface CatVisit {
+  appointment_id: string;
+  visit_date: string;
+  visit_category: string;
+  service_types: string | null;
+  is_spay: boolean;
+  is_neuter: boolean;
+  vet_name: string | null;
+  vaccines: string[];
+  treatments: string[];
+}
+
 interface CatDetail {
   cat_id: string;
   display_name: string;
@@ -52,8 +103,107 @@ interface CatDetail {
   owners: Owner[];
   places: Place[];
   clinic_history: ClinicVisit[];
+  vitals: CatVital[];
+  conditions: CatCondition[];
+  tests: CatTestResult[];
+  procedures: CatProcedure[];
+  visits: CatVisit[];
+  first_visit_date: string | null;
+  total_visits: number;
+  photo_url: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Medical chart condition checklist item
+// Medical chart condition/status indicator
+// positive=true means "yes" is good (like spayed/neutered)
+// positive=false means "yes" is bad (like has disease)
+function ConditionCheck({
+  label,
+  status,
+  date,
+  severity,
+  positive = false,
+}: {
+  label: string;
+  status: "yes" | "no" | "unknown";
+  date?: string;
+  severity?: string;
+  positive?: boolean;
+}) {
+  // For positive attributes (spayed, tested): yes=green, no=red
+  // For negative attributes (diseases): yes=red, no=green
+  const isGood = positive ? status === "yes" : status === "no";
+  const isBad = positive ? status === "no" : status === "yes";
+
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "0.5rem",
+      padding: "0.5rem 0.75rem",
+      marginBottom: "0.25rem",
+      background: isBad ? "#fff5f5" : isGood ? "#f0fff4" : "#f8f9fa",
+      borderRadius: "6px",
+      border: `1px solid ${isBad ? "#f5c6cb" : isGood ? "#c3e6cb" : "#dee2e6"}`,
+    }}>
+      <span style={{
+        width: "28px",
+        height: "28px",
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "14px",
+        fontWeight: "bold",
+        background: isBad ? "#dc3545" : isGood ? "#198754" : "#adb5bd",
+        color: "#fff",
+        flexShrink: 0,
+      }}>
+        {isBad ? "✗" : isGood ? "✓" : "?"}
+      </span>
+      <span style={{ flex: 1, fontWeight: 500, color: "#212529" }}>{label}</span>
+      {severity && (
+        <span className="badge" style={{
+          background: severity === "severe" ? "#dc3545" : severity === "moderate" ? "#fd7e14" : "#ffc107",
+          color: severity === "mild" ? "#000" : "#fff",
+          fontSize: "0.7rem",
+        }}>
+          {severity}
+        </span>
+      )}
+      {date && <span style={{ fontSize: "0.75rem", color: "#6c757d" }}>{date}</span>}
+    </div>
+  );
+}
+
+// Photo placeholder with upload hint
+function PhotoSection({ photoUrl, catName }: { photoUrl: string | null; catName: string }) {
+  return (
+    <div style={{
+      width: "150px",
+      height: "150px",
+      background: "#e9ecef",
+      borderRadius: "8px",
+      border: "2px dashed #adb5bd",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "pointer",
+      overflow: "hidden",
+    }}>
+      {photoUrl ? (
+        <img src={photoUrl} alt={catName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <>
+          <span style={{ fontSize: "2.5rem" }}>🐱</span>
+          <span style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#495057" }}>Add Photo</span>
+        </>
+      )}
+    </div>
+  );
 }
 
 interface Appointment {
@@ -332,100 +482,495 @@ export default function CatDetailPage() {
     D: "#dc3545",
   };
 
+  // Helper to check if cat has a specific condition
+  const hasCondition = (conditionType: string) => {
+    return cat.conditions?.some(c => c.condition_type === conditionType && !c.resolved_at);
+  };
+
+  const getConditionSeverity = (conditionType: string) => {
+    const cond = cat.conditions?.find(c => c.condition_type === conditionType && !c.resolved_at);
+    return cond?.severity || undefined;
+  };
+
+  const getTestResult = (testType: string) => {
+    const test = cat.tests?.find(t => t.test_type === testType);
+    return test?.result || "unknown";
+  };
+
+  const getLatestVital = () => cat.vitals?.[0] || null;
+  const latestVital = getLatestVital();
+
+  // Has spay/neuter procedure
+  const hasSpayNeuter = cat.procedures?.some(p => p.is_spay || p.is_neuter);
+
   return (
     <div>
       <a href="/cats">&larr; Back to cats</a>
 
-      {/* Header */}
-      <div className="detail-header" style={{ marginTop: "1rem" }}>
-        <h1 style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-          {cat.display_name}
-          <DataSourceBadge dataSource={cat.data_source} />
-          <OwnershipTypeBadge ownershipType={cat.ownership_type} />
-          {cat.quality_tier && (
-            <span
-              className="badge"
-              style={{
-                fontSize: "0.5em",
-                background: tierColors[cat.quality_tier] || "#6c757d",
-                color: cat.quality_tier === "B" ? "#000" : "#fff",
-              }}
-              title={cat.quality_reason || undefined}
-            >
-              {cat.quality_tier === "A"
-                ? "Verified (Microchip)"
-                : cat.quality_tier === "B"
-                ? "Clinic ID"
-                : cat.quality_tier === "C"
-                ? "Other ID"
-                : "Name Only"}
-            </span>
-          )}
-        </h1>
-        <p className="text-muted text-sm">ID: {cat.cat_id}</p>
+      {/* Medical Chart Header */}
+      <div style={{
+        marginTop: "1rem",
+        background: "#f8f9fa",
+        borderRadius: "12px",
+        padding: "1.5rem",
+        border: "1px solid #dee2e6",
+      }}>
+        <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+          {/* Photo */}
+          <PhotoSection photoUrl={cat.photo_url} catName={cat.display_name} />
+
+          {/* Patient Info */}
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <h1 style={{ margin: 0, fontSize: "1.75rem", color: "#212529" }}>{cat.display_name}</h1>
+              <DataSourceBadge dataSource={cat.data_source} />
+              <OwnershipTypeBadge ownershipType={cat.ownership_type} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
+              <div>
+                <div className="text-muted text-sm">Microchip</div>
+                <div style={{ fontFamily: "monospace", fontWeight: 500, color: "#212529" }}>{cat.microchip || "—"}</div>
+              </div>
+              <div>
+                <div className="text-muted text-sm">Sex</div>
+                <div style={{ fontWeight: 500, color: "#212529" }}>{cat.sex || "Unknown"}</div>
+              </div>
+              <div>
+                <div className="text-muted text-sm">Altered</div>
+                <div style={{ fontWeight: 500, color: "#212529" }}>
+                  {cat.altered_status === "Yes" ? (
+                    <span style={{ color: "#198754" }}>Yes {cat.altered_by_clinic ? "(by clinic)" : ""}</span>
+                  ) : cat.altered_status === "No" ? (
+                    <span style={{ color: "#dc3545" }}>No</span>
+                  ) : "Unknown"}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted text-sm">Breed</div>
+                <div style={{ fontWeight: 500, color: "#212529" }}>{cat.breed || "Unknown"}</div>
+              </div>
+              <div>
+                <div className="text-muted text-sm">Color</div>
+                <div style={{ fontWeight: 500, color: "#212529" }}>{cat.color || "Unknown"} {cat.coat_pattern && `(${cat.coat_pattern})`}</div>
+              </div>
+              <div>
+                <div className="text-muted text-sm">Weight</div>
+                <div style={{ fontWeight: 500, color: "#212529" }}>
+                  {latestVital?.weight_lbs ? `${latestVital.weight_lbs} lbs` : "—"}
+                  {latestVital?.recorded_at && (
+                    <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>
+                      ({new Date(latestVital.recorded_at).toLocaleDateString()})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Status - FeLV/FIV prominent */}
+          <div style={{
+            background: "#e9ecef",
+            borderRadius: "8px",
+            padding: "1rem",
+            border: "1px solid #adb5bd",
+            minWidth: "140px",
+            textAlign: "center",
+          }}>
+            <div style={{ marginBottom: "0.5rem", fontSize: "0.875rem", color: "#495057" }}>FeLV/FIV</div>
+            {cat.tests?.find(t => t.test_type === "felv_fiv") ? (
+              <div style={{
+                fontSize: "1.5rem",
+                fontWeight: "bold",
+                color: getTestResult("felv_fiv") === "negative" ? "#198754" : "#dc3545",
+              }}>
+                {getTestResult("felv_fiv") === "negative" ? "NEG" : "POS"}
+              </div>
+            ) : (
+              <div style={{ fontSize: "1.25rem", color: "#495057" }}>Not Tested</div>
+            )}
+            {cat.tests?.find(t => t.test_type === "felv_fiv") && (
+              <div style={{ fontSize: "0.875rem", color: "#495057" }}>
+                {new Date(cat.tests.find(t => t.test_type === "felv_fiv")!.test_date).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Basic Information */}
-      <Section
-        title="Basic Information"
-        onEdit={() => setEditingBasic(true)}
-        editMode={editingBasic}
-      >
-        {editingBasic ? (
+      {/* Medical Overview - What was done/observed */}
+      <Section title="Medical Overview">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+          {/* Vaccines Received */}
           <div>
-            <p className="text-muted text-sm">
-              Editing not yet implemented. <button onClick={() => setEditingBasic(false)}>Cancel</button>
-            </p>
+            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>
+              Vaccines Received
+            </h3>
+            {(() => {
+              const allVaccines = cat.visits?.flatMap(v => v.vaccines || []).filter(Boolean) || [];
+              const uniqueVaccines = [...new Set(allVaccines)];
+              if (uniqueVaccines.length === 0) {
+                return <p className="text-muted">No vaccines recorded</p>;
+              }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {uniqueVaccines.map((vaccine, i) => (
+                    <div key={i} style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      background: "#f0fff4",
+                      borderRadius: "6px",
+                      border: "1px solid #c3e6cb",
+                    }}>
+                      <span style={{ color: "#198754", fontWeight: "bold" }}>+</span>
+                      <span>{vaccine}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
-        ) : (
+
+          {/* Treatments Given */}
+          <div>
+            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>
+              Treatments Given
+            </h3>
+            {(() => {
+              const allTreatments = cat.visits?.flatMap(v => v.treatments || []).filter(Boolean) || [];
+              const uniqueTreatments = [...new Set(allTreatments)];
+              if (uniqueTreatments.length === 0) {
+                return <p className="text-muted">No treatments recorded</p>;
+              }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {uniqueTreatments.map((treatment, i) => (
+                    <div key={i} style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      background: "#e7f1ff",
+                      borderRadius: "6px",
+                      border: "1px solid #b6d4fe",
+                    }}>
+                      <span style={{ color: "#0d6efd", fontWeight: "bold" }}>+</span>
+                      <span>{treatment}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Conditions Observed */}
+          <div>
+            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>
+              Conditions Observed
+            </h3>
+            {cat.conditions?.filter(c => !c.resolved_at).length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {cat.conditions.filter(c => !c.resolved_at).map(cond => (
+                  <div key={cond.condition_id} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem 0.75rem",
+                    background: cond.severity === "severe" ? "#fff5f5" : cond.severity === "moderate" ? "#fff8e6" : "#fffbe6",
+                    borderRadius: "6px",
+                    border: `1px solid ${cond.severity === "severe" ? "#f5c6cb" : cond.severity === "moderate" ? "#ffe69c" : "#ffecb5"}`,
+                  }}>
+                    <span style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: cond.severity === "severe" ? "#dc3545" : cond.severity === "moderate" ? "#fd7e14" : "#ffc107",
+                    }} />
+                    <span style={{ flex: 1 }}>{cond.condition_type.replace(/_/g, " ")}</span>
+                    {cond.severity && (
+                      <span style={{ fontSize: "0.75rem", color: "#6c757d" }}>({cond.severity})</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted">No active conditions</p>
+            )}
+          </div>
+        </div>
+      </Section>
+
+      {/* Latest Vitals */}
+      {latestVital && (
+        <Section title="Latest Vitals">
           <div className="detail-grid">
+            {latestVital.temperature_f && (
+              <div className="detail-item">
+                <span className="detail-label">Temperature</span>
+                <span className="detail-value">{latestVital.temperature_f}°F</span>
+              </div>
+            )}
+            {latestVital.weight_lbs && (
+              <div className="detail-item">
+                <span className="detail-label">Weight</span>
+                <span className="detail-value">{latestVital.weight_lbs} lbs</span>
+              </div>
+            )}
             <div className="detail-item">
-              <span className="detail-label">Sex</span>
-              <span className="detail-value">{cat.sex || "Unknown"}</span>
+              <span className="detail-label">Pregnant</span>
+              <span className="detail-value">{latestVital.is_pregnant ? "Yes" : "No"}</span>
             </div>
             <div className="detail-item">
-              <span className="detail-label">Altered Status</span>
-              <span className="detail-value">
-                {cat.altered_status || "Unknown"}
-                {cat.altered_status === "Yes" && (
+              <span className="detail-label">Lactating</span>
+              <span className="detail-value">{latestVital.is_lactating ? "Yes" : "No"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">In Heat</span>
+              <span className="detail-value">{latestVital.is_in_heat ? "Yes" : "No"}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Recorded</span>
+              <span className="detail-value">{new Date(latestVital.recorded_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Medical Summary - Key health info at a glance */}
+      {(cat.tests?.length > 0 || cat.procedures?.length > 0 || cat.conditions?.length > 0) && (
+        <Section title="Medical Summary">
+          <div className="detail-grid">
+            {/* FeLV/FIV Status - Most important */}
+            {cat.tests?.filter(t => t.test_type === "felv_fiv").slice(0, 1).map(test => (
+              <div className="detail-item" key={test.test_id}>
+                <span className="detail-label">FeLV/FIV Status</span>
+                <span className="detail-value">
                   <span
                     className="badge"
                     style={{
-                      marginLeft: "0.5rem",
-                      background: cat.altered_by_clinic ? "#198754" : "#6c757d",
-                      color: "#fff",
-                      fontSize: "0.7rem",
+                      background: test.result === "negative" ? "#198754" :
+                                  test.result === "positive" ? "#dc3545" : "#ffc107",
+                      color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000",
                     }}
-                    title={cat.altered_by_clinic
-                      ? "We performed this spay/neuter (billed service item)"
-                      : "Already altered or done elsewhere"}
                   >
-                    {cat.altered_by_clinic ? "By Clinic" : "Prior/Other"}
+                    {test.result.toUpperCase()}
                   </span>
+                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
+                    ({new Date(test.test_date).toLocaleDateString()})
+                  </span>
+                </span>
+              </div>
+            ))}
+
+            {/* Spay/Neuter Procedures */}
+            {cat.procedures?.filter(p => p.is_spay || p.is_neuter).slice(0, 1).map(proc => (
+              <div className="detail-item" key={proc.procedure_id}>
+                <span className="detail-label">{proc.is_spay ? "Spay" : "Neuter"}</span>
+                <span className="detail-value">
+                  <span className="badge" style={{ background: "#198754", color: "#fff" }}>
+                    Completed
+                  </span>
+                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
+                    {new Date(proc.procedure_date).toLocaleDateString()}
+                    {proc.performed_by && ` by ${proc.performed_by}`}
+                  </span>
+                </span>
+              </div>
+            ))}
+
+            {/* Active Conditions */}
+            {cat.conditions?.filter(c => !c.resolved_at).length > 0 && (
+              <div className="detail-item" style={{ gridColumn: "span 2" }}>
+                <span className="detail-label">Active Conditions</span>
+                <span className="detail-value" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  {cat.conditions.filter(c => !c.resolved_at).map(cond => (
+                    <span
+                      key={cond.condition_id}
+                      className="badge"
+                      style={{
+                        background: cond.severity === "severe" ? "#dc3545" :
+                                    cond.severity === "moderate" ? "#fd7e14" :
+                                    cond.severity === "mild" ? "#ffc107" : "#6c757d",
+                        color: cond.severity === "mild" ? "#000" : "#fff",
+                      }}
+                      title={`Diagnosed ${new Date(cond.diagnosed_at).toLocaleDateString()}`}
+                    >
+                      {cond.condition_type.replace(/_/g, " ")}
+                      {cond.severity && ` (${cond.severity})`}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+
+            {/* Latest Vitals */}
+            {cat.vitals?.length > 0 && (
+              <>
+                {cat.vitals[0].temperature_f && (
+                  <div className="detail-item">
+                    <span className="detail-label">Last Temperature</span>
+                    <span className="detail-value">
+                      {cat.vitals[0].temperature_f}°F
+                      <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
+                        ({new Date(cat.vitals[0].recorded_at).toLocaleDateString()})
+                      </span>
+                    </span>
+                  </div>
                 )}
-              </span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Breed</span>
-              <span className="detail-value">{cat.breed || "Unknown"}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Color</span>
-              <span className="detail-value">{cat.color || "Unknown"}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Coat Pattern</span>
-              <span className="detail-value">{cat.coat_pattern || "Unknown"}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Microchip</span>
-              <span className="detail-value" style={{ fontFamily: "monospace" }}>
-                {cat.microchip || "None"}
-              </span>
-            </div>
+              </>
+            )}
           </div>
-        )}
-      </Section>
+        </Section>
+      )}
+
+      {/* Detailed Medical History */}
+      {(cat.procedures?.length > 0 || cat.tests?.length > 0 || cat.conditions?.length > 0) && (
+        <Section title="Medical History">
+          {/* Procedures */}
+          {cat.procedures?.length > 0 && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Procedures ({cat.procedures.length})</h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Procedure</th>
+                      <th>Vet</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cat.procedures.map(proc => (
+                      <tr key={proc.procedure_id}>
+                        <td>{new Date(proc.procedure_date).toLocaleDateString()}</td>
+                        <td>
+                          <span className="badge" style={{ background: "#198754", color: "#fff" }}>
+                            {proc.procedure_type.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td>{proc.performed_by || "—"}</td>
+                        <td>
+                          {proc.complications && proc.complications.length > 0 && (
+                            <span className="text-sm" style={{ color: "#dc3545" }}>
+                              {proc.complications.join(", ")}
+                            </span>
+                          )}
+                          {proc.post_op_notes && (
+                            <span className="text-sm text-muted">
+                              {proc.complications?.length ? " | " : ""}{proc.post_op_notes}
+                            </span>
+                          )}
+                          {!proc.complications?.length && !proc.post_op_notes && "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Test Results */}
+          {cat.tests?.length > 0 && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Test Results ({cat.tests.length})</h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Test</th>
+                      <th>Result</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cat.tests.map(test => (
+                      <tr key={test.test_id}>
+                        <td>{new Date(test.test_date).toLocaleDateString()}</td>
+                        <td>{test.test_type.replace(/_/g, " ")}</td>
+                        <td>
+                          <span
+                            className="badge"
+                            style={{
+                              background: test.result === "negative" ? "#198754" :
+                                          test.result === "positive" ? "#dc3545" : "#ffc107",
+                              color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000",
+                            }}
+                          >
+                            {test.result}
+                          </span>
+                        </td>
+                        <td className="text-muted">{test.result_detail || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Conditions */}
+          {cat.conditions?.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Conditions ({cat.conditions.length})</h3>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Diagnosed</th>
+                      <th>Condition</th>
+                      <th>Severity</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cat.conditions.map(cond => (
+                      <tr key={cond.condition_id}>
+                        <td>{new Date(cond.diagnosed_at).toLocaleDateString()}</td>
+                        <td>{cond.condition_type.replace(/_/g, " ")}</td>
+                        <td>
+                          {cond.severity ? (
+                            <span
+                              className="badge"
+                              style={{
+                                background: cond.severity === "severe" ? "#dc3545" :
+                                            cond.severity === "moderate" ? "#fd7e14" :
+                                            cond.severity === "mild" ? "#ffc107" : "#6c757d",
+                                color: cond.severity === "mild" ? "#000" : "#fff",
+                              }}
+                            >
+                              {cond.severity}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td>
+                          {cond.resolved_at ? (
+                            <span className="text-muted">
+                              Resolved {new Date(cond.resolved_at).toLocaleDateString()}
+                            </span>
+                          ) : cond.is_chronic ? (
+                            <span className="badge" style={{ background: "#6c757d", color: "#fff" }}>
+                              Chronic
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ background: "#fd7e14", color: "#fff" }}>
+                              Active
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* Identifiers */}
       {cat.identifiers && cat.identifiers.length > 0 && (
@@ -541,57 +1086,58 @@ export default function CatDetailPage() {
         </Section>
       )}
 
-      {/* Appointments */}
-      <Section title="Appointments">
-        {appointments.length > 0 ? (
+      {/* Visit History - Categorized */}
+      <Section title="Visit History">
+        {cat.visits && cat.visits.length > 0 ? (
           <div className="table-container">
             <table>
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Status</th>
                   <th>Type</th>
-                  <th>Provider</th>
-                  <th>Client</th>
+                  <th>Services</th>
+                  <th>Vet</th>
                 </tr>
               </thead>
               <tbody>
-                {appointments.map((appt) => (
-                  <tr key={appt.appointment_id}>
-                    <td>{new Date(appt.scheduled_date).toLocaleDateString()}</td>
+                {cat.visits.map((visit) => (
+                  <tr key={visit.appointment_id}>
+                    <td>{new Date(visit.visit_date).toLocaleDateString()}</td>
                     <td>
                       <span
                         className="badge"
                         style={{
                           background:
-                            appt.status === "completed"
-                              ? "#198754"
-                              : appt.status === "scheduled"
-                              ? "#0d6efd"
-                              : appt.status === "cancelled"
-                              ? "#dc3545"
-                              : "#6c757d",
+                            visit.visit_category === "Spay/Neuter" ? "#198754" :
+                            visit.visit_category === "Wellness" ? "#0d6efd" :
+                            visit.visit_category === "Recheck" ? "#6f42c1" :
+                            visit.visit_category === "Euthanasia" ? "#dc3545" : "#6c757d",
+                          color: "#fff",
                         }}
                       >
-                        {appt.status}
+                        {visit.visit_category}
                       </span>
                     </td>
-                    <td>{appt.appointment_type !== "unknown" ? appt.appointment_type : "—"}</td>
-                    <td>{appt.provider_name || "—"}</td>
                     <td>
-                      {appt.person_id ? (
-                        <a href={`/people/${appt.person_id}`}>{appt.person_name}</a>
-                      ) : (
-                        appt.person_name || "—"
-                      )}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {visit.is_spay && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Spay</span>}
+                        {visit.is_neuter && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Neuter</span>}
+                        {visit.vaccines?.map((v, i) => (
+                          <span key={i} className="badge" style={{ background: "#d1e7dd", color: "#0f5132", fontSize: "0.7rem" }}>{v}</span>
+                        ))}
+                        {visit.treatments?.map((t, i) => (
+                          <span key={i} className="badge" style={{ background: "#cfe2ff", color: "#084298", fontSize: "0.7rem" }}>{t}</span>
+                        ))}
+                      </div>
                     </td>
+                    <td>{visit.vet_name || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="text-muted">No appointments found for this cat.</p>
+          <p className="text-muted">No visits recorded for this cat.</p>
         )}
       </Section>
 
@@ -617,14 +1163,28 @@ export default function CatDetailPage() {
                cat.data_source || "Unknown"}
             </span>
           </div>
+          {cat.first_visit_date && (
+            <div className="detail-item">
+              <span className="detail-label">First ClinicHQ Visit</span>
+              <span className="detail-value">
+                {new Date(cat.first_visit_date).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+          {cat.total_visits > 0 && (
+            <div className="detail-item">
+              <span className="detail-label">Total ClinicHQ Visits</span>
+              <span className="detail-value">{cat.total_visits}</span>
+            </div>
+          )}
           <div className="detail-item">
-            <span className="detail-label">Created</span>
+            <span className="detail-label">Atlas Created</span>
             <span className="detail-value">
               {new Date(cat.created_at).toLocaleDateString()}
             </span>
           </div>
           <div className="detail-item">
-            <span className="detail-label">Updated</span>
+            <span className="detail-label">Last Updated</span>
             <span className="detail-value">
               {new Date(cat.updated_at).toLocaleDateString()}
             </span>

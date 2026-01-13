@@ -30,8 +30,7 @@ export default function PeoplePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [includeLow, setIncludeLow] = useState(false);
-  const [includeNonPerson, setIncludeNonPerson] = useState(false);
+  const [deepSearch, setDeepSearch] = useState(false);
   const [page, setPage] = useState(0);
   const limit = 25;
 
@@ -41,8 +40,7 @@ export default function PeoplePage() {
 
     const params = new URLSearchParams();
     if (search) params.set("q", search);
-    if (includeLow) params.set("include_low", "true");
-    if (includeNonPerson) params.set("include_non_person", "true");
+    if (deepSearch) params.set("deep_search", "true");
     params.set("limit", String(limit));
     params.set("offset", String(page * limit));
 
@@ -58,7 +56,7 @@ export default function PeoplePage() {
     } finally {
       setLoading(false);
     }
-  }, [search, includeLow, includeNonPerson, page]);
+  }, [search, deepSearch, page]);
 
   useEffect(() => {
     fetchPeople();
@@ -84,21 +82,14 @@ export default function PeoplePage() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ minWidth: "250px" }}
         />
-        <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.875rem" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem" }}>
           <input
             type="checkbox"
-            checked={includeLow}
-            onChange={(e) => { setIncludeLow(e.target.checked); setPage(0); }}
+            checked={deepSearch}
+            onChange={(e) => { setDeepSearch(e.target.checked); setPage(0); }}
           />
-          Include low-confidence
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.875rem" }}>
-          <input
-            type="checkbox"
-            checked={includeNonPerson}
-            onChange={(e) => { setIncludeNonPerson(e.target.checked); setPage(0); }}
-          />
-          Include organizations
+          Deep Search
+          <span className="text-muted" style={{ fontSize: "0.75rem" }}>(includes all records)</span>
         </label>
         <button type="submit">Search</button>
       </form>

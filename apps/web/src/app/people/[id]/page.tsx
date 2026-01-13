@@ -12,6 +12,7 @@ interface Cat {
   confidence: string;
   source_system: string;
   data_source: string; // clinichq, petlink, or legacy_import
+  microchip: string | null;
 }
 
 interface Place {
@@ -649,6 +650,7 @@ export default function PersonDetailPage() {
                   key={cat.cat_id}
                   href={`/cats/${cat.cat_id}`}
                   label={cat.cat_name}
+                  sublabel={cat.microchip || undefined}
                   dataSource={cat.data_source}
                   badge={cat.relationship_type}
                   badgeColor={cat.relationship_type === "owner" ? "#0d6efd" : "#6c757d"}

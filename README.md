@@ -10,14 +10,15 @@ Atlas is the operational backbone for FFSC trapping operations and the foundatio
 - **ClinicHQ** — 47,000+ historical appointments and surgery records (primary data source)
 - **Airtable** — Current operational workflows for requests (re-exportable)
 - **Form submissions** — Appointment requests from Typeform/Jotform
-- **Atlas native** — Direct data collection (planned)
+- **Atlas native** — Direct request intake and data collection
 
 Atlas provides:
 1. **Unified Search** — Find cats, people, places by any identifier (microchip, phone, address)
 2. **Canonical Data** — Deduplicated people, places, and addresses (SoT layer)
 3. **Clean Identity Linking** — Cats linked to people and places with quality safeguards
 4. **Review Queues** — Surfaces for human triage and data cleanup
-5. **Foundation for Beacon** — Accurate cat counts per location for TNR prioritization
+5. **Native Data Collection** — Request intake forms with validation pipeline
+6. **Foundation for Beacon** — Accurate cat counts per location for TNR prioritization
 
 ## Guiding Principles
 
@@ -86,6 +87,40 @@ Atlas/
 └── archive/            # Curated reference files
 ```
 
+## Data Architecture
+
+Atlas follows a **Raw → Normalize → SoT** pipeline to ensure data integrity:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Raw Intake    │────▶│   Normalizer    │────▶│   SoT Tables    │
+│  (append-only)  │     │  (validation)   │     │   (canonical)   │
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+                                 ▼
+                        ┌─────────────────┐
+                        │  Review Queue   │
+                        │ (needs human)   │
+                        └─────────────────┘
+```
+
+### Key Invariants
+1. **No UI route writes directly to SoT tables** — All data goes through raw intake first
+2. **Append-only raw tables** — Updates create new rows with `supersedes_raw_id`
+3. **Validation before promotion** — Garbage names, invalid data caught before SoT
+4. **Audit trail** — Every SoT write logged to `intake_audit_log`
+5. **Stable keys** — Microchips always preserved, never overwritten
+
+### Request Intake Fields
+The enhanced request form captures comprehensive TNR data:
+- **Location**: Place selection/creation, property type, location description
+- **Contact**: Requester, property owner, best contact times
+- **Permission & Access**: Permission status, overnight traps, access notes
+- **Cat Details**: Count, confidence, colony duration, ear-tip status, friendliness
+- **Kittens**: Count, age in weeks
+- **Feeding**: Feeder info, schedule, best times seen
+- **Urgency**: Reasons, deadline, priority level
+
 ## Data Quality
 
 Atlas includes safeguards to ensure clean, trustworthy data:
@@ -103,6 +138,23 @@ Atlas includes safeguards to ensure clean, trustworthy data:
 
 ### Backup & Recovery
 All cleanup migrations create backup tables (`backup_*_mig15X`) for data rescue if needed.
+
+### Operational Features (MIG_182)
+- **Request Status Tracking**: new, needs_review, triaged, scheduled, in_progress, active, on_hold, completed, partial, cancelled
+- **Hold Reasons**: weather, callback_pending, access_issue, resource_constraint, client_unavailable, scheduling_conflict, trap_shy
+- **Safety Notes**: Per-place safety concerns and notes for trappers
+- **Staleness Detection**: `v_stale_requests` view flags inactive requests
+- **Hotspot Detection**: `v_place_hotspots` identifies locations with multiple active requests
+- **Status History**: Full audit trail of status changes
+
+### Intake Pipeline (MIG_183, MIG_184)
+- `raw_intake_request` — Append-only request intake
+- `raw_intake_person` — New person submissions
+- `raw_intake_place` — New place submissions
+- `review_queue` — Items needing human review
+- `intake_audit_log` — Promotion audit trail
+- `promote_intake_request()` — Validates and promotes to SoT
+- `is_garbage_name()` — Prevents invalid people creation
 
 ## Environment Variables
 
@@ -136,7 +188,7 @@ All cleanup migrations create backup tables (`backup_*_mig15X`) for data rescue 
                               │ Ingest
 ┌──────────────┬──────────────┬──────────────┬───────────────┐
 │  ClinicHQ    │   Airtable   │    Forms     │  Atlas Native │
-│  (primary)   │  (requests)  │  (intake)    │   (planned)   │
+│  (primary)   │  (requests)  │  (intake)    │   (active)    │
 └──────────────┴──────────────┴──────────────┴───────────────┘
 ```
 

@@ -23,8 +23,7 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("q") || null;
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
   const offset = parseInt(searchParams.get("offset") || "0", 10);
-  const includeLowQuality = searchParams.get("include_low") === "true";
-  const includeNonPerson = searchParams.get("include_non_person") === "true";
+  const deepSearch = searchParams.get("deep_search") === "true";
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -37,14 +36,12 @@ export async function GET(request: NextRequest) {
     paramIndex++;
   }
 
-  // Filter: account_type (default: person only)
-  if (!includeNonPerson) {
+  // Default: only high-quality canonical people
+  // Deep Search: show everything including low quality and non-person accounts
+  if (!deepSearch) {
     conditions.push(`account_type = 'person'`);
-  }
-
-  // Filter: surface_quality (default: hide Low)
-  if (!includeLowQuality) {
     conditions.push(`surface_quality != 'Low'`);
+    conditions.push(`(data_quality IS NULL OR data_quality != 'low')`);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

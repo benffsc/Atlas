@@ -302,6 +302,7 @@ button:disabled {
 
 .detail-value {
   font-weight: 500;
+  color: var(--foreground);
 }
 
 /* Pagination */
