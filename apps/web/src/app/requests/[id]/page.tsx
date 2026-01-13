@@ -1,7 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+
+interface MediaItem {
+  media_id: string;
+  media_type: string;
+  original_filename: string;
+  storage_path: string;
+  caption: string | null;
+  notes: string | null;
+  cat_description: string | null;
+  linked_cat_id: string | null;
+  uploaded_by: string;
+  uploaded_at: string;
+}
 
 interface RequestDetail {
   request_id: string;
@@ -140,6 +153,69 @@ export default function RequestDetailPage() {
     cats_returned: "" as number | "",
   });
 
+  // Media state
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadMediaType, setUploadMediaType] = useState("site_photo");
+  const [uploadCaption, setUploadCaption] = useState("");
+  const [uploadCatDescription, setUploadCatDescription] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMedia = async () => {
+    setLoadingMedia(true);
+    try {
+      const response = await fetch(`/api/requests/${requestId}/media`);
+      if (response.ok) {
+        const data = await response.json();
+        setMedia(data.media || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch media:", err);
+    } finally {
+      setLoadingMedia(false);
+    }
+  };
+
+  const handleMediaUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) return;
+
+    setUploadingMedia(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("media_type", uploadMediaType);
+    formData.append("caption", uploadCaption);
+    if (uploadMediaType === "cat_photo" && uploadCatDescription) {
+      formData.append("cat_description", uploadCatDescription);
+    }
+    formData.append("uploaded_by", "app_user");
+
+    try {
+      const response = await fetch(`/api/requests/${requestId}/media`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        await fetchMedia();
+        setShowUploadForm(false);
+        setUploadCaption("");
+        setUploadCatDescription("");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      } else {
+        const data = await response.json();
+        alert(data.error || "Upload failed");
+      }
+    } catch (err) {
+      alert("Upload failed");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
   useEffect(() => {
     const fetchRequest = async () => {
       try {
@@ -178,6 +254,7 @@ export default function RequestDetailPage() {
     };
 
     fetchRequest();
+    fetchMedia();
   }, [requestId]);
 
   const handleSave = async () => {
@@ -691,6 +768,172 @@ export default function RequestDetailPage() {
               </div>
             ) : (
               <p className="text-muted">No cats linked to this request yet</p>
+            )}
+          </div>
+
+          {/* Photos & Media Card */}
+          <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Photos & Media</h2>
+              <button
+                onClick={() => setShowUploadForm(!showUploadForm)}
+                style={{ padding: "0.5rem 1rem" }}
+              >
+                {showUploadForm ? "Cancel" : "+ Upload"}
+              </button>
+            </div>
+
+            {showUploadForm && (
+              <form onSubmit={handleMediaUpload} style={{ marginBottom: "1.5rem", padding: "1rem", background: "var(--bg-muted)", borderRadius: "8px" }}>
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                    What type of photo is this?
+                  </label>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                    <label style={{
+                      display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer",
+                      padding: "0.5rem 1rem", border: "1px solid var(--border)", borderRadius: "6px",
+                      background: uploadMediaType === "cat_photo" ? "var(--primary)" : "transparent",
+                      color: uploadMediaType === "cat_photo" ? "#fff" : "inherit"
+                    }}>
+                      <input
+                        type="radio"
+                        name="mediaType"
+                        value="cat_photo"
+                        checked={uploadMediaType === "cat_photo"}
+                        onChange={() => setUploadMediaType("cat_photo")}
+                        style={{ display: "none" }}
+                      />
+                      Cat Photo
+                    </label>
+                    <label style={{
+                      display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer",
+                      padding: "0.5rem 1rem", border: "1px solid var(--border)", borderRadius: "6px",
+                      background: uploadMediaType === "site_photo" ? "var(--primary)" : "transparent",
+                      color: uploadMediaType === "site_photo" ? "#fff" : "inherit"
+                    }}>
+                      <input
+                        type="radio"
+                        name="mediaType"
+                        value="site_photo"
+                        checked={uploadMediaType === "site_photo"}
+                        onChange={() => setUploadMediaType("site_photo")}
+                        style={{ display: "none" }}
+                      />
+                      Site/Colony Photo
+                    </label>
+                    <label style={{
+                      display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer",
+                      padding: "0.5rem 1rem", border: "1px solid var(--border)", borderRadius: "6px",
+                      background: uploadMediaType === "evidence" ? "var(--primary)" : "transparent",
+                      color: uploadMediaType === "evidence" ? "#fff" : "inherit"
+                    }}>
+                      <input
+                        type="radio"
+                        name="mediaType"
+                        value="evidence"
+                        checked={uploadMediaType === "evidence"}
+                        onChange={() => setUploadMediaType("evidence")}
+                        style={{ display: "none" }}
+                      />
+                      Documentation
+                    </label>
+                  </div>
+                </div>
+
+                {uploadMediaType === "cat_photo" && (
+                  <div style={{ marginBottom: "1rem" }}>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Describe the cat (if not yet identified)
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadCatDescription}
+                      onChange={(e) => setUploadCatDescription(e.target.value)}
+                      placeholder="e.g., orange tabby, black female, calico"
+                      style={{ width: "100%" }}
+                    />
+                    <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                      You can link this photo to a specific cat later
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Caption (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadCaption}
+                    onChange={(e) => setUploadCaption(e.target.value)}
+                    placeholder="What does this photo show?"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Select Photo
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    required
+                  />
+                </div>
+
+                <button type="submit" disabled={uploadingMedia}>
+                  {uploadingMedia ? "Uploading..." : "Upload Photo"}
+                </button>
+              </form>
+            )}
+
+            {loadingMedia ? (
+              <div className="text-muted">Loading media...</div>
+            ) : media.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem" }}>
+                {media.map((item) => (
+                  <div key={item.media_id} style={{ border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden" }}>
+                    <div style={{ aspectRatio: "1", background: "var(--bg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <img
+                        src={`/api${item.storage_path}`}
+                        alt={item.caption || item.original_filename}
+                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "cover" }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    </div>
+                    <div style={{ padding: "0.5rem" }}>
+                      <div className="text-sm" style={{ fontWeight: 500 }}>
+                        {item.media_type === "cat_photo" ? "Cat" : item.media_type === "site_photo" ? "Site" : "Doc"}
+                      </div>
+                      {item.caption && (
+                        <div className="text-muted text-sm" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.caption}
+                        </div>
+                      )}
+                      {item.cat_description && (
+                        <div className="text-muted text-sm" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.cat_description}
+                        </div>
+                      )}
+                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>
+                        {new Date(item.uploaded_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-muted">
+                <p>No photos uploaded yet.</p>
+                <p className="text-sm" style={{ marginTop: "0.5rem" }}>
+                  Upload photos of cats or the trapping site to help trappers.
+                </p>
+              </div>
             )}
           </div>
 

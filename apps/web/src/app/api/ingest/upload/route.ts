@@ -8,7 +8,7 @@ import path from "path";
 const SOURCE_CONFIGS: Record<string, { tables: string[]; label: string }> = {
   clinichq: {
     label: "ClinicHQ",
-    tables: ["owner_info", "animal_info", "appointment_info"],
+    tables: ["cat_info", "owner_info", "appointment_info"],
   },
   volunteerhub: {
     label: "VolunteerHub",
@@ -16,7 +16,15 @@ const SOURCE_CONFIGS: Record<string, { tables: string[]; label: string }> = {
   },
   airtable: {
     label: "Airtable",
-    tables: ["trapping_requests", "appointment_requests"],
+    tables: ["trapping_requests", "appointment_requests", "trapper_cats"],
+  },
+  shelterluv: {
+    label: "Shelterluv",
+    tables: ["animals", "people", "outcomes"],
+  },
+  petlink: {
+    label: "PetLink",
+    tables: ["pets", "owners"],
   },
 };
 
@@ -83,10 +91,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate storage filename: {source}_{table}_{timestamp}_{hash8}.csv
+    // Generate storage filename: {source}_{table}_{timestamp}_{hash8}.{ext}
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const hashPrefix = fileHash.substring(0, 8);
-    const storedFilename = `${sourceSystem}_${sourceTable}_${timestamp}_${hashPrefix}.csv`;
+    const originalExt = file.name.split('.').pop()?.toLowerCase() || 'csv';
+    const ext = ['csv', 'xlsx', 'xls'].includes(originalExt) ? originalExt : 'csv';
+    const storedFilename = `${sourceSystem}_${sourceTable}_${timestamp}_${hashPrefix}.${ext}`;
 
     // Ensure upload directory exists
     const uploadDir = path.join(process.cwd(), "uploads", "ingest");

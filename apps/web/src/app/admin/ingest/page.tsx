@@ -205,12 +205,12 @@ export default function IngestPage() {
             {/* File Input */}
             <div>
               <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem" }}>
-                CSV File
+                Data File (CSV or XLSX)
               </label>
               <input
                 id="file-input"
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
               />
             </div>
