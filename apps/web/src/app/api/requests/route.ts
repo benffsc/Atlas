@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
   const priority = searchParams.get("priority");
   const placeId = searchParams.get("place_id");
   const personId = searchParams.get("person_id");
+  const searchQuery = searchParams.get("q"); // Search query
   const sortBy = searchParams.get("sort_by") || "status"; // status, created, priority
   const sortOrder = searchParams.get("sort_order") || "asc"; // asc, desc
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
@@ -61,6 +62,19 @@ export async function GET(request: NextRequest) {
   if (personId) {
     conditions.push(`requester_person_id = $${paramIndex}`);
     params.push(personId);
+    paramIndex++;
+  }
+
+  // Search across summary, place name, place address, requester name
+  if (searchQuery && searchQuery.trim()) {
+    conditions.push(`(
+      summary ILIKE $${paramIndex}
+      OR place_name ILIKE $${paramIndex}
+      OR place_address ILIKE $${paramIndex}
+      OR place_city ILIKE $${paramIndex}
+      OR requester_name ILIKE $${paramIndex}
+    )`);
+    params.push(`%${searchQuery.trim()}%`);
     paramIndex++;
   }
 
@@ -165,6 +179,9 @@ const VALID_EARTIP_ESTIMATES = ["none", "few", "some", "most", "all", "unknown"]
 const VALID_PROPERTY_TYPES = ["private_home", "apartment_complex", "mobile_home_park", "business", "farm_ranch", "public_park", "industrial", "other"];
 
 interface CreateRequestBody {
+  // Request Purpose
+  request_purpose?: "tnr" | "wellness" | "hybrid" | "relocation" | "rescue";
+  request_purposes?: string[]; // Multi-select array for flexibility
   // Location
   place_id?: string;
   raw_address?: string;
@@ -176,6 +193,9 @@ interface CreateRequestBody {
   raw_requester_phone?: string;
   raw_requester_email?: string;
   property_owner_contact?: string;
+  property_owner_name?: string;
+  property_owner_phone?: string;
+  authorization_pending?: boolean;
   best_contact_times?: string;
   // Permission & Access
   permission_status?: string;
@@ -184,6 +204,7 @@ interface CreateRequestBody {
   access_without_contact?: boolean | null;
   // About the Cats
   estimated_cat_count?: number;
+  wellness_cat_count?: number;
   count_confidence?: string;
   colony_duration?: string;
   eartip_count?: number;
@@ -206,6 +227,7 @@ interface CreateRequestBody {
   // Additional
   summary?: string;
   notes?: string;
+  internal_notes?: string;
   created_by?: string;
   // Legacy fields
   preferred_contact_method?: string;
@@ -253,6 +275,8 @@ export async function POST(request: NextRequest) {
         -- Source tracking
         created_by,
         source_system,
+        -- Request Purpose
+        raw_request_purpose,
         -- Location
         place_id,
         raw_address,
@@ -264,6 +288,9 @@ export async function POST(request: NextRequest) {
         raw_requester_phone,
         raw_requester_email,
         raw_property_owner_contact,
+        raw_property_owner_name,
+        raw_property_owner_phone,
+        raw_authorization_pending,
         raw_best_contact_times,
         -- Permission & Access
         raw_permission_status,
@@ -272,6 +299,7 @@ export async function POST(request: NextRequest) {
         raw_access_without_contact,
         -- About the Cats
         raw_estimated_cat_count,
+        raw_wellness_cat_count,
         raw_count_confidence,
         raw_colony_duration,
         raw_eartip_count,
@@ -293,21 +321,24 @@ export async function POST(request: NextRequest) {
         raw_priority,
         -- Additional
         raw_summary,
-        raw_notes
+        raw_notes,
+        raw_internal_notes
       ) VALUES (
         $1, 'atlas_ui',
-        $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11,
-        $12, $13, $14, $15,
-        $16, $17, $18, $19, $20, $21,
-        $22, $23, $24,
-        $25, $26, $27, $28,
-        $29, $30, $31, $32,
-        $33, $34
+        $2,
+        $3, $4, $5, $6,
+        $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25, $26,
+        $27, $28, $29,
+        $30, $31, $32, $33,
+        $34, $35, $36, $37,
+        $38, $39, $40
       )
       RETURNING raw_id`,
       [
         body.created_by || "app_user",
+        body.request_purpose || "tnr",
         body.place_id || null,
         body.raw_address || null,
         body.property_type || null,
@@ -317,12 +348,16 @@ export async function POST(request: NextRequest) {
         body.raw_requester_phone || null,
         body.raw_requester_email || null,
         body.property_owner_contact || null,
+        body.property_owner_name || null,
+        body.property_owner_phone || null,
+        body.authorization_pending ?? null,
         body.best_contact_times || null,
         body.permission_status || null,
         body.access_notes || null,
         body.traps_overnight_safe ?? null,
         body.access_without_contact ?? null,
         body.estimated_cat_count || null,
+        body.wellness_cat_count || null,
         body.count_confidence || null,
         body.colony_duration || null,
         body.eartip_count || null,
@@ -341,6 +376,7 @@ export async function POST(request: NextRequest) {
         body.priority || null,
         body.summary || null,
         body.notes || null,
+        body.internal_notes || null,
       ]
     );
 
@@ -349,6 +385,60 @@ export async function POST(request: NextRequest) {
         { error: "Failed to save request intake" },
         { status: 500 }
       );
+    }
+
+    // Step 1.5: Log contact info changes if updating existing person
+    // This tracks phone/email changes for audit trail (MIG_192)
+    if (body.requester_person_id && (body.raw_requester_phone || body.raw_requester_email)) {
+      try {
+        // Get current contact info for the person
+        const currentContact = await queryOne<{
+          phone: string | null;
+          email: string | null;
+        }>(
+          `SELECT
+            (SELECT id_value_norm FROM trapper.person_identifiers
+             WHERE person_id = $1 AND id_type = 'phone' LIMIT 1) as phone,
+            (SELECT id_value_norm FROM trapper.person_identifiers
+             WHERE person_id = $1 AND id_type = 'email' LIMIT 1) as email`,
+          [body.requester_person_id]
+        );
+
+        // Log phone change if different
+        if (body.raw_requester_phone && currentContact) {
+          await queryOne(
+            `SELECT trapper.log_contact_update(
+              $1, 'phone'::trapper.identifier_type, $2, $3,
+              NULL, $4, 'request_submission'
+            )`,
+            [
+              body.requester_person_id,
+              currentContact.phone || null,
+              body.raw_requester_phone,
+              body.created_by || "app_user",
+            ]
+          );
+        }
+
+        // Log email change if different
+        if (body.raw_requester_email && currentContact) {
+          await queryOne(
+            `SELECT trapper.log_contact_update(
+              $1, 'email'::trapper.identifier_type, $2, $3,
+              NULL, $4, 'request_submission'
+            )`,
+            [
+              body.requester_person_id,
+              currentContact.email || null,
+              body.raw_requester_email,
+              body.created_by || "app_user",
+            ]
+          );
+        }
+      } catch (err) {
+        // Don't fail the request if contact logging fails
+        console.error("Error logging contact changes:", err);
+      }
     }
 
     // Step 2: Validate and promote to SoT
@@ -438,35 +528,41 @@ async function handleLegacyDirectWrite(request: NextRequest) {
 
     const result = await queryOne<{ request_id: string }>(
       `INSERT INTO trapper.sot_requests (
+        request_purpose,
         place_id, property_type, location_description,
-        requester_person_id, property_owner_contact, best_contact_times,
+        requester_person_id, property_owner_contact, property_owner_name, property_owner_phone,
+        authorization_pending, best_contact_times,
         permission_status, access_notes, traps_overnight_safe, access_without_contact,
-        estimated_cat_count, count_confidence, colony_duration, eartip_count, eartip_estimate, cats_are_friendly,
+        estimated_cat_count, wellness_cat_count, count_confidence, colony_duration, eartip_count, eartip_estimate, cats_are_friendly,
         has_kittens, kitten_count, kitten_age_weeks,
         is_being_fed, feeder_name, feeding_schedule, best_times_seen,
         urgency_reasons, urgency_deadline, urgency_notes, priority,
-        summary, notes, data_source, source_system, created_by
+        summary, notes, internal_notes, data_source, source_system, created_by
       ) VALUES (
-        $1, $2::trapper.property_type, $3, $4, $5, $6,
-        COALESCE($7, 'unknown')::trapper.permission_status, $8, $9, $10,
-        $11, COALESCE($12, 'unknown')::trapper.count_confidence,
-        COALESCE($13, 'unknown')::trapper.colony_duration, $14,
-        COALESCE($15, 'unknown')::trapper.eartip_estimate, $16,
-        $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
-        COALESCE($27, 'normal')::trapper.request_priority, $28, $29,
-        'app', 'atlas_ui', $30
+        COALESCE($1, 'tnr')::trapper.request_purpose,
+        $2, $3::trapper.property_type, $4, $5, $6, $7, $8, $9, $10,
+        COALESCE($11, 'unknown')::trapper.permission_status, $12, $13, $14,
+        $15, $16, COALESCE($17, 'unknown')::trapper.count_confidence,
+        COALESCE($18, 'unknown')::trapper.colony_duration, $19,
+        COALESCE($20, 'unknown')::trapper.eartip_estimate, $21,
+        $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
+        COALESCE($32, 'normal')::trapper.request_priority, $33, $34, $35,
+        'app', 'atlas_ui', $36
       )
       RETURNING request_id`,
       [
+        body.request_purpose || "tnr",
         body.place_id || null, body.property_type || null, body.location_description || null,
-        body.requester_person_id || null, body.property_owner_contact || null, body.best_contact_times || null,
+        body.requester_person_id || null, body.property_owner_contact || null,
+        body.property_owner_name || null, body.property_owner_phone || null,
+        body.authorization_pending ?? false, body.best_contact_times || null,
         body.permission_status || null, body.access_notes || null, body.traps_overnight_safe ?? null, body.access_without_contact ?? null,
-        body.estimated_cat_count || null, body.count_confidence || null, body.colony_duration || null,
+        body.estimated_cat_count || null, body.wellness_cat_count || null, body.count_confidence || null, body.colony_duration || null,
         body.eartip_count || null, body.eartip_estimate || null, body.cats_are_friendly ?? null,
         body.has_kittens || false, body.kitten_count || null, body.kitten_age_weeks || null,
         body.is_being_fed ?? null, body.feeder_name || null, body.feeding_schedule || null, body.best_times_seen || null,
         body.urgency_reasons || null, body.urgency_deadline || null, body.urgency_notes || null,
-        body.priority || null, body.summary || null, body.notes || null,
+        body.priority || null, body.summary || null, body.notes || null, body.internal_notes || null,
         body.created_by || "app_user",
       ]
     );

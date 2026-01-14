@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
-import { writeFile, mkdir } from "fs/promises";
 import { createHash } from "crypto";
-import path from "path";
+import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
 
 interface MediaRow {
   media_id: string;
@@ -111,14 +110,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
     const storedFilename = `${id}_${timestamp}_${hash}.${ext}`;
 
-    // Ensure upload directory exists
-    const uploadDir = path.join(process.cwd(), "uploads", "media", id);
-    await mkdir(uploadDir, { recursive: true });
-
-    // Write file
-    const filePath = path.join(uploadDir, storedFilename);
-    await writeFile(filePath, buffer);
-
     // Determine MIME type
     const mimeTypes: Record<string, string> = {
       jpg: "image/jpeg",
@@ -131,6 +122,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     };
     const mimeType = mimeTypes[ext] || "application/octet-stream";
 
+    // Storage path in bucket: requests/{request_id}/{filename}
+    const storagePath = `requests/${id}/${storedFilename}`;
+    let storageProvider = "supabase";
+    let publicUrl = "";
+
+    // Upload to Supabase Storage
+    if (isStorageAvailable()) {
+      const uploadResult = await uploadFile(storagePath, buffer, mimeType);
+      if (!uploadResult.success) {
+        return NextResponse.json(
+          { error: uploadResult.error || "Failed to upload to storage" },
+          { status: 500 }
+        );
+      }
+      publicUrl = uploadResult.url || getPublicUrl(storagePath);
+    } else {
+      // Supabase not configured - return error in production
+      return NextResponse.json(
+        { error: "Storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY." },
+        { status: 500 }
+      );
+    }
+
     // Insert into database
     const result = await queryOne<{ media_id: string }>(
       `INSERT INTO trapper.request_media (
@@ -138,7 +152,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         file_size_bytes, mime_type, storage_provider, storage_path,
         caption, notes, cat_description, uploaded_by
       ) VALUES (
-        $1, $2::trapper.media_type, $3, $4, $5, $6, 'local', $7, $8, $9, $10, $11
+        $1, $2::trapper.media_type, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
       )
       RETURNING media_id`,
       [
@@ -148,7 +162,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         storedFilename,
         buffer.length,
         mimeType,
-        `/uploads/media/${id}/${storedFilename}`,
+        storageProvider,
+        publicUrl,
         caption,
         notes,
         catDescription,
@@ -160,7 +175,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       success: true,
       media_id: result?.media_id,
       stored_filename: storedFilename,
-      storage_path: `/uploads/media/${id}/${storedFilename}`,
+      storage_path: publicUrl,
     });
   } catch (error) {
     console.error("Error uploading media:", error);

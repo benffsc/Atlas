@@ -399,6 +399,15 @@ export default function CatDetailPage() {
 
   // Edit modes per section
   const [editingBasic, setEditingBasic] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    sex: "",
+    is_eartipped: false,
+    color_pattern: "",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchCat = useCallback(async () => {
     try {
@@ -453,6 +462,62 @@ export default function CatDetailPage() {
 
     loadData();
   }, [id, fetchCat, fetchAppointments, fetchJournal]);
+
+  const startEditingBasic = () => {
+    if (cat) {
+      setEditForm({
+        name: cat.display_name || "",
+        sex: cat.sex || "",
+        is_eartipped: cat.altered_status === "Yes",
+        color_pattern: cat.coat_pattern || "",
+        notes: cat.notes || "",
+      });
+      setSaveError(null);
+      setEditingBasic(true);
+    }
+  };
+
+  const cancelEditingBasic = () => {
+    setEditingBasic(false);
+    setSaveError(null);
+  };
+
+  const handleSaveBasic = async () => {
+    if (!cat) return;
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      const response = await fetch(`/api/cats/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name || null,
+          sex: editForm.sex || null,
+          is_eartipped: editForm.is_eartipped,
+          color_pattern: editForm.color_pattern || null,
+          notes: editForm.notes || null,
+          change_reason: "manual_edit",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setSaveError(result.error || "Failed to save changes");
+        return;
+      }
+
+      // Refresh cat data
+      await fetchCat();
+      setEditingBasic(false);
+    } catch (err) {
+      setSaveError("Network error while saving");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return <div className="loading">Loading cat details...</div>;
@@ -526,47 +591,132 @@ export default function CatDetailPage() {
               <h1 style={{ margin: 0, fontSize: "1.75rem", color: "#212529" }}>{cat.display_name}</h1>
               <DataSourceBadge dataSource={cat.data_source} />
               <OwnershipTypeBadge ownershipType={cat.ownership_type} />
+              {!editingBasic && (
+                <button
+                  onClick={startEditingBasic}
+                  style={{ marginLeft: "auto", padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+                >
+                  Edit
+                </button>
+              )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
-              <div>
-                <div className="text-muted text-sm">Microchip</div>
-                <div style={{ fontFamily: "monospace", fontWeight: 500, color: "#212529" }}>{cat.microchip || "—"}</div>
-              </div>
-              <div>
-                <div className="text-muted text-sm">Sex</div>
-                <div style={{ fontWeight: 500, color: "#212529" }}>{cat.sex || "Unknown"}</div>
-              </div>
-              <div>
-                <div className="text-muted text-sm">Altered</div>
-                <div style={{ fontWeight: 500, color: "#212529" }}>
-                  {cat.altered_status === "Yes" ? (
-                    <span style={{ color: "#198754" }}>Yes {cat.altered_by_clinic ? "(by clinic)" : ""}</span>
-                  ) : cat.altered_status === "No" ? (
-                    <span style={{ color: "#dc3545" }}>No</span>
-                  ) : "Unknown"}
+            {editingBasic ? (
+              <div style={{ marginTop: "1rem" }}>
+                {saveError && (
+                  <div style={{ color: "#dc3545", marginBottom: "0.75rem", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px", fontSize: "0.875rem" }}>
+                    {saveError}
+                  </div>
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Name</label>
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Sex</label>
+                    <select
+                      value={editForm.sex}
+                      onChange={(e) => setEditForm({ ...editForm, sex: e.target.value })}
+                      style={{ width: "100%" }}
+                    >
+                      <option value="">Unknown</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Color/Pattern</label>
+                    <input
+                      type="text"
+                      value={editForm.color_pattern}
+                      onChange={(e) => setEditForm({ ...editForm, color_pattern: e.target.value })}
+                      placeholder="e.g., orange tabby, black"
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", paddingTop: "1.5rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={editForm.is_eartipped}
+                        onChange={(e) => setEditForm({ ...editForm, is_eartipped: e.target.checked })}
+                      />
+                      Ear-tipped (altered)
+                    </label>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "1rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Notes</label>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    rows={2}
+                    style={{ width: "100%", resize: "vertical" }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+                  <button onClick={handleSaveBasic} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    onClick={cancelEditingBasic}
+                    disabled={saving}
+                    style={{ background: "transparent", border: "1px solid var(--border)" }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
-              <div>
-                <div className="text-muted text-sm">Breed</div>
-                <div style={{ fontWeight: 500, color: "#212529" }}>{cat.breed || "Unknown"}</div>
-              </div>
-              <div>
-                <div className="text-muted text-sm">Color</div>
-                <div style={{ fontWeight: 500, color: "#212529" }}>{cat.color || "Unknown"} {cat.coat_pattern && `(${cat.coat_pattern})`}</div>
-              </div>
-              <div>
-                <div className="text-muted text-sm">Weight</div>
-                <div style={{ fontWeight: 500, color: "#212529" }}>
-                  {latestVital?.weight_lbs ? `${latestVital.weight_lbs} lbs` : "—"}
-                  {latestVital?.recorded_at && (
-                    <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>
-                      ({new Date(latestVital.recorded_at).toLocaleDateString()})
-                    </span>
-                  )}
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
+                <div>
+                  <div className="text-muted text-sm">Microchip</div>
+                  <div style={{ fontFamily: "monospace", fontWeight: 500, color: "#212529" }}>{cat.microchip || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-muted text-sm">Sex</div>
+                  <div style={{ fontWeight: 500, color: "#212529" }}>{cat.sex || "Unknown"}</div>
+                </div>
+                <div>
+                  <div className="text-muted text-sm">Altered</div>
+                  <div style={{ fontWeight: 500, color: "#212529" }}>
+                    {cat.altered_status === "Yes" ? (
+                      <span style={{ color: "#198754" }}>Yes {cat.altered_by_clinic ? "(by clinic)" : ""}</span>
+                    ) : cat.altered_status === "No" ? (
+                      <span style={{ color: "#dc3545" }}>No</span>
+                    ) : "Unknown"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted text-sm">Breed</div>
+                  <div style={{ fontWeight: 500, color: "#212529" }}>{cat.breed || "Unknown"}</div>
+                </div>
+                <div>
+                  <div className="text-muted text-sm">Color</div>
+                  <div style={{ fontWeight: 500, color: "#212529" }}>{cat.color || "Unknown"} {cat.coat_pattern && `(${cat.coat_pattern})`}</div>
+                </div>
+                <div>
+                  <div className="text-muted text-sm">Weight</div>
+                  <div style={{ fontWeight: 500, color: "#212529" }}>
+                    {latestVital?.weight_lbs ? `${latestVital.weight_lbs} lbs` : "—"}
+                    {latestVital?.recorded_at && (
+                      <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>
+                        ({new Date(latestVital.recorded_at).toLocaleDateString()})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Quick Status - FeLV/FIV prominent */}

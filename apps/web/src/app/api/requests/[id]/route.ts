@@ -43,6 +43,13 @@ interface RequestDetailRow {
   count_confidence: string | null;
   kitten_count: number | null;
   kitten_age_weeks: number | null;
+  kitten_assessment_status: string | null;
+  kitten_assessment_outcome: string | null;
+  kitten_foster_readiness: string | null;
+  kitten_urgency_factors: string[] | null;
+  kitten_assessment_notes: string | null;
+  kitten_assessed_by: string | null;
+  kitten_assessed_at: string | null;
   is_being_fed: boolean | null;
   feeder_name: string | null;
   feeding_schedule: string | null;
@@ -141,6 +148,13 @@ export async function GET(
         r.count_confidence::TEXT,
         r.kitten_count,
         r.kitten_age_weeks,
+        r.kitten_assessment_status,
+        r.kitten_assessment_outcome,
+        r.kitten_foster_readiness,
+        r.kitten_urgency_factors,
+        r.kitten_assessment_notes,
+        r.kitten_assessed_by,
+        r.kitten_assessed_at,
         r.is_being_fed,
         r.feeder_name,
         r.feeding_schedule,
@@ -294,6 +308,14 @@ interface UpdateRequestBody {
   urgency_reasons?: string[];
   urgency_deadline?: string;
   urgency_notes?: string;
+  // Kitten assessment fields
+  kitten_count?: number | null;
+  kitten_age_weeks?: number | null;
+  kitten_assessment_status?: string | null;
+  kitten_assessment_outcome?: string | null;
+  kitten_foster_readiness?: string | null;
+  kitten_urgency_factors?: string[] | null;
+  kitten_assessment_notes?: string | null;
 }
 
 export async function PATCH(
@@ -519,6 +541,49 @@ export async function PATCH(
     if (body.urgency_notes !== undefined) {
       updates.push(`urgency_notes = $${paramIndex}`);
       values.push(body.urgency_notes || null);
+      paramIndex++;
+    }
+
+    // Kitten assessment fields
+    if (body.kitten_count !== undefined) {
+      updates.push(`kitten_count = $${paramIndex}`);
+      values.push(body.kitten_count);
+      paramIndex++;
+    }
+
+    if (body.kitten_age_weeks !== undefined) {
+      updates.push(`kitten_age_weeks = $${paramIndex}`);
+      values.push(body.kitten_age_weeks);
+      paramIndex++;
+    }
+
+    if (body.kitten_assessment_status !== undefined) {
+      updates.push(`kitten_assessment_status = $${paramIndex}`);
+      values.push(body.kitten_assessment_status);
+      paramIndex++;
+    }
+
+    if (body.kitten_assessment_outcome !== undefined) {
+      updates.push(`kitten_assessment_outcome = $${paramIndex}`);
+      values.push(body.kitten_assessment_outcome);
+      paramIndex++;
+    }
+
+    if (body.kitten_foster_readiness !== undefined) {
+      updates.push(`kitten_foster_readiness = $${paramIndex}`);
+      values.push(body.kitten_foster_readiness);
+      paramIndex++;
+    }
+
+    if (body.kitten_urgency_factors !== undefined) {
+      updates.push(`kitten_urgency_factors = $${paramIndex}`);
+      values.push(body.kitten_urgency_factors);
+      paramIndex++;
+    }
+
+    if (body.kitten_assessment_notes !== undefined) {
+      updates.push(`kitten_assessment_notes = $${paramIndex}`);
+      values.push(body.kitten_assessment_notes);
       paramIndex++;
     }
 

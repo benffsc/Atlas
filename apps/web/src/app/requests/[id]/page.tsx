@@ -51,6 +51,16 @@ interface RequestDetail {
   requester_person_id: string | null;
   requester_name: string | null;
   cats: { cat_id: string; cat_name: string; relationship: string }[] | null;
+  // Kitten assessment fields
+  kitten_count: number | null;
+  kitten_age_weeks: number | null;
+  kitten_assessment_status: string | null;
+  kitten_assessment_outcome: string | null;
+  kitten_foster_readiness: string | null;
+  kitten_urgency_factors: string[] | null;
+  kitten_assessment_notes: string | null;
+  kitten_assessed_by: string | null;
+  kitten_assessed_at: string | null;
 }
 
 const STATUS_OPTIONS = [
@@ -68,6 +78,37 @@ const PRIORITY_OPTIONS = [
   { value: "high", label: "High" },
   { value: "normal", label: "Normal" },
   { value: "low", label: "Low" },
+];
+
+const KITTEN_ASSESSMENT_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending Assessment" },
+  { value: "assessed", label: "Assessed" },
+  { value: "follow_up", label: "Needs Follow-up" },
+];
+
+const KITTEN_OUTCOME_OPTIONS = [
+  { value: "foster_intake", label: "Foster Intake" },
+  { value: "tnr_candidate", label: "TNR Candidate (feral/older)" },
+  { value: "pending_space", label: "Pending Foster Space" },
+  { value: "return_to_colony", label: "Return to Colony" },
+  { value: "declined", label: "Declined / Not Suitable" },
+];
+
+const FOSTER_READINESS_OPTIONS = [
+  { value: "high", label: "High - Ready for foster" },
+  { value: "medium", label: "Medium - Some concerns" },
+  { value: "low", label: "Low - Not ready / needs intervention" },
+];
+
+const URGENCY_FACTOR_OPTIONS = [
+  { value: "very_young", label: "Very young (bottle babies)" },
+  { value: "medical_concern", label: "Medical concern" },
+  { value: "exposed_danger", label: "Exposed to danger" },
+  { value: "cold_weather", label: "Cold weather risk" },
+  { value: "hot_weather", label: "Hot weather risk" },
+  { value: "mom_missing", label: "Mom missing/dead" },
+  { value: "construction", label: "Construction/demolition" },
+  { value: "eviction", label: "Eviction/displacement" },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -164,6 +205,19 @@ export default function RequestDetailPage() {
   const [uploadCatDescription, setUploadCatDescription] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Kitten assessment state
+  const [editingKittens, setEditingKittens] = useState(false);
+  const [savingKittens, setSavingKittens] = useState(false);
+  const [kittenForm, setKittenForm] = useState({
+    kitten_count: "" as number | "",
+    kitten_age_weeks: "" as number | "",
+    kitten_assessment_status: "",
+    kitten_assessment_outcome: "",
+    kitten_foster_readiness: "",
+    kitten_urgency_factors: [] as string[],
+    kitten_assessment_notes: "",
+  });
+
   const fetchMedia = async () => {
     setLoadingMedia(true);
     try {
@@ -247,6 +301,16 @@ export default function RequestDetailPage() {
           cats_trapped: data.cats_trapped ?? "",
           cats_returned: data.cats_returned ?? "",
         });
+        // Initialize kitten form
+        setKittenForm({
+          kitten_count: data.kitten_count ?? "",
+          kitten_age_weeks: data.kitten_age_weeks ?? "",
+          kitten_assessment_status: data.kitten_assessment_status || "",
+          kitten_assessment_outcome: data.kitten_assessment_outcome || "",
+          kitten_foster_readiness: data.kitten_foster_readiness || "",
+          kitten_urgency_factors: data.kitten_urgency_factors || [],
+          kitten_assessment_notes: data.kitten_assessment_notes || "",
+        });
       } catch (err) {
         setError("Failed to load request");
       } finally {
@@ -323,6 +387,70 @@ export default function RequestDetailPage() {
       });
     }
     setEditing(false);
+  };
+
+  const handleSaveKittens = async () => {
+    setSavingKittens(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/requests/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kitten_count: kittenForm.kitten_count || null,
+          kitten_age_weeks: kittenForm.kitten_age_weeks || null,
+          kitten_assessment_status: kittenForm.kitten_assessment_status || null,
+          kitten_assessment_outcome: kittenForm.kitten_assessment_outcome || null,
+          kitten_foster_readiness: kittenForm.kitten_foster_readiness || null,
+          kitten_urgency_factors: kittenForm.kitten_urgency_factors.length > 0 ? kittenForm.kitten_urgency_factors : null,
+          kitten_assessment_notes: kittenForm.kitten_assessment_notes || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || "Failed to save kitten assessment");
+        return;
+      }
+
+      // Reload the request data
+      const refreshResponse = await fetch(`/api/requests/${requestId}`);
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setRequest(data);
+      }
+
+      setEditingKittens(false);
+    } catch (err) {
+      setError("Failed to save kitten assessment");
+    } finally {
+      setSavingKittens(false);
+    }
+  };
+
+  const handleCancelKittens = () => {
+    if (request) {
+      setKittenForm({
+        kitten_count: request.kitten_count ?? "",
+        kitten_age_weeks: request.kitten_age_weeks ?? "",
+        kitten_assessment_status: request.kitten_assessment_status || "",
+        kitten_assessment_outcome: request.kitten_assessment_outcome || "",
+        kitten_foster_readiness: request.kitten_foster_readiness || "",
+        kitten_urgency_factors: request.kitten_urgency_factors || [],
+        kitten_assessment_notes: request.kitten_assessment_notes || "",
+      });
+    }
+    setEditingKittens(false);
+  };
+
+  const toggleUrgencyFactor = (factor: string) => {
+    setKittenForm(prev => ({
+      ...prev,
+      kitten_urgency_factors: prev.kitten_urgency_factors.includes(factor)
+        ? prev.kitten_urgency_factors.filter(f => f !== factor)
+        : [...prev.kitten_urgency_factors, factor]
+    }));
   };
 
   if (loading) {
@@ -688,6 +816,297 @@ export default function RequestDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Kitten Assessment Card (when has_kittens is true) */}
+          {request.has_kittens && (
+            <div className="card" style={{
+              padding: "1.5rem",
+              marginBottom: "1.5rem",
+              background: "rgba(33, 150, 243, 0.1)",
+              border: "1px solid #2196f3"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h2 style={{ fontSize: "1.25rem", margin: 0, color: "#1565c0" }}>
+                  Kitten Assessment
+                </h2>
+                {!editingKittens && (
+                  <button
+                    onClick={() => setEditingKittens(true)}
+                    style={{ padding: "0.5rem 1rem" }}
+                  >
+                    {request.kitten_assessment_status ? "Edit Assessment" : "Assess Kittens"}
+                  </button>
+                )}
+              </div>
+
+              {editingKittens ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {/* Kitten Count and Age */}
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 150px" }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Kitten Count
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={kittenForm.kitten_count}
+                        onChange={(e) => setKittenForm({ ...kittenForm, kitten_count: e.target.value ? parseInt(e.target.value) : "" })}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                    <div style={{ flex: "1 1 150px" }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Age (weeks)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={kittenForm.kitten_age_weeks}
+                        onChange={(e) => setKittenForm({ ...kittenForm, kitten_age_weeks: e.target.value ? parseInt(e.target.value) : "" })}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Assessment Status */}
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Assessment Status
+                    </label>
+                    <select
+                      value={kittenForm.kitten_assessment_status}
+                      onChange={(e) => setKittenForm({ ...kittenForm, kitten_assessment_status: e.target.value })}
+                      style={{ width: "100%" }}
+                    >
+                      <option value="">Select status...</option>
+                      {KITTEN_ASSESSMENT_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Outcome */}
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Outcome Decision
+                    </label>
+                    <select
+                      value={kittenForm.kitten_assessment_outcome}
+                      onChange={(e) => setKittenForm({ ...kittenForm, kitten_assessment_outcome: e.target.value })}
+                      style={{ width: "100%" }}
+                    >
+                      <option value="">Select outcome...</option>
+                      {KITTEN_OUTCOME_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Foster Readiness */}
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Foster Readiness
+                    </label>
+                    <select
+                      value={kittenForm.kitten_foster_readiness}
+                      onChange={(e) => setKittenForm({ ...kittenForm, kitten_foster_readiness: e.target.value })}
+                      style={{ width: "100%" }}
+                    >
+                      <option value="">Select readiness...</option>
+                      {FOSTER_READINESS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Urgency Factors */}
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                      Urgency Factors
+                    </label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {URGENCY_FACTOR_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.value}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                            padding: "0.5rem 0.75rem",
+                            border: "1px solid var(--border)",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            background: kittenForm.kitten_urgency_factors.includes(opt.value)
+                              ? "rgba(33, 150, 243, 0.2)"
+                              : "transparent",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={kittenForm.kitten_urgency_factors.includes(opt.value)}
+                            onChange={() => toggleUrgencyFactor(opt.value)}
+                            style={{ marginRight: "0.25rem" }}
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Assessment Notes */}
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Assessment Notes
+                    </label>
+                    <textarea
+                      value={kittenForm.kitten_assessment_notes}
+                      onChange={(e) => setKittenForm({ ...kittenForm, kitten_assessment_notes: e.target.value })}
+                      rows={3}
+                      style={{ width: "100%", resize: "vertical" }}
+                      placeholder="Notes about the kittens, socialization level, health observations, etc."
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                    <button onClick={handleSaveKittens} disabled={savingKittens}>
+                      {savingKittens ? "Saving..." : "Save Assessment"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelKittens}
+                      style={{ background: "transparent", border: "1px solid var(--border)", color: "inherit" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Display existing assessment */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
+                    <div>
+                      <div className="text-muted text-sm">Kitten Count</div>
+                      <div style={{ fontWeight: 500, fontSize: "1.25rem" }}>
+                        {request.kitten_count ?? "Not recorded"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-muted text-sm">Age</div>
+                      <div style={{ fontWeight: 500 }}>
+                        {request.kitten_age_weeks
+                          ? `~${request.kitten_age_weeks} weeks`
+                          : "Unknown"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-muted text-sm">Assessment Status</div>
+                      <div style={{ fontWeight: 500 }}>
+                        {request.kitten_assessment_status ? (
+                          <span style={{
+                            padding: "0.25rem 0.5rem",
+                            borderRadius: "4px",
+                            background: request.kitten_assessment_status === "assessed"
+                              ? "#198754"
+                              : request.kitten_assessment_status === "follow_up"
+                                ? "#ffc107"
+                                : "#6c757d",
+                            color: request.kitten_assessment_status === "follow_up" ? "#000" : "#fff",
+                            fontSize: "0.85rem"
+                          }}>
+                            {request.kitten_assessment_status.replace(/_/g, " ")}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#dc3545" }}>Pending</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-muted text-sm">Outcome</div>
+                      <div style={{ fontWeight: 500 }}>
+                        {request.kitten_assessment_outcome
+                          ? request.kitten_assessment_outcome.replace(/_/g, " ")
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-muted text-sm">Foster Readiness</div>
+                      <div style={{ fontWeight: 500 }}>
+                        {request.kitten_foster_readiness ? (
+                          <span style={{
+                            color: request.kitten_foster_readiness === "high"
+                              ? "#198754"
+                              : request.kitten_foster_readiness === "medium"
+                                ? "#ffc107"
+                                : "#dc3545"
+                          }}>
+                            {request.kitten_foster_readiness}
+                          </span>
+                        ) : "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {request.kitten_urgency_factors && request.kitten_urgency_factors.length > 0 && (
+                    <div style={{ marginTop: "1rem" }}>
+                      <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Urgency Factors</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                        {request.kitten_urgency_factors.map((factor) => (
+                          <span
+                            key={factor}
+                            style={{
+                              background: "#dc3545",
+                              color: "#fff",
+                              padding: "0.25rem 0.5rem",
+                              borderRadius: "4px",
+                              fontSize: "0.85rem"
+                            }}
+                          >
+                            {factor.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {request.kitten_assessment_notes && (
+                    <div style={{ marginTop: "1rem" }}>
+                      <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Assessment Notes</div>
+                      <div style={{ whiteSpace: "pre-wrap" }}>{request.kitten_assessment_notes}</div>
+                    </div>
+                  )}
+
+                  {request.kitten_assessed_by && (
+                    <div style={{ marginTop: "1rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+                      Assessed by {request.kitten_assessed_by}
+                      {request.kitten_assessed_at && (
+                        <> on {new Date(request.kitten_assessed_at).toLocaleDateString()}</>
+                      )}
+                    </div>
+                  )}
+
+                  {!request.kitten_assessment_status && (
+                    <div style={{
+                      marginTop: "1rem",
+                      padding: "1rem",
+                      background: "rgba(255, 193, 7, 0.15)",
+                      borderRadius: "6px",
+                      border: "1px dashed #ffc107"
+                    }}>
+                      <p style={{ margin: 0, color: "#856404" }}>
+                        This request has kittens that need to be assessed by the foster coordinator.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Resolution Card (if resolved) */}
           {isResolved && (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne, queryRows, query } from "@/lib/db";
 
 interface CatDetailRow {
   cat_id: string;
@@ -286,6 +286,160 @@ export async function GET(
     console.error("Error fetching cat detail:", error);
     return NextResponse.json(
       { error: "Failed to fetch cat detail" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Update cat info with audit tracking
+interface UpdateCatBody {
+  name?: string;
+  sex?: string;
+  is_eartipped?: boolean;
+  color_pattern?: string;
+  notes?: string;
+  // Audit info
+  changed_by?: string;
+  change_reason?: string;
+  change_notes?: string;
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "Cat ID is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const body: UpdateCatBody = await request.json();
+    const changed_by = body.changed_by || "web_user";
+    const change_reason = body.change_reason || "manual_update";
+    const change_notes = body.change_notes || null;
+
+    // Fields that can be updated
+    const editableFields = ["name", "sex", "is_eartipped", "color_pattern", "notes"];
+
+    // Get current cat data for audit comparison
+    const currentSql = `
+      SELECT name, sex, is_eartipped, color_pattern, notes
+      FROM trapper.sot_cats WHERE cat_id = $1
+    `;
+    const current = await queryOne<{
+      name: string | null;
+      sex: string | null;
+      is_eartipped: boolean | null;
+      color_pattern: string | null;
+      notes: string | null;
+    }>(currentSql, [id]);
+
+    if (!current) {
+      return NextResponse.json({ error: "Cat not found" }, { status: 404 });
+    }
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+    const auditInserts: string[] = [];
+
+    // Check each field for changes
+    if (body.name !== undefined && body.name !== current.name) {
+      auditInserts.push(`
+        INSERT INTO trapper.cat_changes (cat_id, field_name, old_value, new_value, change_reason, change_notes, changed_by)
+        VALUES ('${id}', 'name', ${current.name ? `'${current.name.replace(/'/g, "''")}'` : 'NULL'}, '${(body.name || '').replace(/'/g, "''")}', '${change_reason}', ${change_notes ? `'${change_notes.replace(/'/g, "''")}'` : 'NULL'}, '${changed_by}')
+      `);
+      updates.push(`name = $${paramIndex}`);
+      values.push(body.name);
+      paramIndex++;
+    }
+
+    if (body.sex !== undefined && body.sex !== current.sex) {
+      auditInserts.push(`
+        INSERT INTO trapper.cat_changes (cat_id, field_name, old_value, new_value, change_reason, change_notes, changed_by)
+        VALUES ('${id}', 'sex', ${current.sex ? `'${current.sex}'` : 'NULL'}, '${body.sex}', '${change_reason}', ${change_notes ? `'${change_notes.replace(/'/g, "''")}'` : 'NULL'}, '${changed_by}')
+      `);
+      updates.push(`sex = $${paramIndex}::trapper.cat_sex`);
+      values.push(body.sex);
+      paramIndex++;
+    }
+
+    if (body.is_eartipped !== undefined && body.is_eartipped !== current.is_eartipped) {
+      auditInserts.push(`
+        INSERT INTO trapper.cat_changes (cat_id, field_name, old_value, new_value, change_reason, change_notes, changed_by)
+        VALUES ('${id}', 'is_eartipped', '${current.is_eartipped}', '${body.is_eartipped}', '${change_reason}', ${change_notes ? `'${change_notes.replace(/'/g, "''")}'` : 'NULL'}, '${changed_by}')
+      `);
+      updates.push(`is_eartipped = $${paramIndex}`);
+      values.push(body.is_eartipped);
+      paramIndex++;
+    }
+
+    if (body.color_pattern !== undefined && body.color_pattern !== current.color_pattern) {
+      auditInserts.push(`
+        INSERT INTO trapper.cat_changes (cat_id, field_name, old_value, new_value, change_reason, change_notes, changed_by)
+        VALUES ('${id}', 'color_pattern', ${current.color_pattern ? `'${current.color_pattern.replace(/'/g, "''")}'` : 'NULL'}, '${(body.color_pattern || '').replace(/'/g, "''")}', '${change_reason}', ${change_notes ? `'${change_notes.replace(/'/g, "''")}'` : 'NULL'}, '${changed_by}')
+      `);
+      updates.push(`color_pattern = $${paramIndex}`);
+      values.push(body.color_pattern);
+      paramIndex++;
+    }
+
+    if (body.notes !== undefined && body.notes !== current.notes) {
+      updates.push(`notes = $${paramIndex}`);
+      values.push(body.notes);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json({ success: true, message: "No changes detected" });
+    }
+
+    // Execute audit inserts
+    for (const auditSql of auditInserts) {
+      try {
+        await query(auditSql, []);
+      } catch (err) {
+        console.error("Audit log error:", err);
+        // Continue even if audit fails
+      }
+    }
+
+    // Add updated_at and place_id for WHERE
+    updates.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const sql = `
+      UPDATE trapper.sot_cats
+      SET ${updates.join(", ")}
+      WHERE cat_id = $${paramIndex}
+      RETURNING cat_id, name, sex, is_eartipped, color_pattern
+    `;
+
+    const result = await queryOne<{
+      cat_id: string;
+      name: string;
+      sex: string | null;
+      is_eartipped: boolean;
+      color_pattern: string | null;
+    }>(sql, values);
+
+    if (!result) {
+      return NextResponse.json({ error: "Cat not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      cat: result,
+    });
+  } catch (error) {
+    console.error("Error updating cat:", error);
+    return NextResponse.json(
+      { error: "Failed to update cat" },
       { status: 500 }
     );
   }

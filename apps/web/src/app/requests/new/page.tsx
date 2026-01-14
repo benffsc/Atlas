@@ -35,6 +35,24 @@ interface PlaceDetails {
 interface PersonDetails {
   person_id: string;
   display_name: string;
+  email?: string;
+  phone?: string;
+}
+
+interface EmailCheckResult {
+  exists: boolean;
+  person?: { person_id: string; display_name: string };
+  normalizedEmail: string;
+}
+
+interface DuplicateCheckResult {
+  isDuplicate: boolean;
+  existingPlace?: {
+    place_id: string;
+    display_name: string;
+    formatted_address: string;
+  };
+  canAddUnit: boolean;
 }
 
 const PLACE_TYPE_OPTIONS = [
@@ -118,16 +136,37 @@ function NewRequestForm() {
   const [showPlacePreview, setShowPlacePreview] = useState(false);
   const [previewPlace, setPreviewPlace] = useState<PlaceDetails | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // Duplicate place detection
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [addingUnit, setAddingUnit] = useState(false);
+  const [unitIdentifier, setUnitIdentifier] = useState("");
   const [propertyType, setPropertyType] = useState("");
   const [locationDescription, setLocationDescription] = useState("");
 
-  // Contact
+  // Contact - Requestor
+  const [requestorMode, setRequestorMode] = useState<"search" | "create">("search");
   const [personSearch, setPersonSearch] = useState("");
   const [personResults, setPersonResults] = useState<SearchResult[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<PersonDetails | null>(null);
   const [searchingPeople, setSearchingPeople] = useState(false);
-  const [requesterLivesElsewhere, setRequesterLivesElsewhere] = useState(false);
-  const [propertyOwnerContact, setPropertyOwnerContact] = useState("");
+  // Requestor fields (editable for both search and create modes)
+  const [requestorFirstName, setRequestorFirstName] = useState("");
+  const [requestorLastName, setRequestorLastName] = useState("");
+  const [requestorPhone, setRequestorPhone] = useState("");
+  const [requestorEmail, setRequestorEmail] = useState("");
+  // Email duplicate warning
+  const [emailWarning, setEmailWarning] = useState<EmailCheckResult | null>(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  // Contact info editing (for existing person)
+  const [editingContactInfo, setEditingContactInfo] = useState(false);
+  const [originalContactInfo, setOriginalContactInfo] = useState<{ phone: string; email: string } | null>(null);
+  // Property authority
+  const [hasPropertyAuthority, setHasPropertyAuthority] = useState(true);
+  const [propertyOwnerName, setPropertyOwnerName] = useState("");
+  const [propertyOwnerPhone, setPropertyOwnerPhone] = useState("");
+  const [authorizationPending, setAuthorizationPending] = useState(false);
   const [bestContactTimes, setBestContactTimes] = useState("");
 
   // Permission & Access
@@ -135,6 +174,28 @@ function NewRequestForm() {
   const [accessNotes, setAccessNotes] = useState("");
   const [trapsOvernightSafe, setTrapsOvernightSafe] = useState<boolean | null>(null);
   const [accessWithoutContact, setAccessWithoutContact] = useState<boolean | null>(null);
+
+  // Request Purpose (multi-select)
+  const [requestPurposes, setRequestPurposes] = useState<string[]>(["tnr"]);
+  const [wellnessCatCount, setWellnessCatCount] = useState<number | "">("");
+
+  // Helper to toggle purpose selection
+  const togglePurpose = (purpose: string) => {
+    setRequestPurposes(prev => {
+      if (prev.includes(purpose)) {
+        // Don't allow empty selection - keep at least one
+        if (prev.length === 1) return prev;
+        return prev.filter(p => p !== purpose);
+      }
+      return [...prev, purpose];
+    });
+  };
+
+  // Computed: check if specific purposes are selected
+  const hasTnr = requestPurposes.includes("tnr");
+  const hasWellness = requestPurposes.includes("wellness");
+  const hasRelocation = requestPurposes.includes("relocation");
+  const hasRescue = requestPurposes.includes("rescue");
 
   // About the Cats
   const [estimatedCatCount, setEstimatedCatCount] = useState<number | "">("");
@@ -148,6 +209,14 @@ function NewRequestForm() {
   const [hasKittens, setHasKittens] = useState(false);
   const [kittenCount, setKittenCount] = useState<number | "">("");
   const [kittenAgeWeeks, setKittenAgeWeeks] = useState<number | "">("");
+  const [kittenAgeEstimate, setKittenAgeEstimate] = useState("");
+  const [kittenMixedAgesDescription, setKittenMixedAgesDescription] = useState("");
+  const [kittenBehavior, setKittenBehavior] = useState("");
+  const [kittenContained, setKittenContained] = useState("");
+  const [momPresent, setMomPresent] = useState("");
+  const [momFixed, setMomFixed] = useState("");
+  const [canBringIn, setCanBringIn] = useState("");
+  const [kittenNotes, setKittenNotes] = useState("");
 
   // Feeding
   const [isBeingFed, setIsBeingFed] = useState<boolean | null>(null);
@@ -163,7 +232,8 @@ function NewRequestForm() {
 
   // Additional Details
   const [summary, setSummary] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(""); // Case info - situation description
+  const [internalNotes, setInternalNotes] = useState(""); // Staff working notes
 
   // Submission state
   const [submitting, setSubmitting] = useState(false);
@@ -266,6 +336,37 @@ function NewRequestForm() {
     return () => clearTimeout(timer);
   }, [personSearch, selectedPerson]);
 
+  // Debounced email duplicate check
+  useEffect(() => {
+    if (!requestorEmail || !requestorEmail.includes("@") || selectedPerson) {
+      setEmailWarning(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCheckingEmail(true);
+      try {
+        const response = await fetch(
+          `/api/people/check-email?email=${encodeURIComponent(requestorEmail)}`
+        );
+        if (response.ok) {
+          const data: EmailCheckResult = await response.json();
+          if (data.exists) {
+            setEmailWarning(data);
+          } else {
+            setEmailWarning(null);
+          }
+        }
+      } catch (err) {
+        console.error("Email check error:", err);
+      } finally {
+        setCheckingEmail(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [requestorEmail, selectedPerson]);
+
   const previewExistingPlace = async (result: SearchResult) => {
     setLoadingPreview(true);
     setShowDropdown(false);
@@ -301,10 +402,34 @@ function NewRequestForm() {
     }
   };
 
-  const selectGooglePlace = (prediction: GooglePrediction) => {
+  const selectGooglePlace = async (prediction: GooglePrediction) => {
     setPendingGooglePlace(prediction);
-    setShowPlaceTypeModal(true);
     setShowDropdown(false);
+    setCheckingDuplicate(true);
+
+    try {
+      // Check if this address already exists
+      const response = await fetch(
+        `/api/places/check-duplicate?address=${encodeURIComponent(prediction.description)}`
+      );
+      if (response.ok) {
+        const result: DuplicateCheckResult = await response.json();
+        if (result.isDuplicate && result.existingPlace) {
+          // Show duplicate modal
+          setDuplicateResult(result);
+          setShowDuplicateModal(true);
+          return;
+        }
+      }
+      // No duplicate - proceed to place type modal
+      setShowPlaceTypeModal(true);
+    } catch (err) {
+      console.error("Error checking duplicate:", err);
+      // On error, just proceed to place type modal
+      setShowPlaceTypeModal(true);
+    } finally {
+      setCheckingDuplicate(false);
+    }
   };
 
   const createPlaceFromGoogle = async () => {
@@ -367,15 +492,140 @@ function NewRequestForm() {
       const response = await fetch(`/api/people/${result.entity_id}`);
       if (response.ok) {
         const person = await response.json();
+        // Extract email and phone from identifiers (API returns id_value, not id_value_norm)
+        const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
+        const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
+
+        const email = emailId?.id_value || "";
+        const phone = phoneId?.id_value || "";
+
         setSelectedPerson({
           person_id: person.person_id,
           display_name: person.display_name,
+          email,
+          phone,
         });
+        // Pre-fill the fields
+        const nameParts = person.display_name?.split(" ") || [];
+        setRequestorFirstName(nameParts[0] || "");
+        setRequestorLastName(nameParts.slice(1).join(" ") || "");
+        setRequestorEmail(email);
+        setRequestorPhone(phone);
+        // Track original values for change detection
+        setOriginalContactInfo({ phone, email });
+        setEditingContactInfo(false);
         setPersonSearch("");
         setPersonResults([]);
+        setEmailWarning(null);
       }
     } catch (err) {
       console.error("Failed to fetch person details:", err);
+    }
+  };
+
+  const useExistingPerson = () => {
+    if (emailWarning?.person) {
+      // Fetch the existing person's details
+      fetch(`/api/people/${emailWarning.person.person_id}`)
+        .then((res) => res.ok ? res.json() : null)
+        .then((person) => {
+          if (person) {
+            const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
+            const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
+            const email = emailId?.id_value || "";
+            const phone = phoneId?.id_value || "";
+            setSelectedPerson({
+              person_id: person.person_id,
+              display_name: person.display_name,
+              email,
+              phone,
+            });
+            const nameParts = person.display_name?.split(" ") || [];
+            setRequestorFirstName(nameParts[0] || "");
+            setRequestorLastName(nameParts.slice(1).join(" ") || "");
+            setRequestorEmail(email || requestorEmail);
+            setRequestorPhone(phone || requestorPhone);
+            setOriginalContactInfo({ phone, email });
+            setEditingContactInfo(false);
+            setEmailWarning(null);
+            setRequestorMode("search");
+          }
+        });
+    }
+  };
+
+  const selectExistingDuplicate = () => {
+    if (duplicateResult?.existingPlace) {
+      setSelectedPlace({
+        place_id: duplicateResult.existingPlace.place_id,
+        display_name: duplicateResult.existingPlace.display_name,
+        formatted_address: duplicateResult.existingPlace.formatted_address,
+        locality: null,
+      });
+      setShowDuplicateModal(false);
+      setDuplicateResult(null);
+      setPendingGooglePlace(null);
+      setPlaceSearch("");
+    }
+  };
+
+  const createUnitFromDuplicate = async () => {
+    if (!pendingGooglePlace || !duplicateResult?.existingPlace || !unitIdentifier.trim()) return;
+
+    setCreatingPlace(true);
+    try {
+      // Get details for the new Google place to get lat/lng
+      const detailsRes = await fetch(
+        `/api/places/details?place_id=${pendingGooglePlace.place_id}`
+      );
+      if (!detailsRes.ok) {
+        throw new Error("Failed to get place details");
+      }
+      const { place: googleDetails } = await detailsRes.json();
+
+      // Create the unit as a child of the existing place
+      const createRes = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_name: `${duplicateResult.existingPlace.display_name} ${unitIdentifier}`,
+          formatted_address: `${duplicateResult.existingPlace.formatted_address.replace(/, USA$/, "")} ${unitIdentifier}`,
+          place_kind: "apartment_unit",
+          parent_place_id: duplicateResult.existingPlace.place_id,
+          unit_identifier: unitIdentifier,
+          location: googleDetails.geometry?.location
+            ? {
+                lat: googleDetails.geometry.location.lat,
+                lng: googleDetails.geometry.location.lng,
+              }
+            : null,
+        }),
+      });
+
+      if (!createRes.ok) {
+        const errData = await createRes.json();
+        throw new Error(errData.error || "Failed to create unit");
+      }
+
+      const newPlace = await createRes.json();
+      setSelectedPlace({
+        place_id: newPlace.place_id,
+        display_name: newPlace.display_name,
+        formatted_address: newPlace.formatted_address || `${duplicateResult.existingPlace.formatted_address} ${unitIdentifier}`,
+        locality: null,
+      });
+
+      setShowDuplicateModal(false);
+      setDuplicateResult(null);
+      setPendingGooglePlace(null);
+      setPlaceSearch("");
+      setUnitIdentifier("");
+      setAddingUnit(false);
+    } catch (err) {
+      console.error("Failed to create unit:", err);
+      setError(err instanceof Error ? err.message : "Failed to create unit");
+    } finally {
+      setCreatingPlace(false);
     }
   };
 
@@ -387,6 +637,13 @@ function NewRequestForm() {
   const clearPerson = () => {
     setSelectedPerson(null);
     setPersonSearch("");
+    setRequestorFirstName("");
+    setRequestorLastName("");
+    setRequestorEmail("");
+    setRequestorPhone("");
+    setEmailWarning(null);
+    setEditingContactInfo(false);
+    setOriginalContactInfo(null);
   };
 
   const toggleUrgencyReason = (reason: string) => {
@@ -411,13 +668,25 @@ function NewRequestForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Request Purpose - send primary and all selected
+          // Priority: tnr > relocation > rescue > wellness (for primary)
+          request_purpose: hasTnr ? "tnr" : hasRelocation ? "relocation" : hasRescue ? "rescue" : "wellness",
+          request_purposes: requestPurposes, // Full array for notes/future use
           // Location
           place_id: selectedPlace?.place_id || null,
           property_type: propertyType || null,
           location_description: locationDescription || null,
-          // Contact
+          // Contact - Requestor
           requester_person_id: selectedPerson?.person_id || null,
-          property_owner_contact: propertyOwnerContact || null,
+          raw_requester_name: !selectedPerson && (requestorFirstName || requestorLastName)
+            ? `${requestorFirstName} ${requestorLastName}`.trim()
+            : null,
+          raw_requester_phone: requestorPhone || null,
+          raw_requester_email: requestorEmail || null,
+          // Property authority
+          property_owner_name: !hasPropertyAuthority ? propertyOwnerName || null : null,
+          property_owner_phone: !hasPropertyAuthority ? propertyOwnerPhone || null : null,
+          authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
           best_contact_times: bestContactTimes || null,
           // Permission & Access
           permission_status: permissionStatus,
@@ -426,6 +695,7 @@ function NewRequestForm() {
           access_without_contact: accessWithoutContact,
           // About the Cats
           estimated_cat_count: estimatedCatCount || null,
+          wellness_cat_count: hasWellness ? (wellnessCatCount || null) : null,
           count_confidence: countConfidence,
           colony_duration: colonyDuration,
           eartip_count: showExactEartipCount ? (eartipCount || null) : null,
@@ -435,6 +705,14 @@ function NewRequestForm() {
           has_kittens: hasKittens,
           kitten_count: hasKittens ? (kittenCount || null) : null,
           kitten_age_weeks: hasKittens ? (kittenAgeWeeks || null) : null,
+          kitten_age_estimate: hasKittens ? (kittenAgeEstimate || null) : null,
+          kitten_mixed_ages_description: hasKittens && kittenAgeEstimate === "mixed" ? (kittenMixedAgesDescription || null) : null,
+          kitten_behavior: hasKittens ? (kittenBehavior || null) : null,
+          kitten_contained: hasKittens ? (kittenContained || null) : null,
+          mom_present: hasKittens ? (momPresent || null) : null,
+          mom_fixed: hasKittens && momPresent === "yes" ? (momFixed || null) : null,
+          can_bring_in: hasKittens ? (canBringIn || null) : null,
+          kitten_notes: hasKittens ? (kittenNotes || null) : null,
           // Feeding
           is_being_fed: isBeingFed,
           feeder_name: isBeingFed ? (feederName || null) : null,
@@ -448,6 +726,7 @@ function NewRequestForm() {
           // Additional
           summary: summary || null,
           notes: notes || null,
+          internal_notes: internalNotes || null,
           created_by: "app_user",
         }),
       });
@@ -717,6 +996,180 @@ function NewRequestForm() {
         >
           <div className="card" style={{ padding: "1.5rem" }}>
             Loading place details...
+          </div>
+        </div>
+      )}
+
+      {/* Checking Duplicate Indicator */}
+      {checkingDuplicate && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 999,
+          }}
+        >
+          <div className="card" style={{ padding: "1.5rem" }}>
+            Checking for existing addresses...
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Address Modal */}
+      {showDuplicateModal && duplicateResult && pendingGooglePlace && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            setShowDuplicateModal(false);
+            setPendingGooglePlace(null);
+            setAddingUnit(false);
+            setUnitIdentifier("");
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              padding: "1.5rem",
+              maxWidth: "550px",
+              width: "90%",
+              maxHeight: "90vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                background: "#ffc107",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 1rem",
+                color: "#000",
+                fontSize: "1.5rem",
+              }}
+            >
+              !
+            </div>
+            <h2 style={{ marginBottom: "0.5rem", textAlign: "center" }}>Address Already Exists</h2>
+            <p className="text-muted" style={{ textAlign: "center", marginBottom: "1rem" }}>
+              This address is already in our system.
+            </p>
+
+            <div
+              style={{
+                padding: "1rem",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
+                {duplicateResult.existingPlace?.display_name}
+              </div>
+              <div className="text-muted text-sm">
+                {duplicateResult.existingPlace?.formatted_address}
+              </div>
+            </div>
+
+            {!addingUnit ? (
+              <>
+                <p style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
+                  Would you like to use this existing location, or are you adding a new unit/apartment at this address?
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <button type="button" onClick={selectExistingDuplicate}>
+                    Use Existing Location
+                  </button>
+                  {duplicateResult.canAddUnit && (
+                    <button
+                      type="button"
+                      onClick={() => setAddingUnit(true)}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        color: "inherit",
+                      }}
+                    >
+                      Add Unit to This Address
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDuplicateModal(false);
+                      setPendingGooglePlace(null);
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--muted)",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ marginBottom: "0.75rem", fontSize: "0.95rem" }}>
+                  Enter the unit identifier for this location:
+                </p>
+                <div style={{ marginBottom: "1rem" }}>
+                  <input
+                    type="text"
+                    value={unitIdentifier}
+                    onChange={(e) => setUnitIdentifier(e.target.value)}
+                    placeholder="e.g., Apt 5, Unit B, #12, Space 101"
+                    style={{ width: "100%" }}
+                    autoFocus
+                  />
+                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                    This will create: {duplicateResult.existingPlace?.display_name} {unitIdentifier || "[unit]"}
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <button
+                    type="button"
+                    onClick={createUnitFromDuplicate}
+                    disabled={!unitIdentifier.trim() || creatingPlace}
+                  >
+                    {creatingPlace ? "Creating..." : "Create Unit"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddingUnit(false);
+                      setUnitIdentifier("");
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      color: "inherit",
+                    }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1075,34 +1528,40 @@ function NewRequestForm() {
           </div>
         </div>
 
-        {/* SECTION 2: Contact */}
+        {/* SECTION 2: Requestor */}
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Contact Information</h2>
+          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Requestor</h2>
 
-          {selectedPerson ? (
-            <div
-              style={{
-                padding: "1rem",
-                borderRadius: "8px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                border: "1px solid var(--border)",
-                marginBottom: "1rem",
-              }}
-            >
-              <strong>{selectedPerson.display_name}</strong>
-              <button type="button" onClick={clearPerson} style={{ padding: "0.25rem 0.5rem" }}>
-                Change
-              </button>
-            </div>
-          ) : (
+          {/* Mode toggle */}
+          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="requestorMode"
+                checked={requestorMode === "search"}
+                onChange={() => { setRequestorMode("search"); clearPerson(); }}
+              />
+              Search existing person
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="requestorMode"
+                checked={requestorMode === "create"}
+                onChange={() => { setRequestorMode("create"); setSelectedPerson(null); }}
+              />
+              Create new person
+            </label>
+          </div>
+
+          {/* Search mode */}
+          {requestorMode === "search" && !selectedPerson && (
             <div style={{ position: "relative", marginBottom: "1rem" }}>
               <input
                 type="text"
                 value={personSearch}
                 onChange={(e) => setPersonSearch(e.target.value)}
-                placeholder="Search for requester..."
+                placeholder="Search by name, phone, or email..."
                 style={{ width: "100%" }}
               />
               {searchingPeople && (
@@ -1127,55 +1586,320 @@ function NewRequestForm() {
                   ))}
                 </div>
               )}
+              {personSearch.length >= 2 && personResults.length === 0 && !searchingPeople && (
+                <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
+                  No matching people found.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setRequestorMode("create")}
+                    style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0 }}
+                  >
+                    Create new person
+                  </button>
+                </p>
+              )}
             </div>
           )}
 
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginBottom: "1rem",
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={requesterLivesElsewhere}
-              onChange={(e) => setRequesterLivesElsewhere(e.target.checked)}
-            />
-            Requester lives at a different address
-          </label>
+          {/* Selected person badge */}
+          {selectedPerson && (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                borderRadius: "8px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                border: "1px solid var(--primary)",
+                background: "rgba(var(--primary-rgb), 0.05)",
+                marginBottom: "1rem",
+              }}
+            >
+              <div>
+                <strong>{selectedPerson.display_name}</strong>
+              </div>
+              <button type="button" onClick={clearPerson} style={{ padding: "0.25rem 0.5rem" }}>
+                Change Person
+              </button>
+            </div>
+          )}
 
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 250px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Property Owner/Manager Contact
-              </label>
-              <input
-                type="text"
-                value={propertyOwnerContact}
-                onChange={(e) => setPropertyOwnerContact(e.target.value)}
-                placeholder="Name and phone if different from requester"
-                style={{ width: "100%" }}
-              />
-              <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                If requester is not the property owner
+          {/* Contact fields - different display for existing vs new person */}
+          {selectedPerson && !editingContactInfo ? (
+            /* Read-only contact display for existing person */
+            <div style={{ marginBottom: "1rem" }}>
+              <div
+                style={{
+                  padding: "1rem",
+                  background: "var(--bg-muted)",
+                  borderRadius: "8px",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+                  <div>
+                    <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Phone</div>
+                    <div style={{ fontWeight: 500 }}>
+                      {selectedPerson.phone || <span className="text-muted">Not on file</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Email</div>
+                    <div style={{ fontWeight: 500 }}>
+                      {selectedPerson.email || <span className="text-muted">Not on file</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingContactInfo(true)}
+                style={{
+                  padding: "0.4rem 0.75rem",
+                  fontSize: "0.9rem",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  color: "inherit",
+                }}
+              >
+                Update Contact Info
+              </button>
+            </div>
+          ) : (
+            /* Editable contact fields for new person OR when editing existing */
+            <>
+              {selectedPerson && editingContactInfo && (
+                <div
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    background: "#e3f2fd",
+                    borderRadius: "6px",
+                    marginBottom: "0.75rem",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  Editing contact info for <strong>{selectedPerson.display_name}</strong>
+                  {" "}&mdash; changes will be tracked
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 180px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    First Name {requestorMode === "create" && "*"}
+                  </label>
+                  <input
+                    type="text"
+                    value={requestorFirstName}
+                    onChange={(e) => setRequestorFirstName(e.target.value)}
+                    placeholder="First name"
+                    style={{ width: "100%" }}
+                    disabled={selectedPerson !== null && !editingContactInfo}
+                  />
+                </div>
+                <div style={{ flex: "1 1 180px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Last Name {requestorMode === "create" && "*"}
+                  </label>
+                  <input
+                    type="text"
+                    value={requestorLastName}
+                    onChange={(e) => setRequestorLastName(e.target.value)}
+                    placeholder="Last name"
+                    style={{ width: "100%" }}
+                    disabled={selectedPerson !== null && !editingContactInfo}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={requestorPhone}
+                    onChange={(e) => setRequestorPhone(e.target.value)}
+                    placeholder="(707) 555-1234"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 250px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={requestorEmail}
+                    onChange={(e) => setRequestorEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    style={{ width: "100%" }}
+                  />
+                  {checkingEmail && !selectedPerson && (
+                    <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                      Checking...
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Cancel edit button when editing existing person */}
+              {selectedPerson && editingContactInfo && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Restore original values
+                      if (originalContactInfo) {
+                        setRequestorPhone(originalContactInfo.phone);
+                        setRequestorEmail(originalContactInfo.email);
+                      }
+                      setEditingContactInfo(false);
+                    }}
+                    style={{
+                      padding: "0.4rem 0.75rem",
+                      fontSize: "0.9rem",
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      color: "inherit",
+                    }}
+                  >
+                    Cancel Edit
+                  </button>
+                  {(requestorPhone !== originalContactInfo?.phone || requestorEmail !== originalContactInfo?.email) && (
+                    <span className="text-sm" style={{ marginLeft: "0.75rem", color: "#28a745" }}>
+                      Changes will be saved with request
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Email duplicate warning */}
+          {emailWarning && (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                borderRadius: "8px",
+                border: "2px solid #e65100",
+                background: "#fff8f5",
+                color: "#333",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ marginBottom: "0.5rem", color: "#c62828" }}>
+                <strong>This email already exists</strong>
+              </div>
+              <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", color: "#333" }}>
+                {`"${requestorEmail}" is registered to `}
+                <strong>{emailWarning.person?.display_name}</strong>.
+                {" "}Is this the same person, or do they share an email (e.g., a couple)?
               </p>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={useExistingPerson}
+                  style={{ padding: "0.4rem 0.75rem", fontSize: "0.9rem" }}
+                >
+                  Use Existing Person
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmailWarning(null)}
+                  style={{
+                    padding: "0.4rem 0.75rem",
+                    fontSize: "0.9rem",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    color: "inherit",
+                  }}
+                >
+                  Create New Anyway (shared email)
+                </button>
+              </div>
             </div>
+          )}
 
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Best Times to Contact
-              </label>
+          {/* Property authority section */}
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "0.5rem" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                cursor: "pointer",
+                marginBottom: hasPropertyAuthority ? "0" : "1rem",
+              }}
+            >
               <input
-                type="text"
-                value={bestContactTimes}
-                onChange={(e) => setBestContactTimes(e.target.value)}
-                placeholder="e.g., mornings, after 5pm..."
-                style={{ width: "100%" }}
+                type="checkbox"
+                checked={!hasPropertyAuthority}
+                onChange={(e) => setHasPropertyAuthority(!e.target.checked)}
               />
-            </div>
+              <span>Requestor does NOT have authority over property</span>
+            </label>
+
+            {!hasPropertyAuthority && (
+              <div style={{ marginLeft: "1.5rem", marginTop: "0.75rem" }}>
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                  <div style={{ flex: "1 1 200px" }}>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Property Owner Name
+                    </label>
+                    <input
+                      type="text"
+                      value={propertyOwnerName}
+                      onChange={(e) => setPropertyOwnerName(e.target.value)}
+                      placeholder="Owner/manager name"
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                  <div style={{ flex: "1 1 180px" }}>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                      Property Owner Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={propertyOwnerPhone}
+                      onChange={(e) => setPropertyOwnerPhone(e.target.value)}
+                      placeholder="(707) 555-1234"
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                </div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={authorizationPending}
+                    onChange={(e) => setAuthorizationPending(e.target.checked)}
+                  />
+                  <span>Authorization pending (needs follow-up)</span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Best contact times */}
+          <div style={{ marginTop: "1rem" }}>
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+              Best Times to Contact
+            </label>
+            <input
+              type="text"
+              value={bestContactTimes}
+              onChange={(e) => setBestContactTimes(e.target.value)}
+              placeholder="e.g., mornings, after 5pm, weekends..."
+              style={{ width: "100%" }}
+            />
           </div>
         </div>
 
@@ -1292,97 +2016,181 @@ function NewRequestForm() {
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>About the Cats</h2>
 
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-            <div style={{ flex: "1 1 120px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                How many cats?
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={estimatedCatCount}
-                onChange={(e) =>
-                  setEstimatedCatCount(e.target.value ? parseInt(e.target.value) : "")
-                }
-                placeholder="0"
-                style={{ width: "100%" }}
-              />
-            </div>
-
-            <div style={{ flex: "1 1 180px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                How confident is this count?
-              </label>
-              <select
-                value={countConfidence}
-                onChange={(e) => setCountConfidence(e.target.value)}
-                style={{ width: "100%" }}
-              >
-                {COUNT_CONFIDENCE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                How long have cats been here?
-              </label>
-              <select
-                value={colonyDuration}
-                onChange={(e) => setColonyDuration(e.target.value)}
-                style={{ width: "100%" }}
-              >
-                {COLONY_DURATION_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+          {/* Request Purpose Selector - Multi-select */}
+          <div style={{ marginBottom: "1.25rem" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+              What does this request involve? <span className="text-muted" style={{ fontWeight: 400 }}>(select all that apply)</span>
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              {[
+                { value: "tnr", label: "TNR", desc: "Cats need spay/neuter" },
+                { value: "wellness", label: "Wellness", desc: "Check on altered cats" },
+                { value: "relocation", label: "Relocation", desc: "Trapping to move cats" },
+                { value: "rescue", label: "Rescue", desc: "Emergency assistance" },
+              ].map((opt) => {
+                const isSelected = requestPurposes.includes(opt.value);
+                return (
+                  <label
+                    key={opt.value}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      padding: "0.6rem 1rem",
+                      border: isSelected ? "2px solid var(--primary)" : "1px solid var(--border)",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      background: isSelected ? "rgba(var(--primary-rgb), 0.05)" : "transparent",
+                      minWidth: "110px",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => togglePurpose(opt.value)}
+                      style={{ display: "none" }}
+                    />
+                    <span style={{ fontWeight: 600 }}>{opt.label}</span>
+                    <span className="text-muted" style={{ fontSize: "0.75rem" }}>{opt.desc}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
-          {/* Smart ear-tip input */}
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Ear-tipped cats {showExactEartipCount ? "(exact count)" : "(estimate)"}
-            </label>
-            {showExactEartipCount ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {/* TNR / Relocation / Rescue - Cats needing work */}
+          {(hasTnr || hasRelocation || hasRescue) && (
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+              <div style={{ flex: "1 1 140px" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                  {hasTnr ? "Cats needing TNR" : "Cats to trap"}
+                </label>
                 <input
                   type="number"
-                  min="0"
-                  max={typeof estimatedCatCount === "number" ? estimatedCatCount : undefined}
-                  value={eartipCount}
+                  min="1"
+                  value={estimatedCatCount}
                   onChange={(e) =>
-                    setEartipCount(e.target.value ? parseInt(e.target.value) : "")
+                    setEstimatedCatCount(e.target.value ? parseInt(e.target.value) : "")
                   }
                   placeholder="0"
-                  style={{ width: "80px" }}
+                  style={{ width: "100%" }}
                 />
-                <span className="text-muted">
-                  of {estimatedCatCount} cats are already ear-tipped
-                </span>
+                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                  {hasTnr ? "Unfixed cats" : "Total to trap"}
+                </p>
               </div>
-            ) : (
-              <select
-                value={eartipEstimate}
-                onChange={(e) => setEartipEstimate(e.target.value)}
-                style={{ width: "100%", maxWidth: "300px" }}
-              >
-                {EARTIP_ESTIMATE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            )}
-            <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-              Ear-tipped cats have already been spayed/neutered
-            </p>
-          </div>
+
+              <div style={{ flex: "1 1 180px" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                  How confident is this count?
+                </label>
+                <select
+                  value={countConfidence}
+                  onChange={(e) => setCountConfidence(e.target.value)}
+                  style={{ width: "100%" }}
+                >
+                  {COUNT_CONFIDENCE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ flex: "1 1 200px" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                  How long have cats been here?
+                </label>
+                <select
+                  value={colonyDuration}
+                  onChange={(e) => setColonyDuration(e.target.value)}
+                  style={{ width: "100%" }}
+                >
+                  {COLONY_DURATION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Wellness - Altered cats to check */}
+          {hasWellness && (
+            <div
+              style={{
+                padding: "1rem",
+                background: "var(--bg-muted)",
+                borderRadius: "8px",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div style={{ flex: "1 1 160px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Altered cats for wellness
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={wellnessCatCount}
+                    onChange={(e) =>
+                      setWellnessCatCount(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="0"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div style={{ flex: "2 1 300px" }}>
+                  <p className="text-muted text-sm" style={{ margin: 0 }}>
+                    Already ear-tipped cats to check on. These won&apos;t count toward TNR work.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Smart ear-tip input - only for TNR (context for how many are already done) */}
+          {hasTnr && (
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Ear-tipped at location {showExactEartipCount ? "(exact count)" : "(estimate)"}
+              </label>
+              {showExactEartipCount ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max={typeof estimatedCatCount === "number" ? estimatedCatCount : undefined}
+                    value={eartipCount}
+                    onChange={(e) =>
+                      setEartipCount(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="0"
+                    style={{ width: "80px" }}
+                  />
+                  <span className="text-muted">
+                    already fixed (context only, not part of this request)
+                  </span>
+                </div>
+              ) : (
+                <select
+                  value={eartipEstimate}
+                  onChange={(e) => setEartipEstimate(e.target.value)}
+                  style={{ width: "100%", maxWidth: "300px" }}
+                >
+                  {EARTIP_ESTIMATE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                For context only &mdash; these cats are already done and won&apos;t count toward this request
+              </p>
+            </div>
+          )}
 
           <div>
             <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
@@ -1435,43 +2243,225 @@ function NewRequestForm() {
           </div>
 
           {hasKittens && (
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 150px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  How many kittens?
+            <>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    How many?
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={kittenCount}
+                    onChange={(e) =>
+                      setKittenCount(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="0"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Age (weeks)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="52"
+                    value={kittenAgeWeeks}
+                    onChange={(e) =>
+                      setKittenAgeWeeks(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="e.g., 6"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div style={{ flex: "2 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Age range
+                  </label>
+                  <select
+                    value={kittenAgeEstimate}
+                    onChange={(e) => setKittenAgeEstimate(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Select...</option>
+                    <option value="under_4_weeks">Under 4 weeks (bottle babies)</option>
+                    <option value="4_to_8_weeks">4-8 weeks (weaning)</option>
+                    <option value="8_to_12_weeks">8-12 weeks (ideal foster)</option>
+                    <option value="12_to_16_weeks">12-16 weeks (socialization critical)</option>
+                    <option value="over_16_weeks">Over 16 weeks / 4+ months</option>
+                    <option value="mixed">Mixed ages</option>
+                  </select>
+                </div>
+              </div>
+
+              {kittenAgeEstimate === "mixed" && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Describe the ages
+                  </label>
+                  <input
+                    type="text"
+                    value={kittenMixedAgesDescription}
+                    onChange={(e) => setKittenMixedAgesDescription(e.target.value)}
+                    placeholder='e.g., "3 at ~8 weeks, 2 at ~6 months"'
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                  Kitten behavior/socialization
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={kittenCount}
-                  onChange={(e) =>
-                    setKittenCount(e.target.value ? parseInt(e.target.value) : "")
-                  }
-                  placeholder="0"
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {[
+                    { value: "friendly", label: "Friendly - can be handled, approaches people" },
+                    { value: "shy_handleable", label: "Shy but handleable - scared but can be picked up" },
+                    { value: "feral_young", label: "Feral but young - hissy/scared, may be socializable" },
+                    { value: "feral_older", label: "Feral and older - very scared, hard to handle" },
+                    { value: "unknown", label: "Unknown - haven't been able to assess" },
+                  ].map((opt) => (
+                    <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="kittenBehavior"
+                        value={opt.value}
+                        checked={kittenBehavior === opt.value}
+                        onChange={(e) => setKittenBehavior(e.target.value)}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
+                <div>
+                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                    Kittens contained/caught?
+                  </label>
+                  <div style={{ display: "flex", gap: "1rem" }}>
+                    {[
+                      { value: "yes", label: "Yes" },
+                      { value: "no", label: "No" },
+                      { value: "some", label: "Some" },
+                    ].map((opt) => (
+                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                        <input
+                          type="radio"
+                          name="kittenContained"
+                          value={opt.value}
+                          checked={kittenContained === opt.value}
+                          onChange={(e) => setKittenContained(e.target.value)}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                    Mom cat present?
+                  </label>
+                  <div style={{ display: "flex", gap: "1rem" }}>
+                    {[
+                      { value: "yes", label: "Yes" },
+                      { value: "no", label: "No" },
+                      { value: "unsure", label: "Unsure" },
+                    ].map((opt) => (
+                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                        <input
+                          type="radio"
+                          name="momPresent"
+                          value={opt.value}
+                          checked={momPresent === opt.value}
+                          onChange={(e) => setMomPresent(e.target.value)}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {momPresent === "yes" && (
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                      Mom fixed (ear-tipped)?
+                    </label>
+                    <div style={{ display: "flex", gap: "1rem" }}>
+                      {[
+                        { value: "yes", label: "Yes" },
+                        { value: "no", label: "No" },
+                        { value: "unsure", label: "Unsure" },
+                      ].map((opt) => (
+                        <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                          <input
+                            type="radio"
+                            name="momFixed"
+                            value={opt.value}
+                            checked={momFixed === opt.value}
+                            onChange={(e) => setMomFixed(e.target.value)}
+                          />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                    Can bring them in?
+                  </label>
+                  <div style={{ display: "flex", gap: "1rem" }}>
+                    {[
+                      { value: "yes", label: "Yes" },
+                      { value: "need_help", label: "Need help" },
+                      { value: "no", label: "No" },
+                    ].map((opt) => (
+                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                        <input
+                          type="radio"
+                          name="canBringIn"
+                          value={opt.value}
+                          checked={canBringIn === opt.value}
+                          onChange={(e) => setCanBringIn(e.target.value)}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                  Kitten notes
+                </label>
+                <textarea
+                  value={kittenNotes}
+                  onChange={(e) => setKittenNotes(e.target.value)}
+                  placeholder="Colors, where they hide, feeding times, trap-savvy, etc..."
+                  rows={2}
                   style={{ width: "100%" }}
                 />
               </div>
 
-              <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Approximate age (weeks)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="52"
-                  value={kittenAgeWeeks}
-                  onChange={(e) =>
-                    setKittenAgeWeeks(e.target.value ? parseInt(e.target.value) : "")
-                  }
-                  placeholder="e.g., 6"
-                  style={{ width: "100%" }}
-                />
-                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                  Kittens under 8 weeks need special care
-                </p>
+              <div style={{ background: "var(--warning-bg, #fffbeb)", border: "1px solid var(--warning-border, #ffc107)", borderRadius: "6px", padding: "0.75rem", marginTop: "1rem", fontSize: "0.85rem" }}>
+                <strong>Foster triage factors:</strong>
+                <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
+                  <li>Age: Under 12 weeks ideal, 12+ weeks need socialization</li>
+                  <li>Behavior: Friendly/handleable kittens prioritized</li>
+                  <li>Mom: Spayed mom with kittens increases foster likelihood</li>
+                  <li>Ease: Already contained = easier intake</li>
+                </ul>
               </div>
-            </div>
+            </>
           )}
         </div>
 
@@ -1663,17 +2653,36 @@ function NewRequestForm() {
             />
           </div>
 
-          <div>
+          <div style={{ marginBottom: "1rem" }}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Notes
+              Case Info
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any other details, special circumstances, history with these cats..."
+              placeholder="Detailed situation description, history with these cats, special circumstances..."
               rows={4}
               style={{ width: "100%", resize: "vertical" }}
             />
+            <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+              Case details that can be shared with volunteers or referenced later
+            </p>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+              Internal Notes
+            </label>
+            <textarea
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              placeholder="Staff working notes, follow-up reminders, private observations..."
+              rows={3}
+              style={{ width: "100%", resize: "vertical" }}
+            />
+            <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+              Private notes for staff only &mdash; not shared with clients
+            </p>
           </div>
         </div>
 

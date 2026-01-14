@@ -5,7 +5,7 @@
  * Syncs photos from Airtable Trapper Cats and Trapper Reports to Atlas.
  * Uses the Raw → Normalize → SoT pattern:
  *   1. Fetch from Airtable → raw_airtable_media (pending)
- *   2. Download files locally → raw_airtable_media (downloaded)
+ *   2. Upload to Supabase Storage → raw_airtable_media (downloaded)
  *   3. Import to request_media → raw_airtable_media (imported)
  *
  * Usage:
@@ -13,13 +13,14 @@
  *
  * Required env:
  *   DATABASE_URL - Postgres connection string
+ *   SUPABASE_URL - Supabase project URL
+ *   SUPABASE_SERVICE_ROLE_KEY - Supabase service role key
  *   AIRTABLE_PAT - Airtable Personal Access Token (optional, has default)
  */
 
 import pg from 'pg';
-import fs from 'fs/promises';
-import path from 'path';
 import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
 
 const { Client } = pg;
 
@@ -27,6 +28,18 @@ const AIRTABLE_PAT = process.env.AIRTABLE_PAT || 'patcjKFzC852FH3sI.ac4874470b70
 const BASE_ID = 'appl6zLrRFDvsz0dh';
 const TRAPPER_CATS_TABLE = 'tblP6VojwygMA9VQ3';
 const TRAPPER_REPORTS_TABLE = 'tblE8SFqVfsW051ox';
+const MEDIA_BUCKET = 'request-media';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabase = null;
+
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+}
 
 async function fetchAllRecords(tableId, filterFormula = '') {
   const records = [];
@@ -61,14 +74,33 @@ async function fetchAllRecords(tableId, filterFormula = '') {
   return records;
 }
 
-async function downloadFile(url, destPath) {
+async function downloadAndUpload(url, storagePath, mimeType) {
+  // Download from Airtable
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Download failed: ${response.status}`);
   }
   const buffer = await response.arrayBuffer();
-  await fs.writeFile(destPath, Buffer.from(buffer));
-  return buffer.byteLength;
+  const fileBuffer = Buffer.from(buffer);
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .upload(storagePath, fileBuffer, {
+      contentType: mimeType || 'application/octet-stream',
+      upsert: true
+    });
+
+  if (error) {
+    throw new Error(`Supabase upload failed: ${error.message}`);
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from(MEDIA_BUCKET)
+    .getPublicUrl(storagePath);
+
+  return { size: buffer.byteLength, publicUrl: urlData.publicUrl };
 }
 
 // ═══════════════════════════════════════════════════
@@ -182,16 +214,18 @@ async function stageFetch(client) {
 }
 
 // ═══════════════════════════════════════════════════
-// STAGE 2: Download files from Airtable CDN
+// STAGE 2: Download from Airtable and upload to Supabase
 // ═══════════════════════════════════════════════════
 
 async function stageDownload(client) {
   console.log('\n═══════════════════════════════════════════════════');
-  console.log('STAGE 2: Downloading media files');
+  console.log('STAGE 2: Downloading and uploading media files');
   console.log('═══════════════════════════════════════════════════\n');
 
-  const uploadsBase = path.join(process.cwd(), 'uploads', 'media');
-  await fs.mkdir(uploadsBase, { recursive: true });
+  if (!supabase) {
+    console.error('Error: Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+    return { downloaded: 0, failed: 0 };
+  }
 
   // Get pending records
   const pending = await client.query(
@@ -201,27 +235,20 @@ async function stageDownload(client) {
      ORDER BY ingested_at`
   );
 
-  console.log(`Found ${pending.rows.length} pending downloads\n`);
+  console.log(`Found ${pending.rows.length} pending uploads\n`);
 
   let downloaded = 0;
   let failed = 0;
 
   for (const row of pending.rows) {
     const requestId = row.airtable_request_id || 'unlinked';
-    const requestDir = path.join(uploadsBase, requestId);
 
     try {
-      await fs.mkdir(requestDir, { recursive: true });
-
       // Generate unique filename
       const timestamp = Date.now();
       const hash = crypto.randomBytes(4).toString('hex');
-      const ext = path.extname(row.filename) || '.jpg';
+      const ext = (row.filename.match(/\.[^.]+$/) || ['.jpg'])[0];
       const storedFilename = `${requestId}_${timestamp}_${hash}${ext}`;
-      const filePath = path.join(requestDir, storedFilename);
-
-      // Download
-      const fileSize = await downloadFile(row.url, filePath);
 
       // Determine MIME type if not set
       let mimeType = row.mime_type;
@@ -235,7 +262,13 @@ async function stageDownload(client) {
         mimeType = mimeTypes[ext.toLowerCase()] || 'application/octet-stream';
       }
 
-      // Update raw record
+      // Supabase storage path: requests/{request_id}/{filename}
+      const storagePath = `requests/${requestId}/${storedFilename}`;
+
+      // Download from Airtable and upload to Supabase
+      const { size, publicUrl } = await downloadAndUpload(row.url, storagePath, mimeType);
+
+      // Update raw record with Supabase URL
       await client.query(
         `UPDATE trapper.raw_airtable_media
          SET processing_status = 'downloaded',
@@ -246,8 +279,8 @@ async function stageDownload(client) {
          WHERE raw_media_id = $5`,
         [
           storedFilename,
-          `/uploads/media/${requestId}/${storedFilename}`,
-          fileSize,
+          publicUrl,
+          size,
           mimeType,
           row.raw_media_id
         ]
@@ -255,7 +288,7 @@ async function stageDownload(client) {
 
       downloaded++;
       if (downloaded % 10 === 0) {
-        console.log(`  Downloaded ${downloaded}/${pending.rows.length}...`);
+        console.log(`  Uploaded ${downloaded}/${pending.rows.length}...`);
       }
     } catch (err) {
       await client.query(
@@ -271,7 +304,7 @@ async function stageDownload(client) {
     }
   }
 
-  console.log(`\n✓ Download complete: ${downloaded} downloaded, ${failed} failed`);
+  console.log(`\n✓ Upload complete: ${downloaded} uploaded, ${failed} failed`);
   return { downloaded, failed };
 }
 
@@ -312,6 +345,12 @@ async function main() {
     process.exit(1);
   }
 
+  if (!supabase) {
+    console.error('Error: Supabase not configured');
+    console.error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables');
+    process.exit(1);
+  }
+
   // Parse --stage argument
   const args = process.argv.slice(2);
   let stage = 'all';
@@ -322,8 +361,9 @@ async function main() {
   }
 
   console.log('\n═══════════════════════════════════════════════════');
-  console.log('Airtable Photos Sync (Raw → Normalize → SoT)');
+  console.log('Airtable Photos Sync (Raw → Supabase Storage → SoT)');
   console.log(`Stage: ${stage}`);
+  console.log(`Supabase: ${supabaseUrl}`);
   console.log('═══════════════════════════════════════════════════\n');
 
   const client = new Client({ connectionString: process.env.DATABASE_URL });

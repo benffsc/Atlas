@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import JournalSection, { JournalEntry } from "@/components/JournalSection";
 import { BackButton } from "@/components/BackButton";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface Cat {
   cat_id: string;
@@ -185,6 +186,12 @@ export default function PlaceDetailPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Address correction mode
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [addressInput, setAddressInput] = useState("");
+  const [changeReason, setChangeReason] = useState("");
+  const [changeNotes, setChangeNotes] = useState("");
+
   // Place kind options
   const PLACE_KINDS = [
     { value: "unknown", label: "Unknown" },
@@ -291,6 +298,78 @@ export default function PlaceDetailPage() {
       // Refresh place data
       await fetchPlace();
       setEditingDetails(false);
+    } catch (err) {
+      setSaveError("Network error while saving");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startAddressCorrection = () => {
+    setChangeReason("");
+    setChangeNotes("");
+    setAddressInput("");
+    setSaveError(null);
+    setEditingAddress(true);
+  };
+
+  interface PlaceDetails {
+    place_id: string;
+    formatted_address: string;
+    name: string;
+    geometry: {
+      location: {
+        lat: number;
+        lng: number;
+      };
+    };
+    address_components: Array<{
+      long_name: string;
+      short_name: string;
+      types: string[];
+    }>;
+  }
+
+  const handleAddressSelect = async (placeDetails: PlaceDetails) => {
+    if (!place || !changeReason) {
+      setSaveError("Please select a reason for this address correction");
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    // Extract locality from address components
+    const locality = placeDetails.address_components.find(c => c.types.includes("locality"))?.long_name || null;
+    const postal_code = placeDetails.address_components.find(c => c.types.includes("postal_code"))?.long_name || null;
+    const state = placeDetails.address_components.find(c => c.types.includes("administrative_area_level_1"))?.short_name || null;
+
+    try {
+      const response = await fetch(`/api/places/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formatted_address: placeDetails.formatted_address,
+          locality,
+          postal_code,
+          state_province: state,
+          latitude: placeDetails.geometry.location.lat,
+          longitude: placeDetails.geometry.location.lng,
+          change_reason: changeReason,
+          change_notes: changeNotes,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setSaveError(result.error || "Failed to save address correction");
+        return;
+      }
+
+      // Refresh place data
+      await fetchPlace();
+      setEditingAddress(false);
     } catch (err) {
       setSaveError("Network error while saving");
     } finally {
@@ -424,17 +503,90 @@ export default function PlaceDetailPage() {
                 </p>
               </div>
 
-              {/* Address (read-only info) */}
+              {/* Address (with correction option) */}
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                   Address
                 </label>
-                <p className="text-muted" style={{ margin: 0 }}>
+                <p style={{ margin: 0 }}>
                   {place.formatted_address || "No address set"}
                 </p>
-                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                  Address changes require creating a new place. Contact support if needed.
-                </p>
+                {!editingAddress ? (
+                  <button
+                    onClick={startAddressCorrection}
+                    style={{
+                      marginTop: "0.5rem",
+                      padding: "0.25rem 0.5rem",
+                      fontSize: "0.8rem",
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    Correct Address
+                  </button>
+                ) : (
+                  <div style={{ marginTop: "0.75rem", padding: "1rem", background: "#fff8f5", border: "1px solid #e65100", borderRadius: "8px" }}>
+                    <p style={{ marginTop: 0, marginBottom: "0.75rem", fontWeight: 500, color: "#e65100" }}>
+                      Address Correction
+                    </p>
+                    <p className="text-sm" style={{ marginBottom: "1rem", color: "#666" }}>
+                      Use this when you discover the cats actually come from a different address (e.g., behind a fence, across a field). The place identity stays the same but the location is corrected.
+                    </p>
+
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                        Reason for correction *
+                      </label>
+                      <select
+                        value={changeReason}
+                        onChange={(e) => setChangeReason(e.target.value)}
+                        style={{ width: "100%" }}
+                      >
+                        <option value="">Select a reason...</option>
+                        <option value="location_clarified">Location clarified (cats actually from different spot)</option>
+                        <option value="data_entry_error">Data entry error</option>
+                        <option value="refinement">Address refinement (more specific location)</option>
+                        <option value="correction">General correction</option>
+                      </select>
+                    </div>
+
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                        New Address
+                      </label>
+                      <AddressAutocomplete
+                        value={addressInput}
+                        onChange={setAddressInput}
+                        onPlaceSelect={handleAddressSelect}
+                        placeholder="Search for the correct address..."
+                        disabled={saving}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                        Notes (optional)
+                      </label>
+                      <textarea
+                        value={changeNotes}
+                        onChange={(e) => setChangeNotes(e.target.value)}
+                        placeholder="Explain what you learned, e.g., 'Cats are fed behind the fence on the adjacent property'"
+                        rows={2}
+                        style={{ width: "100%", resize: "vertical" }}
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => setEditingAddress(false)}
+                        disabled={saving}
+                        style={{ background: "transparent", border: "1px solid var(--border)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Error Message */}

@@ -351,6 +351,13 @@ export default function PersonDetailPage() {
   const [addressInput, setAddressInput] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
 
+  // Phone/Email edit state
+  const [editingIdentifiers, setEditingIdentifiers] = useState(false);
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [savingIdentifiers, setSavingIdentifiers] = useState(false);
+  const [identifierError, setIdentifierError] = useState<string | null>(null);
+
   const fetchPerson = useCallback(async () => {
     try {
       const response = await fetch(`/api/people/${id}`);
@@ -451,6 +458,55 @@ export default function PersonDetailPage() {
     }
   };
 
+  const startEditingIdentifiers = () => {
+    if (person) {
+      // Get current phone/email from identifiers
+      const phoneId = person.identifiers?.find(i => i.id_type === "phone");
+      const emailId = person.identifiers?.find(i => i.id_type === "email");
+      setEditPhone(phoneId?.id_value || "");
+      setEditEmail(emailId?.id_value || "");
+      setIdentifierError(null);
+      setEditingIdentifiers(true);
+    }
+  };
+
+  const cancelEditingIdentifiers = () => {
+    setEditingIdentifiers(false);
+    setIdentifierError(null);
+  };
+
+  const handleSaveIdentifiers = async () => {
+    setSavingIdentifiers(true);
+    setIdentifierError(null);
+
+    try {
+      const response = await fetch(`/api/people/${id}/identifiers`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: editPhone || null,
+          email: editEmail || null,
+          change_reason: "contact_update",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setIdentifierError(result.error || "Failed to save changes");
+        return;
+      }
+
+      // Refresh person data
+      await fetchPerson();
+      setEditingIdentifiers(false);
+    } catch (err) {
+      setIdentifierError("Network error while saving");
+    } finally {
+      setSavingIdentifiers(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading person details...</div>;
   }
@@ -526,12 +582,59 @@ export default function PersonDetailPage() {
       {/* Contact Info - with edit button */}
       <Section
         title="Contact Information"
-        onEdit={() => setEditingContact(true)}
-        editMode={editingContact}
+        onEdit={startEditingIdentifiers}
+        editMode={editingIdentifiers}
       >
-        {editingContact ? (
+        {editingIdentifiers ? (
           <div>
-            <div style={{ marginBottom: "1rem" }}>
+            {identifierError && (
+              <div style={{ color: "#dc3545", marginBottom: "0.75rem", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px", fontSize: "0.875rem" }}>
+                {identifierError}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Phone</label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Email</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            </div>
+
+            <p className="text-muted text-sm" style={{ marginBottom: "1rem" }}>
+              Contact info changes are tracked for audit purposes.
+            </p>
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button onClick={handleSaveIdentifiers} disabled={savingIdentifiers}>
+                {savingIdentifiers ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                onClick={cancelEditingIdentifiers}
+                disabled={savingIdentifiers}
+                style={{ background: "transparent", border: "1px solid var(--border)" }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Address section */}
+            <div style={{ marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
               <label className="text-sm" style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 Primary Address
               </label>
@@ -545,11 +648,6 @@ export default function PersonDetailPage() {
               {savingAddress && (
                 <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>Saving...</p>
               )}
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button onClick={() => { setEditingContact(false); setAddressInput(""); }}>
-                Cancel
-              </button>
             </div>
           </div>
         ) : (

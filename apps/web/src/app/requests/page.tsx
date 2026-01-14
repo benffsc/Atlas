@@ -286,7 +286,17 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -294,6 +304,7 @@ export default function RequestsPage() {
       try {
         const params = new URLSearchParams();
         if (statusFilter) params.set("status", statusFilter);
+        if (debouncedSearch) params.set("q", debouncedSearch);
         params.set("limit", "100");
 
         const response = await fetch(`/api/requests?${params.toString()}`);
@@ -309,7 +320,7 @@ export default function RequestsPage() {
     };
 
     fetchRequests();
-  }, [statusFilter]);
+  }, [statusFilter, debouncedSearch]);
 
   return (
     <div>
@@ -329,7 +340,48 @@ export default function RequestsPage() {
         </a>
       </div>
 
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+        {/* Search Bar */}
+        <div style={{ position: "relative", flex: "1 1 250px", maxWidth: "400px" }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search requests..."
+            style={{ width: "100%", paddingLeft: "2.5rem" }}
+          />
+          <span
+            style={{
+              position: "absolute",
+              left: "0.75rem",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--text-muted)",
+              pointerEvents: "none",
+            }}
+          >
+            🔍
+          </span>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: "absolute",
+                right: "0.5rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                padding: "0.25rem",
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}

@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, stat } from "fs/promises";
-import path from "path";
+import { getPublicUrl, isStorageAvailable } from "@/lib/supabase";
 
 interface RouteParams {
   params: Promise<{ path: string[] }>;
 }
 
-// Serve uploaded media files
+/**
+ * Serve uploaded media files
+ *
+ * This route handles legacy /uploads/media/* URLs by redirecting to Supabase Storage.
+ * New uploads go directly to Supabase and use public URLs, but this route
+ * maintains backwards compatibility for any existing references.
+ */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { path: pathParts } = await params;
   const relativePath = pathParts.join("/");
@@ -16,35 +21,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
 
-  const filePath = path.join(process.cwd(), "uploads", "media", relativePath);
+  // Redirect to Supabase Storage
+  if (isStorageAvailable()) {
+    // Convert legacy path format to Supabase path
+    // Legacy: /uploads/media/{request_id}/{filename}
+    // Supabase: requests/{request_id}/{filename}
+    const supabasePath = `requests/${relativePath}`;
+    const publicUrl = getPublicUrl(supabasePath);
 
-  try {
-    // Check file exists
-    await stat(filePath);
-
-    // Read file
-    const buffer = await readFile(filePath);
-
-    // Determine content type from extension
-    const ext = path.extname(filePath).toLowerCase().slice(1);
-    const contentTypes: Record<string, string> = {
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      webp: "image/webp",
-      heic: "image/heic",
-      pdf: "application/pdf",
-    };
-    const contentType = contentTypes[ext] || "application/octet-stream";
-
-    return new NextResponse(buffer, {
+    return NextResponse.redirect(publicUrl, {
+      status: 302, // Temporary redirect in case paths change
       headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "public, max-age=3600",
       },
     });
-  } catch {
-    return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
+
+  // Supabase not available - return error
+  return NextResponse.json(
+    { error: "Storage not configured" },
+    { status: 500 }
+  );
 }

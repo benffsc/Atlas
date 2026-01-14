@@ -7,7 +7,30 @@
   --primary-foreground: #ffffff;
   --accent-blue: #6b93c4;  /* Blue line from logo */
   --card-bg: #f8f9fa;
+  --card-border: #e5e5e5;
   --code-bg: #f5f5f5;
+
+  /* Status colors */
+  --success-bg: #d4edda;
+  --success-border: #c3e6cb;
+  --success-text: #155724;
+  --warning-bg: #fff3cd;
+  --warning-border: #ffc107;
+  --warning-text: #856404;
+  --danger-bg: #f8d7da;
+  --danger-border: #f5c6cb;
+  --danger-text: #721c24;
+  --info-bg: #cce5ff;
+  --info-border: #0d6efd;
+  --info-text: #004085;
+
+  /* Input backgrounds */
+  --input-bg: #ffffff;
+  --input-text: #171717;
+
+  /* Section backgrounds (for review cards, etc.) */
+  --section-bg: #f8f9fa;
+  --section-text: var(--foreground);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -15,11 +38,34 @@
     --foreground: #ededed;
     --background: #0a0a0a;
     --muted: #a3a3a3;
-    --border: #262626;
+    --border: #333333;
     --primary: #3b82f6;
     --primary-foreground: #ffffff;
     --card-bg: #1a1a1a;
+    --card-border: #333333;
     --code-bg: #0d0d0d;
+
+    /* Status colors - darker backgrounds, brighter text */
+    --success-bg: #1a3d1f;
+    --success-border: #2d5a34;
+    --success-text: #6dd680;
+    --warning-bg: #3d3520;
+    --warning-border: #665c33;
+    --warning-text: #ffd966;
+    --danger-bg: #3d1a1f;
+    --danger-border: #5a2d34;
+    --danger-text: #ff8080;
+    --info-bg: #1a2d3d;
+    --info-border: #2d4a5a;
+    --info-text: #80b3ff;
+
+    /* Input backgrounds */
+    --input-bg: #1a1a1a;
+    --input-text: #ededed;
+
+    /* Section backgrounds */
+    --section-bg: #1a1a1a;
+    --section-text: var(--foreground);
   }
 }
 
@@ -180,22 +226,15 @@ textarea {
   border-radius: 6px;
   font-size: 1rem;
   font-family: inherit;
-  background: #ffffff;
-  color: #171717;
+  background: var(--input-bg);
+  color: var(--input-text);
 }
 
+/* Fix select dropdown options in dark mode */
 @media (prefers-color-scheme: dark) {
-  input,
-  select,
-  textarea {
-    background: #1a1a1a;
-    color: #ededed;
-  }
-
-  /* Fix select dropdown options in dark mode */
   select option {
-    background: #1a1a1a;
-    color: #ededed;
+    background: var(--input-bg);
+    color: var(--input-text);
   }
 }
 
@@ -457,26 +496,71 @@ button:disabled {
   }
 }
 
-/* Force light mode for now to avoid contrast issues */
-/* Remove this section once all inline styles are fixed */
+/* Color scheme support */
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
+/* Dark mode overrides for inline styles that can't easily be changed */
 @media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-  }
-
-  /* Ensure card-like containers have readable text */
+  /* Gray section backgrounds */
   [style*="background: #f8f9fa"],
-  [style*="background: #fff"] {
-    background: #262626 !important;
-    color: #ededed !important;
+  [style*="background:#f8f9fa"] {
+    background: var(--section-bg) !important;
+    color: var(--section-text) !important;
   }
 
-  [style*="background: #fff3cd"] {
-    background: #4a4528 !important;
-    color: #ffc107 !important;
+  /* White backgrounds */
+  [style*="background: #fff"],
+  [style*="background:#fff"],
+  [style*="background: white"] {
+    background: var(--card-bg) !important;
+    color: var(--foreground) !important;
+  }
+
+  /* Warning/yellow backgrounds */
+  [style*="background: #fff3cd"],
+  [style*="background:#fff3cd"] {
+    background: var(--warning-bg) !important;
+    color: var(--warning-text) !important;
+  }
+
+  /* Success/green backgrounds */
+  [style*="background: #d4edda"],
+  [style*="background:#d4edda"] {
+    background: var(--success-bg) !important;
+    color: var(--success-text) !important;
+  }
+
+  /* Danger/red backgrounds */
+  [style*="background: #f8d7da"],
+  [style*="background:#f8d7da"] {
+    background: var(--danger-bg) !important;
+    color: var(--danger-text) !important;
+  }
+
+  /* Info/blue backgrounds */
+  [style*="background: #cce5ff"],
+  [style*="background:#cce5ff"] {
+    background: var(--info-bg) !important;
+    color: var(--info-text) !important;
+  }
+
+  /* Fix hardcoded text colors */
+  [style*="color: #856404"] {
+    color: var(--warning-text) !important;
+  }
+
+  [style*="color: #155724"] {
+    color: var(--success-text) !important;
+  }
+
+  [style*="color: #721c24"] {
+    color: var(--danger-text) !important;
+  }
+
+  [style*="color: #666"],
+  [style*="color:#666"] {
+    color: var(--muted) !important;
   }
 }

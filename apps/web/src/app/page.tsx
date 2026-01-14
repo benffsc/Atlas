@@ -18,14 +18,36 @@ interface ActiveRequest {
   longitude: number | null;
 }
 
-interface AppointmentRequest {
-  appointment_id: string;
-  status: string;
-  requester_name: string | null;
-  requester_phone: string | null;
-  cat_name: string | null;
-  reason: string | null;
+interface IntakeSubmission {
+  submission_id: string;
   submitted_at: string;
+  submitter_name: string;
+  email: string;
+  phone: string | null;
+  cats_address: string;
+  status: string;
+  triage_category: string | null;
+  triage_score: number | null;
+  cat_count_estimate: number | null;
+  is_legacy: boolean;
+  legacy_submission_status: string | null;
+  legacy_appointment_date: string | null;
+  is_emergency: boolean;
+  overdue: boolean;
+  intake_source: string | null;
+}
+
+// Normalize capitalization (JOHN SMITH -> John Smith)
+function normalizeName(name: string | null): string {
+  if (!name) return "";
+  if (name === name.toUpperCase() || name === name.toLowerCase()) {
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+  return name;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -293,9 +315,9 @@ function RequestCard({ request }: { request: ActiveRequest }) {
 
 export default function Home() {
   const [requests, setRequests] = useState<ActiveRequest[]>([]);
-  const [appointments, setAppointments] = useState<AppointmentRequest[]>([]);
+  const [intakeSubmissions, setIntakeSubmissions] = useState<IntakeSubmission[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
-  const [loadingAppointments, setLoadingAppointments] = useState(true);
+  const [loadingIntake, setLoadingIntake] = useState(true);
 
   useEffect(() => {
     // Fetch active requests (not completed/cancelled)
@@ -311,12 +333,20 @@ export default function Home() {
       .catch(() => setRequests([]))
       .finally(() => setLoadingRequests(false));
 
-    // Fetch pending appointment requests
-    fetch("/api/appointments?status=pending&limit=10")
-      .then((res) => (res.ok ? res.json() : { appointments: [] }))
-      .then((data) => setAppointments(data.appointments || []))
-      .catch(() => setAppointments([]))
-      .finally(() => setLoadingAppointments(false));
+    // Fetch intake submissions needing review (exclude already booked legacy)
+    fetch("/api/intake/queue?status_filter=active")
+      .then((res) => (res.ok ? res.json() : { submissions: [] }))
+      .then((data) => {
+        // Filter to show only submissions that truly need attention:
+        // - New Atlas submissions (any source except legacy_airtable)
+        // - Legacy submissions that are NOT already Booked
+        const needsAttention = (data.submissions || []).filter((s: IntakeSubmission) =>
+          !s.is_legacy || (s.legacy_submission_status !== "Booked" && s.legacy_submission_status !== "Complete")
+        );
+        setIntakeSubmissions(needsAttention.slice(0, 10));
+      })
+      .catch(() => setIntakeSubmissions([]))
+      .finally(() => setLoadingIntake(false));
   }, []);
 
   return (
@@ -415,21 +445,46 @@ export default function Home() {
         )}
       </div>
 
-      {/* Appointment Requests Section (from website form) */}
+      {/* Website Submissions Section (TNR Intake Queue) */}
       <div style={{ marginTop: "2.5rem" }}>
-        <h2 style={{ marginBottom: "1rem" }}>Website Submissions</h2>
-        <p className="text-muted text-sm" style={{ marginBottom: "1rem" }}>
-          Appointment requests submitted through the website form. Call back to gather details.
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1rem",
+          }}
+        >
+          <div>
+            <h2>Website Submissions</h2>
+            <p className="text-muted text-sm" style={{ margin: 0 }}>
+              TNR requests from the website. Review, gather details, then create a Trapping Request.
+            </p>
+          </div>
+          <a
+            href="/intake/queue"
+            style={{
+              padding: "0.4rem 0.8rem",
+              borderRadius: "6px",
+              textDecoration: "none",
+              border: "1px solid var(--card-border)",
+              fontSize: "0.875rem",
+              color: "var(--foreground)",
+              background: "var(--card-bg)",
+            }}
+          >
+            Triage Queue →
+          </a>
+        </div>
 
-        {loadingAppointments ? (
+        {loadingIntake ? (
           <div className="text-muted">Loading submissions...</div>
-        ) : appointments.length === 0 ? (
+        ) : intakeSubmissions.length === 0 ? (
           <div
             className="card"
             style={{ textAlign: "center", padding: "2rem" }}
           >
-            <p className="text-muted">No pending submissions</p>
+            <p className="text-muted">No submissions needing review</p>
           </div>
         ) : (
           <div className="table-container">
@@ -438,30 +493,90 @@ export default function Home() {
                 <tr>
                   <th>Status</th>
                   <th>Name</th>
-                  <th>Phone</th>
-                  <th>Cat</th>
-                  <th>Reason</th>
+                  <th>Location</th>
+                  <th>Cats</th>
                   <th>Submitted</th>
                 </tr>
               </thead>
               <tbody>
-                {appointments.map((appt) => (
-                  <tr key={appt.appointment_id}>
+                {intakeSubmissions.map((sub) => (
+                  <tr
+                    key={sub.submission_id}
+                    onClick={() => window.location.href = `/intake/queue/${sub.submission_id}`}
+                    style={{
+                      background: sub.is_emergency ? "rgba(220, 53, 69, 0.15)" : sub.overdue ? "rgba(255, 193, 7, 0.15)" : undefined,
+                      cursor: "pointer",
+                    }}
+                  >
                     <td>
-                      <StatusBadge status={appt.status} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        {sub.is_legacy ? (
+                          <>
+                            <span
+                              className="badge"
+                              style={{ background: "#6c757d", color: "#fff", fontSize: "0.65rem" }}
+                            >
+                              Legacy
+                            </span>
+                            {sub.legacy_submission_status && (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: sub.legacy_submission_status === "Booked" ? "#198754" :
+                                             sub.legacy_submission_status === "Pending Review" ? "#ffc107" :
+                                             "#6c757d",
+                                  color: "#fff",
+                                  fontSize: "0.65rem",
+                                }}
+                              >
+                                {sub.legacy_submission_status}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {sub.triage_category && (
+                              <span
+                                className="badge"
+                                style={{
+                                  background: sub.triage_category === "high_priority_tnr" ? "#dc3545" :
+                                             sub.triage_category === "standard_tnr" ? "#0d6efd" :
+                                             "#6c757d",
+                                  color: "#fff",
+                                  fontSize: "0.65rem",
+                                }}
+                              >
+                                {sub.triage_category.replace(/_/g, " ")}
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {sub.is_emergency && (
+                          <span style={{ color: "#ff6b6b", fontSize: "0.65rem", fontWeight: "bold" }}>
+                            EMERGENCY
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td>{appt.requester_name || "Unknown"}</td>
-                    <td>{appt.requester_phone || "—"}</td>
-                    <td>{appt.cat_name || "—"}</td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{normalizeName(sub.submitter_name)}</div>
+                      <div className="text-muted text-sm">{sub.phone || sub.email}</div>
+                    </td>
                     <td className="text-sm">
-                      {appt.reason
-                        ? appt.reason.length > 50
-                          ? appt.reason.substring(0, 50) + "..."
-                          : appt.reason
-                        : "—"}
+                      {sub.cats_address.length > 40
+                        ? sub.cats_address.substring(0, 40) + "..."
+                        : sub.cats_address}
+                    </td>
+                    <td>
+                      {sub.cat_count_estimate ?? "?"}
                     </td>
                     <td className="text-sm text-muted">
-                      {new Date(appt.submitted_at).toLocaleDateString()}
+                      {new Date(sub.submitted_at).toLocaleDateString()}
+                      {sub.is_legacy && sub.legacy_appointment_date && (
+                        <div style={{ fontSize: "0.7rem", color: "#198754" }}>
+                          Appt: {new Date(sub.legacy_appointment_date).toLocaleDateString()}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

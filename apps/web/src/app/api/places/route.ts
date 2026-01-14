@@ -106,8 +106,13 @@ interface CreatePlaceBody {
   display_name: string;
   place_kind: string;
   notes?: string | null;
-  location_type: "geocoded" | "approximate" | "described";
+  location_type?: "geocoded" | "approximate" | "described";
   location_description?: string | null;
+  // Apartment hierarchy fields
+  parent_place_id?: string;
+  unit_identifier?: string;
+  // Alternative: pass location object directly
+  location?: { lat: number; lng: number };
 }
 
 interface AddressRow {
@@ -137,16 +142,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.location_type) {
-      return NextResponse.json(
-        { error: "location_type is required" },
-        { status: 400 }
-      );
-    }
+    // Extract lat/lng from either direct props or location object
+    const lat = body.lat ?? body.location?.lat;
+    const lng = body.lng ?? body.location?.lng;
+
+    // Determine location_type - default to geocoded if we have coordinates
+    const locationType = body.location_type || (lat && lng ? "geocoded" : "described");
 
     // For geocoded locations, we need coordinates
-    if (body.location_type === "geocoded") {
-      if (!body.lat || !body.lng) {
+    if (locationType === "geocoded") {
+      if (!lat || !lng) {
         return NextResponse.json(
           { error: "lat and lng are required for geocoded locations" },
           { status: 400 }
@@ -155,9 +160,9 @@ export async function POST(request: NextRequest) {
     }
 
     // For described locations, we need a description
-    if (body.location_type === "described" && !body.location_description) {
+    if (locationType === "described" && !body.location_description && !body.formatted_address) {
       return NextResponse.json(
-        { error: "location_description is required for described locations" },
+        { error: "location_description or formatted_address is required for described locations" },
         { status: 400 }
       );
     }
@@ -165,7 +170,7 @@ export async function POST(request: NextRequest) {
     let sotAddressId: string | null = null;
 
     // If geocoded, find or create address in sot_addresses
-    if (body.location_type === "geocoded" && body.google_place_id) {
+    if (locationType === "geocoded" && body.google_place_id && lat && lng) {
       // Check if address already exists
       const existingAddress = await queryOne<AddressRow>(
         `SELECT address_id FROM trapper.sot_addresses WHERE google_place_id = $1`,
@@ -193,18 +198,18 @@ export async function POST(request: NextRequest) {
             'app'
           )
           RETURNING address_id`,
-          [body.formatted_address, body.google_place_id, body.lat, body.lng]
+          [body.formatted_address, body.google_place_id, lat, lng]
         );
         sotAddressId = newAddress?.address_id || null;
       }
     }
 
     // Determine is_address_backed based on location type
-    const isAddressBacked = body.location_type === "geocoded" && sotAddressId !== null;
+    const isAddressBacked = locationType === "geocoded" && sotAddressId !== null;
 
     // Create the place
-    const locationGeog = body.lat && body.lng
-      ? `ST_SetSRID(ST_MakePoint(${body.lng}, ${body.lat}), 4326)::geography`
+    const locationGeog = lat && lng
+      ? `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`
       : "NULL";
 
     const result = await queryOne<PlaceRow>(
@@ -219,6 +224,8 @@ export async function POST(request: NextRequest) {
         location_type,
         location_description,
         notes,
+        parent_place_id,
+        unit_identifier,
         has_cat_activity,
         has_trapping_activity,
         has_appointment_activity
@@ -233,6 +240,8 @@ export async function POST(request: NextRequest) {
         $6::trapper.location_type,
         $7,
         $8,
+        $9,
+        $10,
         false,
         false,
         false
@@ -244,9 +253,11 @@ export async function POST(request: NextRequest) {
         body.formatted_address || body.location_description || body.display_name,
         body.place_kind,
         isAddressBacked,
-        body.location_type,
+        locationType,
         body.location_description || null,
         body.notes || null,
+        body.parent_place_id || null,
+        body.unit_identifier || null,
       ]
     );
 
@@ -259,6 +270,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       place_id: result.place_id,
+      display_name: body.display_name,
+      formatted_address: body.formatted_address,
       success: true,
     });
   } catch (error) {
