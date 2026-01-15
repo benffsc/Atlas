@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import CreateRequestWizard from "@/components/CreateRequestWizard";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -45,6 +47,7 @@ interface IntakeSubmission {
   geo_confidence: string | null;
   last_contacted_at: string | null;
   contact_attempt_count: number | null;
+  is_test: boolean;
 }
 
 interface CommunicationLog {
@@ -102,7 +105,7 @@ const SUBMISSION_STATUSES = [
   { value: "Complete", label: "Complete" },
 ];
 
-type TabType = "attention" | "recent" | "all" | "legacy";
+type TabType = "attention" | "recent" | "booked" | "all" | "legacy" | "test";
 
 function TriageBadge({ category, score, isLegacy }: { category: string | null; score: number | null; isLegacy: boolean }) {
   if (!category && isLegacy) {
@@ -221,10 +224,16 @@ function normalizeName(name: string | null): string {
 }
 
 export default function IntakeQueuePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const openSubmissionId = searchParams.get("open");
+
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("attention");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [selectedSubmission, setSelectedSubmission] = useState<IntakeSubmission | null>(null);
   const [saving, setSaving] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
@@ -234,6 +243,7 @@ export default function IntakeQueuePage() {
     legacy_appointment_date: "",
     legacy_notes: "",
   });
+  const [initialOpenHandled, setInitialOpenHandled] = useState(false);
 
   // Communication log state
   const [showContactModal, setShowContactModal] = useState(false);
@@ -250,6 +260,19 @@ export default function IntakeQueuePage() {
   // Staff list for dropdown
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
 
+  // Create Request wizard state
+  const [showRequestWizard, setShowRequestWizard] = useState(false);
+  const [wizardSubmission, setWizardSubmission] = useState<IntakeSubmission | null>(null);
+
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Appointment booking modal state
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingSubmission, setBookingSubmission] = useState<IntakeSubmission | null>(null);
+  const [bookingDate, setBookingDate] = useState("");
+  const [bookingNotes, setBookingNotes] = useState("");
+
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
@@ -262,6 +285,7 @@ export default function IntakeQueuePage() {
       params.set("mode", activeTab);
 
       if (categoryFilter) params.set("category", categoryFilter);
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
 
       const response = await fetch(`/api/intake/queue?${params.toString()}`);
       if (response.ok) {
@@ -273,11 +297,39 @@ export default function IntakeQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, categoryFilter]);
+  }, [activeTab, categoryFilter, searchQuery]);
 
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  // Handle opening a specific submission from URL parameter
+  useEffect(() => {
+    if (openSubmissionId && !initialOpenHandled && !loading) {
+      // Try to find in current list first
+      const found = submissions.find(s => s.submission_id === openSubmissionId);
+      if (found) {
+        openDetail(found);
+        setInitialOpenHandled(true);
+        // Clear the URL parameter
+        router.replace("/intake/queue", { scroll: false });
+      } else if (submissions.length > 0) {
+        // Submission not in current list - fetch directly
+        fetch(`/api/intake/queue/${openSubmissionId}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data?.submission) {
+              openDetail(data.submission);
+            }
+          })
+          .catch(err => console.error("Failed to fetch submission:", err))
+          .finally(() => {
+            setInitialOpenHandled(true);
+            router.replace("/intake/queue", { scroll: false });
+          });
+      }
+    }
+  }, [openSubmissionId, initialOpenHandled, loading, submissions, router]);
 
   // Fetch staff list on mount
   useEffect(() => {
@@ -377,7 +429,75 @@ export default function IntakeQueuePage() {
   };
 
   const handleMarkBooked = (sub: IntakeSubmission) => {
-    handleQuickStatus(sub.submission_id, "legacy_submission_status", "Booked");
+    // Show booking modal instead of immediately setting status
+    setBookingSubmission(sub);
+    setBookingDate("");
+    setBookingNotes("");
+    setShowBookingModal(true);
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!bookingSubmission) return;
+    const wasAlreadyBooked = bookingSubmission.legacy_submission_status === "Booked";
+    setSaving(true);
+    try {
+      const response = await fetch("/api/intake/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submission_id: bookingSubmission.submission_id,
+          legacy_submission_status: "Booked",
+          legacy_appointment_date: bookingDate || null,
+          legacy_notes: bookingNotes
+            ? (bookingSubmission.legacy_notes ? bookingSubmission.legacy_notes + "\n" + bookingNotes : bookingNotes)
+            : bookingSubmission.legacy_notes,
+        }),
+      });
+
+      if (response.ok) {
+        const submitterName = normalizeName(bookingSubmission.submitter_name);
+        setShowBookingModal(false);
+        setBookingSubmission(null);
+        fetchSubmissions();
+
+        // Update selected submission if viewing it
+        if (selectedSubmission?.submission_id === bookingSubmission.submission_id) {
+          setSelectedSubmission({
+            ...selectedSubmission,
+            legacy_submission_status: "Booked",
+            legacy_appointment_date: bookingDate || null,
+          });
+        }
+
+        // Show toast notification
+        if (wasAlreadyBooked) {
+          setToastMessage(`Updated appointment for ${submitterName}`);
+        } else {
+          setToastMessage(`Booked ${submitterName}. Find in "Recent" or "All" tabs.`);
+        }
+        // Auto-clear toast after 5 seconds
+        setTimeout(() => setToastMessage(null), 5000);
+      }
+    } catch (err) {
+      console.error("Failed to book:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChangeAppointment = (sub: IntakeSubmission) => {
+    // Open booking modal with existing date pre-filled
+    setBookingSubmission(sub);
+    setBookingDate(sub.legacy_appointment_date || "");
+    setBookingNotes("");
+    setShowBookingModal(true);
+  };
+
+  const closeBookingModal = () => {
+    setShowBookingModal(false);
+    setBookingSubmission(null);
+    setBookingDate("");
+    setBookingNotes("");
   };
 
   const handleMarkNoResponse = (sub: IntakeSubmission) => {
@@ -443,21 +563,24 @@ export default function IntakeQueuePage() {
     }
   };
 
-  const handleCreateRequest = async (submissionId: string) => {
-    try {
-      const response = await fetch("/api/intake/convert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ submission_id: submissionId }),
-      });
+  const handleOpenRequestWizard = (submission: IntakeSubmission) => {
+    setWizardSubmission(submission);
+    setShowRequestWizard(true);
+    // Close the detail modal if open
+    setSelectedSubmission(null);
+  };
 
-      if (response.ok) {
-        fetchSubmissions();
-        setSelectedSubmission(null);
-      }
-    } catch (err) {
-      console.error("Failed to convert:", err);
-    }
+  const handleRequestWizardComplete = (requestId: string) => {
+    setShowRequestWizard(false);
+    setWizardSubmission(null);
+    fetchSubmissions();
+    // Optionally navigate to the new request
+    window.location.href = `/requests/${requestId}`;
+  };
+
+  const handleRequestWizardCancel = () => {
+    setShowRequestWizard(false);
+    setWizardSubmission(null);
   };
 
   // Stats for current view
@@ -476,6 +599,21 @@ export default function IntakeQueuePage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Intake Queue</h1>
         <div style={{ display: "flex", gap: "0.5rem" }}>
+          <a
+            href="/intake?test=true"
+            target="_blank"
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#0dcaf0",
+              color: "#000",
+              textDecoration: "none",
+              borderRadius: "4px",
+              fontSize: "0.85rem",
+            }}
+            title="Create test submission for demo purposes"
+          >
+            Demo Test
+          </a>
           <a
             href="/intake"
             target="_blank"
@@ -506,13 +644,52 @@ export default function IntakeQueuePage() {
         </div>
       </div>
 
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "1.5rem",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#198754",
+            color: "#fff",
+            padding: "0.75rem 1.5rem",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <span>{toastMessage}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#fff",
+              cursor: "pointer",
+              padding: "0",
+              fontSize: "1.2rem",
+              lineHeight: 1,
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "1rem" }}>
         {[
           { id: "attention" as TabType, label: "Needs Attention", count: null },
           { id: "recent" as TabType, label: "Recent", count: null },
+          { id: "booked" as TabType, label: "Booked", count: null },
           { id: "all" as TabType, label: "All Submissions", count: null },
           { id: "legacy" as TabType, label: "Legacy", count: null },
+          { id: "test" as TabType, label: "Test Data", count: null },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -535,8 +712,56 @@ export default function IntakeQueuePage() {
         ))}
       </div>
 
-      {/* Category filter (optional) */}
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center" }}>
+      {/* Search and Filter */}
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+        {/* Search Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSearchQuery(searchInput);
+          }}
+          style={{ display: "flex", gap: "0.5rem", flex: 1, minWidth: "200px", maxWidth: "400px" }}
+        >
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by name, email, phone, address..."
+            style={{ flex: 1, padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)" }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: "0.5rem 1rem",
+              background: "var(--foreground)",
+              color: "var(--background)",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+          >
+            Search
+          </button>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("");
+                setSearchQuery("");
+              }}
+              style={{
+                padding: "0.5rem 0.75rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </form>
+
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
@@ -686,6 +911,16 @@ export default function IntakeQueuePage() {
                       {sub.is_emergency && (
                         <span style={{ color: "#dc3545", fontSize: "0.7rem", fontWeight: "bold" }}>EMERGENCY</span>
                       )}
+                      {sub.is_test && (
+                        <span style={{
+                          background: "#0dcaf0",
+                          color: "#000",
+                          fontSize: "0.65rem",
+                          fontWeight: "bold",
+                          padding: "1px 4px",
+                          borderRadius: "3px"
+                        }}>TEST</span>
+                      )}
                     </div>
                   </td>
                   <td style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
@@ -744,7 +979,7 @@ export default function IntakeQueuePage() {
                           No Response
                         </button>
                       )}
-                      {sub.legacy_submission_status !== "Booked" && (
+                      {sub.legacy_submission_status !== "Booked" ? (
                         <button
                           onClick={() => handleMarkBooked(sub)}
                           disabled={saving}
@@ -760,6 +995,47 @@ export default function IntakeQueuePage() {
                         >
                           Booked
                         </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleChangeAppointment(sub)}
+                            disabled={saving}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.7rem",
+                              background: "#0d6efd",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                            }}
+                            title={sub.legacy_appointment_date ? `Appt: ${formatDate(sub.legacy_appointment_date)}` : "No date set"}
+                          >
+                            Change Appt
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Undo booking for ${normalizeName(sub.submitter_name)}?`)) {
+                                handleQuickStatus(sub.submission_id, "legacy_submission_status", "Pending Review");
+                                setToastMessage(`${normalizeName(sub.submitter_name)} moved back to Pending`);
+                                setTimeout(() => setToastMessage(null), 5000);
+                              }
+                            }}
+                            disabled={saving}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.7rem",
+                              background: "#ffc107",
+                              color: "#000",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                            }}
+                            title="Undo booking"
+                          >
+                            Undo
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => openDetail(sub)}
@@ -842,8 +1118,8 @@ export default function IntakeQueuePage() {
 
             {/* Status Section */}
             <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                <h3 style={{ margin: 0, fontSize: "1rem" }}>Status & Tracking</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1rem" }}>Submission Tracking</h3>
                 {!editingStatus ? (
                   <button onClick={() => setEditingStatus(true)} style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}>
                     Edit
@@ -855,7 +1131,7 @@ export default function IntakeQueuePage() {
                       disabled={saving}
                       style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px" }}
                     >
-                      {saving ? "..." : "Save"}
+                      {saving ? "Saving..." : "Save Changes"}
                     </button>
                     <button onClick={() => setEditingStatus(false)} style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}>
                       Cancel
@@ -863,6 +1139,9 @@ export default function IntakeQueuePage() {
                   </div>
                 )}
               </div>
+              <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+                Track outreach and booking status for this intake submission
+              </p>
 
               {editingStatus ? (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
@@ -997,59 +1276,183 @@ export default function IntakeQueuePage() {
               </div>
             )}
 
-            {/* Actions */}
+            {/* Review Notes */}
+            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
+              <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem" }}>Review Notes</h3>
+              <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+                Internal notes about this submission (saved when you update Status & Tracking above)
+              </p>
+              {editingStatus ? (
+                <textarea
+                  value={statusEdits.legacy_notes}
+                  onChange={(e) => setStatusEdits({ ...statusEdits, legacy_notes: e.target.value })}
+                  rows={3}
+                  style={{ width: "100%", padding: "0.5rem", resize: "vertical" }}
+                  placeholder="Add internal notes about this submission..."
+                />
+              ) : (
+                <div style={{
+                  padding: "0.75rem",
+                  background: "var(--background)",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border)",
+                  minHeight: "60px",
+                  whiteSpace: "pre-wrap",
+                  fontSize: "0.9rem"
+                }}>
+                  {selectedSubmission.legacy_notes || (
+                    <span style={{ color: "var(--muted)", fontStyle: "italic" }}>
+                      No notes yet. Click "Edit" in Status & Tracking to add notes.
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions - for tracking outreach */}
+            <div style={{
+              background: "var(--card-bg, rgba(0,0,0,0.05))",
+              borderRadius: "8px",
+              padding: "1rem",
+              marginBottom: "1rem"
+            }}>
+              <h3 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>Quick Actions</h3>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    setSelectedSubmission(null);
+                    openContactModal(selectedSubmission);
+                  }}
+                  style={{ padding: "0.5rem 1rem", background: "#6f42c1", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                >
+                  Log Contact {selectedSubmission.contact_attempt_count ? `(${selectedSubmission.contact_attempt_count})` : ""}
+                </button>
+
+                {(!selectedSubmission.legacy_status || selectedSubmission.legacy_status === "") && (
+                  <button
+                    onClick={() => {
+                      handleQuickStatus(selectedSubmission.submission_id, "legacy_status", "Contacted");
+                      setSelectedSubmission({ ...selectedSubmission, legacy_status: "Contacted" });
+                    }}
+                    style={{ padding: "0.5rem 1rem", background: "#17a2b8", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                  >
+                    Mark Contacted
+                  </button>
+                )}
+
+                {selectedSubmission.legacy_submission_status !== "Booked" ? (
+                  <button
+                    onClick={() => {
+                      setSelectedSubmission(null);
+                      handleMarkBooked(selectedSubmission);
+                    }}
+                    style={{ padding: "0.5rem 1rem", background: "#198754", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                  >
+                    Appointment Booked
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setSelectedSubmission(null);
+                      handleChangeAppointment(selectedSubmission);
+                    }}
+                    style={{ padding: "0.5rem 1rem", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                  >
+                    Change Appointment {selectedSubmission.legacy_appointment_date && `(${formatDate(selectedSubmission.legacy_appointment_date)})`}
+                  </button>
+                )}
+              </div>
+              <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
+                These actions update tracking status. Changes save automatically.
+              </p>
+            </div>
+
+            {/* Convert to Request - for ALL not-yet-converted submissions */}
+            {selectedSubmission.status !== "request_created" && !selectedSubmission.created_request_id && (
+              <div style={{
+                background: "rgba(102, 16, 242, 0.1)",
+                border: "1px solid rgba(102, 16, 242, 0.3)",
+                borderRadius: "8px",
+                padding: "1rem",
+                marginBottom: "1rem"
+              }}>
+                <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem", color: "#6610f2" }}>
+                  Create Trapping Request
+                </h3>
+                <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "var(--muted)" }}>
+                  Convert this submission into a formal TNR request. This creates a new request record
+                  that can be assigned to trappers and tracked through completion.
+                </p>
+                <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
+                  Most submissions are handled directly (booked for clinic) without becoming requests.
+                  Only create a request if this needs trapper coordination.
+                </p>
+                <button
+                  onClick={() => handleOpenRequestWizard(selectedSubmission)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    background: "#6610f2",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: 500
+                  }}
+                >
+                  Create Request →
+                </button>
+              </div>
+            )}
+
+            {/* Already converted indicator */}
+            {selectedSubmission.status === "request_created" && selectedSubmission.created_request_id && (
+              <div style={{
+                background: "rgba(25, 135, 84, 0.1)",
+                border: "1px solid rgba(25, 135, 84, 0.3)",
+                borderRadius: "8px",
+                padding: "1rem",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ color: "#198754", fontSize: "1.25rem" }}>✓</span>
+                  <span>
+                    Request created.{" "}
+                    <a
+                      href={`/requests/${selectedSubmission.created_request_id}`}
+                      style={{ color: "#198754", fontWeight: 500 }}
+                    >
+                      View Request →
+                    </a>
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* Footer Actions */}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
-              {/* Log Contact button */}
-              <button
-                onClick={() => {
-                  setSelectedSubmission(null);
-                  openContactModal(selectedSubmission);
-                }}
-                style={{ padding: "0.5rem 1rem", background: "#6f42c1", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-              >
-                Log Contact {selectedSubmission.contact_attempt_count ? `(${selectedSubmission.contact_attempt_count})` : ""}
-              </button>
-
-              {/* Quick status buttons */}
-              {(!selectedSubmission.legacy_status || selectedSubmission.legacy_status === "") && (
-                <button
-                  onClick={() => {
-                    handleQuickStatus(selectedSubmission.submission_id, "legacy_status", "Contacted");
-                    setSelectedSubmission({ ...selectedSubmission, legacy_status: "Contacted" });
-                  }}
-                  style={{ padding: "0.5rem 1rem", background: "#17a2b8", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                >
-                  Mark Contacted
-                </button>
-              )}
-
-              {selectedSubmission.legacy_submission_status !== "Booked" && (
-                <button
-                  onClick={() => {
-                    handleQuickStatus(selectedSubmission.submission_id, "legacy_submission_status", "Booked");
-                    setSelectedSubmission({ ...selectedSubmission, legacy_submission_status: "Booked" });
-                  }}
-                  style={{ padding: "0.5rem 1rem", background: "#198754", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                >
-                  Mark Booked
-                </button>
-              )}
-
-              {selectedSubmission.status !== "request_created" && !selectedSubmission.is_legacy && (
-                <button
-                  onClick={() => handleCreateRequest(selectedSubmission.submission_id)}
-                  style={{ padding: "0.5rem 1rem", background: "#6610f2", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                >
-                  Create Request
-                </button>
-              )}
-
               <button
                 onClick={() => handleArchive(selectedSubmission.submission_id)}
                 style={{ padding: "0.5rem 1rem", background: "#6c757d", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
               >
                 Archive
               </button>
+
+              {/* Reset status - useful for accidentally marked submissions */}
+              {(selectedSubmission.legacy_submission_status === "Booked" || selectedSubmission.legacy_submission_status === "Complete" || selectedSubmission.legacy_submission_status === "Declined") && (
+                <button
+                  onClick={async () => {
+                    if (confirm("Reset this submission back to Pending Review? It will appear in Needs Attention tab again.")) {
+                      await handleQuickStatus(selectedSubmission.submission_id, "legacy_submission_status", "Pending Review");
+                      setSelectedSubmission({ ...selectedSubmission, legacy_submission_status: "Pending Review" });
+                      setToastMessage(`${normalizeName(selectedSubmission.submitter_name)} moved back to Pending Review`);
+                      setTimeout(() => setToastMessage(null), 5000);
+                    }
+                  }}
+                  style={{ padding: "0.5rem 1rem", background: "#ffc107", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                >
+                  Reset to Pending
+                </button>
+              )}
 
               <button
                 onClick={() => setSelectedSubmission(null)}
@@ -1270,6 +1673,109 @@ export default function IntakeQueuePage() {
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Request Wizard */}
+      {showRequestWizard && wizardSubmission && (
+        <CreateRequestWizard
+          submission={wizardSubmission}
+          onComplete={handleRequestWizardComplete}
+          onCancel={handleRequestWizardCancel}
+        />
+      )}
+
+      {/* Booking Modal */}
+      {showBookingModal && bookingSubmission && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1002,
+          }}
+          onClick={closeBookingModal}
+        >
+          <div
+            style={{
+              background: "var(--background)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "450px",
+              width: "90%",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: "0 0 0.5rem" }}>
+              {bookingSubmission.legacy_submission_status === "Booked" ? "Change Appointment" : "Book Appointment"}
+            </h2>
+            <p style={{ color: "var(--muted)", margin: "0 0 1rem", fontSize: "0.9rem" }}>
+              {normalizeName(bookingSubmission.submitter_name)} - {bookingSubmission.geo_formatted_address || bookingSubmission.cats_address}
+            </p>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Appointment Date
+              </label>
+              <input
+                type="date"
+                value={bookingDate}
+                onChange={(e) => setBookingDate(e.target.value)}
+                style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
+              />
+              <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
+                Optional - leave blank if date TBD
+              </p>
+            </div>
+
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Notes (optional)
+              </label>
+              <textarea
+                value={bookingNotes}
+                onChange={(e) => setBookingNotes(e.target.value)}
+                placeholder="e.g., Booked for morning drop-off, 3 cats confirmed..."
+                rows={2}
+                style={{ width: "100%", padding: "0.5rem", resize: "vertical" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={closeBookingModal}
+                style={{
+                  padding: "0.5rem 1rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBooking}
+                disabled={saving}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#198754",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                {saving ? "Saving..." : bookingSubmission.legacy_submission_status === "Booked" ? "Update Booking" : "Confirm Booking"}
               </button>
             </div>
           </div>

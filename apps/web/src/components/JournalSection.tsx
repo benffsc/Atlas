@@ -1,20 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-// Staff list with initials
-const STAFF = [
-  { name: "Ben", initials: "BM" },
-  { name: "Jami", initials: "JK" },
-  { name: "Neely", initials: "NH" },
-  { name: "Heidi", initials: "HF" },
-  { name: "Addie", initials: "AA" },
-  { name: "Pip", initials: "PM" },
-  { name: "Sandra", initials: "SN" },
-  { name: "Jennifer C.", initials: "JC" },
-  { name: "Julia", initials: "JR" },
-  { name: "Ethan", initials: "EB" },
-] as const;
+interface StaffMember {
+  staff_id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string | null;
+  role: string;
+}
 
 export interface JournalEntry {
   id: string;
@@ -22,8 +16,12 @@ export interface JournalEntry {
   title: string | null;
   entry_kind: string;
   created_by: string | null;
+  created_by_staff_id: string | null;
+  created_by_staff_name?: string | null;
+  created_by_staff_role?: string | null;
   created_at: string;
   updated_by: string | null;
+  updated_by_staff_id: string | null;
   updated_at: string;
   occurred_at: string | null;
   is_archived: boolean;
@@ -46,23 +44,16 @@ interface JournalSectionProps {
   onEntryAdded: () => void;
 }
 
-// Get initials from created_by field
-function getInitials(createdBy: string | null): string {
-  if (!createdBy) return "??";
-
-  // Check if it matches a staff member
-  const staff = STAFF.find(
-    (s) => s.name.toLowerCase() === createdBy.toLowerCase() ||
-           s.initials.toLowerCase() === createdBy.toLowerCase()
-  );
-  if (staff) return staff.initials;
+// Get initials from a name
+function getInitials(name: string | null): string {
+  if (!name) return "??";
 
   // Try to extract initials from name
-  const parts = createdBy.split(" ").filter(Boolean);
+  const parts = name.split(" ").filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
-  return createdBy.slice(0, 2).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 // Format date for display
@@ -107,19 +98,31 @@ export default function JournalSection({
   onEntryAdded,
 }: JournalSectionProps) {
   const [newNote, setNewNote] = useState("");
-  const [selectedStaff, setSelectedStaff] = useState<string>("");
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [addingNote, setAddingNote] = useState(false);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+
+  // Fetch staff list on mount
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((res) => res.json())
+      .then((data) => setStaffList(data.staff || []))
+      .catch((err) => console.error("Failed to fetch staff:", err));
+  }, []);
 
   const handleAddNote = async () => {
-    if (!newNote.trim() || !selectedStaff) return;
+    if (!newNote.trim() || !selectedStaffId) return;
+
+    const selectedStaff = staffList.find(s => s.staff_id === selectedStaffId);
 
     setAddingNote(true);
     try {
       const body: Record<string, string> = {
         body: newNote,
         entry_kind: "note",
-        created_by: selectedStaff,
+        created_by: selectedStaff?.display_name || "Unknown",
+        created_by_staff_id: selectedStaffId,
       };
 
       // Set the appropriate entity ID
@@ -195,19 +198,19 @@ export default function JournalSection({
       <div style={{ marginBottom: "1rem" }}>
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
           <select
-            value={selectedStaff}
-            onChange={(e) => setSelectedStaff(e.target.value)}
+            value={selectedStaffId}
+            onChange={(e) => setSelectedStaffId(e.target.value)}
             style={{
               padding: "0.5rem",
               borderRadius: "4px",
               border: "1px solid #dee2e6",
-              minWidth: "140px"
+              minWidth: "160px"
             }}
           >
             <option value="">Select staff...</option>
-            {STAFF.map((s) => (
-              <option key={s.initials} value={s.name}>
-                {s.name} ({s.initials})
+            {staffList.map((s) => (
+              <option key={s.staff_id} value={s.staff_id}>
+                {s.display_name} ({s.role})
               </option>
             ))}
           </select>
@@ -221,7 +224,7 @@ export default function JournalSection({
         />
         <button
           onClick={handleAddNote}
-          disabled={addingNote || !newNote.trim() || !selectedStaff}
+          disabled={addingNote || !newNote.trim() || !selectedStaffId}
           style={{ marginTop: "0.5rem" }}
         >
           {addingNote ? "Adding..." : "Add Note"}
@@ -234,7 +237,9 @@ export default function JournalSection({
           {entries.map((entry) => {
             const isExpanded = expandedEntries.has(entry.id);
             const kindStyle = ENTRY_KIND_STYLES[entry.entry_kind] || ENTRY_KIND_STYLES.note;
-            const initials = getInitials(entry.created_by);
+            // Prefer staff name, fall back to created_by
+            const displayName = entry.created_by_staff_name || entry.created_by;
+            const initials = getInitials(displayName);
             const dateStr = formatDate(entry.occurred_at || entry.created_at);
             const isLong = entry.body.length > 120;
 
@@ -267,13 +272,13 @@ export default function JournalSection({
                       width: "28px",
                       height: "28px",
                       borderRadius: "50%",
-                      background: "#6c757d",
+                      background: entry.created_by_staff_id ? "#0d6efd" : "#6c757d",
                       color: "#fff",
                       fontSize: "0.7rem",
                       fontWeight: "bold",
                       flexShrink: 0,
                     }}
-                    title={entry.created_by || "Unknown"}
+                    title={`${displayName || "Unknown"}${entry.created_by_staff_role ? ` (${entry.created_by_staff_role})` : ""}`}
                   >
                     {initials}
                   </span>

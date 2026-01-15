@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, query, queryOne } from "@/lib/db";
 
-// Modern journal entry schema (MIG_140)
+// Modern journal entry schema (MIG_140 + MIG_244)
 interface JournalEntryRow {
   id: string;
   entry_kind: string;
@@ -12,8 +12,10 @@ interface JournalEntryRow {
   primary_place_id: string | null;
   primary_request_id: string | null;
   created_by: string | null;
+  created_by_staff_id: string | null;
   created_at: string;
   updated_by: string | null;
+  updated_by_staff_id: string | null;
   updated_at: string;
   occurred_at: string | null;
   is_archived: boolean;
@@ -24,6 +26,8 @@ interface JournalEntryRow {
   cat_name?: string;
   person_name?: string;
   place_name?: string;
+  created_by_staff_name?: string;
+  created_by_staff_role?: string;
 }
 
 // GET /api/journal - Fetch journal entries
@@ -92,8 +96,10 @@ export async function GET(request: NextRequest) {
         je.primary_place_id,
         je.primary_request_id,
         je.created_by,
+        je.created_by_staff_id,
         je.created_at,
         je.updated_by,
+        je.updated_by_staff_id,
         je.updated_at,
         je.occurred_at,
         je.is_archived,
@@ -102,11 +108,14 @@ export async function GET(request: NextRequest) {
         je.tags,
         c.display_name AS cat_name,
         p.display_name AS person_name,
-        pl.display_name AS place_name
+        pl.display_name AS place_name,
+        s.display_name AS created_by_staff_name,
+        s.role AS created_by_staff_role
       FROM trapper.journal_entries je
       LEFT JOIN trapper.sot_cats c ON c.cat_id = je.primary_cat_id
       LEFT JOIN trapper.sot_people p ON p.person_id = je.primary_person_id
       LEFT JOIN trapper.places pl ON pl.place_id = je.primary_place_id
+      LEFT JOIN trapper.staff s ON s.staff_id = je.created_by_staff_id
       ${whereClause}
       ORDER BY je.is_pinned DESC, COALESCE(je.occurred_at, je.created_at) DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -151,6 +160,18 @@ interface CreateEntryBody {
   request_id?: string;
   occurred_at?: string;
   created_by?: string;
+  created_by_staff_id?: string;
+  tags?: string[];
+}
+
+interface UpdateEntryBody {
+  body?: string;
+  title?: string;
+  occurred_at?: string;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+  updated_by?: string;
+  updated_by_staff_id?: string;
   tags?: string[];
 }
 
@@ -187,6 +208,7 @@ export async function POST(request: NextRequest) {
         primary_place_id,
         primary_request_id,
         created_by,
+        created_by_staff_id,
         occurred_at,
         tags
       ) VALUES (
@@ -199,7 +221,8 @@ export async function POST(request: NextRequest) {
         $7,
         $8,
         $9,
-        $10
+        $10,
+        $11
       )
       RETURNING id`,
       [
@@ -211,6 +234,7 @@ export async function POST(request: NextRequest) {
         data.place_id || null,
         data.request_id || null,
         createdBy,
+        data.created_by_staff_id || null,
         data.occurred_at || null,
         data.tags || [],
       ]
@@ -231,6 +255,112 @@ export async function POST(request: NextRequest) {
     console.error("Error creating journal entry:", error);
     return NextResponse.json(
       { error: "Failed to create journal entry" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/journal - Update a journal entry
+export async function PATCH(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "id parameter is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const data: UpdateEntryBody = await request.json();
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (data.body !== undefined) {
+      setClauses.push(`body = $${paramIndex}`);
+      params.push(data.body.trim());
+      paramIndex++;
+    }
+
+    if (data.title !== undefined) {
+      setClauses.push(`title = $${paramIndex}`);
+      params.push(data.title?.trim() || null);
+      paramIndex++;
+    }
+
+    if (data.occurred_at !== undefined) {
+      setClauses.push(`occurred_at = $${paramIndex}`);
+      params.push(data.occurred_at || null);
+      paramIndex++;
+    }
+
+    if (data.is_pinned !== undefined) {
+      setClauses.push(`is_pinned = $${paramIndex}`);
+      params.push(data.is_pinned);
+      paramIndex++;
+    }
+
+    if (data.is_archived !== undefined) {
+      setClauses.push(`is_archived = $${paramIndex}`);
+      params.push(data.is_archived);
+      paramIndex++;
+    }
+
+    if (data.tags !== undefined) {
+      setClauses.push(`tags = $${paramIndex}`);
+      params.push(data.tags);
+      paramIndex++;
+    }
+
+    // Always update these on edit
+    setClauses.push(`updated_at = NOW()`);
+    setClauses.push(`edit_count = edit_count + 1`);
+
+    if (data.updated_by) {
+      setClauses.push(`updated_by = $${paramIndex}`);
+      params.push(data.updated_by);
+      paramIndex++;
+    }
+
+    if (data.updated_by_staff_id) {
+      setClauses.push(`updated_by_staff_id = $${paramIndex}`);
+      params.push(data.updated_by_staff_id);
+      paramIndex++;
+    }
+
+    if (setClauses.length === 2) {
+      // Only updated_at and edit_count, no actual changes
+      return NextResponse.json(
+        { error: "No fields to update" },
+        { status: 400 }
+      );
+    }
+
+    params.push(id);
+
+    const result = await queryOne<{ id: string }>(
+      `UPDATE trapper.journal_entries
+       SET ${setClauses.join(", ")}
+       WHERE id = $${paramIndex}
+       RETURNING id`,
+      params
+    );
+
+    if (!result) {
+      return NextResponse.json(
+        { error: "Journal entry not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ id: result.id, success: true });
+  } catch (error) {
+    console.error("Error updating journal entry:", error);
+    return NextResponse.json(
+      { error: "Failed to update journal entry" },
       { status: 500 }
     );
   }

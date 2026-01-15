@@ -95,6 +95,10 @@ export default function AdminPage() {
 
       {/* Quick Links */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginTop: "1.5rem" }}>
+        <a href="/admin/test-mode" className="card" style={{ textAlign: "center", background: "linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%)", border: "2px solid #ffc107" }}>
+          <h3>Test Mode</h3>
+          <p className="text-muted text-sm">Make temporary test changes</p>
+        </a>
         <a href="/admin/ecology" className="card" style={{ textAlign: "center", background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)" }}>
           <h3>Ecology Config</h3>
           <p className="text-muted text-sm">Colony calculation parameters</p>
@@ -115,9 +119,9 @@ export default function AdminPage() {
           <h3>Staff Directory</h3>
           <p className="text-muted text-sm">Manage FFSC staff members</p>
         </a>
-        <a href="/admin/intake-questions" className="card" style={{ textAlign: "center" }}>
-          <h3>Intake Questions</h3>
-          <p className="text-muted text-sm">Configure intake form</p>
+        <a href="/admin/intake-fields" className="card" style={{ textAlign: "center", background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)" }}>
+          <h3>Intake Fields</h3>
+          <p className="text-muted text-sm">Add custom questions + Airtable sync</p>
         </a>
       </div>
 

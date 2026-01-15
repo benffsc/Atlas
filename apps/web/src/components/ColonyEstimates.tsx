@@ -78,23 +78,92 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
   const [error, setError] = useState<string | null>(null);
   const [showAllEstimates, setShowAllEstimates] = useState(false);
 
-  useEffect(() => {
-    async function fetchEstimates() {
-      try {
-        const response = await fetch(`/api/places/${placeId}/colony-estimates`);
-        if (!response.ok) {
-          throw new Error("Failed to load colony estimates");
-        }
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error loading estimates");
-      } finally {
-        setLoading(false);
+  // Override editing state
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overrideCount, setOverrideCount] = useState<number>(0);
+  const [overrideAltered, setOverrideAltered] = useState<number>(0);
+  const [overrideNote, setOverrideNote] = useState<string>("");
+  const [savingOverride, setSavingOverride] = useState(false);
+
+  const fetchEstimates = async () => {
+    try {
+      const response = await fetch(`/api/places/${placeId}/colony-estimates`);
+      if (!response.ok) {
+        throw new Error("Failed to load colony estimates");
       }
+      const result = await response.json();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error loading estimates");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchEstimates();
   }, [placeId]);
+
+  const handleSetOverride = async () => {
+    setSavingOverride(true);
+    try {
+      const response = await fetch(`/api/places/${placeId}/colony-override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          count: overrideCount,
+          altered: overrideAltered,
+          note: overrideNote || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "Failed to set override");
+      }
+
+      setShowOverrideForm(false);
+      setLoading(true);
+      await fetchEstimates();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error setting override");
+    } finally {
+      setSavingOverride(false);
+    }
+  };
+
+  const handleClearOverride = async () => {
+    if (!confirm("Clear the manual override and revert to computed estimates?")) {
+      return;
+    }
+
+    setSavingOverride(true);
+    try {
+      const response = await fetch(`/api/places/${placeId}/colony-override`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "Failed to clear override");
+      }
+
+      setLoading(true);
+      await fetchEstimates();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error clearing override");
+    } finally {
+      setSavingOverride(false);
+    }
+  };
+
+  const openOverrideForm = () => {
+    // Pre-fill with current values
+    setOverrideCount(data?.ecology?.best_colony_estimate || data?.status?.colony_size_estimate || 0);
+    setOverrideAltered(data?.ecology?.a_known || data?.status?.verified_altered_count || 0);
+    setOverrideNote("");
+    setShowOverrideForm(true);
+  };
 
   if (loading) {
     return (
@@ -223,6 +292,155 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           <div style={{ fontSize: "0.7rem", color: "#666" }}>Work Remaining</div>
         </div>
       </div>
+
+      {/* Manual Override Controls */}
+      <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        {ecology?.estimation_method === "manual_override" ? (
+          <>
+            <span
+              style={{
+                padding: "0.25rem 0.5rem",
+                background: "#ffc107",
+                color: "#000",
+                borderRadius: "4px",
+                fontSize: "0.8rem",
+              }}
+            >
+              Manual Override Active
+            </span>
+            <button
+              onClick={handleClearOverride}
+              disabled={savingOverride}
+              style={{
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.75rem",
+                background: "#dc3545",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              {savingOverride ? "..." : "Clear Override"}
+            </button>
+            <button
+              onClick={openOverrideForm}
+              style={{
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.75rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Edit
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={openOverrideForm}
+            style={{
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.75rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            Set Manual Override
+          </button>
+        )}
+      </div>
+
+      {/* Override Form */}
+      {showOverrideForm && (
+        <div
+          style={{
+            padding: "1rem",
+            background: "#f8f9fa",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+          }}
+        >
+          <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem" }}>Set Colony Override</h4>
+          <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "0.75rem" }}>
+            Use this when you have confirmed data that differs from the estimates.
+            The override will be used instead of computed values.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "0.75rem" }}>
+            <div>
+              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+                Total Cats
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={overrideCount}
+                onChange={(e) => setOverrideCount(Math.max(0, parseInt(e.target.value) || 0))}
+                style={{ width: "80px", padding: "0.25rem 0.5rem" }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+                Altered Cats
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={overrideCount}
+                value={overrideAltered}
+                onChange={(e) => setOverrideAltered(Math.min(overrideCount, Math.max(0, parseInt(e.target.value) || 0)))}
+                style={{ width: "80px", padding: "0.25rem 0.5rem" }}
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+              Notes (reason for override)
+            </label>
+            <textarea
+              value={overrideNote}
+              onChange={(e) => setOverrideNote(e.target.value)}
+              placeholder="e.g., Confirmed via site visit on 2025-01-14"
+              rows={2}
+              style={{ width: "100%", padding: "0.25rem 0.5rem", fontSize: "0.85rem" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={handleSetOverride}
+              disabled={savingOverride || overrideCount < 0}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#198754",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+              }}
+            >
+              {savingOverride ? "Saving..." : "Save Override"}
+            </button>
+            <button
+              onClick={() => setShowOverrideForm(false)}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Ecology-Based Estimation Info */}
       {ecology && ecology.a_known > 0 && (

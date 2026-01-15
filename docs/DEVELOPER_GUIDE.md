@@ -288,6 +288,65 @@ node clinichq_cat_info_xlsx.mjs
 
 ---
 
+## Admin Features
+
+### Custom Intake Fields
+
+Admins can add custom questions to the intake form without code changes.
+
+**Location:** `/admin/intake-fields`
+
+**Workflow:**
+1. Go to Admin → Intake Fields
+2. Click "Add Field" to create a custom question
+3. Configure: label, type, options, help text, required status
+4. Optionally restrict to specific call types
+5. Click "Sync to Airtable" to push to Airtable table
+6. Add the same question to Jotform and map it
+
+**Database Table:** `trapper.intake_custom_fields`
+
+**Supported Field Types:**
+- `text` - Single line text
+- `textarea` - Multi-line text
+- `number` - Numeric input
+- `select` - Dropdown (single choice)
+- `multiselect` - Dropdown (multiple choices)
+- `checkbox` - Yes/no checkbox
+- `date` - Date picker
+- `phone` - Phone number
+- `email` - Email address
+
+**Show for Call Types:**
+Fields can be shown only for specific call types (pet_spay_neuter, wellness_check, single_stray, colony_tnr, kitten_rescue, medical_concern). Leave empty to show for all.
+
+**Beacon Critical:**
+Mark fields as "Beacon Critical" if they're important for colony analytics. These are highlighted in the form and prioritized in data collection.
+
+**Airtable Sync:**
+The "Sync to Airtable" button uses the Airtable Metadata API to create fields in the `Public Intake Submissions` table. After syncing, you must:
+1. Add the same question to your Jotform
+2. Map the Jotform field to the new Airtable column
+
+### Intake Queue Management
+
+**Location:** `/intake/queue`
+
+**Tabs:**
+- **Needs Attention** - New submissions requiring action
+- **Recent** - Recent submissions including booked
+- **Booked** - Submissions with appointments scheduled
+- **All Submissions** - Everything
+- **Legacy** - Imported historical data
+
+**Appointment Booking:**
+- Click "Booked" to open booking modal with date picker
+- "Change Appt" to modify existing appointment
+- "Undo" to reset accidentally booked submissions
+- "Reset to Pending" in detail modal for recovery
+
+---
+
 ## Security Considerations
 
 ### API Security

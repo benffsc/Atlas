@@ -43,6 +43,8 @@ interface IntakeSubmission {
   last_contacted_at: string | null;
   last_contact_method: string | null;
   contact_attempt_count: number | null;
+  // Test mode
+  is_test: boolean;
 }
 
 export async function GET(request: NextRequest) {
@@ -50,13 +52,29 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category");
   const statusFilter = searchParams.get("status_filter");
   const sourceFilter = searchParams.get("source"); // 'legacy', 'new', or ''
-  const mode = searchParams.get("mode"); // 'attention', 'recent', 'legacy', or ''
+  const mode = searchParams.get("mode"); // 'attention', 'recent', 'legacy', 'test', or ''
   const includeOld = searchParams.get("include_old") === "true";
+  const includeTest = searchParams.get("include_test") === "true";
+  const searchQuery = searchParams.get("search");
+  const limitParam = searchParams.get("limit");
 
   try {
     const conditions: string[] = [];
     const params: unknown[] = [];
     let paramIndex = 1;
+
+    // Search by name, email, phone, or address
+    if (searchQuery && searchQuery.trim()) {
+      conditions.push(`(
+        submitter_name ILIKE $${paramIndex}
+        OR email ILIKE $${paramIndex}
+        OR phone ILIKE $${paramIndex}
+        OR cats_address ILIKE $${paramIndex}
+        OR geo_formatted_address ILIKE $${paramIndex}
+      )`);
+      params.push(`%${searchQuery.trim()}%`);
+      paramIndex++;
+    }
 
     // Filter by category
     if (category) {
@@ -88,6 +106,9 @@ export async function GET(request: NextRequest) {
         OR submitted_at >= '2025-10-01'
         OR legacy_submission_status IN ('Pending Review', 'Booked')
       )`);
+    } else if (mode === "booked") {
+      // "Booked" tab: Only booked submissions, useful to track upcoming appointments
+      conditions.push(`legacy_submission_status = 'Booked'`);
     } else if (mode === "all") {
       // "All Submissions" tab: Everything, no filters
       // Just exclude archived/request_created unless they want those too
@@ -95,6 +116,9 @@ export async function GET(request: NextRequest) {
     } else if (mode === "legacy") {
       // "Legacy" tab: All legacy data
       conditions.push(`is_legacy = TRUE`);
+    } else if (mode === "test") {
+      // "Test" tab: Only test submissions
+      conditions.push(`is_test = TRUE`);
     } else {
       // Fallback to old behavior for backwards compatibility
       if (statusFilter === "active") {
@@ -120,6 +144,11 @@ export async function GET(request: NextRequest) {
       if (!statusFilter && !includeOld) {
         conditions.push(`(is_legacy = FALSE OR submitted_at >= '2025-10-01' OR legacy_submission_status IN ('Pending Review', 'Booked'))`);
       }
+    }
+
+    // Exclude test submissions from production views unless explicitly included or viewing test mode
+    if (mode !== "test" && !includeTest) {
+      conditions.push(`COALESCE(is_test, FALSE) = FALSE`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -163,13 +192,14 @@ export async function GET(request: NextRequest) {
         geo_confidence,
         last_contacted_at,
         last_contact_method,
-        contact_attempt_count
+        contact_attempt_count,
+        is_test
       FROM trapper.v_intake_triage_queue
       ${whereClause}
       ORDER BY
         is_emergency DESC,
         submitted_at DESC
-      LIMIT 500
+      LIMIT ${mode === "legacy" ? 2000 : (limitParam ? Math.min(parseInt(limitParam, 10), 2000) : 500)}
     `;
 
     const submissions = await queryRows<IntakeSubmission>(sql, params);

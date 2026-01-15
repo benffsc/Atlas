@@ -502,7 +502,7 @@ export default function Home() {
                 {intakeSubmissions.map((sub) => (
                   <tr
                     key={sub.submission_id}
-                    onClick={() => window.location.href = `/intake/queue/${sub.submission_id}`}
+                    onClick={() => window.location.href = `/intake/queue?open=${sub.submission_id}`}
                     style={{
                       background: sub.is_emergency ? "rgba(220, 53, 69, 0.15)" : sub.overdue ? "rgba(255, 193, 7, 0.15)" : undefined,
                       cursor: "pointer",

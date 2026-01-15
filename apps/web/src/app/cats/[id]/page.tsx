@@ -6,6 +6,7 @@ import JournalSection, { JournalEntry } from "@/components/JournalSection";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { OwnershipTransferWizard } from "@/components/OwnershipTransferWizard";
+import { CatMovementSection } from "@/components/CatMovementSection";
 
 interface Owner {
   person_id: string;
@@ -1337,6 +1338,11 @@ export default function CatDetailPage() {
         ) : (
           <p className="text-muted">No visits recorded for this cat.</p>
         )}
+      </Section>
+
+      {/* Movement & Reunification */}
+      <Section title="Movement & Reunification">
+        <CatMovementSection catId={id} />
       </Section>
 
       {/* Journal / Notes */}

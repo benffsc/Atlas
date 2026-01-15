@@ -9,11 +9,12 @@ const supabase = createClient(
 interface IntakeSubmission {
   // Source tracking
   source?: "web" | "phone" | "in_person" | "paper";
+  source_system?: string;  // For tracking intake type (e.g., "web_intake_receptionist")
 
   // Contact Info
   first_name: string;
   last_name: string;
-  email: string;
+  email?: string;  // Email OR phone required
   phone?: string;
   requester_address?: string;
   requester_city?: string;
@@ -33,15 +34,20 @@ interface IntakeSubmission {
   county?: string;
 
   // Triage Questions
-  ownership_status: "unknown_stray" | "community_colony" | "newcomer" | "my_cat" | "neighbors_cat" | "unsure";
+  ownership_status?: "unknown_stray" | "community_colony" | "newcomer" | "my_cat" | "neighbors_cat" | "unsure";
   cat_count_estimate?: number;
   cat_count_text?: string;
   peak_count?: number;
   eartip_count_observed?: number;
-  fixed_status: "none_fixed" | "some_fixed" | "most_fixed" | "all_fixed" | "unknown";
+  fixed_status?: "none_fixed" | "some_fixed" | "most_fixed" | "all_fixed" | "unknown" | "yes_eartip" | "no";
   observation_time_of_day?: string;
   is_at_feeding_station?: boolean;
   reporter_confidence?: string;
+
+  // Handleability - determines carrier vs trap
+  handleability?: "friendly_carrier" | "shy_handleable" | "feral_trap" | "unknown" | "some_friendly" | "all_feral";
+
+  // Kittens
   has_kittens?: boolean;
   kitten_count?: number;
   kitten_age_estimate?: string;
@@ -53,6 +59,7 @@ interface IntakeSubmission {
   can_bring_in?: string;
   kitten_notes?: string;
   awareness_duration?: "under_1_week" | "under_1_month" | "1_to_6_months" | "6_to_12_months" | "over_1_year" | "unknown";
+
   // Feeding behavior
   feeds_cat?: boolean;
   feeding_frequency?: "daily" | "few_times_week" | "occasionally" | "rarely";
@@ -77,6 +84,12 @@ interface IntakeSubmission {
   foster_readiness?: "high" | "medium" | "low";
   kitten_urgency_factors?: string[];
   reviewed_by?: string;
+
+  // Custom fields (from admin-configured questions)
+  custom_fields?: Record<string, string | boolean>;
+
+  // Test mode - for demos and training
+  is_test?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -84,9 +97,17 @@ export async function POST(request: NextRequest) {
     const body: IntakeSubmission = await request.json();
 
     // Validate required fields
-    if (!body.first_name || !body.last_name || !body.email) {
+    if (!body.first_name || !body.last_name) {
       return NextResponse.json(
-        { error: "First name, last name, and email are required" },
+        { error: "First name and last name are required" },
+        { status: 400 }
+      );
+    }
+
+    // Require email OR phone
+    if (!body.email && !body.phone) {
+      return NextResponse.json(
+        { error: "Email or phone is required" },
         { status: 400 }
       );
     }
@@ -94,13 +115,6 @@ export async function POST(request: NextRequest) {
     if (!body.cats_address) {
       return NextResponse.json(
         { error: "Cat location address is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!body.ownership_status || !body.fixed_status) {
-      return NextResponse.json(
-        { error: "Ownership status and fixed status are required" },
         { status: 400 }
       );
     }
@@ -118,9 +132,10 @@ export async function POST(request: NextRequest) {
       .insert({
         // Source tracking (defaults to 'web' for online submissions)
         source: body.source || "web",
+        source_system: body.source_system || null,
         first_name: body.first_name,
         last_name: body.last_name,
-        email: body.email,
+        email: body.email || null,
         phone: body.phone || null,
         requester_address: body.requester_address || null,
         requester_city: body.requester_city || null,
@@ -135,12 +150,13 @@ export async function POST(request: NextRequest) {
         cats_city: body.cats_city || null,
         cats_zip: body.cats_zip || null,
         county: body.county || null,
-        ownership_status: body.ownership_status,
+        ownership_status: body.ownership_status || "unknown_stray",
         cat_count_estimate: body.cat_count_estimate || null,
         cat_count_text: body.cat_count_text || null,
         peak_count: body.peak_count || null,
         eartip_count_observed: body.eartip_count_observed || null,
-        fixed_status: body.fixed_status,
+        fixed_status: body.fixed_status || "unknown",
+        handleability: body.handleability || null,
         observation_time_of_day: body.observation_time_of_day || null,
         is_at_feeding_station: body.is_at_feeding_station ?? null,
         reporter_confidence: body.reporter_confidence || null,
@@ -180,6 +196,10 @@ export async function POST(request: NextRequest) {
         foster_readiness: body.foster_readiness || null,
         kitten_urgency_factors: body.kitten_urgency_factors || null,
         reviewed_by: body.reviewed_by || null,
+        // Custom fields (stored as JSONB)
+        custom_fields: body.custom_fields || null,
+        // Test mode flag
+        is_test: body.is_test || false,
         // If staff is entering, mark as reviewed
         ...(body.source !== "web" && body.reviewed_by ? {
           status: "reviewed",

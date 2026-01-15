@@ -129,17 +129,42 @@ Required in `.env`:
 |------|---------|
 | `v_request_alteration_stats` | Per-request cat attribution with windows |
 | `v_trapper_full_stats` | Comprehensive trapper statistics |
-| `v_trapper_appointment_stats` | Trapper stats from direct appointment links (MIG_238) |
+| `v_trapper_appointment_stats` | Trapper stats from direct appointment links |
 | `v_place_alteration_history` | Per-place TNR progress over time |
 | `v_request_current_trappers` | Current trapper assignments |
 
-## Intake Form Configuration (MIG_237)
+## Key Tables
 
-Intake questions are now database-driven via `intake_questions` and `intake_question_options` tables.
+| Table | Purpose |
+|-------|---------|
+| `intake_custom_fields` | Admin-configured custom intake questions |
+| `web_intake_submissions` | All intake form submissions (has `custom_fields` JSONB) |
+
+## Custom Intake Fields (MIG_238)
+
+Custom intake questions can be added via admin UI without code changes.
 
 ### Admin UI
-- Path: `/admin/intake-questions`
-- Features: Edit question text, help text, options; add custom questions
+- Path: `/admin/intake-fields`
+- Features: Add/edit/delete custom questions, sync to Airtable
+
+### Database Table: `trapper.intake_custom_fields`
+| Column | Purpose |
+|--------|---------|
+| `field_key` | Snake_case identifier (e.g., `how_heard_about_us`) |
+| `field_label` | Human-readable label |
+| `field_type` | text, textarea, number, select, checkbox, date, phone, email |
+| `options` | JSONB array of `{value, label}` for select fields |
+| `show_for_call_types` | Array of call types to show for (null = all) |
+| `is_beacon_critical` | Important for Beacon analytics |
+| `airtable_synced_at` | When last synced to Airtable |
+
+### Airtable Sync
+Click "Sync to Airtable" in admin UI to push new fields to Airtable table.
+After sync: add same question to Jotform and map to new Airtable column.
+
+### Custom Field Values
+Stored in `web_intake_submissions.custom_fields` as JSONB.
 
 ### Cat Ownership Types
 Standard options for `ownership_status`:

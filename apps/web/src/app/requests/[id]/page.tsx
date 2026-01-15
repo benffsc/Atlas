@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { AlterationStatsCard } from "@/components/AlterationStatsCard";
 import { LegacyUpgradeWizard } from "@/components/LegacyUpgradeWizard";
 import { TrapperAssignments } from "@/components/TrapperAssignments";
+import JournalSection, { JournalEntry } from "@/components/JournalSection";
 
 interface MediaItem {
   media_id: string;
@@ -267,6 +268,9 @@ export default function RequestDetailPage() {
   // Edit history panel
   const [showHistory, setShowHistory] = useState(false);
 
+  // Journal entries
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+
   // Legacy upgrade wizard
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
 
@@ -287,6 +291,18 @@ export default function RequestDetailPage() {
       setLoadingMedia(false);
     }
   };
+
+  const fetchJournalEntries = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/journal?request_id=${requestId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setJournalEntries(data.entries || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch journal entries:", err);
+    }
+  }, [requestId]);
 
   const handleMediaUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -375,7 +391,8 @@ export default function RequestDetailPage() {
 
     fetchRequest();
     fetchMedia();
-  }, [requestId]);
+    fetchJournalEntries();
+  }, [requestId, fetchJournalEntries]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -1459,6 +1476,17 @@ export default function RequestDetailPage() {
             ) : (
               <p className="text-muted">No cats linked to this request yet</p>
             )}
+          </div>
+
+          {/* Journal / Notes Card */}
+          <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+            <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Journal</h2>
+            <JournalSection
+              entries={journalEntries}
+              entityType="request"
+              entityId={request.request_id}
+              onEntryAdded={fetchJournalEntries}
+            />
           </div>
 
           {/* Photos & Media Card */}

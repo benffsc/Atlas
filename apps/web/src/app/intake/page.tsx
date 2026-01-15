@@ -3,9 +3,46 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-type Step = "contact" | "location" | "cats" | "situation" | "review";
+/**
+ * Dynamic Intake Form for Receptionist Use
+ *
+ * Routes to different question paths based on call type:
+ * - Pet spay/neuter: Owned cat needs clinic appointment
+ * - Wellness check: Fixed cat needs medical attention
+ * - Single stray: One cat, may be friendly or need trapping
+ * - Colony/TNR: Multiple outdoor cats need TNR
+ * - Kitten rescue: Kittens found, foster assessment
+ * - Medical concern: Urgent medical situation
+ */
+
+type CallType =
+  | ""
+  | "pet_spay_neuter"    // Owned cat needing surgery
+  | "wellness_check"      // Fixed cat needing medical care
+  | "single_stray"        // One unfamiliar cat
+  | "colony_tnr"          // Multiple outdoor cats
+  | "kitten_rescue"       // Kittens found
+  | "medical_concern";    // Urgent medical situation
+
+type Step = "call_type" | "contact" | "location" | "cat_details" | "situation" | "review";
+
+interface CustomField {
+  field_id: string;
+  field_key: string;
+  field_label: string;
+  field_type: string;
+  options: { value: string; label: string }[] | null;
+  placeholder: string | null;
+  help_text: string | null;
+  is_required: boolean;
+  is_beacon_critical: boolean;
+  display_order: number;
+}
 
 interface FormData {
+  // Call routing
+  call_type: CallType;
+
   // Contact
   first_name: string;
   last_name: string;
@@ -29,51 +66,43 @@ interface FormData {
   county: string;
   same_as_requester: boolean;
 
-  // Cats
-  ownership_status: string;
-  cat_count_estimate: string;
-  cat_count_text: string;
-  peak_count: string;
-  eartip_count_observed: string;
+  // Cat details (varies by call type)
+  cat_name: string;  // For owned pets
+  cat_description: string;  // Color, markings
+  cat_count: string;
   fixed_status: string;
-  observation_time_of_day: string;
-  is_at_feeding_station: string;
-  reporter_confidence: string;
-  has_kittens: string;
+
+  // Handleability - key question for determining carrier vs trap
+  handleability: string;  // friendly_carrier, shy_handleable, feral_trap, unknown
+
+  // Colony-specific
+  peak_count: string;
+  eartip_count: string;
+  feeding_situation: string;
+
+  // Kitten-specific
   kitten_count: string;
-  kitten_age_estimate: string;
-  kitten_age_weeks: string;
-  kitten_mixed_ages: string;
-  kitten_mixed_ages_description: string;
-  kitten_behavior: string;
-  kitten_contained: string;
+  kitten_age: string;
+  kitten_socialization: string;
   mom_present: string;
-  mom_fixed: string;
-  can_bring_in: string;
-  kitten_notes: string;
-  awareness_duration: string;
 
-  // Feeding behavior
-  feeds_cat: string;
-  feeding_frequency: string;
-  feeding_duration: string;
-  cat_comes_inside: string;
-
-  // Situation
-  has_medical_concerns: string;
+  // Medical
+  has_medical_concerns: boolean;
   medical_description: string;
   is_emergency: boolean;
   emergency_acknowledged: boolean;
-  cats_being_fed: string;
-  feeder_info: string;
-  has_property_access: string;
-  access_notes: string;
+
+  // Property/Access
   is_property_owner: string;
-  situation_description: string;
+  has_property_access: string;
+
+  // Notes
+  notes: string;
   referral_source: string;
 }
 
 const initialFormData: FormData = {
+  call_type: "",
   first_name: "",
   last_name: "",
   email: "",
@@ -91,54 +120,98 @@ const initialFormData: FormData = {
   cats_zip: "",
   county: "",
   same_as_requester: false,
-  ownership_status: "",
-  cat_count_estimate: "",
-  cat_count_text: "",
-  peak_count: "",
-  eartip_count_observed: "",
+  cat_name: "",
+  cat_description: "",
+  cat_count: "1",
   fixed_status: "",
-  observation_time_of_day: "",
-  is_at_feeding_station: "",
-  reporter_confidence: "",
-  has_kittens: "",
+  handleability: "",
+  peak_count: "",
+  eartip_count: "",
+  feeding_situation: "",
   kitten_count: "",
-  kitten_age_estimate: "",
-  kitten_age_weeks: "",
-  kitten_mixed_ages: "",
-  kitten_mixed_ages_description: "",
-  kitten_behavior: "",
-  kitten_contained: "",
+  kitten_age: "",
+  kitten_socialization: "",
   mom_present: "",
-  mom_fixed: "",
-  can_bring_in: "",
-  kitten_notes: "",
-  awareness_duration: "",
-  feeds_cat: "",
-  feeding_frequency: "",
-  feeding_duration: "",
-  cat_comes_inside: "",
-  has_medical_concerns: "",
+  has_medical_concerns: false,
   medical_description: "",
   is_emergency: false,
   emergency_acknowledged: false,
-  cats_being_fed: "",
-  feeder_info: "",
-  has_property_access: "",
-  access_notes: "",
   is_property_owner: "",
-  situation_description: "",
+  has_property_access: "",
+  notes: "",
   referral_source: "",
 };
 
-const steps: Step[] = ["contact", "location", "cats", "situation", "review"];
+const CALL_TYPE_OPTIONS = [
+  {
+    value: "pet_spay_neuter",
+    label: "Pet Spay/Neuter",
+    desc: "Caller's own cat needs to be fixed",
+    icon: "🏠",
+  },
+  {
+    value: "wellness_check",
+    label: "Wellness / Already Fixed",
+    desc: "Cat is already fixed, needs medical attention",
+    icon: "💊",
+  },
+  {
+    value: "single_stray",
+    label: "Single Stray or Newcomer",
+    desc: "One unfamiliar cat showed up recently",
+    icon: "🐱",
+  },
+  {
+    value: "colony_tnr",
+    label: "Colony / TNR Request",
+    desc: "Multiple outdoor cats needing TNR",
+    icon: "🐈‍⬛",
+  },
+  {
+    value: "kitten_rescue",
+    label: "Kitten Situation",
+    desc: "Kittens found, may need foster",
+    icon: "🍼",
+  },
+  {
+    value: "medical_concern",
+    label: "Medical Concern / Injured",
+    desc: "Cat appears injured or sick",
+    icon: "🚨",
+  },
+];
+
+const HANDLEABILITY_OPTIONS = [
+  {
+    value: "friendly_carrier",
+    label: "Friendly - can use a carrier",
+    desc: "Cat can be picked up or put in a carrier by caller",
+  },
+  {
+    value: "shy_handleable",
+    label: "Shy but handleable",
+    desc: "Nervous but can be approached and contained with patience",
+  },
+  {
+    value: "feral_trap",
+    label: "Feral - will need a trap",
+    desc: "Cannot be touched, runs away, will require humane trap",
+  },
+  {
+    value: "unknown",
+    label: "Unknown / Haven't tried",
+    desc: "Caller doesn't know if cat is approachable",
+  },
+];
 
 const DRAFT_KEY = "atlas_intake_draft";
 
 function IntakeForm() {
   const searchParams = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
+  const isTestMode = searchParams.get("test") === "true";
 
-  const [currentStep, setCurrentStep] = useState<Step>("contact");
+  const [currentStep, setCurrentStep] = useState<Step>("call_type");
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -150,6 +223,29 @@ function IntakeForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [hasDraft, setHasDraft] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+
+  // Custom fields state
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | boolean>>({});
+
+  // Determine steps based on call type
+  const getSteps = (): Step[] => {
+    // All paths: call_type → contact → location → cat_details → review
+    // Some paths skip situation step
+    const baseSteps: Step[] = ["call_type", "contact", "location", "cat_details"];
+
+    // Add situation step for colony/TNR requests (property access matters more)
+    if (formData.call_type === "colony_tnr") {
+      baseSteps.push("situation");
+    }
+
+    baseSteps.push("review");
+    return baseSteps;
+  };
+
+  const steps = getSteps();
+  const stepIndex = steps.indexOf(currentStep);
+  const progress = ((stepIndex + 1) / steps.length) * 100;
 
   // Load draft from localStorage on mount
   useEffect(() => {
@@ -168,7 +264,175 @@ function IntakeForm() {
     }
   }, []);
 
-  // Save draft to localStorage
+  // Fetch custom fields when call_type changes
+  useEffect(() => {
+    if (formData.call_type) {
+      fetch(`/api/intake/custom-fields?call_type=${formData.call_type}`)
+        .then(res => res.json())
+        .then(data => setCustomFields(data.fields || []))
+        .catch(() => setCustomFields([]));
+    }
+  }, [formData.call_type]);
+
+  // Update custom field value
+  const updateCustomField = (fieldKey: string, value: string | boolean) => {
+    setCustomFieldValues(prev => ({ ...prev, [fieldKey]: value }));
+  };
+
+  // Render a single custom field
+  const renderCustomField = (field: CustomField) => {
+    const value = customFieldValues[field.field_key] || "";
+
+    switch (field.field_type) {
+      case "text":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+              {field.is_beacon_critical && (
+                <span style={{ marginLeft: "0.5rem", fontSize: "0.7rem", background: "#0d6efd", color: "#fff", padding: "1px 4px", borderRadius: "3px" }}>Beacon</span>
+              )}
+            </label>
+            <input
+              type="text"
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+              placeholder={field.placeholder || undefined}
+            />
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      case "textarea":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+            </label>
+            <textarea
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+              placeholder={field.placeholder || undefined}
+              rows={3}
+            />
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      case "number":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+            </label>
+            <input
+              type="number"
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+              placeholder={field.placeholder || undefined}
+              style={{ maxWidth: "150px" }}
+            />
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      case "select":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+            </label>
+            <select
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+            >
+              <option value="">Select...</option>
+              {field.options?.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      case "checkbox":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!!value}
+                onChange={(e) => updateCustomField(field.field_key, e.target.checked)}
+              />
+              <span>
+                {field.field_label}
+                {field.help_text && (
+                  <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>{field.help_text}</span>
+                )}
+              </span>
+            </label>
+          </div>
+        );
+
+      case "date":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+            </label>
+            <input
+              type="date"
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+            />
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      case "phone":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+            </label>
+            <input
+              type="tel"
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+              placeholder={field.placeholder || undefined}
+            />
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      case "email":
+        return (
+          <div key={field.field_id} style={{ marginBottom: "1rem" }}>
+            <label>
+              {field.field_label}
+              {field.is_required && " *"}
+            </label>
+            <input
+              type="email"
+              value={value as string}
+              onChange={(e) => updateCustomField(field.field_key, e.target.value)}
+              placeholder={field.placeholder || undefined}
+            />
+            {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   const saveDraft = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
@@ -176,11 +440,10 @@ function IntakeForm() {
         currentStep,
         savedAt: new Date().toISOString(),
       }));
-      alert("Draft saved! You can return later to complete your submission.");
+      alert("Draft saved!");
     }
   };
 
-  // Load draft from localStorage
   const loadDraft = () => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(DRAFT_KEY);
@@ -188,9 +451,8 @@ function IntakeForm() {
         try {
           const draft = JSON.parse(saved);
           setFormData(draft.formData);
-          setCurrentStep(draft.currentStep || "contact");
+          setCurrentStep(draft.currentStep || "call_type");
           setHasDraft(false);
-          alert("Draft loaded!");
         } catch {
           alert("Could not load draft");
         }
@@ -198,7 +460,6 @@ function IntakeForm() {
     }
   };
 
-  // Clear draft
   const clearDraft = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem(DRAFT_KEY);
@@ -214,22 +475,29 @@ function IntakeForm() {
   const validateStep = (step: Step): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (step === "call_type") {
+      if (!formData.call_type) newErrors.call_type = "Please select what this call is about";
+    }
+
     if (step === "contact") {
-      if (!formData.first_name.trim()) newErrors.first_name = "First name is required";
-      if (!formData.last_name.trim()) newErrors.last_name = "Last name is required";
-      if (!formData.email.trim()) newErrors.email = "Email is required";
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        newErrors.email = "Please enter a valid email address";
+      if (!formData.first_name.trim()) newErrors.first_name = "First name required";
+      if (!formData.last_name.trim()) newErrors.last_name = "Last name required";
+      if (!formData.email.trim() && !formData.phone.trim()) {
+        newErrors.email = "Email or phone required";
+      } else if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = "Invalid email format";
       }
     }
 
     if (step === "location") {
-      if (!formData.cats_address.trim()) newErrors.cats_address = "Cat location address is required";
+      if (!formData.cats_address.trim()) newErrors.cats_address = "Address required";
     }
 
-    if (step === "cats") {
-      if (!formData.ownership_status) newErrors.ownership_status = "Please select the cat's ownership status";
-      if (!formData.fixed_status) newErrors.fixed_status = "Please indicate if the cats are fixed";
+    if (step === "cat_details") {
+      // For medical concerns, require explanation
+      if (formData.has_medical_concerns && !formData.medical_description.trim()) {
+        newErrors.medical_description = "Please describe the medical concerns";
+      }
     }
 
     setErrors(newErrors);
@@ -237,7 +505,6 @@ function IntakeForm() {
   };
 
   const nextStep = () => {
-    // Skip validation in preview mode
     if (!isPreview && !validateStep(currentStep)) return;
 
     const currentIndex = steps.indexOf(currentStep);
@@ -256,73 +523,96 @@ function IntakeForm() {
   };
 
   const handleSubmit = async () => {
-    if (!validateStep("review")) return;
-
     setSubmitting(true);
     try {
+      // Map form data to API format, deriving ownership_status from call_type
+      const ownershipStatus =
+        formData.call_type === "pet_spay_neuter" ? "my_cat" :
+        formData.call_type === "colony_tnr" ? "community_colony" :
+        formData.call_type === "single_stray" ? "unknown_stray" :
+        formData.call_type === "kitten_rescue" ? "unknown_stray" :
+        "unknown_stray";
+
       const response = await fetch("/api/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Contact
           first_name: formData.first_name,
           last_name: formData.last_name,
-          email: formData.email,
+          email: formData.email || undefined,
           phone: formData.phone || undefined,
           requester_address: formData.requester_address || undefined,
           requester_city: formData.requester_city || undefined,
           requester_zip: formData.requester_zip || undefined,
-          // Third-party report fields
+
+          // Third-party
           is_third_party_report: formData.is_third_party_report,
           third_party_relationship: formData.third_party_relationship || undefined,
           property_owner_name: formData.property_owner_name || undefined,
           property_owner_phone: formData.property_owner_phone || undefined,
           property_owner_email: formData.property_owner_email || undefined,
+
+          // Location
           cats_address: formData.cats_address,
           cats_city: formData.cats_city || undefined,
           cats_zip: formData.cats_zip || undefined,
           county: formData.county || undefined,
-          ownership_status: formData.ownership_status,
-          cat_count_estimate: formData.cat_count_estimate ? parseInt(formData.cat_count_estimate) : undefined,
-          cat_count_text: formData.cat_count_text || undefined,
+
+          // Cat info
+          ownership_status: ownershipStatus,
+          cat_count_estimate: parseInt(formData.cat_count) || 1,
+          cat_count_text: formData.cat_count,
           peak_count: formData.peak_count ? parseInt(formData.peak_count) : undefined,
-          eartip_count_observed: formData.eartip_count_observed ? parseInt(formData.eartip_count_observed) : undefined,
-          fixed_status: formData.fixed_status,
-          observation_time_of_day: formData.observation_time_of_day || undefined,
-          is_at_feeding_station: formData.is_at_feeding_station === "yes" ? true : formData.is_at_feeding_station === "no" ? false : undefined,
-          reporter_confidence: formData.reporter_confidence || undefined,
-          has_kittens: formData.has_kittens === "yes" ? true : formData.has_kittens === "no" ? false : undefined,
+          eartip_count_observed: formData.eartip_count ? parseInt(formData.eartip_count) : undefined,
+          fixed_status: formData.fixed_status || "unknown",
+
+          // New handleability field
+          handleability: formData.handleability || undefined,
+
+          // Kittens
+          has_kittens: formData.call_type === "kitten_rescue" || undefined,
           kitten_count: formData.kitten_count ? parseInt(formData.kitten_count) : undefined,
-          kitten_age_estimate: formData.kitten_age_estimate || undefined,
-          kitten_mixed_ages_description: formData.kitten_mixed_ages_description || undefined,
-          kitten_behavior: formData.kitten_behavior || undefined,
-          kitten_contained: formData.kitten_contained || undefined,
+          kitten_age_estimate: formData.kitten_age || undefined,
+          kitten_behavior: formData.kitten_socialization || undefined,
           mom_present: formData.mom_present || undefined,
-          mom_fixed: formData.mom_fixed || undefined,
-          can_bring_in: formData.can_bring_in || undefined,
-          kitten_notes: formData.kitten_notes || undefined,
-          awareness_duration: formData.awareness_duration || undefined,
-          // Feeding behavior
-          feeds_cat: formData.feeds_cat === "yes" ? true : formData.feeds_cat === "no" ? false : undefined,
-          feeding_frequency: formData.feeding_frequency || undefined,
-          feeding_duration: formData.feeding_duration || undefined,
-          cat_comes_inside: formData.cat_comes_inside || undefined,
-          has_medical_concerns: formData.has_medical_concerns === "yes" ? true : formData.has_medical_concerns === "no" ? false : undefined,
+
+          // Medical
+          has_medical_concerns: formData.has_medical_concerns,
           medical_description: formData.medical_description || undefined,
           is_emergency: formData.is_emergency,
           emergency_acknowledged: formData.emergency_acknowledged,
-          cats_being_fed: formData.cats_being_fed === "yes" ? true : formData.cats_being_fed === "no" ? false : undefined,
-          feeder_info: formData.feeder_info || undefined,
-          has_property_access: formData.has_property_access === "yes" ? true : formData.has_property_access === "no" ? false : undefined,
-          access_notes: formData.access_notes || undefined,
-          is_property_owner: formData.is_property_owner === "yes" ? true : formData.is_property_owner === "no" ? false : undefined,
-          situation_description: formData.situation_description || undefined,
+
+          // Property
+          is_property_owner: formData.is_property_owner === "yes",
+          has_property_access: formData.has_property_access === "yes",
+
+          // Notes (combine call type context + notes)
+          situation_description: [
+            `Call type: ${CALL_TYPE_OPTIONS.find(o => o.value === formData.call_type)?.label || formData.call_type}`,
+            formData.cat_name ? `Cat name: ${formData.cat_name}` : null,
+            formData.cat_description ? `Description: ${formData.cat_description}` : null,
+            formData.feeding_situation ? `Feeding: ${formData.feeding_situation}` : null,
+            formData.notes,
+          ].filter(Boolean).join("\n"),
+
           referral_source: formData.referral_source || undefined,
+
+          // Source tracking
+          source_system: "web_intake_receptionist",
+
+          // Custom fields (stored as JSON)
+          custom_fields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+
+          // Test mode flag
+          is_test: isTestMode,
         }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
+        clearDraft();
         setSubmitted(true);
         setSubmitResult({
           success: true,
@@ -332,892 +622,150 @@ function IntakeForm() {
       } else {
         setSubmitResult({
           success: false,
-          message: result.error || "Something went wrong. Please try again.",
+          message: result.error || "Something went wrong",
         });
       }
     } catch (err) {
       console.error("Submit error:", err);
       setSubmitResult({
         success: false,
-        message: "Network error. Please check your connection and try again.",
+        message: "Network error. Please try again.",
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Show success message after submission
+  // Success screen
   if (submitted && submitResult?.success) {
     return (
       <div style={{ maxWidth: "600px", margin: "0 auto", padding: "2rem" }}>
         <div
           style={{
-            background: "var(--success-bg)",
-            border: "1px solid var(--success-border)",
+            background: "#d4edda",
+            border: "1px solid #c3e6cb",
             borderRadius: "8px",
             padding: "2rem",
             textAlign: "center",
           }}
         >
-          <h2 style={{ color: "var(--success-text)", marginBottom: "1rem" }}>Request Submitted!</h2>
-          <p style={{ color: "var(--success-text)", marginBottom: "1.5rem" }}>{submitResult.message}</p>
-          <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-            A confirmation email has been sent to <strong>{formData.email}</strong>
-          </p>
+          <h2 style={{ color: "#155724", marginBottom: "1rem" }}>Request Submitted</h2>
+          <p style={{ color: "#155724" }}>{submitResult.message}</p>
+          {submitResult.triage_category && (
+            <p style={{ fontSize: "0.9rem", color: "#666", marginTop: "1rem" }}>
+              Triage: {submitResult.triage_category}
+            </p>
+          )}
+          <button
+            onClick={() => {
+              setFormData(initialFormData);
+              setCurrentStep("call_type");
+              setSubmitted(false);
+              setSubmitResult(null);
+            }}
+            style={{ marginTop: "1rem", padding: "0.75rem 1.5rem" }}
+          >
+            Start New Request
+          </button>
         </div>
       </div>
     );
   }
 
-  const stepIndex = steps.indexOf(currentStep);
-  const progress = ((stepIndex + 1) / steps.length) * 100;
-
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1rem" }}>
+      {/* Test Mode Banner */}
+      {isTestMode && (
+        <div style={{
+          background: "#d1ecf1",
+          border: "2px solid #0dcaf0",
+          borderRadius: "8px",
+          padding: "0.75rem",
+          marginBottom: "1rem",
+          textAlign: "center",
+        }}>
+          <strong>TEST MODE</strong> - Submissions will be marked as test data (not processed)
+          <a href="/intake" style={{ marginLeft: "1rem", color: "#0dcaf0" }}>Exit Test Mode</a>
+        </div>
+      )}
+
       {/* Preview Mode Banner */}
       {isPreview && (
         <div style={{
-          background: "var(--warning-bg)",
-          border: "1px solid var(--warning-border)",
+          background: "#fff3cd",
+          border: "1px solid #ffc107",
           borderRadius: "8px",
-          padding: "0.75rem 1rem",
+          padding: "0.75rem",
           marginBottom: "1rem",
           textAlign: "center",
-          color: "var(--warning-text)",
         }}>
-          <strong>Preview Mode</strong> - Validation disabled. Form will not submit.
+          <strong>Preview Mode</strong> - Validation disabled
           <a href="/intake" style={{ marginLeft: "1rem" }}>Exit Preview</a>
         </div>
       )}
 
-      {/* Draft Available Banner */}
+      {/* Draft Banner */}
       {hasDraft && !isPreview && (
         <div style={{
-          background: "var(--info-bg)",
-          border: "1px solid var(--info-border)",
+          background: "#cce5ff",
+          border: "1px solid #b8daff",
           borderRadius: "8px",
-          padding: "0.75rem 1rem",
+          padding: "0.75rem",
           marginBottom: "1rem",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          color: "var(--info-text)",
         }}>
-          <span>You have a saved draft.</span>
+          <span>Saved draft available</span>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button onClick={loadDraft} style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem" }}>
-              Load Draft
+              Load
             </button>
-            <button onClick={clearDraft} style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)" }}>
+            <button onClick={clearDraft} style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid #ccc" }}>
               Discard
             </button>
           </div>
         </div>
       )}
 
-      <h1 style={{ textAlign: "center", marginBottom: "0.5rem" }}>Request Services</h1>
-      <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "2rem" }}>
-        Help us help the cats in your community
+      <h1 style={{ textAlign: "center", marginBottom: "0.5rem" }}>Intake Call</h1>
+      <p style={{ textAlign: "center", color: "#666", marginBottom: "1.5rem" }}>
+        Receptionist intake form
       </p>
 
       {/* Progress Bar */}
-      <div style={{ marginBottom: "2rem" }}>
-        <div
-          style={{
-            height: "8px",
-            background: "var(--border)",
-            borderRadius: "4px",
-            overflow: "hidden",
-          }}
-        >
+      <div style={{ marginBottom: "1.5rem" }}>
+        <div style={{ height: "6px", background: "#eee", borderRadius: "3px", overflow: "hidden" }}>
           <div
             style={{
               width: `${progress}%`,
               height: "100%",
-              background: "var(--primary)",
+              background: "#0066cc",
               transition: "width 0.3s ease",
             }}
           />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem", fontSize: "0.8rem", color: "#666" }}>
           <span>Step {stepIndex + 1} of {steps.length}</span>
-          <span>{currentStep.charAt(0).toUpperCase() + currentStep.slice(1)}</span>
+          <span>{currentStep.replace(/_/g, " ").toUpperCase()}</span>
         </div>
       </div>
 
-      {/* Error message */}
+      {/* Error Banner */}
       {submitResult && !submitResult.success && (
-        <div
-          style={{
-            background: "var(--danger-bg)",
-            border: "1px solid var(--danger-border)",
-            borderRadius: "8px",
-            padding: "1rem",
-            marginBottom: "1rem",
-            color: "var(--danger-text)",
-          }}
-        >
+        <div style={{
+          background: "#f8d7da",
+          border: "1px solid #f5c2c7",
+          borderRadius: "8px",
+          padding: "1rem",
+          marginBottom: "1rem",
+          color: "#842029",
+        }}>
           {submitResult.message}
         </div>
       )}
 
-      {/* Step: Contact */}
-      {currentStep === "contact" && (
-        <div className="card" style={{ padding: "1.5rem" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Your Contact Information</h2>
-
-          {/* Third-party report option */}
-          <div style={{
-            marginBottom: "1.5rem",
-            padding: "1rem",
-            background: formData.is_third_party_report ? "var(--warning-bg)" : "var(--section-bg)",
-            border: formData.is_third_party_report ? "2px solid var(--warning-border)" : "1px solid var(--card-border)",
-            borderRadius: "8px",
-            color: formData.is_third_party_report ? "var(--warning-text)" : "var(--foreground)",
-          }}>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={formData.is_third_party_report}
-                onChange={(e) => updateField("is_third_party_report", e.target.checked)}
-                style={{ marginTop: "0.25rem" }}
-              />
-              <span>
-                <strong>I'm reporting on behalf of someone else</strong>
-                <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                  Check this if you're a volunteer, neighbor, or concerned citizen reporting about cats you've heard about.
-                  We'll need to contact the property owner to get permission before proceeding.
-                </span>
-              </span>
-            </label>
-
-            {formData.is_third_party_report && (
-              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #ffc107" }}>
-                <p style={{ color: "var(--warning-text)", marginBottom: "1rem", fontSize: "0.9rem" }}>
-                  <strong>Note:</strong> Third-party reports require follow-up with the property owner before we can schedule services.
-                </p>
-
-                <div style={{ marginBottom: "1rem" }}>
-                  <label>Your relationship to this situation</label>
-                  <select
-                    value={formData.third_party_relationship}
-                    onChange={(e) => updateField("third_party_relationship", e.target.value)}
-                  >
-                    <option value="">Select...</option>
-                    <option value="volunteer">FFSC Volunteer</option>
-                    <option value="neighbor">Neighbor</option>
-                    <option value="family_member">Family member of property owner</option>
-                    <option value="concerned_citizen">Concerned citizen</option>
-                    <option value="rescue_worker">Rescue/animal welfare worker</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div style={{ background: "var(--card-bg)", padding: "1rem", borderRadius: "6px", marginTop: "1rem" }}>
-                  <p style={{ fontWeight: "bold", marginBottom: "0.5rem", fontSize: "0.9rem" }}>
-                    Property owner contact (if known)
-                  </p>
-                  <div style={{ display: "grid", gap: "0.75rem" }}>
-                    <input
-                      type="text"
-                      value={formData.property_owner_name}
-                      onChange={(e) => updateField("property_owner_name", e.target.value)}
-                      placeholder="Property owner's name"
-                    />
-                    <input
-                      type="tel"
-                      value={formData.property_owner_phone}
-                      onChange={(e) => updateField("property_owner_phone", e.target.value)}
-                      placeholder="Property owner's phone"
-                    />
-                    <input
-                      type="email"
-                      value={formData.property_owner_email}
-                      onChange={(e) => updateField("property_owner_email", e.target.value)}
-                      placeholder="Property owner's email"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div>
-              <label>First Name *</label>
-              <input
-                type="text"
-                value={formData.first_name}
-                onChange={(e) => updateField("first_name", e.target.value)}
-                placeholder="First name"
-                style={{ borderColor: errors.first_name ? "#dc3545" : undefined }}
-              />
-              {errors.first_name && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.first_name}</span>}
-            </div>
-            <div>
-              <label>Last Name *</label>
-              <input
-                type="text"
-                value={formData.last_name}
-                onChange={(e) => updateField("last_name", e.target.value)}
-                placeholder="Last name"
-                style={{ borderColor: errors.last_name ? "#dc3545" : undefined }}
-              />
-              {errors.last_name && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.last_name}</span>}
-            </div>
-          </div>
-
-          <div style={{ marginTop: "1rem" }}>
-            <label>Email Address *</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => updateField("email", e.target.value)}
-              placeholder="your.email@example.com"
-              style={{ borderColor: errors.email ? "#dc3545" : undefined }}
-            />
-            {errors.email && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.email}</span>}
-          </div>
-
-          <div style={{ marginTop: "1rem" }}>
-            <label>Phone Number (optional but recommended)</label>
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="(555) 123-4567"
-            />
-          </div>
-
-          <div style={{ marginTop: "1rem" }}>
-            <label>Your Address (optional)</label>
-            <input
-              type="text"
-              value={formData.requester_address}
-              onChange={(e) => updateField("requester_address", e.target.value)}
-              placeholder="123 Main St"
-            />
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", marginTop: "0.5rem" }}>
-              <input
-                type="text"
-                value={formData.requester_city}
-                onChange={(e) => updateField("requester_city", e.target.value)}
-                placeholder="City"
-              />
-              <input
-                type="text"
-                value={formData.requester_zip}
-                onChange={(e) => updateField("requester_zip", e.target.value)}
-                placeholder="ZIP"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step: Location */}
-      {currentStep === "location" && (
-        <div className="card" style={{ padding: "1.5rem" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Where Are the Cats Located?</h2>
-
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={formData.same_as_requester}
-                onChange={(e) => {
-                  updateField("same_as_requester", e.target.checked);
-                  if (e.target.checked) {
-                    updateField("cats_address", formData.requester_address);
-                    updateField("cats_city", formData.requester_city);
-                    updateField("cats_zip", formData.requester_zip);
-                  }
-                }}
-              />
-              Same as my address
-            </label>
-          </div>
-
-          <div>
-            <label>Street Address Where Cats Are *</label>
-            <input
-              type="text"
-              value={formData.cats_address}
-              onChange={(e) => updateField("cats_address", e.target.value)}
-              placeholder="123 Cat Colony Lane"
-              disabled={formData.same_as_requester}
-              style={{ borderColor: errors.cats_address ? "#dc3545" : undefined }}
-            />
-            {errors.cats_address && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.cats_address}</span>}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", marginTop: "0.5rem" }}>
-            <input
-              type="text"
-              value={formData.cats_city}
-              onChange={(e) => updateField("cats_city", e.target.value)}
-              placeholder="City"
-              disabled={formData.same_as_requester}
-            />
-            <input
-              type="text"
-              value={formData.cats_zip}
-              onChange={(e) => updateField("cats_zip", e.target.value)}
-              placeholder="ZIP"
-              disabled={formData.same_as_requester}
-            />
-          </div>
-
-          <div style={{ marginTop: "1rem" }}>
-            <label>County</label>
-            <select
-              value={formData.county}
-              onChange={(e) => updateField("county", e.target.value)}
-            >
-              <option value="">Select county...</option>
-              <option value="Sonoma">Sonoma County</option>
-              <option value="Marin">Marin County</option>
-              <option value="Napa">Napa County</option>
-              <option value="Mendocino">Mendocino County</option>
-              <option value="Lake">Lake County</option>
-              <option value="other">Other</option>
-            </select>
-            {formData.county && formData.county !== "Sonoma" && (
-              <p style={{ color: "var(--warning-text)", background: "var(--warning-bg)", padding: "0.75rem", borderRadius: "4px", marginTop: "0.5rem", fontSize: "0.9rem" }}>
-                Note: Our primary service area is Sonoma County. We may have limited availability for other areas.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Step: Cats */}
-      {currentStep === "cats" && (
-        <div className="card" style={{ padding: "1.5rem" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Tell Us About the Cats</h2>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>What best describes this cat? *</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-              {[
-                { value: "unknown_stray", label: "Stray cat (no apparent owner)", desc: "A cat that appears to have no home or caretaker" },
-                { value: "community_colony", label: "Outdoor cat I or someone feeds", desc: "A cat that lives outside but is being fed/cared for" },
-                { value: "newcomer", label: "Newcomer (just showed up recently)", desc: "A cat that recently appeared in your area" },
-                { value: "neighbors_cat", label: "Neighbor's cat", desc: "A cat that belongs to someone nearby" },
-                { value: "my_cat", label: "My own pet", desc: "Your personal pet cat" },
-              ].map((opt) => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.5rem",
-                    padding: "0.75rem",
-                    border: "1px solid var(--card-border)",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    background: formData.ownership_status === opt.value ? "#e7f1ff" : "transparent",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="ownership_status"
-                    value={opt.value}
-                    checked={formData.ownership_status === opt.value}
-                    onChange={(e) => updateField("ownership_status", e.target.value)}
-                    style={{ marginTop: "0.25rem" }}
-                  />
-                  <span>
-                    <strong>{opt.label}</strong>
-                    <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>{opt.desc}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            {errors.ownership_status && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.ownership_status}</span>}
-          </div>
-
-          {/* Feeding Behavior Questions */}
-          <div style={{ marginBottom: "1.5rem", background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-            <h4 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1rem" }}>Feeding Information</h4>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label>Do you feed this cat?</label>
-              <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                {[
-                  { value: "yes", label: "Yes" },
-                  { value: "no", label: "No" },
-                ].map((opt) => (
-                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="feeds_cat"
-                      value={opt.value}
-                      checked={formData.feeds_cat === opt.value}
-                      onChange={(e) => updateField("feeds_cat", e.target.value)}
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {formData.feeds_cat === "yes" && (
-              <div style={{ marginBottom: "1rem" }}>
-                <label>How often do you feed this cat?</label>
-                <select
-                  value={formData.feeding_frequency}
-                  onChange={(e) => updateField("feeding_frequency", e.target.value)}
-                  style={{ maxWidth: "250px" }}
-                >
-                  <option value="">Select...</option>
-                  <option value="daily">Daily</option>
-                  <option value="few_times_week">A few times a week</option>
-                  <option value="occasionally">Occasionally</option>
-                  <option value="rarely">Rarely</option>
-                </select>
-              </div>
-            )}
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label>How long have you been feeding or aware of this cat?</label>
-              <select
-                value={formData.feeding_duration}
-                onChange={(e) => updateField("feeding_duration", e.target.value)}
-                style={{ maxWidth: "250px" }}
-              >
-                <option value="">Select...</option>
-                <option value="just_started">Just started (less than 2 weeks)</option>
-                <option value="few_weeks">A few weeks</option>
-                <option value="few_months">A few months</option>
-                <option value="over_year">Over a year</option>
-              </select>
-            </div>
-
-            <div>
-              <label>Does this cat come inside your home?</label>
-              <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                {[
-                  { value: "yes_regularly", label: "Yes, regularly" },
-                  { value: "sometimes", label: "Sometimes" },
-                  { value: "never", label: "Never" },
-                ].map((opt) => (
-                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="cat_comes_inside"
-                      value={opt.value}
-                      checked={formData.cat_comes_inside === opt.value}
-                      onChange={(e) => updateField("cat_comes_inside", e.target.value)}
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Show owned cat notice */}
-          {formData.ownership_status === "my_cat" && (
-            <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: "8px", padding: "1rem", marginBottom: "1.5rem" }}>
-              <strong>For Owned Cats:</strong>
-              <p style={{ marginTop: "0.5rem", marginBottom: 0 }}>
-                Our organization primarily focuses on community (unowned) cats. For owned pets, we recommend:
-              </p>
-              <ul style={{ marginTop: "0.5rem", paddingLeft: "1.5rem" }}>
-                <li>Your regular veterinarian</li>
-                <li>Sonoma County low-cost spay/neuter clinics</li>
-                <li>SNAP Spay Neuter Assistance Program</li>
-              </ul>
-              <p style={{ marginTop: "0.5rem", marginBottom: 0, fontSize: "0.9rem" }}>
-                You may continue this form if you'd like us to follow up, but please note response times may be longer.
-              </p>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
-            <div>
-              <label>How many cats?</label>
-              <input
-                type="number"
-                min="1"
-                value={formData.cat_count_estimate}
-                onChange={(e) => updateField("cat_count_estimate", e.target.value)}
-                placeholder="Number of cats"
-              />
-            </div>
-            <div>
-              <label>Or describe if unsure</label>
-              <input
-                type="text"
-                value={formData.cat_count_text}
-                onChange={(e) => updateField("cat_count_text", e.target.value)}
-                placeholder='e.g., "5-10" or "too many to count"'
-              />
-            </div>
-          </div>
-
-          {/* Peak count question - ecology data */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>In the last 7 days, what's the highest number of cats you've seen at one time?</label>
-            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
-              This helps us better estimate the colony size
-            </p>
-            <input
-              type="number"
-              min="1"
-              value={formData.peak_count}
-              onChange={(e) => updateField("peak_count", e.target.value)}
-              placeholder="Highest number seen at once"
-              style={{ maxWidth: "200px" }}
-            />
-          </div>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Are any of the cats already fixed (ear-tipped)? *</label>
-            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
-              Fixed cats usually have a small notch in their left ear (ear-tip)
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {[
-                { value: "none_fixed", label: "None appear to be fixed (no ear tips visible)" },
-                { value: "some_fixed", label: "Some have ear tips, some don't" },
-                { value: "most_fixed", label: "Most/all have ear tips" },
-                { value: "all_fixed", label: "All are ear-tipped (just need wellness care)" },
-                { value: "unknown", label: "I can't tell / haven't checked" },
-              ].map((opt) => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="fixed_status"
-                    value={opt.value}
-                    checked={formData.fixed_status === opt.value}
-                    onChange={(e) => updateField("fixed_status", e.target.value)}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-            {errors.fixed_status && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.fixed_status}</span>}
-          </div>
-
-          {/* Ear-tip count - enables mark-resight estimation */}
-          {(formData.fixed_status === "some_fixed" || formData.fixed_status === "most_fixed") && (
-            <div style={{ marginBottom: "1.5rem", background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-              <label>About how many cats have ear tips?</label>
-              <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
-                If you can estimate, this helps us track progress more accurately
-              </p>
-              <input
-                type="number"
-                min="0"
-                value={formData.eartip_count_observed}
-                onChange={(e) => updateField("eartip_count_observed", e.target.value)}
-                placeholder="Number with ear tips"
-                style={{ maxWidth: "200px" }}
-              />
-            </div>
-          )}
-
-          {/* Observation context - optional ecology data */}
-          <div style={{ marginBottom: "1.5rem", background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-            <h4 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "0.95rem" }}>Observation Details (Optional)</h4>
-            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "1rem" }}>
-              These details help us better understand the cat population
-            </p>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label>When do you usually see these cats?</label>
-              <select
-                value={formData.observation_time_of_day}
-                onChange={(e) => updateField("observation_time_of_day", e.target.value)}
-                style={{ maxWidth: "250px" }}
-              >
-                <option value="">Select...</option>
-                <option value="dawn">Dawn / early morning</option>
-                <option value="midday">Midday</option>
-                <option value="dusk">Dusk / evening</option>
-                <option value="night">Night</option>
-                <option value="various">Various times</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label>Is there a regular feeding station?</label>
-              <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                {[
-                  { value: "yes", label: "Yes" },
-                  { value: "no", label: "No" },
-                  { value: "unsure", label: "Not sure" },
-                ].map((opt) => (
-                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="is_at_feeding_station"
-                      value={opt.value}
-                      checked={formData.is_at_feeding_station === opt.value}
-                      onChange={(e) => updateField("is_at_feeding_station", e.target.value)}
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label>How confident are you in your cat count?</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-                {[
-                  { value: "high", label: "Very confident - I count them regularly" },
-                  { value: "medium", label: "Somewhat confident - my best estimate" },
-                  { value: "low", label: "Not very confident - hard to tell" },
-                ].map((opt) => (
-                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="reporter_confidence"
-                      value={opt.value}
-                      checked={formData.reporter_confidence === opt.value}
-                      onChange={(e) => updateField("reporter_confidence", e.target.value)}
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Are there any kittens?</label>
-            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-                { value: "unsure", label: "Not sure" },
-              ].map((opt) => (
-                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="has_kittens"
-                    value={opt.value}
-                    checked={formData.has_kittens === opt.value}
-                    onChange={(e) => updateField("has_kittens", e.target.value)}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {formData.has_kittens === "yes" && (
-            <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px", marginBottom: "1.5rem" }}>
-              <h4 style={{ marginTop: 0, marginBottom: "1rem" }}>Kitten Details</h4>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-                <div>
-                  <label>How many kittens?</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.kitten_count}
-                    onChange={(e) => updateField("kitten_count", e.target.value)}
-                    placeholder="Number"
-                  />
-                </div>
-                <div>
-                  <label>Approximate age</label>
-                  <select
-                    value={formData.kitten_age_estimate}
-                    onChange={(e) => updateField("kitten_age_estimate", e.target.value)}
-                  >
-                    <option value="">Select...</option>
-                    <option value="under_4_weeks">Under 4 weeks (bottle babies)</option>
-                    <option value="4_to_8_weeks">4-8 weeks (weaning)</option>
-                    <option value="8_to_12_weeks">8-12 weeks (ideal foster age)</option>
-                    <option value="12_to_16_weeks">12-16 weeks (socialization critical)</option>
-                    <option value="over_16_weeks">Over 16 weeks / 4+ months</option>
-                    <option value="mixed">Mixed ages (different litters)</option>
-                    <option value="unknown">Unknown</option>
-                  </select>
-                </div>
-              </div>
-
-              {formData.kitten_age_estimate === "mixed" && (
-                <div style={{ marginBottom: "1rem" }}>
-                  <label>Describe the ages (e.g., "3 at ~8 weeks, 2 at ~6 months")</label>
-                  <input
-                    type="text"
-                    value={formData.kitten_mixed_ages_description}
-                    onChange={(e) => updateField("kitten_mixed_ages_description", e.target.value)}
-                    placeholder="Describe the different ages..."
-                  />
-                </div>
-              )}
-
-              <div style={{ marginBottom: "1rem" }}>
-                <label>Kitten behavior/socialization</label>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-                  {[
-                    { value: "friendly", label: "Friendly - can be handled, approaches people" },
-                    { value: "shy_handleable", label: "Shy but handleable - scared but can be picked up" },
-                    { value: "feral_young", label: "Feral but young - hissy/scared, may be socializable" },
-                    { value: "feral_older", label: "Feral and older - very scared, hard to handle" },
-                    { value: "unknown", label: "Unknown - haven't been able to assess" },
-                  ].map((opt) => (
-                    <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                      <input
-                        type="radio"
-                        name="kitten_behavior"
-                        value={opt.value}
-                        checked={formData.kitten_behavior === opt.value}
-                        onChange={(e) => updateField("kitten_behavior", e.target.value)}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-                <div>
-                  <label>Are the kittens contained/caught?</label>
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                    {[
-                      { value: "yes", label: "Yes" },
-                      { value: "no", label: "No" },
-                      { value: "some", label: "Some" },
-                    ].map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="kitten_contained"
-                          value={opt.value}
-                          checked={formData.kitten_contained === opt.value}
-                          onChange={(e) => updateField("kitten_contained", e.target.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label>Is the mom cat present?</label>
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                    {[
-                      { value: "yes", label: "Yes" },
-                      { value: "no", label: "No" },
-                      { value: "unsure", label: "Unsure" },
-                    ].map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="mom_present"
-                          value={opt.value}
-                          checked={formData.mom_present === opt.value}
-                          onChange={(e) => updateField("mom_present", e.target.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {formData.mom_present === "yes" && (
-                <div style={{ marginBottom: "1rem" }}>
-                  <label>Is the mom cat fixed (ear-tipped)?</label>
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                    {[
-                      { value: "yes", label: "Yes" },
-                      { value: "no", label: "No" },
-                      { value: "unsure", label: "Unsure" },
-                    ].map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="mom_fixed"
-                          value={opt.value}
-                          checked={formData.mom_fixed === opt.value}
-                          onChange={(e) => updateField("mom_fixed", e.target.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ marginBottom: "1rem" }}>
-                <label>Can you bring the kittens (and mom if present) to us for assessment?</label>
-                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-                  {[
-                    { value: "yes", label: "Yes" },
-                    { value: "need_help", label: "Need help trapping" },
-                    { value: "no", label: "No" },
-                  ].map((opt) => (
-                    <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                      <input
-                        type="radio"
-                        name="can_bring_in"
-                        value={opt.value}
-                        checked={formData.can_bring_in === opt.value}
-                        onChange={(e) => updateField("can_bring_in", e.target.value)}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label>Any other details about the kittens?</label>
-                <textarea
-                  value={formData.kitten_notes}
-                  onChange={(e) => updateField("kitten_notes", e.target.value)}
-                  placeholder="Colors, where they hide, feeding schedule, trap-savvy, etc..."
-                  rows={2}
-                />
-              </div>
-
-              <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: "6px", padding: "0.75rem", marginTop: "1rem", fontSize: "0.85rem" }}>
-                <strong style={{ color: "var(--warning-text)" }}>Note about kittens:</strong>
-                <p style={{ margin: "0.5rem 0 0 0", color: "var(--warning-text)" }}>
-                  Our foster program prioritizes kittens based on age, socialization, and ease of intake.
-                  Kittens under 12 weeks with friendly behavior and a spayed mom are ideal.
-                  Foster space is limited and not guaranteed until day of assessment.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label>How long have you been aware of these cats?</label>
-            <select
-              value={formData.awareness_duration}
-              onChange={(e) => updateField("awareness_duration", e.target.value)}
-            >
-              <option value="">Select...</option>
-              <option value="under_1_week">Less than a week</option>
-              <option value="under_1_month">Less than a month</option>
-              <option value="1_to_6_months">1-6 months</option>
-              <option value="6_to_12_months">6-12 months</option>
-              <option value="over_1_year">Over a year</option>
-              <option value="unknown">Not sure</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* Emergency Acknowledgment Modal */}
+      {/* Emergency Modal */}
       {showEmergencyModal && (
         <div
           style={{
@@ -1237,7 +785,7 @@ function IntakeForm() {
         >
           <div
             style={{
-              background: "var(--card-bg)",
+              background: "#fff",
               borderRadius: "12px",
               maxWidth: "500px",
               width: "100%",
@@ -1246,66 +794,42 @@ function IntakeForm() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ color: "#dc3545", marginTop: 0, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "1.5rem" }}>!</span> Important: Emergency Services Notice
-            </h2>
-
-            <div style={{ marginBottom: "1rem", lineHeight: 1.6 }}>
-              <p style={{ marginBottom: "1rem" }}>
-                <strong>Forgotten Felines is a spay/neuter clinic, NOT a 24-hour emergency hospital.</strong>
-              </p>
-              <p style={{ marginBottom: "1rem" }}>
-                We will help cats as resources allow, but if your cat has a <strong>life-threatening emergency</strong>
-                (severe injury, difficulty breathing, poisoning, hit by car), please go to an emergency vet immediately:
-              </p>
-              <div style={{
-                background: "#f8f9fa",
-                padding: "1rem",
-                borderRadius: "8px",
-                marginBottom: "1rem",
-                border: "1px solid var(--border)"
-              }}>
-                <strong style={{ fontSize: "1.1rem" }}>Pet Care Veterinary Hospital</strong><br />
-                <span style={{ fontSize: "1.2rem", color: "#198754" }}>(707) 579-3900</span><br />
-                <span style={{ color: "var(--muted)" }}>2425 Mendocino Ave, Santa Rosa</span><br />
-                <span style={{ color: "#0d6efd" }}>Open 24/7</span>
-              </div>
+            <h2 style={{ color: "#dc3545", marginTop: 0 }}>Emergency Services Notice</h2>
+            <p>
+              <strong>FFSC is a spay/neuter clinic, NOT a 24-hour emergency hospital.</strong>
+            </p>
+            <p>If this is a life-threatening emergency (severe injury, poisoning, hit by car), please direct caller to:</p>
+            <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+              <strong>Pet Care Veterinary Hospital</strong><br />
+              <span style={{ fontSize: "1.2rem", color: "#198754" }}>(707) 579-3900</span><br />
+              <span style={{ color: "#666" }}>2425 Mendocino Ave, Santa Rosa - Open 24/7</span>
             </div>
-
-            <label
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "0.5rem",
-                padding: "1rem",
-                background: formData.emergency_acknowledged ? "#d4edda" : "#fff3cd",
-                border: formData.emergency_acknowledged ? "2px solid #198754" : "2px solid #ffc107",
-                borderRadius: "8px",
-                cursor: "pointer",
-                marginBottom: "1rem",
-              }}
-            >
+            <label style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.5rem",
+              padding: "1rem",
+              background: formData.emergency_acknowledged ? "#d4edda" : "#fff3cd",
+              border: `2px solid ${formData.emergency_acknowledged ? "#198754" : "#ffc107"}`,
+              borderRadius: "8px",
+              cursor: "pointer",
+              marginBottom: "1rem",
+            }}>
               <input
                 type="checkbox"
                 checked={formData.emergency_acknowledged}
                 onChange={(e) => updateField("emergency_acknowledged", e.target.checked)}
-                style={{ marginTop: "0.25rem" }}
               />
-              <span style={{ fontSize: "0.95rem" }}>
-                <strong>I understand.</strong> My situation is urgent but not a life-threatening emergency
-                requiring immediate hospital care. I'd like FFSC's help as soon as possible.
+              <span>
+                Caller understands this is NOT a life-threatening emergency and wants FFSC's help.
               </span>
             </label>
-
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => {
-                  setShowEmergencyModal(false);
-                  updateField("is_emergency", false);
-                  updateField("emergency_acknowledged", false);
-                }}
-                style={{ padding: "0.75rem 1.5rem" }}
-              >
+              <button onClick={() => {
+                setShowEmergencyModal(false);
+                updateField("is_emergency", false);
+                updateField("emergency_acknowledged", false);
+              }}>
                 Cancel
               </button>
               <button
@@ -1317,191 +841,782 @@ function IntakeForm() {
                 }}
                 disabled={!formData.emergency_acknowledged}
                 style={{
-                  padding: "0.75rem 1.5rem",
                   background: formData.emergency_acknowledged ? "#dc3545" : "#ccc",
                   color: "#fff",
                   border: "none",
+                  padding: "0.75rem 1.5rem",
                   borderRadius: "6px",
                   cursor: formData.emergency_acknowledged ? "pointer" : "not-allowed",
                 }}
               >
-                Continue with Urgent Request
+                Continue as Urgent
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step: Situation */}
-      {currentStep === "situation" && (
+      {/* STEP: Call Type */}
+      {currentStep === "call_type" && (
         <div className="card" style={{ padding: "1.5rem" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Situation Details</h2>
+          <h2 style={{ marginBottom: "0.5rem" }}>What is this call about?</h2>
+          <p style={{ color: "#666", marginBottom: "1rem", fontSize: "0.9rem" }}>
+            Select the option that best describes the caller's situation
+          </p>
 
-          {/* Emergency flag */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <div
-              onClick={() => {
-                if (!formData.is_emergency) {
-                  setShowEmergencyModal(true);
-                } else {
-                  updateField("is_emergency", false);
-                  updateField("emergency_acknowledged", false);
-                }
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "1rem",
-                background: formData.is_emergency ? "#f8d7da" : "#f8f9fa",
-                border: formData.is_emergency ? "2px solid #dc3545" : "1px solid var(--card-border)",
-                borderRadius: "8px",
-                cursor: "pointer",
-              }}
-            >
+          <div style={{ display: "grid", gap: "0.75rem" }}>
+            {CALL_TYPE_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  padding: "1rem",
+                  border: `2px solid ${formData.call_type === opt.value ? "#0066cc" : "#ddd"}`,
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  background: formData.call_type === opt.value ? "#e7f1ff" : "#fff",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="call_type"
+                  value={opt.value}
+                  checked={formData.call_type === opt.value}
+                  onChange={(e) => updateField("call_type", e.target.value as CallType)}
+                  style={{ display: "none" }}
+                />
+                <span style={{ fontSize: "1.5rem" }}>{opt.icon}</span>
+                <span>
+                  <strong>{opt.label}</strong>
+                  <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>{opt.desc}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {errors.call_type && <span style={{ color: "#dc3545", fontSize: "0.85rem" }}>{errors.call_type}</span>}
+        </div>
+      )}
+
+      {/* STEP: Contact */}
+      {currentStep === "contact" && (
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <h2 style={{ marginBottom: "1rem" }}>Caller Information</h2>
+
+          {/* Third-party toggle */}
+          <div style={{
+            marginBottom: "1.5rem",
+            padding: "1rem",
+            background: formData.is_third_party_report ? "#fff3cd" : "#f8f9fa",
+            border: `1px solid ${formData.is_third_party_report ? "#ffc107" : "#ddd"}`,
+            borderRadius: "8px",
+          }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
               <input
                 type="checkbox"
-                checked={formData.is_emergency}
-                onChange={() => {}} // Handled by parent onClick
-                style={{ pointerEvents: "none" }}
+                checked={formData.is_third_party_report}
+                onChange={(e) => updateField("is_third_party_report", e.target.checked)}
               />
               <span>
-                <strong>This is an urgent situation</strong>
-                <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>
-                  Injured cat, active labor, or immediate danger
+                <strong>Third-party report</strong>
+                <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+                  Caller is reporting about cats they've seen but don't care for
                 </span>
-                {formData.is_emergency && formData.emergency_acknowledged && (
-                  <span style={{ display: "block", fontSize: "0.8rem", color: "#198754", marginTop: "0.25rem" }}>
-                    Acknowledged - We will prioritize your request
-                  </span>
-                )}
               </span>
-            </div>
-          </div>
+            </label>
 
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Do any of the cats appear injured or sick?</label>
-            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-                { value: "unsure", label: "Not sure" },
-              ].map((opt) => (
-                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+            {formData.is_third_party_report && (
+              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #ffc107" }}>
+                <div style={{ marginBottom: "1rem" }}>
+                  <label>Relationship</label>
+                  <select
+                    value={formData.third_party_relationship}
+                    onChange={(e) => updateField("third_party_relationship", e.target.value)}
+                  >
+                    <option value="">Select...</option>
+                    <option value="neighbor">Neighbor</option>
+                    <option value="family_member">Family member</option>
+                    <option value="concerned_citizen">Concerned citizen</option>
+                    <option value="volunteer">FFSC Volunteer</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}><strong>Property owner (if known):</strong></p>
+                <div style={{ display: "grid", gap: "0.5rem" }}>
                   <input
-                    type="radio"
-                    name="has_medical_concerns"
-                    value={opt.value}
-                    checked={formData.has_medical_concerns === opt.value}
-                    onChange={(e) => updateField("has_medical_concerns", e.target.value)}
+                    type="text"
+                    value={formData.property_owner_name}
+                    onChange={(e) => updateField("property_owner_name", e.target.value)}
+                    placeholder="Owner's name"
                   />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {formData.has_medical_concerns === "yes" && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label>Please describe the medical concerns</label>
-              <textarea
-                value={formData.medical_description}
-                onChange={(e) => updateField("medical_description", e.target.value)}
-                placeholder="Describe any injuries, illness symptoms, or concerns..."
-                rows={3}
-              />
-            </div>
-          )}
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Are the cats being fed by someone?</label>
-            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-                { value: "unsure", label: "Not sure" },
-              ].map((opt) => (
-                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
                   <input
-                    type="radio"
-                    name="cats_being_fed"
-                    value={opt.value}
-                    checked={formData.cats_being_fed === opt.value}
-                    onChange={(e) => updateField("cats_being_fed", e.target.value)}
+                    type="tel"
+                    value={formData.property_owner_phone}
+                    onChange={(e) => updateField("property_owner_phone", e.target.value)}
+                    placeholder="Owner's phone"
                   />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {formData.cats_being_fed === "yes" && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label>Who feeds them and when?</label>
+          {/* Contact fields */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div>
+              <label>First Name *</label>
               <input
                 type="text"
-                value={formData.feeder_info}
-                onChange={(e) => updateField("feeder_info", e.target.value)}
-                placeholder='e.g., "I feed them every morning" or "Neighbor feeds at dusk"'
+                value={formData.first_name}
+                onChange={(e) => updateField("first_name", e.target.value)}
+                style={{ borderColor: errors.first_name ? "#dc3545" : undefined }}
+              />
+              {errors.first_name && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.first_name}</span>}
+            </div>
+            <div>
+              <label>Last Name *</label>
+              <input
+                type="text"
+                value={formData.last_name}
+                onChange={(e) => updateField("last_name", e.target.value)}
+                style={{ borderColor: errors.last_name ? "#dc3545" : undefined }}
+              />
+              {errors.last_name && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.last_name}</span>}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
+            <div>
+              <label>Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => updateField("email", e.target.value)}
+                style={{ borderColor: errors.email ? "#dc3545" : undefined }}
+              />
+              {errors.email && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.email}</span>}
+            </div>
+            <div>
+              <label>Phone</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
               />
             </div>
-          )}
+          </div>
+          <p style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.5rem" }}>* Email or phone required</p>
+        </div>
+      )}
 
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Do you have permission to access the property where the cats are?</label>
-            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-                { value: "unsure", label: "Need to check" },
-              ].map((opt) => (
-                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="has_property_access"
-                    value={opt.value}
-                    checked={formData.has_property_access === opt.value}
-                    onChange={(e) => updateField("has_property_access", e.target.value)}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
+      {/* STEP: Location */}
+      {currentStep === "location" && (
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <h2 style={{ marginBottom: "1rem" }}>Cat Location</h2>
+
+          <div>
+            <label>Street Address *</label>
+            <input
+              type="text"
+              value={formData.cats_address}
+              onChange={(e) => updateField("cats_address", e.target.value)}
+              placeholder="123 Main St"
+              style={{ borderColor: errors.cats_address ? "#dc3545" : undefined }}
+            />
+            {errors.cats_address && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.cats_address}</span>}
           </div>
 
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Are you the property owner?</label>
-            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {[
-                { value: "yes", label: "Yes" },
-                { value: "no", label: "No" },
-              ].map((opt) => (
-                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="is_property_owner"
-                    value={opt.value}
-                    checked={formData.is_property_owner === opt.value}
-                    onChange={(e) => updateField("is_property_owner", e.target.value)}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label>Please describe the situation (optional)</label>
-            <textarea
-              value={formData.situation_description}
-              onChange={(e) => updateField("situation_description", e.target.value)}
-              placeholder="Any additional details that would help us understand the situation..."
-              rows={4}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", marginTop: "0.5rem" }}>
+            <input
+              type="text"
+              value={formData.cats_city}
+              onChange={(e) => updateField("cats_city", e.target.value)}
+              placeholder="City"
+            />
+            <input
+              type="text"
+              value={formData.cats_zip}
+              onChange={(e) => updateField("cats_zip", e.target.value)}
+              placeholder="ZIP"
             />
           </div>
 
+          <div style={{ marginTop: "1rem" }}>
+            <label>County</label>
+            <select
+              value={formData.county}
+              onChange={(e) => updateField("county", e.target.value)}
+            >
+              <option value="">Select...</option>
+              <option value="Sonoma">Sonoma</option>
+              <option value="Marin">Marin</option>
+              <option value="Napa">Napa</option>
+              <option value="Mendocino">Mendocino</option>
+              <option value="Lake">Lake</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          {/* Quick check: is caller at location? */}
+          <div style={{ marginTop: "1.5rem", background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>
+            <div style={{ marginBottom: "1rem" }}>
+              <label>Is caller the property owner?</label>
+              <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                {["yes", "no", "unsure"].map((v) => (
+                  <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="is_property_owner"
+                      value={v}
+                      checked={formData.is_property_owner === v}
+                      onChange={(e) => updateField("is_property_owner", e.target.value)}
+                    />
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label>Do they have access to trap/catch the cats?</label>
+              <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                {["yes", "no", "unsure"].map((v) => (
+                  <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="has_property_access"
+                      value={v}
+                      checked={formData.has_property_access === v}
+                      onChange={(e) => updateField("has_property_access", e.target.value)}
+                    />
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP: Cat Details - varies by call type */}
+      {currentStep === "cat_details" && (
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <h2 style={{ marginBottom: "1rem" }}>
+            {formData.call_type === "pet_spay_neuter" && "Pet Details"}
+            {formData.call_type === "wellness_check" && "Cat Details"}
+            {formData.call_type === "single_stray" && "Stray Cat Details"}
+            {formData.call_type === "colony_tnr" && "Colony Details"}
+            {formData.call_type === "kitten_rescue" && "Kitten Details"}
+            {formData.call_type === "medical_concern" && "Medical Details"}
+          </h2>
+
+          {/* PET SPAY/NEUTER path */}
+          {formData.call_type === "pet_spay_neuter" && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                <div>
+                  <label>Cat's Name</label>
+                  <input
+                    type="text"
+                    value={formData.cat_name}
+                    onChange={(e) => updateField("cat_name", e.target.value)}
+                    placeholder="Fluffy"
+                  />
+                </div>
+                <div>
+                  <label>Description (color, markings)</label>
+                  <input
+                    type="text"
+                    value={formData.cat_description}
+                    onChange={(e) => updateField("cat_description", e.target.value)}
+                    placeholder="Orange tabby"
+                  />
+                </div>
+              </div>
+              <p style={{ fontSize: "0.9rem", background: "#e7f1ff", padding: "0.75rem", borderRadius: "6px" }}>
+                Direct caller to schedule spay/neuter appointment via regular booking process.
+              </p>
+            </>
+          )}
+
+          {/* WELLNESS CHECK path */}
+          {formData.call_type === "wellness_check" && (
+            <>
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Cat's Name (if known)</label>
+                <input
+                  type="text"
+                  value={formData.cat_name}
+                  onChange={(e) => updateField("cat_name", e.target.value)}
+                />
+              </div>
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Description</label>
+                <input
+                  type="text"
+                  value={formData.cat_description}
+                  onChange={(e) => updateField("cat_description", e.target.value)}
+                  placeholder="Color, markings, ear-tipped?"
+                />
+              </div>
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.has_medical_concerns}
+                    onChange={(e) => updateField("has_medical_concerns", e.target.checked)}
+                  />
+                  <strong>Cat has medical concerns</strong>
+                </label>
+              </div>
+              {formData.has_medical_concerns && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <label>Describe the medical concerns *</label>
+                  <textarea
+                    value={formData.medical_description}
+                    onChange={(e) => updateField("medical_description", e.target.value)}
+                    placeholder="What symptoms are they seeing? Injury? Illness?"
+                    rows={3}
+                    style={{ borderColor: errors.medical_description ? "#dc3545" : undefined }}
+                  />
+                  {errors.medical_description && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.medical_description}</span>}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* SINGLE STRAY path */}
+          {formData.call_type === "single_stray" && (
+            <>
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Description</label>
+                <input
+                  type="text"
+                  value={formData.cat_description}
+                  onChange={(e) => updateField("cat_description", e.target.value)}
+                  placeholder="Color, size, any markings"
+                />
+              </div>
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Fixed status</label>
+                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                  {[
+                    { v: "yes_eartip", l: "Yes (ear-tipped)" },
+                    { v: "no", l: "No / Not fixed" },
+                    { v: "unknown", l: "Don't know" },
+                  ].map(({ v, l }) => (
+                    <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="fixed_status"
+                        value={v}
+                        checked={formData.fixed_status === v}
+                        onChange={(e) => updateField("fixed_status", e.target.value)}
+                      />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* HANDLEABILITY - key question */}
+              <div style={{ marginBottom: "1rem", background: "#f0f9ff", padding: "1rem", borderRadius: "8px" }}>
+                <label><strong>Can the caller handle this cat?</strong></label>
+                <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.75rem" }}>
+                  This determines if they can bring it in a carrier or if trapping is needed
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {HANDLEABILITY_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "0.5rem",
+                        padding: "0.5rem",
+                        border: `1px solid ${formData.handleability === opt.value ? "#0066cc" : "#ddd"}`,
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        background: formData.handleability === opt.value ? "#e7f1ff" : "#fff",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="handleability"
+                        value={opt.value}
+                        checked={formData.handleability === opt.value}
+                        onChange={(e) => updateField("handleability", e.target.value)}
+                      />
+                      <span>
+                        <strong>{opt.label}</strong>
+                        <span style={{ display: "block", fontSize: "0.8rem", color: "#666" }}>{opt.desc}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.has_medical_concerns}
+                    onChange={(e) => updateField("has_medical_concerns", e.target.checked)}
+                  />
+                  Cat appears injured or sick
+                </label>
+              </div>
+              {formData.has_medical_concerns && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <label>Describe the medical concerns</label>
+                  <textarea
+                    value={formData.medical_description}
+                    onChange={(e) => updateField("medical_description", e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* COLONY/TNR path */}
+          {formData.call_type === "colony_tnr" && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                <div>
+                  <label>How many cats?</label>
+                  <input
+                    type="text"
+                    value={formData.cat_count}
+                    onChange={(e) => updateField("cat_count", e.target.value)}
+                    placeholder="e.g., 5 or 8-10"
+                  />
+                </div>
+                <div>
+                  <label>Most seen at once (last week)?</label>
+                  <input
+                    type="number"
+                    value={formData.peak_count}
+                    onChange={(e) => updateField("peak_count", e.target.value)}
+                    placeholder="Peak count"
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label>How many are already ear-tipped?</label>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <input
+                    type="number"
+                    value={formData.eartip_count}
+                    onChange={(e) => updateField("eartip_count", e.target.value)}
+                    placeholder="0"
+                    style={{ maxWidth: "80px" }}
+                  />
+                  <span style={{ color: "#666" }}>cats with ear tips</span>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Feeding situation</label>
+                <select
+                  value={formData.feeding_situation}
+                  onChange={(e) => updateField("feeding_situation", e.target.value)}
+                >
+                  <option value="">Select...</option>
+                  <option value="caller_feeds_daily">Caller feeds daily</option>
+                  <option value="caller_feeds_sometimes">Caller feeds sometimes</option>
+                  <option value="someone_else_feeds">Someone else feeds them</option>
+                  <option value="no_feeding">No regular feeding</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </div>
+
+              {/* HANDLEABILITY for colony */}
+              <div style={{ marginBottom: "1rem", background: "#f0f9ff", padding: "1rem", borderRadius: "8px" }}>
+                <label><strong>Are any cats handleable?</strong></label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {[
+                    { v: "some_friendly", l: "Some are friendly (can be carried)" },
+                    { v: "all_feral", l: "All are feral (need traps)" },
+                    { v: "unknown", l: "Unknown / varies" },
+                  ].map(({ v, l }) => (
+                    <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="handleability"
+                        value={v}
+                        checked={formData.handleability === v}
+                        onChange={(e) => updateField("handleability", e.target.value)}
+                      />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.has_medical_concerns}
+                    onChange={(e) => updateField("has_medical_concerns", e.target.checked)}
+                  />
+                  Any cats appear injured or sick
+                </label>
+              </div>
+              {formData.has_medical_concerns && (
+                <div style={{ marginTop: "0.5rem" }}>
+                  <textarea
+                    value={formData.medical_description}
+                    onChange={(e) => updateField("medical_description", e.target.value)}
+                    placeholder="Describe which cats and what concerns..."
+                    rows={2}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* KITTEN RESCUE path */}
+          {formData.call_type === "kitten_rescue" && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                <div>
+                  <label>How many kittens?</label>
+                  <input
+                    type="number"
+                    value={formData.kitten_count}
+                    onChange={(e) => updateField("kitten_count", e.target.value)}
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label>Approximate age</label>
+                  <select
+                    value={formData.kitten_age}
+                    onChange={(e) => updateField("kitten_age", e.target.value)}
+                  >
+                    <option value="">Select...</option>
+                    <option value="under_4_weeks">Under 4 weeks (bottle babies)</option>
+                    <option value="4_to_8_weeks">4-8 weeks (weaning)</option>
+                    <option value="8_to_12_weeks">8-12 weeks</option>
+                    <option value="over_12_weeks">Over 12 weeks</option>
+                    <option value="unknown">Unknown</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Socialization</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {[
+                    { v: "friendly", l: "Friendly - can be handled" },
+                    { v: "shy_handleable", l: "Shy but handleable" },
+                    { v: "feral", l: "Feral - hissy/scared, hard to handle" },
+                    { v: "unknown", l: "Unknown" },
+                  ].map(({ v, l }) => (
+                    <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="kitten_socialization"
+                        value={v}
+                        checked={formData.kitten_socialization === v}
+                        onChange={(e) => updateField("kitten_socialization", e.target.value)}
+                      />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Is mom cat present?</label>
+                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                  {["yes", "no", "unsure"].map((v) => (
+                    <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="mom_present"
+                        value={v}
+                        checked={formData.mom_present === v}
+                        onChange={(e) => updateField("mom_present", e.target.value)}
+                      />
+                      {v.charAt(0).toUpperCase() + v.slice(1)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ background: "#fff3cd", padding: "0.75rem", borderRadius: "6px", fontSize: "0.9rem" }}>
+                <strong>Note:</strong> Foster space is limited. Assess age, socialization, and whether kittens are contained before promising foster placement.
+              </div>
+            </>
+          )}
+
+          {/* MEDICAL CONCERN path */}
+          {formData.call_type === "medical_concern" && (
+            <>
+              {/* Emergency toggle */}
+              <div
+                onClick={() => {
+                  if (!formData.is_emergency) {
+                    setShowEmergencyModal(true);
+                  } else {
+                    updateField("is_emergency", false);
+                    updateField("emergency_acknowledged", false);
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "1rem",
+                  background: formData.is_emergency ? "#f8d7da" : "#f8f9fa",
+                  border: `2px solid ${formData.is_emergency ? "#dc3545" : "#ddd"}`,
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  marginBottom: "1rem",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.is_emergency}
+                  onChange={() => {}}
+                  style={{ pointerEvents: "none" }}
+                />
+                <span>
+                  <strong>This is an urgent/emergency situation</strong>
+                  <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+                    Severe injury, active labor, or immediate danger
+                  </span>
+                </span>
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label>Description of cat</label>
+                <input
+                  type="text"
+                  value={formData.cat_description}
+                  onChange={(e) => updateField("cat_description", e.target.value)}
+                  placeholder="Color, markings, owned or stray?"
+                />
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label><strong>Describe the medical concerns *</strong></label>
+                <textarea
+                  value={formData.medical_description}
+                  onChange={(e) => {
+                    updateField("medical_description", e.target.value);
+                    updateField("has_medical_concerns", true);
+                  }}
+                  placeholder="What are they seeing? Injury? Illness symptoms? How long?"
+                  rows={4}
+                  style={{ borderColor: errors.medical_description ? "#dc3545" : undefined }}
+                />
+                {errors.medical_description && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.medical_description}</span>}
+              </div>
+
+              {/* Handleability */}
+              <div style={{ background: "#f0f9ff", padding: "1rem", borderRadius: "8px" }}>
+                <label><strong>Can the caller handle this cat?</strong></label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {HANDLEABILITY_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="handleability"
+                        value={opt.value}
+                        checked={formData.handleability === opt.value}
+                        onChange={(e) => updateField("handleability", e.target.value)}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Custom Fields - rendered dynamically from admin config */}
+          {customFields.length > 0 && (
+            <div style={{
+              marginTop: "1.5rem",
+              padding: "1rem",
+              background: "#f8f9fa",
+              borderRadius: "8px",
+              border: "1px solid #ddd",
+            }}>
+              <h3 style={{ fontSize: "1rem", marginBottom: "1rem" }}>Additional Questions</h3>
+              {customFields.map(field => renderCustomField(field))}
+            </div>
+          )}
+
+          {/* Notes field - shown for all call types */}
+          <div style={{ marginTop: "1.5rem" }}>
+            <label>Additional Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => updateField("notes", e.target.value)}
+              placeholder="Any other relevant details from the call..."
+              rows={3}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* STEP: Situation (only for colony/TNR) */}
+      {currentStep === "situation" && (
+        <div className="card" style={{ padding: "1.5rem" }}>
+          <h2 style={{ marginBottom: "1rem" }}>Property & Access</h2>
+
+          <div style={{ marginBottom: "1rem" }}>
+            <label>Is caller the property owner?</label>
+            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+              {["yes", "no"].map((v) => (
+                <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="is_property_owner_2"
+                    value={v}
+                    checked={formData.is_property_owner === v}
+                    onChange={(e) => updateField("is_property_owner", e.target.value)}
+                  />
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: "1rem" }}>
+            <label>Do they have access to where cats congregate?</label>
+            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+              {["yes", "no", "need_permission"].map((v) => (
+                <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="has_property_access_2"
+                    value={v}
+                    checked={formData.has_property_access === v}
+                    onChange={(e) => updateField("has_property_access", e.target.value)}
+                  />
+                  {v === "need_permission" ? "Need permission" : v.charAt(0).toUpperCase() + v.slice(1)}
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div>
-            <label>How did you hear about us?</label>
+            <label>How did they hear about us?</label>
             <select
               value={formData.referral_source}
               onChange={(e) => updateField("referral_source", e.target.value)}
@@ -1512,112 +1627,118 @@ function IntakeForm() {
               <option value="friend">Friend/family</option>
               <option value="shelter">Animal shelter</option>
               <option value="vet">Veterinarian</option>
-              <option value="repeat">Previous experience with us</option>
+              <option value="repeat">Previous experience</option>
               <option value="other">Other</option>
             </select>
           </div>
         </div>
       )}
 
-      {/* Step: Review */}
+      {/* STEP: Review */}
       {currentStep === "review" && (
         <div className="card" style={{ padding: "1.5rem" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Review Your Request</h2>
+          <h2 style={{ marginBottom: "1rem" }}>Review & Submit</h2>
 
-          {/* Third-party report warning banner */}
+          {/* Call type badge */}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.5rem 1rem",
+            background: "#e7f1ff",
+            borderRadius: "20px",
+            marginBottom: "1rem",
+          }}>
+            <span>{CALL_TYPE_OPTIONS.find(o => o.value === formData.call_type)?.icon}</span>
+            <strong>{CALL_TYPE_OPTIONS.find(o => o.value === formData.call_type)?.label}</strong>
+          </div>
+
+          {/* Third-party warning */}
           {formData.is_third_party_report && (
-            <div style={{
-              background: "var(--warning-bg)",
-              border: "2px solid #ffc107",
-              borderRadius: "8px",
-              padding: "1rem",
-              marginBottom: "1rem",
-            }}>
-              <strong style={{ color: "var(--warning-text)" }}>THIRD-PARTY REPORT</strong>
-              <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.9rem", color: "var(--warning-text)" }}>
-                You are reporting on behalf of someone else
-                {formData.third_party_relationship && ` (${formData.third_party_relationship.replace(/_/g, " ")})`}.
-                Staff will need to contact the property owner before scheduling services.
-              </p>
-              {(formData.property_owner_name || formData.property_owner_phone || formData.property_owner_email) && (
-                <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #ffc107" }}>
-                  <strong style={{ fontSize: "0.85rem" }}>Property owner contact:</strong>
-                  <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.9rem" }}>
-                    {formData.property_owner_name && <span>{formData.property_owner_name}<br /></span>}
-                    {formData.property_owner_phone && <span>{formData.property_owner_phone}<br /></span>}
-                    {formData.property_owner_email && <span>{formData.property_owner_email}</span>}
-                  </p>
-                </div>
+            <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: "8px", padding: "0.75rem", marginBottom: "1rem" }}>
+              <strong>THIRD-PARTY REPORT</strong> - Will need to contact property owner
+            </div>
+          )}
+
+          {/* Emergency flag */}
+          {formData.is_emergency && (
+            <div style={{ background: "#f8d7da", border: "1px solid #dc3545", borderRadius: "8px", padding: "0.75rem", marginBottom: "1rem" }}>
+              <strong>URGENT REQUEST</strong> - Prioritize follow-up
+            </div>
+          )}
+
+          {/* Summary sections */}
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>
+              <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>CONTACT</h4>
+              <p style={{ margin: 0 }}><strong>{formData.first_name} {formData.last_name}</strong></p>
+              {formData.email && <p style={{ margin: 0 }}>{formData.email}</p>}
+              {formData.phone && <p style={{ margin: 0 }}>{formData.phone}</p>}
+            </div>
+
+            <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>
+              <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>LOCATION</h4>
+              <p style={{ margin: 0 }}>{formData.cats_address}</p>
+              {formData.cats_city && <p style={{ margin: 0 }}>{formData.cats_city}{formData.cats_zip && `, ${formData.cats_zip}`}</p>}
+              {formData.county && <p style={{ margin: 0 }}>{formData.county} County</p>}
+              {formData.is_property_owner && <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.85rem", color: "#666" }}>Property owner: {formData.is_property_owner}</p>}
+            </div>
+
+            <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>
+              <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>DETAILS</h4>
+              {formData.cat_name && <p style={{ margin: 0 }}><strong>Name:</strong> {formData.cat_name}</p>}
+              {formData.cat_description && <p style={{ margin: 0 }}><strong>Description:</strong> {formData.cat_description}</p>}
+              {formData.call_type === "colony_tnr" && (
+                <>
+                  <p style={{ margin: 0 }}><strong>Count:</strong> {formData.cat_count || "Unknown"}</p>
+                  {formData.peak_count && <p style={{ margin: 0 }}><strong>Peak seen:</strong> {formData.peak_count}</p>}
+                  {formData.eartip_count && <p style={{ margin: 0 }}><strong>Ear-tipped:</strong> {formData.eartip_count}</p>}
+                </>
+              )}
+              {formData.call_type === "kitten_rescue" && (
+                <>
+                  <p style={{ margin: 0 }}><strong>Kitten count:</strong> {formData.kitten_count || "Unknown"}</p>
+                  {formData.kitten_age && <p style={{ margin: 0 }}><strong>Age:</strong> {formData.kitten_age.replace(/_/g, " ")}</p>}
+                  {formData.kitten_socialization && <p style={{ margin: 0 }}><strong>Socialization:</strong> {formData.kitten_socialization}</p>}
+                  {formData.mom_present && <p style={{ margin: 0 }}><strong>Mom present:</strong> {formData.mom_present}</p>}
+                </>
+              )}
+              {formData.handleability && (
+                <p style={{ margin: "0.5rem 0 0 0" }}>
+                  <strong>Handleability:</strong> {HANDLEABILITY_OPTIONS.find(o => o.value === formData.handleability)?.label || formData.handleability}
+                </p>
               )}
             </div>
-          )}
 
-          <div style={{ background: "var(--section-bg)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-            <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>Contact</h3>
-            <p><strong>{formData.first_name} {formData.last_name}</strong></p>
-            <p>{formData.email}</p>
-            {formData.phone && <p>{formData.phone}</p>}
-          </div>
-
-          <div style={{ background: "var(--section-bg)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-            <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>Cat Location</h3>
-            <p>{formData.cats_address}</p>
-            {formData.cats_city && <p>{formData.cats_city}{formData.cats_zip && `, ${formData.cats_zip}`}</p>}
-            {formData.county && <p>{formData.county} County</p>}
-          </div>
-
-          <div style={{ background: "var(--section-bg)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-            <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>About the Cats</h3>
-            <p><strong>Type:</strong> {formData.ownership_status.replace(/_/g, " ")}</p>
-            <p><strong>Count:</strong> {formData.cat_count_estimate || formData.cat_count_text || "Not specified"}</p>
-            {formData.peak_count && <p><strong>Peak count (last 7 days):</strong> {formData.peak_count}</p>}
-            <p><strong>Fixed status:</strong> {formData.fixed_status.replace(/_/g, " ")}</p>
-            {formData.eartip_count_observed && <p><strong>Ear-tipped cats:</strong> {formData.eartip_count_observed}</p>}
-            {formData.has_kittens === "yes" && (
-              <p><strong>Kittens:</strong> Yes ({formData.kitten_count || "count unknown"})</p>
+            {(formData.has_medical_concerns || formData.medical_description) && (
+              <div style={{ background: "#f8d7da", padding: "1rem", borderRadius: "8px" }}>
+                <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#842029" }}>MEDICAL CONCERNS</h4>
+                <p style={{ margin: 0 }}>{formData.medical_description || "Flagged as medical concern"}</p>
+              </div>
             )}
-            {formData.reporter_confidence && <p><strong>Count confidence:</strong> {formData.reporter_confidence}</p>}
-            {formData.observation_time_of_day && <p><strong>Usually seen:</strong> {formData.observation_time_of_day}</p>}
-            {formData.is_at_feeding_station && <p><strong>Feeding station:</strong> {formData.is_at_feeding_station}</p>}
+
+            {formData.notes && (
+              <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>
+                <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>NOTES</h4>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{formData.notes}</p>
+              </div>
+            )}
           </div>
-
-          {formData.situation_description && (
-            <div style={{ background: "var(--section-bg)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>Additional Details</h3>
-              <p>{formData.situation_description}</p>
-            </div>
-          )}
-
-          {formData.is_emergency && (
-            <div style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem", color: "var(--danger-text)" }}>
-              <strong>EMERGENCY REQUEST</strong>
-              <p style={{ margin: 0 }}>We will prioritize your request.</p>
-            </div>
-          )}
-
-          <p style={{ fontSize: "0.9rem", color: "var(--muted)", marginTop: "1rem" }}>
-            By submitting this request, you agree to be contacted by Forgotten Felines of Sonoma County regarding our services.
-          </p>
         </div>
       )}
 
-      {/* Navigation Buttons */}
+      {/* Navigation */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1.5rem" }}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          {currentStep !== "contact" && (
+          {currentStep !== "call_type" && (
             <button onClick={prevStep} style={{ padding: "0.75rem 1.5rem" }}>
               Back
             </button>
           )}
-          {!isPreview && (
+          {!isPreview && currentStep !== "call_type" && (
             <button
               onClick={saveDraft}
-              style={{
-                padding: "0.75rem 1rem",
-                background: "transparent",
-                border: "1px solid var(--card-border)",
-                fontSize: "0.85rem",
-              }}
+              style={{ padding: "0.5rem 1rem", background: "transparent", border: "1px solid #ddd", fontSize: "0.85rem" }}
             >
               Save Draft
             </button>
@@ -1629,22 +1750,19 @@ function IntakeForm() {
             onClick={nextStep}
             style={{
               padding: "0.75rem 1.5rem",
-              background: "var(--foreground)",
-              color: "var(--background)",
+              background: "#0066cc",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
             }}
           >
             Continue
           </button>
         ) : isPreview ? (
-          <div style={{ color: "var(--muted)", fontStyle: "italic" }}>
-            Preview mode - submit disabled
-          </div>
+          <span style={{ color: "#666", fontStyle: "italic" }}>Preview mode</span>
         ) : (
           <button
-            onClick={() => {
-              clearDraft(); // Clear draft on successful submit
-              handleSubmit();
-            }}
+            onClick={handleSubmit}
             disabled={submitting}
             style={{
               padding: "0.75rem 2rem",
@@ -1664,12 +1782,11 @@ function IntakeForm() {
   );
 }
 
-// Wrapper component to handle Suspense for useSearchParams
 export default function IntakePage() {
   return (
     <Suspense fallback={
       <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1rem", textAlign: "center" }}>
-        <div>Loading form...</div>
+        Loading...
       </div>
     }>
       <IntakeForm />
