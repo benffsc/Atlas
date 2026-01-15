@@ -57,6 +57,12 @@ interface CommunicationLog {
   contacted_by: string | null;
 }
 
+interface StaffMember {
+  staff_id: string;
+  display_name: string;
+  role: string;
+}
+
 // Contact method options
 const CONTACT_METHODS = [
   { value: "phone", label: "Phone Call" },
@@ -241,6 +247,9 @@ export default function IntakeQueuePage() {
     contacted_by: "",
   });
 
+  // Staff list for dropdown
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
@@ -269,6 +278,14 @@ export default function IntakeQueuePage() {
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+
+  // Fetch staff list on mount
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((res) => res.json())
+      .then((data) => setStaffList(data.staff || []))
+      .catch((err) => console.error("Failed to fetch staff:", err));
+  }, []);
 
   // Fetch communication logs for a submission
   const fetchCommunicationLogs = async (submissionId: string) => {
@@ -1125,13 +1142,18 @@ export default function IntakeQueuePage() {
                   <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
                     Who Contacted
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={contactForm.contacted_by}
                     onChange={(e) => setContactForm({ ...contactForm, contacted_by: e.target.value })}
-                    placeholder="Your name or initials"
                     style={{ width: "100%", padding: "0.5rem" }}
-                  />
+                  >
+                    <option value="">Select staff...</option>
+                    {staffList.map((s) => (
+                      <option key={s.staff_id} value={s.display_name}>
+                        {s.display_name} ({s.role})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>

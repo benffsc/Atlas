@@ -111,6 +111,14 @@ export default function AdminPage() {
           <h3>Trappers</h3>
           <p className="text-muted text-sm">Trapper assignments</p>
         </a>
+        <a href="/admin/staff" className="card" style={{ textAlign: "center", background: "linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%)" }}>
+          <h3>Staff Directory</h3>
+          <p className="text-muted text-sm">Manage FFSC staff members</p>
+        </a>
+        <a href="/admin/intake-questions" className="card" style={{ textAlign: "center" }}>
+          <h3>Intake Questions</h3>
+          <p className="text-muted text-sm">Configure intake form</p>
+        </a>
       </div>
 
       {/* Geocoding Controls */}
