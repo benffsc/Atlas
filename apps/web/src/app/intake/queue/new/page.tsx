@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 // Maps to paper form fields exactly
 interface IntakeFormData {
@@ -113,15 +114,147 @@ const initialFormData: IntakeFormData = {
   review_notes: "",
 };
 
+interface PlaceDetails {
+  place_id: string;
+  formatted_address: string;
+  name: string;
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
+  address_components: Array<{
+    long_name: string;
+    short_name: string;
+    types: string[];
+  }>;
+}
+
+interface PersonSuggestion {
+  person_id: string;
+  display_name: string;
+  emails: string | null;
+  phones: string | null;
+  cat_count: number;
+}
+
 export default function NewIntakeEntryPage() {
   const router = useRouter();
   const [form, setForm] = useState<IntakeFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Person search state
+  const [personSuggestions, setPersonSuggestions] = useState<PersonSuggestion[]>([]);
+  const [showPersonDropdown, setShowPersonDropdown] = useState(false);
+  const [personSearchLoading, setPersonSearchLoading] = useState(false);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const personSearchTimeout = useRef<NodeJS.Timeout>();
+  const personDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Place selection state
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+
   const updateForm = (updates: Partial<IntakeFormData>) => {
     setForm(prev => ({ ...prev, ...updates }));
   };
+
+  // Person search - debounced
+  const searchPeople = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setPersonSuggestions([]);
+      setShowPersonDropdown(false);
+      return;
+    }
+
+    setPersonSearchLoading(true);
+    try {
+      const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
+      if (response.ok) {
+        const data = await response.json();
+        setPersonSuggestions(data.people || []);
+        setShowPersonDropdown(data.people?.length > 0);
+      }
+    } catch (err) {
+      console.error("Person search error:", err);
+    } finally {
+      setPersonSearchLoading(false);
+    }
+  }, []);
+
+  // Handle contact field changes with person search
+  const handleContactChange = (field: keyof IntakeFormData, value: string) => {
+    updateForm({ [field]: value });
+    setSelectedPersonId(null);
+
+    if (field === "first_name" || field === "last_name" || field === "email" || field === "phone") {
+      if (personSearchTimeout.current) {
+        clearTimeout(personSearchTimeout.current);
+      }
+      const searchQuery = field === "email" || field === "phone"
+        ? value
+        : `${form.first_name} ${form.last_name}`.trim() || value;
+
+      personSearchTimeout.current = setTimeout(() => {
+        searchPeople(searchQuery);
+      }, 300);
+    }
+  };
+
+  // Select existing person
+  const selectPerson = (person: PersonSuggestion) => {
+    const nameParts = person.display_name.split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    setForm(prev => ({
+      ...prev,
+      first_name: firstName,
+      last_name: lastName,
+      email: person.emails?.split(", ")[0] || prev.email,
+      phone: person.phones?.split(", ")[0] || prev.phone,
+    }));
+    setSelectedPersonId(person.person_id);
+    setShowPersonDropdown(false);
+    setPersonSuggestions([]);
+  };
+
+  // Handle address place selection
+  const handlePlaceSelect = (place: PlaceDetails) => {
+    setSelectedPlaceId(place.place_id);
+
+    let city = "";
+    let zip = "";
+    let county = "";
+
+    for (const component of place.address_components) {
+      if (component.types.includes("locality")) {
+        city = component.long_name;
+      } else if (component.types.includes("postal_code")) {
+        zip = component.long_name;
+      } else if (component.types.includes("administrative_area_level_2")) {
+        county = component.long_name.replace(" County", "").toLowerCase();
+      }
+    }
+
+    updateForm({
+      cats_city: city || form.cats_city,
+      cats_zip: zip || form.cats_zip,
+      county: county || form.county,
+    });
+  };
+
+  // Close person dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (personDropdownRef.current && !personDropdownRef.current.contains(e.target as Node)) {
+        setShowPersonDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const toggleUrgencyFactor = (factor: string) => {
     setForm(prev => ({
@@ -303,46 +436,119 @@ export default function NewIntakeEntryPage() {
         {/* Section 1: Contact Info */}
         <div className="card" style={{ marginBottom: "1rem", padding: "1rem" }}>
           <h3 style={{ margin: "0 0 1rem 0" }}>1. Contact Info</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: "1rem" }}>
-            <div>
-              <label className="text-sm">First Name *</label>
-              <input
-                type="text"
-                value={form.first_name}
-                onChange={(e) => updateForm({ first_name: e.target.value })}
-                required
-                style={{ width: "100%" }}
-              />
+
+          {/* Existing person indicator */}
+          {selectedPersonId && (
+            <div style={{
+              background: "#d4edda",
+              border: "1px solid #c3e6cb",
+              borderRadius: "6px",
+              padding: "0.5rem 0.75rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.85rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <span>Linked to existing person record</span>
+              <button
+                type="button"
+                onClick={() => setSelectedPersonId(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#666" }}
+              >
+                Clear
+              </button>
             </div>
-            <div>
-              <label className="text-sm">Last Name *</label>
-              <input
-                type="text"
-                value={form.last_name}
-                onChange={(e) => updateForm({ last_name: e.target.value })}
-                required
-                style={{ width: "100%" }}
-              />
+          )}
+
+          <div style={{ position: "relative" }} ref={personDropdownRef}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: "1rem" }}>
+              <div>
+                <label className="text-sm">First Name *</label>
+                <input
+                  type="text"
+                  value={form.first_name}
+                  onChange={(e) => handleContactChange("first_name", e.target.value)}
+                  required
+                  autoComplete="off"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <label className="text-sm">Last Name *</label>
+                <input
+                  type="text"
+                  value={form.last_name}
+                  onChange={(e) => handleContactChange("last_name", e.target.value)}
+                  required
+                  autoComplete="off"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <label className="text-sm">Phone</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => handleContactChange("phone", e.target.value)}
+                  autoComplete="off"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <label className="text-sm">Email *</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => handleContactChange("email", e.target.value)}
+                  required
+                  autoComplete="off"
+                  style={{ width: "100%" }}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm">Phone</label>
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(e) => updateForm({ phone: e.target.value })}
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label className="text-sm">Email *</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => updateForm({ email: e.target.value })}
-                required
-                style={{ width: "100%" }}
-              />
-            </div>
+
+            {/* Person suggestions dropdown */}
+            {showPersonDropdown && personSuggestions.length > 0 && (
+              <div style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                background: "#fff",
+                border: "1px solid #dee2e6",
+                borderRadius: "6px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                zIndex: 1000,
+                maxHeight: "200px",
+                overflowY: "auto",
+              }}>
+                <div style={{ padding: "0.5rem 0.75rem", background: "#f8f9fa", borderBottom: "1px solid #dee2e6", fontSize: "0.75rem", color: "#666" }}>
+                  Existing contacts found:
+                </div>
+                {personSuggestions.map((person) => (
+                  <div
+                    key={person.person_id}
+                    onClick={() => selectPerson(person)}
+                    style={{
+                      padding: "0.75rem",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #eee",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f7ff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <div style={{ fontWeight: 500 }}>{person.display_name}</div>
+                    <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                      {person.emails && <span>{person.emails}</span>}
+                      {person.emails && person.phones && <span> · </span>}
+                      {person.phones && <span>{person.phones}</span>}
+                      {person.cat_count > 0 && <span style={{ marginLeft: "0.5rem", color: "#0d6efd" }}>({person.cat_count} cats)</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -352,13 +558,17 @@ export default function NewIntakeEntryPage() {
           <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
             <div>
               <label className="text-sm">Street Address *</label>
-              <input
-                type="text"
+              <AddressAutocomplete
                 value={form.cats_address}
-                onChange={(e) => updateForm({ cats_address: e.target.value })}
-                required
-                style={{ width: "100%" }}
+                onChange={(value) => updateForm({ cats_address: value })}
+                onPlaceSelect={handlePlaceSelect}
+                placeholder="Start typing address..."
               />
+              {selectedPlaceId && (
+                <span style={{ fontSize: "0.7rem", color: "#198754", marginTop: "0.25rem", display: "block" }}>
+                  Address verified
+                </span>
+              )}
             </div>
             <div>
               <label className="text-sm">City</label>
