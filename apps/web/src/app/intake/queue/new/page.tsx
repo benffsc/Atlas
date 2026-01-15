@@ -31,14 +31,19 @@ interface IntakeFormData {
   ownership_status: string;
   cat_count_estimate: number | "";
   fixed_status: string;
-  awareness_duration: string;
   has_kittens: boolean;
   kitten_count: number | "";
   is_emergency: boolean;
 
+  // Feeding behavior (MIG_236)
+  feeds_cat: boolean | null;
+  feeding_frequency: string;
+  feeding_duration: string;
+  cat_comes_inside: string;
+
   // Section 4: Situation
   has_medical_concerns: boolean | null;
-  cats_being_fed: boolean | null;
+  others_feeding: boolean | null;
   has_property_access: boolean | null;
   is_property_owner: boolean | null;
   referral_source: string;
@@ -86,12 +91,15 @@ const initialFormData: IntakeFormData = {
   ownership_status: "",
   cat_count_estimate: "",
   fixed_status: "",
-  awareness_duration: "",
   has_kittens: false,
   kitten_count: "",
   is_emergency: false,
+  feeds_cat: null,
+  feeding_frequency: "",
+  feeding_duration: "",
+  cat_comes_inside: "",
   has_medical_concerns: null,
-  cats_being_fed: null,
+  others_feeding: null,
   has_property_access: null,
   is_property_owner: null,
   referral_source: "",
@@ -309,12 +317,16 @@ export default function NewIntakeEntryPage() {
           ownership_status: form.ownership_status,
           cat_count_estimate: form.cat_count_estimate || null,
           fixed_status: form.fixed_status,
-          awareness_duration: form.awareness_duration || null,
+          // Feeding behavior (MIG_236)
+          feeds_cat: form.feeds_cat,
+          feeding_frequency: form.feeding_frequency || null,
+          feeding_duration: form.feeding_duration || null,
+          cat_comes_inside: form.cat_comes_inside || null,
           has_kittens: form.has_kittens,
           kitten_count: form.has_kittens ? (form.kitten_count || null) : null,
           is_emergency: form.is_emergency,
           has_medical_concerns: form.has_medical_concerns,
-          cats_being_fed: form.cats_being_fed,
+          cats_being_fed: form.others_feeding,
           has_property_access: form.has_property_access,
           is_property_owner: form.is_property_owner,
           referral_source: form.referral_source || null,
@@ -611,14 +623,14 @@ export default function NewIntakeEntryPage() {
           <h3 style={{ margin: "0 0 1rem 0" }}>3. About the Cats</h3>
 
           <div style={{ marginBottom: "1rem" }}>
-            <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Ownership? *</label>
+            <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Cat type? *</label>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               {[
-                { value: "unknown_stray", label: "Stray/unknown" },
-                { value: "community_colony", label: "Community colony" },
-                { value: "my_cat", label: "My cat" },
+                { value: "unknown_stray", label: "Stray (no owner)" },
+                { value: "community_colony", label: "Outdoor cat I/someone feeds" },
+                { value: "newcomer", label: "Newcomer (just appeared)" },
                 { value: "neighbors_cat", label: "Neighbor's cat" },
-                { value: "unsure", label: "Unsure" },
+                { value: "my_cat", label: "My pet" },
               ].map(opt => (
                 <label key={opt.value} style={{ cursor: "pointer" }}>
                   <input
@@ -667,26 +679,89 @@ export default function NewIntakeEntryPage() {
             </div>
           </div>
 
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="text-sm" style={{ marginRight: "0.5rem" }}>How long aware?</label>
-            {[
-              { value: "under_1_week", label: "<1 week" },
-              { value: "under_1_month", label: "<1 month" },
-              { value: "1_to_6_months", label: "1-6 months" },
-              { value: "6_to_12_months", label: "6-12 months" },
-              { value: "over_1_year", label: "1+ year" },
-            ].map(opt => (
-              <label key={opt.value} style={{ marginRight: "0.75rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="awareness"
-                  value={opt.value}
-                  checked={form.awareness_duration === opt.value}
-                  onChange={() => updateForm({ awareness_duration: opt.value })}
-                />
-                {" "}{opt.label}
-              </label>
-            ))}
+          {/* Feeding Behavior Section */}
+          <div style={{ background: "var(--background-secondary)", padding: "0.75rem", marginBottom: "1rem", border: "1px solid var(--border)", borderRadius: "6px" }}>
+            <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+              <div>
+                <label className="text-sm" style={{ marginRight: "0.5rem" }}>Do you feed?</label>
+                {[
+                  { value: true, label: "Yes" },
+                  { value: false, label: "No" },
+                ].map((opt, i) => (
+                  <label key={i} style={{ marginRight: "0.5rem", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="feeds_cat"
+                      checked={form.feeds_cat === opt.value}
+                      onChange={() => updateForm({ feeds_cat: opt.value })}
+                    />
+                    {" "}{opt.label}
+                  </label>
+                ))}
+              </div>
+              {form.feeds_cat && (
+                <div>
+                  <label className="text-sm" style={{ marginRight: "0.5rem" }}>How often?</label>
+                  {[
+                    { value: "daily", label: "Daily" },
+                    { value: "few_times_week", label: "Few times/wk" },
+                    { value: "occasionally", label: "Occasionally" },
+                  ].map(opt => (
+                    <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer" }}>
+                      <input
+                        type="radio"
+                        name="feeding_freq"
+                        value={opt.value}
+                        checked={form.feeding_frequency === opt.value}
+                        onChange={() => updateForm({ feeding_frequency: opt.value })}
+                      />
+                      {" "}{opt.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+              <div>
+                <label className="text-sm" style={{ marginRight: "0.5rem" }}>How long aware?</label>
+                {[
+                  { value: "just_started", label: "<2 wks" },
+                  { value: "few_weeks", label: "Few weeks" },
+                  { value: "few_months", label: "Few months" },
+                  { value: "over_year", label: "1+ year" },
+                ].map(opt => (
+                  <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="feeding_duration"
+                      value={opt.value}
+                      checked={form.feeding_duration === opt.value}
+                      onChange={() => updateForm({ feeding_duration: opt.value })}
+                    />
+                    {" "}{opt.label}
+                  </label>
+                ))}
+              </div>
+              <div>
+                <label className="text-sm" style={{ marginRight: "0.5rem" }}>Comes inside?</label>
+                {[
+                  { value: "yes_regularly", label: "Yes" },
+                  { value: "sometimes", label: "Sometimes" },
+                  { value: "never", label: "Never" },
+                ].map(opt => (
+                  <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="comes_inside"
+                      value={opt.value}
+                      checked={form.cat_comes_inside === opt.value}
+                      onChange={() => updateForm({ cat_comes_inside: opt.value })}
+                    />
+                    {" "}{opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
@@ -745,24 +820,6 @@ export default function NewIntakeEntryPage() {
               ))}
             </div>
             <div>
-              <label className="text-sm" style={{ marginRight: "0.5rem" }}>Cats being fed?</label>
-              {[
-                { value: true, label: "Yes" },
-                { value: false, label: "No" },
-                { value: null, label: "Unsure" },
-              ].map((opt, i) => (
-                <label key={i} style={{ marginRight: "0.75rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="fed"
-                    checked={form.cats_being_fed === opt.value}
-                    onChange={() => updateForm({ cats_being_fed: opt.value })}
-                  />
-                  {" "}{opt.label}
-                </label>
-              ))}
-            </div>
-            <div>
               <label className="text-sm" style={{ marginRight: "0.5rem" }}>Property access?</label>
               {[
                 { value: true, label: "Yes" },
@@ -797,19 +854,43 @@ export default function NewIntakeEntryPage() {
                 </label>
               ))}
             </div>
+            <div>
+              <label className="text-sm" style={{ marginRight: "0.5rem" }}>Others feeding?</label>
+              {[
+                { value: true, label: "Yes" },
+                { value: false, label: "No" },
+                { value: null, label: "Unsure" },
+              ].map((opt, i) => (
+                <label key={i} style={{ marginRight: "0.75rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="others_feeding"
+                    checked={form.others_feeding === opt.value}
+                    onChange={() => updateForm({ others_feeding: opt.value })}
+                  />
+                  {" "}{opt.label}
+                </label>
+              ))}
+            </div>
           </div>
           <div>
             <label className="text-sm" style={{ marginRight: "0.5rem" }}>How heard about us?</label>
-            {["website", "social_media", "friend", "vet", "other"].map(opt => (
-              <label key={opt} style={{ marginRight: "0.75rem", cursor: "pointer" }}>
+            {[
+              { value: "website", label: "Website" },
+              { value: "social_media", label: "Social media" },
+              { value: "friend_family", label: "Friend/family" },
+              { value: "vet_shelter", label: "Vet/shelter" },
+              { value: "other", label: "Other" },
+            ].map(opt => (
+              <label key={opt.value} style={{ marginRight: "0.75rem", cursor: "pointer" }}>
                 <input
                   type="radio"
                   name="referral"
-                  value={opt}
-                  checked={form.referral_source === opt}
-                  onChange={() => updateForm({ referral_source: opt })}
+                  value={opt.value}
+                  checked={form.referral_source === opt.value}
+                  onChange={() => updateForm({ referral_source: opt.value })}
                 />
-                {" "}{opt.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                {" "}{opt.label}
               </label>
             ))}
           </div>

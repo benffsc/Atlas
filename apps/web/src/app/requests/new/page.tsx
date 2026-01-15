@@ -838,13 +838,26 @@ function NewRequestForm() {
               ))}
             </div>
 
+            {error && (
+              <div style={{
+                background: "var(--danger-bg)",
+                color: "var(--danger-text)",
+                padding: "0.75rem",
+                borderRadius: "6px",
+                marginTop: "1rem",
+                fontSize: "0.9rem",
+              }}>
+                {error}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
               <button onClick={createPlaceFromGoogle} disabled={creatingPlace}>
                 {creatingPlace ? "Creating..." : "Create Location"}
               </button>
               <button
                 type="button"
-                onClick={() => setShowPlaceTypeModal(false)}
+                onClick={() => { setShowPlaceTypeModal(false); setError(null); }}
                 style={{
                   background: "transparent",
                   border: "1px solid var(--border)",
