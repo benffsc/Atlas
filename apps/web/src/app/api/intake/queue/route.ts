@@ -39,6 +39,10 @@ interface IntakeSubmission {
   geo_latitude: number | null;
   geo_longitude: number | null;
   geo_confidence: string | null;
+  // Contact tracking
+  last_contacted_at: string | null;
+  last_contact_method: string | null;
+  contact_attempt_count: number | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -156,7 +160,10 @@ export async function GET(request: NextRequest) {
         geo_formatted_address,
         geo_latitude,
         geo_longitude,
-        geo_confidence
+        geo_confidence,
+        last_contacted_at,
+        last_contact_method,
+        contact_attempt_count
       FROM trapper.v_intake_triage_queue
       ${whereClause}
       ORDER BY
