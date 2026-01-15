@@ -44,8 +44,8 @@ export default function PrintableIntakeForm() {
 
         .print-wrapper {
           font-family: Arial, sans-serif;
-          font-size: 11pt;
-          line-height: 1.25;
+          font-size: 10pt;
+          line-height: 1.2;
         }
 
         .print-page {
@@ -77,7 +77,7 @@ export default function PrintableIntakeForm() {
         }
 
         .section {
-          margin-bottom: 6px;
+          margin-bottom: 5px;
         }
 
         .section-title {
@@ -120,10 +120,10 @@ export default function PrintableIntakeForm() {
           background: #fff;
         }
 
-        .field-input.sm { min-height: 22px; padding: 4px 5px; }
-        .field-input.description-box { min-height: 0.9in; }
-        .field-input.notes-box { min-height: 0.7in; }
-        .field-input.staff-notes { min-height: 1in; }
+        .field-input.sm { min-height: 20px; padding: 3px 5px; }
+        .field-input.description-box { min-height: 0.8in; }
+        .field-input.notes-box { min-height: 0.6in; }
+        .field-input.staff-notes { min-height: 0.7in; }
 
         .checkbox-item {
           display: inline-flex;
@@ -551,7 +551,7 @@ export default function PrintableIntakeForm() {
             <div>• Access notes (gates, dogs, landlord needed)</div>
             <div>• Any other helpful details</div>
           </div>
-          <div className="field-input" style={{ minHeight: "1.5in" }}></div>
+          <div className="field-input" style={{ minHeight: "1.1in" }}></div>
         </div>
 
         {/* Signature */}
