@@ -187,15 +187,12 @@ export default function AddressAutocomplete({
       {showDropdown && predictions.length > 0 && (
         <div
           ref={dropdownRef}
+          className="dropdown-menu"
           style={{
             position: "absolute",
             top: "100%",
             left: 0,
             right: 0,
-            background: "#fff",
-            border: "1px solid #dee2e6",
-            borderRadius: "4px",
-            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
             maxHeight: "300px",
             overflowY: "auto",
             zIndex: 1000,
@@ -205,19 +202,16 @@ export default function AddressAutocomplete({
             <div
               key={prediction.place_id}
               onClick={() => handleSelect(prediction)}
+              className="dropdown-item"
               style={{
-                padding: "10px 12px",
                 cursor: "pointer",
-                background: index === selectedIndex ? "#f0f0f0" : "transparent",
-                borderBottom:
-                  index < predictions.length - 1 ? "1px solid #eee" : "none",
               }}
               onMouseEnter={() => setSelectedIndex(index)}
             >
               <div style={{ fontWeight: 500 }}>
                 {prediction.structured_formatting.main_text}
               </div>
-              <div style={{ fontSize: "0.875rem", color: "#6c757d" }}>
+              <div style={{ fontSize: "0.875rem" }} className="text-muted">
                 {prediction.structured_formatting.secondary_text}
               </div>
             </div>
