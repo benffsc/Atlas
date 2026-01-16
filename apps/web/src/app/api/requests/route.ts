@@ -258,9 +258,18 @@ interface PromotionResult {
  * - Audit trail maintained
  */
 export async function POST(request: NextRequest) {
+  // Parse body first - if this fails, we can't do anything
+  let body: CreateRequestBody;
   try {
-    const body: CreateRequestBody = await request.json();
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid JSON in request body" },
+      { status: 400 }
+    );
+  }
 
+  try {
     // Basic client-side validation (real validation happens in normalizer)
     if (!body.place_id && !body.raw_address && !body.summary) {
       return NextResponse.json(
@@ -505,26 +514,26 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
-    console.error("Error creating request:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error creating request:", errorMessage);
 
     // If raw_intake_request table doesn't exist yet, fall back to direct write
     // This maintains backwards compatibility during migration
-    if (error instanceof Error && error.message.includes("raw_intake_request")) {
+    if (body && (errorMessage.includes("raw_intake_request") || errorMessage.includes("does not exist"))) {
       console.warn("raw_intake_request table not found, falling back to direct write");
-      return handleLegacyDirectWrite(request);
+      return handleLegacyDirectWrite(body);
     }
 
     return NextResponse.json(
-      { error: "Failed to create request" },
+      { error: `Failed to create request: ${errorMessage}` },
       { status: 500 }
     );
   }
 }
 
 // Legacy fallback for backwards compatibility during migration
-async function handleLegacyDirectWrite(request: NextRequest) {
+async function handleLegacyDirectWrite(body: CreateRequestBody) {
   try {
-    const body: CreateRequestBody = await request.json();
 
     const result = await queryOne<{ request_id: string }>(
       `INSERT INTO trapper.sot_requests (
@@ -578,7 +587,8 @@ async function handleLegacyDirectWrite(request: NextRequest) {
       legacy: true,
     });
   } catch (error) {
-    console.error("Legacy write failed:", error);
-    return NextResponse.json({ error: "Failed to create request" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Legacy write failed:", errorMessage);
+    return NextResponse.json({ error: `Failed to create request: ${errorMessage}` }, { status: 500 });
   }
 }

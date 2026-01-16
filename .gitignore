@@ -119,3 +119,5 @@ temp/
 .supabase/
 supabase/.temp/
 uploads/
+.vercel
+.env*.local
