@@ -15,13 +15,14 @@ import { queryOne, queryRows, query } from "@/lib/db";
 
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
 const ATLAS_SYNC_BASE_ID = "appwFuRddph1krmcd";
-const STANDARDIZED_INTAKE_TABLE = "Standardized Intake";
+const STANDARDIZED_INTAKE_TABLE = "Public Intake Submissions";
 const CRON_SECRET = process.env.CRON_SECRET;
 
 interface AirtableRecord {
   id: string;
   createdTime: string;
   fields: {
+    // Contact info
     "First Name"?: string;
     "Last Name"?: string;
     Email?: string;
@@ -29,53 +30,49 @@ interface AirtableRecord {
     "Requester Address"?: string;
     "Requester City"?: string;
     "Requester ZIP"?: string;
+    // Third party
     "Is Third Party Report"?: boolean;
     "Third Party Relationship"?: string;
     "Property Owner Name"?: string;
     "Property Owner Phone"?: string;
     "Property Owner Email"?: string;
-    "Cats Address"?: string;
-    "Cats City"?: string;
-    "Cats ZIP"?: string;
+    // Cat location
+    "Street Address"?: string;
+    City?: string;
+    ZIP?: string;
     County?: string;
-    "Address Notes"?: string;
-    "Ownership Status"?: string;
-    "Cat Count Estimate"?: number;
+    // Cat details
+    "Call Type"?: string;
+    "Cat Name"?: string;
+    "Cat Description"?: string;
+    "Cat Count"?: number;
     "Cat Count Text"?: string;
     "Peak Count"?: number;
-    "Eartip Count Observed"?: number;
+    "Eartip Count"?: number;
+    "Feeding Situation"?: string;
+    Handleability?: string;
     "Fixed Status"?: string;
-    "Awareness Duration"?: string;
+    // Kittens
     "Has Kittens"?: boolean;
     "Kitten Count"?: number;
-    "Kitten Age Estimate"?: string;
-    "Kitten Age Weeks"?: number;
-    "Kitten Mixed Ages"?: boolean;
-    "Kitten Mixed Ages Description"?: string;
-    "Kitten Behavior"?: string;
-    "Kitten Contained"?: string;
+    "Kitten Age"?: string;
+    "Kitten Socialization"?: string;
     "Mom Present"?: string;
-    "Mom Fixed"?: string;
-    "Can Bring In"?: string;
-    "Kitten Notes"?: string;
-    "Feeds Cat"?: boolean;
-    "Feeding Frequency"?: string;
-    "Feeding Duration"?: string;
-    "Cat Comes Inside"?: string;
-    "Is Emergency"?: boolean;
-    "Emergency Acknowledged"?: boolean;
+    // Medical
     "Has Medical Concerns"?: boolean;
     "Medical Description"?: string;
-    "Cats Being Fed"?: boolean;
-    "Feeder Info"?: string;
-    "Has Property Access"?: boolean;
-    "Access Notes"?: string;
-    "Is Property Owner"?: boolean;
-    "Situation Description"?: string;
+    "Is Emergency"?: boolean;
+    "Emergency Acknowledged"?: boolean;
+    // Property access
+    "Is Property Owner"?: string;  // yes/no/unsure
+    "Has Property Access"?: string; // yes/no/unsure
+    // Notes
+    Notes?: string;
     "Referral Source"?: string;
+    // Metadata
     "Submitted At"?: string;
-    Source?: string;
     "Jotform Submission ID"?: string;
+    // Sync tracking
     "Sync Status"?: string;
     "Atlas Submission ID"?: string;
     "Sync Error"?: string;
@@ -163,7 +160,7 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
       };
     }
 
-    if (!f["Cats Address"]) {
+    if (!f["Street Address"]) {
       return {
         success: false,
         recordId: record.id,
@@ -176,6 +173,23 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
       .filter(Boolean)
       .join(" ");
 
+    // Build situation description from call type, cat name/description, and notes
+    const situationParts = [
+      f["Call Type"] ? `Call type: ${f["Call Type"]}` : null,
+      f["Cat Name"] ? `Cat name: ${f["Cat Name"]}` : null,
+      f["Cat Description"] ? `Description: ${f["Cat Description"]}` : null,
+      f["Feeding Situation"] ? `Feeding: ${f["Feeding Situation"]}` : null,
+      f.Notes,
+    ].filter(Boolean).join("\n");
+
+    // Map ownership status from call type
+    const ownershipStatus =
+      f["Call Type"] === "pet_spay_neuter" ? "my_cat" :
+      f["Call Type"] === "colony_tnr" ? "community_colony" :
+      f["Call Type"] === "single_stray" ? "unknown_stray" :
+      f["Call Type"] === "kitten_rescue" ? "unknown_stray" :
+      "unknown_stray";
+
     const result = await queryOne<{ submission_id: string }>(
       `INSERT INTO trapper.web_intake_submissions (
         first_name, last_name, email, phone,
@@ -185,15 +199,13 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         cats_address, cats_city, cats_zip, county,
         ownership_status, cat_count_estimate, cat_count_text,
         peak_count, eartip_count_observed, fixed_status,
-        awareness_duration,
-        has_kittens, kitten_count, kitten_age_estimate, kitten_age_weeks,
-        kitten_mixed_ages, kitten_mixed_ages_description,
-        kitten_behavior, kitten_contained,
-        mom_present, mom_fixed, can_bring_in, kitten_notes,
-        feeds_cat, feeding_frequency, feeding_duration, cat_comes_inside,
-        is_emergency, has_medical_concerns, medical_description,
-        cats_being_fed, feeder_info, has_property_access, access_notes,
-        is_property_owner, situation_description, referral_source,
+        handleability,
+        has_kittens, kitten_count, kitten_age_estimate,
+        kitten_behavior, mom_present,
+        is_emergency, emergency_acknowledged,
+        has_medical_concerns, medical_description,
+        has_property_access, is_property_owner,
+        situation_description, referral_source,
         source, intake_source, source_record_id,
         submitted_at, submitter_name, status
       ) VALUES (
@@ -201,8 +213,7 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
         $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
         $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
-        $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-        $51, $52, $53, $54
+        $41, $42
       )
       ON CONFLICT (source_record_id) WHERE source_record_id IS NOT NULL
       DO UPDATE SET
@@ -218,61 +229,48 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         situation_description = EXCLUDED.situation_description
       RETURNING submission_id`,
       [
-        f["First Name"] || null,
-        f["Last Name"] || null,
-        f.Email || null,
-        f.Phone || null,
-        f["Requester Address"] || null,
-        f["Requester City"] || null,
-        f["Requester ZIP"] || null,
-        f["Is Third Party Report"] || false,
-        f["Third Party Relationship"] || null,
-        f["Property Owner Name"] || null,
-        f["Property Owner Phone"] || null,
-        f["Property Owner Email"] || null,
-        f["Cats Address"] || null,
-        f["Cats City"] || null,
-        f["Cats ZIP"] || null,
-        f.County || null,
-        f["Ownership Status"] || null,
-        f["Cat Count Estimate"] || null,
-        f["Cat Count Text"] || null,
-        f["Peak Count"] || null,
-        f["Eartip Count Observed"] || null,
-        f["Fixed Status"] || null,
-        f["Awareness Duration"] || null,
-        f["Has Kittens"] || false,
-        f["Kitten Count"] || null,
-        f["Kitten Age Estimate"] || null,
-        f["Kitten Age Weeks"] || null,
-        f["Kitten Mixed Ages"] || false,
-        f["Kitten Mixed Ages Description"] || null,
-        f["Kitten Behavior"] || null,
-        f["Kitten Contained"] || null,
-        f["Mom Present"] || null,
-        f["Mom Fixed"] || null,
-        f["Can Bring In"] || null,
-        f["Kitten Notes"] || null,
-        f["Feeds Cat"] || false,
-        f["Feeding Frequency"] || null,
-        f["Feeding Duration"] || null,
-        f["Cat Comes Inside"] || null,
-        f["Is Emergency"] || false,
-        f["Has Medical Concerns"] || false,
-        f["Medical Description"] || null,
-        f["Cats Being Fed"] || false,
-        f["Feeder Info"] || null,
-        f["Has Property Access"] || false,
-        f["Access Notes"] || null,
-        f["Is Property Owner"] || false,
-        f["Situation Description"] || null,
-        f["Referral Source"] || null,
-        "airtable_sync",
-        f.Source || "jotform_website",
-        `airtable:${record.id}`,
-        f["Submitted At"] ? new Date(f["Submitted At"]) : new Date(record.createdTime),
-        submitterName || "Unknown",
-        "new",
+        f["First Name"] || null,                           // $1
+        f["Last Name"] || null,                            // $2
+        f.Email || null,                                   // $3
+        f.Phone || null,                                   // $4
+        f["Requester Address"] || null,                    // $5
+        f["Requester City"] || null,                       // $6
+        f["Requester ZIP"] || null,                        // $7
+        f["Is Third Party Report"] || false,               // $8
+        f["Third Party Relationship"] || null,             // $9
+        f["Property Owner Name"] || null,                  // $10
+        f["Property Owner Phone"] || null,                 // $11
+        f["Property Owner Email"] || null,                 // $12
+        f["Street Address"] || null,                       // $13 (was Cats Address)
+        f.City || null,                                    // $14 (was Cats City)
+        f.ZIP || null,                                     // $15 (was Cats ZIP)
+        f.County || null,                                  // $16
+        ownershipStatus,                                   // $17 (derived from Call Type)
+        f["Cat Count"] || null,                            // $18 (was Cat Count Estimate)
+        f["Cat Count Text"] || null,                       // $19
+        f["Peak Count"] || null,                           // $20
+        f["Eartip Count"] || null,                         // $21 (was Eartip Count Observed)
+        f["Fixed Status"] || null,                         // $22
+        f.Handleability || null,                           // $23
+        f["Has Kittens"] || false,                         // $24
+        f["Kitten Count"] || null,                         // $25
+        f["Kitten Age"] || null,                           // $26 (was Kitten Age Estimate)
+        f["Kitten Socialization"] || null,                 // $27 (maps to kitten_behavior)
+        f["Mom Present"] || null,                          // $28
+        f["Is Emergency"] || false,                        // $29
+        f["Emergency Acknowledged"] || false,              // $30
+        f["Has Medical Concerns"] || false,                // $31
+        f["Medical Description"] || null,                  // $32
+        f["Has Property Access"] === "yes",                // $33 (convert string to boolean)
+        f["Is Property Owner"] === "yes",                  // $34 (convert string to boolean)
+        situationParts || null,                            // $35
+        f["Referral Source"] || null,                      // $36
+        "airtable_sync",                                   // $37 source
+        "jotform_website",                                 // $38 intake_source
+        `airtable:${record.id}`,                           // $39 source_record_id
+        f["Submitted At"] ? new Date(f["Submitted At"]) : new Date(record.createdTime), // $40
+        submitterName || "Unknown",                        // $41
+        "new",                                             // $42 status
       ]
     );
 
@@ -282,6 +280,20 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         recordId: record.id,
         error: "Failed to insert/update submission",
       };
+    }
+
+    // Post-insert: Match to person and link to place (fire-and-forget)
+    // These are the same triggers used by the regular intake API
+    try {
+      await query("SELECT trapper.match_intake_to_person($1)", [result.submission_id]);
+    } catch (err) {
+      console.error("Person matching error for", result.submission_id, err);
+    }
+
+    try {
+      await query("SELECT trapper.link_intake_submission_to_place($1)", [result.submission_id]);
+    } catch (err) {
+      console.error("Place linking error for", result.submission_id, err);
     }
 
     return {
@@ -350,14 +362,14 @@ export async function GET(request: NextRequest) {
         await updateAirtableRecord(record.id, {
           "Sync Status": "synced",
           "Atlas Submission ID": result.atlasId,
-          "Last Synced At": new Date().toISOString(),
+          "Synced At": new Date().toISOString(),
           "Sync Error": null,
         });
       } else {
         await updateAirtableRecord(record.id, {
           "Sync Status": "error",
           "Sync Error": result.error,
-          "Last Synced At": new Date().toISOString(),
+          "Synced At": new Date().toISOString(),
         });
       }
     }
