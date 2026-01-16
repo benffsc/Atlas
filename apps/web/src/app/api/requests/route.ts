@@ -82,6 +82,13 @@ export async function GET(request: NextRequest) {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   // Build ORDER BY clause based on sort parameters
+  // Native Atlas requests (web_intake, atlas_ui) always come before imported (airtable)
+  const nativeFirst = `
+    CASE
+      WHEN source_system IN ('web_intake', 'atlas_ui') THEN 0
+      ELSE 1
+    END`;
+
   const buildOrderBy = () => {
     const dir = sortOrder === "desc" ? "DESC" : "ASC";
     const dirInverse = sortOrder === "desc" ? "ASC" : "DESC";
@@ -89,9 +96,10 @@ export async function GET(request: NextRequest) {
     switch (sortBy) {
       case "created":
         // Sort by original Airtable creation date (source_created_at)
-        return `source_created_at ${dir} NULLS LAST, created_at ${dir}`;
+        return `${nativeFirst}, source_created_at ${dir} NULLS LAST, created_at ${dir}`;
       case "priority":
         return `
+          ${nativeFirst},
           CASE priority
             WHEN 'urgent' THEN 1
             WHEN 'high' THEN 2
@@ -102,8 +110,9 @@ export async function GET(request: NextRequest) {
         `;
       case "status":
       default:
-        // Default: status order, then by creation date
+        // Default: native first, then status order, then by creation date (newest first)
         return `
+          ${nativeFirst},
           CASE status
             WHEN 'new' THEN 1
             WHEN 'triaged' THEN 2
@@ -113,7 +122,7 @@ export async function GET(request: NextRequest) {
             WHEN 'completed' THEN 6
             WHEN 'cancelled' THEN 7
           END ${dir},
-          source_created_at ${dirInverse} NULLS LAST
+          created_at DESC NULLS LAST
         `;
     }
   };

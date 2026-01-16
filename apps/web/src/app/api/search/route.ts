@@ -294,7 +294,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Search requests (sot_requests)
+    // Search requests (sot_requests) - exclude closed requests (completed, cancelled)
     let requests: RequestResult[] = [];
     if (!typeParam || typeParam === "request") {
       try {
@@ -302,30 +302,39 @@ export async function GET(request: NextRequest) {
           SELECT
             r.request_id,
             COALESCE(r.summary, 'Request #' || LEFT(r.request_id::TEXT, 8)) as display_name,
-            r.status,
-            r.priority,
+            r.status::TEXT,
+            r.priority::TEXT,
             p.formatted_address as place_address,
             per.display_name as requester_name,
             r.estimated_cat_count,
             r.created_at,
             CASE
-              WHEN LOWER(r.summary) ILIKE '%' || LOWER($1) || '%' THEN 'summary_match'
-              WHEN LOWER(p.formatted_address) ILIKE '%' || LOWER($1) || '%' THEN 'address_match'
-              WHEN LOWER(per.display_name) ILIKE '%' || LOWER($1) || '%' THEN 'requester_match'
-              WHEN LOWER(r.notes) ILIKE '%' || LOWER($1) || '%' THEN 'notes_match'
+              WHEN LOWER(COALESCE(r.summary, '')) ILIKE '%' || LOWER($1) || '%' THEN 'summary_match'
+              WHEN LOWER(COALESCE(p.formatted_address, '')) ILIKE '%' || LOWER($1) || '%' THEN 'address_match'
+              WHEN LOWER(COALESCE(per.display_name, '')) ILIKE '%' || LOWER($1) || '%' THEN 'requester_match'
+              WHEN LOWER(COALESCE(r.notes, '')) ILIKE '%' || LOWER($1) || '%' THEN 'notes_match'
               ELSE 'fuzzy'
             END as match_type
           FROM trapper.sot_requests r
           LEFT JOIN trapper.places p ON r.place_id = p.place_id
           LEFT JOIN trapper.sot_people per ON r.requester_person_id = per.person_id
           WHERE
-            LOWER(r.summary) ILIKE '%' || LOWER($1) || '%'
-            OR LOWER(p.formatted_address) ILIKE '%' || LOWER($1) || '%'
-            OR LOWER(p.display_name) ILIKE '%' || LOWER($1) || '%'
-            OR LOWER(per.display_name) ILIKE '%' || LOWER($1) || '%'
-            OR LOWER(r.notes) ILIKE '%' || LOWER($1) || '%'
-            OR r.request_id::TEXT ILIKE '%' || $1 || '%'
+            r.status NOT IN ('completed', 'cancelled')
+            AND (
+              LOWER(COALESCE(r.summary, '')) ILIKE '%' || LOWER($1) || '%'
+              OR LOWER(COALESCE(p.formatted_address, '')) ILIKE '%' || LOWER($1) || '%'
+              OR LOWER(COALESCE(p.display_name, '')) ILIKE '%' || LOWER($1) || '%'
+              OR LOWER(COALESCE(per.display_name, '')) ILIKE '%' || LOWER($1) || '%'
+              OR LOWER(COALESCE(r.notes, '')) ILIKE '%' || LOWER($1) || '%'
+              OR r.request_id::TEXT ILIKE '%' || $1 || '%'
+            )
           ORDER BY
+            -- Native Atlas requests first (web_intake, atlas_ui), then imported (airtable)
+            CASE
+              WHEN r.source_system IN ('web_intake', 'atlas_ui') THEN 0
+              ELSE 1
+            END,
+            -- Then by status
             CASE r.status
               WHEN 'new' THEN 1
               WHEN 'triaged' THEN 2
@@ -334,7 +343,7 @@ export async function GET(request: NextRequest) {
               ELSE 5
             END,
             r.created_at DESC
-          LIMIT 15
+          LIMIT 20
         `;
         requests = await queryRows<RequestResult>(requestSql, [q]);
       } catch (err) {

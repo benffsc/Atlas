@@ -223,6 +223,9 @@ export default function RequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Track previous status for undo functionality
+  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+
   // Rename state (quick inline rename)
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -617,6 +620,8 @@ export default function RequestDetailPage() {
 
   // Quick status change handler (without entering edit mode)
   const handleQuickStatusChange = async (newStatus: string) => {
+    if (!request) return;
+    const oldStatus = request.status;
     setSaving(true);
     setError(null);
     try {
@@ -630,6 +635,8 @@ export default function RequestDetailPage() {
         setError(data.error || "Failed to update status");
         return;
       }
+      // Track previous status for undo
+      setPreviousStatus(oldStatus);
       // Reload the request data
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
@@ -642,6 +649,13 @@ export default function RequestDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Undo status change
+  const handleUndoStatusChange = async () => {
+    if (!previousStatus) return;
+    await handleQuickStatusChange(previousStatus);
+    setPreviousStatus(null); // Clear after undo
   };
 
   // Get next logical status options based on current status
@@ -800,6 +814,27 @@ export default function RequestDetailPage() {
                   {opt.label}
                 </button>
               ))}
+              {/* Undo button - shows when there's a previous status to revert to */}
+              {previousStatus && previousStatus !== request.status && (
+                <button
+                  onClick={handleUndoStatusChange}
+                  disabled={saving}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    fontSize: "0.85rem",
+                    background: "transparent",
+                    color: "#6c757d",
+                    border: "1px dashed #6c757d",
+                    borderRadius: "4px",
+                    cursor: saving ? "not-allowed" : "pointer",
+                    opacity: saving ? 0.6 : 1,
+                    marginLeft: "0.5rem",
+                  }}
+                  title={`Undo: revert to "${previousStatus.replace(/_/g, " ")}"`}
+                >
+                  ↩ Undo
+                </button>
+              )}
             </div>
           )}
         </div>
