@@ -126,28 +126,38 @@ export async function POST(request: NextRequest) {
 
     // Record in database (store file content for serverless environments)
     console.log("[UPLOAD] Inserting into database...");
-    const result = await queryOne<{ upload_id: string }>(
-      `INSERT INTO trapper.file_uploads (
-        original_filename,
-        stored_filename,
-        file_size_bytes,
-        file_hash,
-        source_system,
-        source_table,
-        status,
-        file_content
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
-      RETURNING upload_id`,
-      [
-        file.name,
-        storedFilename,
-        buffer.length,
-        fileHash,
-        sourceSystem,
-        sourceTable,
-        buffer,
-      ]
-    );
+    let result;
+    try {
+      result = await queryOne<{ upload_id: string }>(
+        `INSERT INTO trapper.file_uploads (
+          original_filename,
+          stored_filename,
+          file_size_bytes,
+          file_hash,
+          source_system,
+          source_table,
+          status,
+          file_content
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+        RETURNING upload_id`,
+        [
+          file.name,
+          storedFilename,
+          buffer.length,
+          fileHash,
+          sourceSystem,
+          sourceTable,
+          buffer,
+        ]
+      );
+    } catch (dbError) {
+      console.error("[UPLOAD] Database insert failed:", dbError);
+      const dbErrorMsg = dbError instanceof Error ? dbError.message : String(dbError);
+      return NextResponse.json(
+        { error: `Database error: ${dbErrorMsg}` },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

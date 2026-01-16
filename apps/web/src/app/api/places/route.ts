@@ -239,8 +239,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error creating place:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Failed to create place" },
+      { error: `Failed to create place: ${errorMessage}` },
       { status: 500 }
     );
   }
