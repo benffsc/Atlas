@@ -281,11 +281,11 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         has_medical_concerns, medical_description,
         has_property_access, is_property_owner,
         situation_description, referral_source,
-        submitted_at, submitter_name, status
+        submitted_at, status
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28
+        $21, $22, $23, $24, $25, $26, $27
       )
       RETURNING submission_id`,
       [
@@ -315,8 +315,7 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         notesContent || null,                              // $24
         f["Referral Source"] || null,                      // $25
         f["Submitted At"] ? new Date(f["Submitted At"]) : new Date(record.createdTime), // $26
-        submitterName || "Unknown",                        // $27 submitter_name
-        "new",                                             // $28 status
+        "new",                                             // $27 status
       ]
     );
 
