@@ -333,18 +333,33 @@ export default function RequestsPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1>Requests</h1>
-        <a
-          href="/requests/new"
-          style={{
-            padding: "0.5rem 1rem",
-            background: "var(--foreground)",
-            color: "var(--background)",
-            borderRadius: "6px",
-            textDecoration: "none",
-          }}
-        >
-          + New Request
-        </a>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <a
+            href="/requests/print"
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#27ae60",
+              color: "#fff",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontSize: "0.9rem",
+            }}
+          >
+            Print Call Sheet
+          </a>
+          <a
+            href="/requests/new"
+            style={{
+              padding: "0.5rem 1rem",
+              background: "var(--foreground)",
+              color: "var(--background)",
+              borderRadius: "6px",
+              textDecoration: "none",
+            }}
+          >
+            + New Request
+          </a>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
