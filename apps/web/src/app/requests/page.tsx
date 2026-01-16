@@ -19,6 +19,7 @@ interface Request {
   requester_name: string | null;
   latitude: number | null;
   longitude: number | null;
+  is_legacy_request: boolean;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -290,8 +291,9 @@ export default function RequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
-  const [sortBy, setSortBy] = useState<"created" | "status" | "priority">("status");
+  const [sortBy, setSortBy] = useState<"created" | "status" | "priority" | "type">("status");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [groupBy, setGroupBy] = useState<"" | "status" | "type">("");
 
   // Debounce search input
   useEffect(() => {
@@ -405,12 +407,24 @@ export default function RequestsPage() {
         {/* Sort controls */}
         <select
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "created" | "status" | "priority")}
+          onChange={(e) => setSortBy(e.target.value as "created" | "status" | "priority" | "type")}
           style={{ minWidth: "130px" }}
         >
-          <option value="created">Sort by Date</option>
           <option value="status">Sort by Status</option>
+          <option value="created">Sort by Date</option>
           <option value="priority">Sort by Priority</option>
+          <option value="type">Sort by Type</option>
+        </select>
+
+        {/* Group by */}
+        <select
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value as "" | "status" | "type")}
+          style={{ minWidth: "120px" }}
+        >
+          <option value="">No grouping</option>
+          <option value="status">Group by Status</option>
+          <option value="type">Group by Type</option>
         </select>
         <button
           onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
@@ -458,30 +472,83 @@ export default function RequestsPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="loading">Loading requests...</div>
-      ) : requests.length === 0 ? (
-        <div className="empty">
-          <p>No requests found</p>
-          <a href="/requests/new">Create your first request</a>
-        </div>
-      ) : viewMode === "cards" ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          {requests.map((req) => (
-            <RequestCard key={req.request_id} request={req} />
-          ))}
-        </div>
-      ) : (
+      {/* Helper to group requests */}
+      {(() => {
+        // Group requests if groupBy is set
+        const groupedRequests = groupBy
+          ? requests.reduce((acc, req) => {
+              const key = groupBy === "type"
+                ? (req.is_legacy_request ? "Legacy (Airtable)" : "Native (Atlas)")
+                : req.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(req);
+              return acc;
+            }, {} as Record<string, Request[]>)
+          : { "": requests };
+
+        // Sort group keys
+        const groupOrder = groupBy === "type"
+          ? ["Native (Atlas)", "Legacy (Airtable)"]
+          : ["New", "Triaged", "Scheduled", "In Progress", "On Hold", "Completed", "Cancelled"];
+
+        const sortedGroups = Object.entries(groupedRequests).sort(([a], [b]) => {
+          const aIdx = groupOrder.indexOf(a);
+          const bIdx = groupOrder.indexOf(b);
+          return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+        });
+
+        return loading ? (
+          <div className="loading">Loading requests...</div>
+        ) : requests.length === 0 ? (
+          <div className="empty">
+            <p>No requests found</p>
+            <a href="/requests/new">Create your first request</a>
+          </div>
+        ) : viewMode === "cards" ? (
+          <div>
+            {sortedGroups.map(([groupName, groupRequests]) => (
+              <div key={groupName || "all"} style={{ marginBottom: "2rem" }}>
+                {groupBy && (
+                  <h3 style={{
+                    fontSize: "1rem",
+                    fontWeight: 600,
+                    marginBottom: "0.75rem",
+                    padding: "0.5rem 0",
+                    borderBottom: "1px solid var(--border)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem"
+                  }}>
+                    {groupName}
+                    <span style={{
+                      fontSize: "0.8rem",
+                      fontWeight: 400,
+                      color: "var(--muted)",
+                    }}>
+                      ({groupRequests.length})
+                    </span>
+                  </h3>
+                )}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                    gap: "1rem",
+                  }}
+                >
+                  {groupRequests.map((req) => (
+                    <RequestCard key={req.request_id} request={req} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="table-container">
           <table>
             <thead>
               <tr>
+                <th>Type</th>
                 <th>Status</th>
                 <th>Priority</th>
                 <th>Location</th>
@@ -494,6 +561,18 @@ export default function RequestsPage() {
             <tbody>
               {requests.map((req) => (
                 <tr key={req.request_id}>
+                  <td>
+                    <span
+                      className="badge"
+                      style={{
+                        background: req.is_legacy_request ? "#6c757d" : "#198754",
+                        color: "#fff",
+                        fontSize: "0.7rem",
+                      }}
+                    >
+                      {req.is_legacy_request ? "Legacy" : "Native"}
+                    </span>
+                  </td>
                   <td>
                     <a href={`/requests/${req.request_id}`}>
                       <StatusBadge status={req.status} />
@@ -540,7 +619,8 @@ export default function RequestsPage() {
             </tbody>
           </table>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
