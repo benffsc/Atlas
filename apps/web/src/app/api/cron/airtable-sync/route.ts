@@ -170,6 +170,32 @@ function mapFixedStatus(value: string | undefined): string {
   return "unknown";
 }
 
+// Map Jotform call type to ownership_status
+// Jotform: "Single Stray - One unfamiliar cat showed up", "Colony/TNR - Multiple outdoor cats", etc.
+// Database: unknown_stray, community_colony, my_cat, neighbors_cat, unsure
+function mapOwnershipStatus(callType: string | undefined): string {
+  if (!callType) return "unknown_stray";
+  const lower = callType.toLowerCase();
+  if (lower.includes("single stray") || lower.includes("unfamiliar")) return "unknown_stray";
+  if (lower.includes("colony") || lower.includes("tnr") || lower.includes("multiple outdoor")) return "community_colony";
+  if (lower.includes("my cat") || lower.includes("pet") || lower.includes("spay") || lower.includes("neuter")) return "my_cat";
+  if (lower.includes("neighbor")) return "neighbors_cat";
+  if (lower.includes("kitten")) return "unknown_stray";
+  return "unknown_stray";
+}
+
+// Map Jotform kitten age to database enum values
+// Jotform: "Newborn (eyes closed)", "Eyes open but not weaned", "Weaned", etc.
+// Database: newborn, eyes_open, weaned, unknown
+function mapKittenAge(value: string | undefined): string | null {
+  if (!value) return null;
+  const lower = value.toLowerCase();
+  if (lower.includes("newborn") || lower.includes("eyes closed")) return "newborn";
+  if (lower.includes("eyes open") || lower.includes("not weaned")) return "eyes_open";
+  if (lower.includes("weaned")) return "weaned";
+  return "unknown";
+}
+
 // Parse Jotform structured address format into components
 // Format: "Street name: X House number: Y City: Z State: S Postal code: P Country: C"
 function parseJotformAddress(rawAddress: string): {
@@ -260,13 +286,8 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
       f.Notes,
     ].filter(Boolean).join("\n");
 
-    // Map ownership status from call type
-    const ownershipStatus =
-      f["Call Type"] === "pet_spay_neuter" ? "my_cat" :
-      f["Call Type"] === "colony_tnr" ? "community_colony" :
-      f["Call Type"] === "single_stray" ? "unknown_stray" :
-      f["Call Type"] === "kitten_rescue" ? "unknown_stray" :
-      "unknown_stray";
+    // Map ownership status from call type (handles Jotform text values)
+    const ownershipStatus = mapOwnershipStatus(f["Call Type"]);
 
     // Build notes combining all relevant info
     const isThirdParty = typeof f["Is Third Party Report"] === "string"
@@ -319,7 +340,7 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         mapFixedStatus(f["Fixed Status"]),                 // $15
         toBool(f["Has Kittens"]),                          // $16
         f["Kitten Count"] || null,                         // $17
-        f["Kitten Age"] || null,                           // $18
+        mapKittenAge(f["Kitten Age"]),                     // $18
         toBool(f["Is Emergency"]),                         // $19
         toBool(f["Has Medical Concerns"]),                 // $20
         f["Medical Description"] || null,                  // $21
