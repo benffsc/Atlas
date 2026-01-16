@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     const filePath = path.join(uploadDir, storedFilename);
     await writeFile(filePath, buffer);
 
-    // Record in database
+    // Record in database (store file content for serverless environments)
     const result = await queryOne<{ upload_id: string }>(
       `INSERT INTO trapper.file_uploads (
         original_filename,
@@ -115,8 +115,9 @@ export async function POST(request: NextRequest) {
         file_hash,
         source_system,
         source_table,
-        status
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+        status,
+        file_content
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
       RETURNING upload_id`,
       [
         file.name,
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
         fileHash,
         sourceSystem,
         sourceTable,
+        buffer,
       ]
     );
 

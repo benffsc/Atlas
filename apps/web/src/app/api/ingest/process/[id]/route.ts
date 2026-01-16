@@ -12,6 +12,7 @@ interface FileUpload {
   source_system: string;
   source_table: string;
   status: string;
+  file_content: Buffer | null;
 }
 
 // Parse XLSX or CSV file
@@ -72,9 +73,9 @@ export async function POST(
   }
 
   try {
-    // Get upload record
+    // Get upload record (include file_content for serverless environments)
     const upload = await queryOne<FileUpload>(
-      `SELECT upload_id, original_filename, stored_filename, source_system, source_table, status
+      `SELECT upload_id, original_filename, stored_filename, source_system, source_table, status, file_content
        FROM trapper.file_uploads WHERE upload_id = $1`,
       [uploadId]
     );
@@ -99,10 +100,24 @@ export async function POST(
       [uploadId]
     );
 
-    // Read file
+    // Read file - try filesystem first, fall back to database (for serverless)
+    let buffer: Buffer;
     const uploadDir = path.join(process.cwd(), "uploads", "ingest");
     const filePath = path.join(uploadDir, upload.stored_filename);
-    const buffer = await readFile(filePath);
+
+    try {
+      buffer = await readFile(filePath);
+    } catch {
+      // File not on disk (serverless environment) - read from database
+      if (upload.file_content) {
+        buffer = Buffer.from(upload.file_content);
+      } else {
+        return NextResponse.json(
+          { error: "File content not available. Please re-upload the file." },
+          { status: 404 }
+        );
+      }
+    }
 
     // Parse file
     const { rows } = parseFile(buffer, upload.stored_filename);
