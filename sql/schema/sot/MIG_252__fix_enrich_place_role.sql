@@ -141,7 +141,7 @@ BEGIN
     SET created_at = NOW();  -- Just touch the timestamp
   END IF;
 
-  RETURN QUERY SELECT v_place_id, v_is_new, v_matched_by, v_needs_geocoding;
+  RETURN QUERY SELECT v_place_id AS place_id, v_is_new AS is_new, v_matched_by AS matched_by, v_needs_geocoding AS needs_geocoding;
 END;
 $$ LANGUAGE plpgsql;
 
