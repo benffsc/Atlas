@@ -41,7 +41,17 @@ DECLARE
   v_formatted_address TEXT;
   v_normalized_address TEXT;
   v_role trapper.person_place_role;
+  v_data_source TEXT;
 BEGIN
+  -- Map source_system to valid data_source enum
+  v_data_source := CASE
+    WHEN p_source_system IN ('web_intake', 'web_app', 'airtable', 'airtable_sync', 'airtable_ffsc',
+                              'clinichq', 'atlas_ui', 'petlink', 'app', 'file_upload', 'legacy_import')
+      THEN COALESCE(p_source_system, 'web_intake')
+    WHEN p_source_system LIKE 'airtable%' THEN 'airtable_sync'
+    WHEN p_source_system IN ('jotform', 'jotform_public') THEN 'web_intake'
+    ELSE 'web_intake'  -- Default for unknown sources
+  END;
   -- Map relationship_type to valid person_place_role enum
   -- Accept various input values and map to valid enum
   v_role := CASE
@@ -106,7 +116,7 @@ BEGIN
       p_display_name := NULL,
       p_lat := NULL,
       p_lng := NULL,
-      p_source_system := COALESCE(p_source_system, 'unknown')
+      p_source_system := v_data_source
     );
 
     v_is_new := TRUE;
