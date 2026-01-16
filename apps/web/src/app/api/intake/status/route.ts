@@ -34,6 +34,7 @@ export async function PATCH(request: NextRequest) {
     let paramIndex = 1;
 
     // Handle unified status update (primary)
+    // Also sync to legacy fields for Airtable compatibility
     if (submission_status !== undefined) {
       const validStatuses = ["new", "in_progress", "scheduled", "complete", "archived"];
       if (!validStatuses.includes(submission_status)) {
@@ -45,13 +46,36 @@ export async function PATCH(request: NextRequest) {
       updates.push(`submission_status = $${paramIndex}`);
       params.push(submission_status);
       paramIndex++;
+
+      // Auto-sync to legacy fields for Airtable compatibility
+      // Only if legacy fields weren't explicitly provided in this request
+      if (legacy_submission_status === undefined) {
+        const legacyStatusMap: Record<string, string | null> = {
+          "new": "Pending Review",
+          "in_progress": "Pending Review",
+          "scheduled": "Booked",
+          "complete": "Complete",
+          "archived": "Complete", // Archived items show as complete in legacy
+        };
+        updates.push(`legacy_submission_status = $${paramIndex}`);
+        params.push(legacyStatusMap[submission_status]);
+        paramIndex++;
+      }
     }
 
     // Handle appointment date
+    // Also sync to legacy field for Airtable compatibility
     if (appointment_date !== undefined) {
       updates.push(`appointment_date = $${paramIndex}`);
       params.push(appointment_date || null);
       paramIndex++;
+
+      // Auto-sync to legacy field if not explicitly provided
+      if (legacy_appointment_date === undefined) {
+        updates.push(`legacy_appointment_date = $${paramIndex}`);
+        params.push(appointment_date || null);
+        paramIndex++;
+      }
     }
 
     // Handle priority override
