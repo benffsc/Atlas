@@ -127,6 +127,10 @@ export default function AdminPage() {
           <h3>Potential Duplicates</h3>
           <p className="text-muted text-sm">Review flagged person conflicts</p>
         </a>
+        <a href="/admin/source-confidence" className="card" style={{ textAlign: "center", background: "linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%)" }}>
+          <h3>Source Confidence</h3>
+          <p className="text-muted text-sm">Configure data source trust levels</p>
+        </a>
       </div>
 
       {/* Geocoding Controls */}

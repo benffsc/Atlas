@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { TrapperBadge } from "@/components/TrapperBadge";
 
 interface Trapper {
   person_id: string;
   display_name: string;
   trapper_type: string;
+  role_status: string;
   is_ffsc_trapper: boolean;
   active_assignments: number;
   completed_assignments: number;
@@ -23,6 +23,7 @@ interface AggregateStats {
   total_active_trappers: number;
   ffsc_trappers: number;
   community_trappers: number;
+  inactive_trappers: number;
   all_clinic_cats: number;
   all_clinic_days: number;
   avg_cats_per_day_all: number;
@@ -75,6 +76,7 @@ export default function TrappersPage() {
   const [data, setData] = useState<TrappersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("total_clinic_cats");
@@ -108,6 +110,27 @@ export default function TrappersPage() {
   useEffect(() => {
     fetchTrappers();
   }, [fetchTrappers]);
+
+  const updateTrapper = async (personId: string, action: "status" | "type", value: string) => {
+    setUpdating(personId);
+    try {
+      const response = await fetch("/api/trappers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ person_id: personId, action, value }),
+      });
+      if (response.ok) {
+        fetchTrappers();
+      } else {
+        const err = await response.json();
+        alert(`Error: ${err.error}`);
+      }
+    } catch (err) {
+      console.error("Update error:", err);
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   const agg = data?.aggregates;
 
@@ -193,6 +216,7 @@ export default function TrappersPage() {
                 <tr>
                   <th>Name</th>
                   <th>Type</th>
+                  <th>Status</th>
                   <th style={{ textAlign: "right" }}>Clinic Cats</th>
                   <th style={{ textAlign: "right" }}>Clinic Days</th>
                   <th style={{ textAlign: "right" }}>Cats/Day</th>
@@ -203,66 +227,113 @@ export default function TrappersPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.trappers.map((trapper) => (
-                  <tr key={trapper.person_id}>
-                    <td>
-                      <a
-                        href={`/trappers/${trapper.person_id}`}
+                {data.trappers.map((trapper) => {
+                  const isInactive = trapper.role_status !== "active";
+                  const rowStyle = isInactive
+                    ? { opacity: 0.6, background: "#f9fafb" }
+                    : {};
+
+                  return (
+                    <tr key={trapper.person_id} style={rowStyle}>
+                      <td>
+                        <a
+                          href={`/trappers/${trapper.person_id}`}
+                          style={{
+                            fontWeight: 500,
+                            color: isInactive ? "#9ca3af" : "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {trapper.display_name}
+                        </a>
+                      </td>
+                      <td>
+                        <select
+                          value={trapper.trapper_type}
+                          onChange={(e) =>
+                            updateTrapper(trapper.person_id, "type", e.target.value)
+                          }
+                          disabled={updating === trapper.person_id}
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "0.2rem 0.4rem",
+                            borderRadius: "4px",
+                            border: "1px solid #ddd",
+                            background: isInactive ? "#e5e7eb" : "#fff",
+                          }}
+                        >
+                          <option value="coordinator">Coordinator</option>
+                          <option value="head_trapper">Head Trapper</option>
+                          <option value="ffsc_trapper">FFSC Trapper</option>
+                          <option value="community_trapper">Community</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={trapper.role_status}
+                          onChange={(e) =>
+                            updateTrapper(trapper.person_id, "status", e.target.value)
+                          }
+                          disabled={updating === trapper.person_id}
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "0.2rem 0.4rem",
+                            borderRadius: "4px",
+                            border: "1px solid #ddd",
+                            background: isInactive ? "#fef3c7" : "#d1fae5",
+                            color: isInactive ? "#92400e" : "#065f46",
+                          }}
+                        >
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="suspended">Suspended</option>
+                          <option value="revoked">Revoked</option>
+                        </select>
+                      </td>
+                      <td
                         style={{
-                          fontWeight: 500,
-                          color: "var(--foreground)",
-                          textDecoration: "none",
+                          textAlign: "right",
+                          fontWeight:
+                            trapper.total_clinic_cats > 0 ? 600 : "normal",
+                          color:
+                            trapper.total_clinic_cats > 0
+                              ? "#198754"
+                              : "inherit",
                         }}
                       >
-                        {trapper.display_name}
-                      </a>
-                    </td>
-                    <td>
-                      <TrapperBadge trapperType={trapper.trapper_type} size="sm" />
-                    </td>
-                    <td
-                      style={{
-                        textAlign: "right",
-                        fontWeight:
-                          trapper.total_clinic_cats > 0 ? 600 : "normal",
-                        color:
-                          trapper.total_clinic_cats > 0
-                            ? "#198754"
-                            : "inherit",
-                      }}
-                    >
-                      {trapper.total_clinic_cats}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      {trapper.unique_clinic_days}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      {trapper.avg_cats_per_day}
-                    </td>
-                    <td
-                      style={{
-                        textAlign: "right",
-                        color:
-                          trapper.active_assignments > 0
-                            ? "#fd7e14"
-                            : "#999",
-                      }}
-                    >
-                      {trapper.active_assignments}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      {trapper.completed_assignments}
-                    </td>
-                    <td style={{ textAlign: "right", fontWeight: 500 }}>
-                      {trapper.total_cats_caught}
-                    </td>
-                    <td style={{ color: "#666", fontSize: "0.875rem" }}>
-                      {trapper.last_activity_date
-                        ? new Date(trapper.last_activity_date).toLocaleDateString()
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
+                        {trapper.total_clinic_cats}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {trapper.unique_clinic_days}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {trapper.avg_cats_per_day}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "right",
+                          color:
+                            trapper.active_assignments > 0
+                              ? "#fd7e14"
+                              : "#999",
+                        }}
+                      >
+                        {trapper.active_assignments}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {trapper.completed_assignments}
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 500 }}>
+                        {trapper.total_cats_caught}
+                      </td>
+                      <td style={{ color: "#666", fontSize: "0.875rem" }}>
+                        {trapper.last_activity_date
+                          ? new Date(trapper.last_activity_date).toLocaleDateString()
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

@@ -3,6 +3,7 @@
 interface TrapperBadgeProps {
   trapperType: string;
   size?: "sm" | "md";
+  inactive?: boolean;
 }
 
 const trapperInfo: Record<
@@ -31,7 +32,7 @@ const trapperInfo: Record<
   },
 };
 
-export function TrapperBadge({ trapperType, size = "md" }: TrapperBadgeProps) {
+export function TrapperBadge({ trapperType, size = "md", inactive = false }: TrapperBadgeProps) {
   const info = trapperInfo[trapperType] || {
     label: "Trapper",
     bg: "#6c757d",
@@ -41,17 +42,22 @@ export function TrapperBadge({ trapperType, size = "md" }: TrapperBadgeProps) {
   const fontSize = size === "sm" ? "0.65rem" : "0.75rem";
   const padding = size === "sm" ? "0.15rem 0.4rem" : "0.25rem 0.5rem";
 
+  // Grey out for inactive trappers
+  const bgColor = inactive ? "#9ca3af" : info.bg;
+  const statusText = inactive ? " (Inactive)" : "";
+
   return (
     <span
       className="badge"
       style={{
-        background: info.bg,
+        background: bgColor,
         color: "#fff",
         fontSize,
         padding,
         fontWeight: 500,
+        opacity: inactive ? 0.7 : 1,
       }}
-      title={info.title}
+      title={info.title + statusText}
     >
       {info.label}
     </span>

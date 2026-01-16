@@ -5,6 +5,7 @@ interface TrapperRow {
   person_id: string;
   display_name: string;
   trapper_type: string;
+  role_status: string;
   is_ffsc_trapper: boolean;
   active_assignments: number;
   completed_assignments: number;
@@ -21,6 +22,7 @@ interface AggregateStats {
   total_active_trappers: number;
   ffsc_trappers: number;
   community_trappers: number;
+  inactive_trappers: number;
   all_clinic_cats: number;
   all_clinic_days: number;
   avg_cats_per_day_all: number;
@@ -77,6 +79,7 @@ export async function GET(request: NextRequest) {
           person_id,
           display_name,
           trapper_type,
+          role_status,
           is_ffsc_trapper,
           active_assignments,
           completed_assignments,
@@ -89,7 +92,9 @@ export async function GET(request: NextRequest) {
           last_activity_date
         FROM trapper.v_trapper_full_stats
         ${whereClause}
-        ORDER BY ${orderColumn} DESC NULLS LAST
+        ORDER BY
+          CASE WHEN role_status = 'active' THEN 0 ELSE 1 END,
+          ${orderColumn} DESC NULLS LAST
         LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
@@ -110,6 +115,7 @@ export async function GET(request: NextRequest) {
           p.person_id,
           p.display_name,
           pr.trapper_type,
+          pr.role_status,
           CASE WHEN pr.trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper') THEN TRUE ELSE FALSE END AS is_ffsc_trapper,
           0 AS active_assignments,
           0 AS completed_assignments,
@@ -123,7 +129,9 @@ export async function GET(request: NextRequest) {
         FROM trapper.sot_people p
         JOIN trapper.person_roles pr ON pr.person_id = p.person_id
         ${basicWhere}
-        ORDER BY p.display_name ASC
+        ORDER BY
+          CASE WHEN pr.role_status = 'active' THEN 0 ELSE 1 END,
+          p.display_name ASC
         LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
@@ -148,6 +156,7 @@ export async function GET(request: NextRequest) {
         total_active_trappers: (basicAgg?.ffsc || 0) + (basicAgg?.community || 0),
         ffsc_trappers: basicAgg?.ffsc || 0,
         community_trappers: basicAgg?.community || 0,
+        inactive_trappers: 0,
         all_clinic_cats: 0,
         all_clinic_days: 0,
         avg_cats_per_day_all: 0,
@@ -164,6 +173,7 @@ export async function GET(request: NextRequest) {
         total_active_trappers: 0,
         ffsc_trappers: 0,
         community_trappers: 0,
+        inactive_trappers: 0,
         all_clinic_cats: 0,
         all_clinic_days: 0,
         avg_cats_per_day_all: 0,
@@ -182,6 +192,92 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching trappers:", error);
     return NextResponse.json(
       { error: "Failed to fetch trappers", details: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}
+
+// Update trapper status or type
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { person_id, action, value, reason } = body;
+
+    if (!person_id) {
+      return NextResponse.json({ error: "person_id is required" }, { status: 400 });
+    }
+
+    if (!action || !["status", "type"].includes(action)) {
+      return NextResponse.json(
+        { error: "action must be 'status' or 'type'" },
+        { status: 400 }
+      );
+    }
+
+    if (action === "status") {
+      if (!["active", "inactive", "suspended", "revoked"].includes(value)) {
+        return NextResponse.json(
+          { error: "status value must be active, inactive, suspended, or revoked" },
+          { status: 400 }
+        );
+      }
+
+      await queryOne(
+        `SELECT trapper.update_trapper_status($1, $2, $3, $4)`,
+        [person_id, value, reason || null, "staff"]
+      );
+    } else if (action === "type") {
+      if (!["coordinator", "head_trapper", "ffsc_trapper", "community_trapper"].includes(value)) {
+        return NextResponse.json(
+          { error: "type value must be coordinator, head_trapper, ffsc_trapper, or community_trapper" },
+          { status: 400 }
+        );
+      }
+
+      await queryOne(
+        `SELECT trapper.change_trapper_type($1, $2, $3, $4)`,
+        [person_id, value, reason || null, "staff"]
+      );
+    }
+
+    return NextResponse.json({ success: true, person_id, action, value });
+  } catch (error) {
+    console.error("Error updating trapper:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update trapper" },
+      { status: 500 }
+    );
+  }
+}
+
+// Add trapper role to a person
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { person_id, trapper_type, reason } = body;
+
+    if (!person_id) {
+      return NextResponse.json({ error: "person_id is required" }, { status: 400 });
+    }
+
+    const type = trapper_type || "community_trapper";
+    if (!["coordinator", "head_trapper", "ffsc_trapper", "community_trapper"].includes(type)) {
+      return NextResponse.json(
+        { error: "trapper_type must be coordinator, head_trapper, ffsc_trapper, or community_trapper" },
+        { status: 400 }
+      );
+    }
+
+    await queryOne(
+      `SELECT trapper.add_trapper_role($1, $2, $3, $4)`,
+      [person_id, type, reason || null, "staff"]
+    );
+
+    return NextResponse.json({ success: true, person_id, trapper_type: type });
+  } catch (error) {
+    console.error("Error adding trapper role:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to add trapper role" },
       { status: 500 }
     );
   }
