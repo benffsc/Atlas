@@ -11,8 +11,7 @@ interface AlterationHistoryRow {
   place_id: string;
   place_name: string;
   formatted_address: string | null;
-  locality: string | null;
-  postal_code: string | null;
+  service_zone: string | null;
   total_requests: number;
   total_cats_caught: number;
   total_cats_altered: number;
@@ -44,8 +43,7 @@ export async function GET(
         place_id,
         place_name,
         formatted_address,
-        locality,
-        postal_code,
+        service_zone,
         total_requests,
         total_cats_caught,
         total_cats_altered,
@@ -69,8 +67,7 @@ export async function GET(
         place_id: id,
         place_name: null,
         formatted_address: null,
-        locality: null,
-        postal_code: null,
+        service_zone: null,
         total_requests: 0,
         total_cats_caught: 0,
         total_cats_altered: 0,
@@ -94,8 +91,7 @@ export async function GET(
       place_id: history.place_id,
       place_name: history.place_name,
       formatted_address: history.formatted_address,
-      locality: history.locality,
-      postal_code: history.postal_code,
+      service_zone: history.service_zone,
       total_requests: history.total_requests,
       total_cats_caught: history.total_cats_caught,
       total_cats_altered: history.total_cats_altered,
