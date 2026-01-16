@@ -157,6 +157,19 @@ function toBool(value: string | boolean | undefined): boolean {
   return false;
 }
 
+// Map Jotform fixed status to database enum values
+// Jotform: "None are fixed", "Some are fixed", etc.
+// Database: none_fixed, some_fixed, most_fixed, all_fixed, unknown
+function mapFixedStatus(value: string | undefined): string {
+  if (!value) return "unknown";
+  const lower = value.toLowerCase();
+  if (lower.includes("none")) return "none_fixed";
+  if (lower.includes("some")) return "some_fixed";
+  if (lower.includes("most")) return "most_fixed";
+  if (lower.includes("all")) return "all_fixed";
+  return "unknown";
+}
+
 // Parse Jotform structured address format into components
 // Format: "Street name: X House number: Y City: Z State: S Postal code: P Country: C"
 function parseJotformAddress(rawAddress: string): {
@@ -303,7 +316,7 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         ownershipStatus,                                   // $12 (derived from Call Type)
         f["Cat Count"] || null,                            // $13
         f["Cat Count Text"] || null,                       // $14
-        f["Fixed Status"] || "unknown",                    // $15
+        mapFixedStatus(f["Fixed Status"]),                 // $15
         toBool(f["Has Kittens"]),                          // $16
         f["Kitten Count"] || null,                         // $17
         f["Kitten Age"] || null,                           // $18
