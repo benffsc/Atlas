@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { queryOne } from "@/lib/db";
 
 interface RequestDetailRow {
@@ -630,6 +631,11 @@ export async function PATCH(
         { status: 404 }
       );
     }
+
+    // Revalidate cached pages that show request data
+    revalidatePath("/"); // Dashboard
+    revalidatePath("/requests"); // Requests list
+    revalidatePath(`/requests/${id}`); // Request detail
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { queryRows, queryOne } from "@/lib/db";
 
 interface RequestListRow {
@@ -156,8 +157,8 @@ export async function GET(request: NextRequest) {
       offset,
     }, {
       headers: {
-        // No cache - always fetch fresh data
-        "Cache-Control": "no-store, no-cache, must-revalidate",
+        // Cache for 30 seconds, revalidated when edits are made
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
       },
     });
   } catch (error) {
@@ -467,6 +468,10 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Return result with promotion status
     if (promotionResult?.promoted_request_id) {
+      // Revalidate cached pages that show request data
+      revalidatePath("/"); // Dashboard
+      revalidatePath("/requests"); // Requests list
+
       // Successfully promoted to SoT
       return NextResponse.json({
         success: true,
