@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import CreateRequestWizard from "@/components/CreateRequestWizard";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -1501,14 +1502,37 @@ function IntakeQueueContent() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   <div>
                     <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
-                      Street Address *
+                      Street Address * (start typing for suggestions)
                     </label>
-                    <input
-                      type="text"
+                    <AddressAutocomplete
                       value={addressEdits.cats_address}
-                      onChange={(e) => setAddressEdits({ ...addressEdits, cats_address: e.target.value })}
-                      placeholder="123 Main St"
-                      style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid var(--muted)" }}
+                      onChange={(value) => setAddressEdits({ ...addressEdits, cats_address: value })}
+                      onPlaceSelect={(place) => {
+                        // Extract address components
+                        const getComponent = (types: string[]) => {
+                          const comp = place.address_components.find(c =>
+                            types.some(t => c.types.includes(t))
+                          );
+                          return comp?.long_name || "";
+                        };
+
+                        // Build street address from components
+                        const streetNumber = getComponent(["street_number"]);
+                        const streetName = getComponent(["route"]);
+                        const street = streetNumber && streetName
+                          ? `${streetNumber} ${streetName}`
+                          : place.formatted_address.split(",")[0];
+
+                        const city = getComponent(["locality", "sublocality", "administrative_area_level_2"]);
+                        const zip = getComponent(["postal_code"]);
+
+                        setAddressEdits({
+                          cats_address: street,
+                          cats_city: city,
+                          cats_zip: zip,
+                        });
+                      }}
+                      placeholder="Start typing address..."
                     />
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "0.5rem" }}>
@@ -1538,7 +1562,7 @@ function IntakeQueueContent() {
                     </div>
                   </div>
                   <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-                    Address will be re-geocoded and linked to the correct place (with deduplication)
+                    Select from suggestions or type manually. Address will be linked to the correct place.
                   </p>
                 </div>
               )}
