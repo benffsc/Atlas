@@ -139,9 +139,13 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Upload error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to upload file" },
+      { error: `Failed to upload file: ${errorMessage}` },
       { status: 500 }
     );
   }
 }
+
+// Next.js App Router config - increase body size limit and timeout
+export const maxDuration = 60; // 60 seconds for Pro plan, 10 for Hobby
