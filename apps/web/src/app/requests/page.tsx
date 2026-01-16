@@ -485,7 +485,7 @@ export default function RequestsPage() {
                 <th>Status</th>
                 <th>Priority</th>
                 <th>Location</th>
-                <th>Summary</th>
+                <th>Title</th>
                 <th>Cats</th>
                 <th>Requester</th>
                 <th>Created</th>

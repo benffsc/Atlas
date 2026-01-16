@@ -31,6 +31,12 @@ interface AvailableTrapper {
   trapper_type: string;
 }
 
+interface PersonSearchResult {
+  entity_id: string;
+  display_name: string;
+  subtitle: string;
+}
+
 interface Props {
   requestId: string;
   compact?: boolean;
@@ -46,6 +52,10 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
   const [selectedTrapperId, setSelectedTrapperId] = useState("");
   const [isPrimary, setIsPrimary] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  // Person search for when no trappers are in the system
+  const [personSearch, setPersonSearch] = useState("");
+  const [personResults, setPersonResults] = useState<PersonSearchResult[]>([]);
+  const [searchingPeople, setSearchingPeople] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -81,6 +91,30 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
     }
   };
 
+  // Search for any person (when no official trappers exist or need to find someone specific)
+  const searchPeople = async (query: string) => {
+    if (query.length < 2) {
+      setPersonResults([]);
+      return;
+    }
+    setSearchingPeople(true);
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=10`);
+      if (response.ok) {
+        const data = await response.json();
+        // Filter out already assigned trappers
+        const assignedIds = new Set(trappers.map(t => t.trapper_person_id));
+        setPersonResults(
+          (data.results || []).filter((p: PersonSearchResult) => !assignedIds.has(p.entity_id))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to search people:", err);
+    } finally {
+      setSearchingPeople(false);
+    }
+  };
+
   const handleAssign = async () => {
     if (!selectedTrapperId) return;
     setAssigning(true);
@@ -98,6 +132,8 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
         setShowAddForm(false);
         setSelectedTrapperId("");
         setIsPrimary(false);
+        setPersonSearch("");
+        setPersonResults([]);
         fetchData();
       }
     } catch (err) {
@@ -130,13 +166,48 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
       marginBottom: "1rem",
       border: "1px solid var(--border)"
     }}>
+      {/* Show dropdown if official trappers exist */}
+      {availableTrappers.length > 0 && (
+        <div style={{ marginBottom: "0.75rem" }}>
+          <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem" }}>
+            Select Trapper
+          </label>
+          <select
+            value={selectedTrapperId}
+            onChange={(e) => { setSelectedTrapperId(e.target.value); setPersonSearch(""); setPersonResults([]); }}
+            style={{
+              width: "100%",
+              padding: "0.5rem",
+              borderRadius: "4px",
+              border: "1px solid var(--border)",
+              background: "var(--background)",
+              color: "var(--foreground)",
+            }}
+          >
+            <option value="">Choose a trapper...</option>
+            {availableTrappers.map((t) => (
+              <option key={t.person_id} value={t.person_id}>
+                {t.display_name} ({t.trapper_type || "trapper"})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Person search - always show, but with different label based on whether we have official trappers */}
       <div style={{ marginBottom: "0.75rem" }}>
         <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem" }}>
-          Select Trapper
+          {availableTrappers.length > 0 ? "Or search for any person:" : "Search for a person to assign:"}
         </label>
-        <select
-          value={selectedTrapperId}
-          onChange={(e) => setSelectedTrapperId(e.target.value)}
+        <input
+          type="text"
+          value={personSearch}
+          onChange={(e) => {
+            setPersonSearch(e.target.value);
+            setSelectedTrapperId("");
+            searchPeople(e.target.value);
+          }}
+          placeholder="Type a name to search..."
           style={{
             width: "100%",
             padding: "0.5rem",
@@ -145,15 +216,43 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
             background: "var(--background)",
             color: "var(--foreground)",
           }}
-        >
-          <option value="">Choose a trapper...</option>
-          {availableTrappers.map((t) => (
-            <option key={t.person_id} value={t.person_id}>
-              {t.display_name} ({t.trapper_type || "trapper"})
-            </option>
-          ))}
-        </select>
+        />
+        {searchingPeople && (
+          <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>Searching...</div>
+        )}
+        {personResults.length > 0 && (
+          <div style={{
+            marginTop: "0.5rem",
+            border: "1px solid var(--border)",
+            borderRadius: "4px",
+            maxHeight: "200px",
+            overflow: "auto"
+          }}>
+            {personResults.map((p) => (
+              <div
+                key={p.entity_id}
+                onClick={() => {
+                  setSelectedTrapperId(p.entity_id);
+                  setPersonSearch(p.display_name);
+                  setPersonResults([]);
+                }}
+                style={{
+                  padding: "0.5rem",
+                  cursor: "pointer",
+                  borderBottom: "1px solid var(--border)",
+                  background: selectedTrapperId === p.entity_id ? "rgba(13, 110, 253, 0.1)" : "transparent",
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.05)")}
+                onMouseOut={(e) => (e.currentTarget.style.background = selectedTrapperId === p.entity_id ? "rgba(13, 110, 253, 0.1)" : "transparent")}
+              >
+                <div style={{ fontWeight: 500 }}>{p.display_name}</div>
+                {p.subtitle && <div style={{ fontSize: "0.8rem", color: "#666" }}>{p.subtitle}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
       <div style={{ marginBottom: "0.75rem" }}>
         <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
           <input
@@ -173,7 +272,7 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
           {assigning ? "Assigning..." : "Assign"}
         </button>
         <button
-          onClick={() => { setShowAddForm(false); setSelectedTrapperId(""); setIsPrimary(false); }}
+          onClick={() => { setShowAddForm(false); setSelectedTrapperId(""); setIsPrimary(false); setPersonSearch(""); setPersonResults([]); }}
           className="btn btn-secondary btn-sm"
         >
           Cancel

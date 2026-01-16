@@ -259,9 +259,9 @@ export default function RequestPrintPage() {
         </Section>
       )}
 
-      {/* Summary */}
+      {/* Request Title */}
       {request.summary && (
-        <Section title="Summary">
+        <Section title="Request Title">
           <p style={{ margin: 0 }}>{request.summary}</p>
         </Section>
       )}

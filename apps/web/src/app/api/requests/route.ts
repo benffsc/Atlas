@@ -156,8 +156,8 @@ export async function GET(request: NextRequest) {
       offset,
     }, {
       headers: {
-        // Short cache for list data - refresh every 30 seconds
-        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        // No cache - always fetch fresh data
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });
   } catch (error) {

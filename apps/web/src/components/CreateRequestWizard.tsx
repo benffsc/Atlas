@@ -433,7 +433,7 @@ export default function CreateRequestWizard({
               <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Request Summary</h3>
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", fontWeight: 500 }}>
-                  Summary (short description for the request list)
+                  Request Title
                 </label>
                 <input
                   type="text"
