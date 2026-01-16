@@ -3,6 +3,15 @@
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import {
+  CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
+  HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
+  OWNERSHIP_OPTIONS,
+  FIXED_STATUS_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS,
+  URGENT_SITUATION_EXAMPLES,
+  callTypeToOwnership,
+} from "@/lib/intake-options";
 
 /**
  * Dynamic Intake Form for Receptionist Use
@@ -168,61 +177,24 @@ const initialFormData: FormData = {
   referral_source: "",
 };
 
-const CALL_TYPE_OPTIONS = [
-  {
-    value: "pet_spay_neuter",
-    label: "Pet Spay/Neuter",
-    desc: "Caller's own cat needs to be fixed",
-    icon: "🏠",
-  },
-  {
-    value: "wellness_check",
-    label: "Wellness / Already Fixed",
-    desc: "Cat is already fixed, needs medical attention",
-    icon: "💊",
-  },
-  {
-    value: "single_stray",
-    label: "Single Stray or Newcomer",
-    desc: "One unfamiliar cat showed up recently",
-    icon: "🐱",
-  },
-  {
-    value: "colony_tnr",
-    label: "Colony / FFR Request",
-    desc: "Multiple outdoor cats needing FFR",
-    icon: "🐈‍⬛",
-  },
-  {
-    value: "kitten_rescue",
-    label: "Kitten Situation",
-    desc: "Kittens found, may need foster",
-    icon: "🍼",
-  },
-  {
-    value: "medical_concern",
-    label: "Medical Concern / Injured",
-    desc: "Cat appears injured or sick",
-    icon: "🚨",
-  },
-];
+// Add icons to base call type options for UI display
+const CALL_TYPE_ICONS: Record<string, string> = {
+  pet_spay_neuter: "🏠",
+  wellness_check: "💊",
+  single_stray: "🐱",
+  colony_tnr: "🐈‍⬛",
+  kitten_rescue: "🍼",
+  medical_concern: "🚨",
+};
 
+const CALL_TYPE_OPTIONS = BASE_CALL_TYPE_OPTIONS.map((opt) => ({
+  ...opt,
+  icon: CALL_TYPE_ICONS[opt.value] || "📋",
+}));
+
+// Extend handleability options with unknown option for this form
 const HANDLEABILITY_OPTIONS = [
-  {
-    value: "friendly_carrier",
-    label: "Friendly - can use a carrier",
-    desc: "Cat can be picked up or put in a carrier by caller",
-  },
-  {
-    value: "shy_handleable",
-    label: "Shy but handleable",
-    desc: "Nervous but can be approached and contained with patience",
-  },
-  {
-    value: "unhandleable_trap",
-    label: "Unhandleable - will need trap",
-    desc: "Cannot be touched, runs away, will require humane trap",
-  },
+  ...BASE_HANDLEABILITY_OPTIONS,
   {
     value: "unknown",
     label: "Unknown / Haven't tried",
@@ -666,12 +638,7 @@ function IntakeForm() {
     setSubmitting(true);
     try {
       // Map form data to API format, deriving ownership_status from call_type
-      const ownershipStatus =
-        formData.call_type === "pet_spay_neuter" ? "my_cat" :
-        formData.call_type === "colony_tnr" ? "community_colony" :
-        formData.call_type === "single_stray" ? "unknown_stray" :
-        formData.call_type === "kitten_rescue" ? "unknown_stray" :
-        "unknown_stray";
+      const ownershipStatus = callTypeToOwnership(formData.call_type);
 
       const response = await fetch("/api/intake", {
         method: "POST",
@@ -1702,9 +1669,9 @@ function IntakeForm() {
                   style={{ pointerEvents: "none" }}
                 />
                 <span>
-                  <strong>This is an urgent/emergency situation</strong>
+                  <strong>This is an urgent situation</strong>
                   <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
-                    Severe injury, active labor, or immediate danger
+                    {URGENT_SITUATION_EXAMPLES}
                   </span>
                 </span>
               </div>

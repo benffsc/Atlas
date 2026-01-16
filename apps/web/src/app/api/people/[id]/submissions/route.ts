@@ -11,13 +11,12 @@ interface Submission {
   cat_count_estimate: number | null;
   cat_count_text: string | null;
   situation_description: string | null;
-  // Unified status (primary)
+  // Unified status (single source of truth)
   submission_status: string | null;
   appointment_date: string | null;
-  // Native status (for reference)
-  status: string;
   triage_category: string | null;
   is_legacy: boolean;
+  // Legacy fields (read-only, kept for historical data)
   legacy_status: string | null;
   legacy_submission_status: string | null;
   legacy_appointment_date: string | null;
@@ -49,7 +48,6 @@ export async function GET(
         situation_description,
         submission_status,
         appointment_date,
-        status,
         triage_category,
         is_legacy,
         legacy_status,

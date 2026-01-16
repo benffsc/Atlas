@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { syncFieldToAirtable, isAirtableSyncConfigured, CustomFieldForSync } from "@/lib/airtable-sync";
 
 interface CustomField {
   field_id: string;
@@ -120,7 +121,38 @@ export async function POST(request: NextRequest) {
       airtable_field_name || field_label,
     ]);
 
-    return NextResponse.json({ field: result });
+    // Auto-sync to Airtable if configured
+    let airtableSync: { success: boolean; error?: string } | null = null;
+    if (result && isAirtableSyncConfigured()) {
+      const fieldForSync: CustomFieldForSync = {
+        field_id: result.field_id,
+        field_key: result.field_key,
+        field_label: result.field_label,
+        field_type: result.field_type,
+        options: result.options,
+        airtable_field_name: result.airtable_field_name,
+      };
+
+      const syncResult = await syncFieldToAirtable(fieldForSync);
+      airtableSync = {
+        success: syncResult.success,
+        error: syncResult.error === "already_exists" ? undefined : syncResult.error,
+      };
+
+      // Update synced timestamp if successful
+      if (syncResult.success && syncResult.error !== "already_exists") {
+        await execute(`
+          UPDATE trapper.intake_custom_fields
+          SET airtable_synced_at = NOW()
+          WHERE field_id = $1
+        `, [result.field_id]);
+      }
+    }
+
+    return NextResponse.json({
+      field: result,
+      airtable_sync: airtableSync,
+    });
   } catch (err: unknown) {
     console.error("Error creating custom field:", err);
 

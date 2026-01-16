@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     // The trigger will auto-compute triage
     const data = await queryOne<{ submission_id: string; triage_category: string; triage_score: number }>(
       `INSERT INTO trapper.web_intake_submissions (
-        source, source_system, first_name, last_name, email, phone,
+        intake_source, source_system, first_name, last_name, email, phone,
         requester_address, requester_city, requester_zip,
         is_third_party_report, third_party_relationship,
         property_owner_name, property_owner_phone, property_owner_email,
@@ -142,17 +142,17 @@ export async function POST(request: NextRequest) {
         cats_being_fed, feeder_info, has_property_access, access_notes, is_property_owner,
         situation_description, referral_source, media_urls, ip_address, user_agent,
         priority_override, kitten_outcome, foster_readiness, kitten_urgency_factors,
-        reviewed_by, custom_fields, is_test, status, reviewed_at
+        reviewed_by, custom_fields, is_test, status, reviewed_at, submission_status
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
         $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34,
         $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-        $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64
+        $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65
       )
       RETURNING submission_id, triage_category::TEXT, triage_score`,
       [
-        body.source || "web",
-        body.source_system || null,
+        body.source || "web", // Maps to intake_source enum: web, phone, in_person, paper, legacy_airtable, jotform
+        body.source_system || null, // More specific source tracking (web_intake_receptionist, jotform_public, etc.)
         body.first_name,
         body.last_name,
         body.email || null,
@@ -215,8 +215,9 @@ export async function POST(request: NextRequest) {
         body.reviewed_by || null,
         body.custom_fields ? JSON.stringify(body.custom_fields) : null,
         body.is_test || false,
-        isStaffEntry ? "reviewed" : "new",
+        isStaffEntry ? "reviewed" : "new", // Legacy status field
         isStaffEntry ? new Date().toISOString() : null,
+        isStaffEntry ? "in_progress" : "new", // New unified submission_status (MIG_254)
       ]
     );
 

@@ -1,97 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { queryRows, execute } from "@/lib/db";
+import {
+  isAirtableSyncConfigured,
+  getAirtableFields,
+  syncFieldToAirtable,
+  CustomFieldForSync,
+} from "@/lib/airtable-sync";
 
-const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_ATLAS_SYNC_BASE_ID || "appwFuRddph1krmcd";
-const AIRTABLE_TABLE_ID = process.env.AIRTABLE_PUBLIC_INTAKE_TABLE_ID || "tblGQDVELZBhnxvUm";
-
-interface CustomField {
-  field_id: string;
-  field_key: string;
-  field_label: string;
-  field_type: string;
-  options: { value: string; label: string }[] | null;
-  airtable_field_name: string | null;
+interface CustomField extends CustomFieldForSync {
   airtable_synced_at: string | null;
 }
 
-interface AirtableField {
-  id: string;
-  name: string;
-  type: string;
-}
-
-// Map our field types to Airtable field types
-function mapFieldTypeToAirtable(fieldType: string): { type: string; options?: Record<string, unknown> } {
-  switch (fieldType) {
-    case "text":
-      return { type: "singleLineText" };
-    case "textarea":
-      return { type: "multilineText" };
-    case "number":
-      return { type: "number", options: { precision: 0 } };
-    case "checkbox":
-      return { type: "checkbox", options: { color: "yellowBright", icon: "check" } };
-    case "date":
-      return { type: "date", options: { dateFormat: { name: "local" } } };
-    case "phone":
-      return { type: "phoneNumber" };
-    case "email":
-      return { type: "email" };
-    case "select":
-    case "multiselect":
-      return { type: "singleSelect" }; // Will add options separately
-    default:
-      return { type: "singleLineText" };
-  }
-}
-
-// Get current fields from Airtable
-async function getAirtableFields(): Promise<AirtableField[]> {
-  const url = `https://api.airtable.com/v0/meta/bases/${AIRTABLE_BASE_ID}/tables`;
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${AIRTABLE_PAT}` },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Airtable metadata: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const table = data.tables.find((t: { id: string }) => t.id === AIRTABLE_TABLE_ID);
-
-  if (!table) {
-    throw new Error(`Table ${AIRTABLE_TABLE_ID} not found`);
-  }
-
-  return table.fields;
-}
-
-// Add a field to Airtable
-async function addAirtableField(fieldSpec: Record<string, unknown>): Promise<AirtableField> {
-  const url = `https://api.airtable.com/v0/meta/bases/${AIRTABLE_BASE_ID}/tables/${AIRTABLE_TABLE_ID}/fields`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${AIRTABLE_PAT}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(fieldSpec),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to create field: ${response.status} - ${text}`);
-  }
-
-  return await response.json();
-}
-
 // POST - Sync custom fields to Airtable
-export async function POST(request: NextRequest) {
-  if (!AIRTABLE_PAT) {
+export async function POST() {
+  if (!isAirtableSyncConfigured()) {
     return NextResponse.json(
       { error: "AIRTABLE_PAT not configured" },
       { status: 500 }
@@ -118,7 +40,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Get existing Airtable fields
+    // Get existing Airtable fields once for all syncs
     const existingFields = await getAirtableFields();
     const existingFieldNames = new Set(existingFields.map(f => f.name.toLowerCase()));
 
@@ -128,51 +50,30 @@ export async function POST(request: NextRequest) {
       failed: [] as { name: string; error: string }[],
     };
 
-    // Process each custom field
+    // Process each custom field using shared sync function
     for (const field of customFields) {
+      const syncResult = await syncFieldToAirtable(field, existingFieldNames);
       const airtableName = field.airtable_field_name || field.field_label;
 
-      // Skip if already exists
-      if (existingFieldNames.has(airtableName.toLowerCase())) {
-        results.skipped.push(airtableName);
-        continue;
-      }
+      if (syncResult.success) {
+        if (syncResult.error === "already_exists") {
+          results.skipped.push(airtableName);
+        } else {
+          // Update synced timestamp in database
+          await execute(`
+            UPDATE trapper.intake_custom_fields
+            SET airtable_synced_at = NOW(), airtable_field_name = $1
+            WHERE field_id = $2
+          `, [airtableName, field.field_id]);
 
-      try {
-        // Build Airtable field spec
-        const { type, options: typeOptions } = mapFieldTypeToAirtable(field.field_type);
-        const fieldSpec: Record<string, unknown> = {
-          name: airtableName,
-          type,
-        };
-
-        // Add type-specific options
-        if (typeOptions) {
-          fieldSpec.options = typeOptions;
+          results.synced.push(airtableName);
+          // Add to existing names so we don't try to create again
+          existingFieldNames.add(airtableName.toLowerCase());
         }
-
-        // Add choices for select fields
-        if ((field.field_type === "select" || field.field_type === "multiselect") && field.options) {
-          fieldSpec.options = {
-            choices: field.options.map(opt => ({ name: opt.value })),
-          };
-        }
-
-        // Create field in Airtable
-        await addAirtableField(fieldSpec);
-
-        // Update synced timestamp in database
-        await execute(`
-          UPDATE trapper.intake_custom_fields
-          SET airtable_synced_at = NOW(), airtable_field_name = $1
-          WHERE field_id = $2
-        `, [airtableName, field.field_id]);
-
-        results.synced.push(airtableName);
-      } catch (err) {
+      } else {
         results.failed.push({
           name: airtableName,
-          error: err instanceof Error ? err.message : "Unknown error",
+          error: syncResult.error || "Unknown error",
         });
       }
     }
@@ -196,7 +97,7 @@ export async function POST(request: NextRequest) {
 
 // GET - Check sync status (what would be synced)
 export async function GET() {
-  if (!AIRTABLE_PAT) {
+  if (!isAirtableSyncConfigured()) {
     return NextResponse.json(
       { error: "AIRTABLE_PAT not configured" },
       { status: 500 }
@@ -206,7 +107,7 @@ export async function GET() {
   try {
     // Get custom fields
     const customFields = await queryRows<CustomField>(`
-      SELECT field_id, field_key, field_label, field_type,
+      SELECT field_id, field_key, field_label, field_type, options,
              COALESCE(airtable_field_name, field_label) as airtable_field_name,
              airtable_synced_at
       FROM trapper.intake_custom_fields

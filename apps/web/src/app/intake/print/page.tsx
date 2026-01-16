@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { URGENT_SITUATION_EXAMPLES } from "@/lib/intake-options";
 
 export default function PrintableIntakeForm() {
   const [includeKittenPage, setIncludeKittenPage] = useState(true);
@@ -532,7 +533,7 @@ export default function PrintableIntakeForm() {
           <div className="title">
             <span className="checkbox"></span>
             This is an urgent situation
-            <span className="hint">(injured, labor, immediate danger)</span>
+            <span className="hint">({URGENT_SITUATION_EXAMPLES})</span>
           </div>
           <div className="note">
             <strong>Note:</strong> FFSC is a spay/neuter clinic, NOT a 24hr hospital. For life-threatening emergencies:

@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { queryOne } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
+
+interface CurrentTrapper {
+  trapper_person_id: string;
+  trapper_name: string;
+  trapper_type: string | null;
+  is_ffsc_trapper: boolean;
+  is_primary: boolean;
+  assigned_at: string;
+}
 
 interface RequestDetailRow {
   request_id: string;
@@ -235,8 +244,31 @@ export async function GET(
 
     let statusHistory: object[] = [];
     try {
-      const { queryRows } = await import("@/lib/db");
       statusHistory = await queryRows(historySql, [id]);
+    } catch {
+      // Table might not exist yet
+    }
+
+    // Fetch current trappers from the proper assignment table
+    // This is the source of truth (assigned_to field is deprecated)
+    let currentTrappers: CurrentTrapper[] = [];
+    try {
+      currentTrappers = await queryRows<CurrentTrapper>(
+        `SELECT
+          rta.trapper_person_id,
+          p.display_name AS trapper_name,
+          pr.trapper_type::TEXT,
+          pr.trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper') AS is_ffsc_trapper,
+          rta.is_primary,
+          rta.assigned_at
+        FROM trapper.request_trapper_assignments rta
+        JOIN trapper.sot_people p ON p.person_id = rta.trapper_person_id
+        LEFT JOIN trapper.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
+        WHERE rta.request_id = $1
+          AND rta.unassigned_at IS NULL
+        ORDER BY rta.is_primary DESC, rta.assigned_at`,
+        [id]
+      );
     } catch {
       // Table might not exist yet
     }
@@ -244,6 +276,9 @@ export async function GET(
     return NextResponse.json({
       ...requestDetail,
       status_history: statusHistory,
+      // Current trappers from the proper assignment system (source of truth)
+      current_trappers: currentTrappers,
+      // Note: assigned_to field is deprecated, use current_trappers instead
     });
   } catch (error) {
     console.error("Error fetching request detail:", error);
@@ -436,6 +471,9 @@ export async function PATCH(
       paramIndex++;
     }
 
+    // DEPRECATED: Use POST /api/requests/[id]/trappers instead
+    // This field is kept for backward compatibility with legacy data
+    // New code should use the request_trapper_assignments table
     if (body.assigned_to !== undefined) {
       updates.push(`assigned_to = $${paramIndex}`);
       values.push(body.assigned_to || null);

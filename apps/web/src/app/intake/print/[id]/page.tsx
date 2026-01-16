@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import {
+  URGENT_SITUATION_EXAMPLES,
+  getOwnershipLabel as getOwnershipLabelFromLib,
+  getFixedStatusLabel as getFixedLabelFromLib,
+} from "@/lib/intake-options";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -92,25 +97,11 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 function getOwnershipLabel(status: string): string {
-  const labels: Record<string, string> = {
-    unknown_stray: "Stray cat",
-    community_colony: "Community cat I feed",
-    newcomer: "New arrival",
-    neighbors_cat: "Neighbor's cat",
-    my_cat: "My own cat",
-    unsure: "Not sure"
-  };
-  return labels[status] || formatValue(status);
+  return getOwnershipLabelFromLib(status) || formatValue(status);
 }
 
 function getFixedLabel(status: string): string {
-  const labels: Record<string, string> = {
-    none_fixed: "None appear fixed",
-    some_fixed: "Some are fixed",
-    most_fixed: "Most or all fixed",
-    unknown: "Unknown"
-  };
-  return labels[status] || formatValue(status);
+  return getFixedLabelFromLib(status) || formatValue(status);
 }
 
 function getPriorityColor(priority: string | null, triage: string | null): string {
@@ -188,8 +179,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             box-shadow: none !important;
             margin: 0 !important;
             page-break-after: always;
-            max-height: 10in;
-            overflow: hidden;
           }
           .print-page:last-child { page-break-after: auto; }
         }
@@ -206,7 +195,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         .print-page {
           width: 8.5in;
           min-height: 10in;
-          max-height: 10in;
           padding: 0.5in;
           box-sizing: border-box;
           background: #fff;
@@ -236,21 +224,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           font-size: 10pt;
           color: #7f8c8d;
           margin-top: 2px;
-        }
-
-        .org-badge {
-          background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-          color: white;
-          padding: 8px 14px;
-          border-radius: 8px;
-          text-align: right;
-          font-size: 9pt;
-        }
-
-        .org-badge strong {
-          display: block;
-          font-size: 10pt;
-          margin-bottom: 2px;
         }
 
         .status-strip {
@@ -297,13 +270,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           border-bottom: 2px solid #ecf0f1;
           padding-bottom: 4px;
           margin-bottom: 10px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .section-icon {
-          font-size: 14pt;
         }
 
         .card {
@@ -387,7 +353,8 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         .checklist {
           display: flex;
           flex-wrap: wrap;
-          gap: 6px 16px;
+          gap: 6px 12px;
+          padding-right: 4px;
         }
 
         .check-item {
@@ -508,18 +475,30 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
               {fullName} • Submitted {formatDate(submission.submitted_at)}
             </div>
           </div>
-          <div className="org-badge">
-            <strong>Forgotten Felines</strong>
-            (707) 576-7999<br />
-            forgottenfelines.com
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Forgotten Felines" style={{ height: "50px", width: "auto" }} />
+            <div style={{ textAlign: "right", fontSize: "9pt", color: "#7f8c8d" }}>
+              (707) 576-7999<br />
+              forgottenfelines.com
+            </div>
           </div>
         </div>
 
         {/* Legacy Banner */}
         {isLegacy && (
           <div className="legacy-banner">
-            <span>📋</span>
             <span>Legacy Request (imported from previous system)</span>
+          </div>
+        )}
+
+        {/* Emergency Alert - Moved to top */}
+        {submission.is_emergency && (
+          <div className="card card-emergency" style={{ marginBottom: "14px" }}>
+            <strong style={{ color: "#e74c3c" }}>URGENT SITUATION</strong>
+            <div style={{ fontSize: "9pt", marginTop: "4px" }}>
+              Urgent situations for us: {URGENT_SITUATION_EXAMPLES}
+            </div>
           </div>
         )}
 
@@ -541,18 +520,10 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           )}
         </div>
 
-        {/* Emergency Alert */}
-        {submission.is_emergency && (
-          <div className="card card-emergency" style={{ marginBottom: "14px" }}>
-            <strong style={{ color: "#e74c3c" }}>⚠️ Urgent Situation</strong>
-            <span style={{ marginLeft: "8px", fontSize: "9pt" }}>This request was marked as time-sensitive</span>
-          </div>
-        )}
-
         {/* Third Party Notice */}
         {submission.is_third_party_report && (
           <div className="card card-warning" style={{ marginBottom: "14px" }}>
-            <strong>👥 Third-Party Report</strong>
+            <strong>Third-Party Report</strong>
             <div style={{ fontSize: "9pt", marginTop: "4px" }}>
               {submission.third_party_relationship && <span>Relationship: {submission.third_party_relationship}</span>}
               {submission.property_owner_name && <span> • Property Owner: {submission.property_owner_name}</span>}
@@ -597,7 +568,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         {/* Cat Information */}
         <div className="section">
           <div className="section-title">
-            <span className="section-icon">🐱</span>
             About the Cats
           </div>
           <div className="info-grid">
@@ -637,7 +607,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         {/* Situation Checklist */}
         <div className="section">
           <div className="section-title">
-            <span className="section-icon">📋</span>
             Situation Details
           </div>
           <div className="checklist" style={{ marginBottom: "10px" }}>
@@ -685,7 +654,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         {isLegacy && (submission.legacy_notes || submission.legacy_status) && (
           <div className="section">
             <div className="section-title">
-              <span className="section-icon">📜</span>
               Legacy Information
             </div>
             <div className="info-grid">
@@ -716,7 +684,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         {/* Staff Section */}
         <div className="staff-section">
           <div className="section-title">
-            <span className="section-icon">📝</span>
             Staff Notes
           </div>
           <div className="info-grid" style={{ marginBottom: "8px" }}>
@@ -753,9 +720,12 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
                 {fullName} • {submission.cats_address}
               </div>
             </div>
-            <div className="org-badge">
-              <strong>Forgotten Felines</strong>
-              Kitten Program
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="Forgotten Felines" style={{ height: "50px", width: "auto" }} />
+              <div style={{ textAlign: "right", fontSize: "9pt", color: "#7f8c8d" }}>
+                Kitten Program
+              </div>
             </div>
           </div>
 
@@ -782,7 +752,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
           <div className="section">
             <div className="section-title">
-              <span className="section-icon">🐈</span>
               Mom Cat Status
             </div>
             <div className="info-grid">
@@ -813,7 +782,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           {submission.kitten_notes && (
             <div className="section">
               <div className="section-title">
-                <span className="section-icon">📝</span>
                 Additional Kitten Notes
               </div>
               <div className="description-box">
@@ -824,7 +792,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
           {/* Foster Program Info */}
           <div className="card" style={{ background: "#e8f6f3", borderLeft: "4px solid #1abc9c" }}>
-            <strong style={{ color: "#16a085" }}>💚 About Our Foster Program</strong>
+            <strong style={{ color: "#16a085" }}>About Our Foster Program</strong>
             <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px", fontSize: "9pt", lineHeight: "1.5" }}>
               <li><strong>Age matters:</strong> Under 12 weeks is ideal for socialization</li>
               <li><strong>Behavior matters:</strong> Friendly kittens are prioritized for foster</li>
@@ -836,7 +804,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           {/* Staff Kitten Assessment */}
           <div className="staff-section">
             <div className="section-title">
-              <span className="section-icon">📋</span>
               Kitten Assessment
             </div>
             <div className="info-grid" style={{ marginBottom: "10px" }}>

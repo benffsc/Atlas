@@ -3,6 +3,19 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import {
+  OWNERSHIP_OPTIONS,
+  FIXED_STATUS_OPTIONS,
+  FEEDING_FREQUENCY_OPTIONS,
+  FEEDING_DURATION_OPTIONS,
+  CAT_INSIDE_OPTIONS,
+  KITTEN_AGE_OPTIONS,
+  KITTEN_BEHAVIOR_OPTIONS,
+  MOM_PRESENT_OPTIONS,
+  MOM_FIXED_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS,
+  URGENT_SITUATION_EXAMPLES,
+} from "@/lib/intake-options";
 
 // Maps to paper form fields exactly
 interface IntakeFormData {
@@ -625,13 +638,7 @@ export default function NewIntakeEntryPage() {
           <div style={{ marginBottom: "1rem" }}>
             <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Cat type? *</label>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-              {[
-                { value: "unknown_stray", label: "Stray (no owner)" },
-                { value: "community_colony", label: "Outdoor cat I/someone feeds" },
-                { value: "newcomer", label: "Newcomer (just appeared)" },
-                { value: "neighbors_cat", label: "Neighbor's cat" },
-                { value: "my_cat", label: "My pet" },
-              ].map(opt => (
+              {OWNERSHIP_OPTIONS.map(opt => (
                 <label key={opt.value} style={{ cursor: "pointer" }}>
                   <input
                     type="radio"
@@ -640,7 +647,7 @@ export default function NewIntakeEntryPage() {
                     checked={form.ownership_status === opt.value}
                     onChange={() => updateForm({ ownership_status: opt.value })}
                   />
-                  {" "}{opt.label}
+                  {" "}{opt.shortLabel}
                 </label>
               ))}
             </div>
@@ -659,12 +666,7 @@ export default function NewIntakeEntryPage() {
             </div>
             <div>
               <label className="text-sm" style={{ marginRight: "0.5rem" }}>Fixed (ear-tip)? *</label>
-              {[
-                { value: "none_fixed", label: "None" },
-                { value: "some_fixed", label: "Some" },
-                { value: "most_fixed", label: "Most/All" },
-                { value: "unknown", label: "Unknown" },
-              ].map(opt => (
+              {FIXED_STATUS_OPTIONS.map(opt => (
                 <label key={opt.value} style={{ marginRight: "0.75rem", cursor: "pointer" }}>
                   <input
                     type="radio"
@@ -673,7 +675,7 @@ export default function NewIntakeEntryPage() {
                     checked={form.fixed_status === opt.value}
                     onChange={() => updateForm({ fixed_status: opt.value })}
                   />
-                  {" "}{opt.label}
+                  {" "}{opt.shortLabel}
                 </label>
               ))}
             </div>
@@ -793,7 +795,7 @@ export default function NewIntakeEntryPage() {
               checked={form.is_emergency}
               onChange={(e) => updateForm({ is_emergency: e.target.checked })}
             />
-            THIS IS AN EMERGENCY (injured cat, active labor, immediate danger)
+            URGENT ({URGENT_SITUATION_EXAMPLES})
           </label>
         </div>
 
