@@ -189,8 +189,8 @@ const CALL_TYPE_OPTIONS = [
   },
   {
     value: "colony_tnr",
-    label: "Colony / TNR Request",
-    desc: "Multiple outdoor cats needing TNR",
+    label: "Colony / FFR Request",
+    desc: "Multiple outdoor cats needing FFR",
     icon: "🐈‍⬛",
   },
   {

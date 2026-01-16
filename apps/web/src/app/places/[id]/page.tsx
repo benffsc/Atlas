@@ -833,8 +833,8 @@ export default function PlaceDetailPage() {
         <ColonyEstimates placeId={id} />
       </Section>
 
-      {/* TNR Activity / Alteration History */}
-      <Section title="TNR Activity">
+      {/* FFR Activity / Alteration History */}
+      <Section title="FFR Activity">
         <PlaceAlterationHistory placeId={id} />
       </Section>
 

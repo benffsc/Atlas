@@ -786,7 +786,7 @@ function NewRequestForm() {
     <div>
       <BackButton fallbackHref="/requests" />
 
-      <h1 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>New TNR Request</h1>
+      <h1 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>New FFR Request</h1>
 
       {/* Place Type Selection Modal */}
       {showPlaceTypeModal && pendingGooglePlace && (
@@ -2056,7 +2056,7 @@ function NewRequestForm() {
             </label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
               {[
-                { value: "tnr", label: "TNR", desc: "Cats need spay/neuter" },
+                { value: "tnr", label: "FFR", desc: "Cats need spay/neuter" },
                 { value: "wellness", label: "Wellness", desc: "Check on altered cats" },
                 { value: "relocation", label: "Relocation", desc: "Trapping to move cats" },
                 { value: "rescue", label: "Rescue", desc: "Emergency assistance" },
@@ -2095,7 +2095,7 @@ function NewRequestForm() {
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
               <div style={{ flex: "1 1 140px" }}>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  {hasTnr ? "Cats needing TNR" : "Cats to trap"}
+                  {hasTnr ? "Cats needing FFR" : "Cats to trap"}
                 </label>
                 <input
                   type="number"
@@ -2176,7 +2176,7 @@ function NewRequestForm() {
                 </div>
                 <div style={{ flex: "2 1 300px" }}>
                   <p className="text-muted text-sm" style={{ margin: 0 }}>
-                    Already ear-tipped cats to check on. These won&apos;t count toward TNR work.
+                    Already ear-tipped cats to check on. These won&apos;t count toward FFR work.
                   </p>
                 </div>
               </div>

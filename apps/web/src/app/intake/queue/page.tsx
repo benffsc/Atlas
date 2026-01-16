@@ -773,8 +773,8 @@ function IntakeQueueContent() {
           style={{ padding: "0.5rem", minWidth: "180px" }}
         >
           <option value="">All Categories</option>
-          <option value="high_priority_tnr">High Priority TNR</option>
-          <option value="standard_tnr">Standard TNR</option>
+          <option value="high_priority_tnr">High Priority FFR</option>
+          <option value="standard_tnr">Standard FFR</option>
           <option value="wellness_only">Wellness Only</option>
           <option value="owned_cat_low">Owned Cat (Low)</option>
           <option value="out_of_county">Out of County</option>
@@ -1494,7 +1494,7 @@ function IntakeQueueContent() {
                   Create Trapping Request
                 </h3>
                 <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "var(--muted)" }}>
-                  Convert this submission into a formal TNR request. This creates a new request record
+                  Convert this submission into a formal FFR request. This creates a new request record
                   that can be assigned to trappers and tracked through completion.
                 </p>
                 <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>

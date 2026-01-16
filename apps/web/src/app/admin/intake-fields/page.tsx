@@ -48,7 +48,7 @@ const CALL_TYPES = [
   { value: "pet_spay_neuter", label: "Pet Spay/Neuter" },
   { value: "wellness_check", label: "Wellness Check" },
   { value: "single_stray", label: "Single Stray" },
-  { value: "colony_tnr", label: "Colony TNR" },
+  { value: "colony_tnr", label: "Colony FFR" },
   { value: "kitten_rescue", label: "Kitten Rescue" },
   { value: "medical_concern", label: "Medical Concern" },
 ];

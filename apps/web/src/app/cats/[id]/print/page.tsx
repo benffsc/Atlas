@@ -277,7 +277,7 @@ export default function CatPrintPage() {
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Printed from Atlas - FFSC TNR Management</span>
+        <span>Printed from Atlas - FFSC FFR Management</span>
         <span>{new Date().toLocaleString()}</span>
       </div>
 

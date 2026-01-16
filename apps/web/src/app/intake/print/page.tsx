@@ -602,7 +602,7 @@ export default function PrintableIntakeForm() {
             <div className="field w2">
               <div className="question-row">
                 <span className="qlabel" style={{ minWidth: "55px" }}>Triage:</span>
-                <span className="checkbox-item"><span className="bubble"></span> TNR</span>
+                <span className="checkbox-item"><span className="bubble"></span> FFR</span>
                 <span className="checkbox-item"><span className="bubble"></span> Wellness</span>
                 <span className="checkbox-item"><span className="bubble"></span> Owned-redirect</span>
                 <span className="checkbox-item"><span className="bubble"></span> Out of area</span>
@@ -710,7 +710,7 @@ export default function PrintableIntakeForm() {
               <li><strong>Behavior matters:</strong> Friendly/handleable kittens are prioritized for foster placement.</li>
               <li><strong>Mom helps:</strong> Spayed mom with kittens increases foster likelihood.</li>
               <li><strong>Foster space is limited</strong> and not guaranteed until day of assessment.</li>
-              <li>Older or unhandleable kittens (12+ weeks, hard to handle) may need TNR instead of foster.</li>
+              <li>Older or unhandleable kittens (12+ weeks, hard to handle) may need FFR instead of foster.</li>
             </ul>
           </div>
 
@@ -738,7 +738,7 @@ export default function PrintableIntakeForm() {
                 <div className="question-row">
                   <span className="qlabel" style={{ minWidth: "110px" }}>Kitten outcome:</span>
                   <span className="checkbox-item"><span className="bubble"></span> Foster intake</span>
-                  <span className="checkbox-item"><span className="bubble"></span> TNR candidate</span>
+                  <span className="checkbox-item"><span className="bubble"></span> FFR candidate</span>
                   <span className="checkbox-item"><span className="bubble"></span> Pending space</span>
                   <span className="checkbox-item"><span className="bubble"></span> Declined</span>
                 </div>
@@ -751,7 +751,7 @@ export default function PrintableIntakeForm() {
                   <span className="qlabel" style={{ minWidth: "110px" }}>Foster readiness:</span>
                   <span className="checkbox-item"><span className="bubble"></span> High (friendly, ideal age)</span>
                   <span className="checkbox-item"><span className="bubble"></span> Medium (needs work)</span>
-                  <span className="checkbox-item"><span className="bubble"></span> Low (TNR likely)</span>
+                  <span className="checkbox-item"><span className="bubble"></span> Low (FFR likely)</span>
                 </div>
               </div>
             </div>

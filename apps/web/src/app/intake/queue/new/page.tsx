@@ -1116,8 +1116,8 @@ export default function NewIntakeEntryPage() {
                 style={{ width: "100%" }}
               >
                 <option value="">Auto-compute</option>
-                <option value="high_priority_tnr">TNR - High Priority</option>
-                <option value="standard_tnr">TNR - Standard</option>
+                <option value="high_priority_tnr">FFR - High Priority</option>
+                <option value="standard_tnr">FFR - Standard</option>
                 <option value="wellness_only">Wellness Only</option>
                 <option value="owned_cat_low">Owned Cat - Redirect</option>
                 <option value="out_of_county">Out of Area</option>
@@ -1137,7 +1137,7 @@ export default function NewIntakeEntryPage() {
                 <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Kitten Outcome</label>
                 {[
                   { value: "foster_intake", label: "Foster intake" },
-                  { value: "tnr_candidate", label: "TNR candidate" },
+                  { value: "tnr_candidate", label: "FFR candidate" },
                   { value: "pending_space", label: "Pending space" },
                   { value: "declined", label: "Declined" },
                 ].map(opt => (
@@ -1158,7 +1158,7 @@ export default function NewIntakeEntryPage() {
                 {[
                   { value: "high", label: "High (friendly, ideal age)" },
                   { value: "medium", label: "Medium (needs work)" },
-                  { value: "low", label: "Low (TNR likely)" },
+                  { value: "low", label: "Low (FFR likely)" },
                 ].map(opt => (
                   <label key={opt.value} style={{ display: "block", cursor: "pointer" }}>
                     <input

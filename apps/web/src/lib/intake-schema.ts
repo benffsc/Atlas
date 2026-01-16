@@ -23,7 +23,7 @@ export const CALL_TYPES = [
   { value: "pet_spay_neuter", label: "Pet Spay/Neuter", airtable: "pet_spay_neuter" },
   { value: "wellness_check", label: "Wellness / Already Fixed", airtable: "wellness_check" },
   { value: "single_stray", label: "Single Stray or Newcomer", airtable: "single_stray" },
-  { value: "colony_tnr", label: "Colony / TNR Request", airtable: "colony_tnr" },
+  { value: "colony_tnr", label: "Colony / FFR Request", airtable: "colony_tnr" },
   { value: "kitten_rescue", label: "Kitten Situation", airtable: "kitten_rescue" },
   { value: "medical_concern", label: "Medical Concern / Injured", airtable: "medical_concern" },
 ] as const;

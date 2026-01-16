@@ -218,7 +218,7 @@ export default function TrapperDetailPage() {
       {/* Manual Catches */}
       <Section title="Manual Catches">
         <p className="text-muted text-sm" style={{ marginBottom: "1rem" }}>
-          Track cats caught outside of formal TNR requests by entering their
+          Track cats caught outside of formal FFR requests by entering their
           microchip numbers.
         </p>
 

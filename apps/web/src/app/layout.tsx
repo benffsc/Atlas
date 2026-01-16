@@ -5,7 +5,7 @@ import PasswordGate from "@/components/PasswordGate";
 
 export const metadata: Metadata = {
   title: "Atlas",
-  description: "Cat tracking and TNR management system",
+  description: "Cat tracking and FFR management system",
 };
 
 export default function RootLayout({

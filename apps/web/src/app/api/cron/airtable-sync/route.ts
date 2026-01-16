@@ -171,13 +171,15 @@ function mapFixedStatus(value: string | undefined): string {
 }
 
 // Map Jotform call type to ownership_status
-// Jotform: "Single Stray - One unfamiliar cat showed up", "Colony/TNR - Multiple outdoor cats", etc.
+// Jotform: "Single Stray - One unfamiliar cat showed up", "Colony/FFR - Multiple outdoor cats", etc.
 // Database: unknown_stray, community_colony, my_cat, neighbors_cat, unsure
+// Note: Accepts both TNR and FFR terminology (FFR = Fix, Feed, Return - FFSC company policy)
 function mapOwnershipStatus(callType: string | undefined): string {
   if (!callType) return "unknown_stray";
   const lower = callType.toLowerCase();
   if (lower.includes("single stray") || lower.includes("unfamiliar")) return "unknown_stray";
-  if (lower.includes("colony") || lower.includes("tnr") || lower.includes("multiple outdoor")) return "community_colony";
+  // Accept both TNR and FFR terminology
+  if (lower.includes("colony") || lower.includes("tnr") || lower.includes("ffr") || lower.includes("multiple outdoor")) return "community_colony";
   if (lower.includes("my cat") || lower.includes("pet") || lower.includes("spay") || lower.includes("neuter")) return "my_cat";
   if (lower.includes("neighbor")) return "neighbors_cat";
   if (lower.includes("kitten")) return "unknown_stray";

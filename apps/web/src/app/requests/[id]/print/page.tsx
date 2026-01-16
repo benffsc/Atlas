@@ -105,7 +105,7 @@ export default function RequestPrintPage() {
         alignItems: "flex-start"
       }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: "18px" }}>TNR Request</h1>
+          <h1 style={{ margin: 0, fontSize: "18px" }}>FFR Request</h1>
           <p style={{ margin: "0.25rem 0 0", color: "#666", fontSize: "10px" }}>
             ID: {request.request_id}
           </p>
@@ -276,7 +276,7 @@ export default function RequestPrintPage() {
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Printed from Atlas - FFSC TNR Management</span>
+        <span>Printed from Atlas - FFSC FFR Management</span>
         <span>{new Date().toLocaleString()}</span>
       </div>
 

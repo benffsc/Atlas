@@ -432,7 +432,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
               <div className="field">
                 <span className="qlabel">Kitten outcome:</span>
                 <span className="checkbox-item"><Bubble filled={submission.kitten_outcome === "foster_intake"} /> Foster</span>
-                <span className="checkbox-item"><Bubble filled={submission.kitten_outcome === "tnr_candidate"} /> TNR</span>
+                <span className="checkbox-item"><Bubble filled={submission.kitten_outcome === "tnr_candidate"} /> FFR</span>
                 <span className="checkbox-item"><Bubble filled={submission.kitten_outcome === "pending_space"} /> Pending</span>
                 <span className="checkbox-item"><Bubble filled={submission.kitten_outcome === "declined"} /> Declined</span>
               </div>

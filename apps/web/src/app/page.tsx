@@ -458,7 +458,7 @@ export default function Home() {
           <div>
             <h2>Website Submissions</h2>
             <p className="text-muted text-sm" style={{ margin: 0 }}>
-              TNR requests from the website. Review, gather details, then create a Trapping Request.
+              FFR requests from the website. Review, gather details, then create a Trapping Request.
             </p>
           </div>
           <a
