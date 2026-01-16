@@ -1551,6 +1551,15 @@ function IntakeQueueContent() {
                 Archive
               </button>
 
+              <a
+                href={`/intake/print/${selectedSubmission.submission_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ padding: "0.5rem 1rem", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", textDecoration: "none", display: "inline-block" }}
+              >
+                Print / PDF
+              </a>
+
               {/* Reset status - useful for accidentally marked submissions */}
               {(selectedSubmission.legacy_submission_status === "Booked" || selectedSubmission.legacy_submission_status === "Complete" || selectedSubmission.legacy_submission_status === "Declined") && (
                 <button

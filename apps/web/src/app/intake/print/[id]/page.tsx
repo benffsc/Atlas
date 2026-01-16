@@ -47,6 +47,21 @@ interface IntakeSubmission {
   kitten_urgency_factors: string[] | null;
   review_notes: string | null;
   reviewed_by: string | null;
+  custom_fields: Record<string, string | boolean | number> | null;
+  // Additional fields for display
+  feeds_cat: boolean | null;
+  feeding_frequency: string | null;
+  feeding_duration: string | null;
+  cat_comes_inside: string | null;
+  geo_formatted_address: string | null;
+}
+
+interface CustomFieldDef {
+  field_id: string;
+  field_key: string;
+  field_label: string;
+  field_type: string;
+  options: { value: string; label: string }[] | null;
 }
 
 function formatValue(value: string | null | undefined): string {
@@ -85,16 +100,22 @@ function Checkbox({ filled }: { filled: boolean }) {
 export default function PrintSubmissionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [submission, setSubmission] = useState<IntakeSubmission | null>(null);
+  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/intake/queue/${id}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch");
+    Promise.all([
+      fetch(`/api/intake/queue/${id}`).then(res => {
+        if (!res.ok) throw new Error("Failed to fetch submission");
         return res.json();
+      }),
+      fetch("/api/intake/custom-fields").then(res => res.ok ? res.json() : { fields: [] })
+    ])
+      .then(([subData, fieldsData]) => {
+        setSubmission(subData.submission);
+        setCustomFieldDefs(fieldsData.fields || []);
       })
-      .then(data => setSubmission(data.submission))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
@@ -103,6 +124,28 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
   if (error || !submission) return <div style={{ padding: "2rem", color: "#dc3545" }}>Error: {error || "Not found"}</div>;
 
   const fullName = `${submission.first_name} ${submission.last_name}`;
+
+  // Helper to get custom field value with label
+  const getCustomFieldDisplay = (key: string): { label: string; value: string } | null => {
+    const fieldDef = customFieldDefs.find(f => f.field_key === key);
+    const rawValue = submission.custom_fields?.[key];
+    if (!fieldDef || rawValue === undefined || rawValue === null || rawValue === "") return null;
+
+    let displayValue = String(rawValue);
+    if (fieldDef.field_type === "select" && fieldDef.options) {
+      const opt = fieldDef.options.find(o => o.value === rawValue);
+      if (opt) displayValue = opt.label;
+    } else if (fieldDef.field_type === "checkbox") {
+      displayValue = rawValue ? "Yes" : "No";
+    }
+
+    return { label: fieldDef.field_label, value: displayValue };
+  };
+
+  // Get all filled custom fields
+  const filledCustomFields = customFieldDefs
+    .map(f => getCustomFieldDisplay(f.field_key))
+    .filter((f): f is { label: string; value: string } => f !== null);
 
   return (
     <div className="print-wrapper">
@@ -198,6 +241,11 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             <div className="field"><label>City:</label> <span className="filled-text">{submission.cats_city || "—"}</span></div>
             <div className="field" style={{ flex: 0.5 }}><label>ZIP:</label> <span className="filled-text">{submission.cats_zip || "—"}</span></div>
           </div>
+          {submission.geo_formatted_address && submission.geo_formatted_address !== submission.cats_address && (
+            <div style={{ fontSize: "8pt", color: "#666", marginTop: "2px" }}>
+              Verified: <span style={{ fontStyle: "italic" }}>{submission.geo_formatted_address}</span>
+            </div>
+          )}
           <div className="question-row">
             <span className="qlabel">County:</span>
             <span className="checkbox-item"><Bubble filled={submission.county === "sonoma"} /> Sonoma</span>
@@ -295,6 +343,47 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             {submission.situation_description || "—"}
           </div>
         </div>
+
+        {/* Section 6: Additional Questions (feeding + custom fields) */}
+        {(submission.feeds_cat !== null || submission.feeding_frequency || filledCustomFields.length > 0) && (
+          <div className="section">
+            <div className="section-title">6. ADDITIONAL QUESTIONS</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 12px" }}>
+              {submission.feeds_cat !== null && (
+                <div className="question-row">
+                  <span className="qlabel">Feeds the cat?</span>
+                  <span className="checkbox-item"><Bubble filled={submission.feeds_cat === true} /> Yes</span>
+                  <span className="checkbox-item"><Bubble filled={submission.feeds_cat === false} /> No</span>
+                </div>
+              )}
+              {submission.feeding_frequency && (
+                <div className="question-row">
+                  <span className="qlabel">Feeding freq:</span>
+                  <span className="filled-text">{formatValue(submission.feeding_frequency)}</span>
+                </div>
+              )}
+              {submission.feeding_duration && (
+                <div className="question-row">
+                  <span className="qlabel">How long:</span>
+                  <span className="filled-text">{formatValue(submission.feeding_duration)}</span>
+                </div>
+              )}
+              {submission.cat_comes_inside && (
+                <div className="question-row">
+                  <span className="qlabel">Comes inside?</span>
+                  <span className="filled-text">{formatValue(submission.cat_comes_inside)}</span>
+                </div>
+              )}
+              {/* Custom fields from admin configuration */}
+              {filledCustomFields.map((field, i) => (
+                <div className="question-row" key={i}>
+                  <span className="qlabel">{field.label}:</span>
+                  <span className="filled-text">{field.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Staff Section */}
         <div className="staff-section">
