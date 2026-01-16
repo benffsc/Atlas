@@ -147,6 +147,39 @@ async function updateAirtableRecord(
   );
 }
 
+// Parse Jotform structured address format into components
+// Format: "Street name: X House number: Y City: Z State: S Postal code: P Country: C"
+function parseJotformAddress(rawAddress: string): {
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+} {
+  if (!rawAddress) return { street: null, city: null, state: null, zip: null };
+
+  // Try to extract components using regex
+  const streetName = rawAddress.match(/Street name:\s*([^H]+?)(?=\s*House number:|$)/i)?.[1]?.trim() || null;
+  const houseNumber = rawAddress.match(/House number:\s*(\d+)/i)?.[1]?.trim() || null;
+  const city = rawAddress.match(/City:\s*([^S]+?)(?=\s*State:|$)/i)?.[1]?.trim() || null;
+  const state = rawAddress.match(/State:\s*([A-Z]{2})/i)?.[1]?.trim() || null;
+  const zip = rawAddress.match(/Postal code:\s*(\d{5})/i)?.[1]?.trim() || null;
+
+  // Build street address
+  let street: string | null = null;
+  if (houseNumber && streetName) {
+    street = `${houseNumber} ${streetName}`.trim();
+  } else if (streetName) {
+    street = streetName;
+  }
+
+  // If parsing failed, just use the raw address as street
+  if (!street && rawAddress && !rawAddress.includes("Street name:")) {
+    street = rawAddress;
+  }
+
+  return { street, city, state, zip };
+}
+
 async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
   const f = record.fields;
 
@@ -160,11 +193,33 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
       };
     }
 
-    if (!f["Street Address"]) {
+    // Determine cat location address:
+    // 1. Use "Street Address" if filled (cats at different location)
+    // 2. Otherwise use "Requester Address" (cats at requester's address)
+    const rawCatAddress = f["Street Address"] || f["Requester Address"];
+
+    if (!rawCatAddress) {
       return {
         success: false,
         recordId: record.id,
-        error: "Missing cat location address",
+        error: "Missing cat location address (no Street Address or Requester Address)",
+      };
+    }
+
+    // Parse the address (handles Jotform structured format)
+    const parsedCatAddress = parseJotformAddress(rawCatAddress);
+    const parsedRequesterAddress = parseJotformAddress(f["Requester Address"] || "");
+
+    // Use parsed cat address, fall back to Airtable fields, then parsed requester address
+    const catsAddress = parsedCatAddress.street || f["Street Address"] || parsedRequesterAddress.street;
+    const catsCity = f.City || parsedCatAddress.city || parsedRequesterAddress.city;
+    const catsZip = f.ZIP || parsedCatAddress.zip || parsedRequesterAddress.zip;
+
+    if (!catsAddress) {
+      return {
+        success: false,
+        recordId: record.id,
+        error: "Could not parse cat location address",
       };
     }
 
@@ -241,9 +296,9 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         f["Property Owner Name"] || null,                  // $10
         f["Property Owner Phone"] || null,                 // $11
         f["Property Owner Email"] || null,                 // $12
-        f["Street Address"] || null,                       // $13 (was Cats Address)
-        f.City || null,                                    // $14 (was Cats City)
-        f.ZIP || null,                                     // $15 (was Cats ZIP)
+        catsAddress || null,                               // $13 - parsed cat location address
+        catsCity || null,                                  // $14 - parsed city
+        catsZip || null,                                   // $15 - parsed zip
         f.County || null,                                  // $16
         ownershipStatus,                                   // $17 (derived from Call Type)
         f["Cat Count"] || null,                            // $18 (was Cat Count Estimate)
