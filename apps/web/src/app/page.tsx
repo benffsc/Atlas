@@ -25,6 +25,10 @@ interface IntakeSubmission {
   email: string;
   phone: string | null;
   cats_address: string;
+  cats_city: string | null;
+  // Geocoded address
+  geo_formatted_address: string | null;
+  geo_confidence: string | null;
   // Unified status (primary)
   submission_status: string | null;
   appointment_date: string | null;
@@ -33,12 +37,14 @@ interface IntakeSubmission {
   triage_category: string | null;
   triage_score: number | null;
   cat_count_estimate: number | null;
+  has_kittens: boolean | null;
   is_legacy: boolean;
   legacy_submission_status: string | null;
   legacy_appointment_date: string | null;
   is_emergency: boolean;
   overdue: boolean;
   intake_source: string | null;
+  contact_attempt_count: number | null;
 }
 
 // Normalize capitalization (JOHN SMITH -> John Smith)
@@ -490,11 +496,12 @@ export default function Home() {
             <table>
               <thead>
                 <tr>
-                  <th>Status</th>
-                  <th>Name</th>
+                  <th style={{ width: "60px" }}>Type</th>
+                  <th>Submitter</th>
                   <th>Location</th>
-                  <th>Cats</th>
-                  <th>Submitted</th>
+                  <th style={{ width: "60px" }}>Cats</th>
+                  <th style={{ width: "100px" }}>Status</th>
+                  <th style={{ width: "80px" }}>Submitted</th>
                 </tr>
               </thead>
               <tbody>
@@ -503,10 +510,54 @@ export default function Home() {
                     key={sub.submission_id}
                     onClick={() => window.location.href = `/intake/queue?open=${sub.submission_id}`}
                     style={{
-                      background: sub.is_emergency ? "rgba(220, 53, 69, 0.15)" : sub.overdue ? "rgba(255, 193, 7, 0.15)" : undefined,
+                      background: sub.is_emergency ? "rgba(220, 53, 69, 0.1)" : sub.overdue ? "rgba(255, 193, 7, 0.1)" : undefined,
                       cursor: "pointer",
                     }}
                   >
+                    {/* Type column */}
+                    <td>
+                      <span
+                        className="badge"
+                        style={{
+                          background: sub.is_legacy ? "#6c757d" : "#198754",
+                          color: "#fff",
+                          fontSize: "0.65rem",
+                        }}
+                      >
+                        {sub.is_legacy ? "Legacy" : "Native"}
+                      </span>
+                    </td>
+                    {/* Submitter column */}
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{normalizeName(sub.submitter_name)}</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.email}</div>
+                      {sub.phone && <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.phone}</div>}
+                    </td>
+                    {/* Location column */}
+                    <td>
+                      <div>
+                        {sub.geo_formatted_address || sub.cats_address}
+                      </div>
+                      {sub.geo_formatted_address && sub.geo_formatted_address !== sub.cats_address && (
+                        <div style={{ fontSize: "0.65rem", color: "var(--muted)", fontStyle: "italic" }}>
+                          (original: {sub.cats_address})
+                        </div>
+                      )}
+                      {!sub.geo_formatted_address && sub.cats_city && (
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.cats_city}</div>
+                      )}
+                      {!sub.geo_formatted_address && sub.geo_confidence === null && (
+                        <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "2px" }}>
+                          needs geocoding
+                        </span>
+                      )}
+                    </td>
+                    {/* Cats column */}
+                    <td>
+                      <div>{sub.cat_count_estimate ?? "?"}</div>
+                      {sub.has_kittens && <span style={{ fontSize: "0.7rem", color: "#fd7e14" }}>+kittens</span>}
+                    </td>
+                    {/* Status column */}
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                         {/* Unified status badge */}
@@ -543,39 +594,31 @@ export default function Home() {
                             {sub.triage_category.replace(/_/g, " ")}
                           </span>
                         )}
-                        {/* Legacy indicator */}
-                        {sub.is_legacy && (
-                          <span
-                            className="badge"
-                            style={{ background: "#6c757d", color: "#fff", fontSize: "0.6rem" }}
-                          >
-                            Legacy
+                        {/* Appointment date if scheduled */}
+                        {sub.appointment_date && (
+                          <span style={{ fontSize: "0.7rem", color: "#198754" }}>
+                            {new Date(sub.appointment_date).toLocaleDateString()}
                           </span>
                         )}
                         {sub.is_emergency && (
-                          <span style={{ color: "#ff6b6b", fontSize: "0.65rem", fontWeight: "bold" }}>
+                          <span style={{ color: "#dc3545", fontSize: "0.65rem", fontWeight: "bold" }}>
                             EMERGENCY
+                          </span>
+                        )}
+                        {/* Contact attempts */}
+                        {sub.contact_attempt_count && sub.contact_attempt_count > 0 && (
+                          <span style={{ fontSize: "0.6rem", color: "var(--muted)" }}>
+                            {sub.contact_attempt_count} contact{sub.contact_attempt_count > 1 ? "s" : ""}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{normalizeName(sub.submitter_name)}</div>
-                      <div className="text-muted text-sm">{sub.phone || sub.email}</div>
-                    </td>
-                    <td className="text-sm">
-                      {sub.cats_address.length > 40
-                        ? sub.cats_address.substring(0, 40) + "..."
-                        : sub.cats_address}
-                    </td>
-                    <td>
-                      {sub.cat_count_estimate ?? "?"}
-                    </td>
+                    {/* Submitted column */}
                     <td className="text-sm text-muted">
                       {new Date(sub.submitted_at).toLocaleDateString()}
-                      {sub.appointment_date && (
-                        <div style={{ fontSize: "0.7rem", color: "#198754" }}>
-                          Appt: {new Date(sub.appointment_date).toLocaleDateString()}
+                      {sub.overdue && (
+                        <div style={{ fontSize: "0.65rem", color: "#dc3545", fontWeight: 500 }}>
+                          overdue
                         </div>
                       )}
                     </td>
