@@ -84,6 +84,7 @@ const CONTACT_RESULTS = [
   { value: "left_voicemail", label: "Left Voicemail" },
   { value: "sent", label: "Sent (email/text)" },
   { value: "scheduled", label: "Scheduled Appointment" },
+  { value: "journal_entry", label: "Journal Entry (internal note)" },
   { value: "other", label: "Other" },
 ];
 
@@ -148,19 +149,21 @@ function TriageBadge({ category, score, isLegacy }: { category: string | null; s
 }
 
 function LegacyStatusBadge({ status }: { status: string | null }) {
-  if (!status) return null;
+  // Show "New" for null/empty status instead of nothing
+  const displayStatus = status || "New";
 
   const colors: Record<string, { bg: string; color: string }> = {
+    "New": { bg: "#0dcaf0", color: "#000" },
     "Pending Review": { bg: "#ffc107", color: "#000" },
     "Booked": { bg: "#198754", color: "#fff" },
     "Declined": { bg: "#dc3545", color: "#fff" },
     "Complete": { bg: "#20c997", color: "#000" },
   };
-  const style = colors[status] || { bg: "#6c757d", color: "#fff" };
+  const style = colors[displayStatus] || { bg: "#6c757d", color: "#fff" };
 
   return (
     <span className="badge" style={{ background: style.bg, color: style.color, fontSize: "0.7rem" }}>
-      {status}
+      {displayStatus}
     </span>
   );
 }
@@ -1053,44 +1056,10 @@ function IntakeQueueContent() {
                         }}
                         title={sub.contact_attempt_count ? `${sub.contact_attempt_count} contact attempts` : "Log a contact attempt"}
                       >
-                        Log Contact {sub.contact_attempt_count ? `(${sub.contact_attempt_count})` : ""}
+                        Log Contact/Journal {sub.contact_attempt_count ? `(${sub.contact_attempt_count})` : ""}
                       </button>
-                      {/* Quick action buttons based on current status */}
-                      {(!sub.legacy_status || sub.legacy_status === "") && (
-                        <button
-                          onClick={() => handleMarkContacted(sub)}
-                          disabled={saving}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.7rem",
-                            background: "#17a2b8",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Contacted
-                        </button>
-                      )}
-                      {sub.legacy_status === "Contacted" && (
-                        <button
-                          onClick={() => handleMarkNoResponse(sub)}
-                          disabled={saving}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.7rem",
-                            background: "#6c757d",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          No Response
-                        </button>
-                      )}
-                      {sub.legacy_submission_status !== "Booked" ? (
+                      {/* Booking actions - only these in table to prevent accidental clicks */}
+                      {sub.legacy_submission_status !== "Booked" && sub.legacy_submission_status !== "Complete" ? (
                         <button
                           onClick={() => handleMarkBooked(sub)}
                           disabled={saving}
@@ -1439,7 +1408,7 @@ function IntakeQueueContent() {
                   }}
                   style={{ padding: "0.5rem 1rem", background: "#6f42c1", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
                 >
-                  Log Contact {selectedSubmission.contact_attempt_count ? `(${selectedSubmission.contact_attempt_count})` : ""}
+                  Log Contact/Journal {selectedSubmission.contact_attempt_count ? `(${selectedSubmission.contact_attempt_count})` : ""}
                 </button>
 
                 {(!selectedSubmission.legacy_status || selectedSubmission.legacy_status === "") && (
@@ -1545,7 +1514,11 @@ function IntakeQueueContent() {
             {/* Footer Actions */}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
               <button
-                onClick={() => handleArchive(selectedSubmission.submission_id)}
+                onClick={() => {
+                  if (confirm(`Archive "${normalizeName(selectedSubmission.submitter_name)}"?\n\nThis will remove it from all views.`)) {
+                    handleArchive(selectedSubmission.submission_id);
+                  }
+                }}
                 style={{ padding: "0.5rem 1rem", background: "#6c757d", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
               >
                 Archive
@@ -1559,6 +1532,23 @@ function IntakeQueueContent() {
               >
                 Print / PDF
               </a>
+
+              {/* Mark Complete - requires confirmation */}
+              {selectedSubmission.legacy_submission_status !== "Complete" && (
+                <button
+                  onClick={async () => {
+                    if (confirm(`Mark "${normalizeName(selectedSubmission.submitter_name)}" as Complete?\n\nThis will remove it from the active queue.`)) {
+                      await handleQuickStatus(selectedSubmission.submission_id, "legacy_submission_status", "Complete");
+                      setSelectedSubmission({ ...selectedSubmission, legacy_submission_status: "Complete" });
+                      setToastMessage(`${normalizeName(selectedSubmission.submitter_name)} marked as Complete`);
+                      setTimeout(() => setToastMessage(null), 5000);
+                    }
+                  }}
+                  style={{ padding: "0.5rem 1rem", background: "#20c997", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                >
+                  Mark Complete
+                </button>
+              )}
 
               {/* Reset status - useful for accidentally marked submissions */}
               {(selectedSubmission.legacy_submission_status === "Booked" || selectedSubmission.legacy_submission_status === "Complete" || selectedSubmission.legacy_submission_status === "Declined") && (
@@ -1619,7 +1609,7 @@ function IntakeQueueContent() {
           >
             {/* Header */}
             <div style={{ marginBottom: "1rem" }}>
-              <h2 style={{ margin: 0 }}>Log Contact Attempt</h2>
+              <h2 style={{ margin: 0 }}>Log Contact / Journal</h2>
               <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
                 {normalizeName(contactModalSubmission.submitter_name)} - {contactModalSubmission.email}
                 {contactModalSubmission.phone && ` | ${contactModalSubmission.phone}`}

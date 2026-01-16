@@ -13,7 +13,10 @@
 \echo '==================================================='
 \echo ''
 
-CREATE OR REPLACE VIEW trapper.v_intake_triage_queue AS
+-- Drop and recreate to change column order/types
+DROP VIEW IF EXISTS trapper.v_intake_triage_queue;
+
+CREATE VIEW trapper.v_intake_triage_queue AS
 SELECT
   w.submission_id,
   w.submitted_at,
