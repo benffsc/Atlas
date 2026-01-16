@@ -236,6 +236,9 @@ function IntakeQueueContent() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "category" | "type">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [groupBy, setGroupBy] = useState<"" | "category" | "type" | "status">("");
   const [selectedSubmission, setSelectedSubmission] = useState<IntakeSubmission | null>(null);
   const [saving, setSaving] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
@@ -778,6 +781,37 @@ function IntakeQueueContent() {
           <option value="needs_review">Needs Review</option>
         </select>
 
+        {/* Sort controls */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as "date" | "category" | "type")}
+          style={{ padding: "0.5rem", minWidth: "130px" }}
+        >
+          <option value="date">Sort by Date</option>
+          <option value="category">Sort by Category</option>
+          <option value="type">Sort by Type</option>
+        </select>
+
+        {/* Group by */}
+        <select
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value as "" | "category" | "type" | "status")}
+          style={{ padding: "0.5rem", minWidth: "120px" }}
+        >
+          <option value="">No grouping</option>
+          <option value="category">Group by Category</option>
+          <option value="type">Group by Type</option>
+          <option value="status">Group by Status</option>
+        </select>
+
+        <button
+          onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+          style={{ padding: "0.5rem", minWidth: "40px" }}
+          title={sortOrder === "asc" ? "Oldest first" : "Newest first"}
+        >
+          {sortOrder === "asc" ? "↑" : "↓"}
+        </button>
+
         <button onClick={fetchSubmissions} style={{ padding: "0.5rem 1rem" }}>
           Refresh
         </button>
@@ -835,11 +869,74 @@ function IntakeQueueContent() {
             <p>No submissions found</p>
           )}
         </div>
-      ) : (
+      ) : (() => {
+        // Sort submissions
+        const sortedSubmissions = [...submissions].sort((a, b) => {
+          let comparison = 0;
+          if (sortBy === "date") {
+            comparison = new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+          } else if (sortBy === "category") {
+            comparison = (a.triage_category || "zzz").localeCompare(b.triage_category || "zzz");
+          } else if (sortBy === "type") {
+            comparison = (a.is_legacy ? 1 : 0) - (b.is_legacy ? 1 : 0);
+          }
+          return sortOrder === "asc" ? comparison : -comparison;
+        });
+
+        // Group submissions if groupBy is set
+        const groupedSubmissions = groupBy
+          ? sortedSubmissions.reduce((acc, sub) => {
+              let key = "";
+              if (groupBy === "category") {
+                key = sub.triage_category?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "Uncategorized";
+              } else if (groupBy === "type") {
+                key = sub.is_legacy ? "Legacy (Airtable)" : "Native (Atlas)";
+              } else if (groupBy === "status") {
+                key = sub.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              }
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(sub);
+              return acc;
+            }, {} as Record<string, IntakeSubmission[]>)
+          : { "": sortedSubmissions };
+
+        const groupOrder = groupBy === "type"
+          ? ["Native (Atlas)", "Legacy (Airtable)"]
+          : groupBy === "category"
+          ? ["High Priority Tnr", "Standard Tnr", "Wellness Only", "Owned Cat Low", "Out Of County", "Needs Review", "Uncategorized"]
+          : ["New", "Reviewed", "Converted", "Rejected"];
+
+        const sortedGroups = Object.entries(groupedSubmissions).sort(([a], [b]) => {
+          const aIdx = groupOrder.indexOf(a);
+          const bIdx = groupOrder.indexOf(b);
+          return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+        });
+
+        return (
         <div className="table-container">
+          {sortedGroups.map(([groupName, groupSubs]) => (
+            <div key={groupName || "all"} style={{ marginBottom: groupBy ? "2rem" : 0 }}>
+              {groupBy && (
+                <h3 style={{
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  marginBottom: "0.75rem",
+                  padding: "0.5rem 0",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem"
+                }}>
+                  {groupName}
+                  <span style={{ fontSize: "0.8rem", fontWeight: 400, color: "var(--muted)" }}>
+                    ({groupSubs.length})
+                  </span>
+                </h3>
+              )}
           <table>
             <thead>
               <tr>
+                <th style={{ width: "60px" }}>Type</th>
                 <th style={{ width: "180px" }}>Submitter</th>
                 <th style={{ width: "200px" }}>Location</th>
                 <th style={{ width: "80px" }}>Cats</th>
@@ -849,7 +946,7 @@ function IntakeQueueContent() {
               </tr>
             </thead>
             <tbody>
-              {submissions.map((sub) => (
+              {groupSubs.map((sub) => (
                 <tr
                   key={sub.submission_id}
                   style={{
@@ -862,6 +959,18 @@ function IntakeQueueContent() {
                       : undefined,
                   }}
                 >
+                  <td>
+                    <span
+                      className="badge"
+                      style={{
+                        background: sub.is_legacy ? "#6c757d" : "#198754",
+                        color: "#fff",
+                        fontSize: "0.65rem",
+                      }}
+                    >
+                      {sub.is_legacy ? "Legacy" : "Native"}
+                    </span>
+                  </td>
                   <td>
                     <div
                       style={{ fontWeight: 500, cursor: "pointer" }}
@@ -1058,8 +1167,11 @@ function IntakeQueueContent() {
               ))}
             </tbody>
           </table>
+            </div>
+          ))}
         </div>
-      )}
+        );
+      })()}
 
       {/* Detail Modal */}
       {selectedSubmission && (
