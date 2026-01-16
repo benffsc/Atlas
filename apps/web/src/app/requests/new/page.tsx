@@ -367,6 +367,15 @@ function NewRequestForm() {
     return () => clearTimeout(timer);
   }, [requestorEmail, selectedPerson]);
 
+  // Auto-fill the title with requester name when a requester is selected/entered
+  useEffect(() => {
+    const requesterName = [requestorFirstName, requestorLastName].filter(Boolean).join(" ").trim();
+    // Only auto-fill if summary is empty and we have a requester name
+    if (requesterName && !summary) {
+      setSummary(requesterName);
+    }
+  }, [requestorFirstName, requestorLastName]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const previewExistingPlace = async (result: SearchResult) => {
     setLoadingPreview(true);
     setShowDropdown(false);
@@ -667,7 +676,7 @@ function NewRequestForm() {
     setError(null);
 
     if (!selectedPlace && !summary) {
-      setError("Please select a location or provide a summary");
+      setError("Please select a location or provide a request title");
       return;
     }
 
@@ -2666,15 +2675,18 @@ function NewRequestForm() {
 
           <div style={{ marginBottom: "1rem" }}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Summary
+              Request Title
             </label>
             <input
               type="text"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder="Brief description of the request"
+              placeholder="e.g., '5 cats at Oak Street colony' or 'Rescue injured cat'"
               style={{ width: "100%" }}
             />
+            <small style={{ color: "#666", fontSize: "0.8rem" }}>
+              This will be the display name for this request
+            </small>
           </div>
 
           <div style={{ marginBottom: "1rem" }}>

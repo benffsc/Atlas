@@ -951,7 +951,7 @@ export default function RequestDetailPage() {
             <div>
               <strong style={{ display: "block", marginBottom: "0.5rem" }}>Original Request Details:</strong>
               <div style={{ background: "#f8f9fa", padding: "0.75rem", borderRadius: "6px" }}>
-                <p style={{ margin: "0 0 0.25rem 0" }}><strong>Summary:</strong> {request.summary || "N/A"}</p>
+                <p style={{ margin: "0 0 0.25rem 0" }}><strong>Request Title:</strong> {request.summary || "N/A"}</p>
                 <p style={{ margin: "0 0 0.25rem 0" }}><strong>Estimated Cats:</strong> {request.estimated_cat_count ?? "N/A"}</p>
                 <p style={{ margin: "0 0 0.25rem 0" }}><strong>Has Kittens:</strong> {request.has_kittens ? "Yes" : "No"}</p>
                 <p style={{ margin: 0 }}><strong>Original Notes:</strong> {request.notes || "N/A"}</p>
@@ -1022,12 +1022,13 @@ export default function RequestDetailPage() {
 
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Summary
+                Request Title
               </label>
               <input
                 type="text"
                 value={editForm.summary}
                 onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
+                placeholder="e.g., '5 cats at Oak Street colony'"
                 style={{ width: "100%" }}
               />
             </div>
