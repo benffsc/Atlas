@@ -135,7 +135,14 @@ export async function PATCH(
       'last_contacted_at',
       'last_contact_method',
       'contact_attempt_count',
+      // Address fields (for corrections)
+      'cats_address',
+      'cats_city',
+      'cats_zip',
     ];
+
+    // Track if address fields are being updated
+    const addressFieldsUpdated = ['cats_address', 'cats_city', 'cats_zip'].some(f => f in body);
 
     for (const field of allowedFields) {
       if (field in body) {
@@ -152,6 +159,17 @@ export async function PATCH(
       );
     }
 
+    // If address is being corrected, clear old geo data and place link
+    // so the re-linking function can properly deduplicate
+    if (addressFieldsUpdated) {
+      updates.push(`geo_formatted_address = NULL`);
+      updates.push(`geo_latitude = NULL`);
+      updates.push(`geo_longitude = NULL`);
+      updates.push(`geo_confidence = NULL`);
+      updates.push(`place_id = NULL`);
+      updates.push(`matched_place_id = NULL`);
+    }
+
     updates.push(`updated_at = NOW()`);
     values.push(id);
 
@@ -163,6 +181,43 @@ export async function PATCH(
     `;
 
     const updated = await queryOne<IntakeSubmission>(sql, values);
+
+    // If address was corrected, re-link to proper place with deduplication
+    if (addressFieldsUpdated && updated) {
+      try {
+        // This function handles deduplication via find_or_create_place_deduped
+        // and queues for geocoding if needed
+        await queryOne(
+          `SELECT trapper.link_intake_submission_to_place($1)`,
+          [id]
+        );
+
+        // Fetch the updated submission with new place link
+        const refreshed = await queryOne<IntakeSubmission>(`
+          SELECT w.*,
+                 p.formatted_address as geo_formatted_address,
+                 ST_Y(p.location::geometry) as geo_latitude,
+                 ST_X(p.location::geometry) as geo_longitude,
+                 CASE WHEN p.location IS NOT NULL THEN 'geocoded' ELSE NULL END as geo_confidence
+          FROM trapper.web_intake_submissions w
+          LEFT JOIN trapper.places p ON p.place_id = w.place_id
+          WHERE w.submission_id = $1
+        `, [id]);
+
+        return NextResponse.json({
+          submission: refreshed,
+          address_relinked: true,
+        });
+      } catch (linkErr) {
+        console.error("Place re-linking error:", linkErr);
+        // Return the updated submission even if relinking failed
+        return NextResponse.json({
+          submission: updated,
+          address_relinked: false,
+          relink_error: "Failed to re-link place, please try again",
+        });
+      }
+    }
 
     return NextResponse.json({ submission: updated });
   } catch (err) {

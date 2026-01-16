@@ -12,6 +12,7 @@ interface IntakeSubmission {
   phone: string | null;
   cats_address: string;
   cats_city: string | null;
+  cats_zip: string | null;
   ownership_status: string;
   cat_count_estimate: number | null;
   fixed_status: string;
@@ -304,6 +305,14 @@ function IntakeQueueContent() {
   const [bookingDate, setBookingDate] = useState("");
   const [bookingNotes, setBookingNotes] = useState("");
 
+  // Address edit state
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [addressEdits, setAddressEdits] = useState({
+    cats_address: "",
+    cats_city: "",
+    cats_zip: "",
+  });
+
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
@@ -369,6 +378,11 @@ function IntakeQueueContent() {
       .then((data) => setStaffList(data.staff || []))
       .catch((err) => console.error("Failed to fetch staff:", err));
   }, []);
+
+  // Reset address editing when submission changes
+  useEffect(() => {
+    setEditingAddress(false);
+  }, [selectedSubmission?.submission_id]);
 
   // Fetch communication logs for a submission
   const fetchCommunicationLogs = async (submissionId: string) => {
@@ -580,6 +594,51 @@ function IntakeQueueContent() {
       }
     } catch (err) {
       console.error("Failed to save:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAddress = async () => {
+    if (!selectedSubmission) return;
+    if (!addressEdits.cats_address.trim()) {
+      alert("Street address is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cats_address: addressEdits.cats_address.trim(),
+          cats_city: addressEdits.cats_city.trim() || null,
+          cats_zip: addressEdits.cats_zip.trim() || null,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setEditingAddress(false);
+        // Update local state with refreshed submission data
+        if (data.submission) {
+          setSelectedSubmission(data.submission);
+        }
+        // Show success message
+        if (data.address_relinked) {
+          setToastMessage("Address updated and re-linked to place");
+        } else {
+          setToastMessage("Address updated");
+        }
+        setTimeout(() => setToastMessage(null), 5000);
+        fetchSubmissions();
+      } else {
+        const err = await response.json();
+        alert(err.error || "Failed to update address");
+      }
+    } catch (err) {
+      console.error("Failed to save address:", err);
+      alert("Failed to save address");
     } finally {
       setSaving(false);
     }
@@ -1366,13 +1425,122 @@ function IntakeQueueContent() {
 
             {/* Location */}
             <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem" }}>Location</h3>
-              <p style={{ margin: 0 }}>{selectedSubmission.cats_address}</p>
-              {selectedSubmission.cats_city && <p style={{ margin: 0, color: "var(--muted)" }}>{selectedSubmission.cats_city}</p>}
-              {selectedSubmission.geo_formatted_address && selectedSubmission.geo_formatted_address !== selectedSubmission.cats_address && (
-                <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                  Geocoded: {selectedSubmission.geo_formatted_address}
-                </p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1rem" }}>Location</h3>
+                {!editingAddress ? (
+                  <button
+                    onClick={() => {
+                      setAddressEdits({
+                        cats_address: selectedSubmission.cats_address || "",
+                        cats_city: selectedSubmission.cats_city || "",
+                        cats_zip: "",
+                      });
+                      setEditingAddress(true);
+                    }}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      fontSize: "0.75rem",
+                      background: "transparent",
+                      border: "1px solid var(--muted)",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Edit Address
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      onClick={() => setEditingAddress(false)}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        background: "transparent",
+                        border: "1px solid var(--muted)",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveAddress}
+                      disabled={saving}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        background: "#198754",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!editingAddress ? (
+                <>
+                  <p style={{ margin: 0 }}>{selectedSubmission.cats_address}</p>
+                  {selectedSubmission.cats_city && <p style={{ margin: 0, color: "var(--muted)" }}>{selectedSubmission.cats_city}</p>}
+                  {selectedSubmission.geo_formatted_address && selectedSubmission.geo_formatted_address !== selectedSubmission.cats_address && (
+                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
+                      Geocoded: {selectedSubmission.geo_formatted_address}
+                    </p>
+                  )}
+                  {!selectedSubmission.geo_formatted_address && selectedSubmission.geo_confidence === null && (
+                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#fd7e14" }}>
+                      ⚠ Address needs geocoding - consider correcting if vague
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
+                      Street Address *
+                    </label>
+                    <input
+                      type="text"
+                      value={addressEdits.cats_address}
+                      onChange={(e) => setAddressEdits({ ...addressEdits, cats_address: e.target.value })}
+                      placeholder="123 Main St"
+                      style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid var(--muted)" }}
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "0.5rem" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        value={addressEdits.cats_city}
+                        onChange={(e) => setAddressEdits({ ...addressEdits, cats_city: e.target.value })}
+                        placeholder="Santa Rosa"
+                        style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid var(--muted)" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
+                        ZIP
+                      </label>
+                      <input
+                        type="text"
+                        value={addressEdits.cats_zip}
+                        onChange={(e) => setAddressEdits({ ...addressEdits, cats_zip: e.target.value })}
+                        placeholder="95401"
+                        style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid var(--muted)" }}
+                      />
+                    </div>
+                  </div>
+                  <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
+                    Address will be re-geocoded and linked to the correct place (with deduplication)
+                  </p>
+                </div>
               )}
             </div>
 
