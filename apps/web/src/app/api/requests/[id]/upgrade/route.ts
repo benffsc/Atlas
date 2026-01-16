@@ -55,7 +55,7 @@ export async function POST(
     }
 
     // Check if already upgraded
-    if (existingRequest.data_source === "atlas" || existingRequest.source_system === "atlas") {
+    if (existingRequest.data_source === "atlas" || existingRequest.source_system === "atlas_ui") {
       return NextResponse.json(
         { error: "This request has already been upgraded to Atlas schema" },
         { status: 400 }

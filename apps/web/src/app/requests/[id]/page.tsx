@@ -780,7 +780,7 @@ export default function RequestDetailPage() {
                 )}
               </>
             )}
-            {request.source_system === "airtable" && <LegacyBadge />}
+            {request.source_system?.startsWith("airtable") && <LegacyBadge />}
           </div>
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
             <StatusBadge status={request.status} />
@@ -882,7 +882,7 @@ export default function RequestDetailPage() {
       )}
 
       {/* Tab Navigation - only show for legacy requests */}
-      {request.source_system === "airtable" && !editing && (
+      {request.source_system?.startsWith("airtable") && !editing && (
         <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "1.5rem" }}>
           {[
             { id: "details" as const, label: "Details" },
@@ -909,7 +909,7 @@ export default function RequestDetailPage() {
       )}
 
       {/* Legacy Info Tab Content */}
-      {activeTab === "legacy" && request.source_system === "airtable" && !editing && (
+      {activeTab === "legacy" && request.source_system?.startsWith("airtable") && !editing && (
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
           <h2 style={{ marginTop: 0, marginBottom: "1rem" }}>Legacy Airtable Data</h2>
           <div style={{
@@ -2248,7 +2248,7 @@ export default function RequestDetailPage() {
               <div className="text-muted text-sm">Request ID</div>
               <code style={{ fontSize: "0.8rem" }}>{request.request_id}</code>
             </div>
-            {request.source_system === "airtable" && request.source_record_id && (
+            {request.source_system?.startsWith("airtable") && request.source_record_id && (
               <div style={{ marginTop: "1rem" }}>
                 <a
                   href={`https://airtable.com/appl6zLrRFDvsz0dh/tblc1bva7jFzg8DVF/${request.source_record_id}`}
