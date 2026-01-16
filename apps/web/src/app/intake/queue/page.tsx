@@ -89,7 +89,6 @@ const CONTACT_RESULTS = [
   { value: "left_voicemail", label: "Left Voicemail" },
   { value: "sent", label: "Sent (email/text)" },
   { value: "scheduled", label: "Scheduled Appointment" },
-  { value: "journal_entry", label: "Journal Entry (internal note)" },
   { value: "other", label: "Other" },
 ];
 
@@ -286,6 +285,7 @@ function IntakeQueueContent() {
     contact_result: "answered",
     notes: "",
     contacted_by: "",
+    is_journal_only: false,
   });
 
   // Staff list for dropdown
@@ -394,6 +394,7 @@ function IntakeQueueContent() {
       contact_result: "answered",
       notes: "",
       contacted_by: "",
+      is_journal_only: false,
     });
     setShowContactModal(true);
     fetchCommunicationLogs(sub.submission_id);
@@ -418,6 +419,7 @@ function IntakeQueueContent() {
         setContactForm({
           ...contactForm,
           notes: "",
+          is_journal_only: false,
         });
       }
     } catch (err) {
@@ -1684,42 +1686,62 @@ function IntakeQueueContent() {
 
             {/* Contact Form */}
             <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <h3 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>New Contact Log</h3>
+              <h3 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>
+                {contactForm.is_journal_only ? "New Journal Entry" : "New Contact Log"}
+              </h3>
+
+              {/* Journal Only Toggle */}
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={contactForm.is_journal_only}
+                    onChange={(e) => setContactForm({ ...contactForm, is_journal_only: e.target.checked })}
+                    style={{ width: "1rem", height: "1rem" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>Just log a journal entry (internal note only)</span>
+                </label>
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Contact Method
-                  </label>
-                  <select
-                    value={contactForm.contact_method}
-                    onChange={(e) => setContactForm({ ...contactForm, contact_method: e.target.value })}
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  >
-                    {CONTACT_METHODS.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Contact Method & Result - only show if not journal only */}
+                {!contactForm.is_journal_only && (
+                  <>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Contact Method
+                      </label>
+                      <select
+                        value={contactForm.contact_method}
+                        onChange={(e) => setContactForm({ ...contactForm, contact_method: e.target.value })}
+                        style={{ width: "100%", padding: "0.5rem" }}
+                      >
+                        {CONTACT_METHODS.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Result
-                  </label>
-                  <select
-                    value={contactForm.contact_result}
-                    onChange={(e) => setContactForm({ ...contactForm, contact_result: e.target.value })}
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  >
-                    {CONTACT_RESULTS.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Result
+                      </label>
+                      <select
+                        value={contactForm.contact_result}
+                        onChange={(e) => setContactForm({ ...contactForm, contact_result: e.target.value })}
+                        style={{ width: "100%", padding: "0.5rem" }}
+                      >
+                        {CONTACT_RESULTS.map((r) => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
-                <div>
+                <div style={{ gridColumn: contactForm.is_journal_only ? "1 / -1" : undefined }}>
                   <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Who Contacted
+                    {contactForm.is_journal_only ? "Staff" : "Who Contacted"}
                   </label>
                   <select
                     value={contactForm.contacted_by}
@@ -1737,13 +1759,13 @@ function IntakeQueueContent() {
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Notes
+                    {contactForm.is_journal_only ? "Journal Entry" : "Notes"}
                   </label>
                   <textarea
                     value={contactForm.notes}
                     onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
                     rows={3}
-                    placeholder="Brief notes about the conversation or attempt..."
+                    placeholder={contactForm.is_journal_only ? "Internal notes..." : "Brief notes about the conversation or attempt..."}
                     style={{ width: "100%", padding: "0.5rem", resize: "vertical" }}
                   />
                 </div>
@@ -1755,7 +1777,7 @@ function IntakeQueueContent() {
                   disabled={saving}
                   style={{
                     padding: "0.5rem 1rem",
-                    background: "#6f42c1",
+                    background: contactForm.is_journal_only ? "#0d6efd" : "#6f42c1",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
@@ -1763,7 +1785,7 @@ function IntakeQueueContent() {
                     fontWeight: 500,
                   }}
                 >
-                  {saving ? "Saving..." : "Save Contact Log"}
+                  {saving ? "Saving..." : contactForm.is_journal_only ? "Save Journal Entry" : "Save Contact Log"}
                 </button>
               </div>
             </div>

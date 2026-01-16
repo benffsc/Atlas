@@ -11,6 +11,10 @@ interface Submission {
   cat_count_estimate: number | null;
   cat_count_text: string | null;
   situation_description: string | null;
+  // Unified status (primary)
+  submission_status: string | null;
+  appointment_date: string | null;
+  // Native status (for reference)
   status: string;
   triage_category: string | null;
   is_legacy: boolean;
@@ -43,6 +47,8 @@ export async function GET(
         cat_count_estimate,
         cat_count_text,
         situation_description,
+        submission_status,
+        appointment_date,
         status,
         triage_category,
         is_legacy,

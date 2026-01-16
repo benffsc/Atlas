@@ -12,6 +12,10 @@ interface Submission {
   cat_count_estimate: number | null;
   cat_count_text: string | null;
   situation_description: string | null;
+  // Unified status (primary)
+  submission_status: string | null;
+  appointment_date: string | null;
+  // Native status (for reference)
   status: string;
   triage_category: string | null;
   is_legacy: boolean;
@@ -60,33 +64,25 @@ function SourceBadge({ isLegacy }: { isLegacy: boolean }) {
   );
 }
 
-function StatusBadge({ status, legacyStatus }: { status: string; legacyStatus: string | null }) {
-  // For legacy submissions, show the legacy status if available
-  const displayStatus = legacyStatus || status;
-
-  const colors: Record<string, { bg: string; color: string }> = {
-    new: { bg: "#0d6efd", color: "#fff" },
-    triaged: { bg: "#6610f2", color: "#fff" },
-    reviewed: { bg: "#198754", color: "#fff" },
-    request_created: { bg: "#20c997", color: "#000" },
-    redirected: { bg: "#fd7e14", color: "#000" },
-    client_handled: { bg: "#6c757d", color: "#fff" },
-    archived: { bg: "#adb5bd", color: "#000" },
-    // Legacy statuses
-    Booked: { bg: "#20c997", color: "#000" },
-    "Pending Review": { bg: "#ffc107", color: "#000" },
-    "Not Eligible": { bg: "#dc3545", color: "#fff" },
-    "More Info Needed": { bg: "#fd7e14", color: "#000" },
+// Unified status badge for the new submission_status field
+function StatusBadge({ submissionStatus }: { submissionStatus: string | null }) {
+  const colors: Record<string, { bg: string; color: string; label: string }> = {
+    "new": { bg: "#0d6efd", color: "#fff", label: "New" },
+    "in_progress": { bg: "#fd7e14", color: "#000", label: "In Progress" },
+    "scheduled": { bg: "#198754", color: "#fff", label: "Scheduled" },
+    "complete": { bg: "#20c997", color: "#000", label: "Complete" },
+    "archived": { bg: "#adb5bd", color: "#000", label: "Archived" },
   };
 
-  const style = colors[displayStatus] || { bg: "#6c757d", color: "#fff" };
+  const status = submissionStatus || "new";
+  const style = colors[status] || colors["new"];
 
   return (
     <span
       className="badge"
       style={{ background: style.bg, color: style.color, fontSize: "0.65rem" }}
     >
-      {displayStatus.replace(/_/g, " ")}
+      {style.label}
     </span>
   );
 }
@@ -207,7 +203,7 @@ export function SubmissionsSection({ entityType, entityId }: SubmissionsSectionP
             {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
               <SourceBadge isLegacy={submission.is_legacy} />
-              <StatusBadge status={submission.status} legacyStatus={submission.legacy_submission_status} />
+              <StatusBadge submissionStatus={submission.submission_status} />
               <TriageBadge category={submission.triage_category} />
               <span className="text-muted text-sm" style={{ marginLeft: "auto" }}>
                 {new Date(submission.submitted_at).toLocaleDateString()}
@@ -243,10 +239,10 @@ export function SubmissionsSection({ entityType, entityId }: SubmissionsSectionP
                   )}
                 </div>
               )}
-              {submission.legacy_appointment_date && (
+              {(submission.appointment_date || submission.legacy_appointment_date) && (
                 <div>
                   <span className="text-muted">Appt date: </span>
-                  <span>{new Date(submission.legacy_appointment_date).toLocaleDateString()}</span>
+                  <span>{new Date(submission.appointment_date || submission.legacy_appointment_date!).toLocaleDateString()}</span>
                 </div>
               )}
             </div>
