@@ -453,10 +453,10 @@ export async function POST(request: NextRequest) {
     // Step 2: Validate and promote to SoT
     const promotionResult = await queryOne<PromotionResult>(
       `SELECT
-        promoted_request_id::TEXT,
-        intake_status::TEXT,
-        validation_errors,
-        validation_warnings
+        promotion.promoted_request_id::TEXT,
+        r.intake_status::TEXT,
+        r.validation_errors,
+        r.validation_warnings
        FROM (
          SELECT trapper.promote_intake_request($1, $2) AS promoted_request_id
        ) promotion
