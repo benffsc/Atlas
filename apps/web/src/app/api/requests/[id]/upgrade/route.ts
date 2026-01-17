@@ -79,7 +79,7 @@ export async function POST(
         urgency_reasons = $11,
         urgency_notes = $12,
         -- Mark as upgraded
-        data_source = 'atlas'::trapper.data_source,
+        data_source = 'atlas_ui'::trapper.data_source,
         -- Update status based on flags
         has_kittens = CASE WHEN $13 THEN FALSE ELSE has_kittens END,
         -- Timestamps
@@ -119,7 +119,7 @@ export async function POST(
         ) VALUES (
           'request', $1, 'upgrade',
           jsonb_build_object('data_source', $2, 'source_system', $3),
-          jsonb_build_object('data_source', 'atlas', 'upgraded_at', NOW()::TEXT),
+          jsonb_build_object('data_source', 'atlas_ui', 'upgraded_at', NOW()::TEXT),
           'web_user', 'Legacy request upgraded to Atlas schema'
         )`,
         [id, existingRequest.data_source, existingRequest.source_system]
