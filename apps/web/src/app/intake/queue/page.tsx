@@ -105,13 +105,30 @@ const CONTACT_STATUSES = [
   { value: "Sent to Diane/Out of County", label: "Sent to Diane" },
 ];
 
-// Submission status options (workflow state)
+// Submission status options (legacy workflow state)
 const SUBMISSION_STATUSES = [
   { value: "", label: "(none)" },
   { value: "Pending Review", label: "Pending Review" },
   { value: "Booked", label: "Booked" },
   { value: "Declined", label: "Declined" },
   { value: "Complete", label: "Complete" },
+];
+
+// Unified submission status options (new workflow)
+const UNIFIED_STATUSES = [
+  { value: "new", label: "New", description: "Just submitted, needs attention" },
+  { value: "in_progress", label: "In Progress", description: "Being worked on" },
+  { value: "scheduled", label: "Scheduled", description: "Appointment booked" },
+  { value: "complete", label: "Complete", description: "Done" },
+  { value: "archived", label: "Archived", description: "Hidden from queue" },
+];
+
+// Priority override options
+const PRIORITY_OPTIONS = [
+  { value: "", label: "Auto", description: "Use triage score" },
+  { value: "high", label: "High", description: "Prioritize this request" },
+  { value: "normal", label: "Normal", description: "Standard priority" },
+  { value: "low", label: "Low", description: "Lower priority" },
 ];
 
 // Reasons for removing urgent/emergency flag
@@ -310,6 +327,11 @@ function IntakeQueueContent() {
   const [saving, setSaving] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
   const [statusEdits, setStatusEdits] = useState({
+    // Unified status fields (primary)
+    submission_status: "",
+    appointment_date: "",
+    priority_override: "",
+    // Legacy fields (for backward compatibility)
     legacy_status: "",
     legacy_submission_status: "",
     legacy_appointment_date: "",
@@ -634,6 +656,11 @@ function IntakeQueueContent() {
   const openDetail = (sub: IntakeSubmission) => {
     setSelectedSubmission(sub);
     setStatusEdits({
+      // Unified status fields
+      submission_status: sub.submission_status || "new",
+      appointment_date: sub.appointment_date || "",
+      priority_override: sub.priority_override || "",
+      // Legacy fields
       legacy_status: sub.legacy_status || "",
       legacy_submission_status: sub.legacy_submission_status || "",
       legacy_appointment_date: sub.legacy_appointment_date || "",
@@ -649,11 +676,16 @@ function IntakeQueueContent() {
     if (!selectedSubmission) return;
     setSaving(true);
     try {
-      const response = await fetch("/api/intake/status", {
+      // Use the [id] PATCH endpoint for unified status
+      const response = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          submission_id: selectedSubmission.submission_id,
+          // Unified status fields
+          submission_status: statusEdits.submission_status || null,
+          appointment_date: statusEdits.appointment_date || null,
+          priority_override: statusEdits.priority_override || null,
+          // Legacy fields (keep for backward compatibility)
           legacy_status: statusEdits.legacy_status || null,
           legacy_submission_status: statusEdits.legacy_submission_status || null,
           legacy_appointment_date: statusEdits.legacy_appointment_date || null,
@@ -662,10 +694,11 @@ function IntakeQueueContent() {
       });
 
       if (response.ok) {
+        const data = await response.json();
         setEditingStatus(false);
         setSelectedSubmission({
           ...selectedSubmission,
-          ...statusEdits,
+          ...data.submission,
         });
         fetchSubmissions();
       }
@@ -1566,103 +1599,129 @@ function IntakeQueueContent() {
               </div>
             )}
 
-            {/* Status Section */}
+            {/* Status Section - Unified workflow */}
             <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <h3 style={{ margin: 0, fontSize: "1rem" }}>Submission Tracking</h3>
-                {!editingStatus ? (
-                  <button onClick={() => setEditingStatus(true)} style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}>
-                    Edit
-                  </button>
-                ) : (
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      onClick={handleSaveStatus}
-                      disabled={saving}
-                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px" }}
-                    >
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
-                    <button onClick={() => setEditingStatus(false)} style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}>
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                Track outreach and booking status for this intake submission
-              </p>
+              <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Status & Priority</h3>
 
-              {editingStatus ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Contact Status</label>
-                    <select
-                      value={statusEdits.legacy_status}
-                      onChange={(e) => setStatusEdits({ ...statusEdits, legacy_status: e.target.value })}
-                      style={{ width: "100%", padding: "0.5rem" }}
-                    >
-                      {CONTACT_STATUSES.map((s) => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Submission Status</label>
-                    <select
-                      value={statusEdits.legacy_submission_status}
-                      onChange={(e) => setStatusEdits({ ...statusEdits, legacy_submission_status: e.target.value })}
-                      style={{ width: "100%", padding: "0.5rem" }}
-                    >
-                      {SUBMISSION_STATUSES.map((s) => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                {/* Status dropdown - always visible, saves on change */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Status</label>
+                  <select
+                    value={statusEdits.submission_status || selectedSubmission.submission_status || "new"}
+                    onChange={async (e) => {
+                      const newStatus = e.target.value;
+                      setStatusEdits({ ...statusEdits, submission_status: newStatus });
+                      // Auto-save on change
+                      try {
+                        const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ submission_status: newStatus }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setSelectedSubmission({ ...selectedSubmission, ...data.submission, submission_status: newStatus });
+                          fetchSubmissions();
+                        }
+                      } catch (err) {
+                        console.error("Failed to update status:", err);
+                      }
+                    }}
+                    style={{ width: "100%", padding: "0.5rem", fontWeight: 500 }}
+                  >
+                    {UNIFIED_STATUSES.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Priority dropdown */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Priority {selectedSubmission.triage_score && !statusEdits.priority_override && (
+                      <span style={{ fontWeight: 400, color: "var(--muted)" }}>
+                        (Score: {selectedSubmission.triage_score})
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    value={statusEdits.priority_override || selectedSubmission.priority_override || ""}
+                    onChange={async (e) => {
+                      const newPriority = e.target.value;
+                      setStatusEdits({ ...statusEdits, priority_override: newPriority });
+                      // Auto-save on change
+                      try {
+                        const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ priority_override: newPriority || null }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setSelectedSubmission({ ...selectedSubmission, ...data.submission, priority_override: newPriority || null });
+                          fetchSubmissions();
+                        }
+                      } catch (err) {
+                        console.error("Failed to update priority:", err);
+                      }
+                    }}
+                    style={{ width: "100%", padding: "0.5rem" }}
+                  >
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Appointment date - shown when status is scheduled */}
+                {(statusEdits.submission_status === "scheduled" || selectedSubmission.submission_status === "scheduled") && (
+                  <div style={{ gridColumn: "1 / -1" }}>
                     <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Appointment Date</label>
                     <input
                       type="date"
-                      value={statusEdits.legacy_appointment_date}
-                      onChange={(e) => setStatusEdits({ ...statusEdits, legacy_appointment_date: e.target.value })}
+                      value={statusEdits.appointment_date || selectedSubmission.appointment_date || ""}
+                      onChange={async (e) => {
+                        const newDate = e.target.value;
+                        setStatusEdits({ ...statusEdits, appointment_date: newDate });
+                        // Auto-save on change
+                        try {
+                          const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ appointment_date: newDate || null }),
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            setSelectedSubmission({ ...selectedSubmission, ...data.submission, appointment_date: newDate || null });
+                            fetchSubmissions();
+                          }
+                        } catch (err) {
+                          console.error("Failed to update appointment:", err);
+                        }
+                      }}
                       style={{ width: "100%", padding: "0.5rem" }}
                     />
                   </div>
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Notes</label>
-                    <textarea
-                      value={statusEdits.legacy_notes}
-                      onChange={(e) => setStatusEdits({ ...statusEdits, legacy_notes: e.target.value })}
-                      rows={2}
-                      style={{ width: "100%", padding: "0.5rem", resize: "vertical" }}
-                      placeholder="Working notes..."
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.9rem" }}>
-                  <div>
-                    <strong>Contact:</strong>{" "}
-                    <span style={{ color: selectedSubmission.legacy_status ? "inherit" : "var(--muted)" }}>
-                      {selectedSubmission.legacy_status || "(not contacted)"}
-                    </span>
-                  </div>
-                  <div>
-                    <strong>Status:</strong>{" "}
-                    <LegacyStatusBadge status={selectedSubmission.legacy_submission_status} />
-                    {!selectedSubmission.legacy_submission_status && <span style={{ color: "var(--muted)" }}>(pending)</span>}
-                  </div>
-                  {selectedSubmission.legacy_appointment_date && (
-                    <div>
-                      <strong>Appt Date:</strong> {formatDate(selectedSubmission.legacy_appointment_date)}
+                )}
+              </div>
+
+              {/* Legacy status section - collapsible for backward compatibility */}
+              {selectedSubmission.is_legacy && (
+                <details style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
+                  <summary style={{ cursor: "pointer", color: "var(--muted)" }}>
+                    Legacy Status Fields
+                  </summary>
+                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(0,0,0,0.03)", borderRadius: "4px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <div><strong>Contact:</strong> {selectedSubmission.legacy_status || "(none)"}</div>
+                      <div><strong>Status:</strong> {selectedSubmission.legacy_submission_status || "(none)"}</div>
+                      {selectedSubmission.legacy_appointment_date && (
+                        <div><strong>Appt:</strong> {formatDate(selectedSubmission.legacy_appointment_date)}</div>
+                      )}
                     </div>
-                  )}
-                  {selectedSubmission.legacy_notes && (
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <strong>Notes:</strong> {selectedSubmission.legacy_notes}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                </details>
               )}
             </div>
 
