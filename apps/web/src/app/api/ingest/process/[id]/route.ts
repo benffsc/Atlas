@@ -175,8 +175,8 @@ export async function POST(
         .substring(0, 16);
 
       // Check if exists by row_id OR by hash (unique constraint is on hash)
-      const existing = await queryOne<{ id: string; row_hash: string; source_row_id: string }>(
-        `SELECT id, row_hash, source_row_id FROM trapper.staged_records
+      const existing = await queryOne<{ id: string; row_hash: string; source_row_id: string; file_upload_id: string | null }>(
+        `SELECT id, row_hash, source_row_id, file_upload_id FROM trapper.staged_records
          WHERE source_system = $1 AND source_table = $2
            AND (source_row_id = $3 OR row_hash = $4)`,
         [upload.source_system, upload.source_table, sourceRowId, rowHash]
@@ -184,15 +184,21 @@ export async function POST(
 
       if (existing) {
         if (existing.row_hash === rowHash) {
-          // Exact same content - skip
+          // Exact same content - skip (but update file_upload_id if not set)
+          if (!existing.file_upload_id) {
+            await query(
+              `UPDATE trapper.staged_records SET file_upload_id = $1 WHERE id = $2`,
+              [uploadId, existing.id]
+            );
+          }
           skipped++;
         } else {
           // Same row_id but different content - update
           await query(
             `UPDATE trapper.staged_records
-             SET payload = $1, row_hash = $2, updated_at = NOW()
-             WHERE id = $3`,
-            [JSON.stringify(row), rowHash, existing.id]
+             SET payload = $1, row_hash = $2, file_upload_id = $3, updated_at = NOW()
+             WHERE id = $4`,
+            [JSON.stringify(row), rowHash, uploadId, existing.id]
           );
           updated++;
         }
@@ -200,11 +206,11 @@ export async function POST(
         // Insert new record with ON CONFLICT to handle race conditions
         const insertResult = await query(
           `INSERT INTO trapper.staged_records
-           (source_system, source_table, source_row_id, payload, row_hash)
-           VALUES ($1, $2, $3, $4, $5)
+           (source_system, source_table, source_row_id, payload, row_hash, file_upload_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (source_system, source_table, row_hash) DO NOTHING
            RETURNING id`,
-          [upload.source_system, upload.source_table, sourceRowId, JSON.stringify(row), rowHash]
+          [upload.source_system, upload.source_table, sourceRowId, JSON.stringify(row), rowHash, uploadId]
         );
         if (insertResult.rowCount && insertResult.rowCount > 0) {
           inserted++;
