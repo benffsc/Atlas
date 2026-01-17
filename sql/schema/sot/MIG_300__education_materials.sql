@@ -102,7 +102,8 @@ SELECT
     ARRAY_AGG(DISTINCT em.title) FILTER (WHERE em.is_required AND mc.material_id IS NULL) AS missing_materials
 FROM trapper.sot_people p
 JOIN trapper.person_roles pr ON pr.person_id = p.person_id
-    AND pr.role_type IN ('ffsc_trapper', 'community_trapper', 'head_trapper', 'coordinator')
+    AND pr.role = 'trapper'
+    AND pr.trapper_type IN ('ffsc_trapper', 'community_trapper', 'head_trapper', 'coordinator')
     AND pr.role_status = 'active'
 CROSS JOIN trapper.education_materials em
 LEFT JOIN trapper.material_completions mc ON mc.person_id = p.person_id AND mc.material_id = em.material_id
@@ -196,7 +197,7 @@ VALUES (
 <p>Unfortunately, the address you provided appears to be in <strong>{{county}}</strong>, which is outside our service area. We are only able to serve cats within Sonoma County.</p>
 <p>We recommend contacting local animal services or TNR organizations in your area for assistance.</p>
 <p>Best wishes,<br>Forgotten Felines Team</p>',
-    '["first_name", "county"]'::JSONB
+    ARRAY['first_name', 'county']
 )
 ON CONFLICT (template_key) DO NOTHING;
 
@@ -206,15 +207,15 @@ VALUES
     ('onboarding_welcome', 'Onboarding Welcome', 'First contact email for new trapper interest',
      'Welcome to Forgotten Felines - Next Steps',
      '<p>Hi {{first_name}},</p><p>Thank you for your interest in becoming a volunteer trapper with Forgotten Felines of Sonoma County!</p><p>We''ll be in touch soon to schedule your orientation session.</p><p>Best,<br>The FFSC Team</p>',
-     '["first_name"]'::JSONB),
+     ARRAY['first_name']),
     ('orientation_reminder', 'Orientation Reminder', 'Reminder before orientation session',
      'Reminder: Your FFSC Orientation',
      '<p>Hi {{first_name}},</p><p>This is a reminder about your upcoming orientation session.</p><p>Please review the training materials at your convenience before attending.</p><p>See you soon!</p>',
-     '["first_name", "orientation_date"]'::JSONB),
+     ARRAY['first_name', 'orientation_date']),
     ('training_complete', 'Training Complete', 'Sent when training is completed',
      'Congratulations on Completing Training!',
      '<p>Hi {{first_name}},</p><p>Congratulations on completing your trapper training! You''re almost ready to start helping cats in Sonoma County.</p><p>Next step: We''ll send your volunteer contract for review and signature.</p><p>Thank you for joining our mission!</p>',
-     '["first_name"]'::JSONB)
+     ARRAY['first_name'])
 ON CONFLICT (template_key) DO NOTHING;
 
 -- ============================================================================

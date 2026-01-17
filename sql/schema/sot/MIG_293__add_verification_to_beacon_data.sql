@@ -33,9 +33,10 @@ CREATE INDEX IF NOT EXISTS idx_colony_estimates_verified
 -- PART 2: Add to cat_birth_events
 -- ============================================
 \echo ''
-\echo 'Adding verification columns to cat_birth_events...'
+\echo 'Adding verification and source_type columns to cat_birth_events...'
 
 ALTER TABLE trapper.cat_birth_events
+    ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'manual',
     ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS verified_by_staff_id UUID REFERENCES trapper.staff(staff_id);
 
@@ -50,9 +51,10 @@ CREATE INDEX IF NOT EXISTS idx_birth_events_verified
 -- PART 3: Add to cat_mortality_events
 -- ============================================
 \echo ''
-\echo 'Adding verification columns to cat_mortality_events...'
+\echo 'Adding verification and source_type columns to cat_mortality_events...'
 
 ALTER TABLE trapper.cat_mortality_events
+    ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'manual',
     ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS verified_by_staff_id UUID REFERENCES trapper.staff(staff_id);
 
@@ -67,9 +69,10 @@ CREATE INDEX IF NOT EXISTS idx_mortality_events_verified
 -- PART 4: Add to cat_vitals
 -- ============================================
 \echo ''
-\echo 'Adding verification columns to cat_vitals...'
+\echo 'Adding verification and source_type columns to cat_vitals...'
 
 ALTER TABLE trapper.cat_vitals
+    ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'clinic',
     ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS verified_by_staff_id UUID REFERENCES trapper.staff(staff_id);
 

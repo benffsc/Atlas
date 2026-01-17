@@ -48,6 +48,16 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- ============================================
+-- 1.5. Add primary_email and primary_phone to sot_people if not exists
+-- ============================================
+
+\echo 'Adding contact columns to sot_people if needed...'
+
+ALTER TABLE trapper.sot_people
+    ADD COLUMN IF NOT EXISTS primary_email TEXT,
+    ADD COLUMN IF NOT EXISTS primary_phone TEXT;
+
+-- ============================================
 -- 2. Trapper onboarding table
 -- ============================================
 
@@ -228,8 +238,12 @@ SELECT
     o.onboarding_id,
     o.person_id,
     p.display_name,
-    p.primary_email,
-    p.primary_phone,
+    COALESCE(p.primary_email, (SELECT pi.id_value_raw FROM trapper.person_identifiers pi
+        WHERE pi.person_id = p.person_id AND pi.id_type = 'email'
+        ORDER BY pi.created_at DESC LIMIT 1)) AS primary_email,
+    COALESCE(p.primary_phone, (SELECT pi.id_value_raw FROM trapper.person_identifiers pi
+        WHERE pi.person_id = p.person_id AND pi.id_type = 'phone'
+        ORDER BY pi.created_at DESC LIMIT 1)) AS primary_phone,
     o.status,
     o.target_trapper_type,
     -- Progress indicators

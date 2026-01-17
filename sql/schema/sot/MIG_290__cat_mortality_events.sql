@@ -350,7 +350,7 @@ Helps identify high-risk periods (e.g., kitten season mortality).';
 CREATE OR REPLACE VIEW trapper.v_place_mortality_stats AS
 SELECT
     me.place_id,
-    p.label AS place_name,
+    p.display_name AS place_name,
     COUNT(*) AS deaths_recorded,
     COUNT(*) FILTER (WHERE me.death_age_category = 'kitten') AS kitten_deaths,
     COUNT(*) FILTER (WHERE me.death_age_category IN ('adult', 'senior')) AS adult_deaths,
@@ -365,7 +365,7 @@ SELECT
 FROM trapper.cat_mortality_events me
 LEFT JOIN trapper.places p ON p.place_id = me.place_id
 WHERE me.place_id IS NOT NULL
-GROUP BY me.place_id, p.label;
+GROUP BY me.place_id, p.display_name;
 
 COMMENT ON VIEW trapper.v_place_mortality_stats IS
 'Per-place mortality statistics for colony survival analysis.

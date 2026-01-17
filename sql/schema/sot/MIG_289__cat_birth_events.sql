@@ -256,9 +256,10 @@ SELECT
     be.litter_id,
     be.mother_cat_id,
     mc.display_name AS mother_name,
-    mc.microchip AS mother_microchip,
+    (SELECT ci.id_value FROM trapper.cat_identifiers ci
+     WHERE ci.cat_id = mc.cat_id AND ci.id_type = 'microchip' LIMIT 1) AS mother_microchip,
     be.place_id,
-    p.label AS place_name,
+    p.display_name AS place_name,
     MIN(be.birth_date) AS birth_date,
     MAX(be.birth_date_precision::TEXT) AS birth_date_precision,
     MIN(be.birth_year) AS birth_year,
@@ -278,9 +279,9 @@ GROUP BY
     be.litter_id,
     be.mother_cat_id,
     mc.display_name,
-    mc.microchip,
+    mc.cat_id,
     be.place_id,
-    p.label;
+    p.display_name;
 
 COMMENT ON VIEW trapper.v_litter_summary IS
 'Aggregates birth events by litter for Beacon reproduction analysis.
@@ -325,7 +326,7 @@ Aligns with Vortex model breeding season parameters (Feb-Nov for California).';
 CREATE OR REPLACE VIEW trapper.v_place_reproduction_stats AS
 SELECT
     be.place_id,
-    p.label AS place_name,
+    p.display_name AS place_name,
     COUNT(DISTINCT be.cat_id) AS kittens_born,
     COUNT(DISTINCT be.litter_id) AS litters_born,
     COUNT(DISTINCT be.mother_cat_id) FILTER (WHERE be.mother_cat_id IS NOT NULL) AS known_mothers,
@@ -344,7 +345,7 @@ SELECT
 FROM trapper.cat_birth_events be
 LEFT JOIN trapper.places p ON p.place_id = be.place_id
 WHERE be.place_id IS NOT NULL
-GROUP BY be.place_id, p.label;
+GROUP BY be.place_id, p.display_name;
 
 COMMENT ON VIEW trapper.v_place_reproduction_stats IS
 'Per-place birth statistics for Beacon colony growth analysis.

@@ -68,7 +68,7 @@ SELECT
     -- Total activity
     COUNT(*) AS total_appointments,
     COUNT(DISTINCT a.cat_id) AS unique_cats,
-    COUNT(DISTINCT a.client_person_id) AS unique_clients,
+    COUNT(DISTINCT a.person_id) AS unique_clients,
 
     -- Spay/neuter breakdown
     COUNT(*) FILTER (WHERE a.is_spay) AS spays,
@@ -79,14 +79,14 @@ SELECT
     COUNT(*) FILTER (WHERE a.service_type ILIKE '%kitten%') AS kitten_procedures,
     COUNT(*) FILTER (WHERE a.service_type ILIKE '%feral%' OR a.service_type ILIKE '%community%') AS community_cat_procedures,
 
-    -- Special conditions
-    COUNT(*) FILTER (WHERE a.internal_notes ILIKE '%pregnant%') AS pregnant_cats,
-    COUNT(*) FILTER (WHERE a.internal_notes ILIKE '%lactating%' OR a.internal_notes ILIKE '%nursing%') AS nursing_cats,
-    COUNT(*) FILTER (WHERE a.internal_notes ILIKE '%in heat%') AS in_heat_cats,
+    -- Special conditions (using boolean flags)
+    COUNT(*) FILTER (WHERE a.is_pregnant = TRUE) AS pregnant_cats,
+    COUNT(*) FILTER (WHERE a.is_lactating = TRUE) AS nursing_cats,
+    COUNT(*) FILTER (WHERE a.is_in_heat = TRUE) AS in_heat_cats,
 
-    -- Ownership types
-    COUNT(*) FILTER (WHERE a.ownership_type ILIKE '%community%' OR a.ownership_type ILIKE '%feral%') AS feral_community,
-    COUNT(*) FILTER (WHERE a.ownership_type ILIKE '%owned%') AS owned_pets
+    -- Community cats (from service type text since no ownership_type column)
+    COUNT(*) FILTER (WHERE a.service_type ILIKE '%feral%' OR a.service_type ILIKE '%community%') AS feral_community,
+    COUNT(*) FILTER (WHERE a.service_type NOT ILIKE '%feral%' AND a.service_type NOT ILIKE '%community%') AS owned_pets
 
 FROM trapper.sot_appointments a
 WHERE a.appointment_date IS NOT NULL
@@ -153,10 +153,10 @@ SELECT
     TO_CHAR(a.appointment_date, 'Mon YYYY') AS period,
     trapper.get_season(a.appointment_date::DATE) AS season,
 
-    -- Breeding indicators from cat_vitals
-    COUNT(*) FILTER (WHERE cv.is_pregnant) AS pregnant_count,
-    COUNT(*) FILTER (WHERE cv.is_lactating) AS lactating_count,
-    COUNT(*) FILTER (WHERE cv.is_in_heat) AS in_heat_count,
+    -- Breeding indicators from appointment flags
+    COUNT(*) FILTER (WHERE a.is_pregnant = TRUE) AS pregnant_count,
+    COUNT(*) FILTER (WHERE a.is_lactating = TRUE) AS lactating_count,
+    COUNT(*) FILTER (WHERE a.is_in_heat = TRUE) AS in_heat_count,
 
     -- Total females processed
     COUNT(*) FILTER (WHERE a.is_spay) AS female_cats_spayed,
@@ -164,21 +164,15 @@ SELECT
     -- Breeding percentage (pregnant + lactating + heat / total females)
     CASE WHEN COUNT(*) FILTER (WHERE a.is_spay) > 0 THEN
         ROUND(
-            (COUNT(*) FILTER (WHERE cv.is_pregnant OR cv.is_lactating OR cv.is_in_heat))::NUMERIC /
+            (COUNT(*) FILTER (WHERE a.is_pregnant = TRUE OR a.is_lactating = TRUE OR a.is_in_heat = TRUE))::NUMERIC /
             COUNT(*) FILTER (WHERE a.is_spay) * 100, 1
         )
-    ELSE 0 END AS breeding_active_pct,
-
-    -- Indicates peak season (Feb-Nov for California)
-    EXTRACT(MONTH FROM a.appointment_date) BETWEEN 2 AND 11 AS is_breeding_season
+    ELSE 0 END AS breeding_active_pct
 
 FROM trapper.sot_appointments a
-LEFT JOIN trapper.cat_vitals cv
-    ON cv.cat_id = a.cat_id
-    AND cv.recorded_at::DATE = a.appointment_date::DATE
 WHERE a.appointment_date >= '2020-01-01'
   AND a.is_spay = TRUE
-GROUP BY 1, 2, 3, 4, 7
+GROUP BY 1, 2, 3, 4
 ORDER BY year DESC, month;
 
 COMMENT ON VIEW trapper.v_breeding_season_indicators IS
@@ -251,12 +245,8 @@ SELECT
     -- Request volume
     COUNT(*) AS total_requests,
 
-    -- By priority (using triage score buckets)
+    -- By priority
     COUNT(*) FILTER (WHERE is_emergency = TRUE) AS urgent_requests,
-
-    -- By type
-    COUNT(*) FILTER (WHERE call_type = 'colony_tnr') AS colony_requests,
-    COUNT(*) FILTER (WHERE call_type = 'single_cat') AS single_cat_requests,
 
     -- Kitten mentions in notes
     COUNT(*) FILTER (
@@ -394,12 +384,14 @@ Alerts: kitten_surge, capacity_pressure, breeding_peak.';
 
 \echo 'Creating indexes...'
 
-CREATE INDEX IF NOT EXISTS idx_appointments_date_month
-    ON trapper.sot_appointments(EXTRACT(YEAR FROM appointment_date), EXTRACT(MONTH FROM appointment_date))
+-- Regular indexes on date columns (expression indexes with date_trunc not IMMUTABLE for timestamptz)
+CREATE INDEX IF NOT EXISTS idx_appointments_date_only
+    ON trapper.sot_appointments(appointment_date)
     WHERE appointment_date IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_intake_created_month
-    ON trapper.web_intake_submissions(EXTRACT(YEAR FROM created_at), EXTRACT(MONTH FROM created_at));
+CREATE INDEX IF NOT EXISTS idx_intake_created_only
+    ON trapper.web_intake_submissions(created_at)
+    WHERE created_at IS NOT NULL;
 
 -- ============================================================
 -- 10. Verification
