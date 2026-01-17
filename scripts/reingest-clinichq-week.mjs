@@ -260,14 +260,15 @@ async function runPostProcessing(sourceTable) {
     `);
     results.places_created_or_matched = parseInt(placesCreated.rows[0]?.cnt || '0');
 
-    // Link people to places
+    // Link people to places (using safe_norm functions to exclude blocked identifiers)
     const personPlaceLinks = await query(`
       INSERT INTO trapper.person_place_relationships (person_id, place_id, role, confidence, source_system, source_table)
       SELECT DISTINCT pi.person_id, p.place_id, 'resident'::trapper.person_place_role, 0.7, 'clinichq', 'owner_info'
       FROM trapper.staged_records sr
       JOIN trapper.person_identifiers pi ON (
-        (pi.id_type = 'email' AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
-        OR (pi.id_type = 'phone' AND pi.id_value_norm = trapper.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
+        -- Use safe_norm functions that return NULL for blocked identifiers (FFSC office phone, org emails, etc.)
+        (pi.id_type = 'email' AND pi.id_value_norm = trapper.safe_norm_email(sr.payload->>'Owner Email'))
+        OR (pi.id_type = 'phone' AND pi.id_value_norm = trapper.safe_norm_phone(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
       )
       JOIN trapper.places p ON p.normalized_address = trapper.normalize_address(sr.payload->>'Owner Address')
         AND p.merged_into_place_id IS NULL
@@ -278,14 +279,14 @@ async function runPostProcessing(sourceTable) {
     `);
     results.person_place_links = personPlaceLinks.rowCount || 0;
 
-    // Link people to appointments
+    // Link people to appointments (using safe_norm to exclude blocked identifiers)
     const personLinks = await query(`
       UPDATE trapper.sot_appointments a
       SET person_id = pi.person_id
       FROM trapper.staged_records sr
       JOIN trapper.person_identifiers pi ON (
-        (pi.id_type = 'email' AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
-        OR (pi.id_type = 'phone' AND pi.id_value_norm = trapper.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
+        (pi.id_type = 'email' AND pi.id_value_norm = trapper.safe_norm_email(sr.payload->>'Owner Email'))
+        OR (pi.id_type = 'phone' AND pi.id_value_norm = trapper.safe_norm_phone(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
       )
       WHERE sr.source_system = 'clinichq' AND sr.source_table = 'owner_info'
         AND a.appointment_number = sr.payload->>'Number'
