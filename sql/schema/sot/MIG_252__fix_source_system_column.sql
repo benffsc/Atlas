@@ -81,14 +81,14 @@ BEGIN
                     RETURNING person_id INTO v_person_id;
 
                     -- Add email identifier to new person
-                    INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+                    INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
                     VALUES (v_person_id, 'email', p_email, v_email_norm, p_source_system)
                     ON CONFLICT DO NOTHING;
 
                     -- Add phone if available
                     IF v_phone_norm IS NOT NULL AND LENGTH(v_phone_norm) >= 10 THEN
                         IF NOT EXISTS (SELECT 1 FROM trapper.identity_phone_blacklist WHERE phone_norm = v_phone_norm) THEN
-                            INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+                            INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
                             VALUES (v_person_id, 'phone', p_phone, v_phone_norm, p_source_system)
                             ON CONFLICT DO NOTHING;
                         END IF;
@@ -142,7 +142,7 @@ BEGIN
 
                     -- Add email if we matched by phone
                     IF v_email_norm IS NOT NULL THEN
-                        INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+                        INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
                         VALUES (v_person_id, 'email', p_email, v_email_norm, p_source_system)
                         ON CONFLICT DO NOTHING;
                     END IF;
@@ -161,12 +161,12 @@ BEGIN
 
                         -- Add identifiers
                         IF v_email_norm IS NOT NULL THEN
-                            INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+                            INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
                             VALUES (v_person_id, 'email', p_email, v_email_norm, p_source_system)
                             ON CONFLICT DO NOTHING;
                         END IF;
 
-                        INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+                        INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
                         VALUES (v_person_id, 'phone', p_phone, v_phone_norm, p_source_system)
                         ON CONFLICT DO NOTHING;
 
@@ -200,14 +200,14 @@ BEGIN
 
         -- Add identifiers
         IF v_email_norm IS NOT NULL THEN
-            INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+            INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
             VALUES (v_person_id, 'email', p_email, v_email_norm, p_source_system)
             ON CONFLICT DO NOTHING;
         END IF;
 
         IF v_phone_norm IS NOT NULL AND LENGTH(v_phone_norm) >= 10 THEN
             IF NOT EXISTS (SELECT 1 FROM trapper.identity_phone_blacklist WHERE phone_norm = v_phone_norm) THEN
-                INSERT INTO trapper.person_identifiers (person_id, id_type, id_value, id_value_norm, source_system)
+                INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, source_system)
                 VALUES (v_person_id, 'phone', p_phone, v_phone_norm, p_source_system)
                 ON CONFLICT DO NOTHING;
             END IF;
