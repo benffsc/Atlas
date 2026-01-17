@@ -8,6 +8,19 @@ import { EditHistory } from "@/components/EditHistory";
 import { OwnershipTransferWizard } from "@/components/OwnershipTransferWizard";
 import { CatMovementSection } from "@/components/CatMovementSection";
 
+// Format date string without timezone shift (for date-only values like "2026-01-12")
+function formatDateLocal(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  // Parse YYYY-MM-DD format directly to avoid timezone issues
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString();
+  }
+  // Fallback for other formats
+  return new Date(dateStr).toLocaleDateString();
+}
+
 interface Owner {
   person_id: string;
   display_name: string;
@@ -749,7 +762,7 @@ export default function CatDetailPage() {
                     {latestVital?.weight_lbs ? `${latestVital.weight_lbs} lbs` : "—"}
                     {latestVital?.recorded_at && (
                       <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>
-                        ({new Date(latestVital.recorded_at).toLocaleDateString()})
+                        ({formatDateLocal(latestVital.recorded_at)})
                       </span>
                     )}
                   </div>
@@ -781,7 +794,7 @@ export default function CatDetailPage() {
             )}
             {cat.tests?.find(t => t.test_type === "felv_fiv") && (
               <div style={{ fontSize: "0.875rem", color: "#495057" }}>
-                {new Date(cat.tests.find(t => t.test_type === "felv_fiv")!.test_date).toLocaleDateString()}
+                {formatDateLocal(cat.tests.find(t => t.test_type === "felv_fiv")!.test_date)}
               </div>
             )}
           </div>
@@ -922,7 +935,7 @@ export default function CatDetailPage() {
             </div>
             <div className="detail-item">
               <span className="detail-label">Recorded</span>
-              <span className="detail-value">{new Date(latestVital.recorded_at).toLocaleDateString()}</span>
+              <span className="detail-value">{formatDateLocal(latestVital.recorded_at)}</span>
             </div>
           </div>
         </Section>
@@ -948,7 +961,7 @@ export default function CatDetailPage() {
                     {test.result.toUpperCase()}
                   </span>
                   <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                    ({new Date(test.test_date).toLocaleDateString()})
+                    ({formatDateLocal(test.test_date)})
                   </span>
                 </span>
               </div>
@@ -963,7 +976,7 @@ export default function CatDetailPage() {
                     Completed
                   </span>
                   <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                    {new Date(proc.procedure_date).toLocaleDateString()}
+                    {formatDateLocal(proc.procedure_date)}
                     {proc.performed_by && ` by ${proc.performed_by}`}
                   </span>
                 </span>
@@ -985,7 +998,7 @@ export default function CatDetailPage() {
                                     cond.severity === "mild" ? "#ffc107" : "#6c757d",
                         color: cond.severity === "mild" ? "#000" : "#fff",
                       }}
-                      title={`Diagnosed ${new Date(cond.diagnosed_at).toLocaleDateString()}`}
+                      title={`Diagnosed ${formatDateLocal(cond.diagnosed_at)}`}
                     >
                       {cond.condition_type.replace(/_/g, " ")}
                       {cond.severity && ` (${cond.severity})`}
@@ -1004,7 +1017,7 @@ export default function CatDetailPage() {
                     <span className="detail-value">
                       {cat.vitals[0].temperature_f}°F
                       <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                        ({new Date(cat.vitals[0].recorded_at).toLocaleDateString()})
+                        ({formatDateLocal(cat.vitals[0].recorded_at)})
                       </span>
                     </span>
                   </div>
@@ -1035,7 +1048,7 @@ export default function CatDetailPage() {
                   <tbody>
                     {cat.procedures.map(proc => (
                       <tr key={proc.procedure_id}>
-                        <td>{new Date(proc.procedure_date).toLocaleDateString()}</td>
+                        <td>{formatDateLocal(proc.procedure_date)}</td>
                         <td>
                           <span className="badge" style={{ background: "#198754", color: "#fff" }}>
                             {proc.procedure_type.replace(/_/g, " ")}
@@ -1080,7 +1093,7 @@ export default function CatDetailPage() {
                   <tbody>
                     {cat.tests.map(test => (
                       <tr key={test.test_id}>
-                        <td>{new Date(test.test_date).toLocaleDateString()}</td>
+                        <td>{formatDateLocal(test.test_date)}</td>
                         <td>{test.test_type.replace(/_/g, " ")}</td>
                         <td>
                           <span
@@ -1120,7 +1133,7 @@ export default function CatDetailPage() {
                   <tbody>
                     {cat.conditions.map(cond => (
                       <tr key={cond.condition_id}>
-                        <td>{new Date(cond.diagnosed_at).toLocaleDateString()}</td>
+                        <td>{formatDateLocal(cond.diagnosed_at)}</td>
                         <td>{cond.condition_type.replace(/_/g, " ")}</td>
                         <td>
                           {cond.severity ? (
@@ -1140,7 +1153,7 @@ export default function CatDetailPage() {
                         <td>
                           {cond.resolved_at ? (
                             <span className="text-muted">
-                              Resolved {new Date(cond.resolved_at).toLocaleDateString()}
+                              Resolved {formatDateLocal(cond.resolved_at)}
                             </span>
                           ) : cond.is_chronic ? (
                             <span className="badge" style={{ background: "#6c757d", color: "#fff" }}>
@@ -1250,7 +1263,7 @@ export default function CatDetailPage() {
               <tbody>
                 {cat.clinic_history.map((visit, idx) => (
                   <tr key={idx}>
-                    <td>{new Date(visit.visit_date).toLocaleDateString()}</td>
+                    <td>{formatDateLocal(visit.visit_date)}</td>
                     <td>
                       <div style={{ fontWeight: 500 }}>{visit.client_name}</div>
                       {visit.client_email && (
@@ -1301,7 +1314,7 @@ export default function CatDetailPage() {
               <tbody>
                 {cat.visits.map((visit) => (
                   <tr key={visit.appointment_id}>
-                    <td>{new Date(visit.visit_date).toLocaleDateString()}</td>
+                    <td>{formatDateLocal(visit.visit_date)}</td>
                     <td>
                       <span
                         className="badge"
@@ -1371,7 +1384,7 @@ export default function CatDetailPage() {
             <div className="detail-item">
               <span className="detail-label">First ClinicHQ Visit</span>
               <span className="detail-value">
-                {new Date(cat.first_visit_date).toLocaleDateString()}
+                {formatDateLocal(cat.first_visit_date)}
               </span>
             </div>
           )}
@@ -1384,13 +1397,13 @@ export default function CatDetailPage() {
           <div className="detail-item">
             <span className="detail-label">Atlas Created</span>
             <span className="detail-value">
-              {new Date(cat.created_at).toLocaleDateString()}
+              {formatDateLocal(cat.created_at)}
             </span>
           </div>
           <div className="detail-item">
             <span className="detail-label">Last Updated</span>
             <span className="detail-value">
-              {new Date(cat.updated_at).toLocaleDateString()}
+              {formatDateLocal(cat.updated_at)}
             </span>
           </div>
         </div>

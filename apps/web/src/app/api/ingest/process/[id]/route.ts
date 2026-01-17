@@ -382,12 +382,14 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
 
     // Step 3: Link orphaned appointments to cats via microchip
     // Appointments may have been created before cats existed
+    // NOTE: We match on payload->>'Number' because source_row_id is a composite (Number_Date)
     const appointmentsLinked = await query(`
       UPDATE trapper.sot_appointments a
       SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
       FROM trapper.staged_records sr
       JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
-      WHERE a.appointment_number = sr.source_row_id
+      WHERE a.appointment_number = sr.payload->>'Number'
+        AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
         AND sr.source_system = 'clinichq'
         AND sr.source_table = 'appointment_info'
         AND a.cat_id IS NULL
@@ -395,6 +397,40 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         AND TRIM(sr.payload->>'Microchip Number') != ''
     `);
     results.orphaned_appointments_linked = appointmentsLinked.rowCount || 0;
+
+    // Step 4: Extract weight from cat_info into cat_vitals
+    // This ensures weight data is captured during real-time ingest, not just via migrations
+    const weightVitals = await query(`
+      INSERT INTO trapper.cat_vitals (
+        cat_id, recorded_at, weight_lbs, source_system, source_record_id
+      )
+      SELECT DISTINCT ON (ci.cat_id)
+        ci.cat_id,
+        COALESCE(
+          (sr.payload->>'Date')::timestamp with time zone,
+          NOW()
+        ),
+        (sr.payload->>'Weight')::numeric(5,2),
+        'clinichq',
+        'cat_info_' || sr.source_row_id
+      FROM trapper.staged_records sr
+      JOIN trapper.cat_identifiers ci ON
+        ci.id_value = sr.payload->>'Microchip Number'
+        AND ci.id_type = 'microchip'
+      WHERE sr.source_system = 'clinichq'
+        AND sr.source_table = 'cat_info'
+        AND sr.payload->>'Weight' IS NOT NULL
+        AND sr.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
+        AND (sr.payload->>'Weight')::numeric > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM trapper.cat_vitals cv
+          WHERE cv.cat_id = ci.cat_id
+            AND cv.source_record_id = 'cat_info_' || sr.source_row_id
+        )
+      ORDER BY ci.cat_id, (sr.payload->>'Date')::date DESC NULLS LAST
+      ON CONFLICT DO NOTHING
+    `);
+    results.weight_vitals_created = weightVitals.rowCount || 0;
   }
 
   if (sourceTable === 'owner_info') {
@@ -539,7 +575,24 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
   }
 
   if (sourceTable === 'appointment_info') {
-    // Create sot_appointments from staged_records
+    // Step 0: Link orphaned appointments to cats (in case cat_info was processed first)
+    // This ensures order doesn't matter - process cat_info OR appointment_info first
+    const orphanedLinked = await query(`
+      UPDATE trapper.sot_appointments a
+      SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
+      FROM trapper.staged_records sr
+      JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+      WHERE a.appointment_number = sr.payload->>'Number'
+        AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
+        AND sr.source_system = 'clinichq'
+        AND sr.source_table = 'appointment_info'
+        AND a.cat_id IS NULL
+        AND sr.payload->>'Microchip Number' IS NOT NULL
+        AND TRIM(sr.payload->>'Microchip Number') != ''
+    `);
+    results.orphaned_appointments_linked_pre = orphanedLinked.rowCount || 0;
+
+    // Step 1: Create sot_appointments from staged_records
     // Uses get_canonical_cat_id to handle merged cats
     const newAppointments = await query(`
       INSERT INTO trapper.sot_appointments (
@@ -647,6 +700,18 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     `);
     results.fixed_females = fixedFemales.rowCount || 0;
 
+    // Mark altered_by_clinic = TRUE when FFSC performed the spay/neuter
+    // (service_type contains "Cat Spay" or "Cat Neuter")
+    const alteredByClinic = await query(`
+      UPDATE trapper.sot_cats c
+      SET altered_by_clinic = TRUE
+      FROM trapper.sot_appointments a
+      WHERE a.cat_id = c.cat_id
+        AND (a.service_type ILIKE '%Cat Spay%' OR a.service_type ILIKE '%Cat Neuter%')
+        AND c.altered_by_clinic IS DISTINCT FROM TRUE
+    `);
+    results.marked_altered_by_clinic = alteredByClinic.rowCount || 0;
+
     // Auto-link cats to places via appointments
     const linkedViaAppts = await query(`
       INSERT INTO trapper.cat_place_relationships (
@@ -702,6 +767,40 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     if (trapperLinks.rows?.[0]) {
       results.appointments_linked_to_trappers = trapperLinks.rows[0].linked || 0;
     }
+
+    // Create cat_vitals records from appointments with temperature/reproductive data
+    // This ensures vitals are captured during real-time ingest, not just via migrations
+    const appointmentVitals = await query(`
+      INSERT INTO trapper.cat_vitals (
+        cat_id, appointment_id, recorded_at,
+        temperature_f, is_pregnant, is_lactating, is_in_heat,
+        source_system, source_record_id
+      )
+      SELECT
+        a.cat_id,
+        a.appointment_id,
+        a.appointment_date::timestamp with time zone,
+        a.temperature,
+        a.is_pregnant,
+        a.is_lactating,
+        a.is_in_heat,
+        'clinichq',
+        'appointment_' || a.appointment_number
+      FROM trapper.sot_appointments a
+      WHERE a.cat_id IS NOT NULL
+        AND (
+          a.temperature IS NOT NULL
+          OR a.is_pregnant = TRUE
+          OR a.is_lactating = TRUE
+          OR a.is_in_heat = TRUE
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM trapper.cat_vitals cv
+          WHERE cv.appointment_id = a.appointment_id
+        )
+      ON CONFLICT DO NOTHING
+    `);
+    results.appointment_vitals_created = appointmentVitals.rowCount || 0;
   }
 
   return results;
