@@ -203,7 +203,7 @@ BEGIN
         SELECT
             p.person_id,
             p.display_name,
-            COALESCE(p.source_system, 'unknown') AS source_system
+            COALESCE(p.data_source::TEXT, 'unknown') AS source_system
         INTO v_existing_person
         FROM trapper.person_identifiers pi
         JOIN trapper.sot_people p ON p.person_id = pi.person_id
@@ -275,7 +275,7 @@ BEGIN
             SELECT
                 p.person_id,
                 p.display_name,
-                COALESCE(p.source_system, 'unknown') AS source_system
+                COALESCE(p.data_source::TEXT, 'unknown') AS source_system
             INTO v_existing_person
             FROM trapper.person_identifiers pi
             JOIN trapper.sot_people p ON p.person_id = pi.person_id
