@@ -129,22 +129,22 @@ This document tracks implementation priorities, fixes, and enhancements for the 
   - Created `update_submission_status()` helper function
   - Status distribution: scheduled (619), archived (426), complete (88), in_progress (6), new (2)
 
-- [ ] **Update Intake Queue API Endpoints**
-  - `/api/intake/queue/route.ts` - Add `submission_status` to interface and SELECT
-  - `/api/intake/queue/[id]/route.ts` - Add PATCH for new fields + all answer edits
-  - `/api/intake/status/route.ts` - Add `submission_status` to allowed fields
+- [x] **Update Intake Queue API Endpoints** ✅ COMPLETED 2026-01-17
+  - Added `submission_status`, `priority_override`, `appointment_date` to PATCH
+  - All form answer fields now editable with audit logging
+  - Created `/api/intake/queue/[id]/history` endpoint for edit history
 
-- [ ] **Redesign Intake Queue Detail Modal**
-  - Single status dropdown (not 3 separate fields)
-  - Priority dropdown (with override capability)
-  - Collapsible sections for cats/situation with edit option
-  - Integrated JournalSection for communication log
-  - Clean action buttons at bottom
+- [x] **Redesign Intake Queue Detail Modal** ✅ COMPLETED 2026-01-17
+  - Single status dropdown (new/in_progress/scheduled/complete/archived)
+  - Priority dropdown (Auto/High/Normal/Low)
+  - Inline edit for Cats and Situation sections
+  - Mark as Urgent button, Edit History with Undo
+  - Journal already integrated for communication log
 
-- [ ] **Create Edit Answers Modal**
-  - Edit all form fields: contact info, location, cat details, situation
-  - Log changes to `entity_edits` table with before/after values
-  - Show edit icon on each section
+- [x] **Create Edit Answers Modal** ✅ COMPLETED 2026-01-17
+  - Inline editing instead of modal (better UX)
+  - Editable: cat count, type, fixed status, kittens, medical, situation
+  - All changes logged to `entity_edits` table
 
 ### API Improvements (Found in Audit 2026-01-16)
 
@@ -162,15 +162,13 @@ This document tracks implementation priorities, fixes, and enhancements for the 
   - Validates against allowed entity types and skill levels
   - Auto-updates `trapping_skill_updated_at` when skill changes
 
-- [ ] **Add Cat-Request Linking API** 🟡 FOUND 2026-01-16
-  - Missing: `/api/requests/[id]/cats` POST/DELETE endpoints
-  - Need: Link/unlink cats from requests
-  - Log to entity_edits table
+- [x] **Add Cat-Request Linking API** ✅ COMPLETED 2026-01-17
+  - Created `/api/requests/[id]/cats` GET/POST/DELETE endpoints
+  - Link/unlink cats from requests with audit logging
 
-- [ ] **Fix Async Import Pattern** 🟢 LOW
-  - File: `/api/places/[id]/colony-override/route.ts:181-182`
-  - Issue: Uses `import()` dynamically in GET handler
-  - Fix: Move to top-level import
+- [x] **Fix Async Import Pattern** ✅ FIXED 2026-01-17
+  - Fixed: `/api/places/[id]/colony-override/route.ts`
+  - Changed dynamic import() to static queryRows import
 
 ### Multi-Parcel Site Linking & Place Data Quality
 
@@ -193,7 +191,8 @@ This document tracks implementation priorities, fixes, and enhancements for the 
   - Dropdown to select relationship type (`same_colony_site`, `adjacent_to`, `nearby_cluster`)
   - Search/select target place
   - Store in `place_place_edges` table
-  - File: New component + API endpoint `/api/places/[id]/edges`
+  - [x] API endpoint `/api/places/[id]/edges` created ✅ 2026-01-17
+  - [ ] UI component needed
 
 - [ ] **Merge Exact Duplicate Places (MIG_265)**
   - Create migration to identify and merge 565 duplicate place pairs
