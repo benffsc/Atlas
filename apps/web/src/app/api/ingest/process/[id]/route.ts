@@ -320,7 +320,46 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
   const results: Record<string, number> = {};
 
   if (sourceTable === 'cat_info') {
-    // Update sot_cats.sex from new cat_info records
+    // Step 1: Create cats from microchips using find_or_create_cat_by_microchip
+    // This creates new cats or returns existing ones
+    const catsCreated = await query(`
+      WITH cat_data AS (
+        SELECT DISTINCT ON (payload->>'Microchip Number')
+          payload->>'Microchip Number' as microchip,
+          NULLIF(TRIM(payload->>'Patient Name'), '') as name,
+          NULLIF(TRIM(payload->>'Sex'), '') as sex,
+          NULLIF(TRIM(payload->>'Breed'), '') as breed,
+          NULLIF(TRIM(payload->>'Color'), '') as color
+        FROM trapper.staged_records
+        WHERE source_system = 'clinichq'
+          AND source_table = 'cat_info'
+          AND payload->>'Microchip Number' IS NOT NULL
+          AND TRIM(payload->>'Microchip Number') != ''
+          AND LENGTH(TRIM(payload->>'Microchip Number')) >= 9
+        ORDER BY payload->>'Microchip Number', created_at DESC
+      ),
+      created_cats AS (
+        SELECT
+          cd.*,
+          trapper.find_or_create_cat_by_microchip(
+            cd.microchip,
+            cd.name,
+            cd.sex,
+            cd.breed,
+            NULL,  -- altered_status
+            cd.color,
+            NULL,  -- secondary_color
+            NULL,  -- ownership_type
+            'clinichq'
+          ) as cat_id
+        FROM cat_data cd
+        WHERE cd.microchip IS NOT NULL
+      )
+      SELECT COUNT(*) as cnt FROM created_cats WHERE cat_id IS NOT NULL
+    `);
+    results.cats_created_or_matched = parseInt(catsCreated.rows?.[0]?.cnt || '0');
+
+    // Step 2: Update sex on existing cats from cat_info records
     const sexUpdates = await query(`
       UPDATE trapper.sot_cats c
       SET sex = sr.payload->>'Sex'
@@ -334,6 +373,22 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         AND LOWER(c.sex) IS DISTINCT FROM LOWER(sr.payload->>'Sex')
     `);
     results.sex_updates = sexUpdates.rowCount || 0;
+
+    // Step 3: Link orphaned appointments to cats via microchip
+    // Appointments may have been created before cats existed
+    const appointmentsLinked = await query(`
+      UPDATE trapper.sot_appointments a
+      SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
+      FROM trapper.staged_records sr
+      JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+      WHERE a.appointment_number = sr.source_row_id
+        AND sr.source_system = 'clinichq'
+        AND sr.source_table = 'appointment_info'
+        AND a.cat_id IS NULL
+        AND sr.payload->>'Microchip Number' IS NOT NULL
+        AND TRIM(sr.payload->>'Microchip Number') != ''
+    `);
+    results.orphaned_appointments_linked = appointmentsLinked.rowCount || 0;
   }
 
   if (sourceTable === 'owner_info') {
