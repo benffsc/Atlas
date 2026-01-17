@@ -89,6 +89,8 @@ interface RequestDetailRow {
   // Requester info
   requester_person_id: string | null;
   requester_name: string | null;
+  requester_email: string | null;
+  requester_phone: string | null;
   // Verified counts (computed from ClinicHQ linkage)
   linked_cat_count: number | null;
   verified_altered_count: number | null;
@@ -201,19 +203,29 @@ export async function GET(
                 'lng', ST_X(p.location::geometry)
             )
         ELSE NULL END AS place_coordinates,
-        -- Requester info
+        -- Requester info (include contact details)
         r.requester_person_id,
         per.display_name AS requester_name,
-        -- Linked cats
+        (SELECT pi.id_value FROM trapper.person_identifiers pi
+         WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'email'
+         ORDER BY pi.is_primary DESC NULLS LAST LIMIT 1) AS requester_email,
+        (SELECT pi.id_value FROM trapper.person_identifiers pi
+         WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'phone'
+         ORDER BY pi.is_primary DESC NULLS LAST LIMIT 1) AS requester_phone,
+        -- Linked cats (from request_cat_links table)
         (SELECT jsonb_agg(jsonb_build_object(
-            'cat_id', rc.cat_id,
+            'cat_id', rcl.cat_id,
             'cat_name', c.display_name,
-            'relationship', rc.relationship
-        ))
-         FROM trapper.request_cats rc
-         JOIN trapper.sot_cats c ON c.cat_id = rc.cat_id
-         WHERE rc.request_id = r.request_id) AS cats,
-        (SELECT COUNT(*) FROM trapper.request_cats rc WHERE rc.request_id = r.request_id) AS linked_cat_count,
+            'link_purpose', rcl.link_purpose::TEXT,
+            'linked_at', rcl.linked_at,
+            'microchip', (SELECT ci.id_value FROM trapper.cat_identifiers ci
+                          WHERE ci.cat_id = rcl.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            'altered_status', c.altered_status
+        ) ORDER BY rcl.linked_at DESC)
+         FROM trapper.request_cat_links rcl
+         JOIN trapper.sot_cats c ON c.cat_id = rcl.cat_id
+         WHERE rcl.request_id = r.request_id) AS cats,
+        (SELECT COUNT(*) FROM trapper.request_cat_links rcl WHERE rcl.request_id = r.request_id) AS linked_cat_count,
         -- Computed scores (handle if functions don't exist yet)
         COALESCE(trapper.compute_request_readiness(r), 0) AS readiness_score,
         COALESCE(trapper.compute_request_urgency(r), 0) AS urgency_score

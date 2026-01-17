@@ -90,8 +90,10 @@ interface RequestDetail {
   // Requester info
   requester_person_id: string | null;
   requester_name: string | null;
+  requester_email: string | null;
+  requester_phone: string | null;
   // Linked cats & verification
-  cats: { cat_id: string; cat_name: string; relationship: string }[] | null;
+  cats: { cat_id: string; cat_name: string | null; link_purpose: string; microchip: string | null; altered_status: string | null; linked_at: string }[] | null;
   linked_cat_count: number | null;
   verified_altered_count: number | null;
   verified_intact_count: number | null;
@@ -1376,9 +1378,25 @@ export default function RequestDetailPage() {
           <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
             <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Requester</h2>
             {request.requester_person_id ? (
-              <a href={`/people/${request.requester_person_id}`} style={{ fontWeight: 500 }}>
-                {request.requester_name}
-              </a>
+              <div>
+                <a href={`/people/${request.requester_person_id}`} style={{ fontWeight: 500, fontSize: "1.1rem" }}>
+                  {request.requester_name}
+                </a>
+                {(request.requester_email || request.requester_phone) && (
+                  <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    {request.requester_phone && (
+                      <a href={`tel:${request.requester_phone}`} className="text-sm" style={{ color: "var(--foreground)" }}>
+                        {request.requester_phone}
+                      </a>
+                    )}
+                    {request.requester_email && (
+                      <a href={`mailto:${request.requester_email}`} className="text-sm" style={{ color: "var(--foreground)" }}>
+                        {request.requester_email}
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-muted">No requester linked</p>
             )}
@@ -1795,19 +1813,59 @@ export default function RequestDetailPage() {
 
           {/* Linked Cats Card */}
           <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
-            <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Linked Cats</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h2 style={{ fontSize: "1.25rem", margin: 0 }}>
+                Linked Cats
+                {request.cats && request.cats.length > 0 && (
+                  <span className="badge" style={{ marginLeft: "0.5rem", background: "#198754", color: "#fff" }}>
+                    {request.cats.length}
+                  </span>
+                )}
+              </h2>
+            </div>
             {request.cats && request.cats.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {request.cats.map((cat) => (
+                {request.cats.map((cat: { cat_id: string; cat_name: string | null; link_purpose: string; microchip: string | null; altered_status: string | null }) => (
                   <a
                     key={cat.cat_id}
                     href={`/cats/${cat.cat_id}`}
-                    style={{ padding: "0.5rem 0", borderBottom: "1px solid var(--border)" }}
+                    style={{
+                      padding: "0.75rem",
+                      borderRadius: "6px",
+                      background: "var(--bg-muted)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      textDecoration: "none",
+                      color: "inherit"
+                    }}
                   >
-                    {cat.cat_name || "Unnamed cat"}
-                    <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                      ({cat.relationship})
-                    </span>
+                    <div>
+                      <span style={{ fontWeight: 500 }}>{cat.cat_name || "Unnamed cat"}</span>
+                      {cat.microchip && (
+                        <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
+                          ({cat.microchip})
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      {cat.altered_status && (
+                        <span className="badge" style={{
+                          background: cat.altered_status === "spayed" || cat.altered_status === "neutered" ? "#198754" : "#6c757d",
+                          color: "#fff",
+                          fontSize: "0.7rem"
+                        }}>
+                          {cat.altered_status}
+                        </span>
+                      )}
+                      <span className="badge" style={{
+                        background: cat.link_purpose === "tnr_target" ? "#0d6efd" : "#6c757d",
+                        color: "#fff",
+                        fontSize: "0.7rem"
+                      }}>
+                        {cat.link_purpose === "tnr_target" ? "TNR" : cat.link_purpose}
+                      </span>
+                    </div>
                   </a>
                 ))}
               </div>
