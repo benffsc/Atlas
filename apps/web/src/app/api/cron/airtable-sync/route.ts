@@ -385,11 +385,12 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
       atlasId: result.submission_id,
     };
   } catch (error) {
-    console.error(`Sync error for record ${record.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Sync error for record ${record.id}:`, errorMessage, error);
     return {
       success: false,
       recordId: record.id,
-      error: "Sync failed",
+      error: `Sync failed: ${errorMessage}`,
     };
   }
 }
