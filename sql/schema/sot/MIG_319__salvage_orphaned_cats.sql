@@ -130,6 +130,7 @@ DECLARE
     v_cat RECORD;
     v_old_owner_id UUID;
     v_old_owner_name TEXT;
+    v_place_count INT;
 BEGIN
     -- Get cat and current owner
     SELECT c.*, p.display_name as owner_name
@@ -137,6 +138,11 @@ BEGIN
     FROM trapper.sot_cats c
     LEFT JOIN trapper.sot_people p ON p.person_id = c.owner_person_id
     WHERE c.cat_id = p_cat_id;
+
+    -- Count place links (these are PRESERVED - never deleted)
+    SELECT COUNT(*) INTO v_place_count
+    FROM trapper.cat_place_relationships
+    WHERE cat_id = p_cat_id;
 
     IF v_cat IS NULL THEN
         RETURN jsonb_build_object('success', false, 'error', 'Cat not found');
@@ -169,7 +175,9 @@ BEGIN
         'old_owner_id', v_old_owner_id,
         'old_owner_name', v_old_owner_name,
         'action', 'orphaned',
-        'reason', p_reason
+        'reason', p_reason,
+        'place_links_preserved', v_place_count,
+        'note', 'Cat-place relationships preserved for Beacon analytics'
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -177,7 +185,14 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION trapper.safely_orphan_cat IS
 'Removes owner link from a cat without deleting the cat record.
 Use this when the owner is garbage/placeholder data but the cat has real clinic history.
-NEVER deletes cats with clinic data.';
+
+CRITICAL: This function NEVER deletes:
+- The cat record itself
+- The cat_place_relationships (preserved for Beacon analytics)
+- The cat_identifiers (microchips)
+- The sot_appointments (clinic history)
+
+Only the owner_person_id link is cleared.';
 
 -- ============================================================================
 -- FUNCTION: Bulk Orphan Cats from Invalid People
