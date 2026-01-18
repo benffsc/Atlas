@@ -160,6 +160,20 @@ export default function AdminPage() {
                   icon="🔄"
                 />
                 <AdminCard
+                  href="/admin/data-engine"
+                  title="Data Engine"
+                  description="Identity matching & households"
+                  icon="🔗"
+                  accent="#eff6ff"
+                />
+                <AdminCard
+                  href="/admin/data-engine/review"
+                  title="Match Review"
+                  description="Review uncertain matches"
+                  icon="🔍"
+                  accent="#fef3c7"
+                />
+                <AdminCard
                   href="/admin/test-mode"
                   title="Test Mode"
                   description="Temporary test changes"
