@@ -13,8 +13,7 @@ import { queryOne, queryRows } from "@/lib/db";
  * 1. Processing phase - Route to source-specific processor (ClinicHQ, Airtable, etc.)
  * 2. Linking phase - Run entity linking to connect cats/people/places
  *
- * Add to vercel.json:
- *   "crons": [{ "path": "/api/ingest/process", "schedule": "*/10 * * * *" }]
+ * Vercel cron configured in vercel.json to run every 10 minutes.
  */
 
 export const maxDuration = 60;
