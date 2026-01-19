@@ -383,9 +383,10 @@ export async function GET(
     `;
 
     // Helper function for graceful query execution (returns empty array on error)
-    async function safeQueryRows<T extends Record<string, unknown>>(sql: string, params: unknown[]): Promise<T[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function safeQueryRows<T>(sql: string, params: unknown[]): Promise<T[]> {
       try {
-        return await queryRows<T>(sql, params);
+        return await queryRows<any>(sql, params) as T[];
       } catch (err) {
         console.warn("Query failed (returning empty array):", err instanceof Error ? err.message : err);
         return [];
