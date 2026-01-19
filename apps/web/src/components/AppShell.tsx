@@ -138,6 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     borderRadius: "6px",
                     cursor: "pointer",
                     fontSize: "0.875rem",
+                    color: "var(--foreground)",
                   }}
                 >
                   <span
@@ -145,8 +146,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       width: "28px",
                       height: "28px",
                       borderRadius: "50%",
-                      background: "#0d6efd",
-                      color: "#fff",
+                      background: "var(--primary)",
+                      color: "var(--primary-foreground)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -189,10 +190,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         borderBottom: "1px solid var(--card-border)",
                       }}
                     >
-                      <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--foreground)" }}>
                         {staff.display_name}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                         {staff.email}
                       </div>
                       <div
@@ -202,16 +203,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           padding: "2px 8px",
                           background:
                             staff.auth_role === "admin"
-                              ? "#dbeafe"
+                              ? "var(--info-bg)"
                               : staff.auth_role === "volunteer"
-                              ? "#fef3c7"
-                              : "#dcfce7",
+                              ? "var(--warning-bg)"
+                              : "var(--success-bg)",
                           color:
                             staff.auth_role === "admin"
-                              ? "#1e40af"
+                              ? "var(--info-text)"
                               : staff.auth_role === "volunteer"
-                              ? "#92400e"
-                              : "#166534",
+                              ? "var(--warning-text)"
+                              : "var(--success-text)",
                           borderRadius: "4px",
                           fontSize: "0.7rem",
                           fontWeight: 500,
@@ -222,6 +223,164 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       </div>
                     </div>
 
+                    {/* Admin Quick Access */}
+                    {isAdmin && (
+                      <div
+                        style={{
+                          padding: "8px 0",
+                          borderBottom: "1px solid var(--card-border)",
+                        }}
+                      >
+                        <div style={{ padding: "4px 16px", fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Admin Tools
+                        </div>
+                        <a
+                          href="/admin/identity-health"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Identity Health
+                        </a>
+                        <a
+                          href="/admin/intake-fields"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Intake Fields
+                        </a>
+                        <a
+                          href="/admin/data-engine/review"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Data Engine Review
+                        </a>
+                        <a
+                          href="/admin/tippy-feedback"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Tippy Feedback
+                        </a>
+                        <a
+                          href="/admin/data-improvements"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Data Improvements
+                        </a>
+                        <a
+                          href="/admin/auth"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Staff Auth
+                        </a>
+                        <a
+                          href="/admin/clinic-days"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Clinic Days
+                        </a>
+                        <a
+                          href="/admin/knowledge-base"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          Knowledge Base
+                        </a>
+                      </div>
+                    )}
+
                     {/* Menu Items */}
                     <div style={{ padding: "8px 0" }}>
                       <a
@@ -230,11 +389,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           display: "block",
                           padding: "8px 16px",
                           fontSize: "0.875rem",
-                          color: "inherit",
+                          color: "var(--foreground)",
                           textDecoration: "none",
                         }}
                         onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "var(--card-hover, rgba(0,0,0,0.02))")
+                          (e.currentTarget.style.background = "var(--section-bg)")
                         }
                         onMouseLeave={(e) =>
                           (e.currentTarget.style.background = "transparent")
@@ -253,10 +412,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           background: "none",
                           border: "none",
                           cursor: "pointer",
-                          color: "#dc2626",
+                          color: "var(--danger-text)",
                         }}
                         onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "var(--card-hover, rgba(0,0,0,0.02))")
+                          (e.currentTarget.style.background = "var(--section-bg)")
                         }
                         onMouseLeave={(e) =>
                           (e.currentTarget.style.background = "transparent")
@@ -273,8 +432,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href="/login"
                 style={{
                   padding: "6px 12px",
-                  background: "#0d6efd",
-                  color: "#fff",
+                  background: "var(--primary)",
+                  color: "var(--primary-foreground)",
                   borderRadius: "6px",
                   textDecoration: "none",
                   fontSize: "0.875rem",

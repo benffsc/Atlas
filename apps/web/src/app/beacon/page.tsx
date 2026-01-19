@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SeasonalAlertsCard } from "@/components/SeasonalAlertsCard";
+import { YoYComparisonChart } from "@/components/YoYComparisonChart";
 
 interface BeaconSummaryResponse {
   summary: {
@@ -126,6 +128,22 @@ export default function BeaconPage() {
           The <strong>70% alteration threshold</strong> is the scientifically-supported target for population stabilization
           (Levy et al., 2014; McCarthy et al., 2013).
         </p>
+      </div>
+
+      {/* Seasonal Alerts Section */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>
+          Seasonal Status & Alerts
+        </h2>
+        <SeasonalAlertsCard />
+      </div>
+
+      {/* Year-over-Year Trends Section */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>
+          Year-over-Year Trends
+        </h2>
+        <YoYComparisonChart />
       </div>
 
       {/* Analytics Sections */}

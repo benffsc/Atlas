@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentStaff } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 
 /**
  * GET /api/auth/me
@@ -9,7 +9,7 @@ import { getCurrentStaff } from "@/lib/auth";
  */
 export async function GET(request: NextRequest) {
   try {
-    const staff = await getCurrentStaff(request);
+    const staff = await getSession(request);
 
     if (!staff) {
       return NextResponse.json(
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         display_name: staff.display_name,
         email: staff.email,
         auth_role: staff.auth_role,
+        password_change_required: staff.password_change_required || false,
       },
     });
   } catch (error) {

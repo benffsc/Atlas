@@ -77,7 +77,7 @@ export async function GET(
         be.birth_month,
         be.birth_season,
         be.place_id,
-        p.label AS place_name,
+        p.display_name AS place_name,
         be.kitten_count_in_litter,
         be.survived_to_weaning,
         be.litter_survived_count,

@@ -1,21 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { TIPPY_TOOLS, executeToolCall } from "../tools";
 
 /**
  * Tippy Chat API
  *
  * Provides AI-powered assistance for navigating Atlas and understanding TNR operations.
- * Uses Claude as the backend AI model.
+ * Uses Claude as the backend AI model with tool use for database queries.
  */
 
-const SYSTEM_PROMPT = `You are Tippy, a helpful assistant for Atlas - a TNR (Trap-Neuter-Return) management system used by Forgotten Felines of Sonoma County (FFSC).
+const SYSTEM_PROMPT = `You are Tippy, a helpful assistant for Atlas - a TNR management system used by Forgotten Felines of Sonoma County (FFSC).
 
-Your role is to help staff and volunteers navigate the Atlas application and understand TNR operations.
+IMPORTANT TERMINOLOGY:
+- When speaking to the public or about the program generally, use "FFR" (Find Fix Return) instead of "TNR"
+- TNR (Trap-Neuter-Return) is acceptable for internal/staff conversations
+- "Fix" means spay/neuter in public-friendly language
+
+Your role is to help staff, volunteers, and community members navigate Atlas and understand FFR operations.
+
+KEY CAPABILITY: You have access to the Atlas database through tools! When users ask about:
+- Cats at a specific address → use query_cats_at_place
+- Colony status or alteration rates → use query_place_colony_status
+- Request statistics → use query_request_stats
+- FFR impact metrics → use query_ffr_impact
+- Person's history → use query_person_history
+
+Always use tools when the user asks for specific data. Be confident in your answers when you have data.
 
 Key information about Atlas:
 - Atlas tracks People (requesters, trappers, volunteers), Cats (with microchips, clinic visits), Requests (trapping requests), and Places (addresses/colonies)
-- The Beacon module provides ecological analytics including colony estimates, alteration rates, and TNR impact
-- TNR stands for Trap-Neuter-Return, a humane method to manage feral cat populations
+- The Beacon module provides ecological analytics including colony estimates, alteration rates, and FFR impact
+- FFR (Find Fix Return) / TNR is a humane method to manage feral cat populations
 - The 70% alteration threshold is scientifically supported for population stabilization
 - FFSC serves Sonoma County, California
 
@@ -26,26 +41,24 @@ Navigation help:
 - People (/people) - Contact directory for requesters, trappers, volunteers
 - Places (/places) - Address and colony location database
 - Intake (/intake/queue) - Website submissions waiting for triage
-- Beacon (/beacon) - Ecological analytics and TNR impact metrics
+- Beacon (/beacon) - Ecological analytics and FFR impact metrics
 - Admin (/admin) - System configuration and data management
 
 Common tasks:
 - To create a new request: Go to Dashboard → "New Request" button, or /requests/new
 - To find cats at an address: Use the global search, or go to Places → find the address → view linked cats
 - To process intake submissions: Go to Intake → review each submission → either "Upgrade to Request" or take action
-- To check trapper availability: Go to Trappers → view individual profiles
-- To understand colony status: Go to Beacon → Colony Estimates or Places → specific place
 
-TNR terminology:
-- Alteration: Spay or neuter surgery
+FFR terminology:
+- Alteration / Fix: Spay or neuter surgery
 - Colony: A group of community cats living at a location
-- Eartip: A small notch in a cat's ear indicating they've been altered
+- Eartip: A small notch in a cat's ear indicating they've been fixed
 - Caretaker: Someone who feeds and monitors a colony
-- TNR: Trap-Neuter-Return - catch cats, get them fixed, return to their colony
+- FFR: Find Fix Return - locate cats, get them fixed, return to their colony
 
-Be concise, helpful, and friendly. Use simple language. If asked about specific data (like counts or records), explain that you don't have real-time database access but can guide them to the right place to find it.
+Be concise, helpful, and friendly. Use simple language. Always cite specific numbers from database queries when available.
 
-Always format responses in a readable way. Use short paragraphs and bullet points when listing multiple items.`;
+Format responses in a readable way. Use short paragraphs and bullet points when listing multiple items.`;
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -90,15 +103,66 @@ export async function POST(request: NextRequest) {
       { role: "user" as const, content: message },
     ];
 
-    // Call Claude API
-    const response = await client.messages.create({
+    // Call Claude API with tools
+    let response = await client.messages.create({
       model: "claude-3-haiku-20240307", // Using Haiku for speed and cost
-      max_tokens: 500,
+      max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages,
+      tools: TIPPY_TOOLS,
     });
 
-    // Extract text content
+    // Handle tool use loop (max 3 iterations to prevent infinite loops)
+    let iterations = 0;
+    const maxIterations = 3;
+
+    while (response.stop_reason === "tool_use" && iterations < maxIterations) {
+      iterations++;
+
+      // Find tool use blocks
+      const toolUseBlocks = response.content.filter(
+        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+      );
+
+      if (toolUseBlocks.length === 0) break;
+
+      // Execute each tool call
+      const toolResults: Anthropic.MessageParam = {
+        role: "user",
+        content: await Promise.all(
+          toolUseBlocks.map(async (toolUse) => {
+            const result = await executeToolCall(
+              toolUse.name,
+              toolUse.input as Record<string, unknown>
+            );
+
+            return {
+              type: "tool_result" as const,
+              tool_use_id: toolUse.id,
+              content: JSON.stringify(result),
+            };
+          })
+        ),
+      };
+
+      // Add assistant's response and tool results to messages
+      messages.push({
+        role: "assistant",
+        content: response.content,
+      });
+      messages.push(toolResults);
+
+      // Call Claude again with tool results
+      response = await client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages,
+        tools: TIPPY_TOOLS,
+      });
+    }
+
+    // Extract final text content
     const textContent = response.content.find((c) => c.type === "text");
     const assistantMessage = textContent?.type === "text" ? textContent.text : "I'm not sure how to help with that.";
 

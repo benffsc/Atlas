@@ -295,6 +295,65 @@ export async function getCurrentStaff(
 }
 
 /**
+ * Get session info including password change status
+ * Alias for getCurrentStaff with extended info
+ */
+export async function getSession(
+  request: NextRequest
+): Promise<(Staff & { password_change_required?: boolean }) | null> {
+  const token = getSessionToken(request);
+  if (!token) {
+    return null;
+  }
+
+  const tokenHash = await hashToken(token);
+
+  const result = await queryOne<{
+    staff_id: string;
+    display_name: string;
+    email: string;
+    auth_role: "admin" | "staff" | "volunteer";
+    session_id: string;
+    password_change_required: boolean;
+  }>(
+    `SELECT
+      s.staff_id,
+      s.display_name,
+      s.email,
+      s.auth_role,
+      ss.session_id,
+      COALESCE(s.password_change_required, FALSE) as password_change_required
+    FROM trapper.staff_sessions ss
+    JOIN trapper.staff s ON s.staff_id = ss.staff_id
+    WHERE ss.token_hash = $1
+      AND ss.expires_at > NOW()
+      AND ss.invalidated_at IS NULL
+      AND s.is_active = TRUE`,
+    [tokenHash]
+  );
+
+  if (!result) {
+    return null;
+  }
+
+  return {
+    staff_id: result.staff_id,
+    display_name: result.display_name,
+    email: result.email,
+    auth_role: result.auth_role,
+    session_id: result.session_id,
+    password_change_required: result.password_change_required,
+  };
+}
+
+/**
+ * Hash a token for storage (exported for use in other modules)
+ */
+export async function hashTokenForStorage(token: string): Promise<string> {
+  return hashToken(token);
+}
+
+/**
  * Require authentication - throws if not authenticated
  */
 export async function requireAuth(request: NextRequest): Promise<Staff> {

@@ -4,18 +4,21 @@ import { NextRequest, NextResponse } from "next/server";
  * Atlas Authentication Middleware
  *
  * Protects routes based on authentication status and role.
- * Currently configured for gradual rollout - auth is optional by default.
+ * Authentication is ENFORCED - unauthenticated users are redirected to /login.
  *
  * Route protection levels:
- * - Public: No auth required (login, public API)
+ * - Public: No auth required (login, public API, webhooks, cron)
  * - Auth Required: Must be logged in (most of the app)
- * - Admin Only: Must be logged in with admin role
+ * - Admin Only: Must be logged in with admin role (validated in route handlers)
  */
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = [
   "/login",
+  "/change-password",
   "/api/auth/login",
+  "/api/auth/change-password",
+  "/api/auth/me",
   "/api/intake/public",
   "/api/version",
   "/api/health",
@@ -64,45 +67,46 @@ export async function middleware(request: NextRequest) {
   // Get session cookie
   const sessionToken = request.cookies.get("atlas_session")?.value;
 
-  // For now, during gradual rollout, we allow unauthenticated access
-  // but set a header indicating the user is not authenticated
-  // This allows the UI to show a "login" button
+  // Enforce authentication for all non-public routes
   if (!sessionToken) {
-    // Check if this is an API request that explicitly requires auth
-    // For now, we're allowing most requests through during rollout
-    // TODO: Uncomment the redirect when ready to enforce auth
+    // API requests that require auth return 401
+    if (pathname.startsWith("/api/")) {
+      // Admin API routes require auth
+      if (matchesPath(pathname, ADMIN_PATHS)) {
+        return NextResponse.json(
+          { error: "Authentication required" },
+          { status: 401 }
+        );
+      }
+      // Other API routes - allow through but mark as unauthenticated
+      // Individual routes can enforce auth as needed
+      const response = NextResponse.next();
+      response.headers.set("X-Auth-Status", "unauthenticated");
+      return response;
+    }
 
-    // if (pathname.startsWith("/api/") && matchesPath(pathname, ADMIN_PATHS)) {
-    //   return NextResponse.json(
-    //     { error: "Authentication required" },
-    //     { status: 401 }
-    //   );
-    // }
-
-    // if (!pathname.startsWith("/api/")) {
-    //   const loginUrl = new URL("/login", request.url);
-    //   loginUrl.searchParams.set("redirect", pathname);
-    //   return NextResponse.redirect(loginUrl);
-    // }
-
-    const response = NextResponse.next();
-    response.headers.set("X-Auth-Status", "unauthenticated");
-    return response;
+    // Non-API routes redirect to login
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
+
+  // Check for password change requirement
+  // Note: Full validation happens in API routes; this is just for redirecting UI
+  // The /api/auth/me endpoint will return password_change_required status
+  // The change-password page handles the enforcement on the client side
 
   // Validate the session by calling the auth check endpoint
   // This is done asynchronously to avoid blocking
   // The actual validation happens in the API routes that need it
 
-  // For admin paths, we need to validate the role
-  // TODO: Enable when ready to enforce admin-only routes
-  // if (matchesPath(pathname, ADMIN_PATHS)) {
-  //   // We'd need to validate the session here
-  //   // For now, we trust the cookie exists
-  // }
-
+  // For admin paths, we mark the request as needing admin validation
+  // The individual routes will check the actual role from the session
   const response = NextResponse.next();
   response.headers.set("X-Auth-Status", "authenticated");
+  if (matchesPath(pathname, ADMIN_PATHS)) {
+    response.headers.set("X-Admin-Route", "true");
+  }
   return response;
 }
 

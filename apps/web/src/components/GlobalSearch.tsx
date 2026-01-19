@@ -156,8 +156,25 @@ export default function GlobalSearch() {
         return "👤";
       case "place":
         return "📍";
+      case "request":
+        return "📋";
       default:
         return "•";
+    }
+  };
+
+  const getEntityBadgeStyle = (type: string): React.CSSProperties => {
+    switch (type) {
+      case "cat":
+        return { background: "var(--info-bg)", color: "var(--info-text)" };
+      case "person":
+        return { background: "var(--success-bg)", color: "var(--success-text)" };
+      case "place":
+        return { background: "var(--warning-bg)", color: "var(--warning-text)" };
+      case "request":
+        return { background: "var(--danger-bg)", color: "var(--danger-text)" };
+      default:
+        return { background: "var(--section-bg)", color: "var(--muted)" };
     }
   };
 
@@ -217,6 +234,12 @@ export default function GlobalSearch() {
                       onMouseEnter={() => setSelectedIndex(currentIndex)}
                     >
                       <div className="search-suggestion-content">
+                        <span
+                          className="search-entity-badge"
+                          style={getEntityBadgeStyle(suggestion.entity_type)}
+                        >
+                          {suggestion.entity_type.charAt(0).toUpperCase() + suggestion.entity_type.slice(1)}
+                        </span>
                         <span className="search-suggestion-name">
                           {suggestion.display_name}
                         </span>
@@ -322,6 +345,16 @@ export default function GlobalSearch() {
 
         .search-suggestion-name {
           font-weight: 500;
+        }
+
+        .search-entity-badge {
+          font-size: 0.625rem;
+          padding: 0.125rem 0.375rem;
+          border-radius: 3px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+          flex-shrink: 0;
         }
 
         .search-match-badge {

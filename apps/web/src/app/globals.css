@@ -24,6 +24,25 @@
   --info-border: #0d6efd;
   --info-text: #004085;
 
+  /* Health status colors (Tailwind-style) */
+  --healthy-bg: #dcfce7;
+  --healthy-border: #86efac;
+  --healthy-text: #16a34a;
+  --caution-bg: #fef9c3;
+  --caution-border: #fde047;
+  --caution-text: #ca8a04;
+  --critical-bg: #fee2e2;
+  --critical-border: #fca5a5;
+  --critical-text: #dc2626;
+
+  /* UI grays */
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --bg-secondary: #f3f4f6;
+  --border-light: #d1d5db;
+  --border-default: #e5e7eb;
+
   /* Input backgrounds */
   --input-bg: #ffffff;
   --input-text: #171717;
@@ -58,6 +77,25 @@
     --info-bg: #1a2d3d;
     --info-border: #2d4a5a;
     --info-text: #80b3ff;
+
+    /* Health status colors (dark mode) */
+    --healthy-bg: #064e3b;
+    --healthy-border: #10b981;
+    --healthy-text: #6ee7b7;
+    --caution-bg: #78350f;
+    --caution-border: #f59e0b;
+    --caution-text: #fcd34d;
+    --critical-bg: #7f1d1d;
+    --critical-border: #ef4444;
+    --critical-text: #fca5a5;
+
+    /* UI grays (dark mode) */
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --text-tertiary: #9ca3af;
+    --bg-secondary: #374151;
+    --border-light: #4b5563;
+    --border-default: #374151;
 
     /* Input backgrounds */
     --input-bg: #1a1a1a;
@@ -615,5 +653,74 @@ button:disabled {
   [style*="background:#ffffff"] {
     background: var(--card-bg) !important;
     color: var(--foreground) !important;
+  }
+
+  /* Tailwind-style health status colors */
+  [style*="background: #dcfce7"],
+  [style*="background:#dcfce7"] {
+    background: var(--healthy-bg) !important;
+    color: var(--healthy-text) !important;
+  }
+
+  [style*="background: #fef9c3"],
+  [style*="background:#fef9c3"] {
+    background: var(--caution-bg) !important;
+    color: var(--caution-text) !important;
+  }
+
+  [style*="background: #fee2e2"],
+  [style*="background:#fee2e2"] {
+    background: var(--critical-bg) !important;
+    color: var(--critical-text) !important;
+  }
+
+  /* Tailwind text colors */
+  [style*="color: #16a34a"],
+  [style*="color:#16a34a"] {
+    color: var(--healthy-text) !important;
+  }
+
+  [style*="color: #ca8a04"],
+  [style*="color:#ca8a04"] {
+    color: var(--caution-text) !important;
+  }
+
+  [style*="color: #dc2626"],
+  [style*="color:#dc2626"] {
+    color: var(--critical-text) !important;
+  }
+
+  /* Tailwind gray text colors */
+  [style*="color: #111827"],
+  [style*="color:#111827"] {
+    color: var(--text-primary) !important;
+  }
+
+  [style*="color: #6b7280"],
+  [style*="color:#6b7280"] {
+    color: var(--text-secondary) !important;
+  }
+
+  [style*="color: #9ca3af"],
+  [style*="color:#9ca3af"] {
+    color: var(--text-tertiary) !important;
+  }
+
+  /* Gray button backgrounds */
+  [style*="background: #f3f4f6"],
+  [style*="background:#f3f4f6"] {
+    background: var(--bg-secondary) !important;
+    color: var(--foreground) !important;
+  }
+
+  /* Border colors */
+  [style*="border: 1px solid #e5e7eb"],
+  [style*="border:1px solid #e5e7eb"] {
+    border-color: var(--border-default) !important;
+  }
+
+  [style*="border: 1px solid #d1d5db"],
+  [style*="border:1px solid #d1d5db"] {
+    border-color: var(--border-light) !important;
   }
 }

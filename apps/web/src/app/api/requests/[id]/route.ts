@@ -402,6 +402,36 @@ export async function PATCH(
       );
     }
 
+    // Check for trip report requirement when completing a request
+    if (body.status === "completed") {
+      // Check if request requires a trip report
+      const reportCheck = await queryOne<{
+        report_required_before_complete: boolean;
+        has_final_report: boolean;
+      }>(
+        `SELECT
+          COALESCE(r.report_required_before_complete, TRUE) as report_required_before_complete,
+          EXISTS (
+            SELECT 1 FROM trapper.trapper_trip_reports tr
+            WHERE tr.request_id = r.request_id AND tr.is_final_visit = TRUE
+          ) as has_final_report
+        FROM trapper.sot_requests r
+        WHERE r.request_id = $1`,
+        [id]
+      );
+
+      if (reportCheck?.report_required_before_complete && !reportCheck?.has_final_report) {
+        return NextResponse.json(
+          {
+            error: "Trip report required before completion",
+            requiresReport: true,
+            message: "Please submit a final trip report before marking this request as completed.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validate priority if provided
     if (body.priority && !VALID_PRIORITIES.includes(body.priority)) {
       return NextResponse.json(

@@ -95,7 +95,7 @@ export async function GET(
         me.death_age_months,
         me.death_age_category,
         me.place_id,
-        p.label AS place_name,
+        p.display_name AS place_name,
         me.reported_by,
         me.reported_date::TEXT,
         me.notes,

@@ -274,12 +274,42 @@ All cleanup migrations create backup tables (`backup_*_mig15X`) for data rescue 
 - `promote_intake_request()` — Validates and promotes to SoT
 - `is_garbage_name()` — Prevents invalid people creation
 
+## Authentication
+
+Atlas uses session-based authentication for staff access. See [docs/AUTH.md](docs/AUTH.md) for details.
+
+### Quick Setup
+1. Staff accounts are pre-created from Airtable sync
+2. Default password is set via `STAFF_DEFAULT_PASSWORD` env var
+3. All staff must change password on first login
+4. Admins can reset passwords via `/admin/auth`
+
+### Roles
+| Role | Access |
+|------|--------|
+| `admin` | Full access to all features including Claude Code assistant |
+| `staff` | Workflow access (requests, cats, people, places, journal) |
+| `volunteer` | Read-only access with field observations |
+
+### AI Assistants
+- **Tippy** (`/tippy`) - Staff-facing AI that answers operational questions, looks up data, and logs field events
+- **Claude Code** (`/admin/claude-code`) - Admin-only development assistant for codebase questions
+
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Supabase PostgreSQL connection string |
-| `GOOGLE_MAPS_API_KEY` | For geocoding and address validation |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Supabase PostgreSQL connection string |
+| `STAFF_DEFAULT_PASSWORD` | Yes | Default password for new staff (they must change on first login) |
+| `ANTHROPIC_API_KEY` | Yes* | For Tippy AI and Claude Code (*optional if AI disabled) |
+| `GOOGLE_PLACES_API_KEY` | Yes | For geocoding and address validation |
+| `SUPABASE_URL` | No | For file storage (media uploads) |
+| `SUPABASE_SERVICE_ROLE_KEY` | No | For file storage |
+| `AIRTABLE_PAT` | No | For Airtable sync |
+| `CRON_SECRET` | No | For authenticating cron job requests |
+| `RESEND_API_KEY` | No | For sending emails |
+
+See `apps/web/.env.example` for complete list with setup instructions.
 
 ## Key Docs
 

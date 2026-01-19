@@ -7,6 +7,8 @@ import { queryOne, query, queryRows } from "@/lib/db";
  * Enables a "test mode" that snapshots key database tables,
  * allowing staff to make test changes that can be reverted.
  *
+ * SECURITY: This endpoint is DISABLED in production unless ALLOW_TEST_MODE=true
+ *
  * Tables backed up:
  * - web_intake_submissions
  * - sot_requests
@@ -16,6 +18,27 @@ import { queryOne, query, queryRows } from "@/lib/db";
  * - cat_movement_events
  * - colony_override_history
  */
+
+// Production guard - prevent destructive operations in production
+function checkTestModeAllowed(): NextResponse | null {
+  // Allow in development
+  if (process.env.NODE_ENV === "development") {
+    return null;
+  }
+
+  // In production, only allow if explicitly enabled
+  if (process.env.ALLOW_TEST_MODE !== "true") {
+    return NextResponse.json(
+      {
+        error: "Test mode is disabled in production",
+        hint: "Set ALLOW_TEST_MODE=true to enable (NOT RECOMMENDED for production databases)",
+      },
+      { status: 403 }
+    );
+  }
+
+  return null;
+}
 
 const BACKUP_TABLES = [
   "web_intake_submissions",
@@ -73,6 +96,10 @@ export async function GET() {
 
 // POST - Enable test mode (create snapshots)
 export async function POST(request: NextRequest) {
+  // SECURITY: Block in production unless explicitly enabled
+  const blocked = checkTestModeAllowed();
+  if (blocked) return blocked;
+
   try {
     const body = await request.json().catch(() => ({}));
     const startedBy = body.started_by || "admin";
@@ -158,6 +185,10 @@ export async function POST(request: NextRequest) {
 
 // DELETE - Disable test mode (restore from snapshots)
 export async function DELETE(request: NextRequest) {
+  // SECURITY: Block in production unless explicitly enabled
+  const blocked = checkTestModeAllowed();
+  if (blocked) return blocked;
+
   try {
     const body = await request.json().catch(() => ({}));
     const keepChanges = body.keep_changes === true;

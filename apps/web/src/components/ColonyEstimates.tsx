@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ColonySourcesBreakdown } from "./ColonySourcesBreakdown";
 
 interface ColonyEstimate {
   estimate_id: string;
@@ -79,6 +80,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAllEstimates, setShowAllEstimates] = useState(false);
+  const [showSourcesBreakdown, setShowSourcesBreakdown] = useState(false);
 
   // Override editing state
   const [showOverrideForm, setShowOverrideForm] = useState(false);
@@ -169,7 +171,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "1rem", color: "#666" }}>
+      <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
         Loading colony estimates...
       </div>
     );
@@ -177,7 +179,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
   if (error) {
     return (
-      <div style={{ padding: "1rem", background: "#fff3cd", borderRadius: "6px", color: "#856404" }}>
+      <div style={{ padding: "1rem", background: "var(--warning-bg)", borderRadius: "6px", color: "var(--warning-text)" }}>
         Unable to load colony estimates
       </div>
     );
@@ -185,7 +187,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
   if (!data || !data.has_data) {
     return (
-      <div style={{ padding: "1rem", color: "#666" }}>
+      <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
         No colony size estimates available for this location.
       </div>
     );
@@ -234,14 +236,14 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           style={{
             textAlign: "center",
             padding: "0.75rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
           }}
         >
-          <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--foreground)" }}>
             {ecology?.estimation_method === "mark_resight" ? `~${colonySize}` : colonySize}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
             Colony Size
             {ecology?.estimation_method === "mark_resight" && " (est.)"}
           </div>
@@ -251,21 +253,21 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           style={{
             textAlign: "center",
             padding: "0.75rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
           }}
         >
-          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#198754" }}>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--success-text)" }}>
             {ecology?.a_known ?? status.verified_altered_count}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Verified Altered</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>Verified Altered</div>
         </div>
 
         <div
           style={{
             textAlign: "center",
             padding: "0.75rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
           }}
         >
@@ -274,7 +276,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               ecology?.estimation_method === "max_recent" ? `≥${alterationRate}%` : `${alterationRate}%`
             ) : "--"}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
             Alteration Rate
             {ecology?.estimation_method === "max_recent" && " (min)"}
           </div>
@@ -284,14 +286,14 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           style={{
             textAlign: "center",
             padding: "0.75rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
           }}
         >
-          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#fd7e14" }}>
+          <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--warning-text)" }}>
             {ecology?.estimated_work_remaining ?? status.estimated_work_remaining}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Work Remaining</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>Work Remaining</div>
         </div>
       </div>
 
@@ -302,8 +304,8 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
             <span
               style={{
                 padding: "0.25rem 0.5rem",
-                background: "#ffc107",
-                color: "#000",
+                background: "var(--warning-border)",
+                color: "var(--text-primary)",
                 borderRadius: "4px",
                 fontSize: "0.8rem",
               }}
@@ -316,8 +318,8 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               style={{
                 padding: "0.25rem 0.5rem",
                 fontSize: "0.75rem",
-                background: "#dc3545",
-                color: "#fff",
+                background: "var(--danger-bg)",
+                color: "var(--danger-text)",
                 border: "none",
                 borderRadius: "4px",
                 cursor: "pointer",
@@ -334,6 +336,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
                 border: "1px solid var(--border)",
                 borderRadius: "4px",
                 cursor: "pointer",
+                color: "var(--foreground)",
               }}
             >
               Edit
@@ -349,6 +352,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               border: "1px solid var(--border)",
               borderRadius: "4px",
               cursor: "pointer",
+              color: "var(--foreground)",
             }}
           >
             Set Manual Override
@@ -361,20 +365,20 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
         <div
           style={{
             padding: "1rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             border: "1px solid var(--border)",
             borderRadius: "8px",
             marginBottom: "1rem",
           }}
         >
-          <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem" }}>Set Colony Override</h4>
-          <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "0.75rem" }}>
+          <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "var(--foreground)" }}>Set Colony Override</h4>
+          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
             Use this when you have confirmed data that differs from the estimates.
             The override will be used instead of computed values.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "0.75rem" }}>
             <div>
-              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--foreground)" }}>
                 Total Cats
               </label>
               <input
@@ -386,7 +390,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+              <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--foreground)" }}>
                 Altered Cats
               </label>
               <input
@@ -400,7 +404,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
             </div>
           </div>
           <div style={{ marginBottom: "0.75rem" }}>
-            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
+            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--foreground)" }}>
               Notes (reason for override)
             </label>
             <textarea
@@ -417,9 +421,9 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               disabled={savingOverride || overrideCount < 0}
               style={{
                 padding: "0.5rem 1rem",
-                background: "#198754",
-                color: "#fff",
-                border: "none",
+                background: "var(--success-bg)",
+                color: "var(--success-text)",
+                border: "1px solid var(--success-border)",
                 borderRadius: "4px",
                 cursor: "pointer",
                 fontSize: "0.85rem",
@@ -436,6 +440,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
                 borderRadius: "4px",
                 cursor: "pointer",
                 fontSize: "0.85rem",
+                color: "var(--foreground)",
               }}
             >
               Cancel
@@ -448,12 +453,13 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
       {ecology && ecology.a_known > 0 && (
         <div
           style={{
-            background: "#f0f7ff",
-            border: "1px solid #cce5ff",
+            background: "var(--info-bg)",
+            border: "1px solid var(--info-border)",
             borderRadius: "8px",
             padding: "0.75rem",
             marginBottom: "1rem",
             fontSize: "0.85rem",
+            color: "var(--info-text)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
@@ -462,8 +468,8 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               <span
                 style={{
                   padding: "0.15rem 0.4rem",
-                  background: "#198754",
-                  color: "#fff",
+                  background: "var(--success-bg)",
+                  color: "var(--success-text)",
                   borderRadius: "4px",
                   fontSize: "0.7rem",
                   fontWeight: 600,
@@ -476,8 +482,8 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               <span
                 style={{
                   padding: "0.15rem 0.4rem",
-                  background: "#0d6efd",
-                  color: "#fff",
+                  background: "var(--primary)",
+                  color: "var(--primary-foreground)",
                   borderRadius: "4px",
                   fontSize: "0.7rem",
                 }}
@@ -486,7 +492,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               </span>
             )}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", color: "#495057" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
             <span>
               <strong>{ecology.a_known}</strong> verified altered (A)
             </span>
@@ -502,7 +508,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
             )}
           </div>
           {ecology.has_eartip_data && ecology.n_hat_chapman && (
-            <div style={{ marginTop: "0.5rem", color: "#155724" }}>
+            <div style={{ marginTop: "0.5rem", color: "var(--success-text)" }}>
               Mark-resight estimate: <strong>~{ecology.n_hat_chapman} cats</strong>
               {ecology.p_hat_chapman_pct && ` (${ecology.p_hat_chapman_pct}% altered)`}
             </div>
@@ -524,7 +530,8 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           <span
             style={{
               padding: "0.25rem 0.5rem",
-              background: confidencePct >= 70 ? "#d4edda" : confidencePct >= 40 ? "#fff3cd" : "#f8d7da",
+              background: confidencePct >= 70 ? "var(--success-bg)" : confidencePct >= 40 ? "var(--warning-bg)" : "var(--danger-bg)",
+              color: confidencePct >= 70 ? "var(--success-text)" : confidencePct >= 40 ? "var(--warning-text)" : "var(--danger-text)",
               borderRadius: "4px",
             }}
           >
@@ -535,9 +542,9 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           <span
             style={{
               padding: "0.25rem 0.5rem",
-              background: "#d1ecf1",
+              background: "var(--info-bg)",
               borderRadius: "4px",
-              color: "#0c5460",
+              color: "var(--info-text)",
             }}
           >
             Clinic Verified
@@ -547,23 +554,64 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           <span
             style={{
               padding: "0.25rem 0.5rem",
-              background: "#d4edda",
+              background: "var(--success-bg)",
               borderRadius: "4px",
-              color: "#155724",
+              color: "var(--success-text)",
             }}
           >
             Multi-Source Confirmed
           </span>
         )}
-        <span style={{ color: "#666" }}>
+        <span style={{ color: "var(--text-secondary)" }}>
           {status.estimate_count} estimate{status.estimate_count !== 1 ? "s" : ""}
         </span>
       </div>
 
+      {/* View Sources Toggle */}
+      <button
+        onClick={() => setShowSourcesBreakdown(!showSourcesBreakdown)}
+        style={{
+          width: "100%",
+          padding: "0.75rem",
+          marginBottom: "1rem",
+          border: "1px solid var(--border)",
+          borderRadius: "8px",
+          background: showSourcesBreakdown ? "var(--section-bg)" : "transparent",
+          cursor: "pointer",
+          fontSize: "0.85rem",
+          fontWeight: 500,
+          color: "var(--foreground)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "0.5rem",
+        }}
+      >
+        <span>{showSourcesBreakdown ? "Hide" : "View"} Source Breakdown</span>
+        <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
+          {showSourcesBreakdown ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {/* Source Breakdown Expansion */}
+      {showSourcesBreakdown && (
+        <div
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "1rem",
+            background: "var(--background)",
+          }}
+        >
+          <ColonySourcesBreakdown placeId={placeId} />
+        </div>
+      )}
+
       {/* Individual Estimates */}
       {estimates.length > 0 && (
         <div>
-          <h4 style={{ margin: "1rem 0 0.5rem", fontSize: "0.9rem", fontWeight: 600 }}>
+          <h4 style={{ margin: "1rem 0 0.5rem", fontSize: "0.9rem", fontWeight: 600, color: "var(--foreground)" }}>
             Survey Responses
           </h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -575,7 +623,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
                   alignItems: "flex-start",
                   gap: "0.75rem",
                   padding: "0.75rem",
-                  background: "#f8f9fa",
+                  background: "var(--section-bg)",
                   borderRadius: "8px",
                   borderLeft: `3px solid ${sourceColors[est.source_type] || "#6c757d"}`,
                 }}
@@ -597,39 +645,39 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
                 {/* Details */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", fontSize: "0.85rem" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", fontSize: "0.85rem", color: "var(--foreground)" }}>
                     {est.total_cats !== null && (
                       <span>
                         <strong>{est.total_cats}</strong> cats
                       </span>
                     )}
                     {est.adult_count !== null && (
-                      <span style={{ color: "#666" }}>{est.adult_count} adults</span>
+                      <span style={{ color: "var(--text-secondary)" }}>{est.adult_count} adults</span>
                     )}
                     {est.kitten_count !== null && (
-                      <span style={{ color: "#666" }}>{est.kitten_count} kittens</span>
+                      <span style={{ color: "var(--text-secondary)" }}>{est.kitten_count} kittens</span>
                     )}
                     {est.altered_count !== null && (
-                      <span style={{ color: "#198754" }}>{est.altered_count} altered</span>
+                      <span style={{ color: "var(--success-text)" }}>{est.altered_count} altered</span>
                     )}
                     {est.unaltered_count !== null && (
-                      <span style={{ color: "#dc3545" }}>{est.unaltered_count} unaltered</span>
+                      <span style={{ color: "var(--danger-text)" }}>{est.unaltered_count} unaltered</span>
                     )}
                     {est.friendly_count !== null && (
-                      <span style={{ color: "#0d6efd" }}>{est.friendly_count} friendly</span>
+                      <span style={{ color: "var(--primary)" }}>{est.friendly_count} friendly</span>
                     )}
                     {est.feral_count !== null && (
-                      <span style={{ color: "#fd7e14" }}>{est.feral_count} feral</span>
+                      <span style={{ color: "var(--warning-text)" }}>{est.feral_count} feral</span>
                     )}
                   </div>
 
                   {/* Reporter and Date */}
-                  <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "#666" }}>
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
                     {est.reporter_name && (
                       <span>
                         Reported by{" "}
                         {est.reporter_person_id ? (
-                          <a href={`/people/${est.reporter_person_id}`} style={{ color: "#0d6efd" }}>
+                          <a href={`/people/${est.reporter_person_id}`} style={{ color: "var(--primary)" }}>
                             {est.reporter_name}
                           </a>
                         ) : (
@@ -653,7 +701,8 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
                         style={{
                           marginLeft: "0.5rem",
                           padding: "0.1rem 0.3rem",
-                          background: "#d4edda",
+                          background: "var(--success-bg)",
+                          color: "var(--success-text)",
                           borderRadius: "3px",
                           fontSize: "0.65rem",
                         }}
@@ -665,7 +714,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
                   {/* Notes */}
                   {est.notes && (
-                    <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", fontStyle: "italic", color: "#666" }}>
+                    <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", fontStyle: "italic", color: "var(--text-secondary)" }}>
                       {est.notes}
                     </div>
                   )}
@@ -682,7 +731,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
                 marginTop: "0.5rem",
                 background: "transparent",
                 border: "none",
-                color: "#0d6efd",
+                color: "var(--primary)",
                 cursor: "pointer",
                 fontSize: "0.8rem",
               }}

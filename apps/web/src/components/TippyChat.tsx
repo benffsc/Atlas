@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from "react";
+import { TippyFeedbackModal } from "./TippyFeedbackModal";
 
 interface Message {
   id: string;
@@ -26,8 +27,15 @@ export function TippyChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFeedback = (message: Message) => {
+    setSelectedMessage(message);
+    setFeedbackModalOpen(true);
+  };
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -267,7 +275,8 @@ export function TippyChat() {
               key={msg.id}
               style={{
                 display: "flex",
-                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                flexDirection: "column",
+                alignItems: msg.role === "user" ? "flex-end" : "flex-start",
               }}
             >
               <div
@@ -289,6 +298,28 @@ export function TippyChat() {
               >
                 {msg.content}
               </div>
+              {/* Feedback button for assistant messages */}
+              {msg.role === "assistant" && (
+                <button
+                  onClick={() => handleFeedback(msg)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "4px 8px",
+                    fontSize: "0.7rem",
+                    color: "var(--text-muted, #9ca3af)",
+                    cursor: "pointer",
+                    marginTop: "2px",
+                    opacity: 0.7,
+                    transition: "opacity 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+                  title="Report incorrect information"
+                >
+                  Report incorrect info
+                </button>
+              )}
             </div>
           ))
         )}
@@ -377,6 +408,20 @@ export function TippyChat() {
           }
         }
       `}</style>
+
+      {/* Feedback Modal */}
+      <TippyFeedbackModal
+        isOpen={feedbackModalOpen}
+        onClose={() => {
+          setFeedbackModalOpen(false);
+          setSelectedMessage(null);
+        }}
+        tippyMessage={selectedMessage?.content || ""}
+        conversationContext={messages.slice(-10).map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))}
+      />
     </div>
   );
 }

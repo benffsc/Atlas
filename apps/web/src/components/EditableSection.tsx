@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, ReactNode } from "react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface EditableSectionProps {
   title: string;
@@ -41,9 +42,14 @@ export function EditableSection({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
+  const { user } = useCurrentUser();
 
   const isEditing = externalIsEditing ?? internalIsEditing;
   const setIsEditing = externalSetIsEditing ?? setInternalIsEditing;
+
+  // Use authenticated user ID or fallback for audit trail
+  const userId = user?.staff_id || "anonymous";
+  const userName = user?.display_name || "Anonymous User";
 
   const handleEditClick = useCallback(async () => {
     if (requiresWizard) {
@@ -57,8 +63,8 @@ export function EditableSection({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: "current_user", // TODO: Get from auth
-          user_name: "Current User",
+          user_id: userId,
+          user_name: userName,
           reason: `Editing ${title}`,
         }),
       });
@@ -74,12 +80,12 @@ export function EditableSection({
     } catch (err) {
       setError("Failed to start editing");
     }
-  }, [entityType, entityId, title, requiresWizard, setIsEditing]);
+  }, [entityType, entityId, title, requiresWizard, setIsEditing, userId, userName]);
 
   const handleCancelClick = useCallback(async () => {
     // Release lock
     try {
-      await fetch(`/api/entities/${entityType}/${entityId}/edit?user_id=current_user`, {
+      await fetch(`/api/entities/${entityType}/${entityId}/edit?user_id=${encodeURIComponent(userId)}`, {
         method: "DELETE",
       });
     } catch {
@@ -89,7 +95,7 @@ export function EditableSection({
     setIsEditing(false);
     setError(null);
     onCancel?.();
-  }, [entityType, entityId, setIsEditing, onCancel]);
+  }, [entityType, entityId, setIsEditing, onCancel, userId]);
 
   const handleSaveClick = useCallback(async () => {
     if (!onSave) return;
@@ -102,7 +108,7 @@ export function EditableSection({
       await onSave([]);
 
       // Release lock after save
-      await fetch(`/api/entities/${entityType}/${entityId}/edit?user_id=current_user`, {
+      await fetch(`/api/entities/${entityType}/${entityId}/edit?user_id=${encodeURIComponent(userId)}`, {
         method: "DELETE",
       });
 
@@ -112,7 +118,7 @@ export function EditableSection({
     } finally {
       setIsSaving(false);
     }
-  }, [entityType, entityId, onSave, setIsEditing]);
+  }, [entityType, entityId, onSave, setIsEditing, userId]);
 
   return (
     <div className="card" style={{ marginBottom: "1rem" }}>

@@ -56,10 +56,11 @@ export async function GET() {
       }>(`
         SELECT
           COUNT(*)::INT AS total,
-          COUNT(DISTINCT place_id)::INT AS places,
-          COALESCE(AVG(total_cats), 0)::NUMERIC(5,1) AS avg_size,
-          COUNT(*) FILTER (WHERE confidence_score > 0.7)::INT AS high_confidence
-        FROM trapper.place_colony_estimates
+          COUNT(DISTINCT pce.place_id)::INT AS places,
+          COALESCE(AVG(pce.total_cats), 0)::NUMERIC(5,1) AS avg_size,
+          COUNT(*) FILTER (WHERE csc.base_confidence > 0.7)::INT AS high_confidence
+        FROM trapper.place_colony_estimates pce
+        LEFT JOIN trapper.colony_source_confidence csc ON csc.source_type = pce.source_type
       `, []),
 
       // Reproduction stats (from vitals)

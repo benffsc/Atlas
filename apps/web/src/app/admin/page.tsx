@@ -184,6 +184,34 @@ export default function AdminPage() {
               </div>
             </section>
 
+            {/* Developer Tools Section */}
+            <section>
+              <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "var(--text-muted)" }}>Developer Tools</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
+                <AdminCard
+                  href="/admin/claude-code"
+                  title="Claude Code"
+                  description="AI development assistant"
+                  icon="🤖"
+                  accent="#f0fdf4"
+                />
+                <AdminCard
+                  href="/admin/tippy-feedback"
+                  title="Tippy Feedback"
+                  description="Review AI assistant feedback"
+                  icon="💬"
+                  accent="#fdf4ff"
+                />
+                <AdminCard
+                  href="/admin/knowledge-base"
+                  title="Knowledge Base"
+                  description="Manage Tippy's knowledge"
+                  icon="📚"
+                  accent="#eff6ff"
+                />
+              </div>
+            </section>
+
             {/* Beacon Data Enrichment Section */}
             <section className="card" style={{ padding: "1.25rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
