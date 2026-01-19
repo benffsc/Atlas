@@ -539,9 +539,58 @@ async function queryFfrImpact(
 }
 
 /**
+ * Regional name mappings for Sonoma County
+ * Maps common regional names to their constituent cities/towns
+ */
+const REGIONAL_MAPPINGS: Record<string, string[]> = {
+  // West County / Russian River region
+  "west county": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Occidental", "Graton", "Sebastopol", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande"],
+  "west sonoma": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Occidental", "Graton", "Sebastopol", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande"],
+  "russian river": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande"],
+
+  // Sonoma Valley
+  "sonoma valley": ["Sonoma", "Glen Ellen", "Kenwood", "Boyes Hot Springs", "El Verano", "Eldridge", "Vineburg"],
+
+  // North County
+  "north county": ["Cloverdale", "Geyserville", "Healdsburg", "Windsor"],
+
+  // Coastal
+  "coast": ["Bodega Bay", "Bodega", "Jenner", "Sea Ranch", "Stewarts Point", "Annapolis", "Valley Ford"],
+  "coastal": ["Bodega Bay", "Bodega", "Jenner", "Sea Ranch", "Stewarts Point", "Annapolis", "Valley Ford"],
+
+  // South County
+  "south county": ["Petaluma", "Cotati", "Rohnert Park", "Penngrove"],
+};
+
+/**
+ * Get search patterns for an area (handles regional names)
+ */
+function getAreaSearchPatterns(area: string): string[] {
+  const normalizedArea = area.toLowerCase().trim();
+
+  // Check if this is a regional name
+  for (const [regionName, cities] of Object.entries(REGIONAL_MAPPINGS)) {
+    if (normalizedArea.includes(regionName) || regionName.includes(normalizedArea)) {
+      return cities;
+    }
+  }
+
+  // Not a regional name, return the original area
+  return [area];
+}
+
+/**
  * Query cats altered (spayed/neutered) in a specific area/city
  */
 async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
+  // Check if this is a regional name that maps to multiple cities
+  const searchPatterns = getAreaSearchPatterns(area);
+  const isRegionalSearch = searchPatterns.length > 1;
+
+  // Build the WHERE clause for multiple patterns
+  const patternPlaceholders = searchPatterns.map((_, i) => `p.formatted_address ILIKE $${i + 1}`).join(" OR ");
+  const params = searchPatterns.map(p => `%${p}%`);
+
   // Query cats altered linked to places in this area
   const result = await queryOne<{
     total_cats_altered: number;
@@ -556,7 +605,7 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
       FROM trapper.sot_cats c
       JOIN trapper.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
       JOIN trapper.places p ON cpr.place_id = p.place_id
-      WHERE p.formatted_address ILIKE $1
+      WHERE (${patternPlaceholders})
         AND c.altered_status IN ('spayed', 'neutered', 'Yes')
     ),
     appointment_altered AS (
@@ -564,7 +613,7 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
       SELECT DISTINCT a.cat_id
       FROM trapper.sot_appointments a
       JOIN trapper.places p ON a.place_id = p.place_id
-      WHERE p.formatted_address ILIKE $1
+      WHERE (${patternPlaceholders})
         AND (a.is_spay = true OR a.is_neuter = true OR a.service_is_spay = true OR a.service_is_neuter = true)
         AND a.cat_id IS NOT NULL
     ),
@@ -579,7 +628,7 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
         COUNT(DISTINCT a.cat_id) as count
       FROM trapper.sot_appointments a
       JOIN trapper.places p ON a.place_id = p.place_id
-      WHERE p.formatted_address ILIKE $1
+      WHERE (${patternPlaceholders})
         AND (a.is_spay = true OR a.is_neuter = true OR a.service_is_spay = true OR a.service_is_neuter = true)
         AND a.cat_id IS NOT NULL
       GROUP BY EXTRACT(YEAR FROM a.appointment_date)
@@ -591,7 +640,7 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
       (SELECT COUNT(*) FROM appointment_altered) as via_appointments,
       (SELECT json_agg(json_build_object('year', year, 'count', count)) FROM yearly) as by_year
     `,
-    [`%${area}%`]
+    params
   );
 
   if (!result || result.total_cats_altered === 0) {
@@ -600,7 +649,10 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
       data: {
         found: false,
         area: area,
-        message: `No cats found altered in ${area}. This may be outside FFSC's primary service area or the data hasn't been linked yet.`,
+        searched_cities: isRegionalSearch ? searchPatterns : undefined,
+        message: isRegionalSearch
+          ? `No cats found altered in ${area} (searched: ${searchPatterns.join(", ")}). This may be outside FFSC's primary service area or the data hasn't been linked yet.`
+          : `No cats found altered in ${area}. This may be outside FFSC's primary service area or the data hasn't been linked yet.`,
       },
     };
   }
@@ -610,9 +662,13 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
     data: {
       found: true,
       area: area,
+      is_regional_search: isRegionalSearch,
+      searched_cities: isRegionalSearch ? searchPatterns : undefined,
       total_cats_altered: result.total_cats_altered,
       by_year: result.by_year || [],
-      summary: `${result.total_cats_altered} cats have been altered in ${area}`,
+      summary: isRegionalSearch
+        ? `${result.total_cats_altered} cats have been altered in ${area} (includes: ${searchPatterns.slice(0, 5).join(", ")}${searchPatterns.length > 5 ? ", and more" : ""})`
+        : `${result.total_cats_altered} cats have been altered in ${area}`,
     },
   };
 }
