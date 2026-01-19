@@ -133,11 +133,12 @@ export default function ChangePasswordPage() {
       >
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>
+          <div style={{ marginBottom: "12px" }}>
             <img
               src="/logo.png"
               alt="Atlas"
-              style={{ width: "60px", height: "60px" }}
+              className="nav-logo"
+              style={{ width: "60px", height: "auto" }}
             />
           </div>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "8px" }}>
