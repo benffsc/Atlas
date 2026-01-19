@@ -540,26 +540,104 @@ async function queryFfrImpact(
 
 /**
  * Regional name mappings for Sonoma County
- * Maps common regional names to their constituent cities/towns
+ * Maps common regional names to their constituent cities/towns/neighborhoods
+ * Based on local terminology used by FFSC staff and Sonoma County residents
  */
 const REGIONAL_MAPPINGS: Record<string, string[]> = {
-  // West County / Russian River region
-  "west county": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Occidental", "Graton", "Sebastopol", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande"],
-  "west sonoma": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Occidental", "Graton", "Sebastopol", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande"],
+  // ============ WEST COUNTY / RUSSIAN RIVER ============
+  // "West County" is the local nickname for Russian River towns - quirky, funky, off-beat communities
+  "west county": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Occidental", "Graton", "Sebastopol", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande", "Freestone", "Twin Hills"],
+  "west sonoma": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Occidental", "Graton", "Sebastopol", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande", "Freestone"],
   "russian river": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero", "Villa Grande"],
+  "river": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Jenner", "Duncans Mills", "Camp Meeker", "Cazadero"],
+  "river towns": ["Guerneville", "Forestville", "Monte Rio", "Rio Nido", "Duncans Mills"],
+  "lower river": ["Guerneville", "Monte Rio", "Jenner", "Duncans Mills"],
 
-  // Sonoma Valley
-  "sonoma valley": ["Sonoma", "Glen Ellen", "Kenwood", "Boyes Hot Springs", "El Verano", "Eldridge", "Vineburg"],
+  // ============ SONOMA VALLEY / THE VALLEY ============
+  // Southeastern Sonoma County, home to historic town of Sonoma
+  "sonoma valley": ["Sonoma", "Glen Ellen", "Kenwood", "Boyes Hot Springs", "El Verano", "Eldridge", "Vineburg", "Agua Caliente", "Fetters Hot Springs", "Schellville"],
+  "the valley": ["Sonoma", "Glen Ellen", "Kenwood", "Boyes Hot Springs", "El Verano", "Eldridge", "Vineburg", "Agua Caliente", "Fetters Hot Springs"],
+  "valley of the moon": ["Sonoma", "Glen Ellen", "Kenwood", "Boyes Hot Springs", "Agua Caliente", "Fetters Hot Springs"],
 
-  // North County
-  "north county": ["Cloverdale", "Geyserville", "Healdsburg", "Windsor"],
+  // "The Springs" - Hot springs communities between Sonoma and Glen Ellen
+  "the springs": ["Boyes Hot Springs", "Agua Caliente", "Fetters Hot Springs", "El Verano"],
+  "springs": ["Boyes Hot Springs", "Agua Caliente", "Fetters Hot Springs", "El Verano"],
+  "boyes": ["Boyes Hot Springs"],
+  "fetters": ["Fetters Hot Springs"],
+  "agua caliente": ["Agua Caliente"],
 
-  // Coastal
-  "coast": ["Bodega Bay", "Bodega", "Jenner", "Sea Ranch", "Stewarts Point", "Annapolis", "Valley Ford"],
+  // ============ NORTH COUNTY / NORTHERN SONOMA ============
+  // Along Highway 101 corridor north of Santa Rosa
+  "north county": ["Cloverdale", "Geyserville", "Healdsburg", "Windsor", "Asti"],
+  "northern sonoma": ["Cloverdale", "Geyserville", "Healdsburg", "Windsor", "Asti", "Lytton"],
+  "upper county": ["Cloverdale", "Geyserville", "Healdsburg"],
+
+  // Wine valleys in North County
+  "alexander valley": ["Geyserville", "Cloverdale", "Asti", "Jimtown", "Lytton"],
+  "dry creek": ["Healdsburg", "Geyserville"],
+  "dry creek valley": ["Healdsburg", "Geyserville"],
+
+  // ============ SOUTH COUNTY / SOUTHERN SONOMA ============
+  // Southern part of county near Marin border
+  "south county": ["Petaluma", "Cotati", "Rohnert Park", "Penngrove", "Two Rock", "Lakeville", "Bloomfield"],
+  "southern sonoma": ["Petaluma", "Cotati", "Rohnert Park", "Penngrove", "Two Rock", "Lakeville"],
+  "south sonoma": ["Petaluma", "Cotati", "Rohnert Park", "Penngrove"],
+
+  // Petaluma area specifics
+  "east petaluma": ["Petaluma"],
+  "west petaluma": ["Petaluma"],
+  "penngrove": ["Penngrove"],
+  "two rock": ["Two Rock"],
+
+  // ============ COASTAL ============
+  // Pacific coast communities
+  "coast": ["Bodega Bay", "Bodega", "Jenner", "Sea Ranch", "Stewarts Point", "Annapolis", "Valley Ford", "Freestone", "Salmon Creek"],
   "coastal": ["Bodega Bay", "Bodega", "Jenner", "Sea Ranch", "Stewarts Point", "Annapolis", "Valley Ford"],
+  "sonoma coast": ["Bodega Bay", "Bodega", "Jenner", "Sea Ranch", "Stewarts Point", "Valley Ford", "Salmon Creek"],
+  "bodega": ["Bodega Bay", "Bodega"],
 
-  // South County
-  "south county": ["Petaluma", "Cotati", "Rohnert Park", "Penngrove"],
+  // ============ SANTA ROSA NEIGHBORHOODS ============
+  // Santa Rosa is the county seat and largest city
+  "santa rosa": ["Santa Rosa", "Fountaingrove", "Coffey Park", "Bennett Valley", "Rincon Valley", "Roseland", "Montgomery Village", "Railroad Square", "Oakmont", "Skyhawk", "Spring Lake", "Junior College", "Northwest Santa Rosa", "South Park", "Downtown Santa Rosa"],
+
+  // Specific Santa Rosa neighborhoods
+  "fountaingrove": ["Fountaingrove", "Santa Rosa"],
+  "coffey park": ["Coffey Park", "Santa Rosa"],
+  "bennett valley": ["Bennett Valley", "Santa Rosa"],
+  "rincon valley": ["Rincon Valley", "Santa Rosa"],
+  "rincon": ["Rincon Valley", "Santa Rosa"],
+  "roseland": ["Roseland", "Santa Rosa"],
+  "montgomery village": ["Montgomery Village", "Santa Rosa"],
+  "railroad square": ["Railroad Square", "Santa Rosa"],
+  "oakmont": ["Oakmont", "Santa Rosa"],
+  "skyhawk": ["Skyhawk", "Santa Rosa"],
+  "junior college": ["Junior College", "Santa Rosa"],
+  "jc area": ["Junior College", "Santa Rosa"],
+  "south park": ["South Park", "Santa Rosa"],
+  "downtown santa rosa": ["Downtown Santa Rosa", "Santa Rosa"],
+
+  // Mark West / Larkfield-Wikiup area (unincorporated north of Santa Rosa)
+  "mark west": ["Larkfield", "Wikiup", "Mark West", "Fulton"],
+  "larkfield": ["Larkfield", "Wikiup", "Mark West"],
+  "wikiup": ["Larkfield", "Wikiup"],
+  "larkfield-wikiup": ["Larkfield", "Wikiup", "Mark West"],
+  "fulton": ["Fulton"],
+
+  // ============ ROHNERT PARK / COTATI AREA ============
+  "rohnert park": ["Rohnert Park"],
+  "cotati": ["Cotati"],
+  "rp": ["Rohnert Park"],
+
+  // ============ HEALDSBURG AREA ============
+  "healdsburg": ["Healdsburg"],
+  "windsor": ["Windsor"],
+
+  // ============ WINE COUNTRY (broad term) ============
+  "wine country": ["Santa Rosa", "Healdsburg", "Sonoma", "Glen Ellen", "Kenwood", "Sebastopol", "Windsor", "Geyserville"],
+
+  // ============ CENTRAL COUNTY / HIGHWAY 101 CORRIDOR ============
+  "central county": ["Santa Rosa", "Rohnert Park", "Cotati", "Windsor"],
+  "101 corridor": ["Santa Rosa", "Rohnert Park", "Cotati", "Petaluma", "Windsor", "Healdsburg", "Cloverdale"],
 };
 
 /**
