@@ -25,8 +25,16 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/beacon-enrich",
+      "schedule": "0 10 * * *"
+    },
+    {
       "path": "/api/cron/data-quality-check",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/merge-duplicates",
+      "schedule": "0 3 * * *"
     }
   ]
 }

@@ -106,6 +106,7 @@ export async function GET(
   }
 
   try {
+    // Primary query using v_cat_detail view
     const sql = `
       SELECT
         v.cat_id,
@@ -138,13 +139,61 @@ export async function GET(
       WHERE v.cat_id = $1
     `;
 
-    const cat = await queryOne<CatDetailRow>(sql, [id]);
+    // Fallback query that doesn't depend on views
+    const fallbackSql = `
+      SELECT
+        c.cat_id,
+        c.display_name,
+        c.sex,
+        c.altered_status,
+        c.altered_by_clinic,
+        c.breed,
+        c.primary_color AS color,
+        NULL::TEXT AS coat_pattern,
+        (SELECT ci.id_value FROM trapper.cat_identifiers ci
+         WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1) AS microchip,
+        c.data_source,
+        c.ownership_type,
+        NULL::TEXT AS quality_tier,
+        NULL::TEXT AS quality_reason,
+        c.notes,
+        '[]'::jsonb AS identifiers,
+        '[]'::jsonb AS owners,
+        '[]'::jsonb AS places,
+        c.created_at,
+        c.updated_at,
+        c.is_deceased,
+        c.deceased_date::TEXT,
+        c.verified_at,
+        c.verified_by,
+        s.display_name AS verified_by_name
+      FROM trapper.sot_cats c
+      LEFT JOIN trapper.staff s ON c.verified_by = s.staff_id::text
+      WHERE c.cat_id = $1
+    `;
+
+    let cat: CatDetailRow | null = null;
+    let usedFallback = false;
+
+    // Try primary query first, fallback if view doesn't exist
+    try {
+      cat = await queryOne<CatDetailRow>(sql, [id]);
+    } catch (viewError) {
+      console.warn("v_cat_detail view query failed, using fallback:", viewError instanceof Error ? viewError.message : viewError);
+      usedFallback = true;
+      cat = await queryOne<CatDetailRow>(fallbackSql, [id]);
+    }
 
     if (!cat) {
       return NextResponse.json(
         { error: "Cat not found" },
         { status: 404 }
       );
+    }
+
+    // Log if we used fallback for debugging
+    if (usedFallback) {
+      console.log(`Cat ${id} fetched using fallback query (v_cat_detail view unavailable)`);
     }
 
     // Fetch first visit date from ClinicHQ
@@ -333,14 +382,24 @@ export async function GET(
       LIMIT 10
     `;
 
+    // Helper function for graceful query execution (returns empty array on error)
+    async function safeQueryRows<T>(sql: string, params: unknown[]): Promise<T[]> {
+      try {
+        return await queryRows<T>(sql, params);
+      } catch (err) {
+        console.warn("Query failed (returning empty array):", err instanceof Error ? err.message : err);
+        return [];
+      }
+    }
+
     const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows] = await Promise.all([
-      queryRows<ClinicVisit>(clinicHistorySql, [id]),
-      queryRows<CatVital>(vitalsSql, [id]),
-      queryRows<CatCondition>(conditionsSql, [id]),
-      queryRows<CatTestResult>(testsSql, [id]),
-      queryRows<CatProcedure>(proceduresSql, [id]),
-      queryRows<CatVisitSummary>(visitsSql, [id]),
-      queryRows<{
+      safeQueryRows<ClinicVisit>(clinicHistorySql, [id]),
+      safeQueryRows<CatVital>(vitalsSql, [id]),
+      safeQueryRows<CatCondition>(conditionsSql, [id]),
+      safeQueryRows<CatTestResult>(testsSql, [id]),
+      safeQueryRows<CatProcedure>(proceduresSql, [id]),
+      safeQueryRows<CatVisitSummary>(visitsSql, [id]),
+      safeQueryRows<{
         mortality_event_id: string;
         death_date: string | null;
         death_cause: string;
@@ -349,7 +408,7 @@ export async function GET(
         notes: string | null;
         created_at: string;
       }>(mortalitySql, [id]),
-      queryRows<{
+      safeQueryRows<{
         birth_event_id: string;
         litter_id: string;
         mother_cat_id: string | null;
@@ -368,7 +427,7 @@ export async function GET(
         notes: string | null;
         created_at: string;
       }>(birthSql, [id]),
-      queryRows<{
+      safeQueryRows<{
         cat_id: string;
         display_name: string;
         sex: string | null;
