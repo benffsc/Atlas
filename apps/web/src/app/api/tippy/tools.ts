@@ -3913,7 +3913,7 @@ async function querySourceExtension(
 
 /**
  * Query statistics for cats from partner organizations (SCAS, Humane Society, etc.)
- * Partner orgs have their name in the Owner Last Name field in ClinicHQ
+ * Uses sot_cats as ground truth, joined via cat_identifiers for proper entity tracking
  */
 async function queryPartnerOrgStats(
   organization: string,
@@ -3922,46 +3922,42 @@ async function queryPartnerOrgStats(
   // Normalize organization name for searching
   const orgSearch = organization.trim().toUpperCase();
 
-  // Common organization aliases
-  const orgPatterns: Record<string, string[]> = {
-    "SCAS": ["SCAS", "SONOMA COUNTY ANIMAL", "COUNTY ANIMAL SERVICES"],
-    "HUMANE": ["HUMANE SOCIETY", "HUMANE"],
-    "SHELTER": ["SHELTER", "ANIMAL SHELTER"],
+  // Map organization to identifier type
+  const orgIdentifierTypes: Record<string, string> = {
+    "SCAS": "scas_animal_id",
+    "SONOMA COUNTY ANIMAL": "scas_animal_id",
+    "COUNTY ANIMAL SERVICES": "scas_animal_id",
+    "SHELTERLUV": "shelterluv_id",
   };
 
-  // Build search patterns
-  let searchPatterns: string[] = [orgSearch];
-  for (const [key, patterns] of Object.entries(orgPatterns)) {
-    if (orgSearch.includes(key) || patterns.some(p => orgSearch.includes(p))) {
-      searchPatterns = [...new Set([...searchPatterns, ...patterns])];
+  // Find the identifier type for this org
+  let identifierType: string | null = null;
+  for (const [pattern, idType] of Object.entries(orgIdentifierTypes)) {
+    if (orgSearch.includes(pattern)) {
+      identifierType = idType;
+      break;
     }
   }
 
-  // Build date filter - owner_info uses 'Date' field, not 'Appointment Date'
+  // Build date filter for appointments
   let dateFilter = "";
   const now = new Date();
   if (timePeriod === "this_year") {
-    dateFilter = `AND (payload->>'Date')::date >= '${now.getFullYear()}-01-01'`;
+    dateFilter = `AND sa.appointment_date >= '${now.getFullYear()}-01-01'`;
   } else if (timePeriod === "last_30_days") {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    dateFilter = `AND (payload->>'Date')::date >= '${thirtyDaysAgo.toISOString().split('T')[0]}'`;
+    dateFilter = `AND sa.appointment_date >= '${thirtyDaysAgo.toISOString().split('T')[0]}'`;
   } else if (timePeriod === "last_90_days") {
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    dateFilter = `AND (payload->>'Date')::date >= '${ninetyDaysAgo.toISOString().split('T')[0]}'`;
+    dateFilter = `AND sa.appointment_date >= '${ninetyDaysAgo.toISOString().split('T')[0]}'`;
   }
 
-  // Build OR conditions for search patterns
-  const searchConditions = searchPatterns.map((_, i) =>
-    `(payload->>'Owner Last Name' ILIKE $${i + 1} OR payload->>'Owner First Name' ILIKE $${i + 1})`
-  ).join(" OR ");
-
   interface OrgStats {
-    total_appointments: number;
-    unique_cats: number;
+    total_cats: number;
     with_microchip: number;
+    total_appointments: number;
     earliest_date: string | null;
     latest_date: string | null;
-    year_breakdown: Record<string, number>;
   }
 
   interface YearCount {
@@ -3969,105 +3965,192 @@ async function queryPartnerOrgStats(
     count: number;
   }
 
+  interface RecentCat {
+    cat_id: string;
+    display_name: string | null;
+    org_animal_id: string;
+    microchip: string | null;
+    last_appointment: string | null;
+  }
+
   try {
-    // Get aggregate stats
-    const stats = await queryOne<OrgStats>(
-      `
-      SELECT
-        COUNT(*) as total_appointments,
-        COUNT(DISTINCT COALESCE(NULLIF(payload->>'Microchip Number', ''), payload->>'Number')) as unique_cats,
-        COUNT(DISTINCT payload->>'Microchip Number') FILTER (WHERE payload->>'Microchip Number' IS NOT NULL AND payload->>'Microchip Number' != '') as with_microchip,
-        MIN((payload->>'Date')::date)::text as earliest_date,
-        MAX((payload->>'Date')::date)::text as latest_date
-      FROM trapper.staged_records
-      WHERE source_system = 'clinichq'
-        AND source_table = 'owner_info'
-        AND (${searchConditions})
-        ${dateFilter}
-      `,
-      searchPatterns.map(p => `%${p}%`)
-    );
+    // If we have a known identifier type (like SCAS), use sot_cats as ground truth
+    if (identifierType) {
+      // Get cats with this org's identifier from sot_cats
+      const stats = await queryOne<OrgStats>(
+        `
+        WITH org_cats AS (
+          SELECT DISTINCT
+            c.cat_id,
+            ci.id_value as org_animal_id,
+            chip.id_value as microchip
+          FROM trapper.cat_identifiers ci
+          JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+          LEFT JOIN trapper.cat_identifiers chip ON chip.cat_id = c.cat_id AND chip.id_type = 'microchip'
+          WHERE ci.id_type = $1
+        )
+        SELECT
+          COUNT(DISTINCT oc.cat_id) as total_cats,
+          COUNT(DISTINCT oc.cat_id) FILTER (WHERE oc.microchip IS NOT NULL) as with_microchip,
+          COUNT(DISTINCT sa.appointment_id) as total_appointments,
+          MIN(sa.appointment_date)::text as earliest_date,
+          MAX(sa.appointment_date)::text as latest_date
+        FROM org_cats oc
+        LEFT JOIN trapper.sot_appointments sa ON sa.cat_id = oc.cat_id ${dateFilter}
+        `,
+        [identifierType]
+      );
 
-    // Get year breakdown
-    const yearBreakdown = await queryRows<YearCount>(
-      `
-      SELECT
-        EXTRACT(YEAR FROM (payload->>'Date')::date)::text as year,
-        COUNT(*) as count
-      FROM trapper.staged_records
-      WHERE source_system = 'clinichq'
-        AND source_table = 'owner_info'
-        AND (${searchConditions})
-        ${dateFilter}
-      GROUP BY 1
-      ORDER BY 1 DESC
-      LIMIT 10
-      `,
-      searchPatterns.map(p => `%${p}%`)
-    );
+      // Get year breakdown from appointments
+      const yearBreakdown = await queryRows<YearCount>(
+        `
+        WITH org_cats AS (
+          SELECT DISTINCT ci.cat_id
+          FROM trapper.cat_identifiers ci
+          JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+          WHERE ci.id_type = $1
+        )
+        SELECT
+          EXTRACT(YEAR FROM sa.appointment_date)::text as year,
+          COUNT(DISTINCT oc.cat_id) as count
+        FROM org_cats oc
+        JOIN trapper.sot_appointments sa ON sa.cat_id = oc.cat_id
+        WHERE sa.appointment_date IS NOT NULL ${dateFilter}
+        GROUP BY 1
+        ORDER BY 1 DESC
+        LIMIT 10
+        `,
+        [identifierType]
+      );
 
-    // Get sample recent appointments
-    interface RecentAppt {
-      appointment_number: string;
-      cat_identifier: string;
-      date: string;
+      // Get sample recent cats
+      const recentCats = await queryRows<RecentCat>(
+        `
+        WITH org_cats AS (
+          SELECT DISTINCT
+            c.cat_id,
+            c.display_name,
+            ci.id_value as org_animal_id,
+            chip.id_value as microchip
+          FROM trapper.cat_identifiers ci
+          JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+          LEFT JOIN trapper.cat_identifiers chip ON chip.cat_id = c.cat_id AND chip.id_type = 'microchip'
+          WHERE ci.id_type = $1
+        )
+        SELECT
+          oc.cat_id::text,
+          oc.display_name,
+          oc.org_animal_id,
+          oc.microchip,
+          MAX(sa.appointment_date)::text as last_appointment
+        FROM org_cats oc
+        LEFT JOIN trapper.sot_appointments sa ON sa.cat_id = oc.cat_id
+        GROUP BY oc.cat_id, oc.display_name, oc.org_animal_id, oc.microchip
+        ORDER BY MAX(sa.appointment_date) DESC NULLS LAST
+        LIMIT 5
+        `,
+        [identifierType]
+      );
+
+      if (!stats || stats.total_cats === 0) {
+        return {
+          success: true,
+          data: {
+            found: false,
+            organization: organization,
+            identifier_type: identifierType,
+            message: `No cats found for "${organization}" in the system. This organization may not have any cats registered yet.`,
+          },
+        };
+      }
+
+      // Format year breakdown
+      const yearStats: Record<string, number> = {};
+      yearBreakdown.forEach(y => {
+        yearStats[y.year] = Number(y.count);
+      });
+
+      return {
+        success: true,
+        data: {
+          found: true,
+          organization: organization,
+          identifier_type: identifierType,
+          time_period: timePeriod || "all_time",
+          stats: {
+            total_cats: Number(stats.total_cats),
+            with_microchip: Number(stats.with_microchip),
+            without_microchip: Number(stats.total_cats) - Number(stats.with_microchip),
+            total_appointments: Number(stats.total_appointments),
+            date_range: {
+              earliest: stats.earliest_date,
+              latest: stats.latest_date,
+            },
+            by_year: yearStats,
+          },
+          recent_cats: recentCats.map(c => ({
+            cat_id: c.cat_id,
+            name: c.display_name || c.org_animal_id,
+            org_animal_id: c.org_animal_id,
+            microchip: c.microchip,
+            last_appointment: c.last_appointment,
+          })),
+          note: `Cats are tracked in sot_cats with ${identifierType} identifiers. This is ground truth data from the Atlas system.`,
+        },
+      };
     }
 
-    const recentAppointments = await queryRows<RecentAppt>(
+    // Fallback: search staged_records for unknown orgs (legacy behavior)
+    const searchPatterns = [orgSearch];
+    const searchConditions = searchPatterns.map((_, i) =>
+      `(payload->>'Owner Last Name' ILIKE $${i + 1} OR payload->>'Owner First Name' ILIKE $${i + 1})`
+    ).join(" OR ");
+
+    const legacyDateFilter = timePeriod === "this_year"
+      ? `AND (payload->>'Date')::date >= '${now.getFullYear()}-01-01'`
+      : timePeriod === "last_30_days"
+      ? `AND (payload->>'Date')::date >= '${new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}'`
+      : timePeriod === "last_90_days"
+      ? `AND (payload->>'Date')::date >= '${new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}'`
+      : "";
+
+    const legacyStats = await queryOne<{ total: number; unique_identifiers: number }>(
       `
       SELECT
-        payload->>'Number' as appointment_number,
-        COALESCE(payload->>'Owner First Name', 'Unknown') as cat_identifier,
-        (payload->>'Date')::date::text as date
+        COUNT(*) as total,
+        COUNT(DISTINCT COALESCE(NULLIF(payload->>'Microchip Number', ''), payload->>'Owner First Name')) as unique_identifiers
       FROM trapper.staged_records
       WHERE source_system = 'clinichq'
         AND source_table = 'owner_info'
         AND (${searchConditions})
-        ${dateFilter}
-      ORDER BY (payload->>'Date')::date DESC
-      LIMIT 5
+        ${legacyDateFilter}
       `,
       searchPatterns.map(p => `%${p}%`)
     );
 
-    if (!stats || stats.total_appointments === 0) {
+    if (!legacyStats || legacyStats.total === 0) {
       return {
         success: true,
         data: {
           found: false,
           organization: organization,
-          searched_patterns: searchPatterns,
-          message: `No appointments found for "${organization}". Try different spelling or check if this organization uses a different name in ClinicHQ.`,
-          suggestion: "Partner organizations typically have their name in the 'Owner Last Name' field in ClinicHQ records.",
+          message: `No records found for "${organization}". This organization may not be in the system or uses a different name.`,
+          suggestion: "Try searching with different spelling, or ask what partner organizations are available.",
         },
       };
     }
-
-    // Format year breakdown for display
-    const yearStats: Record<string, number> = {};
-    yearBreakdown.forEach(y => {
-      yearStats[y.year] = Number(y.count);
-    });
 
     return {
       success: true,
       data: {
         found: true,
         organization: organization,
-        searched_patterns: searchPatterns,
         time_period: timePeriod || "all_time",
         stats: {
-          total_appointments: Number(stats.total_appointments),
-          unique_cats: Number(stats.unique_cats),
-          with_microchip: Number(stats.with_microchip),
-          date_range: {
-            earliest: stats.earliest_date,
-            latest: stats.latest_date,
-          },
-          by_year: yearStats,
+          total_records: Number(legacyStats.total),
+          unique_identifiers: Number(legacyStats.unique_identifiers),
         },
-        recent_appointments: recentAppointments,
-        note: "Partner org appointments are identified by organization name in the Owner Last Name field in ClinicHQ. Animal IDs appear in the Owner First Name field.",
+        note: `This organization doesn't have a dedicated identifier type yet. Data is from raw clinic records. Consider adding a ${orgSearch.toLowerCase()}_animal_id identifier type for better tracking.`,
       },
     };
   } catch (error) {
