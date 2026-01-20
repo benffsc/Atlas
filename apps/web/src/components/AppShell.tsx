@@ -384,6 +384,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     {/* Menu Items */}
                     <div style={{ padding: "8px 0" }}>
                       <a
+                        href="/me"
+                        style={{
+                          display: "block",
+                          padding: "8px 16px",
+                          fontSize: "0.875rem",
+                          color: "var(--foreground)",
+                          textDecoration: "none",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "var(--section-bg)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                      >
+                        My Dashboard
+                      </a>
+                      <a
                         href={`/admin/staff/${staff.staff_id}`}
                         style={{
                           display: "block",
