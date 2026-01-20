@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
         body.display_name,
         lat || null,
         lng || null,
-        'web_app'  // source_system
+        'web_intake'  // source_system (per CLAUDE.md)
       ]
     );
 

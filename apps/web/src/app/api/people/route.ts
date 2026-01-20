@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
   if (!deepSearch) {
     conditions.push(`account_type = 'person'`);
     conditions.push(`surface_quality != 'Low'`);
-    conditions.push(`(data_quality IS NULL OR data_quality != 'low')`);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -63,7 +62,7 @@ export async function GET(request: NextRequest) {
         primary_place,
         created_at,
         source_quality
-      FROM trapper.v_person_list_v2
+      FROM trapper.v_person_list_v3
       ${whereClause}
       ORDER BY
         CASE surface_quality WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END,
@@ -73,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_person_list_v2
+      FROM trapper.v_person_list_v3
       ${whereClause}
     `;
 

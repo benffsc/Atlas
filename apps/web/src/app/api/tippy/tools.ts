@@ -439,6 +439,219 @@ export const TIPPY_TOOLS = [
       required: ["query_type"],
     },
   },
+  {
+    name: "send_staff_message",
+    description:
+      "Send a message to another staff member. Use when user says things like 'Tell Ben that...', 'Let Sarah know...', 'Message the coordinator about...', 'Notify [person] that...'. The message will appear on their /me dashboard. You can optionally link the message to an entity (place, cat, person, or request).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        recipient_name: {
+          type: "string",
+          description: "Name of the staff member to message (first name, last name, or display name)",
+        },
+        subject: {
+          type: "string",
+          description: "Brief subject line (10 words max)",
+        },
+        content: {
+          type: "string",
+          description: "The message content - include all relevant details",
+        },
+        priority: {
+          type: "string",
+          enum: ["low", "normal", "high", "urgent"],
+          description: "Message priority. Use 'urgent' only for time-sensitive issues.",
+        },
+        entity_type: {
+          type: "string",
+          enum: ["place", "cat", "person", "request"],
+          description: "Type of entity this message is about (optional)",
+        },
+        entity_identifier: {
+          type: "string",
+          description: "Address, cat name/microchip, person name/email, or request ID (optional - used to link message)",
+        },
+      },
+      required: ["recipient_name", "subject", "content"],
+    },
+  },
+  {
+    name: "comprehensive_person_lookup",
+    description:
+      "Get COMPLETE information about a person by tracing ALL data sources. Searches across: Atlas core records (people, cats, requests), ClinicHQ appointments (owner/trapper roles), ShelterLuv (adopter, foster history), Volunteer Hub (status, hours), and Airtable (trapper assignments). Use when user asks for 'everything about' a person, wants complete context, or is investigating someone's full history.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        identifier: {
+          type: "string",
+          description: "Email, phone number, or person name to search",
+        },
+        identifier_type: {
+          type: "string",
+          enum: ["email", "phone", "name", "auto"],
+          description: "Type of identifier. Use 'auto' to detect automatically (default).",
+        },
+      },
+      required: ["identifier"],
+    },
+  },
+  {
+    name: "comprehensive_cat_lookup",
+    description:
+      "Get COMPLETE information about a cat by tracing ALL data sources. Returns full journey including: Atlas core (cat details, altered status), ClinicHQ appointments (procedures, tests, vaccinations), ShelterLuv (intake, outcomes, foster/adoption history), and all connected people (owners, trappers, fosters, adopters). Use when user asks for a cat's 'journey', 'full story', 'complete history', or wants to trace a cat through the system.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        identifier: {
+          type: "string",
+          description: "Microchip number, cat name, or ClinicHQ/ShelterLuv ID",
+        },
+        identifier_type: {
+          type: "string",
+          enum: ["microchip", "name", "clinichq_id", "shelterluv_id", "auto"],
+          description: "Type of identifier. Use 'auto' to detect automatically (default).",
+        },
+      },
+      required: ["identifier"],
+    },
+  },
+  {
+    name: "comprehensive_place_lookup",
+    description:
+      "Get COMPLETE information about a place/address by tracing ALL activity. Returns: colony status (estimated size, alteration rate), all cats ever at this location, all requests, people connected (requesters, trappers, residents), clinic appointments for cats from here, and historical observations. Use when user asks 'what's happening at [address]', 'show me everything about this location', or wants full location history.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address: {
+          type: "string",
+          description: "Full or partial address to search",
+        },
+      },
+      required: ["address"],
+    },
+  },
+  // === DATA QUALITY TOOLS (MIG_487) ===
+  {
+    name: "check_data_quality",
+    description:
+      "Check data quality for a person, cat, or place. Returns completeness score, missing fields, potential issues, and data sources. Use when staff ask about data quality, want to verify records, or need to identify incomplete records.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "place"],
+          description: "Type of entity to check",
+        },
+        identifier: {
+          type: "string",
+          description: "ID, email, phone, microchip, or address to search for",
+        },
+      },
+      required: ["entity_type", "identifier"],
+    },
+  },
+  {
+    name: "find_potential_duplicates",
+    description:
+      "Find potential duplicate records for deduplication review. Returns similar people, cats, or places with match confidence scores. Use when staff suspect duplicates, want to clean up data, or before creating new records.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "place"],
+          description: "Type of entity to check for duplicates",
+        },
+        identifier: {
+          type: "string",
+          description: "Name, email, microchip, or address to check against",
+        },
+      },
+      required: ["entity_type", "identifier"],
+    },
+  },
+  {
+    name: "query_merge_history",
+    description:
+      "Show merge history for an entity - what records were merged together and why. Use when staff ask 'what was merged into this?' or want to understand data lineage after deduplication.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "place"],
+          description: "Type of entity",
+        },
+        entity_id: {
+          type: "string",
+          description: "UUID of the entity to check merge history for",
+        },
+      },
+      required: ["entity_type", "entity_id"],
+    },
+  },
+  {
+    name: "query_data_lineage",
+    description:
+      "Trace data lineage - show all sources that contributed to an entity's data. Returns sources, staged records, identifiers, and which source provided which field. Use when staff ask 'where did this data come from?' or need to verify data provenance.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "place"],
+          description: "Type of entity",
+        },
+        entity_id: {
+          type: "string",
+          description: "UUID of the entity",
+        },
+      },
+      required: ["entity_type", "entity_id"],
+    },
+  },
+  {
+    name: "query_volunteerhub_data",
+    description:
+      "Get VolunteerHub-specific data for a person including hours logged, roles, certifications, and activity history. Use when staff ask about volunteer hours, training status, or VolunteerHub records.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        person_identifier: {
+          type: "string",
+          description: "Email, phone, name, or person_id to search for",
+        },
+      },
+      required: ["person_identifier"],
+    },
+  },
+  {
+    name: "query_source_extension",
+    description:
+      "Query source-specific extension data (ShelterLuv cat details, ClinicHQ appointment notes, etc). Use when staff need details specific to a data source that aren't in the main Atlas records.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        source: {
+          type: "string",
+          enum: ["volunteerhub", "shelterluv", "clinichq", "petlink"],
+          description: "Source system to query",
+        },
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "appointment"],
+          description: "Type of entity",
+        },
+        entity_id: {
+          type: "string",
+          description: "Entity identifier (UUID, microchip, email, etc.)",
+        },
+      },
+      required: ["source", "entity_type", "entity_id"],
+    },
+  },
 ];
 
 /**
@@ -564,6 +777,69 @@ export async function executeToolCall(
           toolInput.trapper_name as string | undefined,
           toolInput.trapper_type as string | undefined,
           toolInput.limit as number | undefined
+        );
+
+      case "send_staff_message":
+        return await sendStaffMessage(
+          toolInput.recipient_name as string,
+          toolInput.subject as string,
+          toolInput.content as string,
+          toolInput.priority as string | undefined,
+          toolInput.entity_type as string | undefined,
+          toolInput.entity_identifier as string | undefined,
+          context
+        );
+
+      case "comprehensive_person_lookup":
+        return await comprehensivePersonLookup(
+          toolInput.identifier as string,
+          toolInput.identifier_type as string | undefined
+        );
+
+      case "comprehensive_cat_lookup":
+        return await comprehensiveCatLookup(
+          toolInput.identifier as string,
+          toolInput.identifier_type as string | undefined
+        );
+
+      case "comprehensive_place_lookup":
+        return await comprehensivePlaceLookup(toolInput.address as string);
+
+      // === DATA QUALITY TOOLS (MIG_487) ===
+      case "check_data_quality":
+        return await checkDataQuality(
+          toolInput.entity_type as string,
+          toolInput.identifier as string
+        );
+
+      case "find_potential_duplicates":
+        return await findPotentialDuplicates(
+          toolInput.entity_type as string,
+          toolInput.identifier as string
+        );
+
+      case "query_merge_history":
+        return await queryMergeHistory(
+          toolInput.entity_type as string,
+          toolInput.entity_id as string
+        );
+
+      case "query_data_lineage":
+        return await queryDataLineage(
+          toolInput.entity_type as string,
+          toolInput.entity_id as string
+        );
+
+      case "query_volunteerhub_data":
+        return await queryVolunteerhubData(
+          toolInput.person_identifier as string
+        );
+
+      case "query_source_extension":
+        return await querySourceExtension(
+          toolInput.source as string,
+          toolInput.entity_type as string,
+          toolInput.entity_id as string
         );
 
       default:
@@ -2915,7 +3191,7 @@ async function queryTrapperStats(
         WHERE role_status = 'active'
         ${trapperType && trapperType !== "all" ? "AND trapper_type = $1" : ""}
         ORDER BY total_clinic_cats DESC NULLS LAST
-        LIMIT $${trapperType && trapperType !== "all" ? "2" : "1"}`,
+        LIMIT $${trapperType && trapperType !== "all" ? 2 : 1}`,
         trapperType && trapperType !== "all" ? [trapperType, maxResults] : [maxResults]
       );
 
@@ -2944,5 +3220,599 @@ async function queryTrapperStats(
         success: false,
         error: `Unknown query type: ${queryType}. Use 'summary', 'by_type', 'individual', or 'top_performers'.`,
       };
+  }
+}
+
+/**
+ * Send a message to another staff member
+ */
+async function sendStaffMessage(
+  recipientName: string,
+  subject: string,
+  content: string,
+  priority: string | undefined,
+  entityType: string | undefined,
+  entityIdentifier: string | undefined,
+  context: ToolContext | undefined
+): Promise<ToolResult> {
+  if (!context?.staffId) {
+    return {
+      success: false,
+      error: "Staff context required to send messages",
+    };
+  }
+
+  // Try to resolve entity if provided
+  let entityId: string | null = null;
+  let entityLabel: string | null = null;
+
+  if (entityType && entityIdentifier) {
+    if (entityType === "place") {
+      const place = await queryOne<{ place_id: string; label: string }>(
+        `SELECT place_id, display_name as label
+         FROM trapper.places
+         WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
+           AND merged_into_place_id IS NULL
+         LIMIT 1`,
+        [`%${entityIdentifier}%`]
+      );
+      if (place) {
+        entityId = place.place_id;
+        entityLabel = place.label;
+      }
+    } else if (entityType === "cat") {
+      // Try microchip first, then name
+      const cat = await queryOne<{ cat_id: string; display_name: string }>(
+        `SELECT c.cat_id, c.display_name
+         FROM trapper.sot_cats c
+         LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id
+         WHERE c.display_name ILIKE $1
+            OR ci.id_value = $1
+         LIMIT 1`,
+        [`%${entityIdentifier}%`]
+      );
+      if (cat) {
+        entityId = cat.cat_id;
+        entityLabel = cat.display_name;
+      }
+    } else if (entityType === "person") {
+      const person = await queryOne<{ person_id: string; display_name: string }>(
+        `SELECT p.person_id, p.display_name
+         FROM trapper.sot_people p
+         LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+         WHERE p.display_name ILIKE $1
+            OR pi.id_value_norm = LOWER($2)
+         LIMIT 1`,
+        [`%${entityIdentifier}%`, entityIdentifier]
+      );
+      if (person) {
+        entityId = person.person_id;
+        entityLabel = person.display_name;
+      }
+    } else if (entityType === "request") {
+      const request = await queryOne<{ request_id: string; summary: string }>(
+        `SELECT request_id, short_address as summary
+         FROM trapper.sot_requests
+         WHERE request_id::text = $1
+            OR short_address ILIKE $2
+         LIMIT 1`,
+        [entityIdentifier, `%${entityIdentifier}%`]
+      );
+      if (request) {
+        entityId = request.request_id;
+        entityLabel = request.summary;
+      }
+    }
+  }
+
+  // Use the SQL function to send the message
+  const result = await queryOne<{
+    result: {
+      success: boolean;
+      message_id?: string;
+      recipient_name?: string;
+      recipient_id?: string;
+      error?: string;
+    };
+  }>(
+    `SELECT trapper.send_staff_message(
+      $1, $2, $3, $4, $5, $6, $7, $8, 'tippy', $9
+    ) as result`,
+    [
+      context.staffId,
+      recipientName,
+      subject,
+      content,
+      priority || "normal",
+      entityType || null,
+      entityId || null,
+      entityLabel || null,
+      context.conversationId || null,
+    ]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Failed to send message",
+    };
+  }
+
+  // Parse the JSONB result (may be string or object depending on pg driver)
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error || "Failed to send message",
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      message_sent: true,
+      recipient_name: parsed.recipient_name,
+      message_id: parsed.message_id,
+      entity_linked: entityId ? { type: entityType, label: entityLabel } : null,
+    },
+  };
+}
+
+/**
+ * Comprehensive person lookup - traces ALL data sources
+ */
+async function comprehensivePersonLookup(
+  identifier: string,
+  identifierType: string | undefined
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.comprehensive_person_lookup($1, $2) as result`,
+    [identifier, identifierType || "auto"]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Lookup failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!parsed.found) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: parsed.message || `No person found matching "${identifier}"`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+/**
+ * Comprehensive cat lookup - traces ALL data sources
+ */
+async function comprehensiveCatLookup(
+  identifier: string,
+  identifierType: string | undefined
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.comprehensive_cat_lookup($1, $2) as result`,
+    [identifier, identifierType || "auto"]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Lookup failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!parsed.found) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: parsed.message || `No cat found matching "${identifier}"`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+/**
+ * Comprehensive place lookup - traces ALL activity at a location
+ */
+async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.comprehensive_place_lookup($1) as result`,
+    [address]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Lookup failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!parsed.found) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: parsed.message || `No place found matching "${address}"`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+// ============================================================================
+// DATA QUALITY TOOLS (MIG_487)
+// These tools use SQL functions from MIG_487__tippy_data_quality.sql
+// ============================================================================
+
+/**
+ * Check data quality for an entity
+ */
+async function checkDataQuality(
+  entityType: string,
+  identifier: string
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.check_entity_quality($1, $2) as result`,
+    [entityType, identifier]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Quality check failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!parsed.found) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: parsed.message || `No ${entityType} found matching "${identifier}"`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+/**
+ * Find potential duplicates for deduplication review
+ */
+async function findPotentialDuplicates(
+  entityType: string,
+  identifier: string
+): Promise<ToolResult> {
+  const results = await queryRows(
+    `SELECT * FROM trapper.find_potential_duplicates($1, $2)`,
+    [entityType, identifier]
+  );
+
+  if (!results || results.length === 0) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: `No potential duplicates found for ${entityType} "${identifier}"`,
+        duplicates: [],
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      found: true,
+      duplicates: results,
+      count: results.length,
+      summary: `Found ${results.length} potential duplicate(s) for ${entityType} "${identifier}"`,
+    },
+  };
+}
+
+/**
+ * Query merge history for an entity
+ */
+async function queryMergeHistory(
+  entityType: string,
+  entityId: string
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.query_merge_history($1, $2::uuid) as result`,
+    [entityType, entityId]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Merge history query failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+/**
+ * Query data lineage for an entity
+ */
+async function queryDataLineage(
+  entityType: string,
+  entityId: string
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.query_data_lineage($1, $2::uuid) as result`,
+    [entityType, entityId]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Data lineage query failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+/**
+ * Query VolunteerHub-specific data for a person
+ */
+async function queryVolunteerhubData(
+  personIdentifier: string
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT trapper.query_volunteerhub_data($1) as result`,
+    [personIdentifier]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "VolunteerHub data query failed",
+    };
+  }
+
+  const parsed = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!parsed.found) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: parsed.message || `No VolunteerHub record found for "${personIdentifier}"`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: parsed,
+  };
+}
+
+/**
+ * Query source-specific extension data
+ */
+async function querySourceExtension(
+  source: string,
+  entityType: string,
+  entityId: string
+): Promise<ToolResult> {
+  // For now, this queries the specific extension tables directly
+  // Will be expanded as extension tables are created
+
+  let query: string;
+  let params: string[];
+
+  if (source === "volunteerhub") {
+    // VolunteerHub has a dedicated function
+    return await queryVolunteerhubData(entityId);
+  }
+
+  // For other sources, construct query based on extension table pattern
+  // Note: These tables may not exist yet - they will be created in future migrations
+  switch (source) {
+    case "shelterluv":
+      if (entityType === "cat") {
+        query = `
+          SELECT
+            ce.cat_id,
+            ce.sl_animal_id,
+            ce.intake_date,
+            ce.intake_type,
+            ce.hold_reason,
+            ce.kennel_location,
+            ce.sl_status,
+            ce.internal_notes,
+            ce.last_synced_at
+          FROM trapper.shelterluv_cat_ext ce
+          WHERE ce.cat_id = $1::uuid OR ce.sl_animal_id = $1
+          LIMIT 1
+        `;
+      } else if (entityType === "person") {
+        query = `
+          SELECT
+            pe.person_id,
+            pe.sl_person_id,
+            pe.sl_flags,
+            pe.adoption_count,
+            pe.return_count,
+            pe.foster_count,
+            pe.internal_notes,
+            pe.last_synced_at
+          FROM trapper.shelterluv_person_ext pe
+          WHERE pe.person_id = $1::uuid OR pe.sl_person_id = $1
+          LIMIT 1
+        `;
+      } else {
+        return {
+          success: false,
+          error: `ShelterLuv extension not available for entity type: ${entityType}`,
+        };
+      }
+      break;
+
+    case "clinichq":
+      if (entityType === "appointment") {
+        query = `
+          SELECT
+            ae.appointment_id,
+            ae.chq_visit_id,
+            ae.surgery_notes,
+            ae.recovery_notes,
+            ae.vet_comments,
+            ae.pre_op_notes,
+            ae.discharge_notes,
+            ae.complications,
+            ae.weight_kg,
+            ae.temperature_f,
+            ae.vaccinations_given,
+            ae.last_synced_at
+          FROM trapper.clinichq_appointment_ext ae
+          WHERE ae.appointment_id = $1::uuid OR ae.chq_visit_id = $1
+          LIMIT 1
+        `;
+      } else if (entityType === "cat") {
+        query = `
+          SELECT
+            ce.cat_id,
+            ce.chq_animal_id,
+            ce.weight_history,
+            ce.medical_alerts,
+            ce.last_synced_at
+          FROM trapper.clinichq_cat_ext ce
+          WHERE ce.cat_id = $1::uuid OR ce.chq_animal_id = $1
+          LIMIT 1
+        `;
+      } else {
+        return {
+          success: false,
+          error: `ClinicHQ extension not available for entity type: ${entityType}`,
+        };
+      }
+      break;
+
+    case "petlink":
+      if (entityType === "cat") {
+        query = `
+          SELECT
+            ci.cat_id,
+            ci.id_value as petlink_pet_id,
+            ci.created_at as registration_date,
+            ci.source_system
+          FROM trapper.cat_identifiers ci
+          WHERE ci.id_type = 'petlink_pet_id'
+            AND (ci.cat_id = $1::uuid OR ci.id_value = $1)
+          LIMIT 1
+        `;
+      } else {
+        return {
+          success: false,
+          error: `PetLink extension not available for entity type: ${entityType}`,
+        };
+      }
+      break;
+
+    default:
+      return {
+        success: false,
+        error: `Unknown source: ${source}`,
+      };
+  }
+
+  params = [entityId];
+
+  try {
+    const result = await queryOne<Record<string, unknown>>(query, params);
+
+    if (!result) {
+      return {
+        success: true,
+        data: {
+          found: false,
+          message: `No ${source} extension data found for ${entityType} "${entityId}"`,
+          note: "Extension table may not exist yet or no data for this entity",
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        found: true,
+        source,
+        entity_type: entityType,
+        extension_data: result,
+      },
+    };
+  } catch (error) {
+    // Extension table may not exist yet
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: `Extension table for ${source} ${entityType} not available`,
+        note: "This extension table may be created in a future migration",
+      },
+    };
   }
 }
