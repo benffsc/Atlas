@@ -50,6 +50,11 @@ export default function StaffProfilePage() {
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<Staff>>({});
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
 
   useEffect(() => {
     fetchStaff();
@@ -97,6 +102,45 @@ export default function StaffProfilePage() {
       alert("Failed to save changes");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (newPassword.length < 6) {
+      setPasswordMessage("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage("Passwords do not match");
+      return;
+    }
+
+    setPasswordSaving(true);
+    setPasswordMessage("");
+    try {
+      const res = await fetch(`/api/admin/auth/set-password/${staffId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to set password");
+      }
+
+      setPasswordMessage("Password updated successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordMessage("");
+      }, 1500);
+    } catch (err) {
+      console.error("Error setting password:", err);
+      setPasswordMessage(err instanceof Error ? err.message : "Failed to set password");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -207,6 +251,19 @@ export default function StaffProfilePage() {
               Edit Profile
             </button>
           )}
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              color: "var(--foreground)",
+            }}
+          >
+            Reset Password
+          </button>
         </div>
       </div>
 
@@ -488,6 +545,131 @@ export default function StaffProfilePage() {
           ← Back
         </button>
       </div>
+
+      {/* Password Reset Modal */}
+      {showPasswordModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            setShowPasswordModal(false);
+            setNewPassword("");
+            setConfirmPassword("");
+            setPasswordMessage("");
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card-bg)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "400px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 1rem", fontSize: "1.1rem", fontWeight: 600 }}>
+              Reset Password for {staff.display_name}
+            </h3>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem" }}>
+                New Password
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  background: "var(--input-bg)",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem" }}>
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  background: "var(--input-bg)",
+                }}
+              />
+            </div>
+
+            {passwordMessage && (
+              <p
+                style={{
+                  margin: "0 0 1rem",
+                  padding: "0.5rem",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem",
+                  background: passwordMessage.includes("success") ? "#dcfce7" : "#fee2e2",
+                  color: passwordMessage.includes("success") ? "#166534" : "#b91c1c",
+                }}
+              >
+                {passwordMessage}
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setPasswordMessage("");
+                }}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePasswordReset}
+                disabled={passwordSaving}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "var(--primary)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  opacity: passwordSaving ? 0.7 : 1,
+                }}
+              >
+                {passwordSaving ? "Saving..." : "Set Password"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
