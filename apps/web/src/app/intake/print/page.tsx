@@ -22,8 +22,6 @@ export default function PrintableIntakeForm() {
           .print-wrapper {
             width: 100% !important;
             padding: 0 !important;
-            font-size: 9pt !important;
-            line-height: 1.25 !important;
           }
           .print-page {
             width: 100% !important;
@@ -36,25 +34,8 @@ export default function PrintableIntakeForm() {
             overflow: visible !important;
           }
           .print-page:last-child { page-break-after: auto; }
-          .print-header { margin-bottom: 6px !important; padding-bottom: 4px !important; }
-          .header-logo { height: 36px !important; }
           .section { margin-bottom: 8px !important; }
-          .section-title { margin-bottom: 4px !important; padding-bottom: 2px !important; font-size: 9.5pt !important; }
-          .field-row { gap: 6px !important; margin-bottom: 4px !important; }
-          .field-input { min-height: 18px !important; padding: 2px 4px !important; }
-          .field-input.sm { min-height: 16px !important; }
-          .field-input.md { min-height: 36px !important; }
-          .field-input.lg { min-height: 55px !important; }
-          .field label { font-size: 7pt !important; margin-bottom: 1px !important; }
-          .options-row { margin-bottom: 2px !important; font-size: 8.5pt !important; }
-          .option { margin-right: 8px !important; }
-          .bubble, .checkbox { width: 10px !important; height: 10px !important; }
-          .intro-note { padding: 4px 8px !important; margin-bottom: 6px !important; font-size: 8pt !important; }
-          .third-party-box, .emergency-box { padding: 5px 8px !important; margin-bottom: 6px !important; }
-          .info-card { padding: 4px 8px !important; margin-bottom: 4px !important; }
-          .staff-section { padding: 6px 8px !important; margin-top: 6px !important; }
-          .signature-area { margin-top: 6px !important; padding-top: 4px !important; }
-          .footer { padding-top: 4px !important; font-size: 7pt !important; }
+          .staff-section { margin-top: 8px !important; }
         }
 
         body { margin: 0; padding: 0; }
