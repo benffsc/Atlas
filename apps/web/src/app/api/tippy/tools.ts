@@ -3937,17 +3937,17 @@ async function queryPartnerOrgStats(
     }
   }
 
-  // Build date filter
+  // Build date filter - owner_info uses 'Date' field, not 'Appointment Date'
   let dateFilter = "";
   const now = new Date();
   if (timePeriod === "this_year") {
-    dateFilter = `AND (payload->>'Appointment Date')::date >= '${now.getFullYear()}-01-01'`;
+    dateFilter = `AND (payload->>'Date')::date >= '${now.getFullYear()}-01-01'`;
   } else if (timePeriod === "last_30_days") {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    dateFilter = `AND (payload->>'Appointment Date')::date >= '${thirtyDaysAgo.toISOString().split('T')[0]}'`;
+    dateFilter = `AND (payload->>'Date')::date >= '${thirtyDaysAgo.toISOString().split('T')[0]}'`;
   } else if (timePeriod === "last_90_days") {
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    dateFilter = `AND (payload->>'Appointment Date')::date >= '${ninetyDaysAgo.toISOString().split('T')[0]}'`;
+    dateFilter = `AND (payload->>'Date')::date >= '${ninetyDaysAgo.toISOString().split('T')[0]}'`;
   }
 
   // Build OR conditions for search patterns
@@ -3977,8 +3977,8 @@ async function queryPartnerOrgStats(
         COUNT(*) as total_appointments,
         COUNT(DISTINCT COALESCE(payload->>'Microchip Number', payload->>'Number')) as unique_cats,
         COUNT(DISTINCT payload->>'Microchip Number') FILTER (WHERE payload->>'Microchip Number' IS NOT NULL AND payload->>'Microchip Number' != '') as with_microchip,
-        MIN((payload->>'Appointment Date')::date)::text as earliest_date,
-        MAX((payload->>'Appointment Date')::date)::text as latest_date
+        MIN((payload->>'Date')::date)::text as earliest_date,
+        MAX((payload->>'Date')::date)::text as latest_date
       FROM trapper.staged_records
       WHERE source_system = 'clinichq'
         AND source_table = 'owner_info'
@@ -3992,7 +3992,7 @@ async function queryPartnerOrgStats(
     const yearBreakdown = await queryRows<YearCount>(
       `
       SELECT
-        EXTRACT(YEAR FROM (payload->>'Appointment Date')::date)::text as year,
+        EXTRACT(YEAR FROM (payload->>'Date')::date)::text as year,
         COUNT(*) as count
       FROM trapper.staged_records
       WHERE source_system = 'clinichq'
@@ -4001,7 +4001,7 @@ async function queryPartnerOrgStats(
         ${dateFilter}
       GROUP BY 1
       ORDER BY 1 DESC
-      LIMIT 5
+      LIMIT 10
       `,
       searchPatterns.map(p => `%${p}%`)
     );
@@ -4018,13 +4018,13 @@ async function queryPartnerOrgStats(
       SELECT
         payload->>'Number' as appointment_number,
         COALESCE(payload->>'Owner First Name', 'Unknown') as cat_identifier,
-        LEFT(payload->>'Appointment Date', 10) as date
+        (payload->>'Date')::date::text as date
       FROM trapper.staged_records
       WHERE source_system = 'clinichq'
         AND source_table = 'owner_info'
         AND (${searchConditions})
         ${dateFilter}
-      ORDER BY (payload->>'Appointment Date')::date DESC
+      ORDER BY (payload->>'Date')::date DESC
       LIMIT 5
       `,
       searchPatterns.map(p => `%${p}%`)
