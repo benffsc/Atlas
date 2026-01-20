@@ -6,6 +6,7 @@ interface TippyFeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
   tippyMessage: string;
+  conversationId?: string;
   conversationContext?: Array<{ role: string; content: string }>;
 }
 
@@ -15,6 +16,8 @@ const FEEDBACK_TYPES = [
   { value: "incorrect_location", label: "Wrong location/address" },
   { value: "incorrect_person", label: "Wrong person associated" },
   { value: "outdated_info", label: "Outdated information" },
+  { value: "missing_data", label: "Missing data (couldn't find something)" },
+  { value: "missing_capability", label: "Tippy should be able to do this" },
   { value: "other", label: "Other issue" },
 ];
 
@@ -30,6 +33,7 @@ export function TippyFeedbackModal({
   isOpen,
   onClose,
   tippyMessage,
+  conversationId,
   conversationContext,
 }: TippyFeedbackModalProps) {
   const [feedbackType, setFeedbackType] = useState("");
@@ -62,6 +66,7 @@ export function TippyFeedbackModal({
         body: JSON.stringify({
           tippy_message: tippyMessage,
           user_correction: correction.trim(),
+          conversation_id: conversationId,
           conversation_context: conversationContext,
           entity_type: entityType || null,
           entity_id: entityId || null,
