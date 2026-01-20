@@ -196,18 +196,13 @@ export async function GET(
       console.log(`Cat ${id} fetched using fallback query (v_cat_detail view unavailable)`);
     }
 
-    // Fetch first visit date from ClinicHQ
+    // Fetch first visit date from sot_appointments (canonical source)
     const visitStatsSql = `
       SELECT
-        MIN(visit_date)::TEXT as first_visit_date,
+        MIN(appointment_date)::TEXT as first_visit_date,
         COUNT(*)::INT as total_visits
-      FROM trapper.clinichq_visits cv
-      WHERE cv.microchip = (
-        SELECT ci.id_value
-        FROM trapper.cat_identifiers ci
-        WHERE ci.cat_id = $1 AND ci.id_type = 'microchip'
-        LIMIT 1
-      )
+      FROM trapper.sot_appointments
+      WHERE cat_id = $1
     `;
     const visitStats = await queryOne<{ first_visit_date: string | null; total_visits: number }>(visitStatsSql, [id]);
     if (visitStats) {
