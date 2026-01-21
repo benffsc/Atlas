@@ -6,6 +6,7 @@ interface Person {
   person_id: string;
   display_name: string;
   account_type: string | null;
+  is_canonical: boolean;
   surface_quality: string | null;
   quality_reason: string | null;
   has_email: boolean;
@@ -126,6 +127,15 @@ export default function PeoplePage() {
                           style={{ marginLeft: "0.5rem", fontSize: "0.7em", background: "#6c757d" }}
                         >
                           {person.account_type}
+                        </span>
+                      )}
+                      {person.is_canonical === false && (
+                        <span
+                          className="badge"
+                          style={{ marginLeft: "0.5rem", fontSize: "0.7em", background: "#dc3545" }}
+                          title="Non-canonical record (organization, placeholder, or garbage name)"
+                        >
+                          Non-canonical
                         </span>
                       )}
                     </td>

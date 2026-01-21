@@ -691,6 +691,238 @@ export const TIPPY_TOOLS = [
       required: ["address_search"],
     },
   },
+  // ============================================
+  // SCHEMA NAVIGATION TOOLS (Dynamic Discovery)
+  // ============================================
+  {
+    name: "discover_views",
+    description:
+      "Discover available database views by category or search term. Use when you need to find what data is available to answer a question that existing tools don't cover. Categories: entity (people, cats, places, requests), stats (aggregations, metrics), processing (job queues), quality (data issues), ecology (Beacon/population), linkage (relationships).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["entity", "stats", "processing", "quality", "ecology", "linkage"],
+          description: "Category of views to discover (optional)",
+        },
+        search: {
+          type: "string",
+          description: "Search term to find relevant views by description or example questions (optional)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "query_view",
+    description:
+      "Execute a query against a cataloged database view. Only works with views registered in the view catalog. Use discover_views first to find the right view name.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        view_name: {
+          type: "string",
+          description: "Name of the view to query (from discover_views results)",
+        },
+        filters: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              column_name: { type: "string" },
+              operator: { type: "string", enum: ["=", "!=", "<", ">", "ILIKE", "IS NULL", "IS NOT NULL"] },
+              value: { type: "string" },
+            },
+          },
+          description: "Filters to apply to the query (optional)",
+        },
+        columns: {
+          type: "array",
+          items: { type: "string" },
+          description: "Specific columns to return (optional, defaults to all)",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum rows to return (default 50, max 200)",
+        },
+      },
+      required: ["view_name"],
+    },
+  },
+  {
+    name: "explore_entity",
+    description:
+      "Deep exploration of a specific entity (person, cat, place) including all relationships, history, and connected data. Use after finding an entity to get the complete picture including quality scores, data lineage, and merge history.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "place", "request"],
+          description: "Type of entity to explore",
+        },
+        entity_id: {
+          type: "string",
+          description: "UUID of the entity",
+        },
+        include: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["quality", "lineage", "relationships", "history", "merge_history"],
+          },
+          description: "What aspects to include in exploration (optional, defaults to all)",
+        },
+      },
+      required: ["entity_type", "entity_id"],
+    },
+  },
+  // ============================================
+  // INTERNAL TOOLS (Silent, for system use)
+  // ============================================
+  {
+    name: "propose_data_correction",
+    description:
+      "INTERNAL: Propose a data correction when finding discrepancies between raw and processed data. Do NOT announce to user unless significant. Creates a review item for staff approval. Use when you notice current data doesn't match source evidence.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: {
+          type: "string",
+          enum: ["person", "cat", "place", "request", "appointment"],
+          description: "Type of entity needing correction",
+        },
+        entity_id: {
+          type: "string",
+          description: "UUID of the entity",
+        },
+        field_name: {
+          type: "string",
+          description: "Name of the field to correct",
+        },
+        current_value: {
+          type: "string",
+          description: "Current value in the database",
+        },
+        proposed_value: {
+          type: "string",
+          description: "Correct value based on evidence",
+        },
+        discovery_context: {
+          type: "string",
+          description: "What question/lookup revealed this discrepancy",
+        },
+        evidence_sources: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              source: { type: "string" },
+              value: { type: "string" },
+              confidence: { type: "string" },
+            },
+          },
+          description: "Sources supporting the correction",
+        },
+        reasoning: {
+          type: "string",
+          description: "Why Tippy believes this is correct",
+        },
+        confidence: {
+          type: "string",
+          enum: ["low", "medium", "high"],
+          description: "Confidence in the correction (default low)",
+        },
+      },
+      required: ["entity_type", "entity_id", "field_name", "proposed_value", "discovery_context"],
+    },
+  },
+  {
+    name: "log_unanswerable",
+    description:
+      "INTERNAL: Log when you cannot answer a user question. Do NOT announce to user. Helps identify schema gaps and missing data for system improvement.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        question_text: {
+          type: "string",
+          description: "The original question that couldn't be answered",
+        },
+        reason: {
+          type: "string",
+          enum: ["no_data", "no_view", "permission", "ambiguous", "out_of_scope", "tool_failed", "complex_query", "other"],
+          description: "Why the question couldn't be answered",
+        },
+        attempted_tools: {
+          type: "array",
+          items: { type: "string" },
+          description: "Tools that were tried",
+        },
+        error_details: {
+          type: "string",
+          description: "Specific error or issue encountered",
+        },
+      },
+      required: ["question_text", "reason"],
+    },
+  },
+  {
+    name: "create_draft_request",
+    description:
+      "Create a DRAFT FFR (Find Fix Return) request from conversation. The draft will be reviewed by a coordinator before becoming an official request. Use when someone reports cats needing help at a specific location. IMPORTANT: Before creating a draft, ALWAYS first use comprehensive_place_lookup to check existing TNR history at the location, then include that context in your reasoning.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address: {
+          type: "string",
+          description: "Full address where cats are located (e.g., '123 Main St, Santa Rosa, CA')",
+        },
+        requester_name: {
+          type: "string",
+          description: "Name of the person reporting the cats (who to contact)",
+        },
+        requester_phone: {
+          type: "string",
+          description: "Phone number for contact",
+        },
+        requester_email: {
+          type: "string",
+          description: "Email address for contact (optional)",
+        },
+        estimated_cat_count: {
+          type: "number",
+          description: "Estimated number of cats at the location",
+        },
+        summary: {
+          type: "string",
+          description: "Brief summary of the situation (1-2 sentences)",
+        },
+        notes: {
+          type: "string",
+          description: "Additional details from the conversation",
+        },
+        has_kittens: {
+          type: "boolean",
+          description: "Whether kittens are present",
+        },
+        priority: {
+          type: "string",
+          enum: ["urgent", "high", "normal", "low"],
+          description: "Suggested priority based on conversation context",
+        },
+        reasoning: {
+          type: "string",
+          description: "Brief explanation of why this request should be created, including any existing TNR history context from place lookup",
+        },
+        place_lookup_summary: {
+          type: "string",
+          description: "Summary of existing TNR history at this location (from comprehensive_place_lookup). Include number of cats already altered, active requests, etc.",
+        },
+      },
+      required: ["address", "summary", "reasoning"],
+    },
+  },
 ];
 
 /**
@@ -891,6 +1123,68 @@ export async function executeToolCall(
         return await queryColonyEstimateHistory(
           toolInput.address_search as string,
           toolInput.limit as number | undefined
+        );
+
+      // Schema Navigation Tools
+      case "discover_views":
+        return await discoverViews(
+          toolInput.category as string | undefined,
+          toolInput.search as string | undefined
+        );
+
+      case "query_view":
+        return await queryViewDynamic(
+          toolInput.view_name as string,
+          toolInput.filters as Array<{ column_name: string; operator: string; value: string }> | undefined,
+          toolInput.columns as string[] | undefined,
+          toolInput.limit as number | undefined
+        );
+
+      case "explore_entity":
+        return await exploreEntity(
+          toolInput.entity_type as string,
+          toolInput.entity_id as string,
+          toolInput.include as string[] | undefined
+        );
+
+      // Internal Tools (silent)
+      case "propose_data_correction":
+        return await proposeDataCorrection(
+          toolInput.entity_type as string,
+          toolInput.entity_id as string,
+          toolInput.field_name as string,
+          toolInput.current_value as string | undefined,
+          toolInput.proposed_value as string,
+          toolInput.discovery_context as string,
+          toolInput.evidence_sources as Array<{ source: string; value: string; confidence: string }> | undefined,
+          toolInput.reasoning as string | undefined,
+          toolInput.confidence as string | undefined,
+          context
+        );
+
+      case "log_unanswerable":
+        return await logUnanswerable(
+          toolInput.question_text as string,
+          toolInput.reason as string,
+          toolInput.attempted_tools as string[] | undefined,
+          toolInput.error_details as string | undefined,
+          context
+        );
+
+      case "create_draft_request":
+        return await createDraftRequest(
+          toolInput.address as string,
+          toolInput.summary as string,
+          toolInput.reasoning as string,
+          toolInput.requester_name as string | undefined,
+          toolInput.requester_phone as string | undefined,
+          toolInput.requester_email as string | undefined,
+          toolInput.estimated_cat_count as number | undefined,
+          toolInput.notes as string | undefined,
+          toolInput.has_kittens as boolean | undefined,
+          toolInput.priority as string | undefined,
+          toolInput.place_lookup_summary as string | undefined,
+          context
         );
 
       default:
@@ -1631,6 +1925,7 @@ async function queryPersonHistory(nameSearch: string): Promise<ToolResult> {
       FROM trapper.sot_people
       WHERE display_name ILIKE $1
         AND merged_into_person_id IS NULL
+        AND is_canonical = TRUE
       ORDER BY
         CASE WHEN display_name ILIKE $1 THEN 0 ELSE 1 END
       LIMIT 1
@@ -2315,7 +2610,7 @@ async function createReminder(
           params = [`%${entityIdentifier}%`];
           break;
         case "person":
-          query = `SELECT person_id FROM trapper.sot_people WHERE display_name ILIKE $1 LIMIT 1`;
+          query = `SELECT person_id FROM trapper.sot_people WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL AND is_canonical = TRUE LIMIT 1`;
           params = [`%${entityIdentifier}%`];
           break;
         case "request":
@@ -3374,8 +3669,9 @@ async function sendStaffMessage(
         `SELECT p.person_id, p.display_name
          FROM trapper.sot_people p
          LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
-         WHERE p.display_name ILIKE $1
-            OR pi.id_value_norm = LOWER($2)
+         WHERE (p.display_name ILIKE $1 OR pi.id_value_norm = LOWER($2))
+            AND p.merged_into_person_id IS NULL
+            AND p.is_canonical = TRUE
          LIMIT 1`,
         [`%${entityIdentifier}%`, entityIdentifier]
       );
@@ -4229,6 +4525,547 @@ async function queryColonyEstimateHistory(
     return {
       success: false,
       error: `Failed to query colony estimate history: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+// ============================================
+// SCHEMA NAVIGATION TOOL IMPLEMENTATIONS
+// ============================================
+
+/**
+ * Discover available database views by category or search
+ */
+async function discoverViews(
+  category?: string,
+  search?: string
+): Promise<ToolResult> {
+  interface ViewRecord {
+    view_name: string;
+    category: string;
+    description: string;
+    key_columns: string[];
+    filter_columns: string[];
+    example_questions: string[];
+  }
+
+  try {
+    const results = await queryRows<ViewRecord>(
+      `SELECT * FROM trapper.tippy_discover_schema($1, $2)`,
+      [category || null, search || null]
+    );
+
+    if (!results || results.length === 0) {
+      return {
+        success: true,
+        data: {
+          found: false,
+          message: category
+            ? `No views found in category "${category}"`
+            : search
+            ? `No views found matching "${search}"`
+            : "No views found in catalog. Run MIG_517 to populate the view catalog.",
+        },
+      };
+    }
+
+    // Group by category for better display
+    const byCategory: Record<string, ViewRecord[]> = {};
+    results.forEach((v) => {
+      if (!byCategory[v.category]) byCategory[v.category] = [];
+      byCategory[v.category].push(v);
+    });
+
+    return {
+      success: true,
+      data: {
+        found: true,
+        total_views: results.length,
+        by_category: byCategory,
+        views: results.map((v) => ({
+          name: v.view_name,
+          category: v.category,
+          description: v.description,
+          key_columns: v.key_columns,
+          filter_columns: v.filter_columns,
+          examples: v.example_questions,
+        })),
+        summary: category
+          ? `Found ${results.length} views in "${category}" category`
+          : search
+          ? `Found ${results.length} views matching "${search}"`
+          : `Found ${results.length} views across ${Object.keys(byCategory).length} categories`,
+      },
+    };
+  } catch (error) {
+    console.error("discoverViews error:", error);
+    return {
+      success: false,
+      error: `Failed to discover views: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+/**
+ * Execute a dynamic query against a cataloged view
+ */
+async function queryViewDynamic(
+  viewName: string,
+  filters?: Array<{ column_name: string; operator: string; value: string }>,
+  columns?: string[],
+  limit?: number
+): Promise<ToolResult> {
+  try {
+    const result = await queryOne<{
+      success: boolean;
+      view: string;
+      total_rows: number;
+      returned_rows: number;
+      data: unknown[];
+      error?: string;
+    }>(
+      `SELECT * FROM trapper.tippy_query_view($1, $2, $3, $4)`,
+      [viewName, JSON.stringify(filters || []), Math.min(limit || 50, 200), columns || null]
+    );
+
+    if (!result) {
+      return {
+        success: false,
+        error: "Query returned no result",
+      };
+    }
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || "Query failed",
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        view: result.view,
+        total_rows: result.total_rows,
+        returned_rows: result.returned_rows,
+        rows: result.data,
+        message:
+          result.total_rows === 0
+            ? `No rows found in ${viewName} with the given filters`
+            : `Returned ${result.returned_rows} of ${result.total_rows} rows from ${viewName}`,
+      },
+    };
+  } catch (error) {
+    console.error("queryViewDynamic error:", error);
+    return {
+      success: false,
+      error: `Failed to query view: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+/**
+ * Deep exploration of a specific entity
+ */
+async function exploreEntity(
+  entityType: string,
+  entityId: string,
+  include?: string[]
+): Promise<ToolResult> {
+  const includeAll = !include || include.length === 0;
+  const includeQuality = includeAll || include?.includes("quality");
+  const includeLineage = includeAll || include?.includes("lineage");
+  const includeRelationships = includeAll || include?.includes("relationships");
+  const includeMergeHistory = includeAll || include?.includes("merge_history");
+
+  try {
+    const exploration: Record<string, unknown> = {
+      entity_type: entityType,
+      entity_id: entityId,
+    };
+
+    // Get basic entity info based on type
+    if (entityType === "person") {
+      const person = await queryOne(
+        `SELECT * FROM trapper.v_person_detail WHERE person_id = $1`,
+        [entityId]
+      );
+      exploration.entity = person;
+    } else if (entityType === "cat") {
+      const cat = await queryOne(
+        `SELECT * FROM trapper.v_cat_detail WHERE cat_id = $1`,
+        [entityId]
+      );
+      exploration.entity = cat;
+    } else if (entityType === "place") {
+      const place = await queryOne(
+        `SELECT * FROM trapper.v_place_detail WHERE place_id = $1`,
+        [entityId]
+      );
+      exploration.entity = place;
+    } else if (entityType === "request") {
+      const request = await queryOne(
+        `SELECT * FROM trapper.v_request_detail WHERE request_id = $1`,
+        [entityId]
+      );
+      exploration.entity = request;
+    }
+
+    if (!exploration.entity) {
+      return {
+        success: true,
+        data: {
+          found: false,
+          message: `No ${entityType} found with ID ${entityId}`,
+        },
+      };
+    }
+
+    // Quality check
+    if (includeQuality) {
+      try {
+        const quality = await queryOne(
+          `SELECT * FROM trapper.check_entity_quality($1, $2)`,
+          [entityType, entityId]
+        );
+        exploration.quality = quality;
+      } catch {
+        exploration.quality = { error: "Quality check not available" };
+      }
+    }
+
+    // Data lineage
+    if (includeLineage) {
+      try {
+        const lineage = await queryRows(
+          `SELECT * FROM trapper.query_data_lineage($1, $2)`,
+          [entityType, entityId]
+        );
+        exploration.lineage = lineage;
+      } catch {
+        exploration.lineage = { error: "Lineage not available" };
+      }
+    }
+
+    // Relationships
+    if (includeRelationships) {
+      if (entityType === "person") {
+        const places = await queryRows(
+          `SELECT * FROM trapper.person_place_relationships WHERE person_id = $1`,
+          [entityId]
+        );
+        const cats = await queryRows(
+          `SELECT * FROM trapper.person_cat_relationships WHERE person_id = $1`,
+          [entityId]
+        );
+        exploration.relationships = { places, cats };
+      } else if (entityType === "cat") {
+        const places = await queryRows(
+          `SELECT * FROM trapper.cat_place_relationships WHERE cat_id = $1`,
+          [entityId]
+        );
+        const people = await queryRows(
+          `SELECT * FROM trapper.person_cat_relationships WHERE cat_id = $1`,
+          [entityId]
+        );
+        exploration.relationships = { places, people };
+      } else if (entityType === "place") {
+        const people = await queryRows(
+          `SELECT * FROM trapper.person_place_relationships WHERE place_id = $1`,
+          [entityId]
+        );
+        const cats = await queryRows(
+          `SELECT * FROM trapper.cat_place_relationships WHERE place_id = $1`,
+          [entityId]
+        );
+        const contexts = await queryRows(
+          `SELECT * FROM trapper.v_place_active_contexts WHERE place_id = $1`,
+          [entityId]
+        );
+        exploration.relationships = { people, cats, contexts };
+      }
+    }
+
+    // Merge history
+    if (includeMergeHistory) {
+      try {
+        const merges = await queryRows(
+          `SELECT * FROM trapper.query_merge_history($1, $2)`,
+          [entityType, entityId]
+        );
+        exploration.merge_history = merges;
+      } catch {
+        exploration.merge_history = { error: "Merge history not available" };
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        found: true,
+        ...exploration,
+      },
+    };
+  } catch (error) {
+    console.error("exploreEntity error:", error);
+    return {
+      success: false,
+      error: `Failed to explore entity: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+// ============================================
+// INTERNAL TOOL IMPLEMENTATIONS (Silent)
+// ============================================
+
+/**
+ * Propose a data correction (internal, silent)
+ */
+async function proposeDataCorrection(
+  entityType: string,
+  entityId: string,
+  fieldName: string,
+  currentValue: string | undefined,
+  proposedValue: string,
+  discoveryContext: string,
+  evidenceSources?: Array<{ source: string; value: string; confidence: string }>,
+  reasoning?: string,
+  confidence?: string,
+  context?: ToolContext
+): Promise<ToolResult> {
+  try {
+    const correctionId = await queryOne<{ tippy_propose_correction: string }>(
+      `SELECT trapper.tippy_propose_correction(
+        $1, $2::uuid, $3, $4::jsonb, $5::jsonb, $6, $7::jsonb, $8, $9, $10::uuid
+      )`,
+      [
+        entityType,
+        entityId,
+        fieldName,
+        currentValue ? JSON.stringify(currentValue) : null,
+        JSON.stringify(proposedValue),
+        discoveryContext,
+        JSON.stringify(evidenceSources || []),
+        reasoning || null,
+        confidence || "low",
+        context?.conversationId || null,
+      ]
+    );
+
+    // Silent success - don't announce to user
+    return {
+      success: true,
+      data: {
+        correction_id: correctionId?.tippy_propose_correction,
+        message: "Correction proposed for staff review",
+        silent: true, // Flag indicating this shouldn't be announced
+      },
+    };
+  } catch (error) {
+    // Silently fail - don't disrupt the conversation
+    console.error("proposeDataCorrection error:", error);
+    return {
+      success: true, // Return success to not disrupt flow
+      data: {
+        message: "Could not log correction",
+        silent: true,
+      },
+    };
+  }
+}
+
+/**
+ * Log an unanswerable question (internal, silent)
+ */
+async function logUnanswerable(
+  questionText: string,
+  reason: string,
+  attemptedTools?: string[],
+  errorDetails?: string,
+  context?: ToolContext
+): Promise<ToolResult> {
+  try {
+    await queryOne(
+      `SELECT trapper.tippy_log_unanswerable($1, $2, $3, $4, NULL, $5::uuid, $6::uuid)`,
+      [
+        questionText,
+        reason,
+        attemptedTools || [],
+        errorDetails || null,
+        context?.conversationId || null,
+        context?.staffId || null,
+      ]
+    );
+
+    // Silent success
+    return {
+      success: true,
+      data: {
+        message: "Question logged for analysis",
+        silent: true,
+      },
+    };
+  } catch (error) {
+    // Silently fail
+    console.error("logUnanswerable error:", error);
+    return {
+      success: true,
+      data: {
+        message: "Could not log question",
+        silent: true,
+      },
+    };
+  }
+}
+
+/**
+ * Create a draft FFR request that requires staff approval
+ */
+async function createDraftRequest(
+  address: string,
+  summary: string,
+  reasoning: string,
+  requesterName?: string,
+  requesterPhone?: string,
+  requesterEmail?: string,
+  estimatedCatCount?: number,
+  notes?: string,
+  hasKittens?: boolean,
+  priority?: string,
+  placeLookupSummary?: string,
+  context?: ToolContext
+): Promise<ToolResult> {
+  if (!context?.staffId) {
+    return {
+      success: false,
+      error: "Staff context required to create draft requests. Please try again.",
+    };
+  }
+
+  try {
+    // Try to resolve the place from address
+    let placeId: string | null = null;
+    let placeContext: Record<string, unknown> | null = null;
+
+    const placeResult = await queryOne<{
+      place_id: string;
+      display_name: string;
+      formatted_address: string;
+    }>(
+      `SELECT place_id, display_name, formatted_address
+       FROM trapper.places
+       WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
+         AND merged_into_place_id IS NULL
+       LIMIT 1`,
+      [`%${address}%`]
+    );
+
+    if (placeResult) {
+      placeId = placeResult.place_id;
+
+      // Get existing TNR context for the place
+      const contextResult = await queryOne<{
+        total_requests: number;
+        active_requests: number;
+        cats_altered: number;
+        latest_request_date: string | null;
+      }>(
+        `SELECT
+           (SELECT COUNT(*) FROM trapper.sot_requests
+            WHERE place_id = $1 AND status NOT IN ('cancelled', 'redirected')) AS total_requests,
+           (SELECT COUNT(*) FROM trapper.sot_requests
+            WHERE place_id = $1 AND status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_requests,
+           (SELECT COALESCE(SUM(vas.cats_altered), 0)::int
+            FROM trapper.v_request_alteration_stats vas
+            JOIN trapper.sot_requests r ON r.request_id = vas.request_id
+            WHERE r.place_id = $1) AS cats_altered,
+           (SELECT MAX(source_created_at)::text FROM trapper.sot_requests
+            WHERE place_id = $1) AS latest_request_date`,
+        [placeId]
+      );
+
+      if (contextResult) {
+        placeContext = {
+          resolved_place_name: placeResult.display_name,
+          resolved_address: placeResult.formatted_address,
+          total_requests: contextResult.total_requests,
+          active_requests: contextResult.active_requests,
+          cats_already_altered: contextResult.cats_altered,
+          latest_request_date: contextResult.latest_request_date,
+          tippy_summary: placeLookupSummary || null,
+        };
+      }
+    }
+
+    // Insert the draft request
+    const result = await queryOne<{
+      draft_id: string;
+      expires_at: string;
+    }>(
+      `INSERT INTO trapper.tippy_draft_requests (
+        created_by_staff_id,
+        conversation_id,
+        raw_address,
+        place_id,
+        requester_name,
+        requester_phone,
+        requester_email,
+        estimated_cat_count,
+        summary,
+        notes,
+        has_kittens,
+        priority,
+        tippy_reasoning,
+        place_context
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING draft_id, expires_at`,
+      [
+        context.staffId,
+        context.conversationId || null,
+        address,
+        placeId,
+        requesterName || null,
+        requesterPhone || null,
+        requesterEmail || null,
+        estimatedCatCount || null,
+        summary,
+        notes || null,
+        hasKittens || false,
+        priority || "normal",
+        reasoning,
+        placeContext ? JSON.stringify(placeContext) : null,
+      ]
+    );
+
+    if (!result) {
+      return { success: false, error: "Failed to create draft request" };
+    }
+
+    // Build response message
+    let message = `Draft request created successfully. A coordinator will review it before it becomes official.`;
+    if (placeContext && (placeContext.active_requests as number) > 0) {
+      message += ` Note: There are ${placeContext.active_requests} active request(s) already at this location with ${placeContext.cats_already_altered} cats already altered.`;
+    }
+
+    return {
+      success: true,
+      data: {
+        message,
+        draft_id: result.draft_id,
+        expires_at: result.expires_at,
+        place_resolved: !!placeId,
+        existing_history: placeContext ? {
+          active_requests: placeContext.active_requests,
+          cats_already_altered: placeContext.cats_already_altered,
+        } : null,
+      },
+    };
+  } catch (error) {
+    console.error("createDraftRequest error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create draft request",
     };
   }
 }

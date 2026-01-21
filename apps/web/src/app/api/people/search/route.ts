@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
       FROM trapper.sot_people p
       LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
       WHERE p.merged_into_person_id IS NULL
+        AND p.is_canonical = TRUE
         AND (
           p.display_name ILIKE $1
           OR pi.id_value_norm ILIKE $1

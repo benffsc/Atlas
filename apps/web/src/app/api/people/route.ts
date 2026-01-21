@@ -5,6 +5,7 @@ interface PersonListRow {
   person_id: string;
   display_name: string;
   account_type: string | null;
+  is_canonical: boolean;
   surface_quality: string | null;
   quality_reason: string | null;
   has_email: boolean;
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
         person_id,
         display_name,
         account_type,
+        is_canonical,
         surface_quality,
         quality_reason,
         has_email,
