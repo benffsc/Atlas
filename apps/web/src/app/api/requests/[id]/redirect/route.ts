@@ -1,0 +1,192 @@
+import { NextRequest, NextResponse } from "next/server";
+import { queryOne } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+interface RedirectResult {
+  original_request_id: string;
+  new_request_id: string;
+  redirect_status: string;
+}
+
+/**
+ * POST /api/requests/[id]/redirect
+ *
+ * Redirects a request when field conditions change.
+ * Creates a new request and links them together with non-overlapping
+ * attribution windows to prevent double-counting in Beacon stats.
+ */
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  try {
+    // Require authentication
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    const { id: requestId } = await params;
+    const body = await request.json();
+
+    const {
+      redirect_reason,
+      new_address,
+      new_place_id,
+      new_requester_name,
+      new_requester_phone,
+      new_requester_email,
+      summary,
+      notes,
+      estimated_cat_count,
+    } = body;
+
+    // Validate required fields
+    if (!redirect_reason) {
+      return NextResponse.json(
+        { error: "Redirect reason is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!new_address && !new_place_id) {
+      return NextResponse.json(
+        { error: "Either new_address or new_place_id is required" },
+        { status: 400 }
+      );
+    }
+
+    // Call the redirect_request function
+    const result = await queryOne<RedirectResult>(
+      `SELECT * FROM trapper.redirect_request(
+        p_original_request_id := $1,
+        p_redirect_reason := $2,
+        p_new_address := $3,
+        p_new_place_id := $4,
+        p_new_requester_name := $5,
+        p_new_requester_phone := $6,
+        p_new_requester_email := $7,
+        p_summary := $8,
+        p_notes := $9,
+        p_estimated_cat_count := $10,
+        p_created_by := $11
+      )`,
+      [
+        requestId,
+        redirect_reason,
+        new_address || null,
+        new_place_id || null,
+        new_requester_name || null,
+        new_requester_phone || null,
+        new_requester_email || null,
+        summary || null,
+        notes || null,
+        estimated_cat_count || null,
+        `staff:${session.staff_id}`,
+      ]
+    );
+
+    if (!result) {
+      return NextResponse.json(
+        { error: "Failed to redirect request" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      original_request_id: result.original_request_id,
+      new_request_id: result.new_request_id,
+      redirect_url: `/requests/${result.new_request_id}`,
+    });
+  } catch (error) {
+    console.error("Redirect request error:", error);
+
+    // Handle specific error messages from the function
+    if (error instanceof Error) {
+      if (error.message.includes("not found")) {
+        return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      }
+      if (error.message.includes("already been redirected")) {
+        return NextResponse.json(
+          { error: "This request has already been redirected" },
+          { status: 400 }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      { error: "Failed to redirect request" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/requests/[id]/redirect
+ *
+ * Get redirect information for a request (if any)
+ */
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id: requestId } = await params;
+
+    const result = await queryOne<{
+      request_id: string;
+      status: string;
+      redirected_to_request_id: string | null;
+      redirected_from_request_id: string | null;
+      redirect_reason: string | null;
+      redirect_at: string | null;
+      to_request_summary: string | null;
+      from_request_summary: string | null;
+    }>(
+      `SELECT
+        r.request_id,
+        r.status::TEXT,
+        r.redirected_to_request_id,
+        r.redirected_from_request_id,
+        r.redirect_reason,
+        r.redirect_at,
+        to_req.summary AS to_request_summary,
+        from_req.summary AS from_request_summary
+      FROM trapper.sot_requests r
+      LEFT JOIN trapper.sot_requests to_req ON to_req.request_id = r.redirected_to_request_id
+      LEFT JOIN trapper.sot_requests from_req ON from_req.request_id = r.redirected_from_request_id
+      WHERE r.request_id = $1`,
+      [requestId]
+    );
+
+    if (!result) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      request_id: result.request_id,
+      status: result.status,
+      redirect_info: {
+        redirected_to: result.redirected_to_request_id
+          ? {
+              request_id: result.redirected_to_request_id,
+              summary: result.to_request_summary,
+            }
+          : null,
+        redirected_from: result.redirected_from_request_id
+          ? {
+              request_id: result.redirected_from_request_id,
+              summary: result.from_request_summary,
+            }
+          : null,
+        redirect_reason: result.redirect_reason,
+        redirect_at: result.redirect_at,
+      },
+    });
+  } catch (error) {
+    console.error("Get redirect info error:", error);
+    return NextResponse.json(
+      { error: "Failed to get redirect info" },
+      { status: 500 }
+    );
+  }
+}
