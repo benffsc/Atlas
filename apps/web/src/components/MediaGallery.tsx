@@ -3,6 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { MediaUploader, MediaItem } from "./MediaUploader";
 import { MediaLightbox } from "./MediaLightbox";
+import { PhotoGroupingPanel } from "./PhotoGroupingPanel";
+
+interface Cat {
+  cat_id: string;
+  display_name: string;
+}
+
+interface ExtendedMediaItem extends MediaItem {
+  cat_identification_confidence?: string;
+  photo_group_id?: string;
+  linked_cat_id?: string;
+}
 
 interface MediaGalleryProps {
   entityType: "cat" | "place" | "request";
@@ -12,6 +24,10 @@ interface MediaGalleryProps {
   showCatDescription?: boolean;
   defaultMediaType?: string;
   allowedMediaTypes?: string[];
+  // New props for grouping
+  showGrouping?: boolean;
+  defaultToGroupView?: boolean;
+  availableCats?: Cat[];
 }
 
 export function MediaGallery({
@@ -22,12 +38,18 @@ export function MediaGallery({
   showCatDescription = false,
   defaultMediaType,
   allowedMediaTypes,
+  showGrouping = false,
+  defaultToGroupView = false,
+  availableCats = [],
 }: MediaGalleryProps) {
-  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [media, setMedia] = useState<ExtendedMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUploader, setShowUploader] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "groups">(
+    defaultToGroupView && showGrouping ? "groups" : "grid"
+  );
 
   // Fetch media for this entity
   const fetchMedia = useCallback(async () => {
@@ -56,24 +78,18 @@ export function MediaGallery({
   }, [fetchMedia]);
 
   // Handle upload complete
-  const handleUploadComplete = (newMedia: MediaItem) => {
-    setMedia((prev) => [newMedia, ...prev]);
+  const handleUploadComplete = (newMedia: MediaItem | MediaItem[]) => {
+    if (Array.isArray(newMedia)) {
+      setMedia((prev) => [...newMedia, ...prev]);
+    } else {
+      setMedia((prev) => [newMedia, ...prev]);
+    }
     setShowUploader(false);
   };
 
   // Determine which media to display
   const displayMedia = maxDisplay ? media.slice(0, maxDisplay) : media;
   const hasMore = maxDisplay && media.length > maxDisplay;
-
-  // Format date for display
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
 
   // Get media type label
   const getMediaTypeLabel = (type: string) => {
@@ -87,6 +103,17 @@ export function MediaGallery({
     return labels[type] || type;
   };
 
+  // Get confidence color
+  const getConfidenceColor = (confidence: string | undefined) => {
+    const colors: Record<string, string> = {
+      confirmed: "#198754",
+      likely: "#0d6efd",
+      uncertain: "#ffc107",
+      unidentified: "#6c757d",
+    };
+    return colors[confidence || "unidentified"] || "#6c757d";
+  };
+
   if (loading) {
     return (
       <div style={{ padding: "1rem", textAlign: "center", color: "#6c757d" }}>
@@ -97,29 +124,72 @@ export function MediaGallery({
 
   return (
     <div>
-      {/* Header with Add Photo button */}
-      {allowUpload && (
+      {/* Header with Add Photo button and view toggle */}
+      {(allowUpload || showGrouping) && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
           <span style={{ fontWeight: 500, color: "#495057" }}>
             {media.length} {media.length === 1 ? "Photo" : "Photos"}
           </span>
-          <button
-            onClick={() => setShowUploader(true)}
-            style={{
-              padding: "0.375rem 0.75rem",
-              fontSize: "0.875rem",
-              background: "#0d6efd",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            <span>+</span> Add Photo
-          </button>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            {/* View mode toggle */}
+            {showGrouping && media.length > 0 && (
+              <div style={{
+                display: "flex",
+                background: "#e9ecef",
+                borderRadius: "4px",
+                padding: "2px",
+              }}>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.75rem",
+                    background: viewMode === "grid" ? "white" : "transparent",
+                    border: "none",
+                    borderRadius: "3px",
+                    cursor: "pointer",
+                    color: viewMode === "grid" ? "#495057" : "#6c757d",
+                  }}
+                >
+                  Grid
+                </button>
+                <button
+                  onClick={() => setViewMode("groups")}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.75rem",
+                    background: viewMode === "groups" ? "white" : "transparent",
+                    border: "none",
+                    borderRadius: "3px",
+                    cursor: "pointer",
+                    color: viewMode === "groups" ? "#495057" : "#6c757d",
+                  }}
+                >
+                  Groups
+                </button>
+              </div>
+            )}
+            {/* Add Photo button */}
+            {allowUpload && (
+              <button
+                onClick={() => setShowUploader(true)}
+                style={{
+                  padding: "0.375rem 0.75rem",
+                  fontSize: "0.875rem",
+                  background: "#0d6efd",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                }}
+              >
+                <span>+</span> Add Photo{showGrouping ? "s" : ""}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -134,6 +204,10 @@ export function MediaGallery({
             showCatDescription={showCatDescription || entityType === "request"}
             defaultMediaType={defaultMediaType || (entityType === "cat" ? "cat_photo" : "site_photo")}
             allowedMediaTypes={allowedMediaTypes || ["cat_photo", "site_photo", "evidence"]}
+            // New props for batch upload when grouping is enabled
+            allowMultiple={showGrouping}
+            showConfidenceSelector={showGrouping && entityType === "request"}
+            autoGroupMultiple={showGrouping}
           />
         </div>
       )}
@@ -167,18 +241,42 @@ export function MediaGallery({
         >
           <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>📷</div>
           <div style={{ color: "#6c757d" }}>
-            {allowUpload ? "Click to add first photo" : "No photos yet"}
+            {allowUpload
+              ? showGrouping
+                ? "Click to add photos"
+                : "Click to add first photo"
+              : "No photos yet"}
           </div>
           {allowUpload && (
             <div style={{ fontSize: "0.75rem", color: "#adb5bd", marginTop: "0.25rem" }}>
-              or paste from clipboard (Cmd+V)
+              {showGrouping
+                ? "Select multiple photos to group as same cat"
+                : "or paste from clipboard (Cmd+V)"}
             </div>
           )}
         </div>
       )}
 
-      {/* Photo grid */}
-      {displayMedia.length > 0 && (
+      {/* Photo grouping panel (when in groups view) */}
+      {viewMode === "groups" && showGrouping && media.length > 0 && (
+        <PhotoGroupingPanel
+          requestId={entityId}
+          media={media.map((m) => ({
+            media_id: m.media_id,
+            storage_path: m.storage_path,
+            original_filename: m.original_filename,
+            cat_description: m.cat_description,
+            cat_identification_confidence: m.cat_identification_confidence || null,
+            linked_cat_id: m.linked_cat_id || null,
+            photo_group_id: m.photo_group_id || null,
+          }))}
+          onMediaUpdated={fetchMedia}
+          availableCats={availableCats}
+        />
+      )}
+
+      {/* Photo grid (when in grid view or grouping not enabled) */}
+      {(viewMode === "grid" || !showGrouping) && displayMedia.length > 0 && (
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
@@ -221,6 +319,37 @@ export function MediaGallery({
               }}>
                 {getMediaTypeLabel(item.media_type)}
               </div>
+              {/* Confidence indicator (when grouping enabled) */}
+              {showGrouping && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "4px",
+                    right: "4px",
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "50%",
+                    background: getConfidenceColor(item.cat_identification_confidence),
+                    border: "1px solid white",
+                  }}
+                  title={item.cat_identification_confidence || "unidentified"}
+                />
+              )}
+              {/* Linked cat indicator */}
+              {item.linked_cat_id && (
+                <div style={{
+                  position: "absolute",
+                  top: "4px",
+                  right: showGrouping ? "20px" : "4px",
+                  padding: "2px 4px",
+                  background: "#198754",
+                  color: "white",
+                  fontSize: "0.5rem",
+                  borderRadius: "3px",
+                }}>
+                  Linked
+                </div>
+              )}
               {/* Cat description if present */}
               {item.cat_description && (
                 <div style={{
@@ -245,7 +374,7 @@ export function MediaGallery({
       )}
 
       {/* Show more link */}
-      {hasMore && (
+      {hasMore && viewMode === "grid" && (
         <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
           <button
             onClick={() => {

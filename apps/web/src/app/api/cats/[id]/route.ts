@@ -377,6 +377,61 @@ export async function GET(
       LIMIT 10
     `;
 
+    // Fetch enhanced stakeholder relationships (MIG_544)
+    const stakeholdersSql = `
+      SELECT
+        pcr.person_id,
+        p.display_name AS person_name,
+        pi.id_value_norm AS person_email,
+        pcr.relationship_type,
+        pcr.confidence,
+        pcr.context_notes,
+        pcr.effective_date::TEXT,
+        a.appointment_date::TEXT AS appointment_date,
+        a.appointment_number,
+        pcr.source_system,
+        pcr.created_at::TEXT
+      FROM trapper.person_cat_relationships pcr
+      JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+      LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email'
+      LEFT JOIN trapper.sot_appointments a ON a.appointment_id = pcr.appointment_id
+      WHERE pcr.cat_id = $1
+      ORDER BY
+        CASE pcr.relationship_type
+          WHEN 'owner' THEN 1
+          WHEN 'adopter' THEN 2
+          WHEN 'fostering' THEN 3
+          WHEN 'caretaker' THEN 4
+          WHEN 'brought_in_by' THEN 5
+          ELSE 6
+        END,
+        pcr.effective_date DESC NULLS LAST
+    `;
+
+    // Fetch movement timeline (MIG_546)
+    const movementsSql = `
+      SELECT
+        me.movement_id,
+        me.from_place_id,
+        fp.display_name AS from_place_name,
+        fp.formatted_address AS from_address,
+        me.to_place_id,
+        tp.display_name AS to_place_name,
+        tp.formatted_address AS to_address,
+        me.event_date::TEXT,
+        me.days_since_previous,
+        ROUND(me.distance_meters) AS distance_meters,
+        me.movement_type,
+        me.source_type,
+        me.notes
+      FROM trapper.cat_movement_events me
+      LEFT JOIN trapper.places fp ON fp.place_id = me.from_place_id
+      JOIN trapper.places tp ON tp.place_id = me.to_place_id
+      WHERE me.cat_id = $1
+      ORDER BY me.event_date DESC
+      LIMIT 20
+    `;
+
     // Helper function for graceful query execution (returns empty array on error)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function safeQueryRows<T>(sql: string, params: unknown[]): Promise<T[]> {
@@ -388,7 +443,7 @@ export async function GET(
       }
     }
 
-    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows] = await Promise.all([
+    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows, stakeholders, movements] = await Promise.all([
       safeQueryRows<ClinicVisit>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
@@ -429,6 +484,34 @@ export async function GET(
         sex: string | null;
         microchip: string | null;
       }>(siblingsSql, [id]),
+      safeQueryRows<{
+        person_id: string;
+        person_name: string;
+        person_email: string | null;
+        relationship_type: string;
+        confidence: string;
+        context_notes: string | null;
+        effective_date: string | null;
+        appointment_date: string | null;
+        appointment_number: string | null;
+        source_system: string;
+        created_at: string;
+      }>(stakeholdersSql, [id]),
+      safeQueryRows<{
+        movement_id: string;
+        from_place_id: string | null;
+        from_place_name: string | null;
+        from_address: string | null;
+        to_place_id: string;
+        to_place_name: string;
+        to_address: string;
+        event_date: string;
+        days_since_previous: number | null;
+        distance_meters: number | null;
+        movement_type: string;
+        source_type: string;
+        notes: string | null;
+      }>(movementsSql, [id]),
     ]);
 
     return NextResponse.json({
@@ -442,6 +525,10 @@ export async function GET(
       mortality_event: mortalityRows[0] || null,
       birth_event: birthRows[0] || null,
       siblings: siblingRows,
+      // Enhanced relationship data (MIG_544, MIG_547)
+      stakeholders,
+      // Movement timeline (MIG_546)
+      movements,
     });
   } catch (error) {
     console.error("Error fetching cat detail:", error);

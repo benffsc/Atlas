@@ -595,3 +595,45 @@ Trappers are linked to appointments directly for accurate stats:
 - Don't return 404 for merged entities - Check `merged_into_place_id` and redirect
 - Don't hardcode place context types - Use `place_context_types` table
 - Don't INSERT directly into place_contexts - Use `assign_place_context()` function
+
+## Tippy Documentation Requirements
+
+**IMPORTANT:** When making data quality fixes or significant changes, update the Tippy reference documentation so Tippy (the AI assistant) can explain changes to staff.
+
+### After Data Quality Fixes
+
+Update `docs/TIPPY_DATA_QUALITY_REFERENCE.md` with:
+
+1. **Data Quality Fix Log entry:**
+   ```markdown
+   ### YYYY-MM-DD: Brief Title
+
+   **Problem:** What was wrong or missing
+   **Investigation:** How discovered, what analysis done
+   **Solution:** Which migrations/code changes
+   **Result:** Quantified outcome (X records fixed)
+   ```
+
+2. **Update statistics** if appointment linking status changed
+
+3. **Add staff guidance** if new scenarios need explanation
+
+### After Significant Development Sessions
+
+Add a Development Session Log entry:
+```markdown
+### Session: YYYY-MM-DD - Topic
+
+**Context:** Why this work was initiated
+**Key Discoveries:** What was learned
+**Changes Made:** Brief list of migrations/features
+**Staff Impact:** How this affects staff workflows
+```
+
+### Why This Matters
+
+Tippy uses this documentation to:
+- Explain data discrepancies to staff
+- Provide context on why certain records can't be linked
+- Help staff understand system limitations
+- Answer questions about recent changes
