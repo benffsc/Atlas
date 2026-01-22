@@ -391,7 +391,7 @@ export async function POST(request: NextRequest) {
 
     // Call Claude API with filtered tools
     let response = await client.messages.create({
-      model: "claude-3-haiku-20240307", // Using Haiku for speed and cost, with intent detection for tool reliability
+      model: "claude-sonnet-4-20250514", // Sonnet 4 for better conversation quality
       max_tokens: 1024,
       system: systemPrompt,
       messages,
@@ -467,7 +467,7 @@ export async function POST(request: NextRequest) {
 
       // Call Claude again with tool results
       response = await client.messages.create({
-        model: "claude-3-haiku-20240307",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
         system: systemPrompt,
         messages,

@@ -101,7 +101,7 @@ async function paraphraseContent(anthropic, content) {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',  // Fast and cheap
+      model: 'claude-haiku-4-20250514',  // Haiku 4 - fast with better quality
       max_tokens: 500,
       system: SYSTEM_PROMPT,
       messages: [

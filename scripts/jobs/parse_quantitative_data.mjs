@@ -131,7 +131,7 @@ async function extractQuantitativeData(anthropic, content) {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-haiku-4-20250514',
       max_tokens: 300,
       system: SYSTEM_PROMPT,
       messages: [
