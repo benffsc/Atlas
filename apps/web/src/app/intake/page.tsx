@@ -1476,7 +1476,7 @@ function IntakeForm() {
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                   <div>
-                    <label>How many cats total at this location?</label>
+                    <label>How many <strong>adult cats</strong> total at this location?</label>
                     <input
                       type="text"
                       value={formData.cat_count}
@@ -1484,11 +1484,11 @@ function IntakeForm() {
                       placeholder="e.g., 8 or 10-12"
                     />
                     <p style={{ fontSize: "0.75rem", color: "#666", margin: "0.25rem 0 0" }}>
-                      Total cats they're aware of
+                      Adults only - kittens tracked separately
                     </p>
                   </div>
                   <div>
-                    <label>How many still need to be fixed?</label>
+                    <label>How many <strong>adult cats</strong> still need to be fixed?</label>
                     <input
                       type="text"
                       value={formData.cats_needing_tnr}
@@ -1496,7 +1496,7 @@ function IntakeForm() {
                       placeholder="e.g., 5"
                     />
                     <p style={{ fontSize: "0.75rem", color: "#666", margin: "0.25rem 0 0" }}>
-                      Cats without ear tips
+                      Adults without ear tips
                     </p>
                   </div>
                 </div>

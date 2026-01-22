@@ -46,6 +46,7 @@ export function RedirectRequestModal({
   const [kittenAgeWeeks, setKittenAgeWeeks] = useState<number | "">("");
   const [kittenAssessmentStatus, setKittenAssessmentStatus] = useState("");
   const [kittenAssessmentOutcome, setKittenAssessmentOutcome] = useState("");
+  const [kittenNotNeededReason, setKittenNotNeededReason] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +69,7 @@ export function RedirectRequestModal({
       setKittenAgeWeeks("");
       setKittenAssessmentStatus("");
       setKittenAssessmentOutcome("");
+      setKittenNotNeededReason("");
       setError("");
       setSuccess(false);
     }
@@ -117,6 +119,7 @@ export function RedirectRequestModal({
           kitten_age_weeks: kittenAgeWeeks === "" ? null : kittenAgeWeeks,
           kitten_assessment_status: kittenAssessmentStatus || null,
           kitten_assessment_outcome: kittenAssessmentOutcome || null,
+          kitten_not_needed_reason: kittenNotNeededReason || null,
         }),
       });
 
@@ -543,11 +546,43 @@ export function RedirectRequestModal({
                     }}
                   >
                     <option value="">Not assessed</option>
+                    <option value="not_needed">Assessment not needed</option>
                     <option value="pending">Pending</option>
                     <option value="assessed">Assessed</option>
                     <option value="placed">Placed in foster</option>
                   </select>
                 </div>
+                {kittenAssessmentStatus === "not_needed" && (
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "4px",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      Reason not needed
+                    </label>
+                    <input
+                      type="text"
+                      value={kittenNotNeededReason}
+                      onChange={(e) => setKittenNotNeededReason(e.target.value)}
+                      placeholder="e.g., Kittens already 8+ weeks, TNR candidates"
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        fontSize: "0.85rem",
+                      }}
+                    />
+                    <p style={{ fontSize: "0.7rem", color: "#666", marginTop: "4px" }}>
+                      Can be changed later if circumstances change
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, marginBottom: "4px" }}>
                     Outcome

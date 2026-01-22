@@ -8,6 +8,18 @@
 \echo ''
 
 -- ============================================================================
+-- PART 0: Add kitten_not_needed_reason column to sot_requests
+-- ============================================================================
+
+\echo 'Adding kitten_not_needed_reason column...'
+
+ALTER TABLE trapper.sot_requests
+ADD COLUMN IF NOT EXISTS kitten_not_needed_reason TEXT;
+
+COMMENT ON COLUMN trapper.sot_requests.kitten_not_needed_reason IS
+'Optional explanation when kitten_assessment_status is "not_needed" (e.g., "Kittens already 8+ weeks, TNR candidates")';
+
+-- ============================================================================
 -- PART 1: Update find_or_create_request to accept kitten fields
 -- ============================================================================
 
@@ -33,6 +45,7 @@ CREATE OR REPLACE FUNCTION trapper.find_or_create_request(
   p_kitten_age_weeks INT DEFAULT NULL,
   p_kitten_assessment_status TEXT DEFAULT NULL,
   p_kitten_assessment_outcome TEXT DEFAULT NULL,
+  p_kitten_not_needed_reason TEXT DEFAULT NULL,
   p_cats_are_friendly BOOLEAN DEFAULT NULL,
   p_request_purpose TEXT DEFAULT 'tnr',
   p_internal_notes TEXT DEFAULT NULL,
@@ -128,6 +141,7 @@ BEGIN
     kitten_age_weeks,
     kitten_assessment_status,
     kitten_assessment_outcome,
+    kitten_not_needed_reason,
     cats_are_friendly,
     status,
     priority,
@@ -152,6 +166,7 @@ BEGIN
     COALESCE(p_kitten_age_weeks, v_source_request.kitten_age_weeks),
     COALESCE(p_kitten_assessment_status, v_source_request.kitten_assessment_status),
     COALESCE(p_kitten_assessment_outcome, v_source_request.kitten_assessment_outcome),
+    COALESCE(p_kitten_not_needed_reason, v_source_request.kitten_not_needed_reason),
     p_cats_are_friendly,
     COALESCE(NULLIF(p_status, '')::trapper.request_status, 'new'),
     COALESCE(NULLIF(p_priority, '')::trapper.request_priority, 'normal'),
@@ -171,7 +186,7 @@ COMMENT ON FUNCTION trapper.find_or_create_request IS
 'Central request creation function with full kitten assessment support.
 Creates or finds an existing request, auto-creating places and people as needed.
 New parameters for kitten assessment: p_kitten_count, p_kitten_age_weeks,
-p_kitten_assessment_status, p_kitten_assessment_outcome.
+p_kitten_assessment_status, p_kitten_assessment_outcome, p_kitten_not_needed_reason.
 Use p_copy_from_request_id to copy kitten fields from another request as defaults.';
 
 -- ============================================================================
@@ -197,7 +212,8 @@ CREATE OR REPLACE FUNCTION trapper.handoff_request(
   p_kitten_count INT DEFAULT NULL,
   p_kitten_age_weeks INT DEFAULT NULL,
   p_kitten_assessment_status TEXT DEFAULT NULL,
-  p_kitten_assessment_outcome TEXT DEFAULT NULL
+  p_kitten_assessment_outcome TEXT DEFAULT NULL,
+  p_kitten_not_needed_reason TEXT DEFAULT NULL
 )
 RETURNS TABLE(
   original_request_id UUID,
@@ -250,6 +266,7 @@ BEGIN
     p_kitten_age_weeks := COALESCE(p_kitten_age_weeks, v_original.kitten_age_weeks),
     p_kitten_assessment_status := p_kitten_assessment_status,  -- Don't copy - requires re-assessment
     p_kitten_assessment_outcome := p_kitten_assessment_outcome,
+    p_kitten_not_needed_reason := p_kitten_not_needed_reason,
     p_status := 'new',
     p_priority := v_original.priority::TEXT,
     p_created_by := p_created_by
@@ -295,7 +312,7 @@ COMMENT ON FUNCTION trapper.handoff_request IS
 'Hands off a request to a new caretaker at a new location with full kitten assessment.
 
 New kitten parameters: p_has_kittens, p_kitten_count, p_kitten_age_weeks,
-p_kitten_assessment_status, p_kitten_assessment_outcome.
+p_kitten_assessment_status, p_kitten_assessment_outcome, p_kitten_not_needed_reason.
 
 Kitten count and age default to original request values. Assessment status/outcome
 do NOT copy (requires re-assessment by new caretaker).';
@@ -318,7 +335,8 @@ END $$;
 CREATE OR REPLACE FUNCTION trapper.redirect_request(
   p_original_request_id UUID,
   p_redirect_reason TEXT,
-  p_new_address TEXT,
+  p_new_address TEXT DEFAULT NULL,
+  p_new_place_id UUID DEFAULT NULL,
   p_new_requester_name TEXT DEFAULT NULL,
   p_new_requester_phone TEXT DEFAULT NULL,
   p_new_requester_email TEXT DEFAULT NULL,
@@ -331,7 +349,8 @@ CREATE OR REPLACE FUNCTION trapper.redirect_request(
   p_kitten_count INT DEFAULT NULL,
   p_kitten_age_weeks INT DEFAULT NULL,
   p_kitten_assessment_status TEXT DEFAULT NULL,
-  p_kitten_assessment_outcome TEXT DEFAULT NULL
+  p_kitten_assessment_outcome TEXT DEFAULT NULL,
+  p_kitten_not_needed_reason TEXT DEFAULT NULL
 )
 RETURNS TABLE(
   original_request_id UUID,
@@ -369,6 +388,7 @@ BEGIN
     p_source_system := 'atlas_ui',
     p_source_record_id := 'redirect_from_' || p_original_request_id::TEXT || '_' || EXTRACT(EPOCH FROM v_redirect_at)::TEXT,
     p_source_created_at := v_redirect_at,
+    p_place_id := p_new_place_id,
     p_raw_address := p_new_address,
     p_requester_email := COALESCE(p_new_requester_email, (
       SELECT id_value FROM trapper.person_identifiers
@@ -391,6 +411,7 @@ BEGIN
     p_kitten_age_weeks := COALESCE(p_kitten_age_weeks, v_original.kitten_age_weeks),
     p_kitten_assessment_status := p_kitten_assessment_status,
     p_kitten_assessment_outcome := p_kitten_assessment_outcome,
+    p_kitten_not_needed_reason := p_kitten_not_needed_reason,
     p_status := 'new',
     p_priority := v_original.priority::TEXT,
     p_created_by := p_created_by
@@ -436,7 +457,7 @@ COMMENT ON FUNCTION trapper.redirect_request IS
 'Redirects a request to a new address with full kitten assessment support.
 
 New kitten parameters: p_has_kittens, p_kitten_count, p_kitten_age_weeks,
-p_kitten_assessment_status, p_kitten_assessment_outcome.
+p_kitten_assessment_status, p_kitten_assessment_outcome, p_kitten_not_needed_reason.
 
 Kitten count and age default to original request values. Assessment status/outcome
 do NOT copy (requires re-assessment at new location).';
@@ -450,12 +471,17 @@ do NOT copy (requires re-assessment at new location).';
 \echo 'MIG_537 Complete!'
 \echo '=============================================='
 \echo ''
+\echo 'Added column:'
+\echo '  - sot_requests.kitten_not_needed_reason'
+\echo ''
 \echo 'Updated functions:'
 \echo '  - find_or_create_request: Added kitten_count, kitten_age_weeks,'
-\echo '                            kitten_assessment_status, kitten_assessment_outcome'
+\echo '                            kitten_assessment_status, kitten_assessment_outcome,'
+\echo '                            kitten_not_needed_reason'
 \echo '  - handoff_request: Added full kitten assessment parameters'
 \echo '  - redirect_request: Added full kitten assessment parameters'
 \echo ''
 \echo 'Kitten fields default to original request values (count, age).'
 \echo 'Assessment status/outcome do NOT copy - requires re-assessment.'
+\echo 'Use kitten_assessment_status = "not_needed" with reason for skipping.'
 \echo ''
