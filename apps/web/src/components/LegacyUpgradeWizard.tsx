@@ -141,7 +141,8 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
     >
       <div
         style={{
-          background: "white",
+          background: "var(--card-bg)",
+          color: "var(--foreground)",
           borderRadius: "12px",
           width: "90%",
           maxWidth: "600px",
@@ -154,13 +155,13 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1.25rem" }}>Upgrade Legacy Request</h2>
-            <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "#666" }}>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
               {request.summary || request.place_name || "TNR Request"}
             </p>
           </div>
           <button
             onClick={onCancel}
-            style={{ background: "transparent", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#666" }}
+            style={{ background: "transparent", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--text-secondary)" }}
           >
             ×
           </button>
@@ -175,7 +176,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                 flex: 1,
                 height: "4px",
                 borderRadius: "2px",
-                background: s <= step ? "#0d6efd" : "#e9ecef",
+                background: s <= step ? "#0d6efd" : "var(--border)",
               }}
             />
           ))}
@@ -183,7 +184,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
 
         {/* Error */}
         {error && (
-          <div style={{ padding: "0.75rem", background: "#f8d7da", color: "#721c24", borderRadius: "6px", marginBottom: "1rem" }}>
+          <div style={{ padding: "0.75rem", background: "var(--danger-bg)", color: "var(--danger-text)", borderRadius: "6px", marginBottom: "1rem" }}>
             {error}
           </div>
         )}
@@ -193,7 +194,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
           <div>
             <h3 style={{ marginTop: 0 }}>Step 1: Kitten Status</h3>
             {request.has_kittens && (
-              <div style={{ padding: "0.75rem", background: "#fff3cd", borderRadius: "6px", marginBottom: "1rem" }}>
+              <div style={{ padding: "0.75rem", background: "var(--warning-bg)", color: "var(--warning-text)", borderRadius: "6px", marginBottom: "1rem" }}>
                 This request was marked as having kittens.
               </div>
             )}
@@ -206,7 +207,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                 />
                 <span>Kittens have already been taken/fostered</span>
               </label>
-              <p style={{ margin: "0.25rem 0 0 1.5rem", fontSize: "0.8rem", color: "#666" }}>
+              <p style={{ margin: "0.25rem 0 0 1.5rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                 Check this if kittens were removed before or during the TNR process.
               </p>
             </div>
@@ -287,7 +288,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
 
             {request.estimated_cat_count ? (
               <>
-                <div style={{ padding: "1rem", background: "#e7f1ff", borderRadius: "8px", marginBottom: "1rem" }}>
+                <div style={{ padding: "1rem", background: "var(--info-bg)", borderRadius: "8px", marginBottom: "1rem" }}>
                   <p style={{ margin: 0 }}>
                     The original request listed <strong>{request.estimated_cat_count} cats</strong>.
                   </p>
@@ -304,10 +305,10 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                         alignItems: "flex-start",
                         gap: "0.5rem",
                         padding: "0.75rem",
-                        border: `2px solid ${formData.cat_count_clarification === "total" ? "#0d6efd" : "#dee2e6"}`,
+                        border: `2px solid ${formData.cat_count_clarification === "total" ? "#0d6efd" : "var(--border)"}`,
                         borderRadius: "8px",
                         cursor: "pointer",
-                        background: formData.cat_count_clarification === "total" ? "#e7f1ff" : "white",
+                        background: formData.cat_count_clarification === "total" ? "var(--info-bg)" : "var(--card-bg)",
                       }}
                     >
                       <input
@@ -318,7 +319,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                       />
                       <span>
                         <strong>Total cats at location</strong>
-                        <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+                        <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                           This is the colony size estimate, some may already be fixed
                         </span>
                       </span>
@@ -330,10 +331,10 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                         alignItems: "flex-start",
                         gap: "0.5rem",
                         padding: "0.75rem",
-                        border: `2px solid ${formData.cat_count_clarification === "needs_tnr" ? "#0d6efd" : "#dee2e6"}`,
+                        border: `2px solid ${formData.cat_count_clarification === "needs_tnr" ? "#0d6efd" : "var(--border)"}`,
                         borderRadius: "8px",
                         cursor: "pointer",
-                        background: formData.cat_count_clarification === "needs_tnr" ? "#e7f1ff" : "white",
+                        background: formData.cat_count_clarification === "needs_tnr" ? "var(--info-bg)" : "var(--card-bg)",
                       }}
                     >
                       <input
@@ -344,7 +345,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                       />
                       <span>
                         <strong>Cats still needing TNR</strong>
-                        <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+                        <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                           These are specifically unfixed cats that need spay/neuter
                         </span>
                       </span>
@@ -356,10 +357,10 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                         alignItems: "flex-start",
                         gap: "0.5rem",
                         padding: "0.75rem",
-                        border: `2px solid ${formData.cat_count_clarification === "unknown" ? "#0d6efd" : "#dee2e6"}`,
+                        border: `2px solid ${formData.cat_count_clarification === "unknown" ? "#0d6efd" : "var(--border)"}`,
                         borderRadius: "8px",
                         cursor: "pointer",
-                        background: formData.cat_count_clarification === "unknown" ? "#e7f1ff" : "white",
+                        background: formData.cat_count_clarification === "unknown" ? "var(--info-bg)" : "var(--card-bg)",
                       }}
                     >
                       <input
@@ -370,7 +371,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                       />
                       <span>
                         <strong>Unknown / Not sure</strong>
-                        <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+                        <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                           We'll keep the original number as-is
                         </span>
                       </span>
@@ -379,7 +380,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                 </div>
 
                 {formData.cat_count_clarification === "total" && (
-                  <div style={{ marginBottom: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                  <div style={{ marginBottom: "1rem", padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
                     <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
                       How many of those still need to be fixed?
                     </label>
@@ -392,15 +393,15 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                       placeholder="Enter number"
                       style={{ width: "120px" }}
                     />
-                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#666" }}>
+                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                       This becomes the TNR target for tracking progress
                     </p>
                   </div>
                 )}
               </>
             ) : (
-              <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-                <p style={{ margin: 0, color: "#666" }}>
+              <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
+                <p style={{ margin: 0, color: "var(--text-secondary)" }}>
                   No cat count was recorded for this request. Skip to next step.
                 </p>
               </div>
@@ -510,9 +511,9 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                       padding: "0.5rem 0.75rem",
                       borderRadius: "6px",
                       border: "1px solid",
-                      borderColor: formData.urgency_reasons.includes(reason.value) ? "#0d6efd" : "#dee2e6",
-                      background: formData.urgency_reasons.includes(reason.value) ? "#0d6efd" : "white",
-                      color: formData.urgency_reasons.includes(reason.value) ? "white" : "#212529",
+                      borderColor: formData.urgency_reasons.includes(reason.value) ? "#0d6efd" : "var(--border)",
+                      background: formData.urgency_reasons.includes(reason.value) ? "#0d6efd" : "var(--card-bg)",
+                      color: formData.urgency_reasons.includes(reason.value) ? "var(--card-bg)" : "var(--foreground)",
                       cursor: "pointer",
                     }}
                   >
@@ -542,7 +543,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                 />
                 <span>This request has already been assessed</span>
               </label>
-              <p style={{ margin: "0.25rem 0 0 1.5rem", fontSize: "0.8rem", color: "#666" }}>
+              <p style={{ margin: "0.25rem 0 0 1.5rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                 Check if a trapper has already visited or evaluated this location.
               </p>
             </div>
@@ -554,7 +555,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
           <div>
             <h3 style={{ marginTop: 0 }}>Step 6: Confirm Upgrade</h3>
 
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px", marginBottom: "1rem" }}>
+            <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px", marginBottom: "1rem" }}>
               <h4 style={{ margin: "0 0 0.75rem" }}>Summary</h4>
               <div style={{ display: "grid", gap: "0.5rem", fontSize: "0.875rem" }}>
                 <div><strong>Request:</strong> {request.summary || request.place_name || "TNR Request"}</div>
@@ -576,15 +577,15 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
                   <div><strong>Urgency:</strong> {formData.urgency_reasons.join(", ")}</div>
                 )}
                 {formData.kittens_already_taken && (
-                  <div style={{ color: "#856404" }}>Kittens already taken</div>
+                  <div style={{ color: "var(--warning-text)" }}>Kittens already taken</div>
                 )}
                 {formData.already_assessed && (
-                  <div style={{ color: "#856404" }}>Already assessed</div>
+                  <div style={{ color: "var(--warning-text)" }}>Already assessed</div>
                 )}
               </div>
             </div>
 
-            <div style={{ padding: "0.75rem", background: "#cce5ff", borderRadius: "6px", fontSize: "0.875rem" }}>
+            <div style={{ padding: "0.75rem", background: "var(--info-bg)", color: "var(--info-text)", borderRadius: "6px", fontSize: "0.875rem" }}>
               <strong>What will happen:</strong>
               <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem" }}>
                 <li>A new Atlas request will be created with the original date</li>
@@ -604,7 +605,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
             style={{
               padding: "0.5rem 1rem",
               background: "transparent",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
               borderRadius: "6px",
               cursor: "pointer",
             }}
@@ -618,7 +619,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
               style={{
                 padding: "0.5rem 1rem",
                 background: "#0d6efd",
-                color: "white",
+                color: "var(--card-bg)",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
@@ -633,7 +634,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
               style={{
                 padding: "0.5rem 1.5rem",
                 background: "#198754",
-                color: "white",
+                color: "var(--card-bg)",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
