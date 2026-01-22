@@ -19,6 +19,7 @@ import { SiteStatsCard } from "@/components/SiteStatsCard";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
 import { formatDateLocal } from "@/lib/formatters";
 import { MediaGallery } from "@/components/MediaGallery";
+import { QuickActions, usePlaceQuickActionState } from "@/components/QuickActions";
 
 interface Cat {
   cat_id: string;
@@ -485,6 +486,23 @@ export default function PlaceDetailPage() {
         <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
           ID: {place.place_id}
         </p>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
+        <QuickActions
+          entityType="place"
+          entityId={place.place_id}
+          state={usePlaceQuickActionState({
+            lat: place.coordinates?.lat,
+            lng: place.coordinates?.lng,
+            request_count: requests.length,
+            cat_count: place.cat_count,
+            colony_estimate: null, // Colony estimates are in separate component
+            last_observation_days: null, // Could be fetched from observations
+          })}
+          onActionComplete={fetchPlace}
+        />
       </div>
 
       {/* Location Details */}

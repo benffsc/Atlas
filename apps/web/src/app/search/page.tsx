@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import EntityPreview from "@/components/EntityPreview";
+import { GroupedSearchResult } from "@/components/GroupedSearchResult";
 
 interface SearchResult {
   entity_type: string;
@@ -13,6 +14,17 @@ interface SearchResult {
   match_reason: string;
   score: number;
   metadata: Record<string, unknown>;
+}
+
+interface GroupedResult {
+  display_name: string;
+  entity_type: string;
+  records: SearchResult[];
+  record_count: number;
+  best_score: number;
+  best_match_reason: string;
+  best_match_strength: string;
+  subtitles: string[];
 }
 
 interface DeepSearchResult {
@@ -67,7 +79,9 @@ interface SearchResponse {
   query: string;
   mode: string;
   results: SearchResult[];
+  grouped_results?: GroupedResult[];
   possible_matches?: SearchResult[];
+  grouped_possible?: GroupedResult[];
   intake_records?: IntakeResult[];
   submissions?: SubmissionResult[];
   requests?: RequestResult[];
@@ -100,6 +114,7 @@ function SearchContent() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [groupedView, setGroupedView] = useState(true); // Default to grouped view
   const pageSize = 25;
 
   const search = useCallback(async () => {
@@ -215,6 +230,17 @@ function SearchContent() {
           <option value="deep">Deep (Raw)</option>
         </select>
         <button type="submit">Search</button>
+        {mode === "canonical" && (
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginLeft: "1rem", fontSize: "0.85rem", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={groupedView}
+              onChange={(e) => setGroupedView(e.target.checked)}
+              style={{ width: "16px", height: "16px" }}
+            />
+            Group duplicates
+          </label>
+        )}
       </form>
 
       {loading && <div className="loading">Searching...</div>}
@@ -247,39 +273,52 @@ function SearchContent() {
                 <>
                   {data.results.length > 0 && (
                     <div className="results-section">
-                      {data.results.map((result) => {
-                        const link = getEntityLink(result);
-                        return (
-                          <div key={`${result.entity_type}-${result.entity_id}`} className="search-result">
-                            <div className="search-result-header">
-                              <span className="text-sm">{getEntityIcon(result.entity_type)}</span>
-                              <span className={getMatchBadgeClass(result.match_strength)}>
-                                {result.match_strength}
-                              </span>
-                              {link ? (
-                                <EntityPreview
-                                  entityType={result.entity_type as "cat" | "person" | "place"}
-                                  entityId={result.entity_id}
-                                >
-                                  <a href={link} className="search-result-title">
-                                    {result.display_name}
-                                  </a>
-                                </EntityPreview>
-                              ) : (
-                                <span className="search-result-title">
-                                  {result.display_name}
+                      {/* Grouped view */}
+                      {groupedView && data.grouped_results && data.grouped_results.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                          {data.grouped_results.map((group) => (
+                            <GroupedSearchResult
+                              key={`group-${group.entity_type}-${group.display_name}`}
+                              group={group}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        /* Flat view (original) */
+                        data.results.map((result) => {
+                          const link = getEntityLink(result);
+                          return (
+                            <div key={`${result.entity_type}-${result.entity_id}`} className="search-result">
+                              <div className="search-result-header">
+                                <span className="text-sm">{getEntityIcon(result.entity_type)}</span>
+                                <span className={getMatchBadgeClass(result.match_strength)}>
+                                  {result.match_strength}
                                 </span>
+                                {link ? (
+                                  <EntityPreview
+                                    entityType={result.entity_type as "cat" | "person" | "place"}
+                                    entityId={result.entity_id}
+                                  >
+                                    <a href={link} className="search-result-title">
+                                      {result.display_name}
+                                    </a>
+                                  </EntityPreview>
+                                ) : (
+                                  <span className="search-result-title">
+                                    {result.display_name}
+                                  </span>
+                                )}
+                              </div>
+                              {result.subtitle && (
+                                <div className="search-result-subtitle">{result.subtitle}</div>
                               )}
+                              <div className="search-result-match">
+                                Matched: {result.match_reason.replace(/_/g, " ")} (score: {result.score})
+                              </div>
                             </div>
-                            {result.subtitle && (
-                              <div className="search-result-subtitle">{result.subtitle}</div>
-                            )}
-                            <div className="search-result-match">
-                              Matched: {result.match_reason.replace(/_/g, " ")} (score: {result.score})
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   )}
 
@@ -291,34 +330,47 @@ function SearchContent() {
                       <p className="text-sm text-muted mb-4">
                         No exact matches found. Showing similar results.
                       </p>
-                      {data.possible_matches.map((result) => {
-                        const link = getEntityLink(result);
-                        return (
-                          <div key={`possible-${result.entity_type}-${result.entity_id}`} className="search-result">
-                            <div className="search-result-header">
-                              <span className="text-sm">{getEntityIcon(result.entity_type)}</span>
-                              <span className="badge">weak</span>
-                              {link ? (
-                                <EntityPreview
-                                  entityType={result.entity_type as "cat" | "person" | "place"}
-                                  entityId={result.entity_id}
-                                >
-                                  <a href={link} className="search-result-title">
+                      {/* Grouped view for possible matches */}
+                      {groupedView && data.grouped_possible && data.grouped_possible.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                          {data.grouped_possible.map((group) => (
+                            <GroupedSearchResult
+                              key={`possible-group-${group.entity_type}-${group.display_name}`}
+                              group={group}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        /* Flat view */
+                        data.possible_matches.map((result) => {
+                          const link = getEntityLink(result);
+                          return (
+                            <div key={`possible-${result.entity_type}-${result.entity_id}`} className="search-result">
+                              <div className="search-result-header">
+                                <span className="text-sm">{getEntityIcon(result.entity_type)}</span>
+                                <span className="badge">weak</span>
+                                {link ? (
+                                  <EntityPreview
+                                    entityType={result.entity_type as "cat" | "person" | "place"}
+                                    entityId={result.entity_id}
+                                  >
+                                    <a href={link} className="search-result-title">
+                                      {result.display_name}
+                                    </a>
+                                  </EntityPreview>
+                                ) : (
+                                  <span className="search-result-title">
                                     {result.display_name}
-                                  </a>
-                                </EntityPreview>
-                              ) : (
-                                <span className="search-result-title">
-                                  {result.display_name}
-                                </span>
+                                  </span>
+                                )}
+                              </div>
+                              {result.subtitle && (
+                                <div className="search-result-subtitle">{result.subtitle}</div>
                               )}
                             </div>
-                            {result.subtitle && (
-                              <div className="search-result-subtitle">{result.subtitle}</div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   )}
 

@@ -12,6 +12,7 @@ import { SubmissionsSection } from "@/components/SubmissionsSection";
 import { EntityLink } from "@/components/EntityLink";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
 import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
+import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
 import { formatDateLocal } from "@/lib/formatters";
 
 interface Cat {
@@ -643,6 +644,22 @@ export default function PersonDetailPage() {
             This record needs review - may be a site, business, or duplicate entry.
           </p>
         )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
+        <QuickActions
+          entityType="person"
+          entityId={person.person_id}
+          state={usePersonQuickActionState({
+            email: person.identifiers?.find((i) => i.id_type === "email")?.id_value,
+            phone: person.identifiers?.find((i) => i.id_type === "phone")?.id_value,
+            is_trapper: !!trapperInfo,
+            cat_count: person.cat_count,
+            request_count: requests?.length || 0,
+          })}
+          onActionComplete={fetchPerson}
+        />
       </div>
 
       {/* Trapper Stats (if person is a trapper) */}

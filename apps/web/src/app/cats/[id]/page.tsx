@@ -13,6 +13,7 @@ import { formatDateLocal } from "@/lib/formatters";
 import ReportDeceasedModal from "@/components/ReportDeceasedModal";
 import RecordBirthModal from "@/components/RecordBirthModal";
 import { MediaGallery } from "@/components/MediaGallery";
+import { QuickActions, useCatQuickActionState } from "@/components/QuickActions";
 
 interface Owner {
   person_id: string;
@@ -837,6 +838,23 @@ export default function CatDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Quick Actions */}
+      {!editingBasic && (
+        <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
+          <QuickActions
+            entityType="cat"
+            entityId={cat.cat_id}
+            state={useCatQuickActionState({
+              altered_status: cat.altered_status === "Yes" ? "altered" : cat.altered_status === "No" ? "intact" : "unknown",
+              microchip: cat.microchip,
+              owner_person_id: cat.owners?.[0]?.person_id,
+              place_id: cat.places?.[0]?.place_id,
+            })}
+            onActionComplete={fetchCat}
+          />
+        </div>
+      )}
 
       {/* Medical Overview - What was done/observed */}
       <Section title="Medical Overview">

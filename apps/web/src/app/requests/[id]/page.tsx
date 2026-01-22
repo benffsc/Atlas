@@ -16,6 +16,8 @@ import { ColonyEstimates } from "@/components/ColonyEstimates";
 import { MediaGallery } from "@/components/MediaGallery";
 import { RedirectRequestModal } from "@/components/RedirectRequestModal";
 import { HandoffRequestModal } from "@/components/HandoffRequestModal";
+import { NearbyEntities } from "@/components/NearbyEntities";
+import { QuickActions, useRequestQuickActionState } from "@/components/QuickActions";
 
 interface RequestDetail {
   request_id: string;
@@ -292,8 +294,9 @@ export default function RequestDetailPage() {
   // Legacy upgrade wizard
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
 
-  // Tab state for Details vs Legacy Info
-  const [activeTab, setActiveTab] = useState<"details" | "legacy">("details");
+  // Tab state for Details, Nearby, and Legacy Info
+  const [activeTab, setActiveTab] = useState<"details" | "nearby" | "legacy">("details");
+  const [nearbyCounts, setNearbyCounts] = useState<{ requests: number; places: number; people: number; cats: number } | null>(null);
 
   // Map state
   const [mapUrl, setMapUrl] = useState<string | null>(null);
@@ -394,6 +397,30 @@ export default function RequestDetailPage() {
       }
     };
     fetchMap();
+  }, [requestId, request?.place_coordinates]);
+
+  // Pre-fetch nearby counts for tab label
+  useEffect(() => {
+    const fetchNearbyCounts = async () => {
+      if (!request?.place_coordinates) return;
+      try {
+        const response = await fetch(`/api/requests/${requestId}/nearby?radius=5000`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.summary) {
+            setNearbyCounts({
+              requests: data.summary.total_requests,
+              places: data.summary.total_places,
+              people: data.summary.total_people,
+              cats: data.summary.total_cats,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch nearby counts:", err);
+      }
+    };
+    fetchNearbyCounts();
   }, [requestId, request?.place_coordinates]);
 
   const handleSave = async () => {
@@ -1012,30 +1039,48 @@ export default function RequestDetailPage() {
         </div>
       )}
 
-      {/* Tab Navigation - only show for legacy requests */}
-      {request.source_system?.startsWith("airtable") && !editing && (
+      {/* Tab Navigation - show for all requests */}
+      {!editing && (
         <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "1.5rem" }}>
           {[
-            { id: "details" as const, label: "Details" },
-            { id: "legacy" as const, label: "Legacy Info (Airtable)" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: "0.75rem 1.5rem",
-                background: "transparent",
-                border: "none",
-                borderBottom: activeTab === tab.id ? "2px solid var(--primary)" : "2px solid transparent",
-                marginBottom: "-2px",
-                color: activeTab === tab.id ? "var(--primary)" : "var(--muted)",
-                fontWeight: activeTab === tab.id ? 600 : 400,
-                cursor: "pointer",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: "details" as const, label: "Details", show: true },
+            {
+              id: "nearby" as const,
+              label: `Nearby${nearbyCounts ? ` (${nearbyCounts.requests + nearbyCounts.places + nearbyCounts.people + nearbyCounts.cats})` : ""}`,
+              show: !!request.place_coordinates,
+            },
+            { id: "legacy" as const, label: "Legacy Info (Airtable)", show: request.source_system?.startsWith("airtable") },
+          ]
+            .filter((tab) => tab.show)
+            .map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: activeTab === tab.id ? "2px solid var(--primary)" : "2px solid transparent",
+                  marginBottom: "-2px",
+                  color: activeTab === tab.id ? "var(--primary)" : "var(--muted)",
+                  fontWeight: activeTab === tab.id ? 600 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+        </div>
+      )}
+
+      {/* Nearby Tab Content */}
+      {activeTab === "nearby" && request.place_coordinates && !editing && (
+        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+          <h2 style={{ marginTop: 0, marginBottom: "1rem" }}>Nearby Entities</h2>
+          <NearbyEntities
+            requestId={requestId}
+            onCountsLoaded={(counts) => setNearbyCounts(counts)}
+          />
         </div>
       )}
 

@@ -227,8 +227,12 @@ export async function GET(
     };
 
     // Build data quality assessment
-    const mostRecentDaysAgo = sources.length > 0
-      ? Math.min(...sources.map((s) => s.days_ago))
+    // Filter out NaN/null/undefined days_ago values to prevent Math.min returning NaN
+    const validDaysAgo = sources
+      .map((s) => s.days_ago)
+      .filter((d): d is number => Number.isFinite(d));
+    const mostRecentDaysAgo = validDaysAgo.length > 0
+      ? Math.min(...validDaysAgo)
       : null;
 
     const hasRecentData = mostRecentDaysAgo !== null && mostRecentDaysAgo <= 90;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { formatDateLocal } from "@/lib/formatters";
+import { SavedFilters, RequestFilters } from "@/components/SavedFilters";
 
 interface Request {
   request_id: string;
@@ -301,6 +302,37 @@ export default function RequestsPage() {
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [bulkStatusTarget, setBulkStatusTarget] = useState<string>("");
 
+  // Current staff for SavedFilters
+  const [currentStaffId, setCurrentStaffId] = useState<string | null>(null);
+
+  // Fetch current staff info
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.authenticated && data.staff) {
+          setCurrentStaffId(data.staff.staff_id);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Build current filters object for SavedFilters component
+  const currentFilters: RequestFilters = {
+    status: statusFilter ? [statusFilter] : undefined,
+  };
+
+  // Handle applying saved filters
+  const handleApplyFilters = useCallback((filters: RequestFilters) => {
+    // Apply status filter (take first status if multiple)
+    if (filters.status && filters.status.length > 0) {
+      setStatusFilter(filters.status[0]);
+    } else {
+      setStatusFilter("");
+    }
+    // Could extend to support more filters in the future
+  }, []);
+
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
@@ -447,6 +479,15 @@ export default function RequestsPage() {
             + New Request
           </a>
         </div>
+      </div>
+
+      {/* Saved Filters */}
+      <div style={{ marginBottom: "1rem" }}>
+        <SavedFilters
+          currentFilters={currentFilters}
+          onApplyFilter={handleApplyFilters}
+          currentStaffId={currentStaffId}
+        />
       </div>
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>

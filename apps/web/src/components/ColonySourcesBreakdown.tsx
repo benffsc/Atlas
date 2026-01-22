@@ -120,8 +120,17 @@ export function ColonySourcesBreakdown({ placeId }: ColonySourcesBreakdownProps)
     );
   }
 
+  // Validate that data has the expected structure
+  if (!data.data_quality || !data.data_quality.quality_level) {
+    return (
+      <div style={{ padding: "1rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+        Unable to calculate data quality. Please try again later.
+      </div>
+    );
+  }
+
   const { summary, sources, data_quality } = data;
-  const qualityStyle = qualityColors[data_quality.quality_level];
+  const qualityStyle = qualityColors[data_quality.quality_level] || qualityColors.low;
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -320,8 +329,9 @@ export function ColonySourcesBreakdown({ placeId }: ColonySourcesBreakdownProps)
                         {source.observation_date
                           ? new Date(source.observation_date).toLocaleDateString()
                           : new Date(source.reported_at).toLocaleDateString()}
-                        {" "}
-                        ({source.days_ago}d ago)
+                        {Number.isFinite(source.days_ago) && (
+                          <> ({source.days_ago}d ago)</>
+                        )}
                         {source.is_firsthand && (
                           <span style={{ color: "var(--success-text)", marginLeft: "0.25rem" }}>
                             +{(source.firsthand_boost * 100).toFixed(0)}% firsthand

@@ -68,6 +68,64 @@ interface RequestResult {
   match_type: string;
 }
 
+// Grouped search result - multiple records with same display_name collapsed into one
+interface GroupedResult {
+  display_name: string;
+  entity_type: string;
+  records: SearchResult[];
+  record_count: number;
+  best_score: number;
+  best_match_reason: string;
+  best_match_strength: string;
+  // Additional context for subtitle
+  subtitles: string[];
+}
+
+/**
+ * Group search results by display_name + entity_type
+ * Shows one card per unique name with expandable records
+ */
+function groupResults(results: SearchResult[]): GroupedResult[] {
+  const groups = new Map<string, GroupedResult>();
+
+  for (const result of results) {
+    // Key by lowercase name + type to group duplicates
+    const key = `${result.entity_type}:${result.display_name.toLowerCase().trim()}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        display_name: result.display_name,
+        entity_type: result.entity_type,
+        records: [],
+        record_count: 0,
+        best_score: result.score,
+        best_match_reason: result.match_reason,
+        best_match_strength: result.match_strength,
+        subtitles: [],
+      });
+    }
+
+    const group = groups.get(key)!;
+    group.records.push(result);
+    group.record_count++;
+
+    // Track unique subtitles for context
+    if (result.subtitle && !group.subtitles.includes(result.subtitle)) {
+      group.subtitles.push(result.subtitle);
+    }
+
+    // Keep track of best match
+    if (result.score > group.best_score) {
+      group.best_score = result.score;
+      group.best_match_reason = result.match_reason;
+      group.best_match_strength = result.match_strength;
+    }
+  }
+
+  // Sort by best score descending
+  return Array.from(groups.values()).sort((a, b) => b.best_score - a.best_score);
+}
+
 const STRONG_THRESHOLD = 5;  // If fewer than this many strong results, include possible matches
 
 export async function GET(request: NextRequest) {
@@ -82,6 +140,7 @@ export async function GET(request: NextRequest) {
   const includePossible = searchParams.get("include_possible") !== "false";
   const includeIntake = searchParams.get("include_intake") !== "false";
   const suggestionsOnly = searchParams.get("suggestions") === "true";
+  const includeGrouped = searchParams.get("grouped") !== "false"; // Default to true
 
   // Normalize query: trim whitespace, collapse multiple spaces
   const q = rawQuery?.trim().replace(/\s+/g, ' ') || "";
@@ -351,12 +410,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Group results by display_name if requested
+    const mainResults = strongResults.length > 0 ? strongResults : results.slice(0, limit);
+    const groupedResults = includeGrouped ? groupResults(mainResults) : [];
+    const groupedPossible = includeGrouped && possibleMatches.length > 0
+      ? groupResults(possibleMatches)
+      : [];
+
     return NextResponse.json({
       query: q,
       mode: "canonical",
       suggestions,
-      results: strongResults.length > 0 ? strongResults : results.slice(0, limit),
+      results: mainResults,
+      grouped_results: groupedResults,
       possible_matches: possibleMatches,
+      grouped_possible: groupedPossible,
       intake_records: intakeResults,
       submissions,
       requests,
