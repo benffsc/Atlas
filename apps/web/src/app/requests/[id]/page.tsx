@@ -11,6 +11,7 @@ import JournalSection, { JournalEntry } from "@/components/JournalSection";
 import { LinkedCatsSection } from "@/components/LinkedCatsSection";
 import LogSiteVisitModal from "@/components/LogSiteVisitModal";
 import CompleteRequestModal from "@/components/CompleteRequestModal";
+import HoldRequestModal from "@/components/HoldRequestModal";
 import { ColonyEstimates } from "@/components/ColonyEstimates";
 import { MediaGallery } from "@/components/MediaGallery";
 import { RedirectRequestModal } from "@/components/RedirectRequestModal";
@@ -263,6 +264,7 @@ export default function RequestDetailPage() {
   const [showHandoffModal, setShowHandoffModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completionTargetStatus, setCompletionTargetStatus] = useState<"completed" | "cancelled">("completed");
+  const [showHoldModal, setShowHoldModal] = useState(false);
 
   // Session/Staff info for auto-fill
   const [currentStaffId, setCurrentStaffId] = useState<string | null>(null);
@@ -598,6 +600,12 @@ export default function RequestDetailPage() {
     if (newStatus === "completed" || newStatus === "cancelled") {
       setCompletionTargetStatus(newStatus as "completed" | "cancelled");
       setShowCompleteModal(true);
+      return;
+    }
+
+    // For on_hold, show the HoldRequestModal
+    if (newStatus === "on_hold") {
+      setShowHoldModal(true);
       return;
     }
 
@@ -2390,6 +2398,26 @@ export default function RequestDetailPage() {
         targetStatus={completionTargetStatus}
         onSuccess={() => {
           setShowCompleteModal(false);
+          // Reload request data
+          fetch(`/api/requests/${requestId}`)
+            .then((res) => res.ok ? res.json() : null)
+            .then((data) => {
+              if (data) {
+                setRequest(data);
+                setEditForm(prev => ({ ...prev, status: data.status }));
+              }
+            });
+        }}
+      />
+
+      {/* Hold Request Modal */}
+      <HoldRequestModal
+        isOpen={showHoldModal}
+        onClose={() => setShowHoldModal(false)}
+        requestId={request.request_id}
+        staffName={currentStaffName || undefined}
+        onSuccess={() => {
+          setShowHoldModal(false);
           // Reload request data
           fetch(`/api/requests/${requestId}`)
             .then((res) => res.ok ? res.json() : null)
