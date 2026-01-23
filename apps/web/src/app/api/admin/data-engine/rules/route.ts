@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { requireRole, AuthError } from "@/lib/auth";
 
 /**
  * Data Engine Matching Rules API
@@ -27,8 +28,11 @@ interface MatchingRule {
   updated_at: string;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
     const rules = await queryRows<MatchingRule>(`
       SELECT
         rule_id,
@@ -53,6 +57,12 @@ export async function GET() {
 
     return NextResponse.json({ rules });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error fetching matching rules:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
@@ -63,6 +73,9 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
     const body = await request.json();
     const {
       rule_id,
@@ -144,6 +157,12 @@ export async function PATCH(request: NextRequest) {
       rule: result.rows[0],
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error updating matching rule:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },

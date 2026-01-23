@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { requireRole, AuthError } from "@/lib/auth";
 
 interface PotentialDuplicate {
   duplicate_id: string;
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get("offset") || "0", 10);
 
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
     // Get pending duplicates
     const duplicates = await queryRows<PotentialDuplicate>(
       `SELECT
@@ -76,6 +80,12 @@ export async function GET(request: NextRequest) {
       pagination: { limit, offset, hasMore: duplicates.length === limit },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error fetching potential duplicates:", error);
     // Return empty result if table doesn't exist yet
     if (error instanceof Error && error.message.includes("does not exist")) {
@@ -96,6 +106,9 @@ export async function GET(request: NextRequest) {
 // Resolve a potential duplicate
 export async function POST(request: NextRequest) {
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
     const body = await request.json();
     const { duplicate_id, action, notes } = body;
 
@@ -124,6 +137,12 @@ export async function POST(request: NextRequest) {
       action,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error resolving duplicate:", error);
     return NextResponse.json(
       { error: "Failed to resolve duplicate" },

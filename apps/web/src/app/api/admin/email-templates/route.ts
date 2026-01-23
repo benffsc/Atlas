@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { requireRole, AuthError } from "@/lib/auth";
 
 interface EmailTemplate {
   template_id: string;
@@ -16,8 +17,10 @@ interface EmailTemplate {
 }
 
 // GET /api/admin/email-templates - List all templates
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
     const templates = await queryRows<EmailTemplate>(`
       SELECT
         template_id,
@@ -56,6 +59,12 @@ export async function GET() {
 
     return NextResponse.json({ templates: templatesWithStats });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error fetching email templates:", error);
     return NextResponse.json(
       { error: "Failed to fetch templates" },
@@ -67,6 +76,9 @@ export async function GET() {
 // POST /api/admin/email-templates - Create new template
 export async function POST(request: NextRequest) {
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
     const body = await request.json();
     const {
       template_key,
@@ -118,6 +130,12 @@ export async function POST(request: NextRequest) {
       template_id: result?.template_id,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error creating email template:", error);
     return NextResponse.json(
       { error: "Failed to create template" },
@@ -129,6 +147,9 @@ export async function POST(request: NextRequest) {
 // PATCH /api/admin/email-templates - Update template
 export async function PATCH(request: NextRequest) {
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
     const body = await request.json();
     const { template_id, ...updates } = body;
 
@@ -184,6 +205,12 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error updating email template:", error);
     return NextResponse.json(
       { error: "Failed to update template" },
@@ -194,17 +221,20 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/admin/email-templates - Delete template (soft delete)
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const templateId = searchParams.get("template_id");
-
-  if (!templateId) {
-    return NextResponse.json(
-      { error: "template_id is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    // Require admin role
+    await requireRole(request, ["admin"]);
+
+    const { searchParams } = new URL(request.url);
+    const templateId = searchParams.get("template_id");
+
+    if (!templateId) {
+      return NextResponse.json(
+        { error: "template_id is required" },
+        { status: 400 }
+      );
+    }
+
     await query(
       `UPDATE trapper.email_templates SET is_active = FALSE, updated_at = NOW() WHERE template_id = $1`,
       [templateId]
@@ -212,6 +242,12 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Error deleting email template:", error);
     return NextResponse.json(
       { error: "Failed to delete template" },

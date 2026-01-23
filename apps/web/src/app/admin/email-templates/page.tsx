@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 
 interface EmailTemplate {
   template_id: string;
@@ -172,7 +173,13 @@ export default function EmailTemplatesAdminPage() {
     COMMON_PLACEHOLDERS.forEach(({ key }) => {
       html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), `<span style="background:#fef3c7;padding:0 2px;">[${key}]</span>`);
     });
-    setPreviewHtml(html);
+    // Sanitize HTML to prevent XSS - only allow safe email-compatible tags
+    const sanitized = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'style', 'class', 'target', 'width', 'height'],
+      ALLOW_DATA_ATTR: false,
+    });
+    setPreviewHtml(sanitized);
   };
 
   return (

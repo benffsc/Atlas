@@ -2656,22 +2656,21 @@ function IntakeQueueContent() {
               padding: "1rem",
               marginBottom: "1rem"
             }}>
-              <div style={{ marginBottom: "0.75rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ margin: 0, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    Communication Log
-                    {communicationLogs.length > 0 && (
-                      <span style={{
-                        background: "var(--muted-bg, #e0e0e0)",
-                        padding: "0.125rem 0.4rem",
-                        borderRadius: "10px",
-                        fontSize: "0.75rem",
-                        color: "var(--muted)"
-                      }}>
-                        {communicationLogs.length}
-                      </span>
-                    )}
-                  </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  Communication Log
+                  {communicationLogs.length > 0 && (
+                    <span style={{
+                      background: "var(--muted-bg, #e0e0e0)",
+                      padding: "0.125rem 0.4rem",
+                      borderRadius: "10px",
+                      fontSize: "0.75rem",
+                      color: "var(--muted)"
+                    }}>
+                      {communicationLogs.length}
+                    </span>
+                  )}
+                </h3>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <button
                     onClick={() => {
@@ -2711,9 +2710,6 @@ function IntakeQueueContent() {
                   </button>
                 </div>
               </div>
-              <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                Log your contact attempts with the requester - calls, emails, texts. Also use &quot;+ Note&quot; for updates about the situation.
-              </p>
 
               {/* Inline Add Form */}
               {showInlineContactForm && (
