@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+interface ShelterLuvSyncStatus {
+  sync_type: string;
+  last_sync_at: string | null;
+  last_record_time: string | null;
+  last_batch_size: number | null;
+  pending_processing: number;
+  sync_health: string;
+}
+
 interface SourceConfig {
   value: string;
   label: string;
@@ -81,13 +90,19 @@ export default function IngestPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processResult, setProcessResult] = useState<ProcessingResult | null>(null);
 
+  // ShelterLuv sync state
+  const [shelterLuvStatus, setShelterLuvStatus] = useState<ShelterLuvSyncStatus[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
   // Fetch sources and uploads
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sourcesRes, uploadsRes] = await Promise.all([
+      const [sourcesRes, uploadsRes, shelterLuvRes] = await Promise.all([
         fetch("/api/ingest/upload"),
         fetch("/api/ingest/uploads"),
+        fetch("/api/admin/shelterluv-status"),
       ]);
 
       if (sourcesRes.ok) {
@@ -98,6 +113,11 @@ export default function IngestPage() {
       if (uploadsRes.ok) {
         const data = await uploadsRes.json();
         setUploads(data.uploads);
+      }
+
+      if (shelterLuvRes.ok) {
+        const data = await shelterLuvRes.json();
+        setShelterLuvStatus(data.status || []);
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -185,6 +205,29 @@ export default function IngestPage() {
       fetchData(); // Refresh list even on error
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  // Handle ShelterLuv sync
+  const handleShelterLuvSync = async () => {
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const response = await fetch("/api/cron/shelterluv-sync?incremental=true", {
+        method: "POST",
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        setSyncError(result.error || "Sync failed");
+      } else {
+        // Refresh status after sync
+        fetchData();
+      }
+    } catch (err) {
+      setSyncError("Network error during sync");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -471,6 +514,88 @@ export default function IngestPage() {
           </table>
         </div>
       )}
+
+      {/* ShelterLuv API Status */}
+      <div className="card" style={{ marginTop: "2rem", padding: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>ShelterLuv API Sync</h3>
+          <button
+            onClick={handleShelterLuvSync}
+            disabled={syncing}
+            style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+          >
+            {syncing ? "Syncing..." : "Sync Now"}
+          </button>
+        </div>
+
+        {syncError && (
+          <div style={{ color: "#dc3545", marginBottom: "0.75rem", fontSize: "0.875rem" }}>
+            {syncError}
+          </div>
+        )}
+
+        {shelterLuvStatus.length > 0 ? (
+          <div className="table-container">
+            <table style={{ fontSize: "0.875rem" }}>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Last Sync</th>
+                  <th>Records</th>
+                  <th>Pending</th>
+                  <th>Health</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shelterLuvStatus.map((status) => (
+                  <tr key={status.sync_type}>
+                    <td style={{ textTransform: "capitalize" }}>{status.sync_type}</td>
+                    <td>
+                      {status.last_sync_at
+                        ? new Date(status.last_sync_at).toLocaleString()
+                        : "Never"}
+                    </td>
+                    <td>{status.last_batch_size ?? "—"}</td>
+                    <td>
+                      {status.pending_processing > 0 ? (
+                        <span style={{ color: "#ffc107" }}>{status.pending_processing}</span>
+                      ) : (
+                        <span className="text-muted">0</span>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        className="badge"
+                        style={{
+                          background:
+                            status.sync_health === "recent"
+                              ? "#28a745"
+                              : status.sync_health === "stale"
+                              ? "#ffc107"
+                              : status.sync_health === "never"
+                              ? "#6c757d"
+                              : "#dc3545",
+                          color: status.sync_health === "stale" ? "#000" : "#fff",
+                        }}
+                      >
+                        {status.sync_health}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-muted" style={{ fontSize: "0.875rem" }}>
+            No sync status available. Click &quot;Sync Now&quot; to start.
+          </div>
+        )}
+
+        <div style={{ marginTop: "0.75rem", fontSize: "0.75rem" }} className="text-muted">
+          Automatic sync runs daily at 6 AM UTC. Manual sync fetches incremental updates.
+        </div>
+      </div>
 
       <div className="card" style={{ marginTop: "2rem", padding: "1rem" }}>
         <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>ClinicHQ Processing</h3>
