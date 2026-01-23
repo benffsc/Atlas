@@ -92,6 +92,34 @@ interface CatVisitSummary {
   treatments: string[];
 }
 
+interface OriginPlace {
+  place_id: string;
+  display_name: string | null;
+  formatted_address: string;
+  inferred_source: string | null;
+}
+
+interface PartnerOrg {
+  org_id: string;
+  org_name: string;
+  org_name_short: string;
+  first_seen: string;
+  appointment_count: number;
+}
+
+interface EnhancedClinicVisit {
+  appointment_id: string;
+  visit_date: string;
+  appt_number: string;
+  client_name: string | null;
+  client_address: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  ownership_type: string | null;
+  origin_address: string | null;
+  partner_org_short: string | null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -432,6 +460,59 @@ export async function GET(
       LIMIT 20
     `;
 
+    // Fetch primary origin place (from most recent appointment with place)
+    const originPlaceSql = `
+      SELECT DISTINCT ON (a.cat_id)
+        p.place_id,
+        p.display_name,
+        p.formatted_address,
+        a.inferred_place_source
+      FROM trapper.sot_appointments a
+      JOIN trapper.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id)
+      WHERE a.cat_id = $1
+        AND COALESCE(a.inferred_place_id, a.place_id) IS NOT NULL
+      ORDER BY a.cat_id, a.appointment_date DESC
+    `;
+
+    // Fetch partner organizations this cat has been associated with
+    const partnerOrgsSql = `
+      SELECT
+        po.org_id,
+        po.org_name,
+        po.org_name_short,
+        MIN(a.appointment_date)::TEXT as first_seen,
+        COUNT(*)::INT as appointment_count
+      FROM trapper.sot_appointments a
+      JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      WHERE a.cat_id = $1
+      GROUP BY po.org_id, po.org_name, po.org_name_short
+      ORDER BY first_seen
+    `;
+
+    // Enhanced clinic history with origin addresses and partner orgs
+    const enhancedClinicHistorySql = `
+      SELECT
+        a.appointment_id,
+        a.appointment_date::TEXT as visit_date,
+        a.appointment_number as appt_number,
+        COALESCE(p.display_name, coa.display_name) as client_name,
+        COALESCE(pl.formatted_address, a.owner_address) as client_address,
+        a.owner_email as client_email,
+        a.owner_phone as client_phone,
+        NULL::TEXT as ownership_type,
+        pl2.formatted_address as origin_address,
+        po.org_name_short as partner_org_short
+      FROM trapper.sot_appointments a
+      LEFT JOIN trapper.sot_people p ON p.person_id = a.person_id
+      LEFT JOIN trapper.clinic_owner_accounts coa ON coa.account_id = a.owner_account_id
+      LEFT JOIN trapper.person_place_relationships ppr ON ppr.person_id = a.person_id
+      LEFT JOIN trapper.places pl ON pl.place_id = ppr.place_id
+      LEFT JOIN trapper.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
+      LEFT JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      WHERE a.cat_id = $1
+      ORDER BY a.appointment_date DESC
+    `;
+
     // Helper function for graceful query execution (returns empty array on error)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function safeQueryRows<T>(sql: string, params: unknown[]): Promise<T[]> {
@@ -443,7 +524,7 @@ export async function GET(
       }
     }
 
-    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows, stakeholders, movements] = await Promise.all([
+    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, partnerOrgs, enhancedClinicHistory] = await Promise.all([
       safeQueryRows<ClinicVisit>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
@@ -512,6 +593,9 @@ export async function GET(
         source_type: string;
         notes: string | null;
       }>(movementsSql, [id]),
+      safeQueryRows<OriginPlace>(originPlaceSql, [id]),
+      safeQueryRows<PartnerOrg>(partnerOrgsSql, [id]),
+      safeQueryRows<EnhancedClinicVisit>(enhancedClinicHistorySql, [id]),
     ]);
 
     return NextResponse.json({
@@ -529,6 +613,10 @@ export async function GET(
       stakeholders,
       // Movement timeline (MIG_546)
       movements,
+      // Origin and partner org data (MIG_581, MIG_582)
+      primary_origin_place: originPlaceRows[0] || null,
+      partner_orgs: partnerOrgs,
+      enhanced_clinic_history: enhancedClinicHistory,
     });
   } catch (error) {
     console.error("Error fetching cat detail:", error);

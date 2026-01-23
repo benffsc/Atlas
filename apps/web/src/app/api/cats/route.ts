@@ -40,6 +40,9 @@ export async function GET(request: NextRequest) {
   const sex = searchParams.get("sex");
   const alteredStatus = searchParams.get("altered_status");
   const sort = searchParams.get("sort") as keyof typeof SORT_OPTIONS | null;
+  // New filters for origin and partner org
+  const hasOrigin = searchParams.get("has_origin"); // true/false - has inferred_place_id
+  const partnerOrg = searchParams.get("partner_org"); // SCAS, FFSC, etc.
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -73,6 +76,33 @@ export async function GET(request: NextRequest) {
   if (alteredStatus) {
     conditions.push(`altered_status ILIKE $${paramIndex}`);
     params.push(alteredStatus);
+    paramIndex++;
+  }
+
+  // Filter: has_origin (has inferred_place_id from appointments)
+  if (hasOrigin === "true") {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM trapper.sot_appointments a
+      WHERE a.cat_id = v_cat_list.cat_id
+        AND a.inferred_place_id IS NOT NULL
+    )`);
+  } else if (hasOrigin === "false") {
+    conditions.push(`NOT EXISTS (
+      SELECT 1 FROM trapper.sot_appointments a
+      WHERE a.cat_id = v_cat_list.cat_id
+        AND a.inferred_place_id IS NOT NULL
+    )`);
+  }
+
+  // Filter: partner_org (SCAS, FFSC, etc.)
+  if (partnerOrg) {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM trapper.sot_appointments a
+      JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      WHERE a.cat_id = v_cat_list.cat_id
+        AND po.org_name_short ILIKE $${paramIndex}
+    )`);
+    params.push(partnerOrg);
     paramIndex++;
   }
 

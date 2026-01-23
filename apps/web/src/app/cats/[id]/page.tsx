@@ -44,6 +44,34 @@ interface ClinicVisit {
   ownership_type: string | null;
 }
 
+interface OriginPlace {
+  place_id: string;
+  display_name: string | null;
+  formatted_address: string;
+  inferred_source: string | null;
+}
+
+interface PartnerOrg {
+  org_id: string;
+  org_name: string;
+  org_name_short: string;
+  first_seen: string;
+  appointment_count: number;
+}
+
+interface EnhancedClinicVisit {
+  appointment_id: string;
+  visit_date: string;
+  appt_number: string;
+  client_name: string | null;
+  client_address: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  ownership_type: string | null;
+  origin_address: string | null;
+  partner_org_short: string | null;
+}
+
 interface CatVital {
   vital_id: string;
   recorded_at: string;
@@ -169,6 +197,10 @@ interface CatDetail {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  // Origin and partner org data (MIG_581, MIG_582)
+  primary_origin_place: OriginPlace | null;
+  partner_orgs: PartnerOrg[];
+  enhanced_clinic_history: EnhancedClinicVisit[];
 }
 
 // Medical chart condition checklist item
@@ -854,6 +886,65 @@ export default function CatDetailPage() {
             onActionComplete={fetchCat}
           />
         </div>
+      )}
+
+      {/* Origin Information - Where the cat came from */}
+      {(cat.primary_origin_place || (cat.partner_orgs && cat.partner_orgs.length > 0)) && (
+        <Section title="Origin Information">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+            {/* Origin Address (MOST IMPORTANT) */}
+            {cat.primary_origin_place && (
+              <div>
+                <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Origin Address</div>
+                <div style={{ fontWeight: 500 }}>
+                  <a
+                    href={`/places/${cat.primary_origin_place.place_id}`}
+                    style={{ color: "#0d6efd", textDecoration: "none" }}
+                  >
+                    {cat.primary_origin_place.formatted_address}
+                  </a>
+                  {cat.primary_origin_place.inferred_source && (
+                    <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
+                      (via {cat.primary_origin_place.inferred_source.replace(/_/g, " ")})
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Partner Organizations (e.g., SCAS, FFSC) */}
+            {cat.partner_orgs && cat.partner_orgs.length > 0 && (
+              <div>
+                <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Came From</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  {cat.partner_orgs.map((org) => (
+                    <span
+                      key={org.org_id}
+                      className="badge"
+                      style={{
+                        background: org.org_name_short === "SCAS" ? "#0d6efd" :
+                                    org.org_name_short === "FFSC" ? "#198754" : "#6c757d",
+                        color: "#fff",
+                        fontSize: "0.8rem",
+                        padding: "0.35rem 0.75rem",
+                      }}
+                      title={`${org.org_name} - First seen: ${formatDateLocal(org.first_seen)}, ${org.appointment_count} appointments`}
+                    >
+                      {org.org_name_short || org.org_name}
+                    </span>
+                  ))}
+                </div>
+                <div className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                  Cat came from {cat.partner_orgs.map(o => o.org_name_short || o.org_name).join(", ")}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <p className="text-muted text-sm" style={{ marginTop: "0.75rem" }}>
+            Origin data helps track where cats came from for population modeling and Beacon statistics.
+          </p>
+        </Section>
       )}
 
       {/* Medical Overview - What was done/observed */}
@@ -1582,27 +1673,28 @@ export default function CatDetailPage() {
       </Section>
 
       {/* Clinic History - Who brought this cat to clinic */}
-      {cat.clinic_history && cat.clinic_history.length > 0 && (
+      {((cat.enhanced_clinic_history && cat.enhanced_clinic_history.length > 0) ||
+        (cat.clinic_history && cat.clinic_history.length > 0)) && (
         <Section title="Clinic History">
           <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
-            Who brought this cat to clinic (from ClinicHQ records)
+            Cat visit records with origin address and source information
           </p>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Client</th>
-                  <th>Address</th>
-                  <th>Type</th>
+                  <th>Contact</th>
+                  <th>Origin Address</th>
+                  <th>Source</th>
                 </tr>
               </thead>
               <tbody>
-                {cat.clinic_history.map((visit, idx) => (
+                {(cat.enhanced_clinic_history || cat.clinic_history || []).map((visit, idx) => (
                   <tr key={idx}>
                     <td>{formatDateLocal(visit.visit_date)}</td>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{visit.client_name}</div>
+                      <div style={{ fontWeight: 500 }}>{visit.client_name || "—"}</div>
                       {visit.client_email && (
                         <div className="text-muted text-sm">{visit.client_email}</div>
                       )}
@@ -1611,10 +1703,29 @@ export default function CatDetailPage() {
                       )}
                     </td>
                     <td>
-                      {visit.client_address || <span className="text-muted">—</span>}
+                      {"origin_address" in visit && visit.origin_address ? (
+                        <span style={{ fontWeight: 500, color: "#198754" }}>{visit.origin_address}</span>
+                      ) : visit.client_address ? (
+                        visit.client_address
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
                     </td>
                     <td>
-                      {visit.ownership_type && (
+                      {"partner_org_short" in visit && visit.partner_org_short ? (
+                        <span
+                          className="badge"
+                          style={{
+                            background: visit.partner_org_short === "SCAS" ? "#0d6efd" :
+                                        visit.partner_org_short === "FFSC" ? "#198754" : "#6c757d",
+                            color: "#fff",
+                            fontSize: "0.7rem",
+                          }}
+                          title={`Cat came from ${visit.partner_org_short}`}
+                        >
+                          {visit.partner_org_short}
+                        </span>
+                      ) : visit.ownership_type ? (
                         <span
                           className="badge"
                           style={{
@@ -1625,6 +1736,8 @@ export default function CatDetailPage() {
                         >
                           {visit.ownership_type}
                         </span>
+                      ) : (
+                        <span className="text-muted">Direct</span>
                       )}
                     </td>
                   </tr>

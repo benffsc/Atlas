@@ -41,6 +41,8 @@ export default function CatsPage() {
   const [sex, setSex] = useState("");
   const [alteredStatus, setAlteredStatus] = useState("");
   const [hasPlace, setHasPlace] = useState("");
+  const [hasOrigin, setHasOrigin] = useState("");
+  const [partnerOrg, setPartnerOrg] = useState("");
   const [sort, setSort] = useState("quality");
   const [page, setPage] = useState(0);
   const limit = 25;
@@ -54,6 +56,8 @@ export default function CatsPage() {
     if (sex) params.set("sex", sex);
     if (alteredStatus) params.set("altered_status", alteredStatus);
     if (hasPlace) params.set("has_place", hasPlace);
+    if (hasOrigin) params.set("has_origin", hasOrigin);
+    if (partnerOrg) params.set("partner_org", partnerOrg);
     if (sort) params.set("sort", sort);
     params.set("limit", String(limit));
     params.set("offset", String(page * limit));
@@ -70,7 +74,7 @@ export default function CatsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, sex, alteredStatus, hasPlace, sort, page]);
+  }, [search, sex, alteredStatus, hasPlace, hasOrigin, partnerOrg, sort, page]);
 
   useEffect(() => {
     fetchCats();
@@ -112,6 +116,18 @@ export default function CatsPage() {
           <option value="">All locations</option>
           <option value="true">Has location</option>
           <option value="false">No location</option>
+        </select>
+        <select value={hasOrigin} onChange={(e) => { setHasOrigin(e.target.value); setPage(0); }}>
+          <option value="">All origins</option>
+          <option value="true">Origin known</option>
+          <option value="false">Origin unknown</option>
+        </select>
+        <select value={partnerOrg} onChange={(e) => { setPartnerOrg(e.target.value); setPage(0); }}>
+          <option value="">All sources</option>
+          <option value="SCAS">From SCAS</option>
+          <option value="FFSC">FFSC linked</option>
+          <option value="RPAS">From Rohnert Park</option>
+          <option value="MH">From Marin Humane</option>
         </select>
         <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(0); }}>
           <option value="quality">Sort: Data Quality</option>
