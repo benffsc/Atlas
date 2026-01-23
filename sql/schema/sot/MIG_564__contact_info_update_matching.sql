@@ -88,7 +88,7 @@ BEGIN
         -- Already exists, just update is_primary if needed
         IF p_make_primary THEN
             UPDATE trapper.person_identifiers
-            SET is_primary = TRUE, updated_at = NOW()
+            SET is_primary = TRUE
             WHERE identifier_id = v_existing_id;
 
             -- Demote other identifiers of same type
