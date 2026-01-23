@@ -79,7 +79,7 @@ export default function TrappersPage() {
   const [updating, setUpdating] = useState<string | null>(null);
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("total_clinic_cats");
+  const [sortBy, setSortBy] = useState<string>("total_cats_caught");
   const [page, setPage] = useState(0);
   const limit = 25;
 
@@ -153,7 +153,16 @@ export default function TrappersPage() {
             value={agg.total_active_trappers}
             sublabel={`${agg.ffsc_trappers} FFSC, ${agg.community_trappers} Community`}
           />
-          <StatCard label="Clinic Cats" value={agg.all_clinic_cats} />
+          <StatCard
+            label="Total Cats Caught"
+            value={agg.all_cats_caught}
+            sublabel="via request assignments"
+          />
+          <StatCard
+            label="Direct Bookings"
+            value={agg.all_clinic_cats}
+            sublabel="self-booked appointments"
+          />
           <StatCard label="Clinic Days" value={agg.all_clinic_days} />
           <StatCard
             label="Avg Cats/Day"
@@ -167,9 +176,24 @@ export default function TrappersPage() {
                 : "—"
             }
           />
-          <StatCard label="Total Caught" value={agg.all_cats_caught} />
         </div>
       )}
+
+      {/* Explanation */}
+      <div
+        style={{
+          padding: "0.75rem 1rem",
+          background: "#e7f3ff",
+          borderRadius: "6px",
+          marginBottom: "1rem",
+          fontSize: "0.85rem",
+          color: "#0c5460",
+        }}
+      >
+        <strong>Understanding the metrics:</strong>{" "}
+        <span style={{ color: "#17a2b8" }}>Total Caught</span> = cats attributed via request assignments (the primary metric).{" "}
+        <span style={{ color: "#6c757d" }}>Direct Bookings</span> = appointments booked directly under the trapper&apos;s email (often lower since homeowners book their own appointments).
+      </div>
 
       {/* Filters */}
       <div className="filters" style={{ marginBottom: "1.5rem" }}>
@@ -192,8 +216,8 @@ export default function TrappersPage() {
             setPage(0);
           }}
         >
-          <option value="total_clinic_cats">Sort by Clinic Cats</option>
-          <option value="total_cats_caught">Sort by Cats Caught</option>
+          <option value="total_cats_caught">Sort by Total Caught</option>
+          <option value="total_clinic_cats">Sort by Direct Bookings</option>
           <option value="active_assignments">Sort by Active Assignments</option>
           <option value="completed_assignments">Sort by Completed</option>
           <option value="avg_cats_per_day">Sort by Avg Cats/Day</option>
@@ -217,12 +241,20 @@ export default function TrappersPage() {
                   <th>Name</th>
                   <th>Type</th>
                   <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Clinic Cats</th>
+                  <th style={{ textAlign: "right" }}>
+                    <span title="Cats attributed via request assignments - the primary performance metric">
+                      Total Caught
+                    </span>
+                  </th>
+                  <th style={{ textAlign: "right" }}>
+                    <span title="Appointments booked directly under trapper's email">
+                      Direct
+                    </span>
+                  </th>
                   <th style={{ textAlign: "right" }}>Clinic Days</th>
                   <th style={{ textAlign: "right" }}>Cats/Day</th>
                   <th style={{ textAlign: "right" }}>Active</th>
                   <th style={{ textAlign: "right" }}>Completed</th>
-                  <th style={{ textAlign: "right" }}>Total Caught</th>
                   <th>Last Activity</th>
                 </tr>
               </thead>
@@ -293,13 +325,22 @@ export default function TrappersPage() {
                       <td
                         style={{
                           textAlign: "right",
-                          fontWeight:
-                            trapper.total_clinic_cats > 0 ? 600 : "normal",
+                          fontWeight: 600,
                           color:
-                            trapper.total_clinic_cats > 0
+                            trapper.total_cats_caught > 0
                               ? "#198754"
-                              : "inherit",
+                              : "#999",
                         }}
+                      >
+                        {trapper.total_cats_caught}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "right",
+                          color: "#6c757d",
+                          fontSize: "0.9em",
+                        }}
+                        title="Appointments booked directly under their email"
                       >
                         {trapper.total_clinic_cats}
                       </td>
@@ -322,9 +363,6 @@ export default function TrappersPage() {
                       </td>
                       <td style={{ textAlign: "right" }}>
                         {trapper.completed_assignments}
-                      </td>
-                      <td style={{ textAlign: "right", fontWeight: 500 }}>
-                        {trapper.total_cats_caught}
                       </td>
                       <td style={{ color: "#666", fontSize: "0.875rem" }}>
                         {trapper.last_activity_date

@@ -156,19 +156,20 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
           }}
         >
           <StatBox
-            label="Cats Caught"
+            label="Total Caught"
             value={stats.total_cats_caught}
-            sublabel={`${stats.active_assignments} assignments`}
+            sublabel="via request assignments"
             color="#198754"
           />
           <StatBox
-            label="Clinic Cats"
+            label="Direct Bookings"
             value={stats.total_clinic_cats}
-            sublabel={`${stats.unique_clinic_days} days`}
+            sublabel="self-booked appts"
           />
           <StatBox
-            label="Cats/Day"
-            value={stats.avg_cats_per_day}
+            label="Assignments"
+            value={stats.active_assignments + stats.completed_assignments}
+            sublabel={`${stats.active_assignments} active`}
           />
           {stats.felv_tested_count > 0 && (
             <StatBox
@@ -205,15 +206,15 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
         }}
       >
         <StatBox
-          label="Total Cats"
+          label="Total Caught"
           value={stats.total_cats_caught}
-          sublabel={`from ${stats.active_assignments + stats.completed_assignments} assignments`}
+          sublabel="via request assignments"
           color="#198754"
         />
         <StatBox
-          label="Clinic Cats"
+          label="Direct Bookings"
           value={stats.total_clinic_cats}
-          sublabel="booked under their name"
+          sublabel="self-booked appointments"
         />
         <StatBox
           label="Clinic Days"
