@@ -90,6 +90,8 @@ export async function POST(
         }
 
         // Call the commit function from MIG_566
+        // Function signature: commit_trapper_report_item(p_item_id UUID, p_committed_by TEXT)
+        // It reads item_type, entity_id, and data from the item record internally
         const commitResult = await queryOne<{
           success: boolean;
           action: string;
@@ -97,14 +99,8 @@ export async function POST(
           edit_ids: string[];
           error: string | null;
         }>(
-          `SELECT * FROM trapper.commit_trapper_report_item($1, $2, $3, $4, $5)`,
-          [
-            item.item_id,
-            item.item_type,
-            entityId,
-            JSON.stringify(data),
-            editedBy,
-          ]
+          `SELECT * FROM trapper.commit_trapper_report_item($1, $2)`,
+          [item.item_id, editedBy]
         );
 
         if (commitResult?.success) {
