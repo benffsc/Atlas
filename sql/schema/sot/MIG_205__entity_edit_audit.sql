@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS trapper.entity_edits (
     'unlink',                 -- Relationship removed
     'create',                 -- New record created
     'delete',                 -- Record deleted (soft)
-    'restore'                 -- Record restored from deletion
+    'restore',                -- Record restored from deletion
+    'status_change',          -- Request status updated
+    'note_added',             -- Note appended to record
+    'trapping_progress'       -- Trapping counts updated
   )),
 
   -- Field-level changes (JSON for flexibility)
