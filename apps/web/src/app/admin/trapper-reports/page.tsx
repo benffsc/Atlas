@@ -397,6 +397,31 @@ export default function TrapperReportsPage() {
     }
   };
 
+  const deleteSubmission = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this submission? This cannot be undone.")) {
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/admin/trapper-reports/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Delete failed");
+      }
+
+      setSelectedSubmission(null);
+      fetchSubmissions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const updateItemStatus = async (itemId: string, status: string) => {
     if (!selectedSubmission) return;
 
@@ -1181,6 +1206,23 @@ export default function TrapperReportsPage() {
                     }}
                   >
                     Commit Approved
+                  </button>
+                )}
+                {!selectedSubmission.items.some((i) => i.committed_at) && (
+                  <button
+                    onClick={() => deleteSubmission(selectedSubmission.submission.submission_id)}
+                    disabled={updating}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background: "var(--error-bg)",
+                      color: "var(--error-text)",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Delete
                   </button>
                 )}
                 <button
