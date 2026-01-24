@@ -42,6 +42,9 @@ interface EcologyStats {
   total_eartips_seen: number;
   total_cats_seen: number;
   n_hat_chapman: number | null;
+  p_hat_chapman_pct: number | null;
+  best_colony_estimate: number | null;
+  estimated_work_remaining: number | null;
 }
 
 export async function GET(
@@ -85,23 +88,28 @@ export async function GET(
 
     const estimates = await queryRows<ColonyEstimate>(estimatesSql, [id]);
 
-    // Get aggregated colony status
-    const statusSql = `
-      SELECT
-        colony_size_estimate,
-        verified_cat_count,
-        verified_altered_count,
-        final_confidence,
-        estimate_count,
-        primary_source,
-        has_clinic_boost,
-        is_multi_source_confirmed,
-        estimated_work_remaining
-      FROM trapper.v_place_colony_status
-      WHERE place_id = $1
-    `;
-
-    const status = await queryOne<ColonyStatus>(statusSql, [id]);
+    // Get aggregated colony status - wrapped in try/catch for resilience
+    let status: ColonyStatus | null = null;
+    try {
+      const statusSql = `
+        SELECT
+          colony_size_estimate,
+          verified_cat_count,
+          verified_altered_count,
+          final_confidence,
+          estimate_count,
+          primary_source,
+          has_clinic_boost,
+          is_multi_source_confirmed,
+          estimated_work_remaining
+        FROM trapper.v_place_colony_status
+        WHERE place_id = $1
+      `;
+      status = await queryOne<ColonyStatus>(statusSql, [id]);
+    } catch (statusError) {
+      console.warn("Could not fetch colony status (view may not exist):", statusError);
+      // Continue without colony status
+    }
 
     // Get colony columns from places table directly (synced values)
     const placeSql = `
@@ -121,23 +129,31 @@ export async function GET(
       colony_updated_at: string | null;
     }>(placeSql, [id]);
 
-    // Get ecology-based statistics
-    const ecologySql = `
-      SELECT
-        a_known,
-        n_recent_max,
-        p_lower,
-        p_lower_pct,
-        estimation_method,
-        has_eartip_data,
-        total_eartips_seen,
-        total_cats_seen,
-        n_hat_chapman
-      FROM trapper.v_place_ecology_stats
-      WHERE place_id = $1
-    `;
-
-    const ecology = await queryOne<EcologyStats>(ecologySql, [id]);
+    // Get ecology-based statistics - wrapped in try/catch for resilience
+    let ecology: EcologyStats | null = null;
+    try {
+      const ecologySql = `
+        SELECT
+          COALESCE(a_known, 0) as a_known,
+          COALESCE(n_recent_max, 0) as n_recent_max,
+          p_lower,
+          p_lower_pct,
+          COALESCE(estimation_method, 'no_data') as estimation_method,
+          COALESCE(has_eartip_data, false) as has_eartip_data,
+          COALESCE(total_eartips_seen, 0) as total_eartips_seen,
+          COALESCE(total_cats_seen, 0) as total_cats_seen,
+          n_hat_chapman,
+          p_hat_chapman_pct,
+          best_colony_estimate,
+          estimated_work_remaining
+        FROM trapper.v_place_ecology_stats
+        WHERE place_id = $1
+      `;
+      ecology = await queryOne<EcologyStats>(ecologySql, [id]);
+    } catch (ecologyError) {
+      console.warn("Could not fetch ecology stats (view may not exist):", ecologyError);
+      // Continue without ecology stats
+    }
 
     // Map source types to display labels
     const sourceLabels: Record<string, string> = {
