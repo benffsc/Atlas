@@ -551,11 +551,15 @@ BEGIN
       INTO v_old_values
       FROM trapper.sot_requests WHERE request_id = v_entity_id;
 
-      -- Update request
+      -- Update request (cast text to enum types)
       UPDATE trapper.sot_requests
       SET
         status = COALESCE((v_data->>'status')::trapper.request_status, status),
-        hold_reason = COALESCE(v_data->>'hold_reason', hold_reason),
+        hold_reason = CASE
+          WHEN v_data->>'hold_reason' IS NOT NULL
+          THEN (v_data->>'hold_reason')::trapper.hold_reason
+          ELSE hold_reason
+        END,
         updated_at = NOW()
       WHERE request_id = v_entity_id;
 
