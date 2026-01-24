@@ -75,17 +75,22 @@ export async function GET() {
       remaining: parseInt(stats?.remaining || "0"),
     };
 
-    // Get registered processors
-    const processors = await queryRows<ProcessorInfo>(`
-      SELECT
-        processor_name,
-        source_system,
-        source_table,
-        entity_type,
-        is_active
-      FROM trapper.data_engine_processors
-      ORDER BY priority, processor_name
-    `, []);
+    // Get registered processors (table may not exist in all environments)
+    let processors: ProcessorInfo[] = [];
+    try {
+      processors = await queryRows<ProcessorInfo>(`
+        SELECT
+          processor_name,
+          source_system,
+          source_table,
+          entity_type,
+          is_active
+        FROM trapper.data_engine_processors
+        ORDER BY priority, processor_name
+      `, []) || [];
+    } catch {
+      // Table doesn't exist, use empty array
+    }
 
     // Get pending counts per source
     const pendingBySource = await queryRows<{
