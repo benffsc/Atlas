@@ -184,6 +184,84 @@ Use p_dry_run=TRUE to preview without making changes.
 Returns counts and sample of merges performed.';
 
 -- ============================================================================
+-- PART 3b: Batch merge function for phone duplicates
+-- ============================================================================
+
+\echo 'Creating batch phone merge function...'
+
+CREATE OR REPLACE FUNCTION trapper.merge_phone_duplicates(
+    p_dry_run BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE(
+    phones_found INT,
+    people_to_merge INT,
+    merges_executed INT,
+    errors INT,
+    sample_merges JSONB
+) AS $$
+DECLARE
+    v_phones_found INT := 0;
+    v_people_to_merge INT := 0;
+    v_merges_executed INT := 0;
+    v_errors INT := 0;
+    v_sample_merges JSONB := '[]'::JSONB;
+    v_dup RECORD;
+    v_person_id UUID;
+    v_canonical_id UUID;
+    v_result JSONB;
+    v_sample_count INT := 0;
+BEGIN
+    -- Count phone duplicates where all names match (safe to merge)
+    SELECT COUNT(*), COALESCE(SUM(person_count - 1), 0)::INT
+    INTO v_phones_found, v_people_to_merge
+    FROM trapper.v_potential_phone_duplicates
+    WHERE array_length(names, 1) = 1;
+
+    IF NOT p_dry_run THEN
+        FOR v_dup IN
+            SELECT primary_phone, person_ids, names
+            FROM trapper.v_potential_phone_duplicates
+            WHERE array_length(names, 1) = 1
+        LOOP
+            v_canonical_id := v_dup.person_ids[1];
+
+            FOREACH v_person_id IN ARRAY v_dup.person_ids[2:] LOOP
+                BEGIN
+                    v_result := trapper.merge_duplicate_person(v_canonical_id, v_person_id, 'auto_phone_dedup');
+                    IF (v_result->>'success')::BOOLEAN THEN
+                        v_merges_executed := v_merges_executed + 1;
+
+                        IF v_sample_count < 5 THEN
+                            v_sample_merges := v_sample_merges || jsonb_build_object(
+                                'phone', v_dup.primary_phone,
+                                'canonical', v_canonical_id,
+                                'merged', v_person_id,
+                                'name', v_dup.names[1]
+                            );
+                            v_sample_count := v_sample_count + 1;
+                        END IF;
+                    ELSE
+                        v_errors := v_errors + 1;
+                    END IF;
+                EXCEPTION WHEN OTHERS THEN
+                    v_errors := v_errors + 1;
+                    RAISE WARNING 'Error merging % into %: %', v_person_id, v_canonical_id, SQLERRM;
+                END;
+            END LOOP;
+        END LOOP;
+    END IF;
+
+    RETURN QUERY SELECT v_phones_found, v_people_to_merge, v_merges_executed, v_errors, v_sample_merges;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION trapper.merge_phone_duplicates IS
+'Batch merges people who share the same phone AND same name.
+Only merges when all people have identical names (safe duplicates).
+Preserves household members with different names.
+Use p_dry_run=TRUE to preview without making changes.';
+
+-- ============================================================================
 -- PART 4: Function to clean garbage names
 -- ============================================================================
 

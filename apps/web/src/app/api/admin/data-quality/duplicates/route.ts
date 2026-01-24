@@ -145,8 +145,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Batch merge phone duplicates (same name only)
+    if (action === "merge_all_phone") {
+      const isDryRun = dry_run !== false; // Default to dry run for safety
+
+      const result = await queryOne<{
+        phones_found: number;
+        people_to_merge: number;
+        merges_executed: number;
+        errors: number;
+        sample_merges: object;
+      }>(
+        `SELECT * FROM trapper.merge_phone_duplicates($1)`,
+        [isDryRun]
+      );
+
+      return NextResponse.json({
+        success: true,
+        action: "merge_all_phone",
+        dry_run: isDryRun,
+        ...result,
+      });
+    }
+
     return NextResponse.json(
-      { error: "Invalid action. Use: merge_one, merge_all_email, clean_names" },
+      { error: "Invalid action. Use: merge_one, merge_all_email, merge_all_phone, clean_names" },
       { status: 400 }
     );
   } catch (error) {
