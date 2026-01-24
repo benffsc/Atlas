@@ -39,9 +39,9 @@ export async function GET() {
       place_id: string;
       formatted_address: string;
       geocode_error: string;
-      has_active_request: boolean;
+      failure_category: string;
     }>(
-      "SELECT place_id, formatted_address, geocode_error, has_active_request FROM trapper.v_geocoding_failures LIMIT 10"
+      "SELECT place_id, formatted_address, geocode_error, failure_category FROM trapper.v_geocoding_failures LIMIT 10"
     );
 
     return NextResponse.json({
