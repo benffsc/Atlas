@@ -191,12 +191,8 @@ export async function GET(
         r.kitten_foster_readiness,
         r.kitten_urgency_factors,
         r.kitten_assessment_notes,
-        -- MIG_610: not_assessing_reason (uses COALESCE to handle missing column gracefully)
-        CASE WHEN EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'trapper' AND table_name = 'sot_requests' AND column_name = 'not_assessing_reason'
-        ) THEN (SELECT not_assessing_reason FROM trapper.sot_requests WHERE request_id = r.request_id)
-        ELSE NULL END AS not_assessing_reason,
+        -- MIG_610: not_assessing_reason - returns NULL until migration is run
+        NULL::TEXT AS not_assessing_reason,
         r.kitten_assessed_by,
         r.kitten_assessed_at,
         r.is_being_fed,
@@ -814,21 +810,13 @@ export async function PATCH(
       paramIndex++;
     }
 
-    // MIG_610: not_assessing_reason - only update if column exists
-    if (body.not_assessing_reason !== undefined) {
-      // Check if column exists before trying to update
-      const columnExists = await queryOne<{ exists: boolean }>(`
-        SELECT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_schema = 'trapper' AND table_name = 'sot_requests' AND column_name = 'not_assessing_reason'
-        ) AS exists
-      `);
-      if (columnExists?.exists) {
-        updates.push(`not_assessing_reason = $${paramIndex}`);
-        values.push(body.not_assessing_reason);
-        paramIndex++;
-      }
-    }
+    // MIG_610: not_assessing_reason - disabled until migration is run
+    // Uncomment after running MIG_610:
+    // if (body.not_assessing_reason !== undefined) {
+    //   updates.push(`not_assessing_reason = $${paramIndex}`);
+    //   values.push(body.not_assessing_reason);
+    //   paramIndex++;
+    // }
 
     // Email batching (MIG_605)
     if (body.ready_to_email !== undefined) {
