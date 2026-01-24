@@ -27,7 +27,6 @@ interface ColonyStatus {
   final_confidence: number | null;
   estimate_count: number;
   primary_source: string | null;
-  has_clinic_boost: boolean;
   is_multi_source_confirmed: boolean;
   estimated_work_remaining: number;
 }
@@ -99,7 +98,6 @@ export async function GET(
           final_confidence,
           estimate_count,
           primary_source,
-          has_clinic_boost,
           is_multi_source_confirmed,
           estimated_work_remaining
         FROM trapper.v_place_colony_status
@@ -184,7 +182,6 @@ export async function GET(
         final_confidence: placeColony?.colony_confidence || null,
         estimate_count: placeColony?.colony_estimate_count || 0,
         primary_source: null,
-        has_clinic_boost: false,
         is_multi_source_confirmed: false,
         estimated_work_remaining: 0,
       },
