@@ -17,7 +17,10 @@ interface SourceBreakdown {
   days_ago: number;
   is_firsthand: boolean;
   reporter_name: string | null;
+  reporter_person_id: string | null;
   notes: string | null;
+  source_record_id: string | null;
+  source_system: string | null;
 }
 
 interface ColonySummary {
@@ -50,6 +53,31 @@ interface ColonySourcesResponse {
 
 interface ColonySourcesBreakdownProps {
   placeId: string;
+}
+
+// Generate link URL for a source record based on source type
+function getSourceRecordUrl(source: SourceBreakdown): string | null {
+  if (!source.source_record_id) return null;
+
+  switch (source.source_type) {
+    case "trapping_request":
+      return `/requests/${source.source_record_id}`;
+    case "intake_form":
+      // Intake form submissions - link to the submission detail
+      return `/intake/queue/${source.source_record_id}`;
+    case "trapper_report":
+      // Trapper report items - link to trapper reports admin
+      return `/admin/trapper-reports`;
+    case "verified_cats":
+      // Verified cats come from the place itself
+      return null;
+    case "post_clinic_survey":
+    case "appointment_request":
+      // These are appointment-related, try to link to appointment
+      return source.source_record_id ? `/appointments/${source.source_record_id}` : null;
+    default:
+      return null;
+  }
 }
 
 // Source type colors
@@ -305,77 +333,90 @@ export function ColonySourcesBreakdown({ placeId }: ColonySourcesBreakdownProps)
             </tr>
           </thead>
           <tbody>
-            {sources.map((source) => (
-              <tr
-                key={source.estimate_id}
-                style={{
-                  borderBottom: "1px solid var(--border)",
-                  background: "var(--background)",
-                }}
-              >
-                <td style={{ padding: "0.5rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span
-                      style={{
-                        width: "3px",
-                        height: "16px",
-                        borderRadius: "2px",
-                        background: sourceColors[source.source_type] || "#6c757d",
-                      }}
-                    />
-                    <div>
-                      <div style={{ fontWeight: 500, color: "var(--foreground)" }}>{source.source_label}</div>
-                      <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)" }}>
-                        {source.observation_date
-                          ? new Date(source.observation_date).toLocaleDateString()
-                          : new Date(source.reported_at).toLocaleDateString()}
-                        {Number.isFinite(source.days_ago) && (
-                          <> ({source.days_ago}d ago)</>
-                        )}
-                        {source.is_firsthand && (
-                          <span style={{ color: "var(--success-text)", marginLeft: "0.25rem" }}>
-                            +{(Number(source.firsthand_boost) * 100).toFixed(0)}% firsthand
-                          </span>
-                        )}
+            {sources.map((source) => {
+              const sourceUrl = getSourceRecordUrl(source);
+              const isClickable = !!sourceUrl;
+
+              return (
+                <tr
+                  key={source.estimate_id}
+                  onClick={isClickable ? () => window.location.href = sourceUrl : undefined}
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    background: "var(--background)",
+                    cursor: isClickable ? "pointer" : "default",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseOver={isClickable ? (e) => { e.currentTarget.style.background = "var(--hover-bg)"; } : undefined}
+                  onMouseOut={isClickable ? (e) => { e.currentTarget.style.background = "var(--background)"; } : undefined}
+                >
+                  <td style={{ padding: "0.5rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span
+                        style={{
+                          width: "3px",
+                          height: "16px",
+                          borderRadius: "2px",
+                          background: sourceColors[source.source_type] || "#6c757d",
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 500, color: isClickable ? "var(--primary)" : "var(--foreground)" }}>
+                          {source.source_label}
+                          {isClickable && <span style={{ marginLeft: "0.25rem", fontSize: "0.7rem" }}>→</span>}
+                        </div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)" }}>
+                          {source.observation_date
+                            ? new Date(source.observation_date).toLocaleDateString()
+                            : new Date(source.reported_at).toLocaleDateString()}
+                          {Number.isFinite(source.days_ago) && (
+                            <> ({source.days_ago}d ago)</>
+                          )}
+                          {source.is_firsthand && (
+                            <span style={{ color: "var(--success-text)", marginLeft: "0.25rem" }}>
+                              +{(Number(source.firsthand_boost) * 100).toFixed(0)}% firsthand
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-                <td style={{ textAlign: "right", padding: "0.5rem", fontWeight: 600, color: "var(--foreground)" }}>
-                  {source.total_cats}
-                </td>
-                <td style={{ textAlign: "right", padding: "0.5rem", color: "var(--text-secondary)" }}>
-                  {(Number(source.base_confidence) * 100).toFixed(0)}%
-                </td>
-                <td
-                  style={{
-                    textAlign: "right",
-                    padding: "0.5rem",
-                    color: Number(source.recency_factor) < 0.5 ? "var(--danger-text)" : "var(--text-secondary)",
-                  }}
-                >
-                  ×{Number(source.recency_factor).toFixed(2)}
-                </td>
-                <td
-                  style={{
-                    textAlign: "right",
-                    padding: "0.5rem",
-                    fontWeight: 600,
-                    color:
-                      Number(source.final_confidence) >= 0.7
-                        ? "var(--success-text)"
-                        : Number(source.final_confidence) >= 0.4
-                          ? "var(--warning-text)"
-                          : "var(--danger-text)",
-                  }}
-                >
-                  {(Number(source.final_confidence) * 100).toFixed(0)}%
-                </td>
-                <td style={{ textAlign: "right", padding: "0.5rem", fontWeight: 600, color: "var(--primary)" }}>
-                  {source.weighted_contribution}%
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", fontWeight: 600, color: "var(--foreground)" }}>
+                    {source.total_cats}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", color: "var(--text-secondary)" }}>
+                    {(Number(source.base_confidence) * 100).toFixed(0)}%
+                  </td>
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "0.5rem",
+                      color: Number(source.recency_factor) < 0.5 ? "var(--danger-text)" : "var(--text-secondary)",
+                    }}
+                  >
+                    ×{Number(source.recency_factor).toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "0.5rem",
+                      fontWeight: 600,
+                      color:
+                        Number(source.final_confidence) >= 0.7
+                          ? "var(--success-text)"
+                          : Number(source.final_confidence) >= 0.4
+                            ? "var(--warning-text)"
+                            : "var(--danger-text)",
+                    }}
+                  >
+                    {(Number(source.final_confidence) * 100).toFixed(0)}%
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", fontWeight: 600, color: "var(--primary)" }}>
+                    {source.weighted_contribution}%
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

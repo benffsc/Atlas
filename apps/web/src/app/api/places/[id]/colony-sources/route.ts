@@ -23,7 +23,10 @@ interface SourceBreakdown {
   days_ago: number;
   is_firsthand: boolean;
   reporter_name: string | null;
+  reporter_person_id: string | null;
   notes: string | null;
+  source_record_id: string | null;
+  source_system: string | null;
 }
 
 interface ColonySummary {
@@ -81,10 +84,13 @@ export async function GET(
           e.estimate_id,
           e.total_cats,
           e.source_type,
+          e.source_record_id,
+          e.source_system,
           e.observation_date,
           e.reported_at,
           e.is_firsthand,
           e.notes,
+          e.reported_by_person_id,
           p.display_name AS reporter_name,
           -- Base confidence from source type
           COALESCE(sc.base_confidence, 0.50) AS base_confidence,
@@ -131,11 +137,14 @@ export async function GET(
         estimate_id::TEXT,
         total_cats,
         source_type,
+        source_record_id,
+        source_system,
         observation_date::TEXT,
         reported_at::TEXT,
         is_firsthand,
         notes,
         reporter_name,
+        reported_by_person_id::TEXT AS reporter_person_id,
         ROUND(base_confidence::NUMERIC, 2) AS base_confidence,
         ROUND(recency_factor::NUMERIC, 2) AS recency_factor,
         ROUND(firsthand_boost::NUMERIC, 2) AS firsthand_boost,
@@ -150,11 +159,14 @@ export async function GET(
       estimate_id: string;
       total_cats: number;
       source_type: string;
+      source_record_id: string | null;
+      source_system: string | null;
       observation_date: string | null;
       reported_at: string;
       is_firsthand: boolean;
       notes: string | null;
       reporter_name: string | null;
+      reporter_person_id: string | null;
       base_confidence: number;
       recency_factor: number;
       firsthand_boost: number;
@@ -215,7 +227,10 @@ export async function GET(
       days_ago: Number(s.days_ago) || 0,
       is_firsthand: s.is_firsthand,
       reporter_name: s.reporter_name,
+      reporter_person_id: s.reporter_person_id,
       notes: s.notes,
+      source_record_id: s.source_record_id,
+      source_system: s.source_system,
     }));
 
     // Build summary

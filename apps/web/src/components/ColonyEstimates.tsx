@@ -62,6 +62,27 @@ interface ColonyEstimatesProps {
   placeId: string;
 }
 
+// Generate link URL for a source record based on source type
+function getSourceRecordUrl(estimate: ColonyEstimate): string | null {
+  if (!estimate.source_record_id) return null;
+
+  switch (estimate.source_type) {
+    case "trapping_request":
+      return `/requests/${estimate.source_record_id}`;
+    case "intake_form":
+      return `/intake/queue/${estimate.source_record_id}`;
+    case "trapper_report":
+      return `/admin/trapper-reports`;
+    case "verified_cats":
+      return null;
+    case "post_clinic_survey":
+    case "appointment_request":
+      return estimate.source_record_id ? `/appointments/${estimate.source_record_id}` : null;
+    default:
+      return null;
+  }
+}
+
 // Source type colors
 const sourceColors: Record<string, string> = {
   post_clinic_survey: "#6f42c1", // Purple for P75
@@ -615,112 +636,137 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
             Survey Responses
           </h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {visibleEstimates.map((est) => (
-              <div
-                key={est.estimate_id}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "0.75rem",
-                  padding: "0.75rem",
-                  background: "var(--section-bg)",
-                  borderRadius: "8px",
-                  borderLeft: `3px solid ${sourceColors[est.source_type] || "#6c757d"}`,
-                }}
-              >
-                {/* Source Badge */}
-                <span
+            {visibleEstimates.map((est) => {
+              const sourceUrl = getSourceRecordUrl(est);
+              const isClickable = !!sourceUrl;
+
+              return (
+                <div
+                  key={est.estimate_id}
+                  onClick={isClickable ? () => window.location.href = sourceUrl : undefined}
                   style={{
-                    padding: "0.2rem 0.5rem",
-                    background: sourceColors[est.source_type] || "#6c757d",
-                    color: "#fff",
-                    borderRadius: "4px",
-                    fontSize: "0.7rem",
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "0.75rem",
+                    padding: "0.75rem",
+                    background: "var(--section-bg)",
+                    borderRadius: "8px",
+                    borderLeft: `3px solid ${sourceColors[est.source_type] || "#6c757d"}`,
+                    cursor: isClickable ? "pointer" : "default",
+                    transition: "background 0.15s, transform 0.15s",
                   }}
+                  onMouseOver={isClickable ? (e) => {
+                    e.currentTarget.style.background = "var(--hover-bg)";
+                    e.currentTarget.style.transform = "translateX(2px)";
+                  } : undefined}
+                  onMouseOut={isClickable ? (e) => {
+                    e.currentTarget.style.background = "var(--section-bg)";
+                    e.currentTarget.style.transform = "none";
+                  } : undefined}
                 >
-                  {est.source_label}
-                </span>
+                  {/* Source Badge */}
+                  <span
+                    style={{
+                      padding: "0.2rem 0.5rem",
+                      background: sourceColors[est.source_type] || "#6c757d",
+                      color: "#fff",
+                      borderRadius: "4px",
+                      fontSize: "0.7rem",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {est.source_label}
+                  </span>
 
-                {/* Details */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", fontSize: "0.85rem", color: "var(--foreground)" }}>
-                    {est.total_cats !== null && (
-                      <span>
-                        <strong>{est.total_cats}</strong> cats
-                      </span>
-                    )}
-                    {est.adult_count !== null && (
-                      <span style={{ color: "var(--text-secondary)" }}>{est.adult_count} adults</span>
-                    )}
-                    {est.kitten_count !== null && (
-                      <span style={{ color: "var(--text-secondary)" }}>{est.kitten_count} kittens</span>
-                    )}
-                    {est.altered_count !== null && (
-                      <span style={{ color: "var(--success-text)" }}>{est.altered_count} altered</span>
-                    )}
-                    {est.unaltered_count !== null && (
-                      <span style={{ color: "var(--danger-text)" }}>{est.unaltered_count} unaltered</span>
-                    )}
-                    {est.friendly_count !== null && (
-                      <span style={{ color: "var(--primary)" }}>{est.friendly_count} friendly</span>
-                    )}
-                    {est.feral_count !== null && (
-                      <span style={{ color: "var(--warning-text)" }}>{est.feral_count} feral</span>
-                    )}
-                  </div>
-
-                  {/* Reporter and Date */}
-                  <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                    {est.reporter_name && (
-                      <span>
-                        Reported by{" "}
-                        {est.reporter_person_id ? (
-                          <a href={`/people/${est.reporter_person_id}`} style={{ color: "var(--primary)" }}>
-                            {est.reporter_name}
-                          </a>
-                        ) : (
-                          est.reporter_name
-                        )}
-                        {" "}
-                      </span>
-                    )}
-                    {est.observation_date && (
-                      <span>
-                        on {new Date(est.observation_date).toLocaleDateString()}
-                      </span>
-                    )}
-                    {!est.observation_date && est.reported_at && (
-                      <span>
-                        on {new Date(est.reported_at).toLocaleDateString()}
-                      </span>
-                    )}
-                    {est.is_firsthand && (
-                      <span
-                        style={{
-                          marginLeft: "0.5rem",
-                          padding: "0.1rem 0.3rem",
-                          background: "var(--success-bg)",
-                          color: "var(--success-text)",
-                          borderRadius: "3px",
-                          fontSize: "0.65rem",
-                        }}
-                      >
-                        Firsthand
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  {est.notes && (
-                    <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", fontStyle: "italic", color: "var(--text-secondary)" }}>
-                      {est.notes}
+                  {/* Details */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", fontSize: "0.85rem", color: "var(--foreground)" }}>
+                      {est.total_cats !== null && (
+                        <span>
+                          <strong>{est.total_cats}</strong> cats
+                        </span>
+                      )}
+                      {est.adult_count !== null && (
+                        <span style={{ color: "var(--text-secondary)" }}>{est.adult_count} adults</span>
+                      )}
+                      {est.kitten_count !== null && (
+                        <span style={{ color: "var(--text-secondary)" }}>{est.kitten_count} kittens</span>
+                      )}
+                      {est.altered_count !== null && (
+                        <span style={{ color: "var(--success-text)" }}>{est.altered_count} altered</span>
+                      )}
+                      {est.unaltered_count !== null && (
+                        <span style={{ color: "var(--danger-text)" }}>{est.unaltered_count} unaltered</span>
+                      )}
+                      {est.friendly_count !== null && (
+                        <span style={{ color: "var(--primary)" }}>{est.friendly_count} friendly</span>
+                      )}
+                      {est.feral_count !== null && (
+                        <span style={{ color: "var(--warning-text)" }}>{est.feral_count} feral</span>
+                      )}
                     </div>
+
+                    {/* Reporter and Date */}
+                    <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                      {est.reporter_name && (
+                        <span>
+                          Reported by{" "}
+                          {est.reporter_person_id ? (
+                            <a
+                              href={`/people/${est.reporter_person_id}`}
+                              style={{ color: "var(--primary)" }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {est.reporter_name}
+                            </a>
+                          ) : (
+                            est.reporter_name
+                          )}
+                          {" "}
+                        </span>
+                      )}
+                      {est.observation_date && (
+                        <span>
+                          on {new Date(est.observation_date).toLocaleDateString()}
+                        </span>
+                      )}
+                      {!est.observation_date && est.reported_at && (
+                        <span>
+                          on {new Date(est.reported_at).toLocaleDateString()}
+                        </span>
+                      )}
+                      {est.is_firsthand && (
+                        <span
+                          style={{
+                            marginLeft: "0.5rem",
+                            padding: "0.1rem 0.3rem",
+                            background: "var(--success-bg)",
+                            color: "var(--success-text)",
+                            borderRadius: "3px",
+                            fontSize: "0.65rem",
+                          }}
+                        >
+                          Firsthand
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Notes */}
+                    {est.notes && (
+                      <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", fontStyle: "italic", color: "var(--text-secondary)" }}>
+                        {est.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Link indicator */}
+                  {isClickable && (
+                    <span style={{ color: "var(--primary)", fontSize: "0.85rem", alignSelf: "center" }}>→</span>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Show More/Less */}
