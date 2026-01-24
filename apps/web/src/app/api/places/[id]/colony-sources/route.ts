@@ -164,7 +164,7 @@ export async function GET(
     }>(sourcesSql, [id]);
 
     // Get summary from the colony status view - wrapped for resilience
-    let summaryRow: {
+    interface SummaryRow {
       colony_size_estimate: number;
       final_confidence: number | null;
       is_multi_source_confirmed: boolean;
@@ -172,7 +172,8 @@ export async function GET(
       primary_source: string | null;
       verified_cat_count: number;
       verified_altered_count: number;
-    } | null = null;
+    }
+    let summaryRow: SummaryRow | null = null;
 
     try {
       const summarySql = `
@@ -187,7 +188,7 @@ export async function GET(
         FROM trapper.v_place_colony_status
         WHERE place_id = $1
       `;
-      summaryRow = await queryOne<typeof summaryRow>(summarySql, [id]);
+      summaryRow = await queryOne<SummaryRow>(summarySql, [id]);
     } catch (summaryError) {
       console.warn("Could not fetch colony status (view may not exist or have errors):", summaryError);
       // Continue without colony status - we can still return source breakdown
