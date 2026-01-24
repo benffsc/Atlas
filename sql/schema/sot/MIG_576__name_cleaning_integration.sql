@@ -1,11 +1,12 @@
 \echo '=== MIG_576: Name Cleaning Integration ==='
 \echo 'Integrates name cleaning into Data Engine and cat creation to prevent garbage names on import'
+\echo 'Also adds name similarity checking to handle shared emails with different people'
 
 -- ============================================================================
--- PART 1: Update Data Engine to clean names before processing
+-- PART 1: Update Data Engine to clean names and check similarity
 -- ============================================================================
 
-\echo 'Updating data_engine_resolve_identity with name cleaning...'
+\echo 'Updating data_engine_resolve_identity with name cleaning and similarity checking...'
 
 -- Drop old 6-param version if exists
 DROP FUNCTION IF EXISTS trapper.data_engine_resolve_identity(text, text, text, text, text, text);
@@ -37,6 +38,9 @@ DECLARE
     v_decision_id UUID;
     v_start_time TIMESTAMPTZ;
     v_email_match RECORD;
+    v_name_similarity NUMERIC;
+    -- Threshold: below 30% similarity, names are considered different people
+    v_min_name_similarity CONSTANT NUMERIC := 0.3;
 BEGIN
     v_start_time := clock_timestamp();
 
@@ -89,7 +93,7 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Priority 0: Exact email match (exact_email_only rule)
+    -- Priority 0: Exact email match with name similarity check
     IF v_email_norm IS NOT NULL THEN
         SELECT p.person_id, p.display_name INTO v_email_match
         FROM trapper.person_identifiers pi
@@ -98,8 +102,55 @@ BEGIN
         AND p.merged_into_person_id IS NULL LIMIT 1;
 
         IF v_email_match.person_id IS NOT NULL THEN
+            -- Calculate name similarity using pg_trgm
+            v_name_similarity := similarity(
+                LOWER(COALESCE(v_display_name, '')),
+                LOWER(COALESCE(v_email_match.display_name, ''))
+            );
+
+            -- If names are very different AND neither is garbage, flag for review
+            -- This handles cases like couples sharing email or email reuse
+            IF v_name_similarity < v_min_name_similarity
+               AND NOT trapper.is_garbage_name(v_display_name)
+               AND NOT trapper.is_garbage_name(v_email_match.display_name)
+               AND v_display_name IS NOT NULL AND v_display_name != ''
+               AND v_email_match.display_name IS NOT NULL AND v_email_match.display_name != 'Unknown' THEN
+
+                v_decision_type := 'review_pending';
+                v_decision_reason := 'Email match but names differ: "' || v_display_name || '" vs "' || v_email_match.display_name || '"';
+
+                -- Create new person for review
+                INSERT INTO trapper.sot_people (display_name, primary_email, primary_phone, data_source)
+                VALUES (v_display_name, v_email_norm, v_phone_norm, p_source_system::trapper.data_source)
+                RETURNING sot_people.person_id INTO v_new_person_id;
+
+                IF v_phone_norm IS NOT NULL THEN
+                    INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_norm, id_value_raw, source_system)
+                    VALUES (v_new_person_id, 'phone', v_phone_norm, v_phone_norm, p_source_system)
+                    ON CONFLICT DO NOTHING;
+                END IF;
+
+                INSERT INTO trapper.data_engine_match_decisions (
+                    staged_record_id, source_system, incoming_email, incoming_phone,
+                    incoming_name, incoming_address, candidates_evaluated,
+                    decision_type, decision_reason, resulting_person_id, top_candidate_person_id,
+                    top_candidate_score, processing_job_id, processing_duration_ms, review_status
+                ) VALUES (
+                    p_staged_record_id, p_source_system, v_email_norm, v_phone_norm,
+                    v_display_name, v_address_norm, 1,
+                    v_decision_type, v_decision_reason, v_new_person_id, v_email_match.person_id,
+                    v_name_similarity, p_job_id,
+                    EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time)::INT, 'pending'
+                ) RETURNING data_engine_match_decisions.decision_id INTO v_decision_id;
+
+                RETURN QUERY SELECT v_new_person_id, v_decision_type, v_name_similarity, NULL::UUID, v_decision_id;
+                RETURN;
+            END IF;
+
+            -- Names match or one is garbage - proceed with auto_match
             v_decision_type := 'auto_match';
-            v_decision_reason := 'Exact email match (exact_email_only rule)';
+            v_decision_reason := 'Exact email match';
+
             -- Update garbage name if we have a better one
             IF trapper.is_garbage_name(v_email_match.display_name)
                AND NOT trapper.is_garbage_name(v_display_name)
@@ -107,12 +158,14 @@ BEGIN
                 UPDATE trapper.sot_people SET display_name = v_display_name, updated_at = NOW()
                 WHERE sot_people.person_id = v_email_match.person_id;
             END IF;
+
             -- Add phone if provided
             IF v_phone_norm IS NOT NULL THEN
                 INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_norm, id_value_raw, source_system)
                 VALUES (v_email_match.person_id, 'phone', v_phone_norm, v_phone_norm, p_source_system)
                 ON CONFLICT (person_id, id_type, id_value_norm) DO NOTHING;
             END IF;
+
             INSERT INTO trapper.data_engine_match_decisions (
                 staged_record_id, source_system, incoming_email, incoming_phone,
                 incoming_name, incoming_address, candidates_evaluated,
@@ -124,12 +177,13 @@ BEGIN
                 v_decision_type, v_decision_reason, v_email_match.person_id, 1.0,
                 p_job_id, EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time)::INT
             ) RETURNING data_engine_match_decisions.decision_id INTO v_decision_id;
+
             RETURN QUERY SELECT v_email_match.person_id, v_decision_type, 1.0::NUMERIC, NULL::UUID, v_decision_id;
             RETURN;
         END IF;
     END IF;
 
-    -- Priority 1: Exact phone match (exact_phone_only rule)
+    -- Priority 1: Exact phone match with name similarity check
     IF v_phone_norm IS NOT NULL THEN
         SELECT p.person_id, p.display_name INTO v_email_match
         FROM trapper.person_identifiers pi
@@ -138,19 +192,72 @@ BEGIN
         AND p.merged_into_person_id IS NULL LIMIT 1;
 
         IF v_email_match.person_id IS NOT NULL THEN
+            -- Calculate name similarity
+            v_name_similarity := similarity(
+                LOWER(COALESCE(v_display_name, '')),
+                LOWER(COALESCE(v_email_match.display_name, ''))
+            );
+
+            -- If names are very different, create as household member
+            IF v_name_similarity < v_min_name_similarity
+               AND NOT trapper.is_garbage_name(v_display_name)
+               AND NOT trapper.is_garbage_name(v_email_match.display_name)
+               AND v_display_name IS NOT NULL AND v_display_name != ''
+               AND v_email_match.display_name IS NOT NULL AND v_email_match.display_name != 'Unknown' THEN
+
+                v_decision_type := 'household_member';
+                v_decision_reason := 'Phone match but different names - likely household';
+
+                -- Create new person as household member
+                INSERT INTO trapper.sot_people (display_name, primary_email, primary_phone, data_source)
+                VALUES (v_display_name, v_email_norm, v_phone_norm, p_source_system::trapper.data_source)
+                RETURNING sot_people.person_id INTO v_new_person_id;
+
+                IF v_email_norm IS NOT NULL THEN
+                    INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_norm, id_value_raw, source_system)
+                    VALUES (v_new_person_id, 'email', v_email_norm, v_email_norm, p_source_system)
+                    ON CONFLICT DO NOTHING;
+                END IF;
+                IF v_phone_norm IS NOT NULL THEN
+                    INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_norm, id_value_raw, source_system)
+                    VALUES (v_new_person_id, 'phone', v_phone_norm, v_phone_norm, p_source_system)
+                    ON CONFLICT DO NOTHING;
+                END IF;
+
+                INSERT INTO trapper.data_engine_match_decisions (
+                    staged_record_id, source_system, incoming_email, incoming_phone,
+                    incoming_name, incoming_address, candidates_evaluated,
+                    decision_type, decision_reason, resulting_person_id, top_candidate_person_id,
+                    top_candidate_score, processing_job_id, processing_duration_ms
+                ) VALUES (
+                    p_staged_record_id, p_source_system, v_email_norm, v_phone_norm,
+                    v_display_name, v_address_norm, 1,
+                    v_decision_type, v_decision_reason, v_new_person_id, v_email_match.person_id,
+                    v_name_similarity, p_job_id,
+                    EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time)::INT
+                ) RETURNING data_engine_match_decisions.decision_id INTO v_decision_id;
+
+                RETURN QUERY SELECT v_new_person_id, v_decision_type, v_name_similarity, NULL::UUID, v_decision_id;
+                RETURN;
+            END IF;
+
+            -- Names match or one is garbage - proceed with auto_match
             v_decision_type := 'auto_match';
-            v_decision_reason := 'Exact phone match (exact_phone_only rule)';
+            v_decision_reason := 'Exact phone match';
+
             IF trapper.is_garbage_name(v_email_match.display_name)
                AND NOT trapper.is_garbage_name(v_display_name)
                AND v_display_name IS NOT NULL AND v_display_name != '' THEN
                 UPDATE trapper.sot_people SET display_name = v_display_name, updated_at = NOW()
                 WHERE sot_people.person_id = v_email_match.person_id;
             END IF;
+
             IF v_email_norm IS NOT NULL THEN
                 INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_norm, id_value_raw, source_system)
                 VALUES (v_email_match.person_id, 'email', v_email_norm, v_email_norm, p_source_system)
                 ON CONFLICT (person_id, id_type, id_value_norm) DO NOTHING;
             END IF;
+
             INSERT INTO trapper.data_engine_match_decisions (
                 staged_record_id, source_system, incoming_email, incoming_phone,
                 incoming_name, incoming_address, candidates_evaluated,
@@ -162,6 +269,7 @@ BEGIN
                 v_decision_type, v_decision_reason, v_email_match.person_id, 1.0,
                 p_job_id, EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time)::INT
             ) RETURNING data_engine_match_decisions.decision_id INTO v_decision_id;
+
             RETURN QUERY SELECT v_email_match.person_id, v_decision_type, 1.0::NUMERIC, NULL::UUID, v_decision_id;
             RETURN;
         END IF;
@@ -203,9 +311,16 @@ END;
 $function$;
 
 COMMENT ON FUNCTION trapper.data_engine_resolve_identity(text, text, text, text, text, text, uuid, uuid) IS
-'Main identity resolution function. Cleans names using clean_person_name() to remove microchips
-and garbage patterns before matching. Matches on exact email (priority 0) or exact phone (priority 1).
-Updated in MIG_576 to prevent duplicate creation from bad source data.';
+'Main identity resolution function with name cleaning and similarity checking.
+
+Key features:
+1. Cleans names using clean_person_name() to remove microchips and garbage patterns
+2. Checks name similarity when email/phone matches existing person
+3. If email matches but names are <30% similar, creates new person with review_pending
+4. If phone matches but names are <30% similar, creates new person as household_member
+5. Prevents incorrect auto-merging of different people sharing identifiers
+
+Updated in MIG_576 to handle shared emails (couples, email reuse) correctly.';
 
 -- ============================================================================
 -- PART 2: Update cat creation to clean names
@@ -319,10 +434,24 @@ SELECT
     trapper.clean_cat_name('Med Holding: Black DSH- Noonan') as cleaned,
     'Black DSH- Noonan' as expected;
 
+\echo 'Test 4: Name similarity function (pg_trgm)'
+SELECT
+    'John Smith' as name1,
+    'Mary Johnson' as name2,
+    similarity('john smith', 'mary johnson') as similarity,
+    'Should be < 0.3 (different people)' as expected;
+
+SELECT
+    'John Smith' as name1,
+    'Jon Smith' as name2,
+    similarity('john smith', 'jon smith') as similarity,
+    'Should be > 0.7 (same person, typo)' as expected;
+
 \echo ''
-\echo 'MIG_576 complete: Name cleaning integrated into processing pipeline'
+\echo 'MIG_576 complete: Name cleaning and similarity checking integrated'
 \echo 'Defense layers now active:'
 \echo '  1. data_engine_resolve_identity() - cleans person names on every import'
 \echo '  2. find_or_create_cat_by_microchip() - cleans cat names on every import'
 \echo '  3. is_garbage_name() - rejects names with microchip patterns'
-\echo '  4. exact_email_only + exact_phone_only rules - match regardless of name'
+\echo '  4. Name similarity check - flags review_pending when email matches but names differ'
+\echo '  5. Household detection - creates household_member when phone matches but names differ'
