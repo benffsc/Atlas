@@ -571,12 +571,12 @@ BEGIN
       -- Log to entity_edits
       INSERT INTO trapper.entity_edits (
         entity_type, entity_id, edit_type,
-        old_values, new_values,
-        source, source_record_id, edited_by
+        old_value, new_value,
+        edit_source, edited_by, notes
       ) VALUES (
         'request', v_entity_id, 'status_change',
         v_old_values, v_new_values,
-        'trapper_report', p_item_id::TEXT, p_committed_by
+        'trapper_report', p_committed_by, 'From trapper report item ' || p_item_id::TEXT
       ) RETURNING edit_id INTO v_edit_id;
 
       v_result := jsonb_build_object(
@@ -604,12 +604,12 @@ BEGIN
       -- Log to entity_edits
       INSERT INTO trapper.entity_edits (
         entity_type, entity_id, edit_type,
-        old_values, new_values,
-        source, source_record_id, edited_by
+        old_value, new_value,
+        edit_source, edited_by, notes
       ) VALUES (
         'request', v_entity_id, 'note_added',
         v_old_values, jsonb_build_object('note_added', v_data->>'note'),
-        'trapper_report', p_item_id::TEXT, p_committed_by
+        'trapper_report', p_committed_by, 'From trapper report item ' || p_item_id::TEXT
       ) RETURNING edit_id INTO v_edit_id;
 
       v_result := jsonb_build_object(
@@ -702,12 +702,12 @@ BEGIN
       -- Log to entity_edits
       INSERT INTO trapper.entity_edits (
         entity_type, entity_id, edit_type,
-        old_values, new_values,
-        source, source_record_id, edited_by
+        old_value, new_value,
+        edit_source, edited_by, notes
       ) VALUES (
         'request', v_entity_id, 'trapping_progress',
         v_old_values, v_data,
-        'trapper_report', p_item_id::TEXT, p_committed_by
+        'trapper_report', p_committed_by, 'From trapper report item ' || p_item_id::TEXT
       ) RETURNING edit_id INTO v_edit_id;
 
       v_result := jsonb_build_object(
