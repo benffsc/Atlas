@@ -40,9 +40,7 @@ export async function GET(
         s.created_at,
         s.source_system,
         -- Reporter details
-        p.display_name as reporter_name,
-        p.first_name as reporter_first_name,
-        p.last_name as reporter_last_name
+        p.display_name as reporter_name
       FROM trapper.trapper_report_submissions s
       LEFT JOIN trapper.sot_people p ON p.person_id = s.reporter_person_id
       WHERE s.submission_id = $1
