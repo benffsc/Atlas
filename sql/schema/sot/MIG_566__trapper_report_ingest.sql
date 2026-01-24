@@ -554,7 +554,7 @@ BEGIN
       -- Update request
       UPDATE trapper.sot_requests
       SET
-        status = COALESCE(v_data->>'status', status),
+        status = COALESCE((v_data->>'status')::trapper.request_status, status),
         hold_reason = COALESCE(v_data->>'hold_reason', hold_reason),
         updated_at = NOW()
       WHERE request_id = v_entity_id;
