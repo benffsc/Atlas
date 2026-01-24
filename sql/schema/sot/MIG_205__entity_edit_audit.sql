@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS trapper.entity_edits (
   edited_by TEXT NOT NULL,    -- User ID or 'system'
   edited_by_name TEXT,        -- Display name for UI
   edit_source TEXT NOT NULL DEFAULT 'web_ui' CHECK (edit_source IN (
-    'web_ui', 'api', 'migration', 'script', 'system', 'import'
+    'web_ui', 'api', 'migration', 'script', 'system', 'import', 'trapper_report'
   )),
 
   -- When
