@@ -13,30 +13,55 @@ interface EmailHubMetrics {
   success_rate_30d: number;
 }
 
+// Helper to safely query a count, returning 0 if table doesn't exist
+async function safeCount(query: string): Promise<number> {
+  try {
+    const result = await queryOne<{ count: number }>(query);
+    return result?.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 // GET /api/admin/email-hub/metrics - Get email hub dashboard metrics
 export async function GET(request: NextRequest) {
   try {
     // Both admin and staff can view metrics
     await requireRole(request, ["admin", "staff"]);
 
-    const metrics = await queryOne<EmailHubMetrics>(`
-      SELECT
-        (SELECT COUNT(*)::INT FROM trapper.outlook_email_accounts WHERE is_active = TRUE) AS connected_accounts,
-        (SELECT COUNT(*)::INT FROM trapper.email_templates WHERE is_active = TRUE) AS active_templates,
-        (SELECT COUNT(*)::INT FROM trapper.email_jobs WHERE status IN ('draft', 'queued')) AS pending_jobs,
-        (SELECT COUNT(*)::INT FROM trapper.email_batches WHERE status = 'draft') AS pending_batches,
-        (SELECT COUNT(*)::INT FROM trapper.email_template_suggestions WHERE status = 'pending') AS pending_suggestions,
-        (SELECT COUNT(*)::INT FROM trapper.sent_emails WHERE status = 'sent' AND sent_at > NOW() - INTERVAL '30 days') AS emails_sent_30d,
-        (SELECT COUNT(*)::INT FROM trapper.sent_emails WHERE status = 'failed' AND created_at > NOW() - INTERVAL '30 days') AS emails_failed_30d,
-        CASE
-          WHEN (SELECT COUNT(*) FROM trapper.sent_emails WHERE created_at > NOW() - INTERVAL '30 days') = 0 THEN 100.0
-          ELSE ROUND(
-            (SELECT COUNT(*) FROM trapper.sent_emails WHERE status = 'sent' AND sent_at > NOW() - INTERVAL '30 days')::numeric /
-            NULLIF((SELECT COUNT(*) FROM trapper.sent_emails WHERE created_at > NOW() - INTERVAL '30 days'), 0) * 100,
-            1
-          )
-        END AS success_rate_30d
-    `);
+    // Query each metric separately so missing tables don't break everything
+    const [
+      connected_accounts,
+      active_templates,
+      pending_jobs,
+      pending_batches,
+      pending_suggestions,
+      emails_sent_30d,
+      emails_failed_30d,
+      total_30d,
+    ] = await Promise.all([
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.outlook_email_accounts WHERE is_active = TRUE`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_templates WHERE is_active = TRUE`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_jobs WHERE status IN ('draft', 'queued')`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_batches WHERE status = 'draft'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_template_suggestions WHERE status = 'pending'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.sent_emails WHERE status = 'sent' AND sent_at > NOW() - INTERVAL '30 days'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.sent_emails WHERE status = 'failed' AND created_at > NOW() - INTERVAL '30 days'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.sent_emails WHERE created_at > NOW() - INTERVAL '30 days'`),
+    ]);
+
+    const success_rate_30d = total_30d === 0 ? 100 : Math.round((emails_sent_30d / total_30d) * 1000) / 10;
+
+    const metrics: EmailHubMetrics = {
+      connected_accounts,
+      active_templates,
+      pending_jobs,
+      pending_batches,
+      pending_suggestions,
+      emails_sent_30d,
+      emails_failed_30d,
+      success_rate_30d,
+    };
 
     return NextResponse.json({ metrics });
   } catch (error) {
