@@ -106,6 +106,7 @@ interface RequestDetail {
   kitten_foster_readiness: string | null;
   kitten_urgency_factors: string[] | null;
   kitten_assessment_notes: string | null;
+  not_assessing_reason: string | null;
   kitten_assessed_by: string | null;
   kitten_assessed_at: string | null;
   // Redirect fields
@@ -154,6 +155,17 @@ const KITTEN_ASSESSMENT_STATUS_OPTIONS = [
   { value: "pending", label: "Pending Assessment" },
   { value: "assessed", label: "Assessed" },
   { value: "follow_up", label: "Needs Follow-up" },
+  { value: "not_assessing", label: "Not Assessing" },
+];
+
+const NOT_ASSESSING_REASON_OPTIONS = [
+  { value: "older_kittens", label: "Older kittens (6+ months) - no capacity" },
+  { value: "no_foster_capacity", label: "No foster capacity currently" },
+  { value: "feral_unsuitable", label: "Feral/unsocialized - unsuitable for foster" },
+  { value: "health_concerns", label: "Health concerns preclude foster" },
+  { value: "owner_keeping", label: "Owner plans to keep" },
+  { value: "already_altered", label: "Already altered - no intervention needed" },
+  { value: "other", label: "Other (specify in notes)" },
 ];
 
 const KITTEN_OUTCOME_OPTIONS = [
@@ -301,6 +313,7 @@ export default function RequestDetailPage() {
     kitten_foster_readiness: "",
     kitten_urgency_factors: [] as string[],
     kitten_assessment_notes: "",
+    not_assessing_reason: "",
   });
 
   // Edit history panel
@@ -377,6 +390,7 @@ export default function RequestDetailPage() {
           kitten_foster_readiness: data.kitten_foster_readiness || "",
           kitten_urgency_factors: data.kitten_urgency_factors || [],
           kitten_assessment_notes: data.kitten_assessment_notes || "",
+          not_assessing_reason: data.not_assessing_reason || "",
         });
       } catch (err) {
         setError("Failed to load request");
@@ -570,6 +584,7 @@ export default function RequestDetailPage() {
           kitten_foster_readiness: kittenForm.kitten_foster_readiness || null,
           kitten_urgency_factors: kittenForm.kitten_urgency_factors.length > 0 ? kittenForm.kitten_urgency_factors : null,
           kitten_assessment_notes: kittenForm.kitten_assessment_notes || null,
+          not_assessing_reason: kittenForm.kitten_assessment_status === "not_assessing" ? kittenForm.not_assessing_reason || null : null,
         }),
       });
 
@@ -604,6 +619,7 @@ export default function RequestDetailPage() {
         kitten_foster_readiness: request.kitten_foster_readiness || "",
         kitten_urgency_factors: request.kitten_urgency_factors || [],
         kitten_assessment_notes: request.kitten_assessment_notes || "",
+        not_assessing_reason: request.not_assessing_reason || "",
       });
     }
     setEditingKittens(false);
@@ -2075,6 +2091,33 @@ export default function RequestDetailPage() {
                     </select>
                   </div>
 
+                  {/* Not Assessing Reason - shown when status is not_assessing */}
+                  {kittenForm.kitten_assessment_status === "not_assessing" && (
+                    <div style={{
+                      padding: "1rem",
+                      background: "var(--section-bg)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                    }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Reason Not Assessing
+                      </label>
+                      <select
+                        value={kittenForm.not_assessing_reason}
+                        onChange={(e) => setKittenForm({ ...kittenForm, not_assessing_reason: e.target.value })}
+                        style={{ width: "100%" }}
+                      >
+                        <option value="">Select reason...</option>
+                        {NOT_ASSESSING_REASON_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
+                        This indicates these kittens won&apos;t be evaluated for foster placement.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Outcome */}
                   <div>
                     <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
@@ -2202,7 +2245,9 @@ export default function RequestDetailPage() {
                               ? "#198754"
                               : request.kitten_assessment_status === "follow_up"
                                 ? "#ffc107"
-                                : "#6c757d",
+                                : request.kitten_assessment_status === "not_assessing"
+                                  ? "#6366f1"
+                                  : "#6c757d",
                             color: request.kitten_assessment_status === "follow_up" ? "#000" : "#fff",
                             fontSize: "0.85rem"
                           }}>
@@ -2212,6 +2257,12 @@ export default function RequestDetailPage() {
                           <span style={{ color: "#dc3545" }}>Pending</span>
                         )}
                       </div>
+                      {/* Show not assessing reason */}
+                      {request.kitten_assessment_status === "not_assessing" && request.not_assessing_reason && (
+                        <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+                          Reason: {NOT_ASSESSING_REASON_OPTIONS.find(o => o.value === request.not_assessing_reason)?.label || request.not_assessing_reason.replace(/_/g, " ")}
+                        </div>
+                      )}
                     </div>
 
                     <div>

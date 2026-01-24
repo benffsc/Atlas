@@ -62,6 +62,7 @@ interface RequestDetailRow {
   kitten_foster_readiness: string | null;
   kitten_urgency_factors: string[] | null;
   kitten_assessment_notes: string | null;
+  not_assessing_reason: string | null;
   kitten_assessed_by: string | null;
   kitten_assessed_at: string | null;
   is_being_fed: boolean | null;
@@ -120,6 +121,10 @@ interface RequestDetailRow {
   colony_has_override: boolean | null;
   colony_override_note: string | null;
   colony_verified_exceeds_reported: boolean | null;
+  // Email batching (MIG_605)
+  ready_to_email: boolean;
+  email_summary: string | null;
+  email_batch_id: string | null;
 }
 
 export async function GET(
@@ -186,6 +191,7 @@ export async function GET(
         r.kitten_foster_readiness,
         r.kitten_urgency_factors,
         r.kitten_assessment_notes,
+        r.not_assessing_reason,
         r.kitten_assessed_by,
         r.kitten_assessed_at,
         r.is_being_fed,
@@ -269,7 +275,11 @@ export async function GET(
         -- Flag when verified > reported (needs reconciliation)
         CASE WHEN pcs.verified_altered_count > COALESCE(r.total_cats_reported, 0)
              AND r.total_cats_reported IS NOT NULL
-        THEN TRUE ELSE FALSE END AS colony_verified_exceeds_reported
+        THEN TRUE ELSE FALSE END AS colony_verified_exceeds_reported,
+        -- Email batching (MIG_605)
+        r.ready_to_email,
+        r.email_summary,
+        r.email_batch_id
       FROM trapper.sot_requests r
       LEFT JOIN trapper.places p ON p.place_id = r.place_id
       LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
@@ -413,12 +423,16 @@ interface UpdateRequestBody {
   kitten_foster_readiness?: string | null;
   kitten_urgency_factors?: string[] | null;
   kitten_assessment_notes?: string | null;
+  not_assessing_reason?: string | null;
   // Observation data (for completing requests)
   observation_cats_seen?: number | null;
   observation_eartips_seen?: number | null;
   observation_notes?: string | null;
   // Skip trip report check (for completion flow)
   skip_trip_report_check?: boolean;
+  // Email batching (MIG_605)
+  ready_to_email?: boolean;
+  email_summary?: string;
 }
 
 export async function PATCH(
@@ -795,6 +809,25 @@ export async function PATCH(
       paramIndex++;
     }
 
+    if (body.not_assessing_reason !== undefined) {
+      updates.push(`not_assessing_reason = $${paramIndex}`);
+      values.push(body.not_assessing_reason);
+      paramIndex++;
+    }
+
+    // Email batching (MIG_605)
+    if (body.ready_to_email !== undefined) {
+      updates.push(`ready_to_email = $${paramIndex}`);
+      values.push(body.ready_to_email);
+      paramIndex++;
+    }
+
+    if (body.email_summary !== undefined) {
+      updates.push(`email_summary = $${paramIndex}`);
+      values.push(body.email_summary || null);
+      paramIndex++;
+    }
+
     // Handle status changes that trigger resolved_at
     if (body.status === "completed" || body.status === "cancelled" || body.status === "partial") {
       updates.push(`resolved_at = COALESCE(resolved_at, NOW())`);
@@ -842,52 +875,82 @@ export async function PATCH(
       );
     }
 
-    // If request was completed/partial with observation data, create colony estimate
+    // If request was completed/partial with observation data, record observation with feedback loop (MIG_563)
     let observationCreated = false;
+    let chapmanEstimate: number | null = null;
     if (
       (body.status === "completed" || body.status === "partial") &&
       body.observation_cats_seen !== undefined &&
       body.observation_cats_seen !== null &&
       body.observation_cats_seen > 0
     ) {
-      // Get the place_id for this request
-      const placeResult = await queryOne<{ place_id: string | null }>(
-        `SELECT place_id FROM trapper.sot_requests WHERE request_id = $1`,
-        [id]
-      );
-
-      if (placeResult?.place_id) {
-        // Create the observation in place_colony_estimates
-        await query(
-          `INSERT INTO trapper.place_colony_estimates (
-            place_id,
-            total_cats_observed,
-            eartip_count_observed,
-            observation_date,
-            notes,
-            source_type,
-            source_system,
-            source_record_id,
-            is_firsthand,
-            created_by
-          ) VALUES (
-            $1, $2, $3, CURRENT_DATE, $4,
-            'trapper_site_visit',
-            'atlas_ui',
-            $5,
-            TRUE,
-            'request_completion'
-          )
-          ON CONFLICT DO NOTHING`,
+      try {
+        // Use the new record_completion_observation function which:
+        // 1. Creates the observation record
+        // 2. Computes Chapman estimate if mark-resight data available
+        // 3. Verifies prior estimates against this observation
+        // 4. Updates source accuracy statistics
+        const obsResult = await queryOne<{ record_completion_observation: string | null }>(
+          `SELECT trapper.record_completion_observation($1, $2, $3, $4) AS record_completion_observation`,
           [
-            placeResult.place_id,
+            id,
             body.observation_cats_seen,
             body.observation_eartips_seen || 0,
-            body.observation_notes || `Observation logged during request completion`,
-            id,
+            body.observation_notes || null,
           ]
         );
-        observationCreated = true;
+
+        if (obsResult?.record_completion_observation) {
+          observationCreated = true;
+
+          // Get the Chapman estimate if one was computed
+          const estimateResult = await queryOne<{ total_cats: number | null }>(
+            `SELECT total_cats FROM trapper.place_colony_estimates WHERE estimate_id = $1`,
+            [obsResult.record_completion_observation]
+          );
+          chapmanEstimate = estimateResult?.total_cats || null;
+        }
+      } catch (obsErr) {
+        // Fall back to simple insert if function doesn't exist yet
+        console.error("[completion] record_completion_observation failed, using fallback:", obsErr);
+
+        const placeResult = await queryOne<{ place_id: string | null }>(
+          `SELECT place_id FROM trapper.sot_requests WHERE request_id = $1`,
+          [id]
+        );
+
+        if (placeResult?.place_id) {
+          await query(
+            `INSERT INTO trapper.place_colony_estimates (
+              place_id,
+              total_cats_observed,
+              eartip_count_observed,
+              observation_date,
+              notes,
+              source_type,
+              source_system,
+              source_record_id,
+              is_firsthand,
+              created_by
+            ) VALUES (
+              $1, $2, $3, CURRENT_DATE, $4,
+              'trapper_site_visit',
+              'atlas_ui',
+              $5,
+              TRUE,
+              'request_completion'
+            )
+            ON CONFLICT DO NOTHING`,
+            [
+              placeResult.place_id,
+              body.observation_cats_seen,
+              body.observation_eartips_seen || 0,
+              body.observation_notes || `Observation logged during request completion`,
+              id,
+            ]
+          );
+          observationCreated = true;
+        }
       }
     }
 
@@ -900,6 +963,7 @@ export async function PATCH(
       success: true,
       request: result,
       observation_created: observationCreated,
+      chapman_estimate: chapmanEstimate,
     });
   } catch (error) {
     console.error("Error updating request:", error);
