@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 
-const MODEL = "claude-3-5-haiku-20241022";
+const MODEL = "claude-haiku-4-5-20251001";
 const MAX_TOKENS = 2000;
 
 const SYSTEM_PROMPT = `You are an expert at extracting structured data from TNR (Trap-Neuter-Return) trapper field reports.
