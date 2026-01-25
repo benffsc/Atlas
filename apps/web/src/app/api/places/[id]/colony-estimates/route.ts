@@ -110,12 +110,20 @@ export async function GET(
     }
 
     // Get colony columns from places table directly (synced values)
+    // Includes new classification fields from MIG_615
     const placeSql = `
       SELECT
         colony_size_estimate,
         colony_confidence,
         colony_estimate_count,
-        colony_updated_at
+        colony_updated_at,
+        colony_classification::TEXT,
+        colony_classification_reason,
+        colony_classification_set_by,
+        colony_classification_set_at,
+        authoritative_cat_count,
+        authoritative_count_reason,
+        allows_clustering
       FROM trapper.places
       WHERE place_id = $1
     `;
@@ -125,6 +133,13 @@ export async function GET(
       colony_confidence: number | null;
       colony_estimate_count: number | null;
       colony_updated_at: string | null;
+      colony_classification: string | null;
+      colony_classification_reason: string | null;
+      colony_classification_set_by: string | null;
+      colony_classification_set_at: string | null;
+      authoritative_cat_count: number | null;
+      authoritative_count_reason: string | null;
+      allows_clustering: boolean | null;
     }>(placeSql, [id]);
 
     // Get ecology-based statistics - wrapped in try/catch for resilience
@@ -196,6 +211,16 @@ export async function GET(
         total_eartips_seen: 0,
         total_cats_seen: 0,
         n_hat_chapman: null,
+      },
+      // Classification data (MIG_615)
+      classification: {
+        type: placeColony?.colony_classification || "unknown",
+        reason: placeColony?.colony_classification_reason || null,
+        set_by: placeColony?.colony_classification_set_by || null,
+        set_at: placeColony?.colony_classification_set_at || null,
+        authoritative_cat_count: placeColony?.authoritative_cat_count || null,
+        authoritative_count_reason: placeColony?.authoritative_count_reason || null,
+        allows_clustering: placeColony?.allows_clustering ?? true,
       },
       has_data: estimates.length > 0 || (status && status.colony_size_estimate > 0) || (ecology && ecology.a_known > 0),
     });

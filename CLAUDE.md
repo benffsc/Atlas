@@ -273,7 +273,9 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 **source_system values (use EXACTLY):**
 - `'airtable'` - All Airtable data (not 'airtable_staff' or 'airtable_project75')
 - `'clinichq'` - All ClinicHQ data
+- `'shelterluv'` - ShelterLuv API data (animals, people, events)
 - `'web_intake'` - Web intake form submissions
+- `'petlink'` - PetLink microchip data
 
 **See `docs/INGEST_GUIDELINES.md` for complete documentation.**
 
@@ -404,6 +406,7 @@ Required in `.env`:
 - `DATABASE_URL` - Postgres connection string
 - `AIRTABLE_PAT` - Airtable Personal Access Token
 - `GOOGLE_PLACES_API_KEY` - For geocoding
+- `SHELTERLUV_API_KEY` - ShelterLuv API key (for automated sync)
 
 ## Tippy Dynamic Schema Navigation (MIG_517-521)
 
@@ -453,6 +456,9 @@ See `docs/TIPPY_VIEWS_AND_SCHEMA.md` for full documentation.
 | `v_people_without_data_engine` | People missing Data Engine audit trail |
 | `v_potential_duplicate_people` | Possible duplicate people records |
 | `v_potential_duplicate_places` | Possible duplicate place records |
+| `v_shelterluv_sync_status` | ShelterLuv API sync health and pending records |
+| `v_cat_field_sources_summary` | Multi-source field values per cat |
+| `v_cat_field_conflicts` | Cats where sources disagree on field values |
 
 ## Key Tables
 
@@ -532,6 +538,71 @@ INSERT INTO trapper.place_colony_estimates (
 
 ### Key View
 `v_place_colony_status` - Aggregates all estimates with weighted confidence
+
+## Colony Classification System (MIG_615)
+
+Not all places with cats are the same. The classification system distinguishes between **individual cats** (sporadic neighborhood cats) and **colony sites** (established feeding locations).
+
+### The Problem
+
+Consider two scenarios:
+1. **Crystal's situation**: She reports 1 cat, then 2 cats total. These are specific neighborhood cats she can count exactly.
+2. **Jean Worthey's site**: An established feeding station with many cats. Ecological estimation (Chapman mark-recapture) is appropriate.
+
+Without classification, the system would treat both the same, potentially showing inflated estimates for individual cat situations.
+
+### Classification Types
+
+| Classification | Description | Estimation Behavior |
+|----------------|-------------|---------------------|
+| `unknown` | Default, needs staff classification | Normal weighted estimation |
+| `individual_cats` | Sporadic cats, exact counts known | Uses authoritative count only, NO clustering |
+| `small_colony` | Small established group (3-10 cats) | Light estimation |
+| `large_colony` | Large colony (10+ cats) | Full ecological estimation |
+| `feeding_station` | Known feeding location | Clustering enabled, attracts nearby appointments |
+
+### Key Fields on Places
+
+| Field | Purpose |
+|-------|---------|
+| `colony_classification` | How to treat this place for estimation |
+| `authoritative_cat_count` | Staff-confirmed exact count (overrides ALL estimates) |
+| `allows_clustering` | Whether nearby appointments cluster here |
+| `clustering_radius_meters` | Custom radius (NULL = system default) |
+
+### Setting Classification
+
+```sql
+-- Set a place as individual cats with exact count of 2
+SELECT trapper.set_colony_classification(
+  'place-uuid-here',
+  'individual_cats',
+  'Single requester reporting specific neighborhood cats',
+  'staff_name',
+  2  -- authoritative count
+);
+```
+
+### How Classification Affects Estimates
+
+| Scenario | colony_size_estimate | estimation_method |
+|----------|---------------------|-------------------|
+| `authoritative_cat_count` set | Uses authoritative count | "Authoritative Count" |
+| `individual_cats` classification | Uses verified_cat_count only | "Individual Cats (Verified Only)" |
+| `colony` classifications | Weighted estimate from all sources | "Estimated" |
+| Legacy override | Uses `colony_override_count` | "Manual Override" |
+
+### Clustering Behavior
+
+- `individual_cats`: `allows_clustering = FALSE` (auto-set)
+- Colony types: `allows_clustering = TRUE`
+- When `allows_clustering = FALSE`, nearby appointments are NOT attributed to this place
+
+### UI Flow
+
+1. **Place Detail Page**: Shows current classification and allows staff to change it
+2. **Colony Estimates Component**: Displays classification badge and authoritative count if set
+3. **Set Classification Modal**: Allows staff to set classification with reason and optional count
 
 ## Cat Count Semantic Distinction (MIG_534)
 
@@ -621,6 +692,120 @@ ShelterLuv adoption/return outcomes are processed via:
 SELECT * FROM trapper.process_shelterluv_outcomes(500);
 ```
 This creates adopter relationships and tags places with `adopter_residence` context.
+
+## ShelterLuv API Integration (MIG_621)
+
+Atlas syncs data from ShelterLuv via API to supplement clinic data with adoption outcomes, foster placements, and TNR completion tracking.
+
+### Sync Configuration
+
+**Schedule:** Every 6 hours via Vercel Cron (`0 */6 * * *`)
+
+**Endpoints:**
+- `GET /api/cron/shelterluv-sync` - Automated sync endpoint
+- Admin UI: `/admin/ingest` shows ShelterLuv sync status
+
+### Key Tables
+
+| Table | Purpose |
+|-------|---------|
+| `shelterluv_sync_state` | Tracks sync progress per entity type (animals, people, events) |
+| `v_shelterluv_sync_status` | View showing sync health and pending records |
+
+### Event Processing
+
+ShelterLuv events are processed to extract outcomes:
+
+| Event Type | Atlas Action |
+|------------|--------------|
+| `Outcome.Adoption` | Creates adopter relationship, tags place as `adopter_residence` |
+| `Outcome.Foster` | Creates foster relationship, tags place as `foster_home` |
+| `Outcome.FeralWildlife` (Released to Colony) | Marks cat as TNR complete |
+| `Outcome.Euthanasia` | Creates mortality event via `register_mortality_event()` |
+
+### Data Flow
+
+```
+ShelterLuv API → shelterluv_api_sync.mjs → staged_records → Data Engine → SOT Tables
+```
+
+### Environment Variables
+
+Required in `.env`:
+- `SHELTERLUV_API_KEY` - ShelterLuv API key
+
+## Multi-Source Data Transparency (MIG_620)
+
+When cats have data from multiple sources (ClinicHQ, ShelterLuv, PetLink), Atlas tracks field-level provenance so staff can see which source reported what.
+
+### The Problem
+
+A cat might have:
+- `breed = "DSH Black"` from ClinicHQ
+- `breed = "DSH White with Black"` from ShelterLuv
+
+Without transparency, staff don't know which value to trust or why they differ.
+
+### The Solution
+
+The `cat_field_sources` table stores ALL values from each source:
+
+```sql
+-- Record a field value from a source
+SELECT trapper.record_cat_field_source(
+  cat_id, 'breed', 'DSH Black', 'clinichq', 'chq_123'
+);
+
+-- Batch record multiple fields
+SELECT trapper.record_cat_field_sources_batch(
+  cat_id, 'shelterluv', 'sl_456',
+  p_breed => 'DSH White with Black',
+  p_sex => 'female'
+);
+```
+
+### Survivorship Priority
+
+The `is_current` flag indicates which source's value is displayed. Priority is determined by `survivorship_priority` table:
+
+```
+ClinicHQ (highest) → ShelterLuv → PetLink → Airtable → Legacy (lowest)
+```
+
+### UI Display
+
+Cat detail page shows:
+- Primary value with source badge: `DSH Black (ClinicHQ)`
+- Alternate values below: `Also: "DSH White with Black" (ShelterLuv)`
+- Conflict indicator when sources disagree
+
+### Key Tables and Views
+
+| Table/View | Purpose |
+|------------|---------|
+| `cat_field_sources` | Stores all field values per source |
+| `v_cat_field_sources_summary` | Aggregated field sources per cat (for API) |
+| `v_cat_field_conflicts` | Shows cats where sources disagree |
+
+### Tracked Fields
+
+- `name`, `breed`, `sex`, `primary_color`, `secondary_color`
+- `altered_status`, `coat_pattern`, `estimated_age`, `ownership_type`
+
+### Recording Field Sources
+
+All ingest pipelines should call `record_cat_field_sources_batch()`:
+
+```sql
+-- In process_shelterluv_animal()
+PERFORM trapper.record_cat_field_sources_batch(
+  v_cat_id, 'shelterluv', p_shelterluv_id,
+  p_name => p_name,
+  p_breed => p_breed,
+  p_sex => p_sex,
+  p_primary_color => p_color
+);
+```
 
 ## Cat-Place Linking (MIG_235)
 

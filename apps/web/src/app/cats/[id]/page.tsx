@@ -160,6 +160,15 @@ interface Sibling {
   microchip: string | null;
 }
 
+// Multi-source field transparency (MIG_620)
+interface FieldSourceValue {
+  value: string;
+  source: string;
+  observed_at: string;
+  is_current: boolean;
+  confidence: number | null;
+}
+
 interface CatDetail {
   cat_id: string;
   display_name: string;
@@ -201,6 +210,10 @@ interface CatDetail {
   primary_origin_place: OriginPlace | null;
   partner_orgs: PartnerOrg[];
   enhanced_clinic_history: EnhancedClinicVisit[];
+  // Multi-source field transparency (MIG_620)
+  field_sources: Record<string, FieldSourceValue[]> | null;
+  has_field_conflicts: boolean;
+  field_source_count: number;
 }
 
 // Medical chart condition checklist item
@@ -395,6 +408,89 @@ function OwnershipTypeBadge({ ownershipType }: { ownershipType: string | null })
     >
       {ownershipType}
     </span>
+  );
+}
+
+// Multi-source field display - shows primary value with source and alternate values
+function MultiSourceField({
+  label,
+  fieldName,
+  primaryValue,
+  fieldSources,
+  formatValue,
+}: {
+  label: string;
+  fieldName: string;
+  primaryValue: string | null;
+  fieldSources: Record<string, FieldSourceValue[]> | null;
+  formatValue?: (val: string) => string;
+}) {
+  const sources = fieldSources?.[fieldName] || [];
+  const currentSource = sources.find(s => s.is_current);
+  const alternateSources = sources.filter(s => !s.is_current && s.value !== currentSource?.value);
+
+  // Source display names
+  const sourceLabels: Record<string, string> = {
+    clinichq: "ClinicHQ",
+    shelterluv: "ShelterLuv",
+    petlink: "PetLink",
+    airtable: "Airtable",
+    web_intake: "Web Intake",
+    atlas_ui: "Atlas",
+    legacy_import: "Legacy",
+  };
+
+  const getSourceLabel = (source: string) => sourceLabels[source] || source;
+  const format = formatValue || ((v: string) => v);
+
+  // If no sources recorded, just show the value
+  if (sources.length === 0) {
+    return (
+      <div>
+        <div className="text-muted text-sm">{label}</div>
+        <div style={{ fontWeight: 500 }}>{primaryValue || "Unknown"}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-muted text-sm">{label}</div>
+      <div style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        <span>{format(currentSource?.value || primaryValue || "Unknown")}</span>
+        {currentSource && (
+          <span
+            className="badge"
+            style={{
+              background: currentSource.source === "clinichq" ? "#198754" :
+                         currentSource.source === "shelterluv" ? "#0d6efd" :
+                         currentSource.source === "petlink" ? "#6c757d" : "#6c757d",
+              color: "#fff",
+              fontSize: "0.6rem",
+              padding: "0.15rem 0.4rem",
+            }}
+            title={`From ${getSourceLabel(currentSource.source)}`}
+          >
+            {getSourceLabel(currentSource.source)}
+          </span>
+        )}
+      </div>
+      {alternateSources.length > 0 && (
+        <div style={{ marginTop: "0.25rem" }}>
+          {alternateSources.map((alt, idx) => (
+            <div
+              key={idx}
+              className="text-muted"
+              style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.25rem" }}
+            >
+              <span style={{ color: "#6c757d" }}>Also:</span>
+              <span style={{ fontStyle: "italic" }}>"{format(alt.value)}"</span>
+              <span style={{ color: "#6c757d" }}>({getSourceLabel(alt.source)})</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -659,6 +755,36 @@ export default function CatDetailPage() {
               )}
               <DataSourceBadge dataSource={cat.data_source} />
               <OwnershipTypeBadge ownershipType={cat.ownership_type} />
+              {/* Multi-source conflict indicator (MIG_620) */}
+              {cat.has_field_conflicts && (
+                <span
+                  className="badge"
+                  style={{
+                    background: "#ffc107",
+                    color: "#000",
+                    fontSize: "0.5em",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                  }}
+                  title="This cat has field values that differ between data sources. Scroll down to see details."
+                >
+                  Multi-Source Data
+                </span>
+              )}
+              {cat.field_source_count > 1 && !cat.has_field_conflicts && (
+                <span
+                  className="badge"
+                  style={{
+                    background: "#e9ecef",
+                    color: "#495057",
+                    fontSize: "0.5em",
+                  }}
+                  title={`Data from ${cat.field_source_count} sources`}
+                >
+                  {cat.field_source_count} Sources
+                </span>
+              )}
               {!editingBasic && (
                 <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
                   <a
@@ -808,10 +934,14 @@ export default function CatDetailPage() {
                   <div className="text-muted text-sm">Microchip</div>
                   <div style={{ fontFamily: "monospace", fontWeight: 500 }}>{cat.microchip || "—"}</div>
                 </div>
-                <div>
-                  <div className="text-muted text-sm">Sex</div>
-                  <div style={{ fontWeight: 500 }}>{cat.sex || "Unknown"}</div>
-                </div>
+                {/* Multi-source field: Sex */}
+                <MultiSourceField
+                  label="Sex"
+                  fieldName="sex"
+                  primaryValue={cat.sex}
+                  fieldSources={cat.field_sources}
+                  formatValue={(v) => v.charAt(0).toUpperCase() + v.slice(1)}
+                />
                 <div>
                   <div className="text-muted text-sm">Altered</div>
                   <div style={{ fontWeight: 500 }}>
@@ -822,14 +952,20 @@ export default function CatDetailPage() {
                     ) : "Unknown"}
                   </div>
                 </div>
-                <div>
-                  <div className="text-muted text-sm">Breed</div>
-                  <div style={{ fontWeight: 500 }}>{cat.breed || "Unknown"}</div>
-                </div>
-                <div>
-                  <div className="text-muted text-sm">Color</div>
-                  <div style={{ fontWeight: 500 }}>{cat.color || "Unknown"} {cat.coat_pattern && `(${cat.coat_pattern})`}</div>
-                </div>
+                {/* Multi-source field: Breed */}
+                <MultiSourceField
+                  label="Breed"
+                  fieldName="breed"
+                  primaryValue={cat.breed}
+                  fieldSources={cat.field_sources}
+                />
+                {/* Multi-source field: Color */}
+                <MultiSourceField
+                  label="Color"
+                  fieldName="primary_color"
+                  primaryValue={cat.color ? `${cat.color}${cat.coat_pattern ? ` (${cat.coat_pattern})` : ""}` : null}
+                  fieldSources={cat.field_sources}
+                />
                 <div>
                   <div className="text-muted text-sm">Weight</div>
                   <div style={{ fontWeight: 500 }}>

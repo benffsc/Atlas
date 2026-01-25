@@ -107,6 +107,21 @@ interface PartnerOrg {
   appointment_count: number;
 }
 
+// Multi-source field transparency (MIG_620)
+interface FieldSourceValue {
+  value: string;
+  source: string;
+  observed_at: string;
+  is_current: boolean;
+  confidence: number | null;
+}
+
+interface CatFieldSources {
+  field_sources: Record<string, FieldSourceValue[]> | null;
+  has_conflicts: boolean;
+  source_count: number;
+}
+
 interface EnhancedClinicVisit {
   appointment_id: string;
   visit_date: string;
@@ -513,6 +528,17 @@ export async function GET(
       ORDER BY a.appointment_date DESC
     `;
 
+    // Multi-source field transparency (MIG_620)
+    // Shows which sources reported different values for key fields
+    const fieldSourcesSql = `
+      SELECT
+        field_sources,
+        has_conflicts,
+        source_count
+      FROM trapper.v_cat_field_sources_summary
+      WHERE cat_id = $1
+    `;
+
     // Helper function for graceful query execution (returns empty array on error)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function safeQueryRows<T>(sql: string, params: unknown[]): Promise<T[]> {
@@ -524,7 +550,7 @@ export async function GET(
       }
     }
 
-    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, partnerOrgs, enhancedClinicHistory] = await Promise.all([
+    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, partnerOrgs, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
       safeQueryRows<ClinicVisit>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
@@ -596,7 +622,11 @@ export async function GET(
       safeQueryRows<OriginPlace>(originPlaceSql, [id]),
       safeQueryRows<PartnerOrg>(partnerOrgsSql, [id]),
       safeQueryRows<EnhancedClinicVisit>(enhancedClinicHistorySql, [id]),
+      safeQueryRows<CatFieldSources>(fieldSourcesSql, [id]),
     ]);
+
+    // Extract field sources from result
+    const fieldSourcesData = fieldSourcesRows[0] || null;
 
     return NextResponse.json({
       ...cat,
@@ -617,6 +647,10 @@ export async function GET(
       primary_origin_place: originPlaceRows[0] || null,
       partner_orgs: partnerOrgs,
       enhanced_clinic_history: enhancedClinicHistory,
+      // Multi-source field transparency (MIG_620)
+      field_sources: fieldSourcesData?.field_sources || null,
+      has_field_conflicts: fieldSourcesData?.has_conflicts || false,
+      field_source_count: fieldSourcesData?.source_count || 0,
     });
   } catch (error) {
     console.error("Error fetching cat detail:", error);

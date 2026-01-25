@@ -50,11 +50,22 @@ interface EcologyStats {
   estimated_work_remaining: number | null;
 }
 
+interface ColonyClassification {
+  type: string;
+  reason: string | null;
+  set_by: string | null;
+  set_at: string | null;
+  authoritative_cat_count: number | null;
+  authoritative_count_reason: string | null;
+  allows_clustering: boolean;
+}
+
 interface ColonyEstimatesResponse {
   place_id: string;
   estimates: ColonyEstimate[];
   status: ColonyStatus;
   ecology: EcologyStats;
+  classification?: ColonyClassification;
   has_data: boolean;
 }
 
@@ -118,6 +129,13 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
   const [overrideAltered, setOverrideAltered] = useState<number>(0);
   const [overrideNote, setOverrideNote] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
+
+  // Classification editing state
+  const [showClassificationForm, setShowClassificationForm] = useState(false);
+  const [classificationValue, setClassificationValue] = useState<string>("unknown");
+  const [classificationReason, setClassificationReason] = useState<string>("");
+  const [authoritativeCount, setAuthoritativeCount] = useState<number | null>(null);
+  const [savingClassification, setSavingClassification] = useState(false);
 
   const fetchEstimates = async () => {
     try {
@@ -197,6 +215,51 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
     setOverrideAltered(data?.ecology?.a_known || data?.status?.verified_altered_count || 0);
     setOverrideNote("");
     setShowOverrideForm(true);
+  };
+
+  // Classification functions
+  const openClassificationForm = () => {
+    setClassificationValue(data?.classification?.type || "unknown");
+    setClassificationReason(data?.classification?.reason || "");
+    setAuthoritativeCount(data?.classification?.authoritative_cat_count ?? null);
+    setShowClassificationForm(true);
+  };
+
+  const handleSetClassification = async () => {
+    setSavingClassification(true);
+    try {
+      const response = await fetch(`/api/places/${placeId}/classification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classification: classificationValue,
+          reason: classificationReason || null,
+          authoritative_count: classificationValue === "individual_cats" ? authoritativeCount : null,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "Failed to set classification");
+      }
+
+      setShowClassificationForm(false);
+      setLoading(true);
+      await fetchEstimates();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error setting classification");
+    } finally {
+      setSavingClassification(false);
+    }
+  };
+
+  // Classification display helpers
+  const classificationLabels: Record<string, { label: string; color: string; bg: string }> = {
+    unknown: { label: "Unclassified", color: "var(--text-secondary)", bg: "var(--section-bg)" },
+    individual_cats: { label: "Individual Cats", color: "var(--info-text)", bg: "var(--info-bg)" },
+    small_colony: { label: "Small Colony", color: "var(--success-text)", bg: "var(--success-bg)" },
+    large_colony: { label: "Large Colony", color: "var(--warning-text)", bg: "var(--warning-bg)" },
+    feeding_station: { label: "Feeding Station", color: "var(--primary)", bg: "rgba(var(--primary-rgb), 0.1)" },
   };
 
   if (loading) {
@@ -326,6 +389,188 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>Work Remaining</div>
         </div>
       </div>
+
+      {/* Classification Section */}
+      <div
+        style={{
+          marginBottom: "1rem",
+          padding: "0.75rem",
+          background: data?.classification ? classificationLabels[data.classification.type]?.bg || "var(--section-bg)" : "var(--section-bg)",
+          border: "1px solid var(--border)",
+          borderRadius: "8px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span
+              style={{
+                padding: "0.25rem 0.5rem",
+                background: data?.classification ? classificationLabels[data.classification.type]?.bg : "var(--section-bg)",
+                color: data?.classification ? classificationLabels[data.classification.type]?.color : "var(--text-secondary)",
+                borderRadius: "4px",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                border: `1px solid ${data?.classification?.type === "unknown" ? "var(--border)" : "transparent"}`,
+              }}
+            >
+              {data?.classification ? classificationLabels[data.classification.type]?.label || data.classification.type : "Unclassified"}
+            </span>
+            {data?.classification?.authoritative_cat_count !== null && data?.classification?.authoritative_cat_count !== undefined && (
+              <span style={{ fontSize: "0.8rem", color: "var(--foreground)" }}>
+                <strong>{data.classification.authoritative_cat_count}</strong> cats (authoritative)
+              </span>
+            )}
+            {data?.classification?.allows_clustering === false && (
+              <span
+                style={{
+                  padding: "0.15rem 0.4rem",
+                  background: "var(--warning-bg)",
+                  color: "var(--warning-text)",
+                  borderRadius: "4px",
+                  fontSize: "0.7rem",
+                }}
+              >
+                No Clustering
+              </span>
+            )}
+          </div>
+          <button
+            onClick={openClassificationForm}
+            style={{
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.75rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: "4px",
+              cursor: "pointer",
+              color: "var(--foreground)",
+            }}
+          >
+            {data?.classification?.type === "unknown" ? "Set Classification" : "Edit"}
+          </button>
+        </div>
+        {data?.classification?.reason && (
+          <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
+            {data.classification.reason}
+          </div>
+        )}
+        {data?.classification?.set_by && data?.classification?.set_at && (
+          <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "var(--text-secondary)" }}>
+            Set by {data.classification.set_by} on {new Date(data.classification.set_at).toLocaleDateString()}
+          </div>
+        )}
+      </div>
+
+      {/* Classification Form */}
+      {showClassificationForm && (
+        <div
+          style={{
+            padding: "1rem",
+            background: "var(--section-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+          }}
+        >
+          <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "var(--foreground)" }}>Set Colony Classification</h4>
+          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+            Choose how this location should be treated for colony estimation.
+          </p>
+
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--foreground)" }}>
+              Classification
+            </label>
+            <select
+              value={classificationValue}
+              onChange={(e) => setClassificationValue(e.target.value)}
+              style={{ width: "100%", padding: "0.5rem", fontSize: "0.85rem" }}
+            >
+              <option value="unknown">Unknown (needs classification)</option>
+              <option value="individual_cats">Individual Cats (exact counts, no clustering)</option>
+              <option value="small_colony">Small Colony (3-10 cats)</option>
+              <option value="large_colony">Large Colony (10+ cats)</option>
+              <option value="feeding_station">Feeding Station (attracts cats from area)</option>
+            </select>
+          </div>
+
+          {classificationValue === "individual_cats" && (
+            <div
+              style={{
+                padding: "0.75rem",
+                background: "var(--info-bg)",
+                border: "1px solid var(--info-border)",
+                borderRadius: "6px",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <p style={{ fontSize: "0.8rem", color: "var(--info-text)", marginBottom: "0.5rem" }}>
+                <strong>Individual Cats</strong> means exact counts are known and ecological estimation doesn&apos;t apply.
+                Nearby appointments will NOT be clustered to this location.
+              </p>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--foreground)" }}>
+                  Authoritative Cat Count
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={authoritativeCount ?? ""}
+                  onChange={(e) => setAuthoritativeCount(e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder="Enter exact number of cats"
+                  style={{ width: "150px", padding: "0.25rem 0.5rem" }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--foreground)" }}>
+              Reason (optional)
+            </label>
+            <textarea
+              value={classificationReason}
+              onChange={(e) => setClassificationReason(e.target.value)}
+              placeholder="e.g., Confirmed 2 specific cats via site visit"
+              rows={2}
+              style={{ width: "100%", padding: "0.25rem 0.5rem", fontSize: "0.85rem" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={handleSetClassification}
+              disabled={savingClassification || (classificationValue === "individual_cats" && authoritativeCount === null)}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "var(--success-bg)",
+                color: "var(--success-text)",
+                border: "1px solid var(--success-border)",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                opacity: (classificationValue === "individual_cats" && authoritativeCount === null) ? 0.5 : 1,
+              }}
+            >
+              {savingClassification ? "Saving..." : "Save Classification"}
+            </button>
+            <button
+              onClick={() => setShowClassificationForm(false)}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                color: "var(--foreground)",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Manual Override Controls */}
       <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
