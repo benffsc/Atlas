@@ -4,6 +4,7 @@
 -- but these should point to Atlas request UUIDs for proper linking in the UI.
 --
 -- Solution: Map Airtable IDs to Atlas request UUIDs via sot_requests.source_record_id
+-- Note: source_system is 'airtable_ffsc' not 'airtable'
 
 \echo ''
 \echo '=============================================='
@@ -17,7 +18,22 @@ SELECT COUNT(*) AS count_before
 FROM trapper.place_colony_estimates
 WHERE source_record_id LIKE 'rec%';
 
--- Update colony estimates to use Atlas request UUIDs instead of Airtable IDs
+-- Step 1: Delete duplicate estimates
+-- Some estimates have Airtable IDs but there's already an estimate with the Atlas UUID
+\echo ''
+\echo 'Removing duplicates (estimates with Airtable IDs that already have Atlas UUID versions)...'
+
+DELETE FROM trapper.place_colony_estimates ce
+USING trapper.sot_requests r
+WHERE ce.source_record_id = r.source_record_id
+  AND ce.source_record_id LIKE 'rec%'
+  AND r.source_system = 'airtable_ffsc'
+  AND EXISTS (
+    SELECT 1 FROM trapper.place_colony_estimates existing
+    WHERE existing.source_record_id = r.request_id::TEXT
+  );
+
+-- Step 2: Update remaining estimates with Airtable IDs to use Atlas UUIDs
 \echo ''
 \echo 'Updating colony estimates to use Atlas request UUIDs...'
 
@@ -26,7 +42,7 @@ SET source_record_id = r.request_id::TEXT
 FROM trapper.sot_requests r
 WHERE ce.source_record_id = r.source_record_id
   AND ce.source_record_id LIKE 'rec%'
-  AND r.source_system = 'airtable';
+  AND r.source_system = 'airtable_ffsc';
 
 -- Also update source_entity_id if it has Airtable IDs
 UPDATE trapper.place_colony_estimates ce
@@ -34,30 +50,20 @@ SET source_entity_id = r.request_id
 FROM trapper.sot_requests r
 WHERE ce.source_entity_id::TEXT = r.source_record_id
   AND r.source_record_id LIKE 'rec%'
-  AND r.source_system = 'airtable';
+  AND r.source_system = 'airtable_ffsc';
 
 -- Count records after fix
 \echo ''
 \echo 'Colony estimates with Airtable IDs after fix:'
-SELECT COUNT(*) AS count_after
+SELECT source_type, COUNT(*)
 FROM trapper.place_colony_estimates
-WHERE source_record_id LIKE 'rec%';
+WHERE source_record_id LIKE 'rec%'
+GROUP BY source_type
+ORDER BY COUNT(*) DESC;
 
--- Show sample of fixed records
 \echo ''
-\echo 'Sample of updated records:'
-SELECT
-  ce.estimate_id,
-  ce.source_record_id,
-  ce.source_type,
-  ce.total_cats,
-  p.formatted_address
-FROM trapper.place_colony_estimates ce
-JOIN trapper.places p ON p.place_id = ce.place_id
-WHERE ce.source_record_id NOT LIKE 'rec%'
-  AND ce.source_type = 'trapping_request'
-ORDER BY ce.reported_at DESC
-LIMIT 5;
+\echo 'Note: Remaining Airtable IDs are likely from sources without Atlas equivalents'
+\echo '(e.g., P75 surveys from airtable_project75). These will not be clickable in the UI.'
 
 \echo ''
 \echo '=============================================='
