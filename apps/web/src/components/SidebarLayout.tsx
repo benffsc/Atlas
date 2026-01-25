@@ -240,7 +240,6 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
         { label: "Mortality", href: "/admin/beacon/mortality", icon: "📋" },
         { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
         { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
-        { label: "Google Maps Sync", href: "/admin/beacon-data/google-maps-sync", icon: "📍" },
       ],
     },
     {
@@ -268,6 +267,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
       title: "Data Management",
       items: [
         { label: "Trapper Reports", href: "/admin/trapper-reports", icon: "📧" },
+        { label: "Google Maps Sync", href: "/admin/beacon-data/google-maps-sync", icon: "📍" },
         { label: "Duplicates", href: "/admin/duplicates", icon: "🔍" },
         { label: "Import/Export", href: "/admin/import", icon: "📦" },
         { label: "Needs Review", href: "/admin/needs-review", icon: "⚠️" },

@@ -85,6 +85,12 @@ const SERVICE_ZONES = [
 
 export default function AdminBeaconMapPage() {
   const [mapData, setMapData] = useState<MapData | null>(null);
+  const [layerCounts, setLayerCounts] = useState<{
+    places: number;
+    google_pins: number;
+    zones: number;
+    tnr_priority: number;
+  }>({ places: 0, google_pins: 0, zones: 0, tnr_priority: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,6 +103,27 @@ export default function AdminBeaconMapPage() {
   // Filters
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [priorityFilter, setPriorityFilter] = useState("all");
+
+  // Fetch layer counts on initial load
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const response = await fetch(`/api/beacon/map-data?layers=places,google_pins,zones,tnr_priority`);
+        if (response.ok) {
+          const data = await response.json();
+          setLayerCounts({
+            places: data.places?.length || 0,
+            google_pins: data.google_pins?.length || 0,
+            zones: data.zones?.length || 0,
+            tnr_priority: data.tnr_priority?.length || 0,
+          });
+        }
+      } catch {
+        // Counts will stay at 0
+      }
+    };
+    fetchCounts();
+  }, []);
 
   const fetchMapData = useCallback(async () => {
     setLoading(true);
@@ -221,7 +248,7 @@ export default function AdminBeaconMapPage() {
                   borderRadius: "50%",
                 }}
               />
-              Places ({mapData?.places?.length || 0})
+              Places ({layerCounts.places.toLocaleString()})
             </label>
             <label
               style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}
@@ -240,7 +267,7 @@ export default function AdminBeaconMapPage() {
                   borderRadius: "50%",
                 }}
               />
-              Google Pins ({mapData?.google_pins?.length || 0})
+              Google Pins ({layerCounts.google_pins.toLocaleString()})
             </label>
             <label
               style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}
@@ -259,7 +286,7 @@ export default function AdminBeaconMapPage() {
                   borderRadius: "3px",
                 }}
               />
-              Zones ({mapData?.zones?.length || 0})
+              Zones ({layerCounts.zones.toLocaleString()})
             </label>
             <label
               style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}
@@ -278,7 +305,7 @@ export default function AdminBeaconMapPage() {
                   borderRadius: "50%",
                 }}
               />
-              TNR Priority ({mapData?.tnr_priority?.length || 0})
+              TNR Priority ({layerCounts.tnr_priority.toLocaleString()})
             </label>
           </div>
         </div>
