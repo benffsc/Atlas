@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { logFieldEdits, detectChanges, type FieldChange } from "@/lib/audit";
 
+interface PartnerOrg {
+  org_id: string;
+  org_name: string;
+  org_name_short: string | null;
+  org_type: string;
+  role: string;
+  appointments_count: number;
+  cats_processed: number;
+}
+
 interface PersonDetailRow {
   person_id: string;
   display_name: string;
@@ -23,6 +33,7 @@ interface PersonDetailRow {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  partner_orgs: PartnerOrg[] | null;
 }
 
 export async function GET(
@@ -71,7 +82,21 @@ export async function GET(
           ) ORDER BY pi.id_type)
           FROM trapper.person_identifiers pi
           WHERE pi.person_id = p.person_id
-        ) AS identifiers
+        ) AS identifiers,
+        (
+          SELECT jsonb_agg(jsonb_build_object(
+            'org_id', po.org_id,
+            'org_name', po.org_name,
+            'org_name_short', po.org_name_short,
+            'org_type', po.org_type,
+            'role', 'representative',
+            'appointments_count', po.appointments_count,
+            'cats_processed', po.cats_processed
+          ) ORDER BY po.org_name)
+          FROM trapper.partner_organizations po
+          WHERE po.contact_person_id = p.person_id
+            AND po.is_active = TRUE
+        ) AS partner_orgs
       FROM trapper.v_person_detail pd
       JOIN trapper.sot_people p ON p.person_id = pd.person_id
       LEFT JOIN trapper.sot_addresses a ON a.address_id = p.primary_address_id

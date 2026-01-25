@@ -62,22 +62,31 @@ interface ColonyEstimatesProps {
   placeId: string;
 }
 
+// Check if a string looks like a valid UUID
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
 // Generate link URL for a source record based on source type
 function getSourceRecordUrl(estimate: ColonyEstimate): string | null {
   if (!estimate.source_record_id) return null;
 
   switch (estimate.source_type) {
     case "trapping_request":
-      return `/requests/${estimate.source_record_id}`;
+      // Only link if source_record_id is a valid UUID (not legacy Airtable ID)
+      return isValidUUID(estimate.source_record_id) ? `/requests/${estimate.source_record_id}` : null;
     case "intake_form":
-      return `/intake/queue/${estimate.source_record_id}`;
+      return isValidUUID(estimate.source_record_id) ? `/intake/queue/${estimate.source_record_id}` : null;
     case "trapper_report":
       return `/admin/trapper-reports`;
     case "verified_cats":
       return null;
     case "post_clinic_survey":
     case "appointment_request":
-      return estimate.source_record_id ? `/appointments/${estimate.source_record_id}` : null;
+      return estimate.source_record_id && isValidUUID(estimate.source_record_id)
+        ? `/appointments/${estimate.source_record_id}`
+        : null;
     default:
       return null;
   }

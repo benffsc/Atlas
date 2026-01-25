@@ -55,16 +55,23 @@ interface ColonySourcesBreakdownProps {
   placeId: string;
 }
 
+// Check if a string looks like a valid UUID
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
 // Generate link URL for a source record based on source type
 function getSourceRecordUrl(source: SourceBreakdown): string | null {
   if (!source.source_record_id) return null;
 
   switch (source.source_type) {
     case "trapping_request":
-      return `/requests/${source.source_record_id}`;
+      // Only link if source_record_id is a valid UUID (not legacy Airtable ID)
+      return isValidUUID(source.source_record_id) ? `/requests/${source.source_record_id}` : null;
     case "intake_form":
       // Intake form submissions - link to the submission detail
-      return `/intake/queue/${source.source_record_id}`;
+      return isValidUUID(source.source_record_id) ? `/intake/queue/${source.source_record_id}` : null;
     case "trapper_report":
       // Trapper report items - link to trapper reports admin
       return `/admin/trapper-reports`;
@@ -74,7 +81,9 @@ function getSourceRecordUrl(source: SourceBreakdown): string | null {
     case "post_clinic_survey":
     case "appointment_request":
       // These are appointment-related, try to link to appointment
-      return source.source_record_id ? `/appointments/${source.source_record_id}` : null;
+      return source.source_record_id && isValidUUID(source.source_record_id)
+        ? `/appointments/${source.source_record_id}`
+        : null;
     default:
       return null;
   }
