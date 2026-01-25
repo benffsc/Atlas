@@ -286,17 +286,25 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
     );
   }
 
-  const { status, estimates, ecology } = data;
+  const { status, estimates, ecology, classification } = data;
 
-  // Use ecology-based alteration rate when available
-  const alterationRate = ecology?.p_lower_pct ?? (
-    status.colony_size_estimate > 0
-      ? Math.round((status.verified_altered_count / status.colony_size_estimate) * 100)
-      : null
-  );
+  // For individual_cats classification, use authoritative count and skip ecology stats
+  const isIndividualCats = classification?.type === "individual_cats";
+  const authoritativeCount = classification?.authoritative_cat_count;
 
-  // Use best colony estimate from ecology if available
-  const colonySize = ecology?.best_colony_estimate ?? status.colony_size_estimate;
+  // Colony size: use authoritative count for individual_cats, otherwise ecology or status
+  const colonySize = authoritativeCount ?? ecology?.best_colony_estimate ?? status.colony_size_estimate;
+
+  // Alteration rate: for individual_cats, calculate directly; otherwise use ecology if available
+  const alterationRate = isIndividualCats
+    ? (colonySize > 0
+        ? Math.round((status.verified_altered_count / colonySize) * 100)
+        : null)
+    : (ecology?.p_lower_pct ?? (
+        status.colony_size_estimate > 0
+          ? Math.round((status.verified_altered_count / status.colony_size_estimate) * 100)
+          : null
+      ));
 
   // Color for alteration rate
   let rateColor = "#6c757d";
