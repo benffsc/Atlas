@@ -7,9 +7,15 @@ import { query, queryOne, queryRows } from "@/lib/db";
  *
  * Maintains the place context system for the Data Guardian:
  *
+ * OPERATIONAL MAINTENANCE:
  * 1. Refreshes the materialized view for fast context lookups
  * 2. Pre-generates context summaries for active places
  * 3. Identifies places with significant activity but no request
+ *
+ * ECOLOGICAL DATA MAINTENANCE:
+ * 4. Refreshes zone data coverage statistics
+ * 5. Updates data freshness tracking
+ * 6. Checks for stale data categories
  *
  * Run: Daily at 6 AM PT (before business hours)
  *
@@ -34,6 +40,9 @@ export async function GET(request: NextRequest) {
     materialized_view_refreshed: false,
     places_with_context: 0,
     places_needing_attention: 0,
+    zone_coverage_refreshed: false,
+    stale_data_categories: [] as string[],
+    freshness_updated: false,
     errors: [] as string[],
   };
 
@@ -131,10 +140,90 @@ export async function GET(request: NextRequest) {
     }
 
     // ============================================================
+    // 4. Refresh Zone Data Coverage Statistics
+    // ============================================================
+    // Tracks where we have good data vs gaps for Beacon/Tippy
+
+    try {
+      await query(`SELECT trapper.refresh_zone_data_coverage()`);
+      results.zone_coverage_refreshed = true;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      results.errors.push(`Zone coverage refresh failed: ${errorMsg}`);
+    }
+
+    // ============================================================
+    // 5. Update Data Freshness Tracking
+    // ============================================================
+    // Records counts and timestamps for each data category
+
+    try {
+      // Update Google Maps classification count
+      await query(`
+        UPDATE trapper.data_freshness_tracking
+        SET records_count = (
+          SELECT COUNT(*) FROM trapper.google_map_entries WHERE ai_classified_at IS NOT NULL
+        ),
+        last_incremental_update = NOW(),
+        updated_at = NOW()
+        WHERE data_category = 'google_maps_classification'
+      `);
+
+      // Update colony estimates count
+      await query(`
+        UPDATE trapper.data_freshness_tracking
+        SET records_count = (
+          SELECT COUNT(*) FROM trapper.place_colony_estimates
+        ),
+        last_incremental_update = NOW(),
+        updated_at = NOW()
+        WHERE data_category = 'colony_estimates'
+      `);
+
+      // Update place conditions count
+      await query(`
+        UPDATE trapper.data_freshness_tracking
+        SET records_count = (
+          SELECT COUNT(*) FROM trapper.place_condition_history WHERE superseded_at IS NULL
+        ),
+        last_incremental_update = NOW(),
+        updated_at = NOW()
+        WHERE data_category = 'place_conditions'
+      `);
+
+      results.freshness_updated = true;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      results.errors.push(`Freshness tracking update failed: ${errorMsg}`);
+    }
+
+    // ============================================================
+    // 6. Check for Stale Data Categories
+    // ============================================================
+
+    try {
+      const staleCategories = await queryRows<{ data_category: string }>(`
+        SELECT data_category
+        FROM trapper.v_data_staleness_alerts
+        WHERE freshness_status IN ('stale', 'never_refreshed')
+      `);
+
+      results.stale_data_categories = staleCategories.map((c) => c.data_category);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      results.errors.push(`Staleness check failed: ${errorMsg}`);
+    }
+
+    // ============================================================
     // Summary
     // ============================================================
 
     const duration = Date.now() - startTime;
+
+    const staleWarning =
+      results.stale_data_categories.length > 0
+        ? ` Warning: ${results.stale_data_categories.length} stale data categories.`
+        : "";
 
     return NextResponse.json({
       success: results.errors.length === 0,
@@ -142,8 +231,8 @@ export async function GET(request: NextRequest) {
       results,
       message:
         results.errors.length === 0
-          ? `Guardian maintenance complete. MV refreshed, ${results.places_with_context} places have context data.`
-          : `Guardian maintenance completed with ${results.errors.length} error(s).`,
+          ? `Guardian maintenance complete. MV refreshed, ${results.places_with_context} places have context data. Zone coverage updated.${staleWarning}`
+          : `Guardian maintenance completed with ${results.errors.length} error(s).${staleWarning}`,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

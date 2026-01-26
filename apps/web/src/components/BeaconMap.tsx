@@ -24,6 +24,14 @@ interface GooglePin {
   entry_type: string;
   signals?: string[];
   cat_count?: number | null;
+  // AI classification fields
+  ai_meaning?: string | null;
+  display_label?: string;
+  display_color?: string;
+  staff_alert?: boolean;
+  ai_confidence?: number | null;
+  disease_mentions?: string[] | null;
+  safety_concerns?: string[] | null;
 }
 
 interface TnrPriorityPlace {
@@ -187,7 +195,7 @@ export default function BeaconMap({
     layersRef.current.places = placesLayer;
   }, [places]);
 
-  // Update Google pins layer
+  // Update Google pins layer (with AI classification support)
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -203,23 +211,39 @@ export default function BeaconMap({
     googlePins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
-      // Determine color based on primary signal
-      const primarySignal = pin.signals?.[0] || pin.entry_type || "general";
-      const color = SIGNAL_COLORS[primarySignal] || SIGNAL_COLORS.general;
+      // Use AI classification color if available, otherwise fall back to signal colors
+      let color: string;
+      let size = 12;
+
+      if (pin.display_color && pin.ai_meaning) {
+        // AI classified - use AI-derived color
+        color = pin.display_color;
+        // Larger size for staff alerts
+        if (pin.staff_alert) {
+          size = 16;
+        } else if (pin.ai_meaning === 'active_colony') {
+          size = 14;
+        }
+      } else {
+        // Fallback to old signal-based colors
+        const primarySignal = pin.signals?.[0] || pin.entry_type || "general";
+        color = SIGNAL_COLORS[primarySignal] || SIGNAL_COLORS.general;
+      }
 
       const marker = L.marker([pin.lat, pin.lng], {
         icon: L.divIcon({
           className: "google-pin-marker",
           html: `<div style="
-            width: 12px;
-            height: 12px;
+            width: ${size}px;
+            height: ${size}px;
             background-color: ${color};
-            border: 2px solid white;
+            border: 2px solid ${pin.staff_alert ? '#000' : 'white'};
             border-radius: 50%;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            ${pin.staff_alert ? 'animation: pulse 2s infinite;' : ''}
           "></div>`,
-          iconSize: [12, 12],
-          iconAnchor: [6, 6],
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
         }),
       });
 
@@ -227,8 +251,45 @@ export default function BeaconMap({
       const truncatedNotes =
         pin.notes.length > 300 ? pin.notes.substring(0, 300) + "..." : pin.notes;
 
-      // Format signals as badges
+      // Build staff alert section if applicable
+      let staffAlertHtml = '';
+      if (pin.staff_alert && pin.display_label) {
+        staffAlertHtml = `
+          <div style="
+            background-color: #fef2f2;
+            border: 1px solid #ef4444;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+          ">
+            <strong style="color: #dc2626;">⚠️ STAFF ALERT: ${pin.display_label}</strong>
+            ${pin.disease_mentions?.length ? `<div style="font-size: 0.75rem; margin-top: 0.25rem;">Disease: ${pin.disease_mentions.join(', ')}</div>` : ''}
+            ${pin.safety_concerns?.length ? `<div style="font-size: 0.75rem; margin-top: 0.25rem;">Safety: ${pin.safety_concerns.join(', ')}</div>` : ''}
+          </div>
+        `;
+      }
+
+      // Build classification badge
+      let classificationBadge = '';
+      if (pin.ai_meaning && pin.display_label) {
+        classificationBadge = `
+          <span style="
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            margin-bottom: 0.25rem;
+            font-size: 0.65rem;
+            font-weight: 600;
+            background-color: ${color}20;
+            color: ${color};
+            border-radius: 0.25rem;
+            border: 1px solid ${color}40;
+          ">${pin.display_label}</span>
+        `;
+      }
+
+      // Format signals as badges (legacy)
       const signalBadges = (pin.signals || [])
+        .filter(s => s && s !== pin.ai_meaning) // Don't duplicate AI classification
         .map((s) => {
           const badgeColor = SIGNAL_COLORS[s] || SIGNAL_COLORS.general;
           return `<span style="
@@ -246,8 +307,11 @@ export default function BeaconMap({
 
       marker.bindPopup(`
         <div style="min-width: 250px; max-width: 350px;">
+          ${staffAlertHtml}
+          ${classificationBadge}
           <strong style="color: ${color};">📍 ${pin.name || "Unnamed"}</strong>
           ${pin.cat_count ? `<span style="margin-left: 0.5rem; font-size: 0.75rem;">(${pin.cat_count} cats)</span>` : ""}
+          ${pin.ai_confidence ? `<span style="margin-left: 0.25rem; font-size: 0.65rem; color: #9ca3af;">${Math.round((pin.ai_confidence || 0) * 100)}% conf</span>` : ""}
           <br/>
           ${signalBadges ? `<div style="margin-top: 0.25rem;">${signalBadges}</div>` : ""}
           ${
@@ -256,7 +320,7 @@ export default function BeaconMap({
               : ""
           }
           <div style="margin-top: 0.5rem; font-size: 0.65rem; color: #9ca3af;">
-            Historical Google Maps entry
+            ${pin.ai_meaning ? 'AI classified Google Maps entry' : 'Historical Google Maps entry'}
           </div>
         </div>
       `);

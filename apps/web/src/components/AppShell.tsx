@@ -325,6 +325,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           Data Improvements
                         </a>
                         <a
+                          href="/admin/ai-extraction"
+                          style={{
+                            display: "block",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            color: "var(--foreground)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "var(--section-bg)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          AI Extraction
+                        </a>
+                        <a
                           href="/admin/auth"
                           style={{
                             display: "block",

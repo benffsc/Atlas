@@ -21,6 +21,17 @@ interface IconStats {
   count: number;
 }
 
+interface ClassificationStats {
+  classification_type: string;
+  display_label: string;
+  display_color: string;
+  priority: number;
+  staff_alert: boolean;
+  entry_count: number;
+  with_place_link: number;
+  with_person_link: number;
+}
+
 interface ImportHistory {
   import_id: string;
   filename: string;
@@ -155,11 +166,72 @@ export async function GET(request: NextRequest) {
       LIMIT 10
     `);
 
+    // Get AI classification stats
+    const classificationStats = await queryRows<ClassificationStats>(`
+      SELECT * FROM trapper.v_google_map_classification_stats
+      ORDER BY priority
+    `);
+
+    // Get classification totals
+    const classificationTotals = await queryRows<{
+      total_classified: number;
+      total_unclassified: number;
+      disease_risks: number;
+      watch_list: number;
+      linked_to_places: number;
+      linked_to_people: number;
+    }>(`
+      SELECT
+        COUNT(*) FILTER (WHERE ai_meaning IS NOT NULL) as total_classified,
+        COUNT(*) FILTER (WHERE ai_meaning IS NULL) as total_unclassified,
+        COUNT(*) FILTER (WHERE ai_meaning IN ('disease_risk', 'felv_colony', 'fiv_colony')) as disease_risks,
+        COUNT(*) FILTER (WHERE ai_meaning = 'watch_list') as watch_list,
+        COUNT(*) FILTER (WHERE linked_place_id IS NOT NULL) as linked_to_places,
+        COUNT(*) FILTER (WHERE linked_person_id IS NOT NULL) as linked_to_people
+      FROM trapper.google_map_entries
+    `);
+
+    // Get recent disease risk entries for review
+    const diseaseRisks = await queryRows<{
+      entry_id: string;
+      kml_name: string;
+      lat: number;
+      lng: number;
+      disease_mentions: string[];
+      ai_classified_at: string;
+      linked_address: string | null;
+    }>(`
+      SELECT
+        entry_id::text,
+        kml_name,
+        lat,
+        lng,
+        COALESCE(
+          ARRAY(SELECT jsonb_array_elements_text(ai_classification->'signals'->'disease_mentions')),
+          ARRAY[]::text[]
+        ) as disease_mentions,
+        ai_classified_at::text,
+        linked_address
+      FROM trapper.v_google_map_disease_risks
+      LIMIT 20
+    `);
+
     return NextResponse.json({
       stats,
       totals: totals[0] || { total: 0, with_icons: 0, synced: 0 },
       lastSyncedAt: lastSync[0]?.last_synced_at || null,
       history,
+      // AI Classification data
+      classificationStats,
+      classificationTotals: classificationTotals[0] || {
+        total_classified: 0,
+        total_unclassified: 0,
+        disease_risks: 0,
+        watch_list: 0,
+        linked_to_places: 0,
+        linked_to_people: 0,
+      },
+      diseaseRisks,
     });
   } catch (error) {
     if (error instanceof AuthError) {

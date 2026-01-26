@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@/styles/beacon-map.css";
 import { AppShell } from "@/components/AppShell";
 import { TippyChat } from "@/components/TippyChat";
 

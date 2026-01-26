@@ -13,11 +13,43 @@ interface ImportHistory {
   processed_at: string | null;
 }
 
+interface ClassificationStats {
+  classification_type: string;
+  display_label: string;
+  display_color: string;
+  priority: number;
+  staff_alert: boolean;
+  entry_count: number;
+  with_place_link: number;
+  with_person_link: number;
+}
+
+interface DiseaseRiskEntry {
+  entry_id: string;
+  kml_name: string;
+  lat: number;
+  lng: number;
+  disease_mentions: string[];
+  ai_classified_at: string;
+  linked_address: string | null;
+}
+
 interface SyncStats {
   stats: Array<{ icon_meaning: string; count: number }>;
   totals: { total: number; with_icons: number; synced: number };
   lastSyncedAt: string | null;
   history: ImportHistory[];
+  // AI Classification data
+  classificationStats?: ClassificationStats[];
+  classificationTotals?: {
+    total_classified: number;
+    total_unclassified: number;
+    disease_risks: number;
+    watch_list: number;
+    linked_to_places: number;
+    linked_to_people: number;
+  };
+  diseaseRisks?: DiseaseRiskEntry[];
 }
 
 interface SyncResult {
@@ -402,6 +434,164 @@ export default function GoogleMapsSyncPage() {
         </div>
       </div>
 
+      {/* AI Classification Stats */}
+      {stats?.classificationStats && stats.classificationStats.length > 0 && (
+        <div
+          style={{
+            padding: "1.5rem",
+            backgroundColor: "white",
+            borderRadius: "0.5rem",
+            border: "1px solid #e5e7eb",
+            marginTop: "1.5rem",
+          }}
+        >
+          <h2 style={{ margin: "0 0 1rem", fontSize: "1rem", fontWeight: 600 }}>
+            AI Text Classification
+          </h2>
+          <p style={{ color: "#6b7280", fontSize: "0.875rem", marginBottom: "1rem" }}>
+            Classifications based on TEXT content analysis (more reliable than icon colors).
+          </p>
+
+          {/* Classification Progress */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
+            <div style={{ padding: "0.75rem", backgroundColor: "#f3f4f6", borderRadius: "0.375rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Classified</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>
+                {stats.classificationTotals?.total_classified?.toLocaleString() || 0}
+              </div>
+            </div>
+            <div style={{ padding: "0.75rem", backgroundColor: "#fef2f2", borderRadius: "0.375rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Disease Risks</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "#dc2626" }}>
+                {stats.classificationTotals?.disease_risks?.toLocaleString() || 0}
+              </div>
+            </div>
+            <div style={{ padding: "0.75rem", backgroundColor: "#fef9c3", borderRadius: "0.375rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Watch List</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "#ca8a04" }}>
+                {stats.classificationTotals?.watch_list?.toLocaleString() || 0}
+              </div>
+            </div>
+            <div style={{ padding: "0.75rem", backgroundColor: "#f3f4f6", borderRadius: "0.375rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Remaining</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>
+                {stats.classificationTotals?.total_unclassified?.toLocaleString() || 0}
+              </div>
+            </div>
+          </div>
+
+          {/* Classification Breakdown */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {stats.classificationStats.map((item) => {
+              const total = stats.classificationTotals?.total_classified || 1;
+              const percentage = total > 0 ? (item.entry_count / total) * 100 : 0;
+              return (
+                <div
+                  key={item.classification_type}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "1rem",
+                      height: "1rem",
+                      borderRadius: "50%",
+                      backgroundColor: item.display_color,
+                      border: item.staff_alert ? "2px solid #000" : "none",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: "0.875rem" }}>
+                        {item.staff_alert && "⚠️ "}
+                        {item.display_label}
+                      </span>
+                      <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                        {item.entry_count.toLocaleString()} ({percentage.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        height: "0.25rem",
+                        backgroundColor: "#e5e7eb",
+                        borderRadius: "0.125rem",
+                        marginTop: "0.25rem",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${percentage}%`,
+                          backgroundColor: item.display_color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Disease Risk Review */}
+      {stats?.diseaseRisks && stats.diseaseRisks.length > 0 && (
+        <div
+          style={{
+            padding: "1.5rem",
+            backgroundColor: "#fef2f2",
+            borderRadius: "0.5rem",
+            border: "1px solid #fecaca",
+            marginTop: "1.5rem",
+          }}
+        >
+          <h2 style={{ margin: "0 0 1rem", fontSize: "1rem", fontWeight: 600, color: "#991b1b" }}>
+            ⚠️ Disease Risk Entries ({stats.diseaseRisks.length})
+          </h2>
+          <p style={{ color: "#7f1d1d", fontSize: "0.875rem", marginBottom: "1rem" }}>
+            These entries mention FeLV, FIV, or other disease concerns. Staff should be aware before visiting these locations.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {stats.diseaseRisks.slice(0, 10).map((entry) => (
+              <div
+                key={entry.entry_id}
+                style={{
+                  padding: "0.75rem",
+                  backgroundColor: "white",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #fecaca",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{entry.kml_name}</div>
+                {entry.disease_mentions.length > 0 && (
+                  <div style={{ fontSize: "0.75rem", color: "#dc2626", marginBottom: "0.25rem" }}>
+                    {entry.disease_mentions.join(", ")}
+                  </div>
+                )}
+                {entry.linked_address && (
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                    Linked: {entry.linked_address}
+                  </div>
+                )}
+                <a
+                  href={`/beacon/preview?focus=${entry.lat},${entry.lng}&zoom=16`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: "0.75rem", color: "#3b82f6" }}
+                >
+                  View on Map →
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Help Section */}
       <div
         style={{
@@ -415,7 +605,9 @@ export default function GoogleMapsSyncPage() {
       >
         <strong>Ingest Pipeline:</strong> Uploads are staged in <code>staged_google_maps_imports</code> and processed through the centralized pipeline.
         <br /><br />
-        <strong>Icon Meanings:</strong>
+        <strong>AI Classification:</strong> Text content is analyzed by AI to extract meaningful classifications like disease risks, watch list clients, and volunteers. This is more reliable than icon colors which were used inconsistently.
+        <br /><br />
+        <strong>Legacy Icon Meanings:</strong>
         <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.5rem" }}>
           <li><strong>Black dots (icon-503-000000)</strong>: Difficult clients, watch list</li>
           <li><strong>Stars (icon-959)</strong>: Volunteers</li>

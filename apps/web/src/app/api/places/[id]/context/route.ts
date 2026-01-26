@@ -5,11 +5,20 @@ import { queryOne, queryRows } from "@/lib/db";
  * GET /api/places/[id]/context
  *
  * Returns comprehensive context for a place including:
+ *
+ * OPERATIONAL LAYER (current state for staff workflows):
  * - Active requests at this address
  * - Recent clinic activity (cats, appointments)
  * - Google Maps historical notes (within 200m)
  * - Nearby active requests (within 200m)
- * - Summary flags for quick UI rendering
+ *
+ * ECOLOGICAL LAYER (historical context for analysis):
+ * - Historical conditions (hoarding, disease outbreak, etc.)
+ * - Colony timeline (population estimates over time)
+ * - Dispersal patterns (source-sink relationships)
+ * - Zone demographics (socioeconomic data)
+ *
+ * Summary flags for quick UI rendering.
  *
  * This endpoint powers the AI Data Guardian's contextual awareness system.
  * It surfaces relevant information to staff during intake and request handling.
@@ -21,7 +30,10 @@ import { queryOne, queryRows } from "@/lib/db";
 interface PlaceContext {
   place_id: string;
   address: string;
+  service_zone: string | null;
   location: { lat: number; lng: number };
+
+  // OPERATIONAL LAYER
   active_requests: Array<{
     request_id: string;
     summary: string;
@@ -46,7 +58,8 @@ interface PlaceContext {
     name: string;
     notes: string;
     ai_summary: string | null;
-    signals: string[] | null;
+    ai_meaning: string | null;
+    classification: Record<string, unknown> | null;
     cat_count: number | null;
     distance_m: number;
   }>;
@@ -58,11 +71,70 @@ interface PlaceContext {
     address: string;
     distance_m: number;
   }>;
+
+  // ECOLOGICAL LAYER
+  condition_history: Array<{
+    condition_id: string;
+    condition_type: string;
+    display_label: string;
+    severity: string;
+    valid_from: string;
+    valid_to: string | null;
+    is_ongoing: boolean;
+    peak_cat_count: number | null;
+    ecological_impact: string | null;
+    description: string | null;
+    source_type: string;
+  }>;
+  colony_timeline: Array<{
+    estimated_total: number;
+    estimated_altered: number;
+    alteration_rate: number;
+    colony_status: string;
+    valid_from: string;
+    valid_to: string | null;
+    is_current: boolean;
+    confidence: number;
+    source_type: string;
+  }>;
+  dispersal_patterns: {
+    as_source: Array<{
+      sink_place_id: string;
+      sink_address: string;
+      relationship_type: string;
+      evidence_strength: string;
+      estimated_cats_transferred: number | null;
+    }>;
+    as_sink: Array<{
+      source_place_id: string;
+      source_address: string;
+      relationship_type: string;
+      evidence_strength: string;
+      estimated_cats_transferred: number | null;
+    }>;
+  };
+  zone_demographics: {
+    zone_name: string;
+    median_household_income: number | null;
+    pct_below_poverty: number | null;
+    pct_renter_occupied: number | null;
+    pct_mobile_homes: number | null;
+    pet_ownership_index: number | null;
+    tnr_priority_score: number | null;
+  } | null;
+
+  // SUMMARY FLAGS
   context_flags: {
+    // Operational
     has_active_request: boolean;
     has_recent_clinic: boolean;
     has_google_history: boolean;
     has_nearby_activity: boolean;
+    // Ecological
+    has_condition_history: boolean;
+    has_ongoing_condition: boolean;
+    has_disease_history: boolean;
+    was_significant_source: boolean;
   };
   generated_at: string;
 }

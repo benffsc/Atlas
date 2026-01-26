@@ -45,21 +45,69 @@ interface NearbyRequest {
   distance_m: number;
 }
 
+interface ConditionHistory {
+  condition_id: string;
+  condition_type: string;
+  display_label: string;
+  severity: string;
+  valid_from: string;
+  valid_to: string | null;
+  is_ongoing: boolean;
+  peak_cat_count: number | null;
+  ecological_impact: string | null;
+  description: string | null;
+  source_type: string;
+}
+
+interface ColonyTimeline {
+  estimated_total: number;
+  estimated_altered: number;
+  alteration_rate: number;
+  colony_status: string;
+  valid_from: string;
+  valid_to: string | null;
+  is_current: boolean;
+  confidence: number;
+  source_type: string;
+}
+
+interface ZoneDemographics {
+  zone_name: string;
+  median_household_income: number | null;
+  pct_below_poverty: number | null;
+  pct_renter_occupied: number | null;
+  pct_mobile_homes: number | null;
+  pet_ownership_index: number | null;
+  tnr_priority_score: number | null;
+}
+
 interface ContextFlags {
+  // Operational
   has_active_request: boolean;
   has_recent_clinic: boolean;
   has_google_history: boolean;
   has_nearby_activity: boolean;
+  // Ecological
+  has_condition_history?: boolean;
+  has_ongoing_condition?: boolean;
+  has_disease_history?: boolean;
+  was_significant_source?: boolean;
 }
 
 interface PlaceContext {
   place_id: string;
   address: string;
+  service_zone?: string | null;
   location?: { lat: number; lng: number };
+  // Operational
   active_requests: ActiveRequest[];
   clinic_activity: ClinicActivity;
   google_context: GoogleContextEntry[];
   nearby_requests: NearbyRequest[];
+  // Ecological
+  condition_history?: ConditionHistory[];
+  colony_timeline?: ColonyTimeline[];
+  zone_demographics?: ZoneDemographics | null;
   context_flags: ContextFlags;
   generated_at: string;
   error?: string;
@@ -88,6 +136,24 @@ const SIGNAL_LABELS: Record<string, { label: string; color: string }> = {
   adopted: { label: "Adoption", color: "#10b981" },
   temperament: { label: "Behavior", color: "#f59e0b" },
   general: { label: "General", color: "#6366f1" },
+};
+
+const CONDITION_COLORS: Record<string, string> = {
+  disease_outbreak: "#dc2626", // Red
+  hoarding: "#ea580c", // Orange
+  breeding_crisis: "#d97706", // Amber
+  difficult_client: "#9333ea", // Purple
+  feeding_station: "#2563eb", // Blue
+  abandonment: "#6b7280", // Gray
+  neglect: "#71717a", // Zinc
+  resolved_colony: "#22c55e", // Green
+};
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "#dc2626",
+  severe: "#ea580c",
+  moderate: "#d97706",
+  minor: "#6b7280",
 };
 
 function formatDate(dateStr: string | null): string {
@@ -186,11 +252,16 @@ export function PlaceContextPanel({
   }
 
   const { context_flags: flags } = context;
-  const hasAnyContext =
+  const hasOperationalContext =
     flags.has_active_request ||
     flags.has_recent_clinic ||
     flags.has_google_history ||
     flags.has_nearby_activity;
+  const hasEcologicalContext =
+    flags.has_condition_history ||
+    flags.has_disease_history ||
+    flags.was_significant_source;
+  const hasAnyContext = hasOperationalContext || hasEcologicalContext;
 
   if (!hasAnyContext && !showFullContext) {
     return null; // No context to show
@@ -258,6 +329,36 @@ export function PlaceContextPanel({
             }}
           >
             Nearby Activity
+          </span>
+        )}
+        {flags.has_disease_history && (
+          <span
+            style={{
+              padding: "0.125rem 0.5rem",
+              fontSize: "0.7rem",
+              fontWeight: 500,
+              backgroundColor: "#fef2f2",
+              color: "#dc2626",
+              borderRadius: "9999px",
+              border: "1px solid #fecaca",
+            }}
+          >
+            Disease History
+          </span>
+        )}
+        {flags.was_significant_source && !flags.has_disease_history && (
+          <span
+            style={{
+              padding: "0.125rem 0.5rem",
+              fontSize: "0.7rem",
+              fontWeight: 500,
+              backgroundColor: "#faf5ff",
+              color: "#7c3aed",
+              borderRadius: "9999px",
+              border: "1px solid #e9d5ff",
+            }}
+          >
+            Historical Source
           </span>
         )}
       </div>
@@ -546,7 +647,7 @@ export function PlaceContextPanel({
 
       {/* Nearby Requests Section */}
       {context.nearby_requests.length > 0 && (
-        <div>
+        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
           <button
             onClick={() => toggleSection("nearby")}
             style={{
@@ -618,6 +719,208 @@ export function PlaceContextPanel({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* ECOLOGICAL LAYER - Historical Context                        */}
+      {/* ============================================================ */}
+
+      {/* Condition History Section */}
+      {context.condition_history && context.condition_history.length > 0 && (
+        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+          <button
+            onClick={() => toggleSection("conditions")}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "0.75rem 1rem",
+              background: flags.has_disease_history ? "#fef2f2" : "#faf5ff",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ color: flags.has_disease_history ? "#dc2626" : "#7c3aed", fontWeight: 600 }}>
+                Historical Conditions
+              </span>
+              <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                {context.condition_history.length} recorded
+              </span>
+              {flags.has_ongoing_condition && (
+                <span
+                  style={{
+                    padding: "0.0625rem 0.375rem",
+                    fontSize: "0.625rem",
+                    backgroundColor: "#fef2f2",
+                    color: "#dc2626",
+                    borderRadius: "0.25rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  ONGOING
+                </span>
+              )}
+            </div>
+            <span style={{ color: "#6b7280" }}>
+              {expandedSections.has("conditions") ? "−" : "+"}
+            </span>
+          </button>
+
+          {expandedSections.has("conditions") && (
+            <div style={{ padding: "0.75rem 1rem", backgroundColor: "#fff" }}>
+              {context.condition_history.map((condition) => (
+                <div
+                  key={condition.condition_id}
+                  style={{
+                    padding: "0.5rem",
+                    marginBottom: "0.5rem",
+                    backgroundColor: "#f9fafb",
+                    borderRadius: "0.375rem",
+                    border: `1px solid ${condition.is_ongoing ? "#fecaca" : "#e5e7eb"}`,
+                    borderLeft: `3px solid ${CONDITION_COLORS[condition.condition_type] || "#6b7280"}`,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "#374151" }}>
+                        {condition.display_label || condition.condition_type.replace("_", " ")}
+                      </span>
+                      <span
+                        style={{
+                          marginLeft: "0.5rem",
+                          padding: "0.0625rem 0.375rem",
+                          fontSize: "0.625rem",
+                          backgroundColor: SEVERITY_COLORS[condition.severity] + "20",
+                          color: SEVERITY_COLORS[condition.severity],
+                          borderRadius: "0.25rem",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {condition.severity}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>
+                      {condition.is_ongoing ? "ongoing" : `ended ${formatDate(condition.valid_to)}`}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                    {formatDate(condition.valid_from)} - {condition.valid_to ? formatDate(condition.valid_to) : "present"}
+                  </div>
+                  {condition.peak_cat_count && (
+                    <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.125rem" }}>
+                      Peak: {condition.peak_cat_count} cats
+                      {condition.ecological_impact && (
+                        <span style={{ marginLeft: "0.5rem", fontStyle: "italic" }}>
+                          ({condition.ecological_impact} impact)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {condition.description && (
+                    <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: "0.25rem 0 0", lineHeight: 1.4 }}>
+                      {condition.description.length > 150
+                        ? condition.description.substring(0, 150) + "..."
+                        : condition.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Zone Demographics Section */}
+      {context.zone_demographics && (
+        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+          <button
+            onClick={() => toggleSection("demographics")}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "0.75rem 1rem",
+              background: "#f0f9ff",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ color: "#0369a1", fontWeight: 600 }}>Zone Demographics</span>
+              {context.zone_demographics.tnr_priority_score && (
+                <span
+                  style={{
+                    padding: "0.0625rem 0.375rem",
+                    fontSize: "0.625rem",
+                    backgroundColor:
+                      context.zone_demographics.tnr_priority_score >= 70
+                        ? "#fef2f2"
+                        : context.zone_demographics.tnr_priority_score >= 50
+                        ? "#fefce8"
+                        : "#f0fdf4",
+                    color:
+                      context.zone_demographics.tnr_priority_score >= 70
+                        ? "#dc2626"
+                        : context.zone_demographics.tnr_priority_score >= 50
+                        ? "#854d0e"
+                        : "#166534",
+                    borderRadius: "0.25rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Priority: {Math.round(context.zone_demographics.tnr_priority_score)}
+                </span>
+              )}
+            </div>
+            <span style={{ color: "#6b7280" }}>
+              {expandedSections.has("demographics") ? "−" : "+"}
+            </span>
+          </button>
+
+          {expandedSections.has("demographics") && (
+            <div style={{ padding: "0.75rem 1rem", backgroundColor: "#fff" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.75rem" }}>
+                {context.zone_demographics.median_household_income && (
+                  <div>
+                    <span style={{ color: "#6b7280" }}>Median Income:</span>{" "}
+                    <strong>${context.zone_demographics.median_household_income.toLocaleString()}</strong>
+                  </div>
+                )}
+                {context.zone_demographics.pct_below_poverty !== null && (
+                  <div>
+                    <span style={{ color: "#6b7280" }}>Below Poverty:</span>{" "}
+                    <strong>{context.zone_demographics.pct_below_poverty}%</strong>
+                  </div>
+                )}
+                {context.zone_demographics.pct_renter_occupied !== null && (
+                  <div>
+                    <span style={{ color: "#6b7280" }}>Renters:</span>{" "}
+                    <strong>{context.zone_demographics.pct_renter_occupied}%</strong>
+                  </div>
+                )}
+                {context.zone_demographics.pct_mobile_homes !== null && (
+                  <div>
+                    <span style={{ color: "#6b7280" }}>Mobile Homes:</span>{" "}
+                    <strong>{context.zone_demographics.pct_mobile_homes}%</strong>
+                  </div>
+                )}
+              </div>
+              {context.zone_demographics.pet_ownership_index && (
+                <div style={{ marginTop: "0.5rem", fontSize: "0.7rem", color: "#6b7280" }}>
+                  Pet Ownership Index: {Math.round(context.zone_demographics.pet_ownership_index)}/100
+                  <span style={{ marginLeft: "0.25rem", fontStyle: "italic" }}>
+                    (higher = more likely unaltered pets)
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -234,7 +234,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Beacon Data",
       items: [
-        { label: "Beacon Map", href: "/admin/beacon-map", icon: "🗺️" },
+        { label: "Atlas Map", href: "/map", icon: "🗺️" },
         { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "🐱" },
         { label: "Reproduction", href: "/admin/beacon/reproduction", icon: "🍼" },
         { label: "Mortality", href: "/admin/beacon/mortality", icon: "📋" },
@@ -289,6 +289,7 @@ export function MainSidebar({ children }: { children: React.ReactNode }) {
       title: "Operations",
       items: [
         { label: "Dashboard", href: "/", icon: "🏠" },
+        { label: "Atlas Map", href: "/map", icon: "🗺️" },
         { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
         { label: "Requests", href: "/requests", icon: "📋" },
         { label: "Trappers", href: "/trappers", icon: "🪤" },
