@@ -30,6 +30,8 @@ interface Place {
   priority: string;
   has_observation: boolean;
   service_zone: string;
+  primary_person_name?: string;
+  person_count?: number;
 }
 
 interface GooglePin {
@@ -96,6 +98,35 @@ interface ClinicClient {
   service_zone: string;
 }
 
+// Google Places API types
+interface PlacePrediction {
+  place_id: string;
+  description: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
+  };
+}
+
+// Search result from Atlas search API
+interface AtlasSearchResult {
+  entity_type: string;
+  entity_id: string;
+  display_name: string;
+  subtitle: string | null;
+  metadata?: {
+    lat?: number;
+    lng?: number;
+  };
+}
+
+// Navigated location for addresses not in Atlas
+interface NavigatedLocation {
+  lat: number;
+  lng: number;
+  address: string;
+}
+
 interface HistoricalSource {
   place_id: string;
   address: string;
@@ -123,6 +154,45 @@ interface DataCoverageZone {
   coverage_level: string;
 }
 
+// NEW: Consolidated Atlas Pin from v_map_atlas_pins view
+interface AtlasPin {
+  id: string;
+  address: string;
+  display_name: string | null;
+  lat: number;
+  lng: number;
+  service_zone: string | null;
+  cat_count: number;
+  people: string[];
+  person_count: number;
+  disease_risk: boolean;
+  disease_risk_notes: string | null;
+  watch_list: boolean;
+  google_entry_count: number;
+  google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
+  request_count: number;
+  active_request_count: number;
+  total_altered: number;
+  last_alteration_at: string | null;
+  pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
+}
+
+// NEW: Historical Pin from v_map_historical_pins view (unlinked Google Maps entries)
+interface HistoricalPin {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  notes: string;
+  ai_summary: string | null;
+  ai_meaning: string | null;
+  parsed_date: string | null;
+  disease_risk: boolean;
+  watch_list: boolean;
+  icon_type: string | null;
+  icon_color: string | null;
+}
+
 interface MapSummary {
   total_places: number;
   total_cats: number;
@@ -140,8 +210,12 @@ interface LayerConfig {
 }
 
 const LAYER_CONFIGS: LayerConfig[] = [
-  { id: "places", label: "Cat Locations", icon: "🐱", color: "#3b82f6", description: "Places with verified cat activity", defaultEnabled: true },
-  { id: "google_pins", label: "Historical Pins", icon: "📍", color: "#f59e0b", description: "Google Maps historical data (AI classified)", defaultEnabled: false },
+  // NEW simplified layers - recommended
+  { id: "atlas_pins", label: "Atlas Data", icon: "📍", color: "#3b82f6", description: "Consolidated places, people, cats, and history", defaultEnabled: true },
+  { id: "historical_pins", label: "Historical Context", icon: "⚪", color: "#9ca3af", description: "Unlinked Google Maps notes (historical only)", defaultEnabled: true },
+  // Legacy layers - for advanced filtering
+  { id: "places", label: "Cat Locations (Legacy)", icon: "🐱", color: "#3b82f6", description: "Places with verified cat activity", defaultEnabled: false },
+  { id: "google_pins", label: "All Google Pins (Legacy)", icon: "📍", color: "#f59e0b", description: "Google Maps historical data (AI classified)", defaultEnabled: false },
   { id: "tnr_priority", label: "TNR Priority", icon: "🎯", color: "#dc2626", description: "Targeted TNR priority areas", defaultEnabled: false },
   { id: "zones", label: "Observation Zones", icon: "📊", color: "#10b981", description: "Mark-recapture sampling zones", defaultEnabled: false },
   { id: "volunteers", label: "Volunteers", icon: "⭐", color: "#FFD700", description: "FFSC trappers and volunteers", defaultEnabled: false },
@@ -181,7 +255,11 @@ export default function BeaconMapModern() {
     Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.defaultEnabled]))
   );
 
-  // Data
+  // Data - NEW simplified layers
+  const [atlasPins, setAtlasPins] = useState<AtlasPin[]>([]);
+  const [historicalPins, setHistoricalPins] = useState<HistoricalPin[]>([]);
+
+  // Data - Legacy layers
   const [places, setPlaces] = useState<Place[]>([]);
   const [googlePins, setGooglePins] = useState<GooglePin[]>([]);
   const [tnrPriority, setTnrPriority] = useState<TnrPriorityPlace[]>([]);
@@ -192,9 +270,18 @@ export default function BeaconMapModern() {
   const [dataCoverage, setDataCoverage] = useState<DataCoverageZone[]>([]);
   const [summary, setSummary] = useState<MapSummary | null>(null);
 
+  // Filters for atlas_pins layer
+  const [riskFilter, setRiskFilter] = useState<"all" | "disease" | "watch_list" | "needs_tnr">("all");
+  const [dataFilter, setDataFilter] = useState<"all" | "has_atlas" | "has_google" | "has_people">("all");
+
   // Search suggestions
   const [searchResults, setSearchResults] = useState<Array<{ type: string; item: Place | GooglePin | Volunteer; label: string }>>([]);
+  const [atlasSearchResults, setAtlasSearchResults] = useState<AtlasSearchResult[]>([]);
+  const [googleSuggestions, setGoogleSuggestions] = useState<PlacePrediction[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
+  const navigatedMarkerRef = useRef<L.Marker | null>(null);
 
   // Fetch map data
   const fetchMapData = useCallback(async () => {
@@ -203,6 +290,10 @@ export default function BeaconMapModern() {
       .map(([id]) => id);
 
     if (layers.length === 0) {
+      // Clear new layers
+      setAtlasPins([]);
+      setHistoricalPins([]);
+      // Clear legacy layers
       setPlaces([]);
       setGooglePins([]);
       setTnrPriority([]);
@@ -223,11 +314,20 @@ export default function BeaconMapModern() {
       if (selectedZone !== "All Zones") {
         params.set("zone", selectedZone);
       }
+      // Add filter params for atlas_pins layer
+      if (layers.includes("atlas_pins")) {
+        params.set("risk_filter", riskFilter);
+        params.set("data_filter", dataFilter);
+      }
 
       const response = await fetch(`/api/beacon/map-data?${params}`);
       if (!response.ok) throw new Error("Failed to fetch map data");
 
       const data = await response.json();
+      // New layers
+      setAtlasPins(data.atlas_pins || []);
+      setHistoricalPins(data.historical_pins || []);
+      // Legacy layers
       setPlaces(data.places || []);
       setGooglePins(data.google_pins || []);
       setTnrPriority(data.tnr_priority || []);
@@ -242,7 +342,7 @@ export default function BeaconMapModern() {
     } finally {
       setLoading(false);
     }
-  }, [enabledLayers, selectedZone]);
+  }, [enabledLayers, selectedZone, riskFilter, dataFilter]);
 
   // Initialize map
   useEffect(() => {
@@ -658,42 +758,467 @@ export default function BeaconMapModern() {
     };
   }, [dataCoverage, enabledLayers.data_coverage]);
 
-  // Search functionality
+  // =========================================================================
+  // NEW: Atlas Pins layer (consolidated places + people + cats + history)
+  // =========================================================================
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (layersRef.current.atlas_pins) {
+      mapRef.current.removeLayer(layersRef.current.atlas_pins);
+    }
+    if (!enabledLayers.atlas_pins || atlasPins.length === 0) return;
+
+    const layer = L.layerGroup();
+
+    atlasPins.forEach((pin) => {
+      if (!pin.lat || !pin.lng) return;
+
+      // Determine pin color based on style
+      let color: string;
+      let size: number;
+      let label: string;
+
+      switch (pin.pin_style) {
+        case "disease":
+          color = "#ea580c"; // Orange for disease
+          size = 32;
+          label = "⚠️";
+          break;
+        case "watch_list":
+          color = "#eab308"; // Yellow for watch list
+          size = 28;
+          label = "👁️";
+          break;
+        case "active":
+          color = "#22c55e"; // Green for active colony
+          size = 24;
+          label = "🐱";
+          break;
+        case "has_history":
+          color = "#6366f1"; // Indigo for has history
+          size = 22;
+          label = "📜";
+          break;
+        default:
+          color = "#3b82f6"; // Blue default
+          size = 20;
+          label = "📍";
+      }
+
+      // Create Google-style pin marker
+      const marker = L.marker([pin.lat, pin.lng], {
+        icon: L.divIcon({
+          className: "atlas-pin-marker",
+          html: `<div style="
+            position: relative;
+            width: ${size}px;
+            height: ${size + 8}px;
+          ">
+            <div style="
+              width: ${size}px;
+              height: ${size}px;
+              background: ${color};
+              border: 3px solid white;
+              border-radius: 50% 50% 50% 0;
+              transform: rotate(-45deg);
+              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <span style="transform: rotate(45deg); font-size: ${size * 0.45}px;">${label}</span>
+            </div>
+          </div>`,
+          iconSize: [size, size + 8],
+          iconAnchor: [size / 2, size + 8],
+          popupAnchor: [0, -(size + 4)]
+        }),
+        zIndexOffset: pin.pin_style === "disease" ? 1000 : pin.pin_style === "watch_list" ? 500 : 0
+      });
+
+      // Build consolidated popup
+      const peopleList = Array.isArray(pin.people) && pin.people.length > 0
+        ? pin.people.slice(0, 3).map((name: string) => `<div style="font-size: 12px;">• ${name}</div>`).join("")
+        : "";
+
+      const historySummaries = Array.isArray(pin.google_summaries) && pin.google_summaries.length > 0
+        ? pin.google_summaries.slice(0, 2).map((s: { summary: string; meaning: string | null; date: string | null }) =>
+            `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; padding: 4px; background: #f9fafb; border-radius: 4px;">
+              ${s.summary?.substring(0, 120) || ""}${s.summary && s.summary.length > 120 ? "..." : ""}
+              ${s.date ? `<span style="color: #9ca3af;"> (${s.date})</span>` : ""}
+            </div>`
+          ).join("")
+        : "";
+
+      marker.bindPopup(`
+        <div style="min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${pin.address}</div>
+
+          ${pin.disease_risk ? `
+            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 8px; margin: 8px 0; border-radius: 6px;">
+              <div style="color: #dc2626; font-weight: 600; font-size: 13px;">⚠️ Disease Risk</div>
+              ${pin.disease_risk_notes ? `<div style="font-size: 12px; color: #7f1d1d; margin-top: 4px;">${pin.disease_risk_notes}</div>` : ""}
+            </div>
+          ` : ""}
+
+          ${pin.watch_list && !pin.disease_risk ? `
+            <div style="background: #fefce8; border: 1px solid #fef08a; padding: 8px; margin: 8px 0; border-radius: 6px;">
+              <div style="color: #ca8a04; font-weight: 600; font-size: 13px;">👁️ Watch List</div>
+            </div>
+          ` : ""}
+
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0;">
+            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #374151;">${pin.cat_count}</div>
+              <div style="font-size: 10px; color: #6b7280;">Cats</div>
+            </div>
+            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #374151;">${pin.person_count}</div>
+              <div style="font-size: 10px; color: #6b7280;">People</div>
+            </div>
+            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: ${pin.active_request_count > 0 ? "#dc2626" : "#374151"};">${pin.request_count}</div>
+              <div style="font-size: 10px; color: #6b7280;">Requests</div>
+            </div>
+          </div>
+
+          ${pin.person_count > 0 ? `
+            <div style="margin-top: 8px;">
+              <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px;">People:</div>
+              ${peopleList}
+              ${pin.person_count > 3 ? `<div style="font-size: 11px; color: #9ca3af;">+${pin.person_count - 3} more</div>` : ""}
+            </div>
+          ` : ""}
+
+          ${pin.google_entry_count > 0 ? `
+            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+              <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px;">
+                📜 Historical Notes (${pin.google_entry_count})
+              </div>
+              ${historySummaries}
+            </div>
+          ` : ""}
+
+          ${pin.total_altered > 0 ? `
+            <div style="margin-top: 8px; font-size: 12px; color: #059669;">
+              ✓ ${pin.total_altered} cats altered at this location
+            </div>
+          ` : ""}
+
+          <a href="/places/${pin.id}"
+             style="display: block; margin-top: 12px; padding: 8px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-size: 13px; font-weight: 500;">
+            View Full Details →
+          </a>
+        </div>
+      `);
+
+      layer.addLayer(marker);
+    });
+
+    layer.addTo(mapRef.current);
+    layersRef.current.atlas_pins = layer;
+  }, [atlasPins, enabledLayers.atlas_pins]);
+
+  // =========================================================================
+  // NEW: Historical Pins layer (unlinked Google Maps entries)
+  // =========================================================================
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (layersRef.current.historical_pins) {
+      mapRef.current.removeLayer(layersRef.current.historical_pins);
+    }
+    if (!enabledLayers.historical_pins || historicalPins.length === 0) return;
+
+    const layer = L.layerGroup();
+
+    historicalPins.forEach((pin) => {
+      if (!pin.lat || !pin.lng) return;
+
+      // Small dot for historical context
+      const isDisease = pin.disease_risk;
+      const isWatchList = pin.watch_list;
+      const color = isDisease ? "#ea580c" : isWatchList ? "#eab308" : "#9ca3af";
+      const size = isDisease || isWatchList ? 12 : 8;
+
+      const marker = L.marker([pin.lat, pin.lng], {
+        icon: L.divIcon({
+          className: "historical-pin-marker",
+          html: `<div style="
+            width: ${size}px;
+            height: ${size}px;
+            background: ${color};
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            opacity: ${isDisease || isWatchList ? 1 : 0.7};
+          "></div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
+        zIndexOffset: isDisease ? 100 : isWatchList ? 50 : -100
+      });
+
+      marker.bindPopup(`
+        <div style="min-width: 240px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${pin.name || "Historical Note"}</div>
+
+          ${isDisease ? `
+            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 6px 8px; margin-bottom: 8px; border-radius: 4px; color: #dc2626; font-size: 12px; font-weight: 600;">
+              ⚠️ Disease Risk Mentioned
+            </div>
+          ` : ""}
+
+          ${isWatchList && !isDisease ? `
+            <div style="background: #fefce8; border: 1px solid #fef08a; padding: 6px 8px; margin-bottom: 8px; border-radius: 4px; color: #ca8a04; font-size: 12px; font-weight: 600;">
+              👁️ Watch List
+            </div>
+          ` : ""}
+
+          <div style="font-size: 12px; color: #374151; background: #f9fafb; padding: 8px; border-radius: 6px; max-height: 100px; overflow-y: auto;">
+            ${pin.ai_summary || pin.notes || "No notes available"}
+          </div>
+
+          ${pin.parsed_date ? `
+            <div style="font-size: 11px; color: #9ca3af; margin-top: 8px;">
+              📅 Date: ${pin.parsed_date}
+            </div>
+          ` : ""}
+
+          <div style="font-size: 10px; color: #9ca3af; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+            ⚪ Unlinked historical data from Google Maps
+          </div>
+        </div>
+      `);
+
+      layer.addLayer(marker);
+    });
+
+    layer.addTo(mapRef.current);
+    layersRef.current.historical_pins = layer;
+  }, [historicalPins, enabledLayers.historical_pins]);
+
+  // Search functionality - uses fuzzy search API for better matching
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
+      setAtlasSearchResults([]);
+      setGoogleSuggestions([]);
       return;
     }
 
+    // Also do quick local search for instant results on loaded data
     const query = searchQuery.toLowerCase();
-    const results: typeof searchResults = [];
+    const localResults: typeof searchResults = [];
 
-    // Search places
-    places.filter(p => p.address.toLowerCase().includes(query)).slice(0, 3).forEach(p => {
-      results.push({ type: "place", item: p, label: p.address });
+    places.filter(p => p.address.toLowerCase().includes(query)).slice(0, 2).forEach(p => {
+      localResults.push({ type: "place", item: p, label: p.address });
     });
 
-    // Search Google pins
-    googlePins.filter(p => p.name?.toLowerCase().includes(query) || p.notes?.toLowerCase().includes(query)).slice(0, 3).forEach(p => {
-      results.push({ type: "google_pin", item: p, label: p.name || "Unnamed pin" });
+    googlePins.filter(p => p.name?.toLowerCase().includes(query)).slice(0, 2).forEach(p => {
+      localResults.push({ type: "google_pin", item: p, label: p.name || "Unnamed pin" });
     });
 
-    // Search volunteers
-    volunteers.filter(v => v.name.toLowerCase().includes(query)).slice(0, 3).forEach(v => {
-      results.push({ type: "volunteer", item: v, label: `${v.name} (${v.role_label})` });
+    volunteers.filter(v => v.name.toLowerCase().includes(query)).slice(0, 2).forEach(v => {
+      localResults.push({ type: "volunteer", item: v, label: `${v.name} (${v.role_label})` });
     });
 
-    setSearchResults(results);
+    setSearchResults(localResults);
   }, [searchQuery, places, googlePins, volunteers]);
+
+  // Fuzzy search via Atlas search API (debounced)
+  useEffect(() => {
+    if (searchQuery.length < 3) {
+      setAtlasSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=place&limit=5&suggestions=true`);
+        if (res.ok) {
+          const data = await res.json();
+          // Get place suggestions with location data
+          const placeSuggestions = (data.suggestions || []).filter(
+            (s: AtlasSearchResult) => s.entity_type === 'place' && s.metadata?.lat && s.metadata?.lng
+          );
+          setAtlasSearchResults(placeSuggestions);
+        }
+      } catch (err) {
+        console.error("Atlas search error:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Google Places autocomplete as fallback (when few Atlas results)
+  useEffect(() => {
+    if (searchQuery.length < 3) {
+      setGoogleSuggestions([]);
+      return;
+    }
+
+    // Only fetch Google suggestions if we have few Atlas results
+    const timer = setTimeout(async () => {
+      if (atlasSearchResults.length < 3) {
+        try {
+          const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(searchQuery)}`);
+          if (res.ok) {
+            const data = await res.json();
+            setGoogleSuggestions(data.predictions || []);
+          }
+        } catch (err) {
+          console.error("Google Places error:", err);
+        }
+      } else {
+        setGoogleSuggestions([]);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, atlasSearchResults.length]);
 
   const handleSearchSelect = (result: typeof searchResults[0]) => {
     const item = result.item as Place | GooglePin | Volunteer;
     if (mapRef.current && item.lat && item.lng) {
       mapRef.current.setView([item.lat, item.lng], 16, { animate: true, duration: 0.5 });
+      // Clear any navigated location marker
+      setNavigatedLocation(null);
     }
     setSearchQuery("");
     setShowSearchResults(false);
   };
+
+  // Handle Atlas fuzzy search result selection
+  const handleAtlasSearchSelect = (result: AtlasSearchResult) => {
+    if (mapRef.current && result.metadata?.lat && result.metadata?.lng) {
+      mapRef.current.setView([result.metadata.lat, result.metadata.lng], 16, { animate: true, duration: 0.5 });
+      // Clear any navigated location marker
+      setNavigatedLocation(null);
+    }
+    setSearchQuery("");
+    setShowSearchResults(false);
+  };
+
+  // Handle Google Places selection - navigate to arbitrary address
+  const handleGooglePlaceSelect = async (prediction: PlacePrediction) => {
+    try {
+      const res = await fetch(`/api/places/details?place_id=${prediction.place_id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const place = data.place;
+        if (place?.geometry?.location) {
+          const { lat, lng } = place.geometry.location;
+          setNavigatedLocation({
+            lat,
+            lng,
+            address: place.formatted_address || prediction.description
+          });
+          if (mapRef.current) {
+            mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to get place details:", err);
+    }
+    setSearchQuery("");
+    setShowSearchResults(false);
+  };
+
+  // Navigated location marker effect
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove existing marker
+    if (navigatedMarkerRef.current) {
+      navigatedMarkerRef.current.remove();
+      navigatedMarkerRef.current = null;
+    }
+
+    if (!navigatedLocation) return;
+
+    // Create marker for navigated location
+    const marker = L.marker([navigatedLocation.lat, navigatedLocation.lng], {
+      icon: L.divIcon({
+        className: "navigated-location-marker",
+        html: `<div style="
+          width: 32px;
+          height: 32px;
+          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+          border: 3px solid white;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <span style="transform: rotate(45deg); font-size: 14px;">📍</span>
+        </div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      }),
+      zIndexOffset: 1000
+    }).addTo(mapRef.current);
+
+    // Check if address exists in Atlas
+    const existsInAtlas = places.some(
+      p => Math.abs(p.lat - navigatedLocation.lat) < 0.0001 && Math.abs(p.lng - navigatedLocation.lng) < 0.0001
+    );
+
+    marker.bindPopup(`
+      <div style="min-width: 240px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${navigatedLocation.address}</div>
+        ${existsInAtlas
+          ? `<div style="color: #059669; font-size: 12px; margin-bottom: 8px;">✓ This location has Atlas data</div>`
+          : `<div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>`
+        }
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}"
+             style="
+               display: inline-flex;
+               align-items: center;
+               gap: 4px;
+               padding: 6px 12px;
+               background: #3b82f6;
+               color: white;
+               text-decoration: none;
+               border-radius: 6px;
+               font-size: 12px;
+               font-weight: 500;
+             ">
+            + Create Request
+          </a>
+          <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
+                  style="
+                    padding: 6px 12px;
+                    background: #f3f4f6;
+                    border: 1px solid #d1d5db;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    cursor: pointer;
+                  ">
+            Clear
+          </button>
+        </div>
+      </div>
+    `).openPopup();
+
+    navigatedMarkerRef.current = marker;
+
+    // Listen for clear event
+    const handleClear = () => setNavigatedLocation(null);
+    window.addEventListener('clear-navigated-location', handleClear);
+
+    return () => {
+      window.removeEventListener('clear-navigated-location', handleClear);
+    };
+  }, [navigatedLocation, places]);
 
   const toggleLayer = (layerId: string) => {
     setEnabledLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
@@ -809,7 +1334,9 @@ export default function BeaconMapModern() {
   }, []);
 
   // Calculate total counts for display
-  const totalMarkers = (enabledLayers.places ? places.length : 0) +
+  const totalMarkers = (enabledLayers.atlas_pins ? atlasPins.length : 0) +
+    (enabledLayers.historical_pins ? historicalPins.length : 0) +
+    (enabledLayers.places ? places.length : 0) +
     (enabledLayers.google_pins ? googlePins.length : 0) +
     (enabledLayers.tnr_priority ? tnrPriority.length : 0) +
     (enabledLayers.volunteers ? volunteers.length : 0) +
@@ -870,41 +1397,145 @@ export default function BeaconMapModern() {
         </div>
 
         {/* Search results dropdown */}
-        {showSearchResults && searchResults.length > 0 && (
+        {showSearchResults && (searchResults.length > 0 || atlasSearchResults.length > 0 || googleSuggestions.length > 0 || (searchQuery.length >= 3 && !searchLoading)) && (
           <div style={{
             background: "white",
             borderRadius: 12,
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             marginTop: 8,
-            maxHeight: 300,
+            maxHeight: 400,
             overflowY: "auto",
           }}>
-            {searchResults.map((result, i) => (
-              <div
-                key={i}
-                onClick={() => handleSearchSelect(result)}
-                style={{
-                  padding: "12px 16px",
-                  cursor: "pointer",
-                  borderBottom: i < searchResults.length - 1 ? "1px solid #f3f4f6" : "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-              >
-                <span style={{ fontSize: 16 }}>
-                  {result.type === "place" ? "🐱" : result.type === "google_pin" ? "📍" : "⭐"}
-                </span>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: 14 }}>{result.label}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    {result.type === "place" ? "Colony Site" : result.type === "google_pin" ? "Historical Pin" : "Volunteer"}
-                  </div>
+            {/* Atlas Results Section */}
+            {(searchResults.length > 0 || atlasSearchResults.length > 0) && (
+              <>
+                <div style={{
+                  padding: "8px 16px 4px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  background: "#f9fafb",
+                  borderBottom: "1px solid #e5e7eb",
+                }}>
+                  In Atlas
                 </div>
+
+                {/* Quick local results */}
+                {searchResults.map((result, i) => (
+                  <div
+                    key={`local-${i}`}
+                    onClick={() => handleSearchSelect(result)}
+                    style={{
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f3f4f6",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf4")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                  >
+                    <span style={{ fontSize: 16 }}>
+                      {result.type === "place" ? "🐱" : result.type === "google_pin" ? "📍" : "⭐"}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{result.label}</div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                        {result.type === "place" ? "Colony Site" : result.type === "google_pin" ? "Historical Pin" : "Volunteer"}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 10, color: "#10b981", fontWeight: 500 }}>LOADED</span>
+                  </div>
+                ))}
+
+                {/* Fuzzy search results from API */}
+                {atlasSearchResults.filter(r => !searchResults.some(sr => sr.label === r.display_name)).map((result, i) => (
+                  <div
+                    key={`atlas-${i}`}
+                    onClick={() => handleAtlasSearchSelect(result)}
+                    style={{
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f3f4f6",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                  >
+                    <span style={{ fontSize: 16 }}>🔍</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{result.display_name}</div>
+                      {result.subtitle && (
+                        <div style={{ fontSize: 12, color: "#6b7280" }}>{result.subtitle}</div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 500 }}>SEARCH</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Google Places Section */}
+            {googleSuggestions.length > 0 && (
+              <>
+                <div style={{
+                  padding: "8px 16px 4px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  background: "#f9fafb",
+                  borderBottom: "1px solid #e5e7eb",
+                  marginTop: searchResults.length > 0 || atlasSearchResults.length > 0 ? 8 : 0,
+                }}>
+                  Search All Addresses
+                </div>
+                {googleSuggestions.map((suggestion, i) => (
+                  <div
+                    key={`google-${i}`}
+                    onClick={() => handleGooglePlaceSelect(suggestion)}
+                    style={{
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      borderBottom: i < googleSuggestions.length - 1 ? "1px solid #f3f4f6" : "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#fef3c7")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                  >
+                    <span style={{ fontSize: 16 }}>📍</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{suggestion.structured_formatting.main_text}</div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>{suggestion.structured_formatting.secondary_text}</div>
+                    </div>
+                    <span style={{ fontSize: 10, color: "#d97706", fontWeight: 500 }}>GOOGLE</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Loading state */}
+            {searchLoading && (
+              <div style={{ padding: "12px 16px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>
+                Searching...
               </div>
-            ))}
+            )}
+
+            {/* No results message */}
+            {searchQuery.length >= 3 && !searchLoading && searchResults.length === 0 && atlasSearchResults.length === 0 && googleSuggestions.length === 0 && (
+              <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+                <div style={{ fontSize: 14, marginBottom: 4 }}>No matches found</div>
+                <div style={{ fontSize: 12 }}>Try a different search term</div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1067,10 +1698,83 @@ export default function BeaconMapModern() {
             </select>
           </div>
 
+          {/* Atlas Pins filters (only show when atlas_pins layer is enabled) */}
+          {enabledLayers.atlas_pins && (
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb" }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
+                Filter Atlas Data
+              </div>
+
+              {/* Risk filter */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Risk Level</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {[
+                    { value: "all", label: "All", color: "#6b7280" },
+                    { value: "disease", label: "Disease Risk", color: "#ea580c" },
+                    { value: "watch_list", label: "Watch List", color: "#eab308" },
+                    { value: "needs_tnr", label: "Needs TNR", color: "#dc2626" },
+                  ].map(({ value, label, color }) => (
+                    <button
+                      key={value}
+                      onClick={() => setRiskFilter(value as typeof riskFilter)}
+                      style={{
+                        padding: "4px 10px",
+                        fontSize: 11,
+                        border: "none",
+                        borderRadius: 12,
+                        cursor: "pointer",
+                        fontWeight: 500,
+                        background: riskFilter === value ? color : "#f3f4f6",
+                        color: riskFilter === value ? "white" : "#6b7280",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Data filter */}
+              <div>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Data Source</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "has_atlas", label: "Has Cats/Requests" },
+                    { value: "has_google", label: "Has History" },
+                    { value: "has_people", label: "Has People" },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setDataFilter(value as typeof dataFilter)}
+                      style={{
+                        padding: "4px 10px",
+                        fontSize: 11,
+                        border: "none",
+                        borderRadius: 12,
+                        cursor: "pointer",
+                        fontWeight: 500,
+                        background: dataFilter === value ? "#3b82f6" : "#f3f4f6",
+                        color: dataFilter === value ? "white" : "#6b7280",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Layer toggles */}
           <div style={{ padding: "8px 0" }}>
             {LAYER_CONFIGS.map((layer) => {
-              const count = layer.id === "places" ? places.length :
+              const count = layer.id === "atlas_pins" ? atlasPins.length :
+                layer.id === "historical_pins" ? historicalPins.length :
+                layer.id === "places" ? places.length :
                 layer.id === "google_pins" ? googlePins.length :
                 layer.id === "tnr_priority" ? tnrPriority.length :
                 layer.id === "zones" ? zones.length :
@@ -1129,11 +1833,68 @@ export default function BeaconMapModern() {
           </div>
 
           {/* Legend */}
-          {(enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
+          {(enabledLayers.atlas_pins || enabledLayers.historical_pins || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
             <div style={{ padding: 16, borderTop: "1px solid #e5e7eb" }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
                 Legend
               </div>
+
+              {enabledLayers.atlas_pins && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Atlas Data Pins</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {[
+                      { label: "Disease Risk", color: "#ea580c" },
+                      { label: "Watch List", color: "#eab308" },
+                      { label: "Active Colony", color: "#22c55e" },
+                      { label: "Has History", color: "#6366f1" },
+                      { label: "Minimal Data", color: "#3b82f6" },
+                    ].map(({ label, color }) => (
+                      <span key={label} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        background: `${color}15`,
+                        borderRadius: 8,
+                      }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {enabledLayers.historical_pins && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Historical Context</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {[
+                      { label: "Disease Mentioned", color: "#ea580c" },
+                      { label: "Watch List", color: "#eab308" },
+                      { label: "General Note", color: "#9ca3af" },
+                    ].map(({ label, color }) => (
+                      <span key={label} style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        fontSize: 10,
+                        padding: "2px 6px",
+                        background: `${color}15`,
+                        borderRadius: 8,
+                      }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>
+                    Small dots = unlinked Google Maps data
+                  </div>
+                </div>
+              )}
 
               {enabledLayers.google_pins && (
                 <div style={{ marginBottom: 12 }}>

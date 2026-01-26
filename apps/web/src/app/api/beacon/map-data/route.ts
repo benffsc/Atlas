@@ -9,12 +9,20 @@ import { queryRows } from "@/lib/db";
  *
  * Query params:
  *   - layers: comma-separated list of layers to include
+ *     NEW (simplified):
+ *     - atlas_pins: Consolidated Atlas data (places + people + cats + Google history)
+ *     - historical_pins: Unlinked Google Maps entries for historical context
+ *
+ *     LEGACY (still supported):
  *     - places: Places with cat activity
  *     - google_pins: Google Maps entries with parsed signals
  *     - zones: Observation zones
  *     - tnr_priority: Targeted TNR priority layer (ecology data)
+ *
  *   - zone: filter by service_zone (optional)
  *   - bounds: lat1,lng1,lat2,lng2 bounding box (optional)
+ *   - risk_filter: 'all' | 'disease' | 'watch_list' | 'needs_tnr' (for atlas_pins)
+ *   - data_filter: 'all' | 'has_atlas' | 'has_google' | 'has_people' (for atlas_pins)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -22,8 +30,47 @@ export async function GET(req: NextRequest) {
   const layers = layersParam.split(",").map((l) => l.trim());
   const zone = searchParams.get("zone");
   const bounds = searchParams.get("bounds");
+  const riskFilter = searchParams.get("risk_filter") || "all";
+  const dataFilter = searchParams.get("data_filter") || "all";
 
   const result: {
+    // NEW consolidated layers
+    atlas_pins?: Array<{
+      id: string;
+      address: string;
+      display_name: string | null;
+      lat: number;
+      lng: number;
+      service_zone: string | null;
+      cat_count: number;
+      people: string[];
+      person_count: number;
+      disease_risk: boolean;
+      disease_risk_notes: string | null;
+      watch_list: boolean;
+      google_entry_count: number;
+      google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
+      request_count: number;
+      active_request_count: number;
+      total_altered: number;
+      last_alteration_at: string | null;
+      pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
+    }>;
+    historical_pins?: Array<{
+      id: string;
+      name: string;
+      lat: number;
+      lng: number;
+      notes: string;
+      ai_summary: string | null;
+      ai_meaning: string | null;
+      parsed_date: string | null;
+      disease_risk: boolean;
+      watch_list: boolean;
+      icon_type: string | null;
+      icon_color: string | null;
+    }>;
+    // LEGACY layers (still supported)
     places?: Array<{
       id: string;
       address: string;
@@ -129,7 +176,139 @@ export async function GET(req: NextRequest) {
     // Build zone filter
     const zoneFilter = zone ? `AND p.service_zone = '${zone}'` : "";
 
-    // Places layer
+    // =========================================================================
+    // NEW: Atlas Pins layer (consolidated places + people + cats + history)
+    // =========================================================================
+    if (layers.includes("atlas_pins")) {
+      // Build filter conditions
+      let riskCondition = "";
+      if (riskFilter === "disease") {
+        riskCondition = "AND disease_risk = TRUE";
+      } else if (riskFilter === "watch_list") {
+        riskCondition = "AND watch_list = TRUE";
+      } else if (riskFilter === "needs_tnr") {
+        riskCondition = "AND pin_style = 'active' AND total_altered < cat_count";
+      }
+
+      let dataCondition = "";
+      if (dataFilter === "has_atlas") {
+        dataCondition = "AND (cat_count > 0 OR request_count > 0)";
+      } else if (dataFilter === "has_google") {
+        dataCondition = "AND google_entry_count > 0";
+      } else if (dataFilter === "has_people") {
+        dataCondition = "AND person_count > 0";
+      }
+
+      const atlasPins = await queryRows<{
+        id: string;
+        address: string;
+        display_name: string | null;
+        lat: number;
+        lng: number;
+        service_zone: string | null;
+        cat_count: number;
+        people: string[];
+        person_count: number;
+        disease_risk: boolean;
+        disease_risk_notes: string | null;
+        watch_list: boolean;
+        google_entry_count: number;
+        google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
+        request_count: number;
+        active_request_count: number;
+        total_altered: number;
+        last_alteration_at: string | null;
+        pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
+      }>(`
+        SELECT
+          id::text,
+          address,
+          display_name,
+          lat,
+          lng,
+          service_zone,
+          cat_count::int,
+          COALESCE(people, '[]')::jsonb as people,
+          person_count::int,
+          disease_risk,
+          disease_risk_notes,
+          watch_list,
+          google_entry_count::int,
+          COALESCE(google_summaries, '[]')::jsonb as google_summaries,
+          request_count::int,
+          active_request_count::int,
+          total_altered::int,
+          last_alteration_at::text,
+          pin_style
+        FROM trapper.v_map_atlas_pins
+        WHERE 1=1
+          ${zone ? `AND service_zone = '${zone}'` : ""}
+          ${riskCondition}
+          ${dataCondition}
+        ORDER BY
+          CASE pin_style
+            WHEN 'disease' THEN 1
+            WHEN 'watch_list' THEN 2
+            WHEN 'active' THEN 3
+            WHEN 'has_history' THEN 4
+            ELSE 5
+          END,
+          cat_count DESC
+        LIMIT 10000
+      `);
+
+      // Parse JSONB columns
+      result.atlas_pins = atlasPins.map((pin) => ({
+        ...pin,
+        people: Array.isArray(pin.people) ? pin.people : [],
+        google_summaries: Array.isArray(pin.google_summaries) ? pin.google_summaries : [],
+      }));
+    }
+
+    // =========================================================================
+    // NEW: Historical Pins layer (unlinked Google Maps entries)
+    // =========================================================================
+    if (layers.includes("historical_pins")) {
+      const historicalPins = await queryRows<{
+        id: string;
+        name: string;
+        lat: number;
+        lng: number;
+        notes: string;
+        ai_summary: string | null;
+        ai_meaning: string | null;
+        parsed_date: string | null;
+        disease_risk: boolean;
+        watch_list: boolean;
+        icon_type: string | null;
+        icon_color: string | null;
+      }>(`
+        SELECT
+          id::text,
+          name,
+          lat,
+          lng,
+          notes,
+          ai_summary,
+          ai_meaning,
+          parsed_date::text,
+          disease_risk,
+          watch_list,
+          icon_type,
+          icon_color
+        FROM trapper.v_map_historical_pins
+        ORDER BY
+          CASE WHEN disease_risk THEN 0 ELSE 1 END,
+          CASE WHEN watch_list THEN 0 ELSE 1 END,
+          imported_at DESC
+        LIMIT 5000
+      `);
+      result.historical_pins = historicalPins;
+    }
+
+    // =========================================================================
+    // LEGACY: Places layer (use atlas_pins instead)
+    // =========================================================================
     if (layers.includes("places")) {
       const places = await queryRows<{
         id: string;
