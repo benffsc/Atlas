@@ -460,6 +460,62 @@ VALUES ('v_my_view', 'stats', 'Description', ARRAY['col1'], ARRAY['filter_col'],
 
 See `docs/TIPPY_VIEWS_AND_SCHEMA.md` for full documentation.
 
+## Atlas Map (Beacon)
+
+The Atlas Map (`/map`) visualizes all location data with Google Maps-style pins.
+
+### Architecture
+
+| Component | Purpose |
+|-----------|---------|
+| `AtlasMap.tsx` | Main map component with layers, search, filters |
+| `PlaceDetailDrawer.tsx` | Slide-out drawer for place details |
+| `map-markers.ts` | Google-style SVG marker factories |
+| `atlas-map.css` | 1500+ lines of map styling |
+
+### Map Layers
+
+| Layer | Data Source | Pin Style |
+|-------|-------------|-----------|
+| `atlas_pins` | `v_map_atlas_pins` view | Google teardrop pins |
+| `historical_pins` | `v_map_historical_pins` view | Small dots |
+| `google_pins` | `google_map_entries` | Drop pins with labels |
+| `tnr_priority` | Places needing TNR | Priority-colored pins |
+| `volunteers` | Person with trapper role | Star markers |
+
+### Pin Styles (by status)
+
+| Style | Color | Icon | Trigger |
+|-------|-------|------|---------|
+| `disease` | Orange (#ea580c) | ⚠️ | `disease_risk = true` |
+| `watch_list` | Purple (#8b5cf6) | 👁️ | `watch_list = true` |
+| `active` | Green (#22c55e) | Cat count | `cat_count > 0` |
+| `has_history` | Indigo (#6366f1) | 📄 | `google_entry_count > 0` |
+| `minimal` | Blue (#3b82f6) | • | Default |
+
+### Data Flow (Real-Time)
+
+Map data comes from **SQL views** (not materialized), so it's always current:
+1. New intake/request → Stored in database
+2. Processing cron (every 10 min) → `run_all_entity_linking()`
+3. Entity linking includes Google Maps entry linking (steps 10-11)
+4. Map API queries `v_map_atlas_pins` → Always reflects current state
+
+### PlaceDetailDrawer Features
+
+- **Three tabs:** Original Notes | AI Summaries | Journal
+- **Notes display:** Uses `original_redacted` (light cleanup) or `original_content`
+- **AI summaries:** Uses `ai_summary` field from paraphrase job
+- **Watchlist toggle:** Add/remove with reason, updates `places.watch_list`
+
+### Key API Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/beacon/map-data` | All map layer data with filters |
+| `GET /api/places/[id]/map-details` | Full place details for drawer |
+| `PUT /api/places/[id]/watchlist` | Toggle watchlist status |
+
 ## Views to Know
 
 | View | Purpose |
@@ -479,6 +535,8 @@ See `docs/TIPPY_VIEWS_AND_SCHEMA.md` for full documentation.
 | `v_tippy_view_popularity` | Which views Tippy queries most |
 | `v_tippy_pending_corrections` | Data corrections awaiting review |
 | `v_tippy_gaps_review` | Unanswerable questions for gap analysis |
+| `v_map_atlas_pins` | Consolidated map pins (places + people + cats + history) |
+| `v_map_historical_pins` | Unlinked Google Maps entries for historical context |
 | `v_data_flow_status` | Unified data flow monitoring across all sources |
 | `v_data_engine_coverage` | Summary statistics of Data Engine coverage |
 | `v_people_without_data_engine` | People missing Data Engine audit trail |
