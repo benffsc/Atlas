@@ -112,8 +112,8 @@ async function getPendingRecords(): Promise<AirtableRecord[]> {
   const records: AirtableRecord[] = [];
   let offset: string | undefined;
 
-  // Fetch records with Sync Status = 'pending' or null
-  const filterFormula = `OR({Sync Status}='pending', {Sync Status}=BLANK())`;
+  // Fetch records with Sync Status = 'pending', 'error', or null (retry errors automatically)
+  const filterFormula = `OR({Sync Status}='pending', {Sync Status}='error', {Sync Status}=BLANK())`;
 
   do {
     const url = new URL(
