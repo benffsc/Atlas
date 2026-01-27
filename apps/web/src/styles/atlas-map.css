@@ -148,6 +148,63 @@
 }
 
 /* ============================================================
+   Atlas Pin Markers (Google Maps-style teardrop pins)
+   ============================================================ */
+
+/* Wrapper for consistent animations */
+.atlas-pin-wrapper {
+  transition: transform var(--map-transition-fast), filter var(--map-transition-fast);
+  transform-origin: center bottom;
+}
+
+.leaflet-marker-icon:hover .atlas-pin-wrapper {
+  transform: scale(1.15) translateY(-3px);
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35));
+}
+
+/* Different pin styles */
+.map-marker-atlas-pin.marker-disease .atlas-pin-wrapper {
+  animation: map-pulse 3s ease-in-out infinite;
+}
+
+.map-marker-atlas-pin.marker-watch_list .atlas-pin-wrapper {
+  /* Subtle breathing effect for watch list */
+}
+
+.map-marker-atlas-pin.marker-clustered .atlas-pin-wrapper {
+  /* Slightly larger shadow for clustered pins */
+}
+
+/* Pin entry animation */
+.map-marker-atlas-pin .atlas-pin-wrapper {
+  animation: atlas-pin-drop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes atlas-pin-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.3);
+  }
+  60% {
+    transform: translateY(3px) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Historical dot markers */
+.map-marker-historical-dot {
+  opacity: 0.8;
+  transition: opacity var(--map-transition-fast);
+}
+
+.map-marker-historical-dot:hover {
+  opacity: 1;
+}
+
+/* ============================================================
    Popup Styling
    ============================================================ */
 

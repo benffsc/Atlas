@@ -250,6 +250,157 @@ export function createUserLocationMarker(): L.DivIcon {
 }
 
 /**
+ * Create Google Maps-style Atlas pin marker
+ * Used for the main atlas_pins layer with status-specific styling
+ */
+export function createAtlasPinMarker(
+  color: string,
+  options?: {
+    size?: number;
+    pinStyle?: 'disease' | 'watch_list' | 'active' | 'has_history' | 'minimal';
+    isClustered?: boolean;
+    unitCount?: number;
+    catCount?: number;
+  }
+): L.DivIcon {
+  const {
+    size = 32,
+    pinStyle = 'minimal',
+    isClustered = false,
+    unitCount = 1,
+    catCount = 0
+  } = options || {};
+
+  const lighterColor = lightenColor(color, 15);
+  const uniqueId = Math.random().toString(36).substr(2, 9);
+
+  // Choose inner icon based on status/content
+  let innerIcon: string;
+  let innerContent: string;
+
+  if (isClustered && unitCount > 1) {
+    // Building cluster icon
+    innerContent = `
+      <rect x="8" y="12" width="8" height="6" fill="${color}" rx="1"/>
+      <text x="12" y="9" text-anchor="middle" fill="${color}" font-size="6" font-weight="bold" font-family="system-ui">${unitCount}</text>
+    `;
+    innerIcon = 'building';
+  } else if (pinStyle === 'disease') {
+    // Warning triangle
+    innerContent = `
+      <path d="M12 6 L16 14 H8 Z" fill="${color}" stroke="white" stroke-width="0.5"/>
+      <text x="12" y="13" text-anchor="middle" fill="white" font-size="6" font-weight="bold">!</text>
+    `;
+    innerIcon = 'warning';
+  } else if (pinStyle === 'watch_list') {
+    // Eye icon
+    innerContent = `
+      <ellipse cx="12" cy="10" rx="4" ry="2.5" fill="none" stroke="${color}" stroke-width="1.5"/>
+      <circle cx="12" cy="10" r="1.5" fill="${color}"/>
+    `;
+    innerIcon = 'eye';
+  } else if (pinStyle === 'active' && catCount > 0) {
+    // Cat count
+    innerContent = `
+      <circle cx="12" cy="10" r="4" fill="${color}"/>
+      <text x="12" y="12.5" text-anchor="middle" fill="white" font-size="6" font-weight="bold" font-family="system-ui">${catCount > 9 ? '9+' : catCount}</text>
+    `;
+    innerIcon = 'count';
+  } else if (pinStyle === 'has_history') {
+    // Document/history icon
+    innerContent = `
+      <rect x="9" y="6" width="6" height="8" fill="${color}" rx="1"/>
+      <line x1="10" y1="8" x2="14" y2="8" stroke="white" stroke-width="0.8"/>
+      <line x1="10" y1="10" x2="14" y2="10" stroke="white" stroke-width="0.8"/>
+      <line x1="10" y1="12" x2="12" y2="12" stroke="white" stroke-width="0.8"/>
+    `;
+    innerIcon = 'history';
+  } else {
+    // Default dot
+    innerContent = `<circle cx="12" cy="10" r="3" fill="${color}"/>`;
+    innerIcon = 'default';
+  }
+
+  const svg = `
+    <svg width="${size}" height="${Math.round(size * 1.35)}" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="atlas-pin-grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${lighterColor}"/>
+          <stop offset="100%" stop-color="${color}"/>
+        </linearGradient>
+        <filter id="atlas-pin-shadow-${uniqueId}" x="-30%" y="-10%" width="160%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-opacity="0.35"/>
+        </filter>
+      </defs>
+      <!-- Ground shadow -->
+      <ellipse cx="12" cy="30" rx="5" ry="2" fill="rgba(0,0,0,0.2)"/>
+      <!-- Pin body -->
+      <path
+        filter="url(#atlas-pin-shadow-${uniqueId})"
+        fill="url(#atlas-pin-grad-${uniqueId})"
+        stroke="#fff"
+        stroke-width="1.5"
+        d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"
+      />
+      <!-- Inner white circle -->
+      <circle cx="12" cy="10" r="6" fill="white"/>
+      <!-- Status icon -->
+      ${innerContent}
+    </svg>
+  `;
+
+  return L.divIcon({
+    className: `map-marker-atlas-pin marker-${pinStyle} ${isClustered ? 'marker-clustered' : ''}`,
+    html: `<div class="atlas-pin-wrapper" data-icon="${innerIcon}">${svg}</div>`,
+    iconSize: [size, Math.round(size * 1.35)],
+    iconAnchor: [size / 2, Math.round(size * 1.35)],
+    popupAnchor: [0, -Math.round(size * 1.1)],
+  });
+}
+
+/**
+ * Create small dot marker for historical/unlinked entries
+ */
+export function createHistoricalDotMarker(
+  color: string,
+  options?: {
+    size?: number;
+    isDiseaseRisk?: boolean;
+    isWatchList?: boolean;
+  }
+): L.DivIcon {
+  const { size = 10, isDiseaseRisk = false, isWatchList = false } = options || {};
+  const uniqueId = Math.random().toString(36).substr(2, 9);
+
+  // Add warning indicator for disease/watch list
+  const badge = isDiseaseRisk || isWatchList ? `
+    <circle cx="${size - 2}" cy="3" r="3" fill="${isDiseaseRisk ? '#ef4444' : '#8b5cf6'}" stroke="white" stroke-width="1"/>
+  ` : '';
+
+  const svg = `
+    <svg width="${size + 4}" height="${size + 4}" viewBox="0 0 ${size + 4} ${size + 4}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="dot-shadow-${uniqueId}" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.25"/>
+        </filter>
+      </defs>
+      <circle cx="${(size + 4) / 2}" cy="${(size + 4) / 2}" r="${size / 2}"
+              fill="${color}" stroke="white" stroke-width="1.5"
+              filter="url(#dot-shadow-${uniqueId})"/>
+      ${badge}
+    </svg>
+  `;
+
+  return L.divIcon({
+    className: 'map-marker-historical-dot',
+    html: svg,
+    iconSize: [size + 4, size + 4],
+    iconAnchor: [(size + 4) / 2, (size + 4) / 2],
+    popupAnchor: [0, -size / 2 - 4],
+  });
+}
+
+/**
  * Create cluster icon
  */
 export function createClusterIcon(

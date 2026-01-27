@@ -9,7 +9,9 @@ import {
   createCircleMarker,
   createStarMarker,
   createClinicMarker,
-  createUserLocationMarker
+  createUserLocationMarker,
+  createAtlasPinMarker,
+  createHistoricalDotMarker
 } from "@/lib/map-markers";
 import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
 import {
@@ -888,40 +890,41 @@ export default function AtlasMap() {
     pinsToRender.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
-      // Determine pin color and size based on style
+      // Determine pin color based on style - Google Maps-like color palette
       let color: string;
-      let radius: number;
+      let size: number;
 
       switch (pin.pin_style) {
         case "disease":
           color = "#ea580c"; // Orange for disease
-          radius = pin.is_clustered ? 14 : 10;
+          size = pin.is_clustered ? 36 : 32;
           break;
         case "watch_list":
           color = "#8b5cf6"; // Purple for watch list (distinct from disease orange)
-          radius = pin.is_clustered ? 13 : 9;
+          size = pin.is_clustered ? 34 : 30;
           break;
         case "active":
           color = "#22c55e"; // Green for active colony
-          radius = pin.is_clustered ? 12 : 8;
+          size = pin.is_clustered ? 32 : 28;
           break;
         case "has_history":
           color = "#6366f1"; // Indigo for has history
-          radius = pin.is_clustered ? 11 : 7;
+          size = pin.is_clustered ? 30 : 26;
           break;
         default:
           color = "#3b82f6"; // Blue default
-          radius = pin.is_clustered ? 10 : 6;
+          size = pin.is_clustered ? 28 : 24;
       }
 
-      // Use CircleMarker for better performance
-      const marker = L.circleMarker([pin.lat, pin.lng], {
-        radius,
-        fillColor: color,
-        color: pin.is_clustered ? "#1e3a8a" : "white", // Darker border for clustered
-        weight: pin.is_clustered ? 3 : 2,
-        opacity: 1,
-        fillOpacity: 0.9,
+      // Use Google Maps-style drop pin markers
+      const marker = L.marker([pin.lat, pin.lng], {
+        icon: createAtlasPinMarker(color, {
+          size,
+          pinStyle: pin.pin_style,
+          isClustered: pin.is_clustered,
+          unitCount: pin.unit_count,
+          catCount: pin.cat_count,
+        }),
       });
 
       // Build consolidated popup
@@ -1044,20 +1047,19 @@ export default function AtlasMap() {
     historicalPins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
-      // Small dot for historical context
+      // Small dot for historical context - uses SVG dot marker for consistency
       const isDisease = pin.disease_risk;
       const isWatchList = pin.watch_list;
       const color = isDisease ? "#ea580c" : isWatchList ? "#8b5cf6" : "#9ca3af";
-      const radius = isDisease || isWatchList ? 5 : 4;
+      const size = isDisease || isWatchList ? 12 : 10;
 
-      // Use CircleMarker for better performance
-      const marker = L.circleMarker([pin.lat, pin.lng], {
-        radius,
-        fillColor: color,
-        color: "white",
-        weight: 1,
-        opacity: isDisease || isWatchList ? 1 : 0.7,
-        fillOpacity: isDisease || isWatchList ? 0.9 : 0.6,
+      // Use SVG dot marker for better styling
+      const marker = L.marker([pin.lat, pin.lng], {
+        icon: createHistoricalDotMarker(color, {
+          size,
+          isDiseaseRisk: isDisease,
+          isWatchList: isWatchList && !isDisease,
+        }),
       });
 
       // Build nearest place info for popup
