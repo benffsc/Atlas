@@ -139,9 +139,9 @@ BEGIN
     -- Create or find place for requester home
     v_requester_place_id := trapper.find_or_create_place_deduped(
       p_formatted_address := v_requester_address,
-      p_display_name := NULL,
-      p_latitude := NULL,
-      p_longitude := NULL,
+      p_display_name := NULL::TEXT,
+      p_lat := NULL::DOUBLE PRECISION,
+      p_lng := NULL::DOUBLE PRECISION,
       p_source_system := 'web_intake'
     );
 
