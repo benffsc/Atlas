@@ -605,16 +605,6 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     `);
     results.orphaned_appointments_linked_pre = orphanedLinked.rowCount || 0;
 
-    // Step 0.5: Link appointments via embedded microchips in Animal Name
-    // ClinicHQ quirk: recaptured cats often have microchip in name field instead of microchip field
-    const embeddedChipLinks = await query(`
-      SELECT * FROM trapper.extract_and_link_microchips_from_animal_name()
-    `);
-    if (embeddedChipLinks.rows?.[0]) {
-      results.embedded_microchip_cats_created = embeddedChipLinks.rows[0].cats_created || 0;
-      results.embedded_microchip_appointments_linked = embeddedChipLinks.rows[0].appointments_linked || 0;
-    }
-
     // Step 1: Create sot_appointments from staged_records
     // Uses get_canonical_cat_id to handle merged cats
     const newAppointments = await query(`
@@ -763,6 +753,17 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     `);
     if (trapperLinks.rows?.[0]) {
       results.appointments_linked_to_trappers = trapperLinks.rows[0].linked || 0;
+    }
+
+    // Link appointments via embedded microchips in Animal Name
+    // ClinicHQ quirk: recaptured cats often have microchip in name field instead of microchip field
+    // Must run AFTER appointments are created so we have records to link
+    const embeddedChipLinks = await query(`
+      SELECT * FROM trapper.extract_and_link_microchips_from_animal_name()
+    `);
+    if (embeddedChipLinks.rows?.[0]) {
+      results.embedded_microchip_cats_created = embeddedChipLinks.rows[0].cats_created || 0;
+      results.embedded_microchip_appointments_linked = embeddedChipLinks.rows[0].appointments_linked || 0;
     }
 
     // Create cat_vitals records from appointments with temperature/reproductive data
