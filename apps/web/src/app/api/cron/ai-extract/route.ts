@@ -357,41 +357,31 @@ async function processQueueItem(
         AND superseded_at IS NULL
     `, [attrDef.entity_type, targetEntityId, ext.attribute_key]);
 
-    // Insert new attribute
+    // Insert new attribute (attribute_value is JSONB)
     await execute(`
       INSERT INTO trapper.entity_attributes (
         entity_type,
         entity_id,
         attribute_key,
-        value_boolean,
-        value_text,
-        value_numeric,
+        attribute_value,
         confidence,
         source_type,
         source_system,
         source_record_id,
-        extracted_from_text,
-        extraction_evidence
+        source_text,
+        extracted_by
       ) VALUES (
-        $1, $2, $3,
-        CASE WHEN $4 = 'boolean' THEN $5::boolean ELSE NULL END,
-        CASE WHEN $4 IN ('text', 'enum') THEN $6::text ELSE NULL END,
-        CASE WHEN $4 = 'number' THEN $7::numeric ELSE NULL END,
-        $8, 'ai_extracted', $9, $10, $11, $12
+        $1, $2, $3, $4::jsonb, $5, 'ai_extracted', $6, $7, $8, 'ai_extract_cron'
       )
     `, [
       attrDef.entity_type,
       targetEntityId,
       ext.attribute_key,
-      attrDef.data_type,
-      attrDef.data_type === "boolean" ? ext.value : null,
-      ["text", "enum"].includes(attrDef.data_type) ? String(ext.value) : null,
-      attrDef.data_type === "number" ? ext.value : null,
+      JSON.stringify(ext.value),
       ext.confidence,
       queueItem.source_table,
       queueItem.source_record_id,
       text.substring(0, 500),
-      ext.evidence,
     ]);
 
     saved++;
