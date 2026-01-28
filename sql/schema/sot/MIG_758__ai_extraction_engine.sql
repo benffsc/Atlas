@@ -122,8 +122,10 @@ ON CONFLICT (rule_name) DO UPDATE SET
 CREATE OR REPLACE FUNCTION trapper.trigger_queue_appointment_extraction()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Only queue if medical_notes has content
-  IF NEW.medical_notes IS NOT NULL AND LENGTH(NEW.medical_notes) > 20 THEN
+  -- Only queue if medical_notes has content AND cat_id exists
+  IF NEW.medical_notes IS NOT NULL
+     AND LENGTH(NEW.medical_notes) > 20
+     AND NEW.cat_id IS NOT NULL THEN
     -- Check if not already in queue or extraction_status
     IF NOT EXISTS (
       SELECT 1 FROM trapper.extraction_queue eq
@@ -164,7 +166,9 @@ CREATE TRIGGER trg_queue_appointment_extraction
 CREATE OR REPLACE FUNCTION trapper.trigger_queue_intake_extraction()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.situation_description IS NOT NULL AND LENGTH(NEW.situation_description) > 30 THEN
+  IF NEW.situation_description IS NOT NULL
+     AND LENGTH(NEW.situation_description) > 30
+     AND NEW.place_id IS NOT NULL THEN
     IF NOT EXISTS (
       SELECT 1 FROM trapper.extraction_queue eq
       WHERE eq.source_table = 'web_intake_submissions'
