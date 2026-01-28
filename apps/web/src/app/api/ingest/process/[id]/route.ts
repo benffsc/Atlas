@@ -466,7 +466,12 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
       ),
       created_people AS (
         SELECT
-          od.*,
+          od.first_name,
+          od.last_name,
+          od.email,
+          od.phone,
+          od.address,
+          od.appointment_number,
           trapper.find_or_create_person(
             od.email,
             od.phone,
@@ -474,11 +479,11 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
             od.last_name,
             od.address,
             'clinichq'
-          ) as person_id
+          ) as created_person_id
         FROM owner_data od
         WHERE od.first_name IS NOT NULL
       )
-      SELECT COUNT(*) as cnt FROM created_people WHERE person_id IS NOT NULL
+      SELECT COUNT(*) as cnt FROM created_people WHERE created_person_id IS NOT NULL
     `);
     results.people_created_or_matched = parseInt(peopleCreated.rows?.[0]?.cnt || '0');
 

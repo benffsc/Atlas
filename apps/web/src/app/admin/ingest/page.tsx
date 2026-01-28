@@ -391,9 +391,16 @@ export default function IngestPage() {
         )}
 
         {processResult?.post_processing && Object.keys(processResult.post_processing).length > 0 && (
-          <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#e7f5ff", borderRadius: "6px" }}>
-            <strong>Post-processing results:</strong>
-            <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem" }}>
+          <div style={{
+            marginTop: "1rem",
+            padding: "0.75rem",
+            background: "var(--background-secondary, #e7f5ff)",
+            borderRadius: "6px",
+            border: "1px solid var(--border-color, #bee5eb)",
+            color: "var(--text-primary, #0c5460)"
+          }}>
+            <strong style={{ color: "var(--text-primary, #0c5460)" }}>Post-processing results:</strong>
+            <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem", color: "var(--text-primary, #0c5460)" }}>
               {Object.entries(processResult.post_processing).map(([key, value]) => (
                 <li key={key}>
                   {key.replace(/_/g, " ")}: {value}
