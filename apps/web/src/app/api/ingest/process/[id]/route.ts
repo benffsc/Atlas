@@ -605,6 +605,16 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     `);
     results.orphaned_appointments_linked_pre = orphanedLinked.rowCount || 0;
 
+    // Step 0.5: Link appointments via embedded microchips in Animal Name
+    // ClinicHQ quirk: recaptured cats often have microchip in name field instead of microchip field
+    const embeddedChipLinks = await query(`
+      SELECT * FROM trapper.extract_and_link_microchips_from_animal_name()
+    `);
+    if (embeddedChipLinks.rows?.[0]) {
+      results.embedded_microchip_cats_created = embeddedChipLinks.rows[0].cats_created || 0;
+      results.embedded_microchip_appointments_linked = embeddedChipLinks.rows[0].appointments_linked || 0;
+    }
+
     // Step 1: Create sot_appointments from staged_records
     // Uses get_canonical_cat_id to handle merged cats
     const newAppointments = await query(`
@@ -827,6 +837,13 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
       ON CONFLICT (request_id, cat_id) DO NOTHING
     `);
     results.cats_linked_to_requests = catRequestLinks.rowCount || 0;
+
+    // Queue new appointments for AI extraction
+    // This ensures recapture detection and other attributes are extracted promptly
+    const aiQueueResult = await query(`
+      SELECT trapper.queue_appointment_extraction(100, 10) as queued
+    `);
+    results.ai_extraction_queued = aiQueueResult.rows?.[0]?.queued || 0;
   }
 
   return results;
