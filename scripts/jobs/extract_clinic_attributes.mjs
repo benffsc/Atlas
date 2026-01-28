@@ -34,7 +34,8 @@ import {
 // - Complex historical patterns (years feeding, trap shy)
 
 const MODELS = {
-  fast: 'claude-haiku-4-5-20251001',     // $1/$5 per MTok - routine entries
+  budget: 'claude-3-haiku-20240307',     // $0.25/$1.25 per MTok - bulk routine entries
+  fast: 'claude-haiku-4-5-20251001',     // $1/$5 per MTok - better quality routine
   quality: 'claude-sonnet-4-20250514',   // Higher quality for complex entries
 };
 
@@ -58,19 +59,23 @@ const args = process.argv.slice(2);
 const limit = parseInt(args.find((a) => a.startsWith("--limit="))?.split("=")[1] || "100");
 const dryRun = args.includes("--dry-run");
 const priorityOnly = args.includes("--priority-only");
+const useBudgetModel = args.includes("--budget"); // Use Haiku 3 for bulk processing
 const entityTypeFilter = args.find((a) => a.startsWith("--entity-type="))?.split("=")[1];
-const model = args.find((a) => a.startsWith("--model="))?.split("=")[1] || "claude-haiku-4-5-20251001";
+const defaultModel = useBudgetModel ? MODELS.budget :
+  (args.find((a) => a.startsWith("--model="))?.split("=")[1] || MODELS.fast);
 
 // Model usage tracking
-let haikuCount = 0;
-let sonnetCount = 0;
+let haiku3Count = 0;  // Budget model
+let haiku45Count = 0; // Fast model
+let sonnetCount = 0;  // Quality model
 
 console.log("=".repeat(60));
-console.log("Clinic Appointment Attribute Extraction (Hybrid Model)");
+console.log("Clinic Appointment Attribute Extraction (Tiered Model)");
 console.log("=".repeat(60));
 console.log(`Limit: ${limit} | Dry Run: ${dryRun} | Priority Only: ${priorityOnly}`);
 console.log(`Entity Type Filter: ${entityTypeFilter || "all"}`);
-console.log(`Default Model: ${model} | Sonnet Escalation: ENABLED`);
+console.log(`Default Model: ${defaultModel}`);
+console.log(`Model Tiers: Budget=${useBudgetModel} | Sonnet Escalation: ${priorityOnly ? 'ENABLED' : 'DISABLED for bulk'}`);
 console.log("");
 
 async function main() {
@@ -144,21 +149,30 @@ async function main() {
 
       if (!combinedNotes || combinedNotes.length < 20) continue;
 
-      // HYBRID MODEL SELECTION: Escalate to Sonnet for complex patterns
-      const useSonnet = shouldUseSonnet(combinedNotes);
-      const selectedModel = useSonnet ? MODELS.quality : (model || MODELS.fast);
-      const modelIndicator = useSonnet ? '[S]' : '[H]';
+      // SMART TIERED MODEL SELECTION:
+      // - Sonnet: ALWAYS for critical patterns (recapture, eartip, population counts, reproduction)
+      //   These are essential for Chapman mark-recapture calculations
+      // - Haiku 4.5: Default for non-budget runs (routine records)
+      // - Haiku 3: Budget mode for bulk processing (simple records)
+      const hasCriticalPattern = shouldUseSonnet(combinedNotes);
+      let selectedModel = defaultModel;
+      let modelIndicator = useBudgetModel ? '[H3]' : '[H45]';
 
-      if (useSonnet) {
+      if (hasCriticalPattern) {
+        // Always use Sonnet for critical population/recapture data
+        selectedModel = MODELS.quality;
+        modelIndicator = '[S]';
         sonnetCount++;
+      } else if (useBudgetModel) {
+        haiku3Count++;
       } else {
-        haikuCount++;
+        haiku45Count++;
       }
 
       const sourceInfo = {
         source_system: "clinichq",
         source_record_id: appt.appointment_id,
-        extracted_by: useSonnet ? "claude_sonnet" : "claude_haiku",
+        extracted_by: hasCriticalPattern ? "claude_sonnet" : "claude_haiku",
       };
 
       let hasExtractions = false;
@@ -243,7 +257,11 @@ async function main() {
 
     // Calculate metrics
     const duration = (Date.now() - startTime) / 1000;
+    const totalHaiku = haiku3Count + haiku45Count;
     const sonnetPct = recordsProcessed > 0 ? ((sonnetCount / recordsProcessed) * 100).toFixed(1) : 0;
+    const modelUsed = useBudgetModel
+      ? `budget (haiku3:${haiku3Count}, sonnet:${sonnetCount})`
+      : `tiered (haiku45:${haiku45Count}, sonnet:${sonnetCount})`;
 
     // Log job
     if (!dryRun && recordsProcessed > 0) {
@@ -254,9 +272,9 @@ async function main() {
         records_processed: recordsProcessed,
         records_with_extractions: recordsWithExtractions,
         attributes_extracted: attributesExtracted,
-        model_used: `hybrid (haiku:${haikuCount}, sonnet:${sonnetCount})`,
+        model_used: modelUsed,
         cost_estimate_usd: totalCost,
-        notes: priorityOnly ? "Priority keywords only" : `Sonnet escalation: ${sonnetCount}/${recordsProcessed} (${sonnetPct}%)`,
+        notes: useBudgetModel ? "Budget mode (Haiku 3)" : (priorityOnly ? "Priority keywords only" : `Sonnet escalation: ${sonnetCount}/${recordsProcessed} (${sonnetPct}%)`),
       });
       console.log(`\nLogged job: ${jobId}`);
     }
@@ -266,11 +284,15 @@ async function main() {
     console.log("SUMMARY");
     console.log("=".repeat(60));
     console.log(`Records Processed: ${recordsProcessed}`);
-    console.log(`Records with Extractions: ${recordsWithExtractions} (${((recordsWithExtractions / recordsProcessed) * 100).toFixed(1)}%)`);
+    console.log(`Records with Extractions: ${recordsWithExtractions} (${recordsProcessed > 0 ? ((recordsWithExtractions / recordsProcessed) * 100).toFixed(1) : 0}%)`);
     console.log(`Attributes Extracted: ${attributesExtracted}`);
-    console.log(`\nModel Usage (Hybrid):`);
-    console.log(`  [H] Haiku:  ${haikuCount} (routine)`);
-    console.log(`  [S] Sonnet: ${sonnetCount} (complex/population) - ${sonnetPct}% escalation rate`);
+    console.log(`\nModel Usage (${useBudgetModel ? 'Budget' : 'Tiered'}):`);
+    if (useBudgetModel) {
+      console.log(`  [H3] Haiku 3:  ${haiku3Count} (budget/bulk - ~$0.00015/record)`);
+    } else {
+      console.log(`  [H45] Haiku 4.5: ${haiku45Count} (routine - ~$0.0006/record)`);
+    }
+    console.log(`  [S] Sonnet: ${sonnetCount} (complex/priority) - ${sonnetPct}% escalation`);
     console.log(`\nEstimated Cost: $${totalCost.toFixed(4)}`);
     console.log(`Duration: ${duration.toFixed(1)}s`);
     console.log(`Dry Run: ${dryRun}`);

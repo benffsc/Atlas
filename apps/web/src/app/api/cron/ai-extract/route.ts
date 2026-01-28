@@ -17,14 +17,14 @@ import Anthropic from "@anthropic-ai/sdk";
  * Run: Daily at 4 AM PT
  * Weekly: Sunday - also queues stale records for refresh
  *
- * Cost: ~$0.0005 per record (Haiku)
+ * Cost: ~$0.004 per record (Haiku 4.5 - actual measured cost)
  */
 
 export const maxDuration = 120; // Allow up to 2 minutes
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const MODEL = "claude-haiku-4-5-20251001";
-const BATCH_SIZE = 15; // Process up to 15 records per run (within 2 min)
+const BATCH_SIZE = 50; // Process up to 50 records per run (within 2 min timeout)
 
 interface ExtractionResult {
   attribute_key: string;
