@@ -646,6 +646,8 @@ DH_A003 (Drop empty tables)     ✅ Done — 2 tables dropped, 67 audited and ke
 SC_001 UI (Request list flags)   ✅ Done — DataQualityFlags component in card + table views
     ↓
 DH_B001 (Remap match decisions)  ✅ Done — 29,750 FK refs remapped to canonical people (MIG_782)
+    ↓
+DH_B002 (Delete stale staged)    ✅ Done — 2,311 stale records + 130 DQI deleted (MIG_783)
 ```
 
 ---
@@ -672,6 +674,8 @@ DH_B001 (Remap match decisions)  ✅ Done — 29,750 FK refs remapped to canonic
 | 2026-01-29 | DH_A003 | Completed: Dropped 2 empty, unreferenced tables (MIG_781). 67 other empty tables audited and kept. All Safety Gate checks pass. |
 | 2026-01-29 | SC_001 UI | Completed: DataQualityFlags component added to request list page. Card + table views render no_trapper, no_geometry, stale_30d, no_requester flags. |
 | 2026-01-29 | DH_B001 | Completed: Remapped 23,829 resulting_person_id + 5,921 top_candidate_person_id from merged to canonical (MIG_782). Backup preserved. All 9 views resolve. All Safety Gate checks pass. |
+| 2026-01-29 | DH_B002 | Completed: Deleted 2,311 stale staged records + 130 DQI rows (MIG_783). 91,942 NULL source_row_id rows verified as unique — untouched. Backups preserved. All Safety Gate checks pass. |
+| 2026-01-29 | BUG_FIX | Fixed "Failed to fetch place details" on Open Full Page — API queried non-existent columns from v_place_detail_v2. Joined sot_addresses with correct column name (admin_area_1). Added fallback for non-address-backed places. |
 
 ---
 
@@ -1032,11 +1036,108 @@ WHERE d.decision_id = b.decision_id;
 
 23,829 + 5,921 FK references remapped to canonical people. All views resolve. Audit trail preserved. Backup available for rollback.
 
-#### DH_B002: Deduplicate Staged Records
+#### DH_B002: Delete Stale Staged Records
 
-**Status:** Planned
-**Zone:** HISTORICAL (L1 RAW — INV-1 says "append-only, never delete")
-**Scope:** 2,284 excess duplicate rows. **Cannot delete** per North Star invariant (L1 RAW is append-only). Instead: create view `v_staged_records_deduped` that filters to latest per source_record_id.
+**Status:** Done
+**Zone:** HISTORICAL (L1 RAW)
+**ACTIVE Impact:** No — `staged_records` is the raw ingestion layer. No ACTIVE UI reads individual staged records. Processing pipeline uses `is_processed` flag, not record age.
+**Scope:** Delete 2,311 stale staged records where a newer version of the same source record exists. Also delete 130 `data_quality_issues` rows that reference stale records (only FK constraint on staged_records).
+**Migration:** `sql/schema/sot/MIG_783__delete_stale_staged_records.sql`
+
+### Investigation Results
+
+| Category | Count | Action |
+|----------|-------|--------|
+| Stale duplicates (non-NULL source_row_id, older version exists) | 2,311 | **Deleted** |
+| NULL source_row_id rows (each has unique payload) | 91,942 | Untouched — NOT duplicates |
+| Latest version of each source record | 80,033 | Untouched — keepers |
+| data_quality_issues referencing stale records | 130 (entire table) | **Deleted** (FK blocker) |
+
+### Pre-Checks (All Passed)
+
+| Check | Result |
+|-------|--------|
+| FK constraints on staged_records | 1 — `data_quality_issues.staged_record_id` |
+| Soft references (no FK) | `ingest_run_records`, `data_engine_match_decisions`, `name_candidates` — no constraint, DELETE succeeds |
+| NULL source_row_id rows | 91,942 — all have unique payloads, NOT duplicates |
+| DQI rows referencing stale records | 130 (all `data_entry_error` or `missing_microchip`, 56 `wont_fix`) |
+
+### Stale Breakdown by Source
+
+| Source | Stale Rows |
+|--------|-----------|
+| clinichq / appointment_info | 1,169 |
+| shelterluv / animals | 929 |
+| etapestry / mailchimp_export | 82 |
+| airtable / trappers | 63 |
+| airtable_sync / appointment_requests | 38 |
+| shelterluv / events | 26 |
+| shelterluv / people | 4 |
+
+### Row Counts
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total staged_records | 174,286 | 171,975 |
+| With source_row_id | 82,344 | 80,033 |
+| NULL source_row_id | 91,942 | 91,942 |
+| Stale duplicates | 2,311 | 0 |
+| data_quality_issues | 130 | 0 |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **2,311 stale staged records deleted**, 0 remaining stale
+- [x] **130 data_quality_issues deleted** (all referenced stale records)
+- [x] **91,942 NULL source_row_id rows untouched** (unique payloads)
+- [x] **Backups created:**
+  - `trapper._backup_stale_staged_records_783` (2,311 rows)
+  - `trapper._backup_data_quality_issues_783` (130 rows)
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Staged records views resolve:**
+  ```
+  v_staged_records_latest_run: 47,628 rows
+  v_clinichq_stats:                  3 rows
+  v_orchestrator_health:            17 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     3
+  ```
+
+### Rollback
+
+```sql
+INSERT INTO trapper.data_quality_issues SELECT * FROM trapper._backup_data_quality_issues_783;
+INSERT INTO trapper.staged_records SELECT * FROM trapper._backup_stale_staged_records_783;
+```
+
+### Stop Point
+
+2,311 stale staged records + 130 DQI rows deleted. All keepers and NULL rows preserved. Backups available.
 
 ---
 

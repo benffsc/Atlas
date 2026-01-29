@@ -65,25 +65,27 @@ export async function GET(
 
     const sql = `
       SELECT
-        place_id,
-        display_name,
-        formatted_address,
-        place_kind,
-        is_address_backed,
-        has_cat_activity,
-        locality,
-        postal_code,
-        state_province,
-        coordinates,
-        created_at,
-        updated_at,
-        cats,
-        people,
-        place_relationships,
-        cat_count,
-        person_count
-      FROM trapper.v_place_detail_v2
-      WHERE place_id = $1
+        v.place_id,
+        v.display_name,
+        v.formatted_address,
+        v.place_kind,
+        v.is_address_backed,
+        v.has_cat_activity,
+        sa.locality,
+        sa.postal_code,
+        sa.admin_area_1 AS state_province,
+        v.coordinates,
+        v.created_at,
+        v.updated_at,
+        v.cats,
+        v.people,
+        v.place_relationships,
+        v.cat_count,
+        v.person_count
+      FROM trapper.v_place_detail_v2 v
+      LEFT JOIN trapper.places p ON p.place_id = v.place_id
+      LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
+      WHERE v.place_id = $1
     `;
 
     let place = await queryOne<PlaceDetailRow>(sql, [placeId]);
@@ -102,7 +104,7 @@ export async function GET(
           EXISTS(SELECT 1 FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = p.place_id) AS has_cat_activity,
           sa.locality,
           sa.postal_code,
-          sa.state_province,
+          sa.admin_area_1 AS state_province,
           CASE WHEN p.location IS NOT NULL THEN
             json_build_object('lat', ST_Y(p.location::geometry), 'lng', ST_X(p.location::geometry))
           ELSE NULL END AS coordinates,
