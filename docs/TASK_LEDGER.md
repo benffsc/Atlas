@@ -632,6 +632,10 @@ ORCH_001 (Orchestrator backbone)  ✅ Done — 3 tables, 8 indexes, shadow mode
 ORCH_002 (Source registry)        ✅ Done — 17 sources, 26 rules, 2 functions
     ↓
 ORCH_003 (Data health checks)     ✅ Done — 4 views: health, why-missing, chains, anomalies
+    ↓
+DH_A001 (Delete expired jobs)    ✅ Done — 26,204 expired jobs deleted, backup preserved
+    ↓
+DOC_001 (Documentation pass)     ✅ Done — 2 guides created, 5 docs archived
 ```
 
 ---
@@ -652,6 +656,7 @@ ORCH_003 (Data health checks)     ✅ Done — 4 views: health, why-missing, cha
 | 2026-01-28 | ORCH_003 | Completed: Created 4 diagnostic views (MIG_777). 6,107 data quality issues surfaced. 0 merge chains. |
 | 2026-01-29 | DH_PLAN | Data Hygiene Plan added with categorized task cards (A through E). |
 | 2026-01-29 | DH_A001 | Completed: Deleted 26,204 expired processing jobs (MIG_778). Backup preserved. All Safety Gate checks pass. |
+| 2026-01-29 | DOC_001 | Completed: Documentation Reassessment Pass. Created ATLAS_OPERATOR_GUIDE.md + ATLAS_ENGINEERING_GUIDE.md. Moved 5 deprecated docs to docs/archive/. |
 
 ---
 
@@ -806,3 +811,58 @@ FROM trapper._backup_expired_jobs_778;
 | `data_changes` | Active audit log (23,804 entries, growing) |
 | All ACTIVE triggers (9 on sot_requests, 3 on intake) | Must not disable |
 | `sot_people`, `sot_cats`, `places`, `sot_requests` | SoT handles per INV-3 |
+
+---
+
+## DOC_001: Documentation Reassessment Pass
+
+**Status:** Done
+**ACTIVE Impact:** No — documentation only
+**Scope:** Inventory all docs, classify, create missing guides, archive deprecated docs.
+
+### Documentation Inventory (2026-01-29)
+
+| Metric | Count |
+|--------|-------|
+| Total markdown files in docs/ | 82 |
+| Current (actively referenced) | 76 |
+| Deprecated (moved to archive) | 5 |
+| Conflicting (noted for future) | 3 |
+| Key gaps identified | 3 |
+
+### Created Documents
+
+| File | Audience | Contents |
+|------|----------|----------|
+| `docs/ATLAS_OPERATOR_GUIDE.md` | Staff | Phone intake, intake queue, request lifecycle, journal, search, trapper types, common fixes |
+| `docs/ATLAS_ENGINEERING_GUIDE.md` | Engineers | 7-layer architecture, entity creation, data zones, active flow call graphs, migrations, pipeline, Data Engine, orchestrator, Beacon, debugging |
+
+### Archived Documents (moved to docs/archive/)
+
+| File | Reason |
+|------|--------|
+| `AUDIT_DATA_ATTRIBUTION_ISSUES.md` | One-time audit snapshot (2026-01-17), superseded by TASK_LEDGER data hygiene plan |
+| `AUDIT_DATA_INTEGRITY_REPORT.md` | One-time audit snapshot (2026-01-17), superseded by orchestrator health views |
+| `AUDIT_PLACE_CONSOLIDATION_ISSUE.md` | One-time audit snapshot (2026-01-17), issue documented in TASK_LEDGER |
+| `HANDOFF_SUMMARY.md` | Superseded by ATLAS_NORTH_STAR.md + ATLAS_MISSION_CONTRACT.md |
+| `TIPPY_TEST_REPORT.md` | One-time test snapshot (2026-01-18), fixes implemented |
+
+### Identified Gaps (Future Work)
+
+| Gap | Priority | Notes |
+|-----|----------|-------|
+| No journal system docs | Low | Journal API is straightforward; OPERATOR_GUIDE now covers staff usage |
+| No intake triage scoring docs | Medium | `compute_intake_triage()` logic should be documented for transparency |
+| No colony management docs | Low | Colony system (MIG_610) is SEMI-ACTIVE; document when UI ships |
+
+### Conflicts Noted
+
+| Issue | Location | Resolution |
+|-------|----------|------------|
+| Attribution window mismatch | `ATLAS_MISSION_CONTRACT.md` says "±6 months" but actual code uses rolling windows | Mission Contract needs update (non-breaking, docs-only) |
+| `entity_type` proposal status unknown | `ADDING_DATA_SOURCES.md` proposes `entity_type` enum | Enum was not added; doc should be updated |
+| Place consolidation issue unresolved | `AUDIT_PLACE_CONSOLIDATION_ISSUE.md` flagged but no fix applied | Archived; tracked in Data Hygiene category C/D |
+
+### Stop Point
+
+Guides created. Deprecated docs archived. Gaps and conflicts documented. Proceed to Phase 3.
