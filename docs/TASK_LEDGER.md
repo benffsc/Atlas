@@ -656,6 +656,8 @@ SC_002 (Surgical: trapper visibility) ✅ Done — 24 client_trapping fixed, tra
 DH_D001 (Triage ShelterLuv records)  ✅ Done — 0 unprocessed ShelterLuv; 909 chipless animals + 4 people triaged (MIG_786)
     ↓
 SC_003 (Surgical: trapper assignment gaps) ✅ Done — 6 missing assignments fixed, 2 duplicate person_roles cleaned (MIG_787)
+    ↓
+DH_D002 (Audit empty tables)         ✅ Done — 68 audited: 67 planned features, 1 legacy (kept), 0 lookup gaps. Audit only.
 ```
 
 ---
@@ -688,6 +690,7 @@ SC_003 (Surgical: trapper assignment gaps) ✅ Done — 6 missing assignments fi
 | 2026-01-29 | SC_002 | Completed: Trapper visibility in request list (MIG_785). Fixed 24 Airtable client_trapping requests. Added no_trapper_reason + primary_trapper_name to v_request_list. Trapper filter + column in UI. All Safety Gate checks pass. |
 | 2026-01-29 | DH_D001 | Completed: Triaged all unprocessed ShelterLuv records (MIG_786). Events: 4,171/4,172 already processed by cron. Animals: 909 chipless cats marked triaged. People: 4 marked triaged. Final: 0 unprocessed ShelterLuv. All Safety Gate checks pass. |
 | 2026-01-29 | SC_003 | Completed: Fixed 6 missing trapper assignments from Airtable (MIG_787). Root cause: 2 Airtable trapper IDs each mapped to 2 Atlas people (duplicate person_roles). Cleaned duplicates, created 6 assignments. 0 Airtable gaps remaining. All Safety Gate checks pass. |
+| 2026-01-29 | DH_D002 | Completed: Audit of 68 empty tables. 67 are planned feature infrastructure (FK/view/function refs). 1 legacy table (`appointment_requests`, superseded by staged_records). 0 lookup tables needing population. No migration needed — audit only. |
 
 ---
 
