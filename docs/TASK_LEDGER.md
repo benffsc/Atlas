@@ -650,3 +650,159 @@ ORCH_003 (Data health checks)     ✅ Done — 4 views: health, why-missing, cha
 | 2026-01-28 | ORCH_001 | Completed: Created 3 orchestrator tables (MIG_775). Shadow mode — no existing pipelines changed. |
 | 2026-01-28 | ORCH_002 | Completed: Registered 17 sources, 26 routing rules, 2 helper functions (MIG_776). Demo onboarding with client_survey. |
 | 2026-01-28 | ORCH_003 | Completed: Created 4 diagnostic views (MIG_777). 6,107 data quality issues surfaced. 0 merge chains. |
+| 2026-01-29 | DH_PLAN | Data Hygiene Plan added with categorized task cards (A through E). |
+| 2026-01-29 | DH_A001 | Completed: Deleted 26,204 expired processing jobs (MIG_778). Backup preserved. All Safety Gate checks pass. |
+
+---
+
+## Data Hygiene Plan
+
+**Created:** 2026-01-29
+**Boundaries from:** `docs/ATLAS_NORTH_STAR.md` Data Zones
+
+### Data Zone Restatement
+
+| Zone | Scope | Hygiene Rule |
+|------|-------|-------------|
+| **ACTIVE** | `web_intake_submissions`, `sot_requests`, `journal_entries`, `request_trapper_assignments`, `places`, `sot_people`, `sot_cats`, `staff`, `staff_sessions`, `communication_logs` + 9 triggers on sot_requests + intake triggers | **DO NOT TOUCH.** No deletes, no archives, no merges without Safety Gate + Surgical Change process. |
+| **SEMI-ACTIVE** | `colonies/*`, `place_contexts/*`, `known_organizations`, `extraction_queue/*`, `tippy_*`, `email_*`, `trapper_onboarding`, `data_engine_*` | Soft-archive only. Prefer views over deletes. Test in staging. |
+| **HISTORICAL** | `staged_records`, `cat_birth_events`, `cat_mortality_events`, `place_colony_estimates`, `google_map_entries`, `processing_jobs`, `entity_edits`, `data_changes`, all `v_beacon_*` views | Can clean more aggressively. Provable orphans safe to delete. Audit logs soft-archivable. |
+
+### Orphan Analysis Results (2026-01-29)
+
+| Finding | Zone | Count | Impact |
+|---------|------|-------|--------|
+| Expired processing jobs | HISTORICAL | 26,204 (15 MB) | Pure audit artifacts, tagged by MIG_772 |
+| Empty tables (unused features) | MIXED | 138 tables | Many are never-populated feature scaffolding |
+| Match decisions → merged people | SEMI-ACTIVE | 23,829 of 108,776 | Audit trail, could remap to canonical |
+| Orphan entity_edits | HISTORICAL | 140 of 168 | Reference non-existent person IDs |
+| Duplicate staged_records | HISTORICAL | 2,284 excess rows | Already processed, same source_record_id |
+| 494 people sharing identifiers | ACTIVE (sot_people) | 494 | Potential duplicates, need review |
+| Unprocessed shelterluv events | HISTORICAL | 4,172 | Backlog or phantom records |
+
+---
+
+### Category A: Safe to Delete (Provable Orphans)
+
+#### DH_A001: Delete Expired Processing Jobs
+
+**Status:** Done
+**Zone:** HISTORICAL
+**ACTIVE Impact:** No — `processing_jobs` is the background async queue. Not read by any ACTIVE UI.
+**Scope:** Delete 26,204 rows with `status='expired'`. Tagged by MIG_772 as phantom jobs.
+**Migration:** `sql/schema/sot/MIG_778__delete_expired_processing_jobs.sql`
+
+### Pre-Checks (All Passed)
+
+| Check | Result |
+|-------|--------|
+| FK references to processing_jobs | **0** — no FKs |
+| Views referencing table | 3 (v_processing_dashboard, v_data_engine_health, v_orchestrator_health) — none filter for expired specifically |
+| ACTIVE endpoints reading expired | **None** — `/api/health/processing` reads the view |
+
+### Row Counts
+
+| Metric | Before | After |
+|--------|--------|-------|
+| expired | 26,204 | 0 |
+| queued | 217 | 217 |
+| completed | 6 | 6 |
+| **Total** | **26,427** | **223** |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **26,204 rows deleted**, 223 remaining
+- [x] **Backup created:** `trapper._backup_expired_jobs_778` (26,204 rows)
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_request_alteration_stats: 275 | v_trapper_full_stats: 54
+  v_place_alteration_history: 267 | v_processing_dashboard: 2
+  v_orchestrator_health: 17
+  ```
+- [x] **Safety Gate — Critical triggers enabled:**
+  ```
+  trg_auto_triage_intake | trg_log_request_status | trg_set_resolved_at
+  trg_prevent_person_merge_chain | trg_prevent_place_merge_chain
+  ```
+- [x] **Safety Gate — Core tables intact:**
+  ```
+  sot_people: 41,761 | sot_requests: 285 | sot_cats: 36,587
+  web_intake_submissions: 1,174 | journal_entries: 1,856
+  ```
+
+### Rollback
+
+```sql
+INSERT INTO trapper.processing_jobs (job_id, source_system, source_table, status, queued_at, completed_at, last_error)
+SELECT job_id, source_system, source_table, status, queued_at, completed_at, last_error
+FROM trapper._backup_expired_jobs_778;
+```
+
+#### DH_A002: Delete Orphan Entity Edits
+
+**Status:** Planned
+**Zone:** HISTORICAL
+**ACTIVE Impact:** No — entity_edits is an audit log, not read by ACTIVE flows
+**Scope:** Delete 140 entity_edits where the referenced person no longer exists in sot_people.
+
+#### DH_A003: Drop Empty Unused Feature Tables
+
+**Status:** Planned
+**Zone:** MIXED (must verify each table)
+**ACTIVE Impact:** Verify per table — some may be referenced by views/functions
+**Scope:** Drop tables with 0 rows that are not referenced by FK, views, or functions and are not part of active feature development.
+
+---
+
+### Category B: Safe to Archive (Soft Archive + Views)
+
+#### DH_B001: Soft-Archive Match Decisions Pointing to Merged People
+
+**Status:** Planned
+**Zone:** SEMI-ACTIVE
+**Scope:** 23,829 match decisions where `resulting_person_id` points to a merged person. Update to point to canonical person via `get_canonical_person_id()`.
+
+#### DH_B002: Deduplicate Staged Records
+
+**Status:** Planned
+**Zone:** HISTORICAL (L1 RAW — INV-1 says "append-only, never delete")
+**Scope:** 2,284 excess duplicate rows. **Cannot delete** per North Star invariant (L1 RAW is append-only). Instead: create view `v_staged_records_deduped` that filters to latest per source_record_id.
+
+---
+
+### Category C: Safe to Merge (Deterministic Duplicates)
+
+#### DH_C001: Review 494 People Sharing Identifiers
+
+**Status:** Planned
+**Zone:** ACTIVE (sot_people)
+**ACTIVE Impact:** YES — requires Surgical Change process
+**Scope:** 494 orphan people whose emails/phones already belong to other people in person_identifiers. High probability these are duplicates. Needs manual/automated review before merge.
+
+---
+
+### Category D: Needs Manual Review
+
+#### DH_D001: Triage Unprocessed ShelterLuv Records
+
+**Status:** Planned
+**Zone:** HISTORICAL
+**Scope:** 4,172 unprocessed shelterluv events + 914 unprocessed animals. Determine if these contain new data or are already processed by direct ingest calls.
+
+#### DH_D002: Audit Empty Tables for Feature Intent
+
+**Status:** Planned
+**Zone:** MIXED
+**Scope:** Of 138 empty tables, determine which are: (a) planned features to keep, (b) abandoned scaffolding to drop, (c) lookup tables that should be populated.
+
+---
+
+### Category E: Do-Not-Touch (ACTIVE)
+
+| Table/Object | Reason |
+|-------------|--------|
+| All tables in ACTIVE zone | Staff daily use |
+| `staged_records` | L1 RAW — append-only per INV-1 |
+| `data_changes` | Active audit log (23,804 entries, growing) |
+| All ACTIVE triggers (9 on sot_requests, 3 on intake) | Must not disable |
+| `sot_people`, `sot_cats`, `places`, `sot_requests` | SoT handles per INV-3 |
