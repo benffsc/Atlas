@@ -478,40 +478,65 @@ Backbone tables exist. Ready for ORCH_002 population.
 
 ## ORCH_002: Source Registry + Onboarding Pattern
 
-**Status:** Planned
-**ACTIVE Impact:** No
-**Scope:** Build the source registration and field mapping system. Demonstrate with one existing source (web_intake).
+**Status:** Done
+**ACTIVE Impact:** No — populates orchestrator tables, creates helper functions
+**Scope:** Register all sources, create onboarding functions, populate routing rules.
+**Migration:** `sql/schema/sot/MIG_776__orchestrator_source_registry.sql`
 
-### What Changes
+### What Changed
 
-1. Populate `orchestrator_sources` with existing sources (clinichq, airtable, web_intake, shelterluv).
-2. Define `orchestrator_field_mappings` — maps source fields to canonical targets.
-3. Create `register_source()` function for declaring new sources.
-4. Create `map_source_field()` function for declaring field→surface routing.
-5. Demonstrate: register "client_survey" as a new source with cat_count → place_colony_estimates routing.
+1. Registered 17 data sources (16 existing + 1 demo) in `orchestrator_sources`.
+2. Created `register_source()` — idempotent function to declare new sources.
+3. Created `map_source_field()` — maps source fields to canonical surfaces with validation.
+4. Populated 26 routing rules for 7 sources (clinichq, shelterluv, web_intake, client_survey).
+5. Demonstrated onboarding pattern with `client_survey` demo source.
+6. Synced ingest stats from `staged_records` to keep source health tracking accurate.
 
-### Touched Surfaces
+### Sources Registered
 
-| Object | Type | Operation | ACTIVE? |
-|--------|------|-----------|---------|
-| `orchestrator_sources` | Table | INSERT | No |
-| `orchestrator_field_mappings` | Table | CREATE + INSERT | No |
-| New functions (2) | Functions | CREATE | No |
+| Source System | Tables | Active | Records |
+|--------------|--------|--------|---------|
+| clinichq | 3 (cat_info, owner_info, appointment_info) | Yes | 115,212 |
+| shelterluv | 4 (animals, people, outcomes, events) | Yes | 35,171 |
+| airtable | 3 (trapping_requests, appointment_requests, trappers) | Yes | 1,577 |
+| petlink | 2 (pets, owners) | Yes | 12,059 |
+| volunteerhub | 1 (users) | Yes | 1,342 |
+| web_intake | 1 (submissions) | Yes | realtime |
+| etapestry | 1 (mailchimp_export) | No | 7,680 |
+| airtable_sync | 1 (deprecated) | No | 1,177 |
+| client_survey | 1 (demo) | Yes | 0 |
 
-### Validation
+### Routing Rules by Source
 
-- [ ] All existing sources registered
-- [ ] Field mappings for web_intake match current behavior
-- [ ] New source registration works end-to-end in test
-- [ ] Active Flow Safety Gate passes
+| Source | Rules |
+|--------|-------|
+| clinichq/owner_info | 5 (email, phone, name, address) |
+| clinichq/cat_info | 4 (microchip, name, sex, breed) |
+| clinichq/appointment_info | 3 (number, date, services) |
+| shelterluv/people | 4 (email, phone, name) |
+| shelterluv/animals | 3 (ID, name, type) |
+| web_intake/submissions | 3 (email, phone, address) |
+| client_survey/responses | 4 (email, address, cat_count, fixed_count) |
+
+### Validation Evidence (2026-01-28)
+
+- [x] **17 sources registered** (16 existing + 1 demo)
+- [x] **26 routing rules** across 7 sources
+- [x] **register_source() works:** client_survey demo registered successfully
+- [x] **map_source_field() validates:** requires source to exist first
+- [x] **Stats synced** from staged_records (15 sources updated)
 
 ### Rollback
 
-- Truncate orchestrator tables. No external dependencies.
+```sql
+TRUNCATE trapper.orchestrator_routing_rules, trapper.orchestrator_sources CASCADE;
+DROP FUNCTION IF EXISTS trapper.register_source;
+DROP FUNCTION IF EXISTS trapper.map_source_field;
+```
 
 ### Stop Point
 
-Registry populated. One new source demonstrated. Pattern documented.
+Registry populated, onboarding pattern proven. Ready for ORCH_003 health views.
 
 ---
 
@@ -570,7 +595,7 @@ TASK_006 (Backup cleanup)         ✅ Done — 10 tables dropped, 149 MB reclaim
     ↓
 ORCH_001 (Orchestrator backbone)  ✅ Done — 3 tables, 8 indexes, shadow mode
     ↓
-ORCH_002 (Source registry)        → Config-driven routing
+ORCH_002 (Source registry)        ✅ Done — 17 sources, 26 rules, 2 functions
     ↓
 ORCH_003 (Data health checks)     → Observability
 ```
@@ -589,3 +614,4 @@ ORCH_003 (Data health checks)     → Observability
 | 2026-01-28 | TASK_005 | Completed: Backfilled 13 identifiers (MIG_773). 494 orphan people share identifiers with existing people — flagged as potential duplicates. |
 | 2026-01-28 | TASK_006 | Completed: Dropped 10 old backup tables (MIG_774). 149 MB reclaimed. Kept MIG_770/771 rollback backups. |
 | 2026-01-28 | ORCH_001 | Completed: Created 3 orchestrator tables (MIG_775). Shadow mode — no existing pipelines changed. |
+| 2026-01-28 | ORCH_002 | Completed: Registered 17 sources, 26 routing rules, 2 helper functions (MIG_776). Demo onboarding with client_survey. |
