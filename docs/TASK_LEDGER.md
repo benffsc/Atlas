@@ -650,6 +650,8 @@ DH_B001 (Remap match decisions)  ✅ Done — 29,750 FK refs remapped to canonic
 DH_B002 (Delete stale staged)    ✅ Done — 2,311 stale records + 130 DQI deleted (MIG_783)
     ↓
 DH_C001 (Clean stale dup flags)  ✅ Done — 20,543 stale flags deleted, 227 canonical kept (MIG_784)
+    ↓
+SC_002 (Surgical: trapper visibility) ✅ Done — 24 client_trapping fixed, trapper name+filter in request list (MIG_785)
 ```
 
 ---
@@ -679,6 +681,7 @@ DH_C001 (Clean stale dup flags)  ✅ Done — 20,543 stale flags deleted, 227 ca
 | 2026-01-29 | DH_B002 | Completed: Deleted 2,311 stale staged records + 130 DQI rows (MIG_783). 91,942 NULL source_row_id rows verified as unique — untouched. Backups preserved. All Safety Gate checks pass. |
 | 2026-01-29 | BUG_FIX | Fixed "Failed to fetch place details" on Open Full Page — API queried non-existent columns from v_place_detail_v2. Joined sot_addresses with correct column name (admin_area_1). Added fallback for non-address-backed places. |
 | 2026-01-29 | DH_C001 | Completed: Deleted 20,543 stale person duplicate flags (MIG_784). Original 494 shared identifiers resolved by TASK_002 (now 0). 227 both-canonical rows kept for staff review. Backup preserved. All Safety Gate checks pass. |
+| 2026-01-29 | SC_002 | Completed: Trapper visibility in request list (MIG_785). Fixed 24 Airtable client_trapping requests. Added no_trapper_reason + primary_trapper_name to v_request_list. Trapper filter + column in UI. All Safety Gate checks pass. |
 
 ---
 
@@ -1426,3 +1429,133 @@ LEFT JOIN trapper.sot_people per ON per.person_id = r.requester_person_id;
 ### Stop Point
 
 Surgical change complete. v_request_list now surfaces data quality. API returns new fields. All Safety Gate checks pass.
+
+---
+
+## SC_002: Surgical Change — Trapper Assignment Visibility in Request List
+
+**Status:** Done
+**ACTIVE Impact:** Yes (Surgical) — modifies `v_request_list` view, `GET /api/requests` response, `sot_requests` data fix
+**Scope:** Surface trapper assignment status in request list so staff can quickly see who needs a trapper vs who is client-trapping. Fix 24 Airtable requests missing `no_trapper_reason`.
+**Migration:** `sql/schema/sot/MIG_785__trapper_visibility_request_list.sql`
+
+### Why This Change
+
+Staff need to quickly identify which requests need a trapper assigned. Previously, the `no_trapper` flag didn't distinguish between:
+- Requests that genuinely need a trapper (action required)
+- Requests where the client is trapping themselves (no action needed)
+
+Additionally, 24 Airtable requests had "Client Trapping" as their trapper assignment (Airtable record `recEp51Dwdei6cN2F`) but `no_trapper_reason` was never set during the sync. This caused them to appear as "needs trapper" when they shouldn't.
+
+### Data Alignment Fix
+
+Airtable raw data shows 34 requests referencing the client_trapping pseudo-record:
+- **24 with ONLY client_trapping** (no real trapper) — these needed `no_trapper_reason = 'client_trapping'`
+- **10 with client_trapping + real trappers** — already have active trappers, no fix needed
+
+After fix: 24 requests now correctly marked as `client_trapping`.
+
+### ACTIVE Surfaces Touched
+
+| Object | Type | Operation | Safety |
+|--------|------|-----------|--------|
+| `sot_requests` | Table | UPDATE (24 rows: set no_trapper_reason) | Data correction only, no schema change |
+| `v_request_list` | View | CREATE OR REPLACE (additive columns only) | All 33 existing columns preserved in same order |
+| `GET /api/requests` | Endpoint | Additive response fields + new filter param | Existing fields unchanged, 2 new fields + 1 filter |
+| `RequestListRow` | TS Interface | Extended | New optional fields only |
+| Request list UI | Page | New filter dropdown + trapper column | Additive UI only |
+
+### New Columns (v_request_list)
+
+| Column | Type | Source | Purpose |
+|--------|------|--------|---------|
+| `no_trapper_reason` | TEXT | `sot_requests.no_trapper_reason` | Why no trapper: client_trapping, not_needed, etc. |
+| `primary_trapper_name` | TEXT | `request_trapper_assignments` + `sot_people` | Name of primary or first assigned trapper |
+
+### Improved data_quality_flags
+
+| Flag | Old Behavior | New Behavior |
+|------|-------------|--------------|
+| `no_trapper` | Any active request with 0 trappers | Only when 0 trappers AND `no_trapper_reason IS NULL` |
+| `client_trapping` | (did not exist) | Shows when `no_trapper_reason = 'client_trapping'` |
+
+### New API Filter: `trapper`
+
+| Value | Behavior |
+|-------|----------|
+| `has_trapper` | `active_trapper_count > 0` |
+| `needs_trapper` | `active_trapper_count = 0 AND no_trapper_reason IS NULL` |
+| `client_trapping` | `no_trapper_reason = 'client_trapping'` |
+
+### UI Changes
+
+1. **Trapper filter dropdown** — "All trappers", "Has trapper", "Needs trapper", "Client trapping"
+2. **Trapper column in table view** — Shows primary trapper name, "+N" for additional trappers, "Client" for client_trapping
+3. **Trapper name on cards** — Shows "Trapper: Name" on card view when assigned
+4. **Updated flag colors** — `no_trapper` renamed to "Needs trapper" (yellow), new `client_trapping` flag (green)
+
+### Validation Evidence (2026-01-29)
+
+- [x] **24 client_trapping requests fixed** (UPDATE 24, all from Airtable staged data)
+- [x] **Column count:** 33 → 35 (2 new, all 33 original preserved)
+- [x] **Row count unchanged:** 285 before and after
+- [x] **New columns populated:**
+  ```
+  no_trapper_reason    | text
+  primary_trapper_name | text
+  ```
+- [x] **Data quality flags improved:**
+  ```
+  no_trapper:      33 active requests (was 42 — 9 were client_trapping)
+  client_trapping:  9 active requests (new flag)
+  no_requester:     1 active request
+  ```
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     2
+  ```
+- [x] **Original columns spot-checked:** request_id, status, priority, place_address, requester_name, linked_cat_count, days_since_activity, is_legacy_request — all present and correct
+- [x] **API updated:** RequestListRow interface extended, SELECT includes new columns, trapper filter param added
+- [x] **UI updated:** Trapper filter dropdown, trapper column in table, trapper name on cards, improved flag labels/colors
+- [x] **TypeScript compiles** (no errors in modified files)
+
+### Rollback
+
+```sql
+-- 1. Revert data fix
+UPDATE trapper.sot_requests
+SET no_trapper_reason = NULL, updated_at = NOW()
+WHERE no_trapper_reason = 'client_trapping';
+
+-- 2. Recreate view from MIG_779 (SC_001 version)
+-- Copy the CREATE OR REPLACE VIEW from MIG_779__request_list_data_quality.sql
+```
+
+### Stop Point
+
+Trapper visibility complete. Staff can now filter requests by trapper status and see assigned trapper names. Client-trapping requests no longer show as "needs trapper". All Safety Gate checks pass.

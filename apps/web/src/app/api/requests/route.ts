@@ -30,6 +30,9 @@ interface RequestListRow {
   active_trapper_count: number;
   place_has_location: boolean;
   data_quality_flags: string[];
+  // SC_002: Trapper visibility columns
+  no_trapper_reason: string | null;
+  primary_trapper_name: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -40,6 +43,7 @@ export async function GET(request: NextRequest) {
   const placeId = searchParams.get("place_id");
   const personId = searchParams.get("person_id");
   const searchQuery = searchParams.get("q"); // Search query
+  const trapperFilter = searchParams.get("trapper"); // SC_002: has_trapper, needs_trapper, client_trapping
   const sortBy = searchParams.get("sort_by") || "status"; // status, created, priority
   const sortOrder = searchParams.get("sort_order") || "asc"; // asc, desc
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
@@ -71,6 +75,15 @@ export async function GET(request: NextRequest) {
     conditions.push(`requester_person_id = $${paramIndex}`);
     params.push(personId);
     paramIndex++;
+  }
+
+  // SC_002: Trapper assignment filter
+  if (trapperFilter === "has_trapper") {
+    conditions.push(`active_trapper_count > 0`);
+  } else if (trapperFilter === "needs_trapper") {
+    conditions.push(`active_trapper_count = 0 AND no_trapper_reason IS NULL`);
+  } else if (trapperFilter === "client_trapping") {
+    conditions.push(`no_trapper_reason = 'client_trapping'`);
   }
 
   // Search across summary, place name, place address, requester name
@@ -162,7 +175,9 @@ export async function GET(request: NextRequest) {
         is_legacy_request,
         active_trapper_count,
         place_has_location,
-        data_quality_flags
+        data_quality_flags,
+        no_trapper_reason,
+        primary_trapper_name
       FROM trapper.v_request_list
       ${whereClause}
       ORDER BY ${buildOrderBy()}

@@ -26,6 +26,9 @@ interface Request {
   active_trapper_count: number;
   place_has_location: boolean;
   data_quality_flags: string[];
+  // SC_002: Trapper visibility columns
+  no_trapper_reason: string | null;
+  primary_trapper_name: string | null;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -94,7 +97,8 @@ function ColonySizeBadge({ count }: { count: number | null }) {
 }
 
 const FLAG_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  no_trapper: { label: "No trapper", bg: "#fef3c7", color: "#92400e" },
+  no_trapper: { label: "Needs trapper", bg: "#fef3c7", color: "#92400e" },
+  client_trapping: { label: "Client trapping", bg: "#d1fae5", color: "#065f46" },
   no_geometry: { label: "No map pin", bg: "#dbeafe", color: "#1e40af" },
   stale_30d: { label: "Stale 30d", bg: "#fee2e2", color: "#991b1b" },
   no_requester: { label: "No requester", bg: "#e0e7ff", color: "#3730a3" },
@@ -308,6 +312,20 @@ function RequestCard({ request }: { request: Request }) {
             </div>
           )}
 
+          {/* Trapper */}
+          {request.primary_trapper_name && (
+            <div
+              style={{
+                fontSize: "0.75rem",
+                color: "#065f46",
+                marginTop: "4px",
+              }}
+            >
+              Trapper: {request.primary_trapper_name}
+              {request.active_trapper_count > 1 && ` +${request.active_trapper_count - 1}`}
+            </div>
+          )}
+
           {/* Requester & Date */}
           <div
             style={{
@@ -315,7 +333,7 @@ function RequestCard({ request }: { request: Request }) {
               justifyContent: "space-between",
               fontSize: "0.75rem",
               color: "var(--text-muted)",
-              marginTop: "8px",
+              marginTop: "4px",
             }}
           >
             <span>{request.requester_name || "Unknown requester"}</span>
@@ -331,6 +349,7 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [trapperFilter, setTrapperFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
@@ -365,13 +384,11 @@ export default function RequestsPage() {
 
   // Handle applying saved filters
   const handleApplyFilters = useCallback((filters: RequestFilters) => {
-    // Apply status filter (take first status if multiple)
     if (filters.status && filters.status.length > 0) {
       setStatusFilter(filters.status[0]);
     } else {
       setStatusFilter("");
     }
-    // Could extend to support more filters in the future
   }, []);
 
   const toggleSelect = (id: string) => {
@@ -411,6 +428,7 @@ export default function RequestsPage() {
       // Refresh the list
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
+      if (trapperFilter) params.set("trapper", trapperFilter);
       if (debouncedSearch) params.set("q", debouncedSearch);
       params.set("sort_by", sortBy);
       params.set("sort_order", sortOrder);
@@ -469,6 +487,7 @@ export default function RequestsPage() {
       try {
         const params = new URLSearchParams();
         if (statusFilter) params.set("status", statusFilter);
+        if (trapperFilter) params.set("trapper", trapperFilter);
         if (debouncedSearch) params.set("q", debouncedSearch);
         params.set("sort_by", sortBy);
         params.set("sort_order", sortOrder);
@@ -487,7 +506,7 @@ export default function RequestsPage() {
     };
 
     fetchRequests();
-  }, [statusFilter, debouncedSearch, sortBy, sortOrder]);
+  }, [statusFilter, trapperFilter, debouncedSearch, sortBy, sortOrder]);
 
   return (
     <div>
@@ -586,6 +605,17 @@ export default function RequestsPage() {
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
           <option value="on_hold">On Hold</option>
+        </select>
+
+        <select
+          value={trapperFilter}
+          onChange={(e) => setTrapperFilter(e.target.value)}
+          style={{ minWidth: "150px" }}
+        >
+          <option value="">All trappers</option>
+          <option value="has_trapper">Has trapper</option>
+          <option value="needs_trapper">Needs trapper</option>
+          <option value="client_trapping">Client trapping</option>
         </select>
 
         {/* Sort controls */}
@@ -825,6 +855,7 @@ export default function RequestsPage() {
                 <th>Location</th>
                 <th>Title</th>
                 <th>Cats</th>
+                <th>Trapper</th>
                 <th>Requester</th>
                 <th>Flags</th>
                 <th>Created</th>
@@ -886,6 +917,20 @@ export default function RequestsPage() {
                     {req.estimated_cat_count ?? "?"}
                     {req.has_kittens && (
                       <span style={{ marginLeft: "0.25rem", color: "#fd7e14" }}>+kittens</span>
+                    )}
+                  </td>
+                  <td className="text-sm">
+                    {req.primary_trapper_name ? (
+                      <div>
+                        <span>{req.primary_trapper_name}</span>
+                        {req.active_trapper_count > 1 && (
+                          <span className="text-muted"> +{req.active_trapper_count - 1}</span>
+                        )}
+                      </div>
+                    ) : req.no_trapper_reason === "client_trapping" ? (
+                      <span style={{ color: "#065f46", fontSize: "0.75rem" }}>Client</span>
+                    ) : (
+                      <span className="text-muted">--</span>
                     )}
                   </td>
                   <td>
