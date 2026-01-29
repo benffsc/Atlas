@@ -26,6 +26,10 @@ interface RequestListRow {
   longitude: number | null;
   linked_cat_count: number;
   is_legacy_request: boolean;
+  // SC_001: Data quality columns
+  active_trapper_count: number;
+  place_has_location: boolean;
+  data_quality_flags: string[];
 }
 
 export async function GET(request: NextRequest) {
@@ -155,7 +159,10 @@ export async function GET(request: NextRequest) {
         latitude,
         longitude,
         linked_cat_count,
-        is_legacy_request
+        is_legacy_request,
+        active_trapper_count,
+        place_has_location,
+        data_quality_flags
       FROM trapper.v_request_list
       ${whereClause}
       ORDER BY ${buildOrderBy()}

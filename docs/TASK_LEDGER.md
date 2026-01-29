@@ -636,6 +636,8 @@ ORCH_003 (Data health checks)     ✅ Done — 4 views: health, why-missing, cha
 DH_A001 (Delete expired jobs)    ✅ Done — 26,204 expired jobs deleted, backup preserved
     ↓
 DOC_001 (Documentation pass)     ✅ Done — 2 guides created, 5 docs archived
+    ↓
+SC_001 (Surgical: request quality) ✅ Done — 3 columns added to v_request_list, API updated
 ```
 
 ---
@@ -657,6 +659,7 @@ DOC_001 (Documentation pass)     ✅ Done — 2 guides created, 5 docs archived
 | 2026-01-29 | DH_PLAN | Data Hygiene Plan added with categorized task cards (A through E). |
 | 2026-01-29 | DH_A001 | Completed: Deleted 26,204 expired processing jobs (MIG_778). Backup preserved. All Safety Gate checks pass. |
 | 2026-01-29 | DOC_001 | Completed: Documentation Reassessment Pass. Created ATLAS_OPERATOR_GUIDE.md + ATLAS_ENGINEERING_GUIDE.md. Moved 5 deprecated docs to docs/archive/. |
+| 2026-01-29 | SC_001 | Completed: Surgical Change — Added data quality columns to v_request_list (MIG_779). API updated. All Safety Gate checks pass. |
 
 ---
 
@@ -866,3 +869,163 @@ FROM trapper._backup_expired_jobs_778;
 ### Stop Point
 
 Guides created. Deprecated docs archived. Gaps and conflicts documented. Proceed to Phase 3.
+
+---
+
+## SC_001: Surgical Change — Surface Data Quality in Request List
+
+**Status:** In Progress
+**ACTIVE Impact:** Yes (Surgical) — modifies `v_request_list` view (read by dashboard + request list page) and `GET /api/requests` response
+**Scope:** Add live trapper assignment count and data quality indicators to the ACTIVE request list.
+**Migration:** `sql/schema/sot/MIG_779__request_list_data_quality.sql`
+
+### Why This Change
+
+After completing ORCH_003 (data health views), staff can see data quality issues via direct SQL but NOT through the ACTIVE UI. The request list is the primary staff workflow surface — surfacing quality flags here closes the loop between diagnosis and action.
+
+### ACTIVE Surfaces Touched
+
+| Object | Type | Operation | Safety |
+|--------|------|-----------|--------|
+| `v_request_list` | View | CREATE OR REPLACE (additive columns only) | All 30 existing columns preserved in same order |
+| `GET /api/requests` | Endpoint | Additive response fields | Existing fields unchanged, 3 new fields added |
+| `RequestListRow` | TS Interface | Extended | New optional fields only |
+
+### Two Options Proposed
+
+#### Option A: Zero-Breaking (SQL Only)
+
+- Add 3 new columns to `v_request_list` via `CREATE OR REPLACE VIEW`
+- API response unchanged — new columns exist in SQL only
+- Staff can query via Tippy or admin SQL tools
+- **Risk:** Zero. API doesn't read new columns.
+- **Value:** Low-medium. Only SQL-literate users benefit.
+
+#### Option B: Minimal-Breaking with API Shim (Chosen)
+
+- Add 3 new columns to `v_request_list` via `CREATE OR REPLACE VIEW`
+- Update `GET /api/requests` to include the 3 new fields in response
+- Extend `RequestListRow` TypeScript interface (additive)
+- **Risk:** Minimal. API adds fields, never removes — per Safety Gate rules.
+- **Value:** High. Staff sees data quality in request list UI.
+
+### New Columns
+
+| Column | Type | Source | Purpose |
+|--------|------|--------|---------|
+| `active_trapper_count` | INTEGER | LEFT JOIN `request_trapper_assignments` | Live count of assigned trappers (0 = needs assignment) |
+| `place_has_location` | BOOLEAN | `places.location IS NOT NULL` | Whether place appears on Beacon map |
+| `data_quality_flags` | TEXT[] | Computed | Array of flags: `no_trapper`, `no_geometry`, `stale_30d`, `no_requester` |
+
+### Implementation (Option B Chosen)
+
+**Migration:** `sql/schema/sot/MIG_779__request_list_data_quality.sql`
+**API:** `apps/web/src/app/api/requests/route.ts` — added 3 fields to SELECT + interface
+
+### Validation Evidence (2026-01-29)
+
+- [x] **Column count:** 30 → 33 (3 new, all 30 original preserved)
+- [x] **Row count unchanged:** 285 before and after
+- [x] **New columns populated:**
+  ```
+  active_trapper_count | bigint
+  place_has_location   | boolean
+  data_quality_flags   | ARRAY
+  ```
+- [x] **Data quality flags surfaced:**
+  ```
+  no_trapper:   42 active requests
+  no_requester:  1 active request
+  no_geometry:   0 (all places have geometry)
+  stale_30d:     0 (no stale requests)
+  ```
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     1
+  ```
+- [x] **Original columns spot-checked:** request_id, status, priority, place_address, requester_name, linked_cat_count, days_since_activity, is_legacy_request — all present and correct
+- [x] **API updated:** RequestListRow interface extended, SELECT includes new columns
+
+### Rollback
+
+```sql
+-- Recreate original view (without data quality columns)
+CREATE OR REPLACE VIEW trapper.v_request_list AS
+SELECT
+    r.request_id,
+    r.status::text AS status,
+    r.priority::text AS priority,
+    r.summary,
+    r.estimated_cat_count,
+    r.has_kittens,
+    r.scheduled_date,
+    r.assigned_to,
+    r.assigned_trapper_type::text AS assigned_trapper_type,
+    r.created_at,
+    r.updated_at,
+    r.source_created_at,
+    r.last_activity_at,
+    r.hold_reason::text AS hold_reason,
+    r.resolved_at,
+    r.place_id,
+    CASE
+        WHEN p.display_name IS NOT NULL AND per.display_name IS NOT NULL
+         AND lower(TRIM(BOTH FROM p.display_name)) = lower(TRIM(BOTH FROM per.display_name))
+        THEN COALESCE(split_part(p.formatted_address, ',', 1), p.formatted_address)
+        ELSE COALESCE(p.display_name, split_part(p.formatted_address, ',', 1))
+    END AS place_name,
+    p.formatted_address AS place_address,
+    p.safety_notes AS place_safety_notes,
+    sa.locality AS place_city,
+    p.service_zone,
+    ST_Y(p.location::geometry) AS latitude,
+    ST_X(p.location::geometry) AS longitude,
+    r.requester_person_id,
+    per.display_name AS requester_name,
+    COALESCE(per.primary_email, (
+        SELECT pi.id_value_raw FROM trapper.person_identifiers pi
+        WHERE pi.person_id = per.person_id AND pi.id_type = 'email'
+        ORDER BY pi.created_at DESC LIMIT 1
+    )) AS requester_email,
+    COALESCE(per.primary_phone, (
+        SELECT pi.id_value_raw FROM trapper.person_identifiers pi
+        WHERE pi.person_id = per.person_id AND pi.id_type = 'phone'
+        ORDER BY pi.created_at DESC LIMIT 1
+    )) AS requester_phone,
+    (SELECT COUNT(*) FROM trapper.request_cats rc WHERE rc.request_id = r.request_id) AS linked_cat_count,
+    EXTRACT(DAY FROM NOW() - COALESCE(r.last_activity_at, r.created_at))::integer AS days_since_activity,
+    (r.source_system = 'airtable') AS is_legacy_request
+FROM trapper.sot_requests r
+LEFT JOIN trapper.places p ON p.place_id = r.place_id
+LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
+LEFT JOIN trapper.sot_people per ON per.person_id = r.requester_person_id;
+```
+
+### Stop Point
+
+Surgical change complete. v_request_list now surfaces data quality. API returns new fields. All Safety Gate checks pass.
