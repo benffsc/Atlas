@@ -22,6 +22,10 @@ interface Request {
   latitude: number | null;
   longitude: number | null;
   is_legacy_request: boolean;
+  // SC_001: Data quality columns
+  active_trapper_count: number;
+  place_has_location: boolean;
+  data_quality_flags: string[];
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -86,6 +90,40 @@ function ColonySizeBadge({ count }: { count: number | null }) {
     >
       {style.label}
     </span>
+  );
+}
+
+const FLAG_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  no_trapper: { label: "No trapper", bg: "#fef3c7", color: "#92400e" },
+  no_geometry: { label: "No map pin", bg: "#dbeafe", color: "#1e40af" },
+  stale_30d: { label: "Stale 30d", bg: "#fee2e2", color: "#991b1b" },
+  no_requester: { label: "No requester", bg: "#e0e7ff", color: "#3730a3" },
+};
+
+function DataQualityFlags({ flags }: { flags: string[] }) {
+  if (!flags || flags.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+      {flags.map((flag) => {
+        const cfg = FLAG_CONFIG[flag] || { label: flag, bg: "#e5e7eb", color: "#374151" };
+        return (
+          <span
+            key={flag}
+            style={{
+              fontSize: "0.65rem",
+              padding: "1px 6px",
+              borderRadius: "4px",
+              background: cfg.bg,
+              color: cfg.color,
+              fontWeight: 500,
+              lineHeight: "1.4",
+            }}
+          >
+            {cfg.label}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -236,6 +274,9 @@ function RequestCard({ request }: { request: Request }) {
               </span>
             )}
           </div>
+
+          {/* Data Quality Flags */}
+          <DataQualityFlags flags={request.data_quality_flags} />
 
           {/* Summary */}
           <div
@@ -785,6 +826,7 @@ export default function RequestsPage() {
                 <th>Title</th>
                 <th>Cats</th>
                 <th>Requester</th>
+                <th>Flags</th>
                 <th>Created</th>
               </tr>
             </thead>
@@ -852,6 +894,9 @@ export default function RequestsPage() {
                     ) : (
                       <span className="text-muted">Unknown</span>
                     )}
+                  </td>
+                  <td>
+                    <DataQualityFlags flags={req.data_quality_flags} />
                   </td>
                   <td className="text-sm text-muted">
                     {formatDateLocal(req.source_created_at || req.created_at)}

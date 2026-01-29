@@ -640,6 +640,10 @@ DOC_001 (Documentation pass)     ✅ Done — 2 guides created, 5 docs archived
 SC_001 (Surgical: request quality) ✅ Done — 3 columns added to v_request_list, API updated
     ↓
 DH_A002 (Delete orphan edits)    ✅ Done — 140 orphan entity_edits deleted, backup preserved
+    ↓
+DH_A003 (Drop empty tables)     ✅ Done — 2 tables dropped, 67 audited and kept
+    ↓
+SC_001 UI (Request list flags)   ✅ Done — DataQualityFlags component in card + table views
 ```
 
 ---
@@ -663,6 +667,8 @@ DH_A002 (Delete orphan edits)    ✅ Done — 140 orphan entity_edits deleted, b
 | 2026-01-29 | DOC_001 | Completed: Documentation Reassessment Pass. Created ATLAS_OPERATOR_GUIDE.md + ATLAS_ENGINEERING_GUIDE.md. Moved 5 deprecated docs to docs/archive/. |
 | 2026-01-29 | SC_001 | Completed: Surgical Change — Added data quality columns to v_request_list (MIG_779). API updated. All Safety Gate checks pass. |
 | 2026-01-29 | DH_A002 | Completed: Deleted 140 orphan entity_edits (MIG_780). All MIG_572 deletion audit ghosts. Backup preserved. All Safety Gate checks pass. |
+| 2026-01-29 | DH_A003 | Completed: Dropped 2 empty, unreferenced tables (MIG_781). 67 other empty tables audited and kept. All Safety Gate checks pass. |
+| 2026-01-29 | SC_001 UI | Completed: DataQualityFlags component added to request list page. Card + table views render no_trapper, no_geometry, stale_30d, no_requester flags. |
 
 ---
 
@@ -841,10 +847,88 @@ SELECT * FROM trapper._backup_orphan_entity_edits_780;
 
 #### DH_A003: Drop Empty Unused Feature Tables
 
-**Status:** Planned
-**Zone:** MIXED (must verify each table)
-**ACTIVE Impact:** Verify per table — some may be referenced by views/functions
-**Scope:** Drop tables with 0 rows that are not referenced by FK, views, or functions and are not part of active feature development.
+**Status:** Done
+**Zone:** MIXED (verified per table)
+**ACTIVE Impact:** No — dropped tables have zero FK, view, and function references
+**Scope:** Audit all 69 empty tables. Drop those with zero rows AND zero FK/view/function references.
+**Migration:** `sql/schema/sot/MIG_781__drop_empty_unused_tables.sql`
+
+### Audit Results (2026-01-29)
+
+**69 empty tables in trapper schema.** Categorized by dependency status:
+
+| Category | Tables | Action |
+|----------|--------|--------|
+| 0 FK, 0 views, 0 functions | 2 | **Dropped** (automation_rules, cat_reunifications) |
+| 0 FK, 0 views, has function refs | 5 | Kept — functions reference them |
+| 0 FK, has view refs | 15 | Kept — views reference them |
+| Has FK refs | 4 | Kept — other tables have FK to them |
+| Active feature scaffolding | 43 | Kept — colonies, email, tippy, trapper, Data Engine, Beacon |
+
+### Tables Dropped
+
+| Table | Size | Description |
+|-------|------|-------------|
+| `automation_rules` | 24 KB | Automation feature — never implemented, no references |
+| `cat_reunifications` | 32 KB | Cat reunification feature — never implemented, no references |
+
+### Tables Kept (Notable)
+
+| Table | Why Kept |
+|-------|---------|
+| `colonies`, `colony_*` (6 tables) | Colony management system — SEMI-ACTIVE, UI built |
+| `trapper_site_visits`, `trapper_manual_catches` | Referenced by `v_trapper_full_stats` |
+| `request_cats` | Referenced by `v_request_list` (linked_cat_count subquery) |
+| `communication_logs` | In ACTIVE zone per NORTH_STAR |
+| `site_observations`, `observation_*` | Beacon ecology system |
+| `pending_edits` | FK to entity_edits, edit workflow |
+| `orchestrator_job_log` | Created by ORCH_001 |
+| `email_*` (4 tables) | Email system — SEMI-ACTIVE |
+| `tippy_*` (2 tables) | Tippy AI assistant |
+| `data_engine_soft_blacklist` | Data Engine |
+| `intake_custom_fields` | Custom intake fields (MIG_238) |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **2 tables dropped**, both confirmed 0 rows, 0 inbound FKs
+- [x] **Tables no longer exist** (verified by pg_tables query)
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     2
+  ```
+
+### Rollback
+
+Not possible — tables are dropped. Both had 0 rows, so no data lost.
+
+### Stop Point
+
+2 empty, unreferenced tables dropped. 67 remaining empty tables documented with dependency reasons.
 
 ---
 
@@ -1007,6 +1091,7 @@ After completing ORCH_003 (data health views), staff can see data quality issues
 
 **Migration:** `sql/schema/sot/MIG_779__request_list_data_quality.sql`
 **API:** `apps/web/src/app/api/requests/route.ts` — added 3 fields to SELECT + interface
+**UI:** `apps/web/src/app/requests/page.tsx` — Request interface extended, `DataQualityFlags` component renders flag badges in both card and table views
 
 ### Validation Evidence (2026-01-29)
 
