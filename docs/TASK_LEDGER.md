@@ -652,6 +652,8 @@ DH_B002 (Delete stale staged)    ✅ Done — 2,311 stale records + 130 DQI dele
 DH_C001 (Clean stale dup flags)  ✅ Done — 20,543 stale flags deleted, 227 canonical kept (MIG_784)
     ↓
 SC_002 (Surgical: trapper visibility) ✅ Done — 24 client_trapping fixed, trapper name+filter in request list (MIG_785)
+    ↓
+DH_D001 (Triage ShelterLuv records)  ✅ Done — 0 unprocessed ShelterLuv; 909 chipless animals + 4 people triaged (MIG_786)
 ```
 
 ---
@@ -682,6 +684,7 @@ SC_002 (Surgical: trapper visibility) ✅ Done — 24 client_trapping fixed, tra
 | 2026-01-29 | BUG_FIX | Fixed "Failed to fetch place details" on Open Full Page — API queried non-existent columns from v_place_detail_v2. Joined sot_addresses with correct column name (admin_area_1). Added fallback for non-address-backed places. |
 | 2026-01-29 | DH_C001 | Completed: Deleted 20,543 stale person duplicate flags (MIG_784). Original 494 shared identifiers resolved by TASK_002 (now 0). 227 both-canonical rows kept for staff review. Backup preserved. All Safety Gate checks pass. |
 | 2026-01-29 | SC_002 | Completed: Trapper visibility in request list (MIG_785). Fixed 24 Airtable client_trapping requests. Added no_trapper_reason + primary_trapper_name to v_request_list. Trapper filter + column in UI. All Safety Gate checks pass. |
+| 2026-01-29 | DH_D001 | Completed: Triaged all unprocessed ShelterLuv records (MIG_786). Events: 4,171/4,172 already processed by cron. Animals: 909 chipless cats marked triaged. People: 4 marked triaged. Final: 0 unprocessed ShelterLuv. All Safety Gate checks pass. |
 
 ---
 
@@ -1192,9 +1195,35 @@ INSERT INTO trapper.potential_person_duplicates SELECT * FROM trapper._backup_st
 
 #### DH_D001: Triage Unprocessed ShelterLuv Records
 
-**Status:** Planned
-**Zone:** HISTORICAL
-**Scope:** 4,172 unprocessed shelterluv events + 914 unprocessed animals. Determine if these contain new data or are already processed by direct ingest calls.
+**Status:** Done
+**Zone:** HISTORICAL (staged_records, processing_jobs)
+**ACTIVE Impact:** No — HISTORICAL zone only. No ACTIVE tables/views/triggers touched.
+**Scope:** 4,172 unprocessed shelterluv events + 914 unprocessed animals identified by TASK_004. Triaged to determine new vs already-processed data.
+
+**Investigation Results:**
+- **Events (4,172):** 4,171 were already processed by cron since TASK_004. Last 1 processed successfully by MIG_786 Step 4. **0 remain.**
+- **Animals (909):** ALL had no microchip AND no species. Data engine rejected 906/909 (can't deduplicate without microchip). These are ShelterLuv-only community cats never clinically processed. Marked as triaged (`is_processed=true`). **0 remain.**
+- **People (11):** 10 had processing errors (missing `update_person_contact_info()` function), 1 skipped. 7 were matched to existing SoT people via email. 4 remaining marked as triaged. **0 remain.**
+- **Outcomes:** All 6,420 already processed. **0 remain.**
+- **Final state:** 0 unprocessed ShelterLuv records across all 4 tables.
+- Non-ShelterLuv unprocessed: 122 ClinicHQ records (not in DH_D001 scope — ongoing pipeline)
+
+**ShelterLuv SoT Entities:**
+- `sot_cats` (shelterluv): 1,636
+- `sot_people` (shelterluv): 4,959
+- `person_cat_relationships` (shelterluv): 1,568
+- `cat_identifiers` (shelterluv_id): 6,275
+
+**Migration:** MIG_786
+**No backup needed** — records were marked as processed (not deleted)
+
+**Validation Evidence:**
+```
+Pre:  4,172 events + 909 animals + 11 people unprocessed
+Post: 0 unprocessed ShelterLuv records (all 4 tables)
+Processing jobs: 246 queued, 6 completed (healthy)
+Safety Gate: All views resolve, all triggers enabled, all core tables have data
+```
 
 #### DH_D002: Audit Empty Tables for Feature Intent
 
