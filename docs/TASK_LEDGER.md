@@ -182,36 +182,37 @@ Merge chains flattened, prevention trigger active. Proceed to TASK_003.
 
 ## TASK_003: Fix Place Merge Chains + Same Pattern for Places
 
-**Status:** Planned
+**Status:** Done
 **ACTIVE Impact:** Yes (Surgical) — `places` is read by request detail, intake, search
-**Scope:** Same as TASK_002 but for the 8 place merge chain black holes.
+**Scope:** Flatten 10 place merge chains. Add prevention trigger.
+**Migration:** `sql/schema/sot/MIG_771__fix_place_merge_chains.sql`
 
-### What Changes
+### What Changed
 
-1. Create `get_canonical_place_id(UUID)` with recursive resolution (or verify existing one handles chains).
-2. Flatten 8 place merge chains.
-3. Add prevention constraint.
+1. `get_canonical_place_id(UUID)` already existed (MIG_225) — no changes needed.
+2. Flattened 10 place merge chains (all depth 2) to single-hop.
+3. Added prevention trigger `trg_prevent_place_merge_chain`.
 
-### Touched Surfaces
+### Pre-Fix State
 
-| Object | Type | Operation | ACTIVE? |
-|--------|------|-----------|---------|
-| `places` | Table | UPDATE (merged_into_place_id) | Yes (read by requests, intake) |
-| `get_canonical_place_id()` | Function | CREATE OR REPLACE | No |
+| Metric | Count |
+|--------|-------|
+| Total merged places | 4,447 |
+| In multi-hop chains | 10 |
+| Chain depth 2 | 10 |
 
-### Safety
+### Validation Evidence (2026-01-28)
 
-Same as TASK_002 — only modifies already-merged records. Views already filter them out.
-
-### Validation
-
-- [ ] `SELECT COUNT(*) FROM trapper.places WHERE merged_into_place_id IS NOT NULL AND merged_into_place_id IN (SELECT place_id FROM trapper.places WHERE merged_into_place_id IS NOT NULL)` returns **0**
-- [ ] Run Active Flow Safety Gate V1 (intake) — address autocomplete works
-- [ ] Run Safety Gate V3 (request detail) — place info renders
+- [x] **Zero chains remain:** `chains_remaining = 0`
+- [x] **10 rows flattened** successfully
+- [x] **Prevention trigger enabled:** `trg_prevent_place_merge_chain | enabled`
+- [x] **Safety Gate — Views:** `v_intake_triage_queue: 742 rows` | `v_request_list: 285 rows`
+- [x] **Safety Gate — All 7 critical triggers enabled**
 
 ### Rollback
 
-- Same backup pattern as TASK_002
+- Backup: `trapper._backup_place_merge_chains_771` (4,447 rows)
+- Restore: `UPDATE trapper.places p SET merged_into_place_id = b.original_merged_into FROM trapper._backup_place_merge_chains_771 b WHERE b.place_id = p.place_id;`
 
 ### Stop Point
 
@@ -466,7 +467,7 @@ TASK_001 (Inventory)          ✅ Done
     ↓
 TASK_002 (Merge chains: people)   ✅ Done — 4,509 chains flattened, prevention trigger added
     ↓
-TASK_003 (Merge chains: places)   → Same pattern, 8 records only
+TASK_003 (Merge chains: places)   ✅ Done — 10 chains flattened, prevention trigger added
     ↓
 TASK_004 (Processing pipeline)    → Background only, fixes #2/#3 failure modes
     ↓
@@ -490,3 +491,4 @@ ORCH_003 (Data health checks)     → Observability
 | 2026-01-28 | TASK_001 | Completed: inventory + fragmentation map |
 | 2026-01-28 | All tasks | Initial planning complete |
 | 2026-01-28 | TASK_002 | Completed: 4,509 person merge chains flattened (MIG_770). Prevention trigger added. All Safety Gate checks pass. |
+| 2026-01-28 | TASK_003 | Completed: 10 place merge chains flattened (MIG_771). Prevention trigger added. All Safety Gate checks pass. |
