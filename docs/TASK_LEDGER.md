@@ -654,6 +654,8 @@ DH_C001 (Clean stale dup flags)  ✅ Done — 20,543 stale flags deleted, 227 ca
 SC_002 (Surgical: trapper visibility) ✅ Done — 24 client_trapping fixed, trapper name+filter in request list (MIG_785)
     ↓
 DH_D001 (Triage ShelterLuv records)  ✅ Done — 0 unprocessed ShelterLuv; 909 chipless animals + 4 people triaged (MIG_786)
+    ↓
+SC_003 (Surgical: trapper assignment gaps) ✅ Done — 6 missing assignments fixed, 2 duplicate person_roles cleaned (MIG_787)
 ```
 
 ---
@@ -685,6 +687,7 @@ DH_D001 (Triage ShelterLuv records)  ✅ Done — 0 unprocessed ShelterLuv; 909 
 | 2026-01-29 | DH_C001 | Completed: Deleted 20,543 stale person duplicate flags (MIG_784). Original 494 shared identifiers resolved by TASK_002 (now 0). 227 both-canonical rows kept for staff review. Backup preserved. All Safety Gate checks pass. |
 | 2026-01-29 | SC_002 | Completed: Trapper visibility in request list (MIG_785). Fixed 24 Airtable client_trapping requests. Added no_trapper_reason + primary_trapper_name to v_request_list. Trapper filter + column in UI. All Safety Gate checks pass. |
 | 2026-01-29 | DH_D001 | Completed: Triaged all unprocessed ShelterLuv records (MIG_786). Events: 4,171/4,172 already processed by cron. Animals: 909 chipless cats marked triaged. People: 4 marked triaged. Final: 0 unprocessed ShelterLuv. All Safety Gate checks pass. |
+| 2026-01-29 | SC_003 | Completed: Fixed 6 missing trapper assignments from Airtable (MIG_787). Root cause: 2 Airtable trapper IDs each mapped to 2 Atlas people (duplicate person_roles). Cleaned duplicates, created 6 assignments. 0 Airtable gaps remaining. All Safety Gate checks pass. |
 
 ---
 
@@ -1227,9 +1230,44 @@ Safety Gate: All views resolve, all triggers enabled, all core tables have data
 
 #### DH_D002: Audit Empty Tables for Feature Intent
 
-**Status:** Planned
+**Status:** Done (audit only — no migration needed)
 **Zone:** MIXED
-**Scope:** Of 138 empty tables, determine which are: (a) planned features to keep, (b) abandoned scaffolding to drop, (c) lookup tables that should be populated.
+**Scope:** Of 138 empty tables (originally), determine which are: (a) planned features to keep, (b) abandoned scaffolding to drop, (c) lookup tables that should be populated. DH_A003 previously dropped 2 (automation_rules, cat_reunifications). 68 remain.
+
+**Investigation Results (68 empty tables):**
+
+All 68 have FK constraints, view references, trigger references, or documented purposes. Zero candidates for immediate drop.
+
+**(a) Planned Features to Keep — 67 tables**
+
+| Feature System | Tables (count) | Views | Status |
+|---------------|---------------|-------|--------|
+| Colony Management (MIG_610) | 7 (`colonies` +6) | 8 views | Infrastructure built, awaiting UI activation |
+| Email/Communication | 5 (`sent_emails`, `email_jobs`, etc.) | 7 views | Full pipeline built, not yet connected |
+| Entity Matching | 8 (`person_match_candidates`, etc.) | 7 views | Data Engine review queue infrastructure |
+| Cat Detail | 6 (`cat_medical_events`, `request_cats`, etc.) | 5 views | Cat profile enrichment features |
+| Ecology/Observation (MIG_220/288) | 5 (`observation_zones`, `site_observations`, etc.) | 4 views | Chapman mark-recapture infrastructure |
+| Trapper System | 6 (`trapper_site_visits`, `trapper_onboarding`, etc.) | 4 views | Trapper workflow features |
+| Place/Request Audit | 4 (`place_changes`, `request_media`, etc.) | 4 views | Change tracking |
+| Journal Features | 2 (`journal_attachments`, `journal_entity_links`) | 2 views | Journal enrichment |
+| Person Features | 2 (`person_person_edges`, `person_relationships`) | 4 views | Relationship graph |
+| Intake Pipeline | 5 (`raw_intake_*`, `intake_custom_fields` w/ trigger) | 2 views | Intake processing |
+| Tippy AI | 2 (`tippy_draft_requests`, `tippy_proposed_corrections`) | 2 views | Tippy assistant features |
+| Media | 2 (`media_collections`, `media_collection_items`) | — | Media gallery |
+| Audit/Infrastructure | 10 (`orchestrator_job_log`, `entity_edit_locks`, etc.) | 8 views | Logs, locks, infrastructure |
+| ClinicHQ | 1 (`clinichq_upcoming_appointments`) | 1 view | Upcoming appointment tracking |
+
+**(b) Abandoned Scaffolding — 1 table (not dropped)**
+
+| Table | Evidence | Decision |
+|-------|----------|----------|
+| `appointment_requests` | 0 FK, 0 views, 0 functions, 0 triggers. Legacy Airtable staging table superseded by `staged_records` pipeline. | **Keep for now** — 0 rows, no urgency. |
+
+**(c) Lookup Tables Needing Population — 0**
+
+All lookup tables (`place_context_types`, `ecology_config`, `known_organizations`, etc.) are already populated.
+
+**Conclusion:** 67 planned features to keep, 1 legacy table (no urgency), 0 empty lookup tables. DH_A003 already dropped the only 2 truly abandoned tables. No migration needed.
 
 ---
 
@@ -1588,3 +1626,115 @@ WHERE no_trapper_reason = 'client_trapping';
 ### Stop Point
 
 Trapper visibility complete. Staff can now filter requests by trapper status and see assigned trapper names. Client-trapping requests no longer show as "needs trapper". All Safety Gate checks pass.
+
+---
+
+## SC_003: Surgical Change — Fix Trapper Assignment Data Gaps
+
+**Status:** Done
+**ACTIVE Impact:** Yes (Surgical) — inserts into `request_trapper_assignments` (ACTIVE table)
+**Scope:** Fix 6 Airtable requests missing trapper assignments in Atlas due to duplicate person_roles.
+**Migration:** `sql/schema/sot/MIG_787__fix_trapper_assignment_gaps.sql`
+
+### Why This Change
+
+After SC_002 added trapper visibility to the request list, an audit revealed 6 Airtable requests that had trappers assigned in Airtable but no corresponding records in `request_trapper_assignments`. Root cause: 2 Airtable trapper record IDs each mapped to 2 different Atlas people, causing the sync script to fail silently.
+
+### Root Cause: Duplicate person_roles
+
+| Airtable ID | Airtable Name | Atlas Person 1 | Atlas Person 2 | Issue |
+|-------------|---------------|-----------------|-----------------|-------|
+| rec86C4vN4RyuWNSA | Carl Draper | Patricia Elder (7072927680) | Carl Draper (7072927680) | Same phone, different names. Airtable record renamed from Elder → Draper |
+| rec8yiEVxuSxlz9ab | Patricia Dias | Pat Dias (no phone) | Patricia Dias (7076942643) | Name variant "Pat" vs "Patricia". Pat created first, Patricia added later with phone |
+
+### What Changed
+
+1. **Removed 2 duplicate person_roles** — kept the canonical person for each Airtable ID (Carl Draper, Patricia Dias)
+2. **Created 6 missing request_trapper_assignments** — 3 active (in_progress) + 3 completed requests
+
+### Touched Surfaces
+
+| Object | Type | Operation | ACTIVE? |
+|--------|------|-----------|---------|
+| `person_roles` | Table | DELETE (2 stale rows) | Semi-Active |
+| `request_trapper_assignments` | Table | INSERT (6 rows via `assign_trapper_to_request()`) | Yes (request detail reads) |
+
+### Pre-Fix State
+
+| Metric | Count |
+|--------|-------|
+| Active assignments | 205 |
+| Airtable requests with trappers | 174 |
+| Atlas requests with assignments | 168 |
+| **Missing from Atlas** | **6** |
+
+### Post-Fix State
+
+| Metric | Count |
+|--------|-------|
+| Active assignments | 211 (+6) |
+| Airtable requests with trappers | 174 |
+| Atlas requests with assignments | 174 |
+| **Missing from Atlas** | **0** |
+
+### Assignment State Breakdown (Post-Fix)
+
+| State | Count |
+|-------|-------|
+| has_active_trapper | 178 |
+| resolved_no_trapper | 52 |
+| needs_trapper | 31 |
+| client_trapping | 24 |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **Active assignments:** 205 → 211 (+6)
+- [x] **Missing Airtable assignments:** 6 → 0
+- [x] **All 6 new assignments verified:** Correct trapper names, is_primary=true, source_system='airtable', created_by='MIG_787'
+- [x] **Duplicate person_roles cleaned:** 4 → 2 (1 per Airtable ID)
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     3
+  ```
+
+### Rollback
+
+```sql
+-- 1. Remove the 6 assignments created by MIG_787
+DELETE FROM trapper.request_trapper_assignments WHERE created_by = 'MIG_787';
+
+-- 2. Restore duplicate person_roles (optional — the duplicates were stale)
+INSERT INTO trapper.person_roles (person_id, role, source_record_id, trapper_type, created_at)
+VALUES
+  ('a488e402-c841-4804-ac92-ea2987e23057', 'trapper', 'rec86C4vN4RyuWNSA', 'ffsc_trapper', '2026-01-13 23:56:05.600365+00'),
+  ('58d3819e-87ff-4927-89bb-8e787a6ef117', 'trapper', 'rec8yiEVxuSxlz9ab', 'community_trapper', '2026-01-13 23:56:06.228451+00');
+```
+
+### Stop Point
+
+All Airtable trapper assignments now reflected in Atlas. 0 gaps between Airtable and Atlas for trapper data. The `request_trapper_assignments` table is the verified source of truth for all trapper-request relationships. All Safety Gate checks pass.
