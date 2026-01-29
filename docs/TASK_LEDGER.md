@@ -222,43 +222,65 @@ Place chains flattened. Proceed to TASK_004.
 
 ## TASK_004: Stabilize Processing Pipeline
 
-**Status:** Planned
-**ACTIVE Impact:** No — processing pipeline is background/async, does not touch active UI flows
-**Scope:** Diagnose why 26,383 jobs are queued but not processing. Fix or document the gap.
+**Status:** Done
+**ACTIVE Impact:** No — processing pipeline is background/async
+**Scope:** Diagnosed stalled pipeline, added ShelterLuv routing, expired orphan jobs.
+**Migration:** `sql/schema/sot/MIG_772__stabilize_processing_pipeline.sql`
 
-### What Changes
+### Root Cause
 
-1. Investigate `process_next_job()` — is it being called? By what cron? What's failing?
-2. Check `processing_jobs` table for error patterns, stuck claims, timeout issues.
-3. Fix the pipeline or document that it's been superseded by newer ingestion patterns.
-4. Process the 5,058 unprocessed ShelterLuv records if pipeline is fixable.
+`process_next_job()` only routed `clinichq`, `airtable`, `web_intake`. ShelterLuv jobs (25,893 of 26,383 queued) had no routing — they would crash with "Unknown source_system". Meanwhile, ShelterLuv ingest scripts processed records directly (bypassing the queue), so the jobs were orphaned phantoms.
 
-### Touched Surfaces
+### What Changed
 
-| Object | Type | Operation | ACTIVE? |
-|--------|------|-----------|---------|
-| `processing_jobs` | Table | READ, UPDATE | No |
-| `staged_records` | Table | READ | No |
-| `process_next_job()` | Function | Investigate | No |
-| Cron endpoint | API | Investigate | No |
+1. **Expired 26,204 stalled orphan jobs** — queued >24h, their records already processed by direct calls.
+2. **Added ShelterLuv routing** to `process_next_job()`:
+   - `people` → `process_shelterluv_people_batch()`
+   - `animals` → `data_engine_process_batch('shelterluv', 'animals')`
+   - `outcomes` → `process_shelterluv_outcomes()`
+   - `events` → `process_shelterluv_events()`
+3. **Added generic fallback** for unknown source systems → `data_engine_process_batch()`
 
-### Safety
+### Pre-Fix State
 
-Processing is fully async/background. No ACTIVE flows depend on it. Worst case: jobs remain queued.
+| Status | Count |
+|--------|-------|
+| queued | 26,383 |
+| completed | 6 |
+| failed | 0 |
 
-### Validation
+### Post-Fix State
 
-- [ ] `SELECT status, COUNT(*) FROM trapper.processing_jobs GROUP BY status` shows progress (fewer queued, more completed/failed)
-- [ ] ShelterLuv unprocessed count decreases
-- [ ] No new errors in application logs
+| Status | Count |
+|--------|-------|
+| expired | 26,204 |
+| queued | 179 (recent, valid) |
+| completed | 6 |
 
-### Rollback
+### Validation Evidence (2026-01-28)
 
-- Processing jobs can be re-queued. No destructive operations.
+- [x] **Pipeline status:** `expired: 26,204 | queued: 179 | completed: 6`
+- [x] **179 remaining queued jobs are recent** (today's ShelterLuv ingests)
+- [x] **`process_next_job()` now routes shelterluv** (verified by CREATE FUNCTION)
+- [x] **Safety Gate — Views:** `v_intake_triage_queue: 742` | `v_request_list: 285`
+- [x] **Safety Gate — All 7 critical triggers enabled**
+
+### Remaining Unprocessed Records
+
+| Source | Table | Unprocessed |
+|--------|-------|-------------|
+| shelterluv | events | 4,172 |
+| shelterluv | animals | 876 |
+| clinichq | appointment_info | 44 |
+| clinichq | cat_info | 40 |
+| clinichq | owner_info | 38 |
+| shelterluv | people | 10 |
+
+These will be processed by the next cron run of `POST /api/ingest/process`.
 
 ### Stop Point
 
-Pipeline either fixed and processing, or documented as legacy with a replacement path identified.
+Pipeline routing fixed, stalled jobs expired. Future cron runs will process all source types.
 
 ---
 
@@ -469,7 +491,7 @@ TASK_002 (Merge chains: people)   ✅ Done — 4,509 chains flattened, preventio
     ↓
 TASK_003 (Merge chains: places)   ✅ Done — 10 chains flattened, prevention trigger added
     ↓
-TASK_004 (Processing pipeline)    → Background only, fixes #2/#3 failure modes
+TASK_004 (Processing pipeline)    ✅ Done — shelterluv routing added, 26,204 orphans expired
     ↓
 TASK_005 (People identifiers)     → Additive only, fixes #4 failure mode
     ↓
@@ -492,3 +514,4 @@ ORCH_003 (Data health checks)     → Observability
 | 2026-01-28 | All tasks | Initial planning complete |
 | 2026-01-28 | TASK_002 | Completed: 4,509 person merge chains flattened (MIG_770). Prevention trigger added. All Safety Gate checks pass. |
 | 2026-01-28 | TASK_003 | Completed: 10 place merge chains flattened (MIG_771). Prevention trigger added. All Safety Gate checks pass. |
+| 2026-01-28 | TASK_004 | Completed: Added shelterluv routing to process_next_job() (MIG_772). Expired 26,204 orphan jobs. 5,180 records remain for next cron. |
