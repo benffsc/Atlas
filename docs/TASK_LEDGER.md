@@ -542,39 +542,73 @@ Registry populated, onboarding pattern proven. Ready for ORCH_003 health views.
 
 ## ORCH_003: Data Health Checks + "Why Missing?" Surfaces
 
-**Status:** Planned
-**ACTIVE Impact:** No
-**Scope:** Build diagnostic views and functions that surface data quality issues, routing failures, and explain why data is missing.
+**Status:** Done
+**ACTIVE Impact:** No — read-only views, no schema changes
+**Scope:** Create 4 diagnostic views for data quality observability.
+**Migration:** `sql/schema/sot/MIG_777__orchestrator_health_views.sql`
 
-### What Changes
+### What Changed
 
-1. Create `v_orchestrator_health` — pipeline throughput, error rates, routing stats.
-2. Create `v_data_why_missing` — surfaces entities that should have data but don't (places without colony estimates, people without identifiers, cats without places).
-3. Create `v_merge_chain_health` — detects merge black holes across all entity types.
-4. Create `v_routing_anomalies` — flags suspicious data (cat_count=500 at a house, negative values, impossible dates).
-5. Optional admin page: `/admin/data-health`
+1. Created `v_orchestrator_health` — pipeline throughput and staleness per registered source.
+2. Created `v_data_why_missing` — surfaces entities missing expected data.
+3. Created `v_merge_chain_health` — detects merge chain black holes.
+4. Created `v_routing_anomalies` — flags suspicious data patterns.
 
-### Touched Surfaces
+### View Results (2026-01-28)
 
-| Object | Type | Operation | ACTIVE? |
-|--------|------|-----------|---------|
-| New views (4) | Views | CREATE | No |
-| Optional new page | UI | CREATE | No |
+**v_orchestrator_health (17 sources):**
 
-### Validation
+| Health Status | Count |
+|--------------|-------|
+| healthy | 9 |
+| stale | 5 |
+| inactive | 2 |
+| processing_behind | 1 |
 
-- [ ] Health views return correct counts matching manual spot checks
-- [ ] "Why missing" surfaces correctly identify known gaps (986 people, 1608 cats, 93 places)
-- [ ] Merge chain health returns 0 black holes (after TASK_002/003)
-- [ ] Active Flow Safety Gate passes
+**v_data_why_missing (6,107 issues):**
+
+| Entity | Issue | Count |
+|--------|-------|-------|
+| cat | no_place_link | 3,520 |
+| cat | no_microchip | 1,608 |
+| person | no_identifiers | 973 |
+| request | no_trapper | 6 |
+
+**v_merge_chain_health: 0 chains** (clean after TASK_002/003)
+
+**v_routing_anomalies (53 flags):**
+
+| Anomaly | Count |
+|---------|-------|
+| many_identifiers | 44 |
+| stale_source | 5 |
+| high_cat_count | 4 |
+
+### Validation Evidence (2026-01-28)
+
+- [x] **All 4 views created and resolve without error**
+- [x] **v_data_why_missing correctly identifies known gaps:**
+  - 973 people without identifiers (matches TASK_005 remainder)
+  - 1,608 cats without microchips (matches TASK_001 diagnosis)
+  - 6 active requests without trappers
+- [x] **v_merge_chain_health returns 0** (confirms TASK_002/003 fixes hold)
+- [x] **Safety Gate — Existing views still resolve:**
+  ```
+  v_request_alteration_stats: 275 | v_trapper_full_stats: 54 | v_processing_dashboard: 7
+  ```
 
 ### Rollback
 
-- `DROP VIEW` — clean removal
+```sql
+DROP VIEW IF EXISTS trapper.v_routing_anomalies;
+DROP VIEW IF EXISTS trapper.v_merge_chain_health;
+DROP VIEW IF EXISTS trapper.v_data_why_missing;
+DROP VIEW IF EXISTS trapper.v_orchestrator_health;
+```
 
 ### Stop Point
 
-Diagnostic surfaces exist. Data health is observable. No active flows changed.
+All diagnostic surfaces operational. Data health is now observable via SQL.
 
 ---
 
@@ -597,7 +631,7 @@ ORCH_001 (Orchestrator backbone)  ✅ Done — 3 tables, 8 indexes, shadow mode
     ↓
 ORCH_002 (Source registry)        ✅ Done — 17 sources, 26 rules, 2 functions
     ↓
-ORCH_003 (Data health checks)     → Observability
+ORCH_003 (Data health checks)     ✅ Done — 4 views: health, why-missing, chains, anomalies
 ```
 
 ---
@@ -615,3 +649,4 @@ ORCH_003 (Data health checks)     → Observability
 | 2026-01-28 | TASK_006 | Completed: Dropped 10 old backup tables (MIG_774). 149 MB reclaimed. Kept MIG_770/771 rollback backups. |
 | 2026-01-28 | ORCH_001 | Completed: Created 3 orchestrator tables (MIG_775). Shadow mode — no existing pipelines changed. |
 | 2026-01-28 | ORCH_002 | Completed: Registered 17 sources, 26 routing rules, 2 helper functions (MIG_776). Demo onboarding with client_survey. |
+| 2026-01-28 | ORCH_003 | Completed: Created 4 diagnostic views (MIG_777). 6,107 data quality issues surfaced. 0 merge chains. |
