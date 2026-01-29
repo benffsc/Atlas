@@ -29,6 +29,8 @@ interface Request {
   // SC_002: Trapper visibility columns
   no_trapper_reason: string | null;
   primary_trapper_name: string | null;
+  // SC_004: Assignment status (maintained field)
+  assignment_status: string;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -612,9 +614,9 @@ export default function RequestsPage() {
           onChange={(e) => setTrapperFilter(e.target.value)}
           style={{ minWidth: "150px" }}
         >
-          <option value="">All trappers</option>
-          <option value="has_trapper">Has trapper</option>
-          <option value="needs_trapper">Needs trapper</option>
+          <option value="">All assignments</option>
+          <option value="assigned">Assigned</option>
+          <option value="pending">Needs trapper</option>
           <option value="client_trapping">Client trapping</option>
         </select>
 

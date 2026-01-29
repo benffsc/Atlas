@@ -33,6 +33,8 @@ interface RequestListRow {
   // SC_002: Trapper visibility columns
   no_trapper_reason: string | null;
   primary_trapper_name: string | null;
+  // SC_004: Assignment status (maintained field)
+  assignment_status: string;
 }
 
 export async function GET(request: NextRequest) {
@@ -77,13 +79,13 @@ export async function GET(request: NextRequest) {
     paramIndex++;
   }
 
-  // SC_002: Trapper assignment filter
-  if (trapperFilter === "has_trapper") {
-    conditions.push(`active_trapper_count > 0`);
-  } else if (trapperFilter === "needs_trapper") {
-    conditions.push(`active_trapper_count = 0 AND no_trapper_reason IS NULL`);
+  // SC_004: Assignment status filter (maintained field)
+  if (trapperFilter === "has_trapper" || trapperFilter === "assigned") {
+    conditions.push(`assignment_status = 'assigned'`);
+  } else if (trapperFilter === "needs_trapper" || trapperFilter === "pending") {
+    conditions.push(`assignment_status = 'pending'`);
   } else if (trapperFilter === "client_trapping") {
-    conditions.push(`no_trapper_reason = 'client_trapping'`);
+    conditions.push(`assignment_status = 'client_trapping'`);
   }
 
   // Search across summary, place name, place address, requester name
@@ -177,7 +179,8 @@ export async function GET(request: NextRequest) {
         place_has_location,
         data_quality_flags,
         no_trapper_reason,
-        primary_trapper_name
+        primary_trapper_name,
+        assignment_status
       FROM trapper.v_request_list
       ${whereClause}
       ORDER BY ${buildOrderBy()}

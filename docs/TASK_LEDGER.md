@@ -658,6 +658,8 @@ DH_D001 (Triage ShelterLuv records)  ✅ Done — 0 unprocessed ShelterLuv; 909 
 SC_003 (Surgical: trapper assignment gaps) ✅ Done — 6 missing assignments fixed, 2 duplicate person_roles cleaned (MIG_787)
     ↓
 DH_D002 (Audit empty tables)         ✅ Done — 68 audited: 67 planned features, 1 legacy (kept), 0 lookup gaps. Audit only.
+    ↓
+SC_004 (Surgical: assignment_status maintained field) ✅ Done — assignment_status backfilled + trigger + NOT NULL + v_request_list + API/UI filter (MIG_788)
 ```
 
 ---
@@ -691,6 +693,7 @@ DH_D002 (Audit empty tables)         ✅ Done — 68 audited: 67 planned feature
 | 2026-01-29 | DH_D001 | Completed: Triaged all unprocessed ShelterLuv records (MIG_786). Events: 4,171/4,172 already processed by cron. Animals: 909 chipless cats marked triaged. People: 4 marked triaged. Final: 0 unprocessed ShelterLuv. All Safety Gate checks pass. |
 | 2026-01-29 | SC_003 | Completed: Fixed 6 missing trapper assignments from Airtable (MIG_787). Root cause: 2 Airtable trapper IDs each mapped to 2 Atlas people (duplicate person_roles). Cleaned duplicates, created 6 assignments. 0 Airtable gaps remaining. All Safety Gate checks pass. |
 | 2026-01-29 | DH_D002 | Completed: Audit of 68 empty tables. 67 are planned feature infrastructure (FK/view/function refs). 1 legacy table (`appointment_requests`, superseded by staged_records). 0 lookup tables needing population. No migration needed — audit only. |
+| 2026-01-29 | SC_004 | Completed: Made assignment_status a maintained lifecycle field (MIG_788). Backfilled 285 requests: 178 assigned, 83 pending, 24 client_trapping. Added auto-maintenance trigger on request_trapper_assignments. Column is NOT NULL DEFAULT 'pending'. v_request_list updated. API filter uses assignment_status. UI dropdown updated. All Safety Gate checks pass. |
 
 ---
 
@@ -1741,3 +1744,142 @@ VALUES
 ### Stop Point
 
 All Airtable trapper assignments now reflected in Atlas. 0 gaps between Airtable and Atlas for trapper data. The `request_trapper_assignments` table is the verified source of truth for all trapper-request relationships. All Safety Gate checks pass.
+
+---
+
+## SC_004: Surgical Change — Make assignment_status a Maintained Field
+
+**Status:** Done
+**ACTIVE Impact:** Yes (Surgical) — modifies `sot_requests`, `v_request_list`, adds trigger on `request_trapper_assignments`
+**Scope:** Make assignment_status a maintained lifecycle field instead of inferring trapper-need from absence of data.
+**Migration:** `sql/schema/sot/MIG_788__maintain_assignment_status.sql`
+
+### Why This Change
+
+The Airtable pattern of inferring "needs trapper" from absence of data (no trapper = needs trapper) is fragile and doesn't distinguish between:
+- Genuinely needs trapper assignment
+- Client handles trapping
+- Completed without a trapper
+- Cancelled requests
+
+`assignment_status` already existed as a CHECK constraint on `sot_requests` but was never set or maintained — it was NULL for all 285 requests. This migration transforms it into an explicit, maintained lifecycle field.
+
+### What Changed
+
+1. **Backfilled all 285 requests** from current data:
+   - 178 → `assigned` (have active trapper in `request_trapper_assignments`)
+   - 24 → `client_trapping` (no_trapper_reason = 'client_trapping')
+   - 83 → `pending` (active requests without trapper or reason)
+2. **Schema enforcement:** `NOT NULL DEFAULT 'pending'` — no more NULLs
+3. **Auto-maintenance trigger** on `request_trapper_assignments`:
+   - INSERT/UPDATE: if active trappers exist → `assigned`
+   - DELETE/unassign: if no active trappers remain → `pending` (unless client_trapping)
+4. **v_request_list updated** with `assignment_status` column
+5. **API updated** — filter uses `assignment_status` directly instead of derived trapper count
+6. **UI updated** — filter dropdown uses assignment_status values
+
+### assignment_status Values
+
+| Value | Meaning | When Set |
+|-------|---------|----------|
+| `pending` | Needs trapper assignment | Default for new requests; trigger sets when all trappers unassigned |
+| `assigned` | Has active trapper(s) | Trigger sets on INSERT into request_trapper_assignments |
+| `client_trapping` | Client handles trapping | Set via backfill from no_trapper_reason |
+| `completed` | Resolved request | Set via backfill from request status |
+| `cancelled` | Cancelled request | Set via backfill from request status |
+
+### Touched Surfaces
+
+| Object | Type | Operation | ACTIVE? |
+|--------|------|-----------|---------|
+| `sot_requests` | Table | UPDATE (backfill 285 rows), ALTER (NOT NULL, DEFAULT) | Yes |
+| `v_request_list` | View | CREATE OR REPLACE (add assignment_status column) | Yes |
+| `trg_maintain_assignment_status` | Trigger | CREATE (on request_trapper_assignments) | Yes |
+| `trapper.maintain_assignment_status()` | Function | CREATE | N/A |
+| `apps/web/src/app/api/requests/route.ts` | API | Modified (filter uses assignment_status) | Yes |
+| `apps/web/src/app/requests/page.tsx` | UI | Modified (filter dropdown, interface) | Yes |
+
+### Pre-Fix State
+
+| Metric | Count |
+|--------|-------|
+| assignment_status = NULL | 285 (all requests) |
+| "Needs trapper" determination | Derived from active_trapper_count = 0 AND no_trapper_reason IS NULL |
+
+### Post-Fix State
+
+| assignment_status | Count |
+|-------------------|-------|
+| assigned | 178 |
+| pending | 83 |
+| client_trapping | 24 |
+| NULL | 0 (NOT NULL enforced) |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **Backfill correct:** 178 assigned + 83 pending + 24 client_trapping = 285 (all requests)
+- [x] **Schema enforced:** NOT NULL DEFAULT 'pending'
+- [x] **Trigger enabled:** trg_maintain_assignment_status on request_trapper_assignments = enabled
+- [x] **v_request_list column count:** 35 → 36 (+assignment_status)
+- [x] **v_request_list row count:** 285 (unchanged)
+- [x] **Active requests by assignment_status:**
+  ```
+  assigned:        84
+  pending:         31
+  client_trapping:  9
+  ```
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — NEW trigger on request_trapper_assignments:**
+  ```
+  trg_maintain_assignment_status | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     3
+  ```
+
+### Rollback
+
+```sql
+-- 1. Drop trigger and function
+DROP TRIGGER IF EXISTS trg_maintain_assignment_status ON trapper.request_trapper_assignments;
+DROP FUNCTION IF EXISTS trapper.maintain_assignment_status();
+
+-- 2. Remove NOT NULL and default
+ALTER TABLE trapper.sot_requests ALTER COLUMN assignment_status DROP NOT NULL;
+ALTER TABLE trapper.sot_requests ALTER COLUMN assignment_status DROP DEFAULT;
+
+-- 3. Set all back to NULL
+UPDATE trapper.sot_requests SET assignment_status = NULL;
+
+-- 4. Restore previous v_request_list (SC_002 version without assignment_status)
+-- See MIG_785 for the previous view definition.
+```
+
+### Stop Point
+
+`assignment_status` is now a maintained lifecycle field. Staff can filter by `pending` (needs trapper) instead of inferring from absence. The trigger automatically keeps it in sync when trappers are assigned or unassigned. All Safety Gate checks pass.
