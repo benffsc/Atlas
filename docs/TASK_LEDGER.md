@@ -638,6 +638,8 @@ DH_A001 (Delete expired jobs)    ✅ Done — 26,204 expired jobs deleted, backu
 DOC_001 (Documentation pass)     ✅ Done — 2 guides created, 5 docs archived
     ↓
 SC_001 (Surgical: request quality) ✅ Done — 3 columns added to v_request_list, API updated
+    ↓
+DH_A002 (Delete orphan edits)    ✅ Done — 140 orphan entity_edits deleted, backup preserved
 ```
 
 ---
@@ -660,6 +662,7 @@ SC_001 (Surgical: request quality) ✅ Done — 3 columns added to v_request_lis
 | 2026-01-29 | DH_A001 | Completed: Deleted 26,204 expired processing jobs (MIG_778). Backup preserved. All Safety Gate checks pass. |
 | 2026-01-29 | DOC_001 | Completed: Documentation Reassessment Pass. Created ATLAS_OPERATOR_GUIDE.md + ATLAS_ENGINEERING_GUIDE.md. Moved 5 deprecated docs to docs/archive/. |
 | 2026-01-29 | SC_001 | Completed: Surgical Change — Added data quality columns to v_request_list (MIG_779). API updated. All Safety Gate checks pass. |
+| 2026-01-29 | DH_A002 | Completed: Deleted 140 orphan entity_edits (MIG_780). All MIG_572 deletion audit ghosts. Backup preserved. All Safety Gate checks pass. |
 
 ---
 
@@ -748,10 +751,93 @@ FROM trapper._backup_expired_jobs_778;
 
 #### DH_A002: Delete Orphan Entity Edits
 
-**Status:** Planned
+**Status:** Done
 **Zone:** HISTORICAL
-**ACTIVE Impact:** No — entity_edits is an audit log, not read by ACTIVE flows
+**ACTIVE Impact:** No — entity_edits is an audit log. ACTIVE flows only INSERT into it (logFieldEdits on PATCH). No ACTIVE UI reads orphan rows.
 **Scope:** Delete 140 entity_edits where the referenced person no longer exists in sot_people.
+**Migration:** `sql/schema/sot/MIG_780__delete_orphan_entity_edits.sql`
+
+### Pre-Checks (All Passed)
+
+| Check | Result |
+|-------|--------|
+| FK from pending_edits to orphan rows | **0** — no references |
+| Orphan rows with rollback chains | **0** — no rollback links |
+| Other entity_edits referencing orphan rows | **0** — no reverse rollback refs |
+| Views reading entity_edits | 1 (`v_recent_edits`) — not an ACTIVE flow surface; orphan rows return NULL entity_name |
+| API endpoints reading entity_edits | 2 (`/api/intake/queue/[id]/history`, `/api/entities/[type]/[id]/history`) — query by entity_id; orphaned person IDs are unreachable since the people don't exist |
+| Functions writing entity_edits | 17 — all INSERT, none DELETE; not affected |
+
+### What Was Deleted
+
+All 140 orphan rows are identical in nature:
+
+| Field | Value |
+|-------|-------|
+| entity_type | `person` |
+| edit_type | `delete` |
+| field_name | `full_record` |
+| edited_by | `system:MIG_572` |
+| edit_source | `migration` |
+
+These are audit ghosts from MIG_572 — it deleted people from sot_people but left behind entity_edits records referencing the now-absent person_ids.
+
+### Row Counts
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total entity_edits | 168 | 28 |
+| Orphan rows (person) | 140 | 0 |
+| Valid person edits | 6 | 6 |
+| Request edits | 20 | 20 |
+| Intake submission edits | 2 | 2 |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **140 rows deleted**, 28 remaining (all valid)
+- [x] **Zero remaining orphans** (confirmed by post-delete query)
+- [x] **Backup created:** `trapper._backup_orphan_entity_edits_780` (140 rows)
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  v_recent_edits:         28 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     2
+  ```
+
+### Rollback
+
+```sql
+INSERT INTO trapper.entity_edits
+SELECT * FROM trapper._backup_orphan_entity_edits_780;
+```
+
+### Stop Point
+
+140 orphan entity_edits deleted. All valid audit records preserved. Backup available for rollback.
 
 #### DH_A003: Drop Empty Unused Feature Tables
 
@@ -874,7 +960,7 @@ Guides created. Deprecated docs archived. Gaps and conflicts documented. Proceed
 
 ## SC_001: Surgical Change — Surface Data Quality in Request List
 
-**Status:** In Progress
+**Status:** Done
 **ACTIVE Impact:** Yes (Surgical) — modifies `v_request_list` view (read by dashboard + request list page) and `GET /api/requests` response
 **Scope:** Add live trapper assignment count and data quality indicators to the ACTIVE request list.
 **Migration:** `sql/schema/sot/MIG_779__request_list_data_quality.sql`
