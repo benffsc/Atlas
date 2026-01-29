@@ -122,7 +122,7 @@ SELECT
 
     p.formatted_address AS place_address,
     p.safety_notes AS place_safety_notes,
-    sa.locality AS place_city,
+    COALESCE(sa.locality, TRIM(split_part(p.formatted_address, ',', 2))) AS place_city,
     p.service_zone,
     ST_Y(p.location::geometry) AS latitude,
     ST_X(p.location::geometry) AS longitude,
@@ -188,7 +188,10 @@ SELECT
     r.no_trapper_reason,
 
     -- Name of the primary assigned trapper (or first active trapper)
-    tc.primary_trapper_name
+    tc.primary_trapper_name,
+
+    -- Assignment status (added post-SC_002)
+    r.assignment_status
 
 FROM trapper.sot_requests r
 LEFT JOIN trapper.places p ON p.place_id = r.place_id
