@@ -86,7 +86,57 @@ export async function GET(
       WHERE place_id = $1
     `;
 
-    const place = await queryOne<PlaceDetailRow>(sql, [placeId]);
+    let place = await queryOne<PlaceDetailRow>(sql, [placeId]);
+
+    // Fallback: v_place_detail_v2 filters is_address_backed=true.
+    // Places with coordinates but no geocoded address (2,494 places) would
+    // 404 without this fallback. Query the places table directly.
+    if (!place) {
+      const fallbackSql = `
+        SELECT
+          p.place_id,
+          COALESCE(p.display_name, p.formatted_address, 'Unknown Place') AS display_name,
+          p.formatted_address,
+          p.place_kind::text AS place_kind,
+          p.is_address_backed,
+          EXISTS(SELECT 1 FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = p.place_id) AS has_cat_activity,
+          sa.locality,
+          sa.postal_code,
+          sa.state_province,
+          CASE WHEN p.location IS NOT NULL THEN
+            json_build_object('lat', ST_Y(p.location::geometry), 'lng', ST_X(p.location::geometry))
+          ELSE NULL END AS coordinates,
+          p.created_at::text AS created_at,
+          p.updated_at::text AS updated_at,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'cat_id', c.cat_id, 'cat_name', c.cat_name, 'sex', c.sex,
+              'microchip', c.primary_microchip, 'source_system', c.source_system
+            ))
+            FROM trapper.cat_place_relationships cpr
+            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+            WHERE cpr.place_id = p.place_id
+          ), '[]'::json) AS cats,
+          COALESCE((
+            SELECT json_agg(json_build_object(
+              'person_id', per.person_id, 'display_name', per.display_name
+            ))
+            FROM trapper.person_place_relationships ppr
+            JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+            WHERE ppr.place_id = p.place_id
+              AND per.merged_into_person_id IS NULL
+              AND per.display_name IS NOT NULL
+          ), '[]'::json) AS people,
+          '[]'::json AS place_relationships,
+          COALESCE((SELECT COUNT(DISTINCT cpr.cat_id) FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0) AS cat_count,
+          COALESCE((SELECT COUNT(DISTINCT ppr.person_id) FROM trapper.person_place_relationships ppr JOIN trapper.sot_people per ON per.person_id = ppr.person_id WHERE ppr.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
+        FROM trapper.places p
+        LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
+        WHERE p.place_id = $1
+          AND p.merged_into_place_id IS NULL
+      `;
+      place = await queryOne<PlaceDetailRow>(fallbackSql, [placeId]);
+    }
 
     if (!place) {
       return NextResponse.json(

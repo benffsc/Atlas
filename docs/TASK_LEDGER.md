@@ -644,6 +644,8 @@ DH_A002 (Delete orphan edits)    ✅ Done — 140 orphan entity_edits deleted, b
 DH_A003 (Drop empty tables)     ✅ Done — 2 tables dropped, 67 audited and kept
     ↓
 SC_001 UI (Request list flags)   ✅ Done — DataQualityFlags component in card + table views
+    ↓
+DH_B001 (Remap match decisions)  ✅ Done — 29,750 FK refs remapped to canonical people (MIG_782)
 ```
 
 ---
@@ -669,6 +671,7 @@ SC_001 UI (Request list flags)   ✅ Done — DataQualityFlags component in card
 | 2026-01-29 | DH_A002 | Completed: Deleted 140 orphan entity_edits (MIG_780). All MIG_572 deletion audit ghosts. Backup preserved. All Safety Gate checks pass. |
 | 2026-01-29 | DH_A003 | Completed: Dropped 2 empty, unreferenced tables (MIG_781). 67 other empty tables audited and kept. All Safety Gate checks pass. |
 | 2026-01-29 | SC_001 UI | Completed: DataQualityFlags component added to request list page. Card + table views render no_trapper, no_geometry, stale_30d, no_requester flags. |
+| 2026-01-29 | DH_B001 | Completed: Remapped 23,829 resulting_person_id + 5,921 top_candidate_person_id from merged to canonical (MIG_782). Backup preserved. All 9 views resolve. All Safety Gate checks pass. |
 
 ---
 
@@ -934,11 +937,100 @@ Not possible — tables are dropped. Both had 0 rows, so no data lost.
 
 ### Category B: Safe to Archive (Soft Archive + Views)
 
-#### DH_B001: Soft-Archive Match Decisions Pointing to Merged People
+#### DH_B001: Remap Match Decisions from Merged People to Canonical
 
-**Status:** Planned
+**Status:** Done
 **Zone:** SEMI-ACTIVE
-**Scope:** 23,829 match decisions where `resulting_person_id` points to a merged person. Update to point to canonical person via `get_canonical_person_id()`.
+**ACTIVE Impact:** No — `data_engine_match_decisions` is an audit/history table. ACTIVE flows only INSERT into it (via `data_engine_resolve_identity`). Views that read it will return more accurate results after remapping.
+**Scope:** Remap 23,829 `resulting_person_id` and 5,921 `top_candidate_person_id` values from merged people to their canonical equivalents via `get_canonical_person_id()`.
+**Migration:** `sql/schema/sot/MIG_782__remap_merged_match_decisions.sql`
+
+### Pre-Checks (All Passed)
+
+| Check | Result |
+|-------|--------|
+| FK constraints on table | 3 — `resulting_person_id → sot_people`, `top_candidate_person_id → sot_people`, `household_id → households` |
+| Views referencing table | 9 — `v_data_engine_review_queue`, `v_data_engine_stats`, `v_data_engine_health`, `v_identity_resolution_health`, `v_identity_decision_breakdown`, `v_data_engine_enrichment_stats`, `v_people_without_data_engine`, `v_data_engine_coverage`, `v_data_engine_org_decisions` |
+| get_canonical_person_id() | Verified working — returns correct canonical for merged people |
+| NULL resulting_person_id rows | 43,247 — expected for rejected/new_entity decisions, untouched |
+
+### Row Counts
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total rows | 108,776 | 108,776 |
+| resulting_person_id → merged | 23,829 | 0 |
+| top_candidate_person_id → merged | 5,921 | 0 |
+| resulting_person_id → canonical | 41,700 | 65,529 |
+| resulting_person_id → NULL | 43,247 | 43,247 |
+
+### Decision Type Breakdown (Remapped Rows)
+
+| Decision Type | Count |
+|---------------|-------|
+| review_pending | 18,813 |
+| auto_match | 3,083 |
+| new_entity | 1,755 |
+| household_member | 111 |
+| contact_info_update | 67 |
+
+### Validation Evidence (2026-01-29)
+
+- [x] **23,829 resulting_person_id remapped**, 5,921 top_candidate_person_id remapped
+- [x] **0 merged references remaining** (both columns verified)
+- [x] **Backup created:** `trapper._backup_merged_match_decisions_782` (26,437 rows — captures both columns)
+- [x] **All 9 dependent views resolve:**
+  ```
+  v_data_engine_review_queue:     3,262 rows
+  v_data_engine_stats:               15 rows
+  v_data_engine_health:               1 row
+  v_identity_resolution_health:       1 row
+  v_identity_decision_breakdown:     46 rows
+  v_data_engine_enrichment_stats:    13 rows
+  ```
+- [x] **Safety Gate — Views resolve:**
+  ```
+  v_intake_triage_queue: 742 rows
+  v_request_list:        285 rows
+  ```
+- [x] **Safety Gate — Intake triggers enabled:**
+  ```
+  trg_auto_triage_intake   | enabled
+  trg_intake_create_person | enabled
+  trg_intake_link_place    | enabled
+  ```
+- [x] **Safety Gate — Request triggers enabled:**
+  ```
+  trg_log_request_status | enabled
+  trg_request_activity   | enabled
+  trg_set_resolved_at    | enabled
+  ```
+- [x] **Safety Gate — Journal trigger enabled:**
+  ```
+  trg_journal_entry_history_log | enabled
+  ```
+- [x] **Safety Gate — Core tables have data:**
+  ```
+  web_intake_submissions: 1,174
+  sot_requests:             285
+  journal_entries:         1,856
+  staff:                      24
+  staff_sessions (active):     3
+  ```
+
+### Rollback
+
+```sql
+UPDATE trapper.data_engine_match_decisions d
+SET resulting_person_id = b.old_resulting_person_id,
+    top_candidate_person_id = b.old_top_candidate_person_id
+FROM trapper._backup_merged_match_decisions_782 b
+WHERE d.decision_id = b.decision_id;
+```
+
+### Stop Point
+
+23,829 + 5,921 FK references remapped to canonical people. All views resolve. Audit trail preserved. Backup available for rollback.
 
 #### DH_B002: Deduplicate Staged Records
 
