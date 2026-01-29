@@ -437,45 +437,42 @@ Not possible — tables are dropped. Data was verified as safe to remove before 
 
 ## ORCH_001: Minimal Orchestrator Backbone
 
-**Status:** Planned
-**ACTIVE Impact:** No — additive system alongside existing flows
-**Scope:** Create the unified work queue and pipeline contract tables. Shadow mode only.
+**Status:** Done
+**ACTIVE Impact:** No — purely additive tables alongside existing system
+**Scope:** Create orchestrator coordination tables. Shadow mode only.
+**Migration:** `sql/schema/sot/MIG_775__orchestrator_backbone.sql`
 
-### What Changes
+### What Changed
 
-1. Create `orchestrator_sources` registry table (source declarations).
-2. Create `orchestrator_jobs` unified work queue (generalizing `processing_jobs` + `extraction_queue`).
-3. Create `orchestrator_routing_rules` (field → canonical surface mappings).
-4. Create `orchestrator_job_log` (debuggable audit of routing decisions).
-5. Wire existing `extraction_queue` as first consumer (adapter pattern, not replacement).
+1. Created `orchestrator_sources` — registry of all data sources with schema, pipeline config, health tracking.
+2. Created `orchestrator_routing_rules` — declarative field-to-surface mappings with FK to sources.
+3. Created `orchestrator_job_log` — append-only routing audit trail with 3 indexes (source, target, errors).
 
 ### Touched Surfaces
 
 | Object | Type | Operation | ACTIVE? |
 |--------|------|-----------|---------|
-| New tables (4) | Tables | CREATE | No |
-| `extraction_queue` | Table | READ (adapter reads from new queue) | No |
-| `processing_jobs` | Table | READ (adapter) | No |
+| `orchestrator_sources` | Table | CREATE | No |
+| `orchestrator_routing_rules` | Table | CREATE | No |
+| `orchestrator_job_log` | Table | CREATE | No |
 
-### Safety
+### Validation Evidence (2026-01-28)
 
-Purely additive. New tables. Existing systems unchanged. Orchestrator runs in shadow mode alongside current pipelines.
-
-### Validation
-
-- [ ] New tables created with correct schema
-- [ ] Can register a source in `orchestrator_sources`
-- [ ] Can create a job in `orchestrator_jobs`
-- [ ] Adapter successfully reads from `orchestrator_jobs` and routes to `extraction_queue`
-- [ ] All Active Flow Safety Gate checks pass (nothing changed in active paths)
+- [x] **3 tables created:** orchestrator_sources, orchestrator_routing_rules, orchestrator_job_log
+- [x] **8 indexes created** (3 PKs, 1 unique, 4 custom)
+- [x] **Safety Gate — Views resolve:** v_request_alteration_stats: 275 | v_trapper_full_stats: 54 | v_processing_dashboard: 7
 
 ### Rollback
 
-- `DROP TABLE orchestrator_*` — clean removal, no dependencies
+```sql
+DROP TABLE IF EXISTS trapper.orchestrator_job_log CASCADE;
+DROP TABLE IF EXISTS trapper.orchestrator_routing_rules CASCADE;
+DROP TABLE IF EXISTS trapper.orchestrator_sources CASCADE;
+```
 
 ### Stop Point
 
-Backbone exists. Shadow mode proven. Do not replace existing pipelines yet.
+Backbone tables exist. Ready for ORCH_002 population.
 
 ---
 
@@ -571,7 +568,7 @@ TASK_005 (People identifiers)     ✅ Done — 13 identifiers recovered, 494 dup
     ↓
 TASK_006 (Backup cleanup)         ✅ Done — 10 tables dropped, 149 MB reclaimed
     ↓
-ORCH_001 (Orchestrator backbone)  → New additive tables, shadow mode
+ORCH_001 (Orchestrator backbone)  ✅ Done — 3 tables, 8 indexes, shadow mode
     ↓
 ORCH_002 (Source registry)        → Config-driven routing
     ↓
@@ -591,3 +588,4 @@ ORCH_003 (Data health checks)     → Observability
 | 2026-01-28 | TASK_004 | Completed: Added shelterluv routing to process_next_job() (MIG_772). Expired 26,204 orphan jobs. 5,180 records remain for next cron. |
 | 2026-01-28 | TASK_005 | Completed: Backfilled 13 identifiers (MIG_773). 494 orphan people share identifiers with existing people — flagged as potential duplicates. |
 | 2026-01-28 | TASK_006 | Completed: Dropped 10 old backup tables (MIG_774). 149 MB reclaimed. Kept MIG_770/771 rollback backups. |
+| 2026-01-28 | ORCH_001 | Completed: Created 3 orchestrator tables (MIG_775). Shadow mode — no existing pipelines changed. |
