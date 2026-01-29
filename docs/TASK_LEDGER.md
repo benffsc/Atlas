@@ -648,6 +648,8 @@ SC_001 UI (Request list flags)   ✅ Done — DataQualityFlags component in card
 DH_B001 (Remap match decisions)  ✅ Done — 29,750 FK refs remapped to canonical people (MIG_782)
     ↓
 DH_B002 (Delete stale staged)    ✅ Done — 2,311 stale records + 130 DQI deleted (MIG_783)
+    ↓
+DH_C001 (Clean stale dup flags)  ✅ Done — 20,543 stale flags deleted, 227 canonical kept (MIG_784)
 ```
 
 ---
@@ -676,6 +678,7 @@ DH_B002 (Delete stale staged)    ✅ Done — 2,311 stale records + 130 DQI dele
 | 2026-01-29 | DH_B001 | Completed: Remapped 23,829 resulting_person_id + 5,921 top_candidate_person_id from merged to canonical (MIG_782). Backup preserved. All 9 views resolve. All Safety Gate checks pass. |
 | 2026-01-29 | DH_B002 | Completed: Deleted 2,311 stale staged records + 130 DQI rows (MIG_783). 91,942 NULL source_row_id rows verified as unique — untouched. Backups preserved. All Safety Gate checks pass. |
 | 2026-01-29 | BUG_FIX | Fixed "Failed to fetch place details" on Open Full Page — API queried non-existent columns from v_place_detail_v2. Joined sot_addresses with correct column name (admin_area_1). Added fallback for non-address-backed places. |
+| 2026-01-29 | DH_C001 | Completed: Deleted 20,543 stale person duplicate flags (MIG_784). Original 494 shared identifiers resolved by TASK_002 (now 0). 227 both-canonical rows kept for staff review. Backup preserved. All Safety Gate checks pass. |
 
 ---
 
@@ -1145,10 +1148,40 @@ INSERT INTO trapper.staged_records SELECT * FROM trapper._backup_stale_staged_re
 
 #### DH_C001: Review 494 People Sharing Identifiers
 
-**Status:** Planned
-**Zone:** ACTIVE (sot_people)
-**ACTIVE Impact:** YES — requires Surgical Change process
-**Scope:** 494 orphan people whose emails/phones already belong to other people in person_identifiers. High probability these are duplicates. Needs manual/automated review before merge.
+**Status:** Done
+**Zone:** SEMI-ACTIVE (potential_person_duplicates)
+**ACTIVE Impact:** No — potential_person_duplicates is a review/audit table. ACTIVE flows only INSERT into it. No sot_people merges performed.
+**Scope:** 494 orphan people whose emails/phones already belonged to other people in person_identifiers. TASK_002 merge chain fixes resolved all shared identifiers (now 0). The 20,770 rows in potential_person_duplicates were 98.9% stale (referencing already-merged people).
+
+**Investigation Results:**
+- Shared identifiers among canonical people: **0** (resolved by TASK_002)
+- `potential_person_duplicates` total: **20,770 rows** (all `pending` status)
+- Rows where `person_id` → merged person: **19,635** (stale — merge already happened)
+- Rows where `potential_match_id` → merged person: **2,898** (stale, overlaps above)
+- Rows where either side merged: **20,543** (deleted)
+- Rows where both sides canonical: **227** (kept for future staff review)
+  - `data_engine_review`: 104
+  - `email_name_mismatch`: 75
+  - `phone_name_mismatch`: 48
+- No inbound FK constraints on `potential_person_duplicates`
+- 1 dependent view: `v_pending_person_duplicates` (still resolves, returns 227 rows)
+- 2 functions reference table: `data_engine_resolve_review`, `resolve_person_duplicate` (operate by ID, unaffected)
+
+**Migration:** MIG_784
+**Backup:** `trapper._backup_stale_person_duplicates_784` (20,543 rows)
+
+**Validation Evidence:**
+```
+Pre:  20,770 rows total (20,543 either-merged, 227 both-canonical)
+Post: 227 rows total (0 person_merged, 0 match_merged)
+v_pending_person_duplicates: 227 rows
+Safety Gate: All views resolve, all triggers enabled, all core tables have data
+```
+
+**Rollback:**
+```sql
+INSERT INTO trapper.potential_person_duplicates SELECT * FROM trapper._backup_stale_person_duplicates_784;
+```
 
 ---
 
