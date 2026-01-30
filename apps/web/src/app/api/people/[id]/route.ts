@@ -112,14 +112,15 @@ export async function GET(
               -- From person_place_relationships
               SELECT
                 ppr.place_id,
-                pl.display_name,
+                COALESCE(pl.display_name, split_part(pl.formatted_address, ',', 1)) AS display_name,
                 pl.formatted_address,
                 pl.place_kind,
-                pl.locality,
+                sa.locality,
                 'relationship' AS source_type,
                 ppr.confidence
               FROM trapper.person_place_relationships ppr
               JOIN trapper.places pl ON pl.place_id = ppr.place_id
+              LEFT JOIN trapper.sot_addresses sa ON sa.address_id = pl.sot_address_id
               WHERE ppr.person_id = p.person_id
 
               UNION ALL
@@ -127,14 +128,15 @@ export async function GET(
               -- From requests where this person is requester
               SELECT
                 r.place_id,
-                pl2.display_name,
+                COALESCE(pl2.display_name, split_part(pl2.formatted_address, ',', 1)) AS display_name,
                 pl2.formatted_address,
                 pl2.place_kind,
-                pl2.locality,
+                sa2.locality,
                 'request' AS source_type,
                 0.5 AS confidence
               FROM trapper.sot_requests r
               JOIN trapper.places pl2 ON pl2.place_id = r.place_id
+              LEFT JOIN trapper.sot_addresses sa2 ON sa2.address_id = pl2.sot_address_id
               WHERE r.requester_person_id = p.person_id
                 AND r.place_id IS NOT NULL
 
@@ -143,14 +145,15 @@ export async function GET(
               -- From intake submissions matched to this person
               SELECT
                 COALESCE(ws.selected_address_place_id, ws.place_id) AS place_id,
-                pl3.display_name,
+                COALESCE(pl3.display_name, split_part(pl3.formatted_address, ',', 1)) AS display_name,
                 pl3.formatted_address,
                 pl3.place_kind,
-                pl3.locality,
+                sa3.locality,
                 'intake' AS source_type,
                 0.4 AS confidence
               FROM trapper.web_intake_submissions ws
               JOIN trapper.places pl3 ON pl3.place_id = COALESCE(ws.selected_address_place_id, ws.place_id)
+              LEFT JOIN trapper.sot_addresses sa3 ON sa3.address_id = pl3.sot_address_id
               WHERE ws.matched_person_id = p.person_id
                 AND COALESCE(ws.selected_address_place_id, ws.place_id) IS NOT NULL
             ) sub
