@@ -1311,9 +1311,13 @@ export default function AtlasMap() {
   // Handle Atlas fuzzy search result selection
   const handleAtlasSearchSelect = (result: AtlasSearchResult) => {
     if (mapRef.current && result.metadata?.lat && result.metadata?.lng) {
-      // Has coordinates — navigate on map
+      // Has coordinates — navigate on map and drop a marker (same as Google Places flow)
+      setNavigatedLocation({
+        lat: result.metadata.lat,
+        lng: result.metadata.lng,
+        address: result.display_name,
+      });
       mapRef.current.setView([result.metadata.lat, result.metadata.lng], 16, { animate: true, duration: 0.5 });
-      setNavigatedLocation(null);
     } else {
       // No coordinates — open the entity detail page
       const path = result.entity_type === "person" ? "/people"
