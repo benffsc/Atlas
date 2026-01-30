@@ -24,6 +24,7 @@ import { CatPresenceReconciliation } from "@/components/CatPresenceReconciliatio
 import { CreateColonyModal } from "@/components/CreateColonyModal";
 import { PlaceContextEditor } from "@/components/PlaceContextEditor";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import { ProfileLayout } from "@/components/ProfileLayout";
 
 interface Cat {
   cat_id: string;
@@ -381,11 +382,11 @@ export default function PlaceDetailPage() {
     feeding_station: { bg: "#adb5bd", color: "#000" },
   };
 
-  return (
+  /* ── Header (always visible) ── */
+  const profileHeader = (
     <div>
       <BackButton fallbackHref="/places" />
 
-      {/* Header */}
       <div className="detail-header" style={{ marginTop: "1rem" }}>
         <h1 style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           {place.display_name}
@@ -400,7 +401,6 @@ export default function PlaceDetailPage() {
               {place.place_kind.replace(/_/g, " ")}
             </span>
           )}
-          {/* Context badges */}
           {place.contexts && place.contexts.length > 0 && place.contexts.map((ctx) => {
             const colors = contextTypeColors[ctx.context_type] || { bg: "#6c757d", color: "#fff" };
             return (
@@ -491,7 +491,12 @@ export default function PlaceDetailPage() {
           ID: {place.place_id}
         </p>
       </div>
+    </div>
+  );
 
+  /* ── Tab: Overview ── */
+  const overviewTab = (
+    <>
       {/* Quick Actions */}
       <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
         <QuickActions
@@ -502,8 +507,8 @@ export default function PlaceDetailPage() {
             lng: place.coordinates?.lng,
             request_count: requests.length,
             cat_count: place.cat_count,
-            colony_estimate: null, // Colony estimates are in separate component
-            last_observation_days: null, // Could be fetched from observations
+            colony_estimate: null,
+            last_observation_days: null,
           })}
           onActionComplete={fetchPlace}
         />
@@ -517,7 +522,6 @@ export default function PlaceDetailPage() {
       >
         {editingDetails ? (
           <div>
-            {/* Warning for geocoded addresses */}
             {place.is_address_backed && (
               <div
                 style={{
@@ -535,9 +539,7 @@ export default function PlaceDetailPage() {
               </div>
             )}
 
-            {/* Edit Form */}
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {/* Display Name */}
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                   Display Name / Label
@@ -554,7 +556,6 @@ export default function PlaceDetailPage() {
                 </p>
               </div>
 
-              {/* Place Kind */}
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                   Place Type
@@ -575,7 +576,6 @@ export default function PlaceDetailPage() {
                 </p>
               </div>
 
-              {/* Address (with correction option) */}
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                   Address
@@ -661,12 +661,10 @@ export default function PlaceDetailPage() {
                 )}
               </div>
 
-              {/* Error Message */}
               {saveError && (
                 <div style={{ color: "#dc3545" }}>{saveError}</div>
               )}
 
-              {/* Action Buttons */}
               <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
                 <button onClick={handleSaveDetails} disabled={saving}>
                   {saving ? "Saving..." : "Save Changes"}
@@ -721,10 +719,10 @@ export default function PlaceDetailPage() {
         )}
       </Section>
 
-      {/* Site Stats Card (shows if place is part of a linked site) */}
+      {/* Site Stats */}
       <SiteStatsCard placeId={place.place_id} />
 
-      {/* Place Classifications (Classification Engine) */}
+      {/* Classifications */}
       <div style={{ marginBottom: "1.5rem" }}>
         <PlaceContextEditor
           placeId={place.place_id}
@@ -734,7 +732,7 @@ export default function PlaceDetailPage() {
       </div>
 
       {/* Activity Summary */}
-      <Section title="Activity">
+      <Section title="Activity Summary">
         <div className="detail-grid">
           <div className="detail-item">
             <span className="detail-label">Cats</span>
@@ -757,26 +755,7 @@ export default function PlaceDetailPage() {
         </div>
       </Section>
 
-      {/* Site Photos */}
-      <Section title="Photos">
-        <MediaGallery
-          entityType="place"
-          entityId={place.place_id}
-          allowUpload={true}
-          defaultMediaType="site_photo"
-          allowedMediaTypes={["site_photo", "evidence"]}
-        />
-      </Section>
-
-      {/* Cat Presence Reconciliation Banner */}
-      {place.cats && place.cats.length > 0 && (
-        <CatPresenceReconciliation
-          placeId={place.place_id}
-          onUpdate={() => fetchPlace()}
-        />
-      )}
-
-      {/* Cats - Clickable Links */}
+      {/* Cats */}
       <Section title="Cats">
         {place.cats && place.cats.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
@@ -795,7 +774,7 @@ export default function PlaceDetailPage() {
         )}
       </Section>
 
-      {/* People - Clickable Links */}
+      {/* People */}
       <Section title="People">
         {place.people && place.people.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
@@ -814,13 +793,26 @@ export default function PlaceDetailPage() {
         )}
       </Section>
 
-      {/* Linked Places (Multi-Parcel Sites) */}
+      {/* Linked Places */}
       <Section title="Linked Places">
         <PlaceLinksSection
           placeId={place.place_id}
           placeName={place.display_name || place.formatted_address || "This place"}
         />
       </Section>
+    </>
+  );
+
+  /* ── Tab: Requests ── */
+  const requestsTab = (
+    <>
+      {/* Cat Presence Reconciliation */}
+      {place.cats && place.cats.length > 0 && (
+        <CatPresenceReconciliation
+          placeId={place.place_id}
+          onUpdate={() => fetchPlace()}
+        />
+      )}
 
       {/* Related Requests */}
       <Section title="Related Requests">
@@ -883,18 +875,20 @@ export default function PlaceDetailPage() {
       <Section title="Website Submissions">
         <SubmissionsSection entityType="place" entityId={id} />
       </Section>
+    </>
+  );
 
-      {/* Colony Size Estimates (P75 Surveys, etc.) */}
+  /* ── Tab: Ecology ── */
+  const ecologyTab = (
+    <>
       <Section title="Colony Size Estimates">
         <ColonyEstimates placeId={id} />
       </Section>
 
-      {/* Birth/Death Timeline */}
       <Section title="Population Events">
         <PopulationTimeline placeId={id} />
       </Section>
 
-      {/* Site Observations (for Chapman estimator) */}
       <Section title="Site Observations">
         <ObservationsSection
           placeId={id}
@@ -902,20 +896,34 @@ export default function PlaceDetailPage() {
         />
       </Section>
 
-      {/* Historical Context (KML, parsed notes, etc.) */}
       <HistoricalContextCard placeId={id} className="mt-4" />
 
-      {/* FFR Activity / Alteration History */}
       <Section title="FFR Activity">
         <PlaceAlterationHistory placeId={id} />
       </Section>
 
-      {/* Population Trend Chart */}
       <Section title="Activity Trend">
         <PopulationTrendChart placeId={id} />
       </Section>
+    </>
+  );
 
-      {/* Journal / Notes */}
+  /* ── Tab: Media ── */
+  const mediaTab = (
+    <Section title="Photos">
+      <MediaGallery
+        entityType="place"
+        entityId={place.place_id}
+        allowUpload={true}
+        defaultMediaType="site_photo"
+        allowedMediaTypes={["site_photo", "evidence"]}
+      />
+    </Section>
+  );
+
+  /* ── Tab: Activity ── */
+  const activityTab = (
+    <>
       <Section title="Journal">
         <JournalSection
           entries={journal}
@@ -925,7 +933,6 @@ export default function PlaceDetailPage() {
         />
       </Section>
 
-      {/* Metadata */}
       <Section title="Metadata">
         <div className="detail-grid">
           <div className="detail-item">
@@ -963,7 +970,21 @@ export default function PlaceDetailPage() {
           </div>
         </div>
       </Section>
+    </>
+  );
 
+  return (
+    <ProfileLayout
+      header={profileHeader}
+      tabs={[
+        { id: "overview", label: "Overview", content: overviewTab },
+        { id: "requests", label: "Requests", content: requestsTab, badge: requests.length || undefined },
+        { id: "ecology", label: "Ecology", content: ecologyTab },
+        { id: "media", label: "Media", content: mediaTab },
+        { id: "activity", label: "Activity", content: activityTab, badge: journal.length || undefined },
+      ]}
+      defaultTab="overview"
+    >
       {/* Edit History Panel */}
       {showHistory && (
         <div style={{
@@ -993,12 +1014,12 @@ export default function PlaceDetailPage() {
         isOpen={showColonyModal}
         onClose={() => setShowColonyModal(false)}
         placeId={place.place_id}
-        staffName={undefined} // TODO: Get from session
+        staffName={undefined}
         onSuccess={(result) => {
           setShowColonyModal(false);
           alert(`Colony "${result.colony_name}" created successfully!`);
         }}
       />
-    </div>
+    </ProfileLayout>
   );
 }

@@ -14,6 +14,7 @@ import ReportDeceasedModal from "@/components/ReportDeceasedModal";
 import RecordBirthModal from "@/components/RecordBirthModal";
 import { MediaGallery } from "@/components/MediaGallery";
 import { QuickActions, useCatQuickActionState } from "@/components/QuickActions";
+import { ProfileLayout } from "@/components/ProfileLayout";
 
 interface Owner {
   person_id: string;
@@ -715,11 +716,11 @@ export default function CatDetailPage() {
   // Has spay/neuter procedure
   const hasSpayNeuter = cat.procedures?.some(p => p.is_spay || p.is_neuter);
 
-  return (
+  /* ── Header: Medical chart header (persists across tabs) ── */
+  const profileHeader = (
     <div>
       <BackButton fallbackHref="/cats" />
 
-      {/* Medical Chart Header */}
       <div style={{
         marginTop: "1rem",
         background: "var(--section-bg)",
@@ -755,7 +756,6 @@ export default function CatDetailPage() {
               )}
               <DataSourceBadge dataSource={cat.data_source} />
               <OwnershipTypeBadge ownershipType={cat.ownership_type} />
-              {/* Multi-source conflict indicator (MIG_620) */}
               {cat.has_field_conflicts && (
                 <span
                   className="badge"
@@ -934,7 +934,6 @@ export default function CatDetailPage() {
                   <div className="text-muted text-sm">Microchip</div>
                   <div style={{ fontFamily: "monospace", fontWeight: 500 }}>{cat.microchip || "—"}</div>
                 </div>
-                {/* Multi-source field: Sex */}
                 <MultiSourceField
                   label="Sex"
                   fieldName="sex"
@@ -952,14 +951,12 @@ export default function CatDetailPage() {
                     ) : "Unknown"}
                   </div>
                 </div>
-                {/* Multi-source field: Breed */}
                 <MultiSourceField
                   label="Breed"
                   fieldName="breed"
                   primaryValue={cat.breed}
                   fieldSources={cat.field_sources}
                 />
-                {/* Multi-source field: Color */}
                 <MultiSourceField
                   label="Color"
                   fieldName="primary_color"
@@ -1010,8 +1007,12 @@ export default function CatDetailPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Quick Actions */}
+  /* ── Tab: Overview ── */
+  const overviewTab = (
+    <>
       {!editingBasic && (
         <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
           <QuickActions
@@ -1028,19 +1029,14 @@ export default function CatDetailPage() {
         </div>
       )}
 
-      {/* Origin Information - Where the cat came from */}
       {(cat.primary_origin_place || (cat.partner_orgs && cat.partner_orgs.length > 0)) && (
         <Section title="Origin Information">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
-            {/* Origin Address (MOST IMPORTANT) */}
             {cat.primary_origin_place && (
               <div>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Origin Address</div>
                 <div style={{ fontWeight: 500 }}>
-                  <a
-                    href={`/places/${cat.primary_origin_place.place_id}`}
-                    style={{ color: "#0d6efd", textDecoration: "none" }}
-                  >
+                  <a href={`/places/${cat.primary_origin_place.place_id}`} style={{ color: "#0d6efd", textDecoration: "none" }}>
                     {cat.primary_origin_place.formatted_address}
                   </a>
                   {cat.primary_origin_place.inferred_source && (
@@ -1051,8 +1047,6 @@ export default function CatDetailPage() {
                 </div>
               </div>
             )}
-
-            {/* Partner Organizations (e.g., SCAS, FFSC) */}
             {cat.partner_orgs && cat.partner_orgs.length > 0 && (
               <div>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Came From</div>
@@ -1080,40 +1074,24 @@ export default function CatDetailPage() {
               </div>
             )}
           </div>
-
           <p className="text-muted text-sm" style={{ marginTop: "0.75rem" }}>
             Origin data helps track where cats came from for population modeling and Beacon statistics.
           </p>
         </Section>
       )}
 
-      {/* Medical Overview - What was done/observed */}
       <Section title="Medical Overview">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
-          {/* Vaccines Received */}
           <div>
-            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>
-              Vaccines Received
-            </h3>
+            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>Vaccines Received</h3>
             {(() => {
               const allVaccines = cat.visits?.flatMap(v => v.vaccines || []).filter(Boolean) || [];
               const uniqueVaccines = [...new Set(allVaccines)];
-              if (uniqueVaccines.length === 0) {
-                return <p className="text-muted">No vaccines recorded</p>;
-              }
+              if (uniqueVaccines.length === 0) return <p className="text-muted">No vaccines recorded</p>;
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {uniqueVaccines.map((vaccine, i) => (
-                    <div key={i} style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.5rem 0.75rem",
-                      background: "var(--success-bg)",
-                      borderRadius: "6px",
-                      border: "1px solid var(--success-border)",
-                      color: "var(--success-text)",
-                    }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--success-bg)", borderRadius: "6px", border: "1px solid var(--success-border)", color: "var(--success-text)" }}>
                       <span style={{ fontWeight: "bold" }}>+</span>
                       <span>{vaccine}</span>
                     </div>
@@ -1122,31 +1100,16 @@ export default function CatDetailPage() {
               );
             })()}
           </div>
-
-          {/* Treatments Given */}
           <div>
-            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>
-              Treatments Given
-            </h3>
+            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>Treatments Given</h3>
             {(() => {
               const allTreatments = cat.visits?.flatMap(v => v.treatments || []).filter(Boolean) || [];
               const uniqueTreatments = [...new Set(allTreatments)];
-              if (uniqueTreatments.length === 0) {
-                return <p className="text-muted">No treatments recorded</p>;
-              }
+              if (uniqueTreatments.length === 0) return <p className="text-muted">No treatments recorded</p>;
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {uniqueTreatments.map((treatment, i) => (
-                    <div key={i} style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.5rem 0.75rem",
-                      background: "var(--info-bg)",
-                      borderRadius: "6px",
-                      border: "1px solid var(--info-border)",
-                      color: "var(--info-text)",
-                    }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--info-bg)", borderRadius: "6px", border: "1px solid var(--info-border)", color: "var(--info-text)" }}>
                       <span style={{ fontWeight: "bold" }}>+</span>
                       <span>{treatment}</span>
                     </div>
@@ -1155,34 +1118,15 @@ export default function CatDetailPage() {
               );
             })()}
           </div>
-
-          {/* Conditions Observed */}
           <div>
-            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>
-              Conditions Observed
-            </h3>
+            <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>Conditions Observed</h3>
             {cat.conditions?.filter(c => !c.resolved_at).length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                 {cat.conditions.filter(c => !c.resolved_at).map(cond => (
-                  <div key={cond.condition_id} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.5rem 0.75rem",
-                    background: cond.severity === "severe" ? "#fff5f5" : cond.severity === "moderate" ? "#fff8e6" : "#fffbe6",
-                    borderRadius: "6px",
-                    border: `1px solid ${cond.severity === "severe" ? "#f5c6cb" : cond.severity === "moderate" ? "#ffe69c" : "#ffecb5"}`,
-                  }}>
-                    <span style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: cond.severity === "severe" ? "#dc3545" : cond.severity === "moderate" ? "#fd7e14" : "#ffc107",
-                    }} />
+                  <div key={cond.condition_id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: cond.severity === "severe" ? "#fff5f5" : cond.severity === "moderate" ? "#fff8e6" : "#fffbe6", borderRadius: "6px", border: `1px solid ${cond.severity === "severe" ? "#f5c6cb" : cond.severity === "moderate" ? "#ffe69c" : "#ffecb5"}` }}>
+                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: cond.severity === "severe" ? "#dc3545" : cond.severity === "moderate" ? "#fd7e14" : "#ffc107" }} />
                     <span style={{ flex: 1 }}>{cond.condition_type.replace(/_/g, " ")}</span>
-                    {cond.severity && (
-                      <span style={{ fontSize: "0.75rem", color: "#6c757d" }}>({cond.severity})</span>
-                    )}
+                    {cond.severity && <span style={{ fontSize: "0.75rem", color: "#6c757d" }}>({cond.severity})</span>}
                   </div>
                 ))}
               </div>
@@ -1193,7 +1137,75 @@ export default function CatDetailPage() {
         </div>
       </Section>
 
-      {/* Reproduction Status - More prominent display */}
+      {(cat.tests?.length > 0 || cat.procedures?.length > 0 || cat.conditions?.length > 0) && (
+        <Section title="Medical Summary">
+          <div className="detail-grid">
+            {cat.tests?.filter(t => t.test_type === "felv_fiv").slice(0, 1).map(test => (
+              <div className="detail-item" key={test.test_id}>
+                <span className="detail-label">FeLV/FIV Status</span>
+                <span className="detail-value">
+                  <span className="badge" style={{ background: test.result === "negative" ? "#198754" : test.result === "positive" ? "#dc3545" : "#ffc107", color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000" }}>
+                    {test.result.toUpperCase()}
+                  </span>
+                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>({formatDateLocal(test.test_date)})</span>
+                </span>
+              </div>
+            ))}
+            {cat.procedures?.filter(p => p.is_spay || p.is_neuter).slice(0, 1).map(proc => (
+              <div className="detail-item" key={proc.procedure_id}>
+                <span className="detail-label">{proc.is_spay ? "Spay" : "Neuter"}</span>
+                <span className="detail-value">
+                  <span className="badge" style={{ background: "#198754", color: "#fff" }}>Completed</span>
+                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>{formatDateLocal(proc.procedure_date)}{proc.performed_by && ` by ${proc.performed_by}`}</span>
+                </span>
+              </div>
+            ))}
+            {cat.conditions?.filter(c => !c.resolved_at).length > 0 && (
+              <div className="detail-item" style={{ gridColumn: "span 2" }}>
+                <span className="detail-label">Active Conditions</span>
+                <span className="detail-value" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  {cat.conditions.filter(c => !c.resolved_at).map(cond => (
+                    <span key={cond.condition_id} className="badge" style={{ background: cond.severity === "severe" ? "#dc3545" : cond.severity === "moderate" ? "#fd7e14" : cond.severity === "mild" ? "#ffc107" : "#6c757d", color: cond.severity === "mild" ? "#000" : "#fff" }} title={`Diagnosed ${formatDateLocal(cond.diagnosed_at)}`}>
+                      {cond.condition_type.replace(/_/g, " ")}{cond.severity && ` (${cond.severity})`}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+            {cat.vitals?.length > 0 && cat.vitals[0].temperature_f && (
+              <div className="detail-item">
+                <span className="detail-label">Last Temperature</span>
+                <span className="detail-value">
+                  {cat.vitals[0].temperature_f}°F
+                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>({formatDateLocal(cat.vitals[0].recorded_at)})</span>
+                </span>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {cat.identifiers && cat.identifiers.length > 0 && (
+        <Section title="Identifiers">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+            {cat.identifiers.map((ident, idx) => (
+              <div key={idx} className="identifier-badge">
+                <strong>{ident.type}:</strong>{" "}
+                <code>{ident.value}</code>
+                {ident.source && (
+                  <span className="text-muted" style={{ marginLeft: "0.5rem" }}>({ident.source})</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+    </>
+  );
+
+  /* ── Tab: Medical ── */
+  const medicalTab = (
+    <>
       {cat.sex === "female" && cat.vitals && cat.vitals.length > 0 && (
         (() => {
           const reproVitals = cat.vitals.filter(v => v.is_pregnant || v.is_lactating || v.is_in_heat);
@@ -1206,15 +1218,7 @@ export default function CatDetailPage() {
                 <div>
                   <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
                     {latestRepro?.is_pregnant && (
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.75rem 1rem",
-                        background: "#fdf2f8",
-                        border: "2px solid #ec4899",
-                        borderRadius: "8px",
-                      }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", background: "#fdf2f8", border: "2px solid #ec4899", borderRadius: "8px" }}>
                         <span style={{ fontSize: "1.5rem" }}>🤰</span>
                         <div>
                           <div style={{ fontWeight: 600, color: "#ec4899" }}>Pregnant</div>
@@ -1223,15 +1227,7 @@ export default function CatDetailPage() {
                       </div>
                     )}
                     {latestRepro?.is_lactating && (
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.75rem 1rem",
-                        background: "#f5f3ff",
-                        border: "2px solid #8b5cf6",
-                        borderRadius: "8px",
-                      }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", background: "#f5f3ff", border: "2px solid #8b5cf6", borderRadius: "8px" }}>
                         <span style={{ fontSize: "1.5rem" }}>🍼</span>
                         <div>
                           <div style={{ fontWeight: 600, color: "#8b5cf6" }}>Lactating</div>
@@ -1240,15 +1236,7 @@ export default function CatDetailPage() {
                       </div>
                     )}
                     {latestRepro?.is_in_heat && (
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.75rem 1rem",
-                        background: "#fff7ed",
-                        border: "2px solid #f97316",
-                        borderRadius: "8px",
-                      }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1rem", background: "#fff7ed", border: "2px solid #f97316", borderRadius: "8px" }}>
                         <span style={{ fontSize: "1.5rem" }}>🔥</span>
                         <div>
                           <div style={{ fontWeight: 600, color: "#f97316" }}>In Heat</div>
@@ -1257,40 +1245,21 @@ export default function CatDetailPage() {
                       </div>
                     )}
                   </div>
-
-                  {/* Historical reproduction data */}
                   {reproVitals.length > 1 && (
                     <div>
                       <h4 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.5rem" }}>Reproduction History</h4>
                       <div className="table-container">
                         <table>
-                          <thead>
-                            <tr>
-                              <th>Date</th>
-                              <th>Status</th>
-                            </tr>
-                          </thead>
+                          <thead><tr><th>Date</th><th>Status</th></tr></thead>
                           <tbody>
                             {reproVitals.slice(0, 5).map(v => (
                               <tr key={v.vital_id}>
                                 <td>{formatDateLocal(v.recorded_at)}</td>
                                 <td>
                                   <div style={{ display: "flex", gap: "0.25rem" }}>
-                                    {v.is_pregnant && (
-                                      <span style={{ padding: "0.2rem 0.5rem", background: "#fdf2f8", color: "#ec4899", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 500 }}>
-                                        Pregnant
-                                      </span>
-                                    )}
-                                    {v.is_lactating && (
-                                      <span style={{ padding: "0.2rem 0.5rem", background: "#f5f3ff", color: "#8b5cf6", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 500 }}>
-                                        Lactating
-                                      </span>
-                                    )}
-                                    {v.is_in_heat && (
-                                      <span style={{ padding: "0.2rem 0.5rem", background: "#fff7ed", color: "#f97316", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 500 }}>
-                                        In Heat
-                                      </span>
-                                    )}
+                                    {v.is_pregnant && <span style={{ padding: "0.2rem 0.5rem", background: "#fdf2f8", color: "#ec4899", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 500 }}>Pregnant</span>}
+                                    {v.is_lactating && <span style={{ padding: "0.2rem 0.5rem", background: "#f5f3ff", color: "#8b5cf6", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 500 }}>Lactating</span>}
+                                    {v.is_in_heat && <span style={{ padding: "0.2rem 0.5rem", background: "#fff7ed", color: "#f97316", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 500 }}>In Heat</span>}
                                   </div>
                                 </td>
                               </tr>
@@ -1300,7 +1269,6 @@ export default function CatDetailPage() {
                       </div>
                     </div>
                   )}
-
                   <p className="text-muted text-sm" style={{ marginTop: "0.75rem" }}>
                     Reproduction indicators are extracted from clinic appointment notes. Used by Beacon for birth rate estimation and kitten surge prediction.
                   </p>
@@ -1313,51 +1281,29 @@ export default function CatDetailPage() {
         })()
       )}
 
-      {/* Birth Information */}
       {cat.birth_event && (
         <Section title="Birth Information">
-          <div
-            style={{
-              padding: "1rem",
-              background: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              borderRadius: "8px",
-            }}
-          >
+          <div style={{ padding: "1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
               <div>
                 <div className="text-muted text-sm">Birth Date</div>
                 <div style={{ fontWeight: 600 }}>
-                  {cat.birth_event.birth_date
-                    ? formatDateLocal(cat.birth_event.birth_date)
-                    : cat.birth_event.birth_year
-                    ? `${cat.birth_event.birth_season || ""} ${cat.birth_event.birth_year}`
-                    : "Unknown"}
+                  {cat.birth_event.birth_date ? formatDateLocal(cat.birth_event.birth_date) : cat.birth_event.birth_year ? `${cat.birth_event.birth_season || ""} ${cat.birth_event.birth_year}` : "Unknown"}
                   {cat.birth_event.birth_date_precision && cat.birth_event.birth_date_precision !== "exact" && (
-                    <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>
-                      ({cat.birth_event.birth_date_precision})
-                    </span>
+                    <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>({cat.birth_event.birth_date_precision})</span>
                   )}
                 </div>
               </div>
               {cat.birth_event.mother_cat_id && (
                 <div>
                   <div className="text-muted text-sm">Mother</div>
-                  <div>
-                    <a href={`/cats/${cat.birth_event.mother_cat_id}`} style={{ fontWeight: 500, color: "#0d6efd" }}>
-                      {cat.birth_event.mother_name || "Unknown"}
-                    </a>
-                  </div>
+                  <div><a href={`/cats/${cat.birth_event.mother_cat_id}`} style={{ fontWeight: 500, color: "#0d6efd" }}>{cat.birth_event.mother_name || "Unknown"}</a></div>
                 </div>
               )}
               {cat.birth_event.place_id && (
                 <div>
                   <div className="text-muted text-sm">Birth Location</div>
-                  <div>
-                    <a href={`/places/${cat.birth_event.place_id}`} style={{ fontWeight: 500, color: "#0d6efd" }}>
-                      {cat.birth_event.place_name || "Unknown"}
-                    </a>
-                  </div>
+                  <div><a href={`/places/${cat.birth_event.place_id}`} style={{ fontWeight: 500, color: "#0d6efd" }}>{cat.birth_event.place_name || "Unknown"}</a></div>
                 </div>
               )}
               {cat.birth_event.kitten_count_in_litter && (
@@ -1365,129 +1311,76 @@ export default function CatDetailPage() {
                   <div className="text-muted text-sm">Litter Size</div>
                   <div style={{ fontWeight: 500 }}>
                     {cat.birth_event.kitten_count_in_litter} kittens
-                    {cat.birth_event.litter_survived_count !== null && (
-                      <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>
-                        ({cat.birth_event.litter_survived_count} survived)
-                      </span>
-                    )}
+                    {cat.birth_event.litter_survived_count !== null && <span className="text-muted text-sm" style={{ marginLeft: "0.25rem" }}>({cat.birth_event.litter_survived_count} survived)</span>}
                   </div>
                 </div>
               )}
               {cat.birth_event.survived_to_weaning !== null && (
                 <div>
                   <div className="text-muted text-sm">Survived to Weaning</div>
-                  <div style={{ fontWeight: 500, color: cat.birth_event.survived_to_weaning ? "#16a34a" : "#dc2626" }}>
-                    {cat.birth_event.survived_to_weaning ? "Yes" : "No"}
-                  </div>
+                  <div style={{ fontWeight: 500, color: cat.birth_event.survived_to_weaning ? "#16a34a" : "#dc2626" }}>{cat.birth_event.survived_to_weaning ? "Yes" : "No"}</div>
                 </div>
               )}
             </div>
-
-            {/* Siblings */}
             {cat.siblings && cat.siblings.length > 0 && (
               <div style={{ borderTop: "1px solid #bbf7d0", paddingTop: "0.75rem", marginTop: "0.75rem" }}>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.5rem" }}>Littermates ({cat.siblings.length})</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   {cat.siblings.map(sibling => (
-                    <a
-                      key={sibling.cat_id}
-                      href={`/cats/${sibling.cat_id}`}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.5rem 0.75rem",
-                        background: "#fff",
-                        border: "1px solid #d1d5db",
-                        borderRadius: "6px",
-                        textDecoration: "none",
-                        color: "inherit",
-                      }}
-                    >
+                    <a key={sibling.cat_id} href={`/cats/${sibling.cat_id}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>
                       <span style={{ fontSize: "1.25rem" }}>🐱</span>
                       <div>
                         <div style={{ fontWeight: 500 }}>{sibling.display_name}</div>
-                        {sibling.sex && (
-                          <div className="text-muted text-sm">{sibling.sex}</div>
-                        )}
+                        {sibling.sex && <div className="text-muted text-sm">{sibling.sex}</div>}
                       </div>
                     </a>
                   ))}
                 </div>
               </div>
             )}
-
             {cat.birth_event.notes && (
               <div style={{ borderTop: "1px solid #bbf7d0", paddingTop: "0.75rem", marginTop: "0.75rem" }}>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Notes</div>
                 <p style={{ margin: 0, fontSize: "0.9rem" }}>{cat.birth_event.notes}</p>
               </div>
             )}
-
-            <p className="text-muted text-sm" style={{ marginTop: "0.75rem", fontSize: "0.8rem" }}>
-              Birth data used by Beacon for population modeling and litter tracking.
-            </p>
+            <p className="text-muted text-sm" style={{ marginTop: "0.75rem", fontSize: "0.8rem" }}>Birth data used by Beacon for population modeling and litter tracking.</p>
           </div>
         </Section>
       )}
 
-      {/* Mortality Event Details */}
       {cat.is_deceased && cat.mortality_event && (
         <Section title="Mortality Record">
-          <div
-            style={{
-              padding: "1rem",
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              borderRadius: "8px",
-            }}
-          >
+          <div style={{ padding: "1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
               <div>
                 <div className="text-muted text-sm">Cause of Death</div>
-                <div style={{ fontWeight: 600, textTransform: "capitalize", color: "#dc2626" }}>
-                  {cat.mortality_event.death_cause}
-                </div>
+                <div style={{ fontWeight: 600, textTransform: "capitalize", color: "#dc2626" }}>{cat.mortality_event.death_cause}</div>
               </div>
               <div>
                 <div className="text-muted text-sm">Age Category</div>
-                <div style={{ fontWeight: 500, textTransform: "capitalize" }}>
-                  {cat.mortality_event.death_age_category}
-                </div>
+                <div style={{ fontWeight: 500, textTransform: "capitalize" }}>{cat.mortality_event.death_age_category}</div>
               </div>
               <div>
                 <div className="text-muted text-sm">Date of Death</div>
-                <div style={{ fontWeight: 500 }}>
-                  {cat.mortality_event.death_date
-                    ? formatDateLocal(cat.mortality_event.death_date)
-                    : cat.deceased_date
-                    ? formatDateLocal(cat.deceased_date)
-                    : "Unknown"}
-                </div>
+                <div style={{ fontWeight: 500 }}>{cat.mortality_event.death_date ? formatDateLocal(cat.mortality_event.death_date) : cat.deceased_date ? formatDateLocal(cat.deceased_date) : "Unknown"}</div>
               </div>
               <div>
                 <div className="text-muted text-sm">Recorded</div>
-                <div className="text-muted text-sm">
-                  {formatDateLocal(cat.mortality_event.created_at)}
-                </div>
+                <div className="text-muted text-sm">{formatDateLocal(cat.mortality_event.created_at)}</div>
               </div>
             </div>
-
             {cat.mortality_event.notes && (
               <div style={{ borderTop: "1px solid #fecaca", paddingTop: "0.75rem" }}>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Notes</div>
                 <p style={{ margin: 0, fontSize: "0.9rem" }}>{cat.mortality_event.notes}</p>
               </div>
             )}
-
-            <p className="text-muted text-sm" style={{ marginTop: "0.75rem", fontSize: "0.8rem" }}>
-              Mortality data used by Beacon for survival rate calculations and population modeling.
-            </p>
+            <p className="text-muted text-sm" style={{ marginTop: "0.75rem", fontSize: "0.8rem" }}>Mortality data used by Beacon for survival rate calculations and population modeling.</p>
           </div>
         </Section>
       )}
 
-      {/* Latest Vitals */}
       {(latestTemp || latestWeight) && (
         <Section title="Latest Vitals">
           <div className="detail-grid">
@@ -1511,131 +1404,23 @@ export default function CatDetailPage() {
         </Section>
       )}
 
-      {/* Medical Summary - Key health info at a glance */}
-      {(cat.tests?.length > 0 || cat.procedures?.length > 0 || cat.conditions?.length > 0) && (
-        <Section title="Medical Summary">
-          <div className="detail-grid">
-            {/* FeLV/FIV Status - Most important */}
-            {cat.tests?.filter(t => t.test_type === "felv_fiv").slice(0, 1).map(test => (
-              <div className="detail-item" key={test.test_id}>
-                <span className="detail-label">FeLV/FIV Status</span>
-                <span className="detail-value">
-                  <span
-                    className="badge"
-                    style={{
-                      background: test.result === "negative" ? "#198754" :
-                                  test.result === "positive" ? "#dc3545" : "#ffc107",
-                      color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000",
-                    }}
-                  >
-                    {test.result.toUpperCase()}
-                  </span>
-                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                    ({formatDateLocal(test.test_date)})
-                  </span>
-                </span>
-              </div>
-            ))}
-
-            {/* Spay/Neuter Procedures */}
-            {cat.procedures?.filter(p => p.is_spay || p.is_neuter).slice(0, 1).map(proc => (
-              <div className="detail-item" key={proc.procedure_id}>
-                <span className="detail-label">{proc.is_spay ? "Spay" : "Neuter"}</span>
-                <span className="detail-value">
-                  <span className="badge" style={{ background: "#198754", color: "#fff" }}>
-                    Completed
-                  </span>
-                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                    {formatDateLocal(proc.procedure_date)}
-                    {proc.performed_by && ` by ${proc.performed_by}`}
-                  </span>
-                </span>
-              </div>
-            ))}
-
-            {/* Active Conditions */}
-            {cat.conditions?.filter(c => !c.resolved_at).length > 0 && (
-              <div className="detail-item" style={{ gridColumn: "span 2" }}>
-                <span className="detail-label">Active Conditions</span>
-                <span className="detail-value" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {cat.conditions.filter(c => !c.resolved_at).map(cond => (
-                    <span
-                      key={cond.condition_id}
-                      className="badge"
-                      style={{
-                        background: cond.severity === "severe" ? "#dc3545" :
-                                    cond.severity === "moderate" ? "#fd7e14" :
-                                    cond.severity === "mild" ? "#ffc107" : "#6c757d",
-                        color: cond.severity === "mild" ? "#000" : "#fff",
-                      }}
-                      title={`Diagnosed ${formatDateLocal(cond.diagnosed_at)}`}
-                    >
-                      {cond.condition_type.replace(/_/g, " ")}
-                      {cond.severity && ` (${cond.severity})`}
-                    </span>
-                  ))}
-                </span>
-              </div>
-            )}
-
-            {/* Latest Vitals */}
-            {cat.vitals?.length > 0 && (
-              <>
-                {cat.vitals[0].temperature_f && (
-                  <div className="detail-item">
-                    <span className="detail-label">Last Temperature</span>
-                    <span className="detail-value">
-                      {cat.vitals[0].temperature_f}°F
-                      <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                        ({formatDateLocal(cat.vitals[0].recorded_at)})
-                      </span>
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </Section>
-      )}
-
-      {/* Detailed Medical History */}
       {(cat.procedures?.length > 0 || cat.tests?.length > 0 || cat.conditions?.length > 0) && (
         <Section title="Medical History">
-          {/* Procedures */}
           {cat.procedures?.length > 0 && (
             <div style={{ marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Procedures ({cat.procedures.length})</h3>
               <div className="table-container">
                 <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Procedure</th>
-                      <th>Vet</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Date</th><th>Procedure</th><th>Vet</th><th>Notes</th></tr></thead>
                   <tbody>
                     {cat.procedures.map(proc => (
                       <tr key={proc.procedure_id}>
                         <td>{formatDateLocal(proc.procedure_date)}</td>
-                        <td>
-                          <span className="badge" style={{ background: "#198754", color: "#fff" }}>
-                            {proc.procedure_type.replace(/_/g, " ")}
-                          </span>
-                        </td>
+                        <td><span className="badge" style={{ background: "#198754", color: "#fff" }}>{proc.procedure_type.replace(/_/g, " ")}</span></td>
                         <td>{proc.performed_by || "—"}</td>
                         <td>
-                          {proc.complications && proc.complications.length > 0 && (
-                            <span className="text-sm" style={{ color: "#dc3545" }}>
-                              {proc.complications.join(", ")}
-                            </span>
-                          )}
-                          {proc.post_op_notes && (
-                            <span className="text-sm text-muted">
-                              {proc.complications?.length ? " | " : ""}{proc.post_op_notes}
-                            </span>
-                          )}
+                          {proc.complications && proc.complications.length > 0 && <span className="text-sm" style={{ color: "#dc3545" }}>{proc.complications.join(", ")}</span>}
+                          {proc.post_op_notes && <span className="text-sm text-muted">{proc.complications?.length ? " | " : ""}{proc.post_op_notes}</span>}
                           {!proc.complications?.length && !proc.post_op_notes && "—"}
                         </td>
                       </tr>
@@ -1645,38 +1430,18 @@ export default function CatDetailPage() {
               </div>
             </div>
           )}
-
-          {/* Test Results */}
           {cat.tests?.length > 0 && (
             <div style={{ marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Test Results ({cat.tests.length})</h3>
               <div className="table-container">
                 <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Test</th>
-                      <th>Result</th>
-                      <th>Details</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Date</th><th>Test</th><th>Result</th><th>Details</th></tr></thead>
                   <tbody>
                     {cat.tests.map(test => (
                       <tr key={test.test_id}>
                         <td>{formatDateLocal(test.test_date)}</td>
                         <td>{test.test_type.replace(/_/g, " ")}</td>
-                        <td>
-                          <span
-                            className="badge"
-                            style={{
-                              background: test.result === "negative" ? "#198754" :
-                                          test.result === "positive" ? "#dc3545" : "#ffc107",
-                              color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000",
-                            }}
-                          >
-                            {test.result}
-                          </span>
-                        </td>
+                        <td><span className="badge" style={{ background: test.result === "negative" ? "#198754" : test.result === "positive" ? "#dc3545" : "#ffc107", color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000" }}>{test.result}</span></td>
                         <td className="text-muted">{test.result_detail || "—"}</td>
                       </tr>
                     ))}
@@ -1685,56 +1450,19 @@ export default function CatDetailPage() {
               </div>
             </div>
           )}
-
-          {/* Conditions */}
           {cat.conditions?.length > 0 && (
             <div>
               <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Conditions ({cat.conditions.length})</h3>
               <div className="table-container">
                 <table>
-                  <thead>
-                    <tr>
-                      <th>Diagnosed</th>
-                      <th>Condition</th>
-                      <th>Severity</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Diagnosed</th><th>Condition</th><th>Severity</th><th>Status</th></tr></thead>
                   <tbody>
                     {cat.conditions.map(cond => (
                       <tr key={cond.condition_id}>
                         <td>{formatDateLocal(cond.diagnosed_at)}</td>
                         <td>{cond.condition_type.replace(/_/g, " ")}</td>
-                        <td>
-                          {cond.severity ? (
-                            <span
-                              className="badge"
-                              style={{
-                                background: cond.severity === "severe" ? "#dc3545" :
-                                            cond.severity === "moderate" ? "#fd7e14" :
-                                            cond.severity === "mild" ? "#ffc107" : "#6c757d",
-                                color: cond.severity === "mild" ? "#000" : "#fff",
-                              }}
-                            >
-                              {cond.severity}
-                            </span>
-                          ) : "—"}
-                        </td>
-                        <td>
-                          {cond.resolved_at ? (
-                            <span className="text-muted">
-                              Resolved {formatDateLocal(cond.resolved_at)}
-                            </span>
-                          ) : cond.is_chronic ? (
-                            <span className="badge" style={{ background: "#6c757d", color: "#fff" }}>
-                              Chronic
-                            </span>
-                          ) : (
-                            <span className="badge" style={{ background: "#fd7e14", color: "#fff" }}>
-                              Active
-                            </span>
-                          )}
-                        </td>
+                        <td>{cond.severity ? <span className="badge" style={{ background: cond.severity === "severe" ? "#dc3545" : cond.severity === "moderate" ? "#fd7e14" : cond.severity === "mild" ? "#ffc107" : "#6c757d", color: cond.severity === "mild" ? "#000" : "#fff" }}>{cond.severity}</span> : "—"}</td>
+                        <td>{cond.resolved_at ? <span className="text-muted">Resolved {formatDateLocal(cond.resolved_at)}</span> : cond.is_chronic ? <span className="badge" style={{ background: "#6c757d", color: "#fff" }}>Chronic</span> : <span className="badge" style={{ background: "#fd7e14", color: "#fff" }}>Active</span>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1745,29 +1473,44 @@ export default function CatDetailPage() {
         </Section>
       )}
 
-      {/* Identifiers */}
-      {cat.identifiers && cat.identifiers.length > 0 && (
-        <Section title="Identifiers">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            {cat.identifiers.map((ident, idx) => (
-              <div
-                key={idx}
-                className="identifier-badge"
-              >
-                <strong>{ident.type}:</strong>{" "}
-                <code>{ident.value}</code>
-                {ident.source && (
-                  <span className="text-muted" style={{ marginLeft: "0.5rem" }}>
-                    ({ident.source})
-                  </span>
-                )}
-              </div>
-            ))}
+      <Section title="Visit History">
+        {cat.visits && cat.visits.length > 0 ? (
+          <div className="table-container">
+            <table>
+              <thead><tr><th>Date</th><th>Type</th><th>Services</th><th>Vet</th></tr></thead>
+              <tbody>
+                {cat.visits.map((visit) => (
+                  <tr key={visit.appointment_id}>
+                    <td>{formatDateLocal(visit.visit_date)}</td>
+                    <td>
+                      <span className="badge" style={{ background: visit.visit_category === "Spay/Neuter" ? "#198754" : visit.visit_category === "Wellness" ? "#0d6efd" : visit.visit_category === "Recheck" ? "#6f42c1" : visit.visit_category === "Euthanasia" ? "#dc3545" : "#6c757d", color: "#fff" }}>
+                        {visit.visit_category}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {visit.is_spay && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Spay</span>}
+                        {visit.is_neuter && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Neuter</span>}
+                        {visit.vaccines?.map((v, i) => <span key={i} className="badge" style={{ background: "#d1e7dd", color: "#0f5132", fontSize: "0.7rem" }}>{v}</span>)}
+                        {visit.treatments?.map((t, i) => <span key={i} className="badge" style={{ background: "#cfe2ff", color: "#084298", fontSize: "0.7rem" }}>{t}</span>)}
+                      </div>
+                    </td>
+                    <td>{visit.vet_name || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Section>
-      )}
+        ) : (
+          <p className="text-muted">No visits recorded for this cat.</p>
+        )}
+      </Section>
+    </>
+  );
 
-      {/* Owners - Clickable Links */}
+  /* ── Tab: Connections ── */
+  const connectionsTab = (
+    <>
       <div className="detail-section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2>People</h2>
@@ -1795,17 +1538,16 @@ export default function CatDetailPage() {
         )}
       </div>
 
-      {/* Places - Clickable Links */}
       <Section title="Places">
         {cat.places && cat.places.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {cat.places.map((place) => (
+            {cat.places.map((catPlace) => (
               <EntityLink
-                key={place.place_id}
-                href={`/places/${place.place_id}`}
-                label={place.label}
-                badge={place.place_kind || place.role}
-                badgeColor={place.role === "residence" ? "#198754" : "#6c757d"}
+                key={catPlace.place_id}
+                href={`/places/${catPlace.place_id}`}
+                label={catPlace.label}
+                badge={catPlace.place_kind || catPlace.role}
+                badgeColor={catPlace.role === "residence" ? "#198754" : "#6c757d"}
               />
             ))}
           </div>
@@ -1814,7 +1556,15 @@ export default function CatDetailPage() {
         )}
       </Section>
 
-      {/* Clinic History - Who brought this cat to clinic */}
+      <Section title="Movement & Reunification">
+        <CatMovementSection catId={id} />
+      </Section>
+    </>
+  );
+
+  /* ── Tab: Activity ── */
+  const activityTab = (
+    <>
       {((cat.enhanced_clinic_history && cat.enhanced_clinic_history.length > 0) ||
         (cat.clinic_history && cat.clinic_history.length > 0)) && (
         <Section title="Clinic History">
@@ -1823,26 +1573,15 @@ export default function CatDetailPage() {
           </p>
           <div className="table-container">
             <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Contact</th>
-                  <th>Origin Address</th>
-                  <th>Source</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Date</th><th>Contact</th><th>Origin Address</th><th>Source</th></tr></thead>
               <tbody>
                 {(cat.enhanced_clinic_history || cat.clinic_history || []).map((visit, idx) => (
                   <tr key={idx}>
                     <td>{formatDateLocal(visit.visit_date)}</td>
                     <td>
                       <div style={{ fontWeight: 500 }}>{visit.client_name || "—"}</div>
-                      {visit.client_email && (
-                        <div className="text-muted text-sm">{visit.client_email}</div>
-                      )}
-                      {visit.client_phone && (
-                        <div className="text-muted text-sm">{visit.client_phone}</div>
-                      )}
+                      {visit.client_email && <div className="text-muted text-sm">{visit.client_email}</div>}
+                      {visit.client_phone && <div className="text-muted text-sm">{visit.client_phone}</div>}
                     </td>
                     <td>
                       {"origin_address" in visit && visit.origin_address ? (
@@ -1855,27 +1594,11 @@ export default function CatDetailPage() {
                     </td>
                     <td>
                       {"partner_org_short" in visit && visit.partner_org_short ? (
-                        <span
-                          className="badge"
-                          style={{
-                            background: visit.partner_org_short === "SCAS" ? "#0d6efd" :
-                                        visit.partner_org_short === "FFSC" ? "#198754" : "#6c757d",
-                            color: "#fff",
-                            fontSize: "0.7rem",
-                          }}
-                          title={`Cat came from ${visit.partner_org_short}`}
-                        >
+                        <span className="badge" style={{ background: visit.partner_org_short === "SCAS" ? "#0d6efd" : visit.partner_org_short === "FFSC" ? "#198754" : "#6c757d", color: "#fff", fontSize: "0.7rem" }} title={`Cat came from ${visit.partner_org_short}`}>
                           {visit.partner_org_short}
                         </span>
                       ) : visit.ownership_type ? (
-                        <span
-                          className="badge"
-                          style={{
-                            background: visit.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd",
-                            color: "#fff",
-                            fontSize: "0.7rem",
-                          }}
-                        >
+                        <span className="badge" style={{ background: visit.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd", color: "#fff", fontSize: "0.7rem" }}>
                           {visit.ownership_type}
                         </span>
                       ) : (
@@ -1890,67 +1613,6 @@ export default function CatDetailPage() {
         </Section>
       )}
 
-      {/* Visit History - Categorized */}
-      <Section title="Visit History">
-        {cat.visits && cat.visits.length > 0 ? (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Services</th>
-                  <th>Vet</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cat.visits.map((visit) => (
-                  <tr key={visit.appointment_id}>
-                    <td>{formatDateLocal(visit.visit_date)}</td>
-                    <td>
-                      <span
-                        className="badge"
-                        style={{
-                          background:
-                            visit.visit_category === "Spay/Neuter" ? "#198754" :
-                            visit.visit_category === "Wellness" ? "#0d6efd" :
-                            visit.visit_category === "Recheck" ? "#6f42c1" :
-                            visit.visit_category === "Euthanasia" ? "#dc3545" : "#6c757d",
-                          color: "#fff",
-                        }}
-                      >
-                        {visit.visit_category}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                        {visit.is_spay && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Spay</span>}
-                        {visit.is_neuter && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Neuter</span>}
-                        {visit.vaccines?.map((v, i) => (
-                          <span key={i} className="badge" style={{ background: "#d1e7dd", color: "#0f5132", fontSize: "0.7rem" }}>{v}</span>
-                        ))}
-                        {visit.treatments?.map((t, i) => (
-                          <span key={i} className="badge" style={{ background: "#cfe2ff", color: "#084298", fontSize: "0.7rem" }}>{t}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>{visit.vet_name || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-muted">No visits recorded for this cat.</p>
-        )}
-      </Section>
-
-      {/* Movement & Reunification */}
-      <Section title="Movement & Reunification">
-        <CatMovementSection catId={id} />
-      </Section>
-
-      {/* Journal / Notes */}
       <Section title="Journal">
         <JournalSection
           entries={journal}
@@ -1960,7 +1622,6 @@ export default function CatDetailPage() {
         />
       </Section>
 
-      {/* Metadata */}
       <Section title="Metadata">
         <div className="detail-grid">
           <div className="detail-item">
@@ -1975,9 +1636,7 @@ export default function CatDetailPage() {
           {cat.first_visit_date && (
             <div className="detail-item">
               <span className="detail-label">First ClinicHQ Visit</span>
-              <span className="detail-value">
-                {formatDateLocal(cat.first_visit_date)}
-              </span>
+              <span className="detail-value">{formatDateLocal(cat.first_visit_date)}</span>
             </div>
           )}
           {cat.total_visits > 0 && (
@@ -1988,34 +1647,35 @@ export default function CatDetailPage() {
           )}
           <div className="detail-item">
             <span className="detail-label">Atlas Created</span>
-            <span className="detail-value">
-              {formatDateLocal(cat.created_at)}
-            </span>
+            <span className="detail-value">{formatDateLocal(cat.created_at)}</span>
           </div>
           <div className="detail-item">
             <span className="detail-label">Last Updated</span>
-            <span className="detail-value">
-              {formatDateLocal(cat.updated_at)}
-            </span>
+            <span className="detail-value">{formatDateLocal(cat.updated_at)}</span>
           </div>
           <div className="detail-item">
             <span className="detail-label">Verification</span>
             <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <VerificationBadge
-                table="cats"
-                recordId={cat.cat_id}
-                verifiedAt={cat.verified_at}
-                verifiedBy={cat.verified_by_name}
-                onVerify={() => fetchCat()}
-              />
-              {cat.verified_at && (
-                <LastVerified verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} />
-              )}
+              <VerificationBadge table="cats" recordId={cat.cat_id} verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} onVerify={() => fetchCat()} />
+              {cat.verified_at && <LastVerified verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} />}
             </span>
           </div>
         </div>
       </Section>
+    </>
+  );
 
+  return (
+    <ProfileLayout
+      header={profileHeader}
+      tabs={[
+        { id: "overview", label: "Overview", content: overviewTab },
+        { id: "medical", label: "Medical", content: medicalTab },
+        { id: "connections", label: "Connections", content: connectionsTab, badge: (cat.owners?.length || 0) + (cat.places?.length || 0) || undefined },
+        { id: "activity", label: "Activity", content: activityTab, badge: journal.length || undefined },
+      ]}
+      defaultTab="overview"
+    >
       {/* Edit History Panel */}
       {showHistory && (
         <div style={{
@@ -2031,12 +1691,7 @@ export default function CatDetailPage() {
           zIndex: 100,
           boxShadow: "-4px 0 10px rgba(0,0,0,0.2)"
         }}>
-          <EditHistory
-            entityType="cat"
-            entityId={id}
-            limit={50}
-            onClose={() => setShowHistory(false)}
-          />
+          <EditHistory entityType="cat" entityId={id} limit={50} onClose={() => setShowHistory(false)} />
         </div>
       )}
 
@@ -2067,29 +1722,22 @@ export default function CatDetailPage() {
               catName={cat.display_name}
               currentOwnerId={cat.owners?.[0]?.person_id || null}
               currentOwnerName={cat.owners?.[0]?.display_name || null}
-              onComplete={() => {
-                setShowTransferWizard(false);
-                fetchCat(); // Refresh cat data after transfer
-              }}
+              onComplete={() => { setShowTransferWizard(false); fetchCat(); }}
               onCancel={() => setShowTransferWizard(false)}
             />
           </div>
         </div>
       )}
 
-      {/* Report Deceased Modal */}
       <ReportDeceasedModal
         isOpen={showDeceasedModal}
         onClose={() => setShowDeceasedModal(false)}
         catId={id}
         catName={cat.display_name}
         linkedPlaces={cat.places?.map(p => ({ place_id: p.place_id, label: p.label })) || []}
-        onSuccess={() => {
-          fetchCat(); // Refresh to show deceased status
-        }}
+        onSuccess={() => { fetchCat(); }}
       />
 
-      {/* Record Birth Modal */}
       <RecordBirthModal
         isOpen={showBirthModal}
         onClose={() => setShowBirthModal(false)}
@@ -2097,10 +1745,8 @@ export default function CatDetailPage() {
         catName={cat.display_name}
         linkedPlaces={cat.places?.map(p => ({ place_id: p.place_id, label: p.label })) || []}
         existingBirthEvent={cat.birth_event}
-        onSuccess={() => {
-          fetchCat(); // Refresh to show birth info
-        }}
+        onSuccess={() => { fetchCat(); }}
       />
-    </div>
+    </ProfileLayout>
   );
 }

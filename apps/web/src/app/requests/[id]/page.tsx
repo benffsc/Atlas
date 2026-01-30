@@ -1148,7 +1148,7 @@ export default function RequestDetailPage() {
 
       {/* Tab Navigation - show for all requests */}
       {!editing && (
-        <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "1.5rem" }}>
+        <div className="profile-tabs">
           {[
             { id: "details" as const, label: "Details", show: true },
             {
@@ -1162,17 +1162,8 @@ export default function RequestDetailPage() {
             .map((tab) => (
               <button
                 key={tab.id}
+                className={`profile-tab${activeTab === tab.id ? " active" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: activeTab === tab.id ? "2px solid var(--primary)" : "2px solid transparent",
-                  marginBottom: "-2px",
-                  color: activeTab === tab.id ? "var(--primary)" : "var(--muted)",
-                  fontWeight: activeTab === tab.id ? 600 : 400,
-                  cursor: "pointer",
-                }}
               >
                 {tab.label}
               </button>

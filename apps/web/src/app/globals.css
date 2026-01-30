@@ -375,6 +375,58 @@ button:disabled {
   margin-bottom: 0.5rem;
 }
 
+/* Profile tabs */
+.profile-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.profile-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.profile-tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--muted);
+  font-weight: 400;
+  cursor: pointer;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.profile-tab:hover {
+  color: var(--foreground);
+}
+
+.profile-tab.active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.profile-tab .tab-badge {
+  background: var(--section-bg);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  margin-left: 6px;
+}
+
+.profile-tab.active .tab-badge {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+}
+
 .detail-section {
   margin-bottom: 2rem;
 }

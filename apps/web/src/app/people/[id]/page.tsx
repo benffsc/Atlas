@@ -16,6 +16,7 @@ import { QuickActions, usePersonQuickActionState } from "@/components/QuickActio
 import { formatDateLocal } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import { ProfileLayout } from "@/components/ProfileLayout";
 
 interface Cat {
   cat_id: string;
@@ -498,12 +499,12 @@ export default function PersonDetailPage() {
     return <div className="empty">Person not found</div>;
   }
 
-  return (
+  const profileHeader = (
     <div>
       <BackButton fallbackHref="/people" />
 
       {/* Header */}
-      <div className="detail-header" style={{ marginTop: "1rem" }}>
+      <div className="detail-header" style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           {editingName ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
@@ -636,7 +637,11 @@ export default function PersonDetailPage() {
           </p>
         )}
       </div>
+    </div>
+  );
 
+  const overviewTab = (
+    <>
       {/* Quick Actions */}
       <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
         <QuickActions
@@ -802,30 +807,30 @@ export default function PersonDetailPage() {
             {/* Show identifiers from data sources */}
             {person.identifiers && person.identifiers.length > 0 ? (
               <>
-                {person.identifiers.filter(i => i.id_type === "phone").map((id, idx) => (
+                {person.identifiers.filter(i => i.id_type === "phone").map((pid, idx) => (
                   <div className="detail-item" key={`phone-${idx}`}>
                     <span className="detail-label">
                       Phone
-                      {id.source_system && (
+                      {pid.source_system && (
                         <span className="text-muted" style={{ fontSize: "0.7rem", marginLeft: "0.25rem" }}>
-                          ({id.source_system})
+                          ({pid.source_system})
                         </span>
                       )}
                     </span>
-                    <span className="detail-value">{id.id_value}</span>
+                    <span className="detail-value">{pid.id_value}</span>
                   </div>
                 ))}
-                {person.identifiers.filter(i => i.id_type === "email").map((id, idx) => (
+                {person.identifiers.filter(i => i.id_type === "email").map((eid, idx) => (
                   <div className="detail-item" key={`email-${idx}`}>
                     <span className="detail-label">
                       Email
-                      {id.source_system && (
+                      {eid.source_system && (
                         <span className="text-muted" style={{ fontSize: "0.7rem", marginLeft: "0.25rem" }}>
-                          ({id.source_system})
+                          ({eid.source_system})
                         </span>
                       )}
                     </span>
-                    <span className="detail-value">{id.id_value}</span>
+                    <span className="detail-value">{eid.id_value}</span>
                   </div>
                 ))}
                 {person.identifiers.filter(i => !["phone", "email"].includes(i.id_type)).length === person.identifiers.length && (
@@ -856,8 +861,12 @@ export default function PersonDetailPage() {
           </div>
         )}
       </Section>
+    </>
+  );
 
-      {/* Cats - Clickable Links */}
+  const connectionsTab = (
+    <>
+      {/* Cats */}
       <Section title="Cats">
         {person.cats && person.cats.length > 0 ? (
           <>
@@ -884,7 +893,7 @@ export default function PersonDetailPage() {
         )}
       </Section>
 
-      {/* Places - Clickable Links */}
+      {/* Places */}
       <Section title="Places">
         {person.places && person.places.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
@@ -922,8 +931,12 @@ export default function PersonDetailPage() {
           </div>
         </Section>
       )}
+    </>
+  );
 
-      {/* Related Requests (as requester) */}
+  const activityTab = (
+    <>
+      {/* Related Requests */}
       <Section title="Requests">
         {requests.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -978,8 +991,11 @@ export default function PersonDetailPage() {
           onEntryAdded={fetchJournal}
         />
       </Section>
+    </>
+  );
 
-      {/* Data Sources - shows where this person's data came from */}
+  const dataTab = (
+    <>
       {person.identifiers && person.identifiers.length > 0 && (
         <Section title="Data Sources">
           <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
@@ -994,16 +1010,16 @@ export default function PersonDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {person.identifiers.map((id, idx) => (
+              {person.identifiers.map((pid, idx) => (
                 <tr key={idx} style={{ borderBottom: "1px solid #f0f0f0" }}>
                   <td style={{ padding: "0.5rem 0" }}>
                     <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
-                      {id.id_type}
+                      {pid.id_type}
                     </span>
                   </td>
-                  <td style={{ padding: "0.5rem 0" }}>{id.id_value}</td>
+                  <td style={{ padding: "0.5rem 0" }}>{pid.id_value}</td>
                   <td style={{ padding: "0.5rem 0" }} className="text-muted">
-                    {id.source_system ? `${id.source_system}${id.source_table ? `.${id.source_table}` : ""}` : "Unknown"}
+                    {pid.source_system ? `${pid.source_system}${pid.source_table ? `.${pid.source_table}` : ""}` : "Unknown"}
                   </td>
                 </tr>
               ))}
@@ -1011,7 +1027,22 @@ export default function PersonDetailPage() {
           </table>
         </Section>
       )}
+    </>
+  );
 
+  const connectionCount = (person.cat_count || 0) + (person.place_count || 0);
+
+  return (
+    <ProfileLayout
+      header={profileHeader}
+      defaultTab="overview"
+      tabs={[
+        { id: "overview", label: "Overview", content: overviewTab },
+        { id: "connections", label: "Connections", content: connectionsTab, badge: connectionCount || undefined },
+        { id: "activity", label: "Activity", content: activityTab, badge: requests.length || undefined },
+        { id: "data", label: "Data", content: dataTab, show: !!(person.identifiers && person.identifiers.length > 0) },
+      ]}
+    >
       {/* Edit History Panel */}
       {showHistory && (
         <div style={{
@@ -1047,6 +1078,6 @@ export default function PersonDetailPage() {
           first_name: person.display_name?.split(" ")[0] || "",
         }}
       />
-    </div>
+    </ProfileLayout>
   );
 }
