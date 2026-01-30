@@ -334,6 +334,25 @@ export default function AtlasMap() {
   const [streetViewHeading, setStreetViewHeading] = useState(0);
   const [streetViewPitch, setStreetViewPitch] = useState(0);
   const streetViewMarkerRef = useRef<L.Marker | null>(null);
+  const streetViewIframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Listen for postMessage from interactive Street View iframe
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (!event.data?.type) return;
+      if (event.data.type === "streetview-pov") {
+        setStreetViewHeading(event.data.heading);
+        setStreetViewPitch(event.data.pitch);
+      } else if (event.data.type === "streetview-position") {
+        // User "walked" to a new position in Street View — update cone location
+        setStreetViewCoords((prev) =>
+          prev ? { ...prev, lat: event.data.lat, lng: event.data.lng } : prev
+        );
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   // Expose setSelectedPlaceId and street view globally for popup buttons
   useEffect(() => {
@@ -1731,9 +1750,9 @@ export default function AtlasMap() {
     };
   }, [streetViewCoords, streetViewHeading]);
 
-  // Build Street View embed URL via server-side proxy (keeps API key server-side)
+  // Build Street View URL — interactive JS API with postMessage (keeps API key server-side)
   const streetViewUrl = streetViewCoords
-    ? `/api/streetview/embed?lat=${streetViewCoords.lat}&lng=${streetViewCoords.lng}&heading=${streetViewHeading}&pitch=${streetViewPitch}`
+    ? `/api/streetview/interactive?lat=${streetViewCoords.lat}&lng=${streetViewCoords.lng}`
     : null;
 
   return (
@@ -2637,7 +2656,11 @@ export default function AtlasMap() {
             <div className="street-view-controls-group">
               <button
                 className="sv-ctrl-btn"
-                onClick={() => setStreetViewHeading((h) => (h - 30 + 360) % 360)}
+                onClick={() => {
+                  const h = (streetViewHeading - 30 + 360) % 360;
+                  setStreetViewHeading(h);
+                  streetViewIframeRef.current?.contentWindow?.postMessage({ type: "set-pov", heading: h, pitch: streetViewPitch }, "*");
+                }}
                 title="Rotate left"
               >
                 ◀
@@ -2651,7 +2674,11 @@ export default function AtlasMap() {
               </span>
               <button
                 className="sv-ctrl-btn"
-                onClick={() => setStreetViewHeading((h) => (h + 30) % 360)}
+                onClick={() => {
+                  const h = (streetViewHeading + 30) % 360;
+                  setStreetViewHeading(h);
+                  streetViewIframeRef.current?.contentWindow?.postMessage({ type: "set-pov", heading: h, pitch: streetViewPitch }, "*");
+                }}
                 title="Rotate right"
               >
                 ▶
@@ -2660,7 +2687,11 @@ export default function AtlasMap() {
             <div className="street-view-controls-group">
               <button
                 className="sv-ctrl-btn"
-                onClick={() => setStreetViewPitch((p) => Math.min(90, p + 15))}
+                onClick={() => {
+                  const p = Math.min(90, streetViewPitch + 15);
+                  setStreetViewPitch(p);
+                  streetViewIframeRef.current?.contentWindow?.postMessage({ type: "set-pov", heading: streetViewHeading, pitch: p }, "*");
+                }}
                 title="Look up"
               >
                 ▲
@@ -2668,7 +2699,11 @@ export default function AtlasMap() {
               <span className="sv-pitch">{streetViewPitch > 0 ? "+" : ""}{streetViewPitch}°</span>
               <button
                 className="sv-ctrl-btn"
-                onClick={() => setStreetViewPitch((p) => Math.max(-90, p - 15))}
+                onClick={() => {
+                  const p = Math.max(-90, streetViewPitch - 15);
+                  setStreetViewPitch(p);
+                  streetViewIframeRef.current?.contentWindow?.postMessage({ type: "set-pov", heading: streetViewHeading, pitch: p }, "*");
+                }}
                 title="Look down"
               >
                 ▼
@@ -2676,6 +2711,7 @@ export default function AtlasMap() {
             </div>
           </div>
           <iframe
+            ref={streetViewIframeRef}
             className="street-view-iframe"
             src={streetViewUrl}
             allowFullScreen
