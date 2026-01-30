@@ -455,13 +455,13 @@ export default function IngestPage() {
           <div style={{
             marginTop: "1rem",
             padding: "0.75rem",
-            background: "var(--background-secondary, #e7f5ff)",
+            background: "var(--bg-secondary, #e7f5ff)",
             borderRadius: "6px",
-            border: "1px solid var(--border-color, #bee5eb)",
-            color: "var(--text-primary, #0c5460)"
+            border: "1px solid var(--border-default, #bee5eb)",
+            color: "var(--text-primary)"
           }}>
-            <strong style={{ color: "var(--text-primary, #0c5460)" }}>Post-processing results:</strong>
-            <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem", color: "var(--text-primary, #0c5460)" }}>
+            <strong style={{ color: "var(--text-primary)" }}>Post-processing results:</strong>
+            <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem", color: "var(--text-primary)" }}>
               {Object.entries(processResult.post_processing).map(([key, value]) => (
                 <li key={key}>
                   {key.replace(/_/g, " ")}: {value}
@@ -484,10 +484,10 @@ export default function IngestPage() {
                 padding: "0.25rem 0.75rem",
                 fontSize: "0.75rem",
                 background: statusFilter === filter
-                  ? "var(--accent-color, #0d6efd)"
-                  : "var(--background-secondary, #e9ecef)",
-                color: statusFilter === filter ? "#fff" : "var(--text-primary, #212529)",
-                border: "none",
+                  ? "var(--primary, #0d6efd)"
+                  : "var(--bg-secondary, #e9ecef)",
+                color: statusFilter === filter ? "var(--primary-foreground, #fff)" : "var(--text-primary)",
+                border: statusFilter === filter ? "none" : "1px solid var(--border-default, #e5e7eb)",
                 borderRadius: "4px",
                 cursor: "pointer",
                 textTransform: "capitalize",
@@ -535,7 +535,7 @@ export default function IngestPage() {
                     <tr
                       style={{
                         opacity: upload.status === "expired" ? 0.5 : 1,
-                        background: upload.status === "expired" ? "var(--background-secondary)" : undefined,
+                        background: upload.status === "expired" ? "var(--bg-secondary)" : undefined,
                         cursor: hasDetail ? "pointer" : undefined,
                       }}
                       onClick={() => {
@@ -661,7 +661,7 @@ export default function IngestPage() {
                     </tr>
                     {isExpanded && hasDetail && (
                       <tr>
-                        <td colSpan={10} style={{ padding: "0.75rem 1rem", background: "var(--background-secondary, #f8f9fa)" }}>
+                        <td colSpan={10} style={{ padding: "0.75rem 1rem", background: "var(--bg-secondary, #f8f9fa)" }}>
                           {upload.status === "completed" && upload.post_processing_results && (
                             <div>
                               <strong style={{ fontSize: "0.8rem" }}>Linking results:</strong>
@@ -683,7 +683,7 @@ export default function IngestPage() {
                                 fontSize: "0.75rem",
                                 whiteSpace: "pre-wrap",
                                 color: "#dc3545",
-                                background: "var(--background-primary, #fff)",
+                                background: "var(--card-bg, #fff)",
                                 padding: "0.5rem",
                                 borderRadius: "4px",
                               }}>
