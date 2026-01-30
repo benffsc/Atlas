@@ -67,6 +67,7 @@ export async function GET(
       SELECT
         v.place_id,
         v.display_name,
+        v.original_display_name,
         v.formatted_address,
         v.place_kind,
         v.is_address_backed,
@@ -220,7 +221,7 @@ const VALID_PLACE_KINDS = [
 ] as const;
 
 interface UpdatePlaceBody {
-  display_name?: string;
+  display_name?: string | null;
   place_kind?: string;
   // Address correction fields (with audit tracking)
   formatted_address?: string;
@@ -262,10 +263,10 @@ export async function PATCH(
       );
     }
 
-    // Validate display_name if provided
-    if (body.display_name !== undefined && body.display_name.trim() === "") {
+    // Validate display_name if provided (null clears the label, empty string rejected)
+    if (body.display_name !== undefined && body.display_name !== null && body.display_name.trim() === "") {
       return NextResponse.json(
-        { error: "display_name cannot be empty" },
+        { error: "display_name cannot be empty string. Pass null to clear." },
         { status: 400 }
       );
     }
@@ -281,9 +282,14 @@ export async function PATCH(
 
     // Simple fields (no audit needed for display_name and place_kind changes)
     if (body.display_name !== undefined) {
-      updates.push(`display_name = $${paramIndex}`);
-      values.push(body.display_name.trim());
-      paramIndex++;
+      if (body.display_name === null) {
+        // Explicitly clearing the label
+        updates.push(`display_name = NULL`);
+      } else {
+        updates.push(`display_name = $${paramIndex}`);
+        values.push(body.display_name.trim());
+        paramIndex++;
+      }
     }
 
     if (body.place_kind !== undefined) {

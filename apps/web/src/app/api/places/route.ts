@@ -103,7 +103,7 @@ interface CreatePlaceBody {
   formatted_address?: string;
   lat?: number;
   lng?: number;
-  display_name: string;
+  display_name?: string | null;
   place_kind: string;
   notes?: string | null;
   location_type?: "geocoded" | "approximate" | "described";
@@ -128,13 +128,6 @@ export async function POST(request: NextRequest) {
     const body: CreatePlaceBody = await request.json();
 
     // Validation
-    if (!body.display_name) {
-      return NextResponse.json(
-        { error: "display_name is required" },
-        { status: 400 }
-      );
-    }
-
     if (!body.place_kind) {
       return NextResponse.json(
         { error: "place_kind is required" },

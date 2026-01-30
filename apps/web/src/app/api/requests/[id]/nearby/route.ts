@@ -209,7 +209,7 @@ export async function GET(
         `SELECT DISTINCT ON (per.person_id)
           per.person_id,
           per.display_name,
-          pl.display_name as place_name,
+          COALESCE(pl.display_name, split_part(pl.formatted_address, ',', 1)) as place_name,
           ppr.relationship_type,
           ST_Distance(
             pl.location::geography,
@@ -241,7 +241,7 @@ export async function GET(
           c.cat_id,
           c.display_name,
           ci.id_value as microchip,
-          pl.display_name as place_name,
+          COALESCE(pl.display_name, split_part(pl.formatted_address, ',', 1)) as place_name,
           ST_Distance(
             pl.location::geography,
             ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography

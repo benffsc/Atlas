@@ -112,13 +112,8 @@ SELECT
     r.resolved_at,
     r.place_id,
 
-    CASE
-        WHEN p.display_name IS NOT NULL
-         AND per.display_name IS NOT NULL
-         AND lower(TRIM(BOTH FROM p.display_name)) = lower(TRIM(BOTH FROM per.display_name))
-        THEN COALESCE(split_part(p.formatted_address, ',', 1), p.formatted_address)
-        ELSE COALESCE(p.display_name, split_part(p.formatted_address, ',', 1))
-    END AS place_name,
+    -- MIG_791: display_name is now NULL unless meaningful label exists
+    COALESCE(p.display_name, split_part(p.formatted_address, ',', 1)) AS place_name,
 
     p.formatted_address AS place_address,
     p.safety_notes AS place_safety_notes,
