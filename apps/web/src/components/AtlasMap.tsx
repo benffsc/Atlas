@@ -25,6 +25,17 @@ import {
 } from "@/components/map/MapPopup";
 import { PlaceDetailDrawer } from "@/components/map/PlaceDetailDrawer";
 
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // Types for map data
 interface Place {
   id: string;
@@ -259,6 +270,7 @@ const SERVICE_ZONES = [
 // Colors now imported from map-colors.ts
 
 export default function AtlasMap() {
+  const isMobile = useIsMobile();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
@@ -1614,7 +1626,7 @@ export default function AtlasMap() {
     (enabledLayers.historical_sources ? historicalSources.length : 0);
 
   return (
-    <div style={{ position: "relative", height: "100vh", width: "100%" }}>
+    <div style={{ position: "relative", height: "100dvh", width: "100%" }}>
       {/* Map container */}
       <div ref={mapContainerRef} style={{ height: "100%", width: "100%" }} />
 
@@ -1637,11 +1649,29 @@ export default function AtlasMap() {
           alignItems: "center",
           padding: "8px 16px",
         }}>
-          <span style={{ fontSize: 20, marginRight: 12, opacity: 0.5 }}>🔍</span>
+          <a
+            href="/"
+            title="Back to Atlas"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              marginRight: 8,
+              textDecoration: "none",
+              color: "#374151",
+              fontWeight: 700,
+              fontSize: 14,
+              flexShrink: 0,
+            }}
+          >
+            <img src="/logo.png" alt="" style={{ height: 22, width: "auto" }} />
+            {!isMobile && <span>Atlas</span>}
+          </a>
+          <span style={{ width: 1, height: 20, background: "#e5e7eb", marginRight: 10, flexShrink: 0 }} />
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search addresses, pins, or volunteers... (press /)"
+            placeholder={isMobile ? "Search..." : "Search addresses, pins, or volunteers... (press /)"}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -1852,7 +1882,7 @@ export default function AtlasMap() {
           onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
         >
           <span style={{ fontSize: 18 }}>☰</span>
-          Layers
+          {!isMobile && "Layers"}
         </button>
 
         {/* My Location button */}
@@ -1881,7 +1911,7 @@ export default function AtlasMap() {
           onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
         >
           <span style={{ fontSize: 18 }}>{locatingUser ? "⏳" : "📍"}</span>
-          {locatingUser ? "Locating..." : "My Location"}
+          {!isMobile && (locatingUser ? "Locating..." : "My Location")}
         </button>
 
         {/* Zoom controls */}
@@ -1935,7 +1965,18 @@ export default function AtlasMap() {
 
       {/* Layer panel */}
       {showLayerPanel && (
-        <div style={{
+        <div style={isMobile ? {
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1001,
+          background: "white",
+          borderRadius: "16px 16px 0 0",
+          boxShadow: "0 -4px 20px rgba(0,0,0,0.2)",
+          maxHeight: "60dvh",
+          overflowY: "auto",
+        } : {
           position: "absolute",
           top: 16,
           right: 180,
@@ -1944,7 +1985,7 @@ export default function AtlasMap() {
           borderRadius: 12,
           boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
           width: 300,
-          maxHeight: "calc(100vh - 100px)",
+          maxHeight: "calc(100dvh - 100px)",
           overflowY: "auto",
         }}>
           <div style={{ padding: 16, borderBottom: "1px solid #e5e7eb" }}>
@@ -2336,8 +2377,8 @@ export default function AtlasMap() {
         </div>
       )}
 
-      {/* Stats bar */}
-      {summary && (
+      {/* Stats bar — hidden on mobile */}
+      {summary && !isMobile && (
         <div style={{
           position: "absolute",
           bottom: 24,
@@ -2391,8 +2432,8 @@ export default function AtlasMap() {
         </div>
       )}
 
-      {/* Keyboard shortcuts help - minimal */}
-      <div style={{
+      {/* Keyboard shortcuts help — hidden on mobile (no keyboard) */}
+      {!isMobile && <div style={{
         position: "absolute",
         bottom: 24,
         right: 16,
@@ -2410,7 +2451,7 @@ export default function AtlasMap() {
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>L</kbd> layers
         <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
-      </div>
+      </div>}
 
       {/* CSS animations are in atlas-map.css */}
 

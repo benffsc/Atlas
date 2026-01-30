@@ -67,6 +67,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const isMapPage = pathname === "/map";
+  if (isMapPage) {
+    // Map page gets full viewport — no nav, no container constraints
+    return <>{children}</>;
+  }
+
   const isAdmin = staff?.auth_role === "admin";
   const isVolunteer = staff?.auth_role === "volunteer";
 
