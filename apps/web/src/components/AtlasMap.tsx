@@ -1256,11 +1256,9 @@ export default function AtlasMap() {
         const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`);
         if (res.ok) {
           const data = await res.json();
-          // Accept any entity with coordinates (places, people, etc.)
-          const suggestions = (data.suggestions || []).filter(
-            (s: AtlasSearchResult) => s.metadata?.lat && s.metadata?.lng
-          );
-          setAtlasSearchResults(suggestions);
+          // Show all results — those with coordinates navigate on map,
+          // those without link to the entity detail page
+          setAtlasSearchResults(data.suggestions || []);
         }
       } catch (err) {
         console.error("Atlas search error:", err);
@@ -1313,9 +1311,15 @@ export default function AtlasMap() {
   // Handle Atlas fuzzy search result selection
   const handleAtlasSearchSelect = (result: AtlasSearchResult) => {
     if (mapRef.current && result.metadata?.lat && result.metadata?.lng) {
+      // Has coordinates — navigate on map
       mapRef.current.setView([result.metadata.lat, result.metadata.lng], 16, { animate: true, duration: 0.5 });
-      // Clear any navigated location marker
       setNavigatedLocation(null);
+    } else {
+      // No coordinates — open the entity detail page
+      const path = result.entity_type === "person" ? "/people"
+        : result.entity_type === "cat" ? "/cats"
+        : "/places";
+      window.open(`${path}/${result.entity_id}`, "_blank");
     }
     setSearchQuery("");
     setShowSearchResults(false);
@@ -1738,8 +1742,13 @@ export default function AtlasMap() {
                         <div style={{ fontSize: 12, color: "#6b7280" }}>{result.subtitle}</div>
                       )}
                     </div>
-                    <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 500 }}>
+                    <span style={{
+                      fontSize: 10,
+                      color: result.metadata?.lat ? "#3b82f6" : "#9ca3af",
+                      fontWeight: 500,
+                    }}>
                       {result.entity_type === "person" ? "PERSON" : result.entity_type === "cat" ? "CAT" : "PLACE"}
+                      {!result.metadata?.lat && " (detail)"}
                     </span>
                   </div>
                 ))}
