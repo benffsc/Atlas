@@ -1,4 +1,4 @@
-\echo '=== MIG_790: Unified Tippy Signals View ==='
+\echo '=== MIG_796: Unified Tippy Signals View ==='
 \echo 'Creates v_tippy_all_signals and v_tippy_signal_summary'
 \echo 'Purpose: Single place to see ALL Tippy feedback, corrections, gaps, and drafts'
 \echo ''
@@ -130,7 +130,7 @@ ON CONFLICT (view_name) DO UPDATE SET
   updated_at = NOW();
 
 \echo ''
-\echo '=== MIG_790 Complete ==='
+\echo '=== MIG_796 Complete ==='
 \echo 'Created: v_tippy_all_signals (unified timeline)'
 \echo 'Created: v_tippy_signal_summary (counts by type)'
 \echo 'Added both views to tippy_view_catalog'

@@ -313,6 +313,79 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-01-30: Ingestion Pipeline Fix — Four Blocking Bugs (MIG_795)
+
+**Problem:** The ClinicHQ owner_info processing pipeline was completely broken. Every upload attempt failed. Investigation revealed four interconnected bugs:
+
+1. **Missing function:** `update_person_contact_info(uuid, text, text, text)` was called by `data_engine_resolve_identity()` on the auto_match path but never created. Error: function does not exist.
+2. **Wrong column name:** `process_next_job()` referenced `next_attempt_at` but the actual column in `processing_jobs` is `next_retry_at`. Error: column does not exist.
+3. **Invalid review_status:** `data_engine_resolve_identity()` wrote `review_status = 'needs_review'` but the check constraint only allowed: not_required, pending, approved, rejected, merged, kept_separate, deferred. Error: violates check constraint.
+4. **Missing result column:** `process_next_job()` wrote to a `result` JSONB column that was never created on `processing_jobs`. Error: column does not exist.
+
+**Combined impact:** owner_info processing ALWAYS failed. The cron pipeline couldn't claim jobs (Bug 2+4), and inline processing crashed on identity resolution (Bug 1+3). 73 queued jobs accumulated and stalled.
+
+**Investigation:**
+- Traced error from file upload → post-processing → `find_or_create_person()` → `data_engine_resolve_identity()` → `update_person_contact_info()` (missing)
+- Found Bug 2 in MIG_772 line 88: `next_attempt_at` vs actual column `next_retry_at`
+- Found Bug 3 in MIG_573 line 259: writes `'needs_review'` to `data_engine_match_decisions.review_status`
+- Found Bug 4: MIG_772's `process_next_job()` references `result` column never created
+
+**Solution:** MIG_795 — Four fixes:
+- Bug 1: Created `update_person_contact_info()` function (adds email/phone identifiers, sets primary if null)
+- Bug 2: Replaced `process_next_job()` with corrected column name
+- Bug 3: Expanded check constraint to accept `'needs_review'` as valid value
+- Bug 4: Added `result JSONB` column to `processing_jobs`
+- Expired 73 stuck owner_info jobs
+
+**Result:** Full pipeline verified working. `data_engine_resolve_identity()`, `find_or_create_person()`, `update_person_contact_info()`, and `process_next_job()` all pass. Owner_info file uploads should now process successfully.
+
+**What Tippy should know:**
+> "The owner_info processing pipeline was broken from January 18-30 due to missing database functions and column mismatches. This has been fixed (MIG_795). If staff see a gap in owner contact info for that period, it's because the pipeline wasn't running. Re-uploading the owner_info file should backfill the missing data."
+
+### 2026-01-30: Cat-Place Linking Pipeline Stall and Validation Gap
+
+**Problem:** Cats from the January 26, 2026 clinic day were not linked to any place. Investigation revealed two issues:
+
+1. **Pipeline stall:** The `process_clinichq_owner_info()` backfill job last ran January 18. All appointments from Jan 19-26 had zero `owner_email`/`owner_phone`, completely blocking the automatic cat→place linking pipeline.
+
+2. **No relationship validation:** `cat_place_relationships` and `person_cat_relationships` accept any INSERT with valid UUIDs — no check that the cat was actually observed at that place. A manual fix initially linked the wrong person's cats to the wrong place because no guardrail flagged the error.
+
+**Investigation:**
+- January 2026: 16.3% of appointments missing owner contact info (vs 0.2-1.4% baseline in 2025)
+- System-wide: 3,511 cats (9.6%) have no place link at all
+- Relationship tables have FK and uniqueness constraints but zero semantic validation
+- The entity linking chain (`run_all_entity_linking()`) also has a check constraint bug that prevents it from running
+
+**Solution:**
+- Fixed individual data: Joanie Springer's 1 cat linked to her request place, Judy Arnold's 8 cats linked to her own place (898 Butler Ave)
+- Fixed bad place merge: "36 Verde Circle" was incorrectly merged into "107 Verde Ct" instead of "36 Rancho Verde Cir"
+- Fixed API: Added `merged_into_place_id IS NULL` filter to `/api/people/[id]` associated_places query
+- Added North Star rules: INV-8 (merge-aware queries), INV-9 (cat linking requires owner info), INV-10 (relationship tables require centralized functions)
+- Pipeline backfill needs to be re-run for Jan 19-26 data
+
+**Result:** Data corrected for Joanie and Judy. Structural fixes (centralized validation functions, pipeline re-run) still needed.
+
+**What Tippy should know:**
+> "If cats from a recent clinic day aren't showing on a request, it may be because the owner contact info backfill hasn't run yet. The pipeline needs owner_email or owner_phone to link cats to places. Check if `process_clinichq_owner_info()` has run since the last data ingest."
+
+### 2026-01-29: Fix Duplicate Colony Estimate on Request Completion
+
+**Problem:** When staff completed a request using the CompleteRequestModal with observation data (cats seen, eartips seen), the system created **two** colony estimate records in `place_colony_estimates` from the same observation. The modal sent data to two endpoints sequentially:
+
+1. `POST /api/observations` → created a `site_observations` row → trigger `trg_site_obs_colony_estimate` fired → inserted a `place_colony_estimates` record with the raw count
+2. `PATCH /api/requests/{id}` → called `record_completion_observation()` → inserted **another** `place_colony_estimates` record with Chapman estimate + `is_final_observation = TRUE`
+
+The `UNIQUE (source_system, source_record_id)` constraint didn't catch this because Path 1 stored `source_record_id = <observation_id>` while Path 2 left `source_record_id = NULL`, and PostgreSQL treats `NULL != NULL` for unique constraints.
+
+**Investigation:** Full pipeline audit of the request completion → clinic data attribution flow. Traced the dual-write through CompleteRequestModal.tsx (lines 103-139), the observations API POST handler, the site_observations trigger (MIG_454), and `record_completion_observation()` (MIG_563).
+
+**Solution:** MIG_790 — Modified `record_completion_observation()` to detect a trigger-created colony estimate (matching place, date, and linked site_observation for this request). If found, it UPDATEs that record with enrichment data (is_final_observation, Chapman estimate, accuracy verification) instead of INSERT-ing a duplicate. Backward compatible: if no trigger record exists, it still INSERTs as before.
+
+**Result:** 0 existing duplicates found (bug existed but hadn't been triggered yet). Function replaced, all colony views resolve correctly. Rule INV-7 added to North Star to prevent similar dual-write bugs.
+
+**What Tippy should know:**
+> "Colony estimates are now properly deduplicated when requests are completed with observation data. Each completion creates exactly one colony estimate record, enriched with Chapman population estimate and accuracy verification."
+
 ### 2026-01-21: Multi-Format Microchip Support
 
 **Problem:** Atlas only extracted 15-digit ISO microchips, missing AVID 9-digit, HomeAgain 10-digit, and truncated 14-digit formats.

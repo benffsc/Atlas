@@ -1077,6 +1077,11 @@ Trappers are linked to appointments directly for accurate stats:
 - Don't return 404 for merged entities - Check `merged_into_place_id` and redirect
 - Don't hardcode place context types - Use `place_context_types` table
 - Don't INSERT directly into place_contexts - Use `assign_place_context()` function
+- **Don't INSERT directly into cat_place_relationships** - Use centralized linking function with evidence validation (INV-10)
+- **Don't INSERT directly into person_cat_relationships** - Use centralized linking function with evidence validation (INV-10)
+- Don't link one person's cats to another person's place without verified evidence
+- Don't forget to run `process_clinichq_owner_info()` after each ClinicHQ data ingest (INV-9)
+- Don't write queries joining entity tables without `merged_into_*_id IS NULL` filters (INV-8)
 
 ## Tippy Documentation Requirements
 

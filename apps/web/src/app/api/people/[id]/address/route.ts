@@ -52,7 +52,7 @@ export async function PATCH(
     const postalCode = extractComponent(body.address_components, "postal_code");
     const country = extractComponent(body.address_components, "country") || "US";
 
-    // Use the upsert function to get or create the address
+    // Use the upsert function to get or create the address record
     const addressResult = await queryOne<{ address_id: string }>(
       `SELECT trapper.upsert_address_from_google_place($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) AS address_id`,
       [
@@ -77,25 +77,36 @@ export async function PATCH(
       );
     }
 
-    // Update the person's primary_address_id
-    const updateResult = await query(
-      `UPDATE trapper.sot_people
-       SET primary_address_id = $1, updated_at = NOW()
-       WHERE person_id = $2
-       RETURNING person_id`,
-      [addressResult.address_id, id]
+    // Also find or create the place for person_place_relationships tracking
+    const placeResult = await queryOne<{ place_id: string }>(
+      `SELECT trapper.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id`,
+      [
+        body.formatted_address,
+        null, // display_name
+        body.lat,
+        body.lng,
+        "atlas_ui",
+      ]
     );
 
-    if (updateResult.rowCount === 0) {
+    if (!placeResult?.place_id) {
       return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
+        { error: "Failed to create or find place" },
+        { status: 500 }
       );
     }
+
+    // Atomically relink: ends old relationship, creates new one, updates primary_address_id, logs audit
+    const relinkResult = await queryOne<{ relink_person_primary_address: string }>(
+      `SELECT trapper.relink_person_primary_address($1, $2, $3, $4)`,
+      [id, placeResult.place_id, addressResult.address_id, "web_user"]
+    );
 
     return NextResponse.json({
       success: true,
       address_id: addressResult.address_id,
+      place_id: placeResult.place_id,
+      relationship_id: relinkResult?.relink_person_primary_address,
       formatted_address: body.formatted_address,
     });
   } catch (error) {
@@ -121,20 +132,11 @@ export async function DELETE(
   }
 
   try {
-    const updateResult = await query(
-      `UPDATE trapper.sot_people
-       SET primary_address_id = NULL, updated_at = NOW()
-       WHERE person_id = $1
-       RETURNING person_id`,
-      [id]
+    // Atomically unlink: ends resident relationship, clears primary_address_id, logs audit
+    await query(
+      `SELECT trapper.unlink_person_primary_address($1, $2)`,
+      [id, "web_user"]
     );
-
-    if (updateResult.rowCount === 0) {
-      return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
-      );
-    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

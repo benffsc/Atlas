@@ -1168,3 +1168,80 @@ button:disabled {
     color: #fdba74 !important;
   }
 }
+
+/* ========================================================================
+   RESPONSIVE / MOBILE STYLES
+   ======================================================================== */
+
+/* Tablet and below */
+@media (max-width: 768px) {
+  /* Stack dashboard grids to single column */
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Full-width cards */
+  .card {
+    border-radius: 6px;
+  }
+
+  /* Reduce page padding */
+  main {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Profile tabs scroll horizontally */
+  .profile-tabs {
+    gap: 0;
+    padding-bottom: 0.25rem;
+  }
+
+  .profile-tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  /* Touch-friendly interactive targets */
+  button,
+  [role="button"],
+  select {
+    min-height: 44px;
+  }
+
+  /* Full-screen modals on mobile */
+  [style*="position: fixed"][style*="z-index: 1000"] > .card,
+  [style*="position: fixed"][style*="zIndex"] > .card {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Small phones */
+@media (max-width: 576px) {
+  /* Compact page headers */
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  /* Stack horizontal flex layouts */
+  .detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Full-width buttons */
+  .card button,
+  .card a[style*="display: inline-flex"] {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Reduce card padding */
+  .card {
+    padding: 1rem !important;
+  }
+}

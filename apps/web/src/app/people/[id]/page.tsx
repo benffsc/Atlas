@@ -253,6 +253,7 @@ export default function PersonDetailPage() {
   const [editingContact, setEditingContact] = useState(false);
   const [addressInput, setAddressInput] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
+  const [pendingAddress, setPendingAddress] = useState<PlaceDetails | null>(null);
 
   // Phone/Email edit state
   const [editingIdentifiers, setEditingIdentifiers] = useState(false);
@@ -343,18 +344,23 @@ export default function PersonDetailPage() {
     loadData();
   }, [id, fetchPerson, fetchJournal, fetchRequests, fetchTrapperInfo]);
 
-  const handlePlaceSelect = async (place: PlaceDetails) => {
+  const handlePlaceSelect = (place: PlaceDetails) => {
+    setPendingAddress(place);
+  };
+
+  const confirmAddressChange = async () => {
+    if (!pendingAddress) return;
     setSavingAddress(true);
     try {
       const response = await fetch(`/api/people/${id}/address`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          google_place_id: place.place_id,
-          formatted_address: place.formatted_address,
-          lat: place.geometry.location.lat,
-          lng: place.geometry.location.lng,
-          address_components: place.address_components,
+          google_place_id: pendingAddress.place_id,
+          formatted_address: pendingAddress.formatted_address,
+          lat: pendingAddress.geometry.location.lat,
+          lng: pendingAddress.geometry.location.lng,
+          address_components: pendingAddress.address_components,
         }),
       });
 
@@ -362,6 +368,7 @@ export default function PersonDetailPage() {
         await fetchPerson();
         setEditingContact(false);
         setAddressInput("");
+        setPendingAddress(null);
       }
     } catch (err) {
       console.error("Failed to save address:", err);
@@ -780,9 +787,52 @@ export default function PersonDetailPage() {
                 onChange={setAddressInput}
                 onPlaceSelect={handlePlaceSelect}
                 placeholder="Search for an address..."
-                disabled={savingAddress}
+                disabled={savingAddress || !!pendingAddress}
               />
-              {savingAddress && (
+              {pendingAddress && (
+                <div style={{
+                  marginTop: "0.75rem",
+                  padding: "0.75rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  background: "var(--card-bg, #fff)",
+                }}>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--text-muted)" }}>
+                    Confirm Address Change
+                  </div>
+                  {person.primary_address && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <span className="text-sm text-muted">Current: </span>
+                      <span className="text-sm" style={{ textDecoration: "line-through", opacity: 0.6 }}>
+                        {person.primary_address}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <span className="text-sm text-muted">New: </span>
+                    <span className="text-sm" style={{ fontWeight: 500 }}>
+                      {pendingAddress.formatted_address}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      onClick={confirmAddressChange}
+                      disabled={savingAddress}
+                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+                    >
+                      {savingAddress ? "Saving..." : "Confirm"}
+                    </button>
+                    <button
+                      onClick={() => { setPendingAddress(null); setAddressInput(""); }}
+                      disabled={savingAddress}
+                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem", background: "transparent", border: "1px solid var(--border)" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {savingAddress && !pendingAddress && (
                 <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>Saving...</p>
               )}
             </div>

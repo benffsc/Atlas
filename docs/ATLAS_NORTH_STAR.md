@@ -197,6 +197,95 @@ CompleteRequestModal submit:
 - If you add a trigger that writes to table X on INSERT into table Y, check if any existing code path also writes to table X after inserting into table Y.
 - If you add a UI modal that calls multiple API endpoints, verify they don't each independently write to the same destination table.
 
+### INV-8: Merge-Aware Queries
+
+- **Every query that returns entities must filter out merged records** via `WHERE merged_into_*_id IS NULL`.
+- This applies to all API endpoints, views, and subqueries that join to `places`, `sot_people`, or `sot_cats`.
+- Merged entities are NOT deleted (INV-1), so they remain in the table and will appear in results unless filtered.
+- **Subqueries are not exempt.** If a query has UNION branches or correlated subqueries that join to entity tables, EACH branch must independently filter merged records.
+
+**Example (bug found 2026-01-29):**
+```
+/api/people/[id] associated_places subquery:
+  Branch 1: person_place_relationships → places
+    → MUST filter pl.merged_into_place_id IS NULL
+  Branch 2: sot_requests → places
+    → MUST filter pl.merged_into_place_id IS NULL
+  Branch 3: web_intake_submissions → places
+    → MUST filter pl.merged_into_place_id IS NULL
+```
+
+**When designing new queries:**
+- If you JOIN to `places`, add `AND p.merged_into_place_id IS NULL`
+- If you JOIN to `sot_people`, add `AND p.merged_into_person_id IS NULL`
+- If you JOIN to `sot_cats`, add `AND c.merged_into_cat_id IS NULL`
+- Views should include these filters. If a view misses one, fix it immediately.
+
+### INV-9: Cat Linking Requires Owner Contact Info
+
+- The automatic cat→place linking pipeline (`link_appointment_cats_to_places()`) requires `owner_email` or `owner_phone` on the ClinicHQ appointment to resolve the person and find their place.
+- When owner contact info is missing, cats **cannot be automatically linked** to any place.
+- The `process_clinichq_owner_info()` backfill job must run AFTER each ClinicHQ data ingest to populate owner contact fields. If it stalls, newly ingested appointments will have no owner info.
+- **Ongoing gap:** ~1% of historical appointments have no owner contact info. January 2026 spiked to 16.3% due to a pipeline stall (backfill last ran Jan 18).
+
+**Each person's cats belong to their own places, not someone else's:**
+```
+Person A: Joanie Springer (36 Rancho Verde Cir)
+  → Has 1 cat at clinic on 1/26 → links to HER place
+  → Has request at 750 Rohnert Park Expressway
+
+Person B: Judy Arnold (898 Butler Ave)
+  → Has 8 cats at clinic on 1/26 → links to HER place
+  → Has request at 898 Butler Ave
+
+WRONG: Linking Judy's 8 cats to Joanie's request place
+RIGHT: Each person's cats link to that person's own place
+```
+
+**Pipeline requirements:**
+1. `process_clinichq_owner_info()` must run after each ClinicHQ ingest
+2. Cats are linked via: appointment → person_id → person_place_relationships → place
+3. If owner_email/phone is missing, Step 6 of entity linking falls back to person_id lookup
+4. 3,511 cats (9.6%) system-wide have no place link — most due to missing owner contact info
+
+### INV-10: Relationship Tables Require Centralized Functions
+
+- **Never INSERT directly** into `cat_place_relationships` or `person_cat_relationships`.
+- Relationship creation must go through centralized functions that validate:
+  1. The cat exists and is not merged (`merged_into_cat_id IS NULL`)
+  2. The place/person exists and is not merged
+  3. There is **evidence** linking the cat to that place/person (appointment, observation, or staff verification)
+  4. The `source_system` and `source_table` are set for provenance
+- This prevents arbitrary links from being created without proof.
+
+**Required functions (to be created):**
+- `link_cat_to_place(cat_id, place_id, relationship_type, evidence_type, source_system)` — validates cat+place exist and are not merged, requires evidence_type
+- `link_person_to_cat(person_id, cat_id, relationship_type, evidence_type, source_system)` — validates person+cat exist and are not merged, requires evidence_type
+
+**Valid evidence types:**
+- `'appointment'` — cat seen at clinic with this person/place connection
+- `'observation'` — cat observed at place during site visit
+- `'intake_report'` — reported by requester during intake
+- `'staff_verified'` — staff manually verified the link
+- `'ai_inferred'` — AI extraction suggested the link (lower confidence)
+
+**Why this matters (bug found 2026-01-29):**
+A manual SQL fix incorrectly linked 8 cats from Person B to Person A's request place. The system accepted this without any warning because relationship tables have no semantic validation — only FK and uniqueness constraints.
+
+### INV-11: Pipeline Functions Must Reference Actual Schema
+
+- SQL functions that reference table columns must use the **actual column names** from the schema.
+- Before creating a function that reads/writes a column, verify the column exists with `information_schema.columns`.
+- When creating functions in migrations, add verification queries that confirm referenced columns exist.
+- If a function creates a column dependency, the migration must also `ADD COLUMN IF NOT EXISTS`.
+
+**Why this matters (MIG_795):**
+Four bugs blocked the ingestion pipeline for 12+ days:
+1. `update_person_contact_info()` was called but never created
+2. `process_next_job()` referenced `next_attempt_at` (actual: `next_retry_at`)
+3. `data_engine_resolve_identity()` wrote `'needs_review'` (not in check constraint)
+4. `process_next_job()` wrote to `result` column (never created)
+
 ---
 
 ## Data Zones

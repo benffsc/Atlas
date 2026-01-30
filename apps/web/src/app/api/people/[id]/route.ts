@@ -122,6 +122,7 @@ export async function GET(
               JOIN trapper.places pl ON pl.place_id = ppr.place_id
               LEFT JOIN trapper.sot_addresses sa ON sa.address_id = pl.sot_address_id
               WHERE ppr.person_id = p.person_id
+                AND pl.merged_into_place_id IS NULL
 
               UNION ALL
 
@@ -139,6 +140,7 @@ export async function GET(
               LEFT JOIN trapper.sot_addresses sa2 ON sa2.address_id = pl2.sot_address_id
               WHERE r.requester_person_id = p.person_id
                 AND r.place_id IS NOT NULL
+                AND pl2.merged_into_place_id IS NULL
 
               UNION ALL
 
@@ -156,6 +158,7 @@ export async function GET(
               LEFT JOIN trapper.sot_addresses sa3 ON sa3.address_id = pl3.sot_address_id
               WHERE ws.matched_person_id = p.person_id
                 AND COALESCE(ws.selected_address_place_id, ws.place_id) IS NOT NULL
+                AND pl3.merged_into_place_id IS NULL
             ) sub
             ORDER BY sub.place_id, sub.confidence DESC
           ) ap
