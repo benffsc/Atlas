@@ -34,6 +34,7 @@ interface PersonDetailRow {
   verified_by: string | null;
   verified_by_name: string | null;
   partner_orgs: PartnerOrg[] | null;
+  associated_places: object[] | null;
 }
 
 export async function GET(
@@ -96,7 +97,66 @@ export async function GET(
           FROM trapper.partner_organizations po
           WHERE po.contact_person_id = p.person_id
             AND po.is_active = TRUE
-        ) AS partner_orgs
+        ) AS partner_orgs,
+        (
+          SELECT jsonb_agg(ap ORDER BY ap.source_type, ap.display_name)
+          FROM (
+            SELECT DISTINCT ON (sub.place_id)
+              sub.place_id,
+              sub.display_name,
+              sub.formatted_address,
+              sub.place_kind,
+              sub.locality,
+              sub.source_type
+            FROM (
+              -- From person_place_relationships
+              SELECT
+                ppr.place_id,
+                pl.display_name,
+                pl.formatted_address,
+                pl.place_kind,
+                pl.locality,
+                'relationship' AS source_type,
+                ppr.confidence
+              FROM trapper.person_place_relationships ppr
+              JOIN trapper.places pl ON pl.place_id = ppr.place_id
+              WHERE ppr.person_id = p.person_id
+
+              UNION ALL
+
+              -- From requests where this person is requester
+              SELECT
+                r.place_id,
+                pl2.display_name,
+                pl2.formatted_address,
+                pl2.place_kind,
+                pl2.locality,
+                'request' AS source_type,
+                0.5 AS confidence
+              FROM trapper.sot_requests r
+              JOIN trapper.places pl2 ON pl2.place_id = r.place_id
+              WHERE r.requester_person_id = p.person_id
+                AND r.place_id IS NOT NULL
+
+              UNION ALL
+
+              -- From intake submissions matched to this person
+              SELECT
+                COALESCE(ws.selected_address_place_id, ws.place_id) AS place_id,
+                pl3.display_name,
+                pl3.formatted_address,
+                pl3.place_kind,
+                pl3.locality,
+                'intake' AS source_type,
+                0.4 AS confidence
+              FROM trapper.web_intake_submissions ws
+              JOIN trapper.places pl3 ON pl3.place_id = COALESCE(ws.selected_address_place_id, ws.place_id)
+              WHERE ws.matched_person_id = p.person_id
+                AND COALESCE(ws.selected_address_place_id, ws.place_id) IS NOT NULL
+            ) sub
+            ORDER BY sub.place_id, sub.confidence DESC
+          ) ap
+        ) AS associated_places
       FROM trapper.v_person_detail pd
       JOIN trapper.sot_people p ON p.person_id = pd.person_id
       LEFT JOIN trapper.sot_addresses a ON a.address_id = p.primary_address_id

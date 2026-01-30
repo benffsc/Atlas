@@ -69,6 +69,15 @@ interface PersonIdentifier {
   source_table: string | null;
 }
 
+interface AssociatedPlace {
+  place_id: string;
+  display_name: string | null;
+  formatted_address: string | null;
+  place_kind: string | null;
+  locality: string | null;
+  source_type: "relationship" | "request" | "intake";
+}
+
 interface PersonDetail {
   person_id: string;
   display_name: string;
@@ -89,6 +98,7 @@ interface PersonDetail {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  associated_places: AssociatedPlace[] | null;
 }
 
 interface RelatedRequest {
@@ -893,24 +903,62 @@ export default function PersonDetailPage() {
         )}
       </Section>
 
-      {/* Places */}
-      <Section title="Places">
-        {person.places && person.places.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {person.places.map((place) => (
-              <EntityLink
-                key={place.place_id}
-                href={`/places/${place.place_id}`}
-                label={place.place_name}
-                sublabel={place.formatted_address || undefined}
-                badge={place.place_kind || place.role}
-                badgeColor={place.role === "requester" ? "#198754" : "#6c757d"}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">No places linked to this person.</p>
-        )}
+      {/* Associated Places */}
+      <Section title="Associated Places">
+        {(() => {
+          const places = person.associated_places || person.places;
+          if (!places || places.length === 0) {
+            return <p className="text-muted">No places linked to this person.</p>;
+          }
+
+          const sourceLabels: Record<string, { label: string; color: string }> = {
+            relationship: { label: "via relationship", color: "#6c757d" },
+            request: { label: "via request", color: "#198754" },
+            intake: { label: "via intake", color: "#3b82f6" },
+          };
+
+          // Use associated_places if available (has source_type), otherwise fall back to places
+          if (person.associated_places && person.associated_places.length > 0) {
+            return (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+                {person.associated_places.map((ap) => {
+                  const src = sourceLabels[ap.source_type] || sourceLabels.relationship;
+                  const isPrimary = person.primary_address_id &&
+                    ap.formatted_address === person.primary_address;
+                  return (
+                    <EntityLink
+                      key={`${ap.place_id}-${ap.source_type}`}
+                      href={`/places/${ap.place_id}`}
+                      label={ap.display_name || ap.formatted_address || "Unknown"}
+                      sublabel={
+                        (ap.locality ? `${ap.locality} — ` : "") + src.label +
+                        (isPrimary ? " (Primary)" : "")
+                      }
+                      badge={ap.place_kind || undefined}
+                      badgeColor={src.color}
+                    />
+                  );
+                })}
+              </div>
+            );
+          }
+
+          // Fallback: legacy places array from v_person_detail
+          return (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+              {(person.places as Place[]).map((place) => (
+                <EntityLink
+                  key={place.place_id}
+                  href={`/places/${place.place_id}`}
+                  label={place.place_name}
+                  sublabel={place.formatted_address || undefined}
+                  badge={place.place_kind || place.role}
+                  badgeColor={place.role === "requester" ? "#198754" : "#6c757d"}
+                />
+              ))}
+            </div>
+          );
+        })()}
       </Section>
 
       {/* Location Context from Google Maps */}

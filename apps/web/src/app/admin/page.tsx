@@ -237,6 +237,13 @@ export default function AdminPage() {
                   icon="🏛️"
                   accent="#f0fdf4"
                 />
+                <AdminCard
+                  href="/admin/orphan-places"
+                  title="Orphan Places"
+                  description="Places with no linked data"
+                  icon="🏚️"
+                  accent="#fef2f2"
+                />
               </div>
             </section>
 
