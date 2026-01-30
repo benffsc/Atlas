@@ -235,7 +235,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                 {showStreetView && (
                   <iframe
                     className="street-view-drawer-iframe"
-                    src={`https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${coordinates.lat},${coordinates.lng}&heading=0&pitch=0&fov=90`}
+                    src={`/api/streetview/embed?lat=${coordinates.lat}&lng=${coordinates.lng}`}
                     allowFullScreen
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"

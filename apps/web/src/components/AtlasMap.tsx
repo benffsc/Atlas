@@ -22,6 +22,7 @@ import {
   buildVolunteerPopup,
   buildClinicClientPopup,
   buildZonePopup,
+  escapeHtml,
 } from "@/components/map/MapPopup";
 import { PlaceDetailDrawer } from "@/components/map/PlaceDetailDrawer";
 
@@ -1670,9 +1671,9 @@ export default function AtlasMap() {
     return () => clearTimeout(timer);
   }, [streetViewCoords]);
 
-  // Build Street View embed URL
+  // Build Street View embed URL via server-side proxy (keeps API key server-side)
   const streetViewUrl = streetViewCoords
-    ? `https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${streetViewCoords.lat},${streetViewCoords.lng}&heading=0&pitch=0&fov=90`
+    ? `/api/streetview/embed?lat=${streetViewCoords.lat}&lng=${streetViewCoords.lng}`
     : null;
 
   return (

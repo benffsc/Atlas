@@ -6,7 +6,7 @@
 import { MAP_COLORS, getPriorityColor, getClassificationColor } from '@/lib/map-colors';
 
 // Helper to escape HTML
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
