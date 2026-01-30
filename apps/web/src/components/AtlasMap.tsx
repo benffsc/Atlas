@@ -304,6 +304,7 @@ export default function AtlasMap() {
   const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
   const navigatedMarkerRef = useRef<L.Marker | null>(null);
   const atlasPinsRef = useRef<AtlasPin[]>([]);
+  const leafletCjsRef = useRef<any>(null);
 
   // Keep atlasPinsRef in sync without triggering effects
   useEffect(() => {
@@ -439,10 +440,12 @@ export default function AtlasMap() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // leaflet.markercluster expects L as a global (window.L).
-    // Our ES module import gives us a module-scoped L, so we must bridge the gap.
-    (window as any).L = L;
+    // leaflet.markercluster mutates the CJS exports object from require("leaflet"),
+    // which is a different object than our ES namespace (import * as L). We need the
+    // mutable CJS reference so the plugin's .markerClusterGroup() is accessible.
+    const LeafletCjs = require("leaflet");
     require("leaflet.markercluster");
+    leafletCjsRef.current = LeafletCjs;
 
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
@@ -901,7 +904,7 @@ export default function AtlasMap() {
     }
     if (!enabledLayers.atlas_pins || atlasPins.length === 0) return;
 
-    const layer = (L as any).markerClusterGroup({
+    const layer = leafletCjsRef.current.markerClusterGroup({
       maxClusterRadius: 50,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
