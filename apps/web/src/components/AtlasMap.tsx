@@ -335,7 +335,6 @@ export default function AtlasMap() {
   const [streetViewPitch, setStreetViewPitch] = useState(0);
   const streetViewMarkerRef = useRef<L.Marker | null>(null);
   const streetViewIframeRef = useRef<HTMLIFrameElement>(null);
-  const streetViewWalkingRef = useRef(false); // true when position change is from walking, not a new open
 
   // Listen for postMessage from interactive Street View iframe
   useEffect(() => {
@@ -345,11 +344,10 @@ export default function AtlasMap() {
         setStreetViewHeading(event.data.heading);
         setStreetViewPitch(event.data.pitch);
       } else if (event.data.type === "streetview-position") {
-        // User "walked" to a new position — update cone location without resetting heading
-        streetViewWalkingRef.current = true;
-        setStreetViewCoords((prev) =>
-          prev ? { ...prev, lat: event.data.lat, lng: event.data.lng } : prev
-        );
+        // User "walked" — move the cone marker directly without changing the iframe URL
+        if (streetViewMarkerRef.current) {
+          streetViewMarkerRef.current.setLatLng([event.data.lat, event.data.lng]);
+        }
       }
     };
     window.addEventListener("message", handler);
@@ -1688,12 +1686,11 @@ export default function AtlasMap() {
   // Invalidate map size when street view panel opens/closes
   useEffect(() => {
     if (!mapRef.current) return;
-    // Only reset heading/pitch when opening a fresh Street View (not when walking)
-    if (streetViewCoords && !streetViewWalkingRef.current) {
+    // Reset heading/pitch when opening Street View on a new location
+    if (streetViewCoords) {
       setStreetViewHeading(0);
       setStreetViewPitch(0);
     }
-    streetViewWalkingRef.current = false;
     // Delay to allow CSS transition to complete
     const timer = setTimeout(() => {
       mapRef.current?.invalidateSize();
