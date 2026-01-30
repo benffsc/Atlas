@@ -335,6 +335,7 @@ export default function AtlasMap() {
   const [streetViewPitch, setStreetViewPitch] = useState(0);
   const streetViewMarkerRef = useRef<L.Marker | null>(null);
   const streetViewIframeRef = useRef<HTMLIFrameElement>(null);
+  const streetViewConePosRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Listen for postMessage from interactive Street View iframe
   useEffect(() => {
@@ -345,6 +346,7 @@ export default function AtlasMap() {
         setStreetViewPitch(event.data.pitch);
       } else if (event.data.type === "streetview-position") {
         // User "walked" — move the cone marker directly without changing the iframe URL
+        streetViewConePosRef.current = { lat: event.data.lat, lng: event.data.lng };
         if (streetViewMarkerRef.current) {
           streetViewMarkerRef.current.setLatLng([event.data.lat, event.data.lng]);
         }
@@ -1521,6 +1523,19 @@ export default function AtlasMap() {
                  ">
                 Open Page
               </a>
+              <button onclick="window.atlasMapOpenStreetView(${navigatedLocation.lat}, ${navigatedLocation.lng}, '${navigatedLocation.address.replace(/'/g, "\\'")}')"
+                      style="
+                        padding: 6px 12px;
+                        background: #fef3c7;
+                        color: #92400e;
+                        border: 1px solid #fcd34d;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                      ">
+                Street View
+              </button>
               <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
                       style="
                         padding: 6px 12px;
@@ -1534,7 +1549,7 @@ export default function AtlasMap() {
               </button>
             </div>`
           : `<div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
               <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}"
                  style="
                    display: inline-flex;
@@ -1550,6 +1565,19 @@ export default function AtlasMap() {
                  ">
                 + Create Request
               </a>
+              <button onclick="window.atlasMapOpenStreetView(${navigatedLocation.lat}, ${navigatedLocation.lng}, '${navigatedLocation.address.replace(/'/g, "\\'")}')"
+                      style="
+                        padding: 6px 12px;
+                        background: #fef3c7;
+                        color: #92400e;
+                        border: 1px solid #fcd34d;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                      ">
+                Street View
+              </button>
               <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
                       style="
                         padding: 6px 12px;
@@ -1708,7 +1736,13 @@ export default function AtlasMap() {
       streetViewMarkerRef.current = null;
     }
 
-    if (!streetViewCoords) return;
+    if (!streetViewCoords) {
+      streetViewConePosRef.current = null;
+      return;
+    }
+
+    // Use walked-to position if available, otherwise the original open position
+    const conePos = streetViewConePosRef.current || streetViewCoords;
 
     // Create SVG view cone icon — rotated by heading
     const coneSvg = `
@@ -1731,7 +1765,7 @@ export default function AtlasMap() {
       iconAnchor: [40, 40],
     });
 
-    const marker = L.marker([streetViewCoords.lat, streetViewCoords.lng], {
+    const marker = L.marker([conePos.lat, conePos.lng], {
       icon: coneIcon,
       interactive: false,
       zIndexOffset: 9999,
@@ -1739,8 +1773,11 @@ export default function AtlasMap() {
 
     streetViewMarkerRef.current = marker;
 
-    // Pan map to show the Street View location
-    mapRef.current.panTo([streetViewCoords.lat, streetViewCoords.lng], { animate: true });
+    // Only pan the map on initial open, not on heading changes
+    if (!streetViewConePosRef.current) {
+      streetViewConePosRef.current = { lat: streetViewCoords.lat, lng: streetViewCoords.lng };
+      mapRef.current.panTo([conePos.lat, conePos.lng], { animate: true });
+    }
 
     return () => {
       if (mapRef.current && streetViewMarkerRef.current) {
@@ -1890,6 +1927,21 @@ export default function AtlasMap() {
                         {result.type === "place" ? "Colony Site" : result.type === "google_pin" ? "Historical Pin" : "Volunteer"}
                       </div>
                     </div>
+                    {result.item.lat && result.item.lng && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStreetViewCoords({ lat: result.item.lat, lng: result.item.lng, address: result.label });
+                          setSearchQuery("");
+                        }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", fontSize: 14, color: "#6b7280", borderRadius: 4 }}
+                        title="Street View"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#92400e")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#6b7280")}
+                      >
+                        📷
+                      </button>
+                    )}
                     <span style={{ fontSize: 10, color: "#10b981", fontWeight: 500 }}>LOADED</span>
                   </div>
                 ))}
@@ -1919,6 +1971,21 @@ export default function AtlasMap() {
                         <div style={{ fontSize: 12, color: "#6b7280" }}>{result.subtitle}</div>
                       )}
                     </div>
+                    {result.metadata?.lat && result.metadata?.lng && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStreetViewCoords({ lat: result.metadata!.lat!, lng: result.metadata!.lng!, address: result.display_name });
+                          setSearchQuery("");
+                        }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", fontSize: 14, color: "#6b7280", borderRadius: 4 }}
+                        title="Street View"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#92400e")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#6b7280")}
+                      >
+                        📷
+                      </button>
+                    )}
                     <span style={{
                       fontSize: 10,
                       color: result.metadata?.lat ? "#3b82f6" : "#9ca3af",
