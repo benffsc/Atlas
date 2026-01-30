@@ -745,4 +745,69 @@ Ongoing: ~$0.50-1/month for new records.
 
 ---
 
-*Last updated: 2026-01-25*
+## Tippy Feedback Ledger
+
+Running log of staff feedback on Tippy responses, used to identify gaps and improve.
+
+### 2026-01-29: "What is the situation at 816 Santa Barbara Dr in Santa Rosa"
+
+**Staff:** Pip (staff_id: a51bf233)
+**Feedback ID:** 21572cb3
+**Feedback Type:** incorrect_status
+**What happened:** Tippy couldn't pull data for the address. Staff feedback: "didn't pull data"
+**Actual data available:**
+- 1 completed request (requester: Cathy Gonzalez)
+- 10+ cats linked via clinic appointments
+- Active colony with AI-extracted attributes (colony_size 5-7, disease history, feeder present)
+- colony_site context assigned
+**Root cause:** Tippy view catalog may be missing address-lookup views or the query failed to match the address format.
+**Action needed:** Verify Tippy can query `v_place_complete_profile` or `v_place_operational_state` by formatted_address. Check if address matching uses ILIKE or exact match.
+
+---
+
+### 2026-01-20: "How many staff do we have?"
+
+**Staff:** (staff_id from feedback)
+**Feedback ID:** 88216de3
+**Feedback Type:** incorrect (correction provided)
+**What happened:** Tippy confused staff with trappers. Staff correction: "Staff aren't trappers. The only one that blurs that line is Crystal Furtado."
+**Root cause:** Tippy doesn't distinguish FFSC staff from trappers. The `person_roles` table has role types (coordinator, head_trapper, ffsc_trapper, community_trapper) but no explicit "staff" role.
+**Action needed:** Add guidance to Tippy's system prompt or view catalog explaining:
+- Staff = FFSC employees (coordinators, admins)
+- Trappers = volunteers/community members who trap
+- Crystal Furtado is both staff and active trapper (exception)
+- Query staff via `person_roles WHERE role_type IN ('coordinator', 'head_trapper')` not all trappers
+
+---
+
+## Development Session Log (continued)
+
+### Session: 2026-01-28/29 - AI Extraction Engine & Classification Bridge
+
+**Context:** Connecting the AI extraction pipeline end-to-end: triggers → queue → extraction → classification.
+
+**Key Discoveries:**
+1. Extraction scripts were operating independently from the database extraction_queue — queue items piled up unprocessed
+2. extract_request_attributes.mjs was using `entity_attributes` (only records WITH extractions) instead of `extraction_status` for skip tracking, causing re-processing
+3. 1,081 places had AI-extracted colony attributes but no classification context assigned
+4. `data_engine_score_candidates()` was missing `score_breakdown` and `rules_applied` columns
+5. Trigger functions could insert NULL entity_id into extraction_queue when cat_id/place_id was NULL
+
+**Changes Made:**
+- MIG_758: AI Extraction Engine (triggers, rules, queue, status tracking)
+- MIG_759: Fixed score_breakdown column and NUMERIC casting in data_engine_score_candidates
+- Fixed all 3 extraction scripts to mark queue items completed
+- Fixed extract_request_attributes.mjs to use extraction_status instead of entity_attributes
+- Created process_extraction_queue.mjs (unified queue processor)
+- Created classify_place_from_extractions() bridge function
+- Backfilled 1,342 colony_site contexts from existing AI extractions
+- Fixed trigger null guards (cat_id IS NOT NULL, place_id IS NOT NULL)
+
+**Staff Impact:**
+- New/updated records automatically queued for AI extraction via triggers
+- Extracted attributes now automatically drive place classification (colony_site context)
+- Sync errors resolved (null entity_id, missing score_breakdown, NUMERIC type mismatch)
+
+---
+
+*Last updated: 2026-01-29*

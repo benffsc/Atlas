@@ -273,6 +273,16 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
         { label: "Needs Review", href: "/admin/needs-review", icon: "⚠️" },
       ],
     },
+    {
+      title: "Tippy",
+      items: [
+        { label: "Signals", href: "/admin/tippy-signals", icon: "📡" },
+        { label: "Feedback", href: "/admin/tippy-feedback", icon: "💬" },
+        { label: "Corrections", href: "/admin/tippy-corrections", icon: "✏️" },
+        { label: "Gaps", href: "/admin/tippy-gaps", icon: "❓" },
+        { label: "Drafts", href: "/admin/tippy-drafts", icon: "📝" },
+      ],
+    },
   ];
 
   return (

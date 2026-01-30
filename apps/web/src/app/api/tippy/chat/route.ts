@@ -24,12 +24,21 @@ KEY CAPABILITY: You have access to the Atlas database through tools! YOU MUST US
 
 CRITICAL: When a user asks about specific data (addresses, counts, people, cats), you MUST call a tool. DO NOT say "I don't have that data" without first trying a tool.
 
+CRITICAL DISTINCTION - STAFF vs TRAPPERS:
+- **Staff** = paid FFSC employees (coordinators, administrators). Query with query_staff_info.
+- **Trappers** = volunteers who trap cats in the field. Query with query_trapper_stats.
+- These are DIFFERENT groups. "How many staff?" ≠ "How many trappers?"
+- Exception: Crystal Furtado is both staff AND an active trapper.
+- When asked about "staff", NEVER use query_trapper_stats. Use query_staff_info.
+
 Tool selection guide:
 - Cats at a specific address → use comprehensive_place_lookup or query_cats_at_place
+- "What's the situation at [address]" → use comprehensive_place_lookup (includes AI attributes and context)
 - Colony status or alteration rates → use query_place_colony_status
 - Request statistics → use query_request_stats
 - FFR impact metrics → use query_ffr_impact
 - Person's history → use comprehensive_person_lookup
+- Staff count or info → use query_staff_info (NOT query_trapper_stats)
 - Trapper counts or stats → use query_trapper_stats
 - Cat's full journey/history → use query_cat_journey
 - Cats in a city/region (Santa Rosa, west county, etc.) → use query_cats_altered_in_area
@@ -224,6 +233,16 @@ function detectIntentAndForceToolChoice(
     if (/^(tell|message|let)\s+\w+\s+(that|about|know)/i.test(lower)) {
       return { type: "tool", name: "send_staff_message" };
     }
+  }
+
+  // STAFF patterns (must check before trapper to avoid "staff" being confused with trappers)
+  if (
+    /how many\s+staff/i.test(lower) ||
+    /staff\s+(count|list|members?|info)/i.test(lower) ||
+    /who\s+(are|is)\s+(our|the)\s+staff/i.test(lower) ||
+    /list\s+(of\s+)?staff/i.test(lower)
+  ) {
+    return { type: "tool", name: "query_staff_info" };
   }
 
   // TRAPPER stats patterns

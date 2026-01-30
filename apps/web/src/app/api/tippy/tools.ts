@@ -551,6 +551,27 @@ export const TIPPY_TOOLS = [
       required: ["address"],
     },
   },
+  // === STAFF INFO TOOL (MIG_789) ===
+  {
+    name: "query_staff_info",
+    description:
+      "Get information about FFSC STAFF members (employees/administrators). IMPORTANT: Staff are NOT the same as trappers. Staff are paid FFSC employees (coordinators, administrators). Trappers are volunteers who trap cats. Use this tool when users ask 'how many staff', 'who are our staff', 'staff list'. For trapper questions, use query_trapper_stats instead.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query_type: {
+          type: "string",
+          enum: ["list", "count", "individual"],
+          description: "list=all staff, count=just totals, individual=specific person",
+        },
+        name: {
+          type: "string",
+          description: "For individual lookup - staff member's name",
+        },
+      },
+      required: ["query_type"],
+    },
+  },
   // === DATA QUALITY TOOLS (MIG_487) ===
   {
     name: "check_data_quality",
@@ -1103,6 +1124,13 @@ export async function executeToolCall(
 
       case "comprehensive_place_lookup":
         return await comprehensivePlaceLookup(toolInput.address as string);
+
+      // === STAFF INFO TOOL (MIG_789) ===
+      case "query_staff_info":
+        return await queryStaffInfo(
+          toolInput.query_type as string,
+          toolInput.name as string | undefined
+        );
 
       // === DATA QUALITY TOOLS (MIG_487) ===
       case "check_data_quality":
@@ -3407,6 +3435,100 @@ ${journeySteps.length > 0 ? journeySteps.join("\n") : "Limited journey data avai
 /**
  * Query trapper statistics - counts, types, performance metrics
  */
+/**
+ * Query FFSC staff members (NOT trappers)
+ * Staff are paid FFSC employees. Trappers are volunteers.
+ */
+async function queryStaffInfo(
+  queryType: string,
+  name?: string
+): Promise<ToolResult> {
+  switch (queryType) {
+    case "count": {
+      const result = await queryOne<{
+        total: number;
+        active: number;
+      }>(
+        `SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE is_active = true) as active
+        FROM trapper.staff`
+      );
+      return {
+        success: true,
+        data: {
+          total_staff: result?.total || 0,
+          active_staff: result?.active || 0,
+          note: "Staff are FFSC employees (coordinators, administrators). This does NOT include trappers, who are volunteers. The only person who is both staff and an active trapper is Crystal Furtado.",
+        },
+      };
+    }
+
+    case "list": {
+      const rows = await queryRows<{
+        display_name: string;
+        role: string;
+        department: string | null;
+        is_active: boolean;
+        email: string | null;
+      }>(
+        `SELECT
+          s.display_name,
+          s.role,
+          s.department,
+          s.is_active,
+          (SELECT pi.id_value FROM trapper.person_identifiers pi
+           WHERE pi.person_id = s.person_id AND pi.id_type = 'email'
+           LIMIT 1) as email
+        FROM trapper.staff s
+        ORDER BY s.is_active DESC, s.display_name`
+      );
+      return {
+        success: true,
+        data: {
+          staff: rows,
+          total: rows.length,
+          active: rows.filter(r => r.is_active).length,
+          note: "Staff are FFSC employees. Trappers are separate volunteers — use query_trapper_stats for trapper info. Crystal Furtado is the only person who is both staff and an active trapper.",
+        },
+      };
+    }
+
+    case "individual": {
+      if (!name) {
+        return { success: false, error: "Please provide a staff member's name" };
+      }
+      const row = await queryOne<{
+        staff_id: string;
+        display_name: string;
+        role: string;
+        department: string | null;
+        is_active: boolean;
+        person_id: string | null;
+      }>(
+        `SELECT s.staff_id, s.display_name, s.role, s.department, s.is_active, s.person_id
+        FROM trapper.staff s
+        WHERE LOWER(s.display_name) LIKE '%' || LOWER($1) || '%'
+        LIMIT 1`,
+        [name]
+      );
+      if (!row) {
+        return { success: true, data: { found: false, message: `No staff member found matching "${name}"` } };
+      }
+      return {
+        success: true,
+        data: {
+          found: true,
+          staff: row,
+        },
+      };
+    }
+
+    default:
+      return { success: false, error: `Unknown query type: ${queryType}. Use 'list', 'count', or 'individual'.` };
+  }
+}
+
 async function queryTrapperStats(
   queryType: string,
   trapperName?: string,
