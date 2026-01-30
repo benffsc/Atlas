@@ -118,6 +118,7 @@ temp/
 # ============================================================
 .supabase/
 supabase/.temp/
-uploads/
+/uploads/
+!/apps/web/src/app/api/ingest/uploads/
 .vercel
 .env*.local
