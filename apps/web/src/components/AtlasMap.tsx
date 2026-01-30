@@ -331,6 +331,9 @@ export default function AtlasMap() {
 
   // Street View state
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
+  const [streetViewHeading, setStreetViewHeading] = useState(0);
+  const [streetViewPitch, setStreetViewPitch] = useState(0);
+  const streetViewMarkerRef = useRef<L.Marker | null>(null);
 
   // Expose setSelectedPlaceId and street view globally for popup buttons
   useEffect(() => {
@@ -1664,6 +1667,11 @@ export default function AtlasMap() {
   // Invalidate map size when street view panel opens/closes
   useEffect(() => {
     if (!mapRef.current) return;
+    // Reset heading/pitch when opening new Street View
+    if (streetViewCoords) {
+      setStreetViewHeading(0);
+      setStreetViewPitch(0);
+    }
     // Delay to allow CSS transition to complete
     const timer = setTimeout(() => {
       mapRef.current?.invalidateSize();
@@ -1671,9 +1679,61 @@ export default function AtlasMap() {
     return () => clearTimeout(timer);
   }, [streetViewCoords]);
 
+  // Street View cone marker on the Leaflet map
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove existing marker
+    if (streetViewMarkerRef.current) {
+      mapRef.current.removeLayer(streetViewMarkerRef.current);
+      streetViewMarkerRef.current = null;
+    }
+
+    if (!streetViewCoords) return;
+
+    // Create SVG view cone icon — rotated by heading
+    const coneSvg = `
+      <svg width="80" height="80" viewBox="0 0 80 80" style="transform: rotate(${streetViewHeading}deg); transition: transform 0.3s ease;">
+        <defs>
+          <linearGradient id="coneGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:rgba(66,133,244,0.35)"/>
+            <stop offset="100%" style="stop-color:rgba(66,133,244,0.05)"/>
+          </linearGradient>
+        </defs>
+        <path d="M40,40 L15,5 A35,35 0 0,1 65,5 Z" fill="url(#coneGrad)" stroke="rgba(66,133,244,0.5)" stroke-width="1"/>
+        <circle cx="40" cy="40" r="7" fill="#4285f4" stroke="white" stroke-width="2.5"/>
+      </svg>
+    `;
+
+    const coneIcon = L.divIcon({
+      html: coneSvg,
+      className: "street-view-cone-marker",
+      iconSize: [80, 80],
+      iconAnchor: [40, 40],
+    });
+
+    const marker = L.marker([streetViewCoords.lat, streetViewCoords.lng], {
+      icon: coneIcon,
+      interactive: false,
+      zIndexOffset: 9999,
+    }).addTo(mapRef.current);
+
+    streetViewMarkerRef.current = marker;
+
+    // Pan map to show the Street View location
+    mapRef.current.panTo([streetViewCoords.lat, streetViewCoords.lng], { animate: true });
+
+    return () => {
+      if (mapRef.current && streetViewMarkerRef.current) {
+        mapRef.current.removeLayer(streetViewMarkerRef.current);
+        streetViewMarkerRef.current = null;
+      }
+    };
+  }, [streetViewCoords, streetViewHeading]);
+
   // Build Street View embed URL via server-side proxy (keeps API key server-side)
   const streetViewUrl = streetViewCoords
-    ? `/api/streetview/embed?lat=${streetViewCoords.lat}&lng=${streetViewCoords.lng}`
+    ? `/api/streetview/embed?lat=${streetViewCoords.lat}&lng=${streetViewCoords.lng}&heading=${streetViewHeading}&pitch=${streetViewPitch}`
     : null;
 
   return (
@@ -2569,6 +2629,49 @@ export default function AtlasMap() {
                 onClick={() => setStreetViewCoords(null)}
               >
                 &times;
+              </button>
+            </div>
+          </div>
+          {/* Heading / Pitch controls */}
+          <div className="street-view-controls">
+            <div className="street-view-controls-group">
+              <button
+                className="sv-ctrl-btn"
+                onClick={() => setStreetViewHeading((h) => (h - 30 + 360) % 360)}
+                title="Rotate left"
+              >
+                ◀
+              </button>
+              <span className="sv-compass">
+                {(() => {
+                  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+                  return dirs[Math.round(streetViewHeading / 45) % 8];
+                })()}
+                <span className="sv-degrees">{streetViewHeading}°</span>
+              </span>
+              <button
+                className="sv-ctrl-btn"
+                onClick={() => setStreetViewHeading((h) => (h + 30) % 360)}
+                title="Rotate right"
+              >
+                ▶
+              </button>
+            </div>
+            <div className="street-view-controls-group">
+              <button
+                className="sv-ctrl-btn"
+                onClick={() => setStreetViewPitch((p) => Math.min(90, p + 15))}
+                title="Look up"
+              >
+                ▲
+              </button>
+              <span className="sv-pitch">{streetViewPitch > 0 ? "+" : ""}{streetViewPitch}°</span>
+              <button
+                className="sv-ctrl-btn"
+                onClick={() => setStreetViewPitch((p) => Math.max(-90, p - 15))}
+                title="Look down"
+              >
+                ▼
               </button>
             </div>
           </div>

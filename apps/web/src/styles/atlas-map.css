@@ -1714,6 +1714,88 @@
 }
 
 /* =========================================================
+   Street View — View Cone Marker
+   ========================================================= */
+
+.street-view-cone-marker {
+  background: none !important;
+  border: none !important;
+  pointer-events: none;
+}
+
+/* =========================================================
+   Street View — Heading / Pitch Controls
+   ========================================================= */
+
+.street-view-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 6px 16px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.street-view-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sv-ctrl-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.sv-ctrl-btn:hover {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.sv-ctrl-btn:active {
+  background: #475569;
+}
+
+.sv-compass {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-width: 48px;
+  text-align: center;
+}
+
+.sv-degrees {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 3px;
+}
+
+.sv-pitch {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-width: 36px;
+  text-align: center;
+}
+
+/* =========================================================
    Street View in PlaceDetailDrawer — Collapsible preview
    ========================================================= */
 
@@ -1782,5 +1864,21 @@
 
   .street-view-drawer-iframe {
     height: 160px;
+  }
+
+  .street-view-controls {
+    gap: 12px;
+    padding: 4px 10px;
+  }
+
+  .sv-ctrl-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  .sv-compass {
+    font-size: 12px;
+    min-width: 40px;
   }
 }
