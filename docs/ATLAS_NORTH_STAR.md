@@ -258,9 +258,13 @@ RIGHT: Each person's cats link to that person's own place
   4. The `source_system` and `source_table` are set for provenance
 - This prevents arbitrary links from being created without proof.
 
-**Required functions (to be created):**
-- `link_cat_to_place(cat_id, place_id, relationship_type, evidence_type, source_system)` — validates cat+place exist and are not merged, requires evidence_type
-- `link_person_to_cat(person_id, cat_id, relationship_type, evidence_type, source_system)` — validates person+cat exist and are not merged, requires evidence_type
+**Centralized functions (MIG_797):**
+- `link_cat_to_place(cat_id, place_id, relationship_type, evidence_type, source_system, ...)` — validates cat+place exist and are not merged, requires evidence_type, logs to entity_edits
+- `link_person_to_cat(person_id, cat_id, relationship_type, evidence_type, source_system, ...)` — validates person+cat exist and are not merged, requires evidence_type, logs to entity_edits
+
+Both functions: reject merged entities, validate evidence_type and relationship_type against allowed lists, upgrade confidence on conflict if new evidence is stronger, and create audit trail in entity_edits.
+
+**Migrated callers:** `link_cats_to_places()`, `link_appointment_cats_to_places()`, `link_appointment_to_person_cat()`, and the ownership transfer API all route through these functions.
 
 **Valid evidence types:**
 - `'appointment'` — cat seen at clinic with this person/place connection
@@ -268,6 +272,7 @@ RIGHT: Each person's cats link to that person's own place
 - `'intake_report'` — reported by requester during intake
 - `'staff_verified'` — staff manually verified the link
 - `'ai_inferred'` — AI extraction suggested the link (lower confidence)
+- `'manual_transfer'` — ownership transfer via UI
 
 **Why this matters (bug found 2026-01-29):**
 A manual SQL fix incorrectly linked 8 cats from Person B to Person A's request place. The system accepted this without any warning because relationship tables have no semantic validation — only FK and uniqueness constraints.
@@ -437,12 +442,13 @@ These fire on every request insert/update. Do not disable or alter behavior:
 Ranked by impact (see TASK_LEDGER.md for remediation):
 
 1. **Merge chain black holes**: 1,194 people merged into targets that are themselves merged. Following one hop lands on a dead record.
-2. **Processing pipeline stalled**: 26,383 jobs queued, only 6 completed. The async processing system is not running.
+2. **Processing pipeline bugs RESOLVED (MIG_795)**: Four blocking bugs fixed (missing function, wrong column name, check constraint, missing column). Pipeline is operational. ~73 stuck jobs expired and re-queued. **Backfill needed:** Staff must re-upload owner_info for Jan 19-30 gap via `/admin/ingest`.
 3. **Unprocessed ShelterLuv**: 5,058 records never processed into SoT. Foster/adopter outcomes not reaching the system.
 4. **People without identifiers**: 986 active people with no email/phone. Unfindable, will be duplicated.
 5. **Cats without microchips**: 1,608 cats with no dedup key. Same cat can appear as multiple records.
 6. **Backup table bloat**: ~208K rows across 10 backup tables consuming space.
 7. **Places without geometry**: 93 places invisible to Beacon maps.
+8. **INV-10 centralized functions IMPLEMENTED (MIG_797)**: `link_cat_to_place()` and `link_person_to_cat()` created. Three existing callers migrated. Ownership transfer API updated. Remaining callers using direct INSERT should be migrated as encountered.
 
 ---
 

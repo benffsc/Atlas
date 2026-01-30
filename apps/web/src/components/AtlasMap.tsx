@@ -1128,7 +1128,7 @@ export default function AtlasMap() {
                     style="flex: 1; padding: 8px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
               Details
             </button>
-            <button onclick="window.atlasMapOpenStreetView(${pin.lat}, ${pin.lng}, '${pin.address.replace(/'/g, "\\'")}')"
+            <button onclick="window.atlasMapOpenStreetView(${pin.lat}, ${pin.lng}, '${escapeHtml(pin.address).replace(/'/g, "\\'")}')"
                     style="flex: 1; padding: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
               Street View
             </button>

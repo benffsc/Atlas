@@ -289,16 +289,18 @@ export async function POST(
       postProcessingResults = await runClinicHQPostProcessing(upload.source_table);
     }
 
-    // Mark as completed
+    // Mark as completed (persist post-processing results for UI display)
     await query(
       `UPDATE trapper.file_uploads
        SET status = 'completed', processed_at = NOW(),
            rows_total = $2, rows_inserted = $3, rows_updated = $4, rows_skipped = $5,
-           data_date_min = $6, data_date_max = $7
+           data_date_min = $6, data_date_max = $7,
+           post_processing_results = $8
        WHERE upload_id = $1`,
       [uploadId, rows.length, inserted, updated, skipped,
        dataDateMin?.toISOString().split('T')[0] || null,
-       dataDateMax?.toISOString().split('T')[0] || null]
+       dataDateMax?.toISOString().split('T')[0] || null,
+       postProcessingResults ? JSON.stringify(postProcessingResults) : null]
     );
 
     return NextResponse.json({

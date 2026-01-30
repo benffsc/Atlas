@@ -883,4 +883,30 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 
 ---
 
-*Last updated: 2026-01-29*
+### Session: 2026-01-30 - Structural Guardrails (INV-10, Pipeline Docs)
+
+**Context:** Review of multiple sessions' changes revealed three structural gaps: INV-10 centralized linking functions were documented in North Star but never built, pipeline backfill process was undocumented, and duplicate migration numbers existed.
+
+**Key Discoveries:**
+1. 5+ different code paths INSERT directly into `cat_place_relationships` and `person_cat_relationships` with inconsistent source attribution and zero evidence validation
+2. A manual SQL fix had linked the wrong person's cats to the wrong place — the system accepted it silently (no semantic validation)
+3. MIG_790 and MIG_791 each had duplicate numbers from separate sessions
+4. MIG_795 (pipeline fix) had a dead Step 4 that would fail on fresh run (wrong return type)
+
+**Changes Made:**
+- MIG_797: Created `link_cat_to_place()` and `link_person_to_cat()` centralized functions with merged-entity validation, evidence_type enforcement, confidence upgrading, and audit logging
+- Migrated 3 SQL callers: `link_cats_to_places()`, `link_appointment_cats_to_places()`, `link_appointment_to_person_cat()`
+- Updated ownership transfer API (`entities/[type]/[id]/edit`) to use `link_person_to_cat()`
+- Renamed duplicate migrations: MIG_791→MIG_795 (pipeline fix), MIG_790→MIG_796 (tippy signals)
+- Fixed dead Step 4 in MIG_795 (deferred to Step 7)
+- Added Pipeline Operations section to CLAUDE.md with backfill documentation
+- Updated North Star: INV-10 marked as IMPLEMENTED, Known Debt updated
+
+**Staff Impact:**
+- Relationship tables now reject invalid links (merged entities, missing evidence)
+- Staff can follow documented backfill process when pipeline stalls
+- Pipeline fix (MIG_795) is operational — re-upload owner_info to backfill Jan 19-30 gap
+
+---
+
+*Last updated: 2026-01-30*

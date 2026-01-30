@@ -18,6 +18,7 @@ interface FileUploadRow {
   error_message: string | null;
   data_date_min: string | null;
   data_date_max: string | null;
+  post_processing_results: Record<string, number> | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get("offset") || "0", 10);
   const status = searchParams.get("status");
 
-  const conditions: string[] = [];
+  const conditions: string[] = ["status != 'deleted'"];
   const params: unknown[] = [];
   let paramIndex = 1;
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     paramIndex++;
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
   try {
     const sql = `
@@ -56,7 +57,8 @@ export async function GET(request: NextRequest) {
         rows_skipped,
         error_message,
         data_date_min,
-        data_date_max
+        data_date_max,
+        post_processing_results
       FROM trapper.file_uploads
       ${whereClause}
       ORDER BY uploaded_at DESC

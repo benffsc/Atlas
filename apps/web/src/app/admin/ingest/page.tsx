@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 interface ShelterLuvSyncStatus {
   sync_type: string;
@@ -35,6 +35,7 @@ interface FileUpload {
   error_message: string | null;
   data_date_min: string | null;
   data_date_max: string | null;
+  post_processing_results: Record<string, number> | null;
 }
 
 interface ProcessingResult {
@@ -90,6 +91,12 @@ export default function IngestPage() {
   // Processing state
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processResult, setProcessResult] = useState<ProcessingResult | null>(null);
+
+  // Upload management state
+  const [expandedUploadId, setExpandedUploadId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   // ShelterLuv sync state
   const [shelterLuvStatus, setShelterLuvStatus] = useState<ShelterLuvSyncStatus[]>([]);
@@ -233,6 +240,60 @@ export default function IngestPage() {
       setSyncing(false);
     }
   };
+
+  // Handle upload deletion (soft-delete)
+  const handleDelete = async (uploadId: string) => {
+    if (!confirm("Remove this upload from the list? (Data is preserved)")) return;
+    setDeletingId(uploadId);
+    try {
+      const response = await fetch(`/api/ingest/uploads/${uploadId}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.error || "Failed to delete");
+        return;
+      }
+      fetchData();
+    } catch {
+      alert("Network error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Handle stuck upload reset
+  const handleReset = async (uploadId: string) => {
+    if (!confirm("Reset this stuck upload to 'failed'? You can then retry or delete it.")) return;
+    setResettingId(uploadId);
+    try {
+      const response = await fetch(`/api/ingest/uploads/${uploadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.error || "Failed to reset");
+        return;
+      }
+      fetchData();
+    } catch {
+      alert("Network error");
+    } finally {
+      setResettingId(null);
+    }
+  };
+
+  // Check if upload is stuck (processing > 1 hour)
+  const isStuck = (upload: FileUpload) => {
+    if (upload.status !== "processing") return false;
+    const uploadedAt = new Date(upload.uploaded_at).getTime();
+    return Date.now() - uploadedAt > 60 * 60 * 1000;
+  };
+
+  // Filter uploads by status
+  const filteredUploads = statusFilter === "all"
+    ? uploads
+    : uploads.filter((u) => u.status === statusFilter);
 
   // Auto-process after successful upload
   const handleUploadAndProcess = async (e: React.FormEvent) => {
@@ -412,17 +473,44 @@ export default function IngestPage() {
       </div>
 
       {/* Uploads List */}
-      <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Recent Uploads</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h2 style={{ margin: 0, fontSize: "1.25rem" }}>Recent Uploads</h2>
+        <div style={{ display: "flex", gap: "0.25rem" }}>
+          {["all", "completed", "failed", "processing", "pending"].map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setStatusFilter(filter)}
+              style={{
+                padding: "0.25rem 0.75rem",
+                fontSize: "0.75rem",
+                background: statusFilter === filter
+                  ? "var(--accent-color, #0d6efd)"
+                  : "var(--background-secondary, #e9ecef)",
+                color: statusFilter === filter ? "#fff" : "var(--text-primary, #212529)",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                textTransform: "capitalize",
+              }}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {loading ? (
         <div className="loading">Loading uploads...</div>
       ) : uploads.length === 0 ? (
         <div className="empty">No uploads yet</div>
+      ) : filteredUploads.length === 0 ? (
+        <div className="empty">No {statusFilter} uploads</div>
       ) : (
         <div className="table-container">
           <table>
             <thead>
               <tr>
+                <th style={{ width: "2rem" }}></th>
                 <th>File</th>
                 <th>Source</th>
                 <th>Type</th>
@@ -435,91 +523,180 @@ export default function IngestPage() {
               </tr>
             </thead>
             <tbody>
-              {uploads.map((upload) => (
-                <tr
-                  key={upload.upload_id}
-                  style={{
-                    opacity: upload.status === "expired" ? 0.5 : 1,
-                    background: upload.status === "expired" ? "var(--background-secondary)" : undefined,
-                  }}
-                >
-                  <td>
-                    <div style={{ fontSize: "0.875rem" }}>
-                      {upload.original_filename}
-                    </div>
-                    <div className="text-muted" style={{ fontSize: "0.75rem" }}>
-                      {upload.stored_filename}
-                    </div>
-                  </td>
-                  <td>{upload.source_system}</td>
-                  <td>{upload.source_table}</td>
-                  <td className="text-sm">{formatBytes(upload.file_size_bytes)}</td>
-                  <td>
-                    <StatusBadge status={upload.status} />
-                  </td>
-                  <td className="text-sm">
-                    {new Date(upload.uploaded_at).toLocaleDateString()}
-                  </td>
-                  <td className="text-sm">
-                    {upload.data_date_min && upload.data_date_max ? (
-                      upload.data_date_min === upload.data_date_max ? (
-                        new Date(upload.data_date_min).toLocaleDateString()
-                      ) : (
-                        `${new Date(upload.data_date_min).toLocaleDateString()} - ${new Date(upload.data_date_max).toLocaleDateString()}`
-                      )
-                    ) : (
-                      <span className="text-muted">—</span>
+              {filteredUploads.map((upload) => {
+                const hasDetail =
+                  (upload.status === "completed" && upload.post_processing_results &&
+                    Object.keys(upload.post_processing_results).length > 0) ||
+                  (upload.status === "failed" && upload.error_message);
+                const isExpanded = expandedUploadId === upload.upload_id;
+
+                return (
+                  <React.Fragment key={upload.upload_id}>
+                    <tr
+                      style={{
+                        opacity: upload.status === "expired" ? 0.5 : 1,
+                        background: upload.status === "expired" ? "var(--background-secondary)" : undefined,
+                        cursor: hasDetail ? "pointer" : undefined,
+                      }}
+                      onClick={() => {
+                        if (hasDetail) {
+                          setExpandedUploadId(isExpanded ? null : upload.upload_id);
+                        }
+                      }}
+                    >
+                      <td style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                        {hasDetail ? (isExpanded ? "\u25BC" : "\u25B6") : ""}
+                      </td>
+                      <td>
+                        <div style={{ fontSize: "0.875rem" }}>
+                          {upload.original_filename}
+                        </div>
+                        <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                          {upload.stored_filename}
+                        </div>
+                      </td>
+                      <td>{upload.source_system}</td>
+                      <td>{upload.source_table}</td>
+                      <td className="text-sm">{formatBytes(upload.file_size_bytes)}</td>
+                      <td>
+                        <StatusBadge status={upload.status} />
+                        {isStuck(upload) && (
+                          <span style={{ fontSize: "0.65rem", color: "#dc3545", marginLeft: "0.25rem" }}>stuck</span>
+                        )}
+                      </td>
+                      <td className="text-sm">
+                        {new Date(upload.uploaded_at).toLocaleDateString()}
+                      </td>
+                      <td className="text-sm">
+                        {upload.data_date_min && upload.data_date_max ? (
+                          upload.data_date_min === upload.data_date_max ? (
+                            new Date(upload.data_date_min).toLocaleDateString()
+                          ) : (
+                            `${new Date(upload.data_date_min).toLocaleDateString()} - ${new Date(upload.data_date_max).toLocaleDateString()}`
+                          )
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="text-sm">
+                        {upload.status === "completed" && upload.rows_total !== null ? (
+                          <span>
+                            {upload.rows_inserted} new, {upload.rows_updated || 0} updated
+                            {upload.rows_skipped ? `, ${upload.rows_skipped} skipped` : ""}
+                          </span>
+                        ) : upload.status === "failed" ? (
+                          <span className="text-muted" title={upload.error_message || ""}>
+                            Failed
+                          </span>
+                        ) : upload.status === "expired" ? (
+                          <span className="text-muted">Re-upload required</span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+                          {upload.status === "pending" && (
+                            <button
+                              onClick={() => handleProcess(upload.upload_id)}
+                              disabled={processingId === upload.upload_id}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                              }}
+                            >
+                              {processingId === upload.upload_id ? "Processing..." : "Process"}
+                            </button>
+                          )}
+                          {upload.status === "failed" && (
+                            <button
+                              onClick={() => handleProcess(upload.upload_id)}
+                              disabled={processingId === upload.upload_id}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                                background: "#ffc107",
+                                color: "#000",
+                              }}
+                            >
+                              Retry
+                            </button>
+                          )}
+                          {isStuck(upload) && (
+                            <button
+                              onClick={() => handleReset(upload.upload_id)}
+                              disabled={resettingId === upload.upload_id}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                                background: "#fd7e14",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: "4px",
+                              }}
+                            >
+                              {resettingId === upload.upload_id ? "Resetting..." : "Reset"}
+                            </button>
+                          )}
+                          {(upload.status === "completed" || upload.status === "failed" || upload.status === "expired" || isStuck(upload)) && (
+                            <button
+                              onClick={() => handleDelete(upload.upload_id)}
+                              disabled={deletingId === upload.upload_id}
+                              title="Remove from list"
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                                background: "transparent",
+                                color: "#dc3545",
+                                border: "1px solid #dc3545",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {deletingId === upload.upload_id ? "..." : "\u2715"}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && hasDetail && (
+                      <tr>
+                        <td colSpan={10} style={{ padding: "0.75rem 1rem", background: "var(--background-secondary, #f8f9fa)" }}>
+                          {upload.status === "completed" && upload.post_processing_results && (
+                            <div>
+                              <strong style={{ fontSize: "0.8rem" }}>Linking results:</strong>
+                              <div style={{ display: "flex", gap: "1.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                                {Object.entries(upload.post_processing_results).map(([key, value]) => (
+                                  <div key={key} style={{ fontSize: "0.8rem" }}>
+                                    <span className="text-muted">{key.replace(/_/g, " ")}:</span>{" "}
+                                    <strong>{value}</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {upload.status === "failed" && upload.error_message && (
+                            <div>
+                              <strong style={{ fontSize: "0.8rem", color: "#dc3545" }}>Error:</strong>
+                              <pre style={{
+                                margin: "0.5rem 0 0",
+                                fontSize: "0.75rem",
+                                whiteSpace: "pre-wrap",
+                                color: "#dc3545",
+                                background: "var(--background-primary, #fff)",
+                                padding: "0.5rem",
+                                borderRadius: "4px",
+                              }}>
+                                {upload.error_message}
+                              </pre>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="text-sm">
-                    {upload.status === "completed" && upload.rows_total !== null ? (
-                      <span>
-                        {upload.rows_inserted} new, {upload.rows_updated || 0} updated
-                        {upload.rows_skipped ? `, ${upload.rows_skipped} skipped` : ""}
-                      </span>
-                    ) : upload.status === "failed" ? (
-                      <span className="text-muted" title={upload.error_message || ""}>
-                        Failed
-                      </span>
-                    ) : upload.status === "expired" ? (
-                      <span className="text-muted">Re-upload required</span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td>
-                    {upload.status === "pending" && (
-                      <button
-                        onClick={() => handleProcess(upload.upload_id)}
-                        disabled={processingId === upload.upload_id}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        {processingId === upload.upload_id ? "Processing..." : "Process"}
-                      </button>
-                    )}
-                    {upload.status === "failed" && (
-                      <button
-                        onClick={() => handleProcess(upload.upload_id)}
-                        disabled={processingId === upload.upload_id}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.75rem",
-                          background: "#ffc107",
-                          color: "#000",
-                        }}
-                      >
-                        Retry
-                      </button>
-                    )}
-                    {upload.status === "expired" && (
-                      <span className="text-muted" style={{ fontSize: "0.75rem" }}>—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

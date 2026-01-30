@@ -205,6 +205,34 @@ SELECT * FROM trapper.process_next_job(500);
 SELECT * FROM trapper.v_processing_dashboard;
 ```
 
+### Pipeline Operations
+
+After each ClinicHQ data ingest (especially owner_info), the pipeline must complete these steps:
+
+1. **Upload** owner_info CSV via Admin UI (`/admin/ingest`)
+2. **Processing** happens automatically via cron (`POST /api/ingest/process` every 10 min)
+3. **Entity linking** runs after each batch via `run_all_entity_linking()` (11 steps)
+4. **Verify** via `GET /api/health/processing` or `SELECT * FROM trapper.v_processing_dashboard`
+
+**If pipeline stalls (no processing for 24+ hours):**
+```sql
+-- Check for stuck/failed jobs
+SELECT status, COUNT(*) FROM trapper.processing_jobs GROUP BY status;
+
+-- Expire stuck jobs (claimed but not completed)
+UPDATE trapper.processing_jobs
+SET status = 'expired', completed_at = NOW()
+WHERE status = 'processing' AND claimed_at < NOW() - INTERVAL '1 hour';
+
+-- Re-queue failed jobs
+SELECT trapper.enqueue_processing('clinichq', 'owner_info', 'backfill', NULL, 10);
+
+-- Process manually
+SELECT * FROM trapper.process_next_job(500);
+```
+
+**Key diagnostic:** If `owner_email`/`owner_phone` is NULL on recent appointments, the owner_info pipeline hasn't run. Re-upload the owner_info file via `/admin/ingest` to backfill.
+
 ### Data Engine (MIG_314-317)
 
 The **Data Engine** is Atlas's unified system for identity resolution and entity matching. It provides:
@@ -264,6 +292,8 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 | Place | `trapper.find_or_create_place_deduped(address, name, lat, lng, source)` | For all place creation |
 | Cat | `trapper.find_or_create_cat_by_microchip(chip, name, sex, breed, ...)` | For all cat creation |
 | Request | `trapper.find_or_create_request(source, record_id, source_created_at, ...)` | For all request creation (MIG_297) |
+| Cat→Place | `trapper.link_cat_to_place(cat_id, place_id, rel_type, evidence_type, source_system, ...)` | For all cat-place linking (MIG_797) |
+| Person→Cat | `trapper.link_person_to_cat(person_id, cat_id, rel_type, evidence_type, source_system, ...)` | For all person-cat linking (MIG_797) |
 
 **Why:**
 - These functions handle normalization, deduplication, identity matching, merged entities, and geocoding queue

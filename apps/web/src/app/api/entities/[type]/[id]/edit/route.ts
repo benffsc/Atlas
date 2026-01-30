@@ -297,14 +297,20 @@ async function handleOwnershipTransfer(req: TransferRequest) {
       `, [req.cat_id, oldOwnerId]);
     }
 
-    // Create new relationship
+    // Create new relationship via centralized function (INV-10)
     await client.query(`
-      INSERT INTO trapper.person_cat_relationships (
-        person_id, cat_id, relationship_type, confidence, source_system
-      ) VALUES ($1, $2, $3, 'high', 'manual_transfer')
-      ON CONFLICT (person_id, cat_id, relationship_type, source_system, source_table)
-      DO UPDATE SET updated_at = NOW()
-    `, [req.new_owner_id, req.cat_id, req.relationship_type || "owner"]);
+      SELECT trapper.link_person_to_cat(
+        p_person_id := $1,
+        p_cat_id := $2,
+        p_relationship_type := $3,
+        p_evidence_type := 'manual_transfer',
+        p_source_system := 'atlas_ui',
+        p_source_table := 'ownership_transfer',
+        p_confidence := 'high',
+        p_context_notes := $4
+      )
+    `, [req.new_owner_id, req.cat_id, req.relationship_type || "owner",
+        req.reason || "Ownership transfer via UI"]);
 
     // Log the transfer
     const logResult = await client.query(`
