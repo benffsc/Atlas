@@ -244,7 +244,7 @@ BEGIN
             ELSE 'weak'
         END AS match_strength,
         rr.match_reason,
-        rr.score,
+        rr.score::NUMERIC,
         rr.metadata
     FROM ranked_results rr
     WHERE rr.score > 0
