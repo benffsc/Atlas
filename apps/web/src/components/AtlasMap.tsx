@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "@/styles/atlas-map.css";
@@ -439,6 +438,9 @@ export default function AtlasMap() {
   // Initialize map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+
+    // Load markercluster plugin client-side only (it mutates L and needs window)
+    require("leaflet.markercluster");
 
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
