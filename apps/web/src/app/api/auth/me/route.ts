@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         display_name: staff.display_name,
         email: staff.email,
         auth_role: staff.auth_role,
+        person_id: staff.person_id || null,
         password_change_required: staff.password_change_required || false,
       },
     });

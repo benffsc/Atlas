@@ -25,6 +25,7 @@ export interface Staff {
   display_name: string;
   email: string;
   auth_role: "admin" | "staff" | "volunteer";
+  person_id: string | null;
   session_id?: string;
 }
 
@@ -152,6 +153,7 @@ export async function validateSession(token: string): Promise<Staff | null> {
     display_name: string;
     email: string;
     auth_role: "admin" | "staff" | "volunteer";
+    person_id: string | null;
     session_id: string;
   }>(
     `SELECT * FROM trapper.validate_staff_session($1)`,
@@ -167,6 +169,7 @@ export async function validateSession(token: string): Promise<Staff | null> {
     display_name: result.display_name,
     email: result.email,
     auth_role: result.auth_role,
+    person_id: result.person_id ?? null,
     session_id: result.session_id,
   };
 }
@@ -208,10 +211,11 @@ export async function login(
     email: string;
     password_hash: string | null;
     auth_role: "admin" | "staff" | "volunteer";
+    person_id: string | null;
     is_active: boolean;
     locked_until: Date | null;
   }>(
-    `SELECT staff_id, display_name, email, password_hash, auth_role, is_active, locked_until
+    `SELECT staff_id, display_name, email, password_hash, auth_role, person_id, is_active, locked_until
      FROM trapper.staff
      WHERE LOWER(email) = LOWER($1)`,
     [email]
@@ -264,6 +268,7 @@ export async function login(
       display_name: staff.display_name,
       email: staff.email,
       auth_role: staff.auth_role,
+      person_id: staff.person_id ?? null,
     },
     session,
   };
@@ -313,6 +318,7 @@ export async function getSession(
     display_name: string;
     email: string;
     auth_role: "admin" | "staff" | "volunteer";
+    person_id: string | null;
     session_id: string;
     password_change_required: boolean;
   }>(
@@ -321,6 +327,7 @@ export async function getSession(
       s.display_name,
       s.email,
       s.auth_role,
+      s.person_id,
       ss.session_id,
       COALESCE(s.password_change_required, FALSE) as password_change_required
     FROM trapper.staff_sessions ss
@@ -341,6 +348,7 @@ export async function getSession(
     display_name: result.display_name,
     email: result.email,
     auth_role: result.auth_role,
+    person_id: result.person_id,
     session_id: result.session_id,
     password_change_required: result.password_change_required,
   };

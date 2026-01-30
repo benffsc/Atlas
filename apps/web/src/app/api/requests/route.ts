@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
   const placeId = searchParams.get("place_id");
   const personId = searchParams.get("person_id");
   const searchQuery = searchParams.get("q"); // Search query
+  const assignedToPersonId = searchParams.get("assigned_to_person"); // Dashboard: my active requests
   const trapperFilter = searchParams.get("trapper"); // SC_002: has_trapper, needs_trapper, client_trapping
   const sortBy = searchParams.get("sort_by") || "status"; // status, created, priority
   const sortOrder = searchParams.get("sort_order") || "asc"; // asc, desc
@@ -76,6 +77,15 @@ export async function GET(request: NextRequest) {
   if (personId) {
     conditions.push(`requester_person_id = $${paramIndex}`);
     params.push(personId);
+    paramIndex++;
+  }
+
+  if (assignedToPersonId) {
+    conditions.push(`request_id IN (
+      SELECT rta.request_id FROM trapper.request_trapper_assignments rta
+      WHERE rta.trapper_person_id = $${paramIndex} AND rta.unassigned_at IS NULL
+    )`);
+    params.push(assignedToPersonId);
     paramIndex++;
   }
 
