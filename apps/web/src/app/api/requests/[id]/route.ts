@@ -134,6 +134,9 @@ interface RequestDetailRow {
   classification_reviewed_at: string | null;
   classification_reviewed_by: string | null;
   current_place_classification: string | null;
+  // SC_004: Assignment status (maintained field)
+  no_trapper_reason: string | null;
+  assignment_status: string;
 }
 
 // Validate UUID format
@@ -311,7 +314,10 @@ export async function GET(
         r.classification_suggested_at,
         r.classification_reviewed_at,
         r.classification_reviewed_by,
-        p.colony_classification::TEXT AS current_place_classification
+        p.colony_classification::TEXT AS current_place_classification,
+        -- SC_004: Assignment status (maintained field)
+        r.no_trapper_reason,
+        r.assignment_status::TEXT
       FROM trapper.sot_requests r
       LEFT JOIN trapper.places p ON p.place_id = r.place_id
       LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
@@ -417,6 +423,14 @@ const VALID_TRAPPER_TYPES = [
   "community_trapper",
   "volunteer",
 ];
+// SC_004: Valid no_trapper_reason values (matches CHECK constraint on sot_requests)
+const VALID_NO_TRAPPER_REASONS = [
+  "client_trapping",
+  "has_community_help",
+  "not_needed",
+  "pending_assignment",
+  "no_capacity",
+];
 
 interface UpdateRequestBody {
   status?: string;
@@ -465,6 +479,8 @@ interface UpdateRequestBody {
   // Email batching (MIG_605)
   ready_to_email?: boolean;
   email_summary?: string;
+  // SC_004: No trapper reason (syncs assignment_status)
+  no_trapper_reason?: string | null;
 }
 
 export async function PATCH(
@@ -555,6 +571,15 @@ export async function PATCH(
     if (body.assigned_trapper_type && !VALID_TRAPPER_TYPES.includes(body.assigned_trapper_type)) {
       return NextResponse.json(
         { error: `Invalid assigned_trapper_type. Must be one of: ${VALID_TRAPPER_TYPES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // SC_004: Validate no_trapper_reason if provided (non-null)
+    if (body.no_trapper_reason !== undefined && body.no_trapper_reason !== null
+        && !VALID_NO_TRAPPER_REASONS.includes(body.no_trapper_reason)) {
+      return NextResponse.json(
+        { error: `Invalid no_trapper_reason. Must be one of: ${VALID_NO_TRAPPER_REASONS.join(", ")}` },
         { status: 400 }
       );
     }
@@ -859,6 +884,36 @@ export async function PATCH(
       updates.push(`email_summary = $${paramIndex}`);
       values.push(body.email_summary || null);
       paramIndex++;
+    }
+
+    // SC_004: no_trapper_reason with assignment_status sync
+    if (body.no_trapper_reason !== undefined) {
+      if (body.no_trapper_reason === null) {
+        // Clearing reason — assignment_status reverts based on active trappers
+        updates.push(`no_trapper_reason = NULL`);
+        // Check if request has active trappers to determine assignment_status
+        updates.push(`assignment_status = CASE
+          WHEN (SELECT COUNT(*) FROM trapper.request_trapper_assignments
+                WHERE request_id = $${paramIndex} AND unassigned_at IS NULL) > 0
+          THEN 'assigned' ELSE 'pending' END`);
+        values.push(id);
+        paramIndex++;
+      } else {
+        updates.push(`no_trapper_reason = $${paramIndex}`);
+        values.push(body.no_trapper_reason);
+        paramIndex++;
+        // Sync assignment_status: client_trapping gets its own status,
+        // others stay pending (unless active trappers exist, in which case 'assigned')
+        if (body.no_trapper_reason === "client_trapping") {
+          updates.push(`assignment_status = 'client_trapping'`);
+        }
+        // Other reasons (not_needed, has_community_help, etc.) keep pending/assigned as-is
+      }
+      auditChanges.push({
+        field: "no_trapper_reason",
+        oldValue: null, // We don't fetch old value here; audit captures the change
+        newValue: body.no_trapper_reason,
+      });
     }
 
     // Handle status changes that trigger resolved_at

@@ -81,9 +81,21 @@ export async function GET(
       );
     }
 
+    // SC_004: Fetch no_trapper_reason and assignment_status for UI display
+    const requestStatus = await queryOne<{
+      no_trapper_reason: string | null;
+      assignment_status: string;
+    }>(
+      `SELECT no_trapper_reason, assignment_status::TEXT
+       FROM trapper.sot_requests WHERE request_id = $1`,
+      [id]
+    );
+
     return NextResponse.json({
       trappers: currentTrappers,
       history: includeHistory ? history : undefined,
+      no_trapper_reason: requestStatus?.no_trapper_reason || null,
+      assignment_status: requestStatus?.assignment_status || "pending",
     });
   } catch (error) {
     console.error("Error fetching request trappers:", error);

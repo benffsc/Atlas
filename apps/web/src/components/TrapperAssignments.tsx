@@ -40,6 +40,13 @@ interface PersonSearchResult {
 
 type AssignMode = "official" | "search";
 
+const NO_TRAPPER_REASON_LABELS: Record<string, string> = {
+  client_trapping: "Client trapping",
+  has_community_help: "Has community help",
+  not_needed: "No trapper needed",
+  no_capacity: "No capacity",
+};
+
 interface Props {
   requestId: string;
   compact?: boolean;
@@ -62,6 +69,11 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
   const [personResults, setPersonResults] = useState<PersonSearchResult[]>([]);
   const [searchingPeople, setSearchingPeople] = useState(false);
   const [loadingTrappers, setLoadingTrappers] = useState(false);
+  // SC_004: No trapper reason state
+  const [noTrapperReason, setNoTrapperReason] = useState<string | null>(null);
+  const [assignmentStatus, setAssignmentStatus] = useState<string>("pending");
+  const [showReasonForm, setShowReasonForm] = useState(false);
+  const [savingReason, setSavingReason] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -72,6 +84,8 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
         const data = await response.json();
         setTrappers(data.trappers || []);
         setHistory(data.history || []);
+        setNoTrapperReason(data.no_trapper_reason || null);
+        setAssignmentStatus(data.assignment_status || "pending");
       }
     } catch (err) {
       console.error("Failed to fetch trappers:", err);
@@ -128,6 +142,14 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
     if (!selectedTrapperId) return;
     setAssigning(true);
     try {
+      // If a no_trapper_reason was set, clear it when assigning a trapper
+      if (noTrapperReason) {
+        await fetch(`/api/requests/${requestId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ no_trapper_reason: null }),
+        });
+      }
       const response = await fetch(`/api/requests/${requestId}/trappers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,12 +166,55 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
         setPersonSearch("");
         setPersonResults([]);
         setAssignMode("official");
+        setNoTrapperReason(null);
         fetchData();
       }
     } catch (err) {
       console.error("Failed to assign trapper:", err);
     } finally {
       setAssigning(false);
+    }
+  };
+
+  // SC_004: Set or clear no_trapper_reason via PATCH /api/requests/[id]
+  const handleSetReason = async (reason: string) => {
+    setSavingReason(true);
+    try {
+      const response = await fetch(`/api/requests/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ no_trapper_reason: reason }),
+      });
+      if (response.ok) {
+        setNoTrapperReason(reason);
+        if (reason === "client_trapping") {
+          setAssignmentStatus("client_trapping");
+        }
+        setShowReasonForm(false);
+      }
+    } catch (err) {
+      console.error("Failed to set no_trapper_reason:", err);
+    } finally {
+      setSavingReason(false);
+    }
+  };
+
+  const handleClearReason = async () => {
+    setSavingReason(true);
+    try {
+      const response = await fetch(`/api/requests/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ no_trapper_reason: null }),
+      });
+      if (response.ok) {
+        setNoTrapperReason(null);
+        setAssignmentStatus(trappers.length > 0 ? "assigned" : "pending");
+      }
+    } catch (err) {
+      console.error("Failed to clear no_trapper_reason:", err);
+    } finally {
+      setSavingReason(false);
     }
   };
 
@@ -170,6 +235,89 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
   // Group trappers by type for display
   const ffscTrappers = availableTrappers.filter(t => t.is_ffsc_trapper);
   const communityTrappers = availableTrappers.filter(t => !t.is_ffsc_trapper);
+
+  // SC_004: No-trapper reason form
+  const reasonForm = showReasonForm && (
+    <div style={{
+      padding: "1rem",
+      background: "var(--card-bg, #f8f9fa)",
+      borderRadius: "6px",
+      marginBottom: "1rem",
+      border: "1px solid var(--border)"
+    }}>
+      <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 500 }}>
+        Why is no trapper needed?
+      </label>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {Object.entries(NO_TRAPPER_REASON_LABELS).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => handleSetReason(value)}
+            disabled={savingReason}
+            style={{
+              padding: "0.5rem 0.75rem",
+              borderRadius: "4px",
+              border: "1px solid var(--border)",
+              background: "var(--background)",
+              color: "var(--foreground)",
+              cursor: savingReason ? "not-allowed" : "pointer",
+              textAlign: "left",
+              fontSize: "0.875rem",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.05)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "var(--background)")}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setShowReasonForm(false)}
+        className="btn btn-secondary btn-sm"
+        style={{ marginTop: "0.75rem" }}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+
+  // SC_004: Badge showing current no-trapper reason
+  const reasonBadge = noTrapperReason && (
+    <div style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.5rem",
+      padding: "0.4rem 0.75rem",
+      background: noTrapperReason === "client_trapping" ? "rgba(139, 92, 246, 0.1)" : "rgba(107, 114, 128, 0.1)",
+      border: `1px solid ${noTrapperReason === "client_trapping" ? "rgba(139, 92, 246, 0.3)" : "rgba(107, 114, 128, 0.3)"}`,
+      borderRadius: "6px",
+      fontSize: "0.85rem",
+      color: noTrapperReason === "client_trapping" ? "#7c3aed" : "#4b5563",
+    }}>
+      <span style={{ fontWeight: 500 }}>
+        {NO_TRAPPER_REASON_LABELS[noTrapperReason] || noTrapperReason}
+      </span>
+      <button
+        onClick={handleClearReason}
+        disabled={savingReason}
+        title="Clear reason"
+        style={{
+          background: "none",
+          border: "none",
+          cursor: savingReason ? "not-allowed" : "pointer",
+          padding: "0 0.15rem",
+          fontSize: "1rem",
+          lineHeight: 1,
+          color: "inherit",
+          opacity: 0.6,
+        }}
+        onMouseOver={(e) => (e.currentTarget.style.opacity = "1")}
+        onMouseOut={(e) => (e.currentTarget.style.opacity = "0.6")}
+      >
+        &times;
+      </button>
+    </div>
+  );
 
   // Add trapper form UI
   const addTrapperForm = showAddForm && (
@@ -369,24 +517,61 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
     return (
       <div>
         {addTrapperForm}
-        {!showAddForm && (
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <span className="text-muted">No trappers assigned</span>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn btn-sm"
-              style={{
-                background: "var(--accent)",
-                color: "#fff",
-                padding: "0.25rem 0.75rem",
-                borderRadius: "4px",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "0.8rem"
-              }}
-            >
-              + Add Trapper
-            </button>
+        {reasonForm}
+        {!showAddForm && !showReasonForm && (
+          <div>
+            {noTrapperReason ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                {reasonBadge}
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#0d6efd",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  + Add Trapper Instead
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+                <span className="text-muted">No trappers assigned</span>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="btn btn-sm"
+                  style={{
+                    background: "var(--accent)",
+                    color: "#fff",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "4px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "0.8rem"
+                  }}
+                >
+                  + Add Trapper
+                </button>
+                <button
+                  onClick={() => setShowReasonForm(true)}
+                  className="btn btn-sm"
+                  style={{
+                    background: "transparent",
+                    color: "var(--foreground)",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "4px",
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    fontSize: "0.8rem"
+                  }}
+                >
+                  No trapper needed
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -394,6 +579,17 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
   }
 
   if (trappers.length === 0) {
+    if (noTrapperReason) {
+      return (
+        <span style={{
+          fontSize: "0.85rem",
+          color: noTrapperReason === "client_trapping" ? "#7c3aed" : "#6b7280",
+          fontWeight: 500,
+        }}>
+          {NO_TRAPPER_REASON_LABELS[noTrapperReason] || noTrapperReason}
+        </span>
+      );
+    }
     return <span className="text-muted">No trappers assigned</span>;
   }
 
