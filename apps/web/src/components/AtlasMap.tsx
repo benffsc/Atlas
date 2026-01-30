@@ -328,13 +328,20 @@ export default function AtlasMap() {
   // Drawer state for place details
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
-  // Expose setSelectedPlaceId globally for popup buttons
+  // Street View state
+  const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
+
+  // Expose setSelectedPlaceId and street view globally for popup buttons
   useEffect(() => {
     (window as unknown as { atlasMapExpandPlace: (id: string) => void }).atlasMapExpandPlace = (id: string) => {
       setSelectedPlaceId(id);
     };
+    (window as unknown as { atlasMapOpenStreetView: (lat: number, lng: number, address?: string) => void }).atlasMapOpenStreetView = (lat: number, lng: number, address?: string) => {
+      setStreetViewCoords({ lat, lng, address });
+    };
     return () => {
       delete (window as unknown as { atlasMapExpandPlace?: (id: string) => void }).atlasMapExpandPlace;
+      delete (window as unknown as { atlasMapOpenStreetView?: (lat: number, lng: number, address?: string) => void }).atlasMapOpenStreetView;
     };
   }, []);
 
@@ -565,6 +572,8 @@ export default function AtlasMap() {
       marker.bindPopup(buildPlacePopup({
         id: place.id,
         address: place.address,
+        lat: place.lat,
+        lng: place.lng,
         cat_count: place.cat_count,
         priority: place.priority,
         service_zone: place.service_zone,
@@ -1113,14 +1122,18 @@ export default function AtlasMap() {
             </div>
           ` : ""}
 
-          <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <div style="display: flex; gap: 6px; margin-top: 12px;">
             <button onclick="window.atlasMapExpandPlace('${pin.id}')"
-                    style="flex: 1; padding: 8px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
-              Expand Details
+                    style="flex: 1; padding: 8px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              Details
+            </button>
+            <button onclick="window.atlasMapOpenStreetView(${pin.lat}, ${pin.lng}, '${pin.address.replace(/'/g, "\\'")}')"
+                    style="flex: 1; padding: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+              Street View
             </button>
             <a href="/places/${pin.id}" target="_blank"
-               style="flex: 1; padding: 8px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-size: 13px; font-weight: 500;">
-              Open Page →
+               style="flex: 1; padding: 8px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 500;">
+              Open Page
             </a>
           </div>
         </div>
@@ -1647,10 +1660,32 @@ export default function AtlasMap() {
     (enabledLayers.clinic_clients ? clinicClients.length : 0) +
     (enabledLayers.historical_sources ? historicalSources.length : 0);
 
+  // Invalidate map size when street view panel opens/closes
+  useEffect(() => {
+    if (!mapRef.current) return;
+    // Delay to allow CSS transition to complete
+    const timer = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [streetViewCoords]);
+
+  // Build Street View embed URL
+  const streetViewUrl = streetViewCoords
+    ? `https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${streetViewCoords.lat},${streetViewCoords.lng}&heading=0&pitch=0&fov=90`
+    : null;
+
   return (
-    <div style={{ position: "relative", height: "100dvh", width: "100%" }}>
+    <div style={{ position: "relative", height: "100dvh", width: "100%", display: "flex", flexDirection: "column" }}>
       {/* Map container */}
-      <div ref={mapContainerRef} style={{ height: "100%", width: "100%" }} />
+      <div
+        ref={mapContainerRef}
+        style={{
+          flex: streetViewCoords ? "0 0 55%" : "1 1 100%",
+          width: "100%",
+          transition: "flex 0.3s ease",
+        }}
+      />
 
       {/* Search bar - Google style */}
       <div style={{
@@ -2511,12 +2546,52 @@ export default function AtlasMap() {
 
       {/* CSS animations are in atlas-map.css */}
 
+      {/* Street View Panel */}
+      {streetViewCoords && streetViewUrl && (
+        <div className="street-view-panel">
+          <div className="street-view-header">
+            <div className="street-view-title">
+              <span className="street-view-icon">📷</span>
+              <span>{streetViewCoords.address || `${streetViewCoords.lat.toFixed(5)}, ${streetViewCoords.lng.toFixed(5)}`}</span>
+            </div>
+            <div className="street-view-actions">
+              <a
+                href={`https://www.google.com/maps/@${streetViewCoords.lat},${streetViewCoords.lng},3a,75y,0h,90t/data=!3m4!1e1!3m2!1s!2e0`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="street-view-gmaps-link"
+              >
+                Open in Google Maps
+              </a>
+              <button
+                className="street-view-close"
+                onClick={() => setStreetViewCoords(null)}
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+          <iframe
+            className="street-view-iframe"
+            src={streetViewUrl}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+      )}
+
       {/* Place Detail Drawer */}
       {selectedPlaceId && (
         <PlaceDetailDrawer
           placeId={selectedPlaceId}
           onClose={() => setSelectedPlaceId(null)}
           onWatchlistChange={fetchMapData}
+          coordinates={(() => {
+            const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
+                        places.find(p => p.id === selectedPlaceId);
+            return pin?.lat && pin?.lng ? { lat: pin.lat, lng: pin.lng } : undefined;
+          })()}
         />
       )}
     </div>

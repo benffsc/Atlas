@@ -52,15 +52,17 @@ interface PlaceDetailDrawerProps {
   placeId: string | null;
   onClose: () => void;
   onWatchlistChange?: () => void;
+  coordinates?: { lat: number; lng: number };
 }
 
 type NotesTab = "original" | "ai" | "journal";
 
-export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange }: PlaceDetailDrawerProps) {
+export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates }: PlaceDetailDrawerProps) {
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<NotesTab>("original");
+  const [showStreetView, setShowStreetView] = useState(false);
 
   // Watchlist toggle state
   const [watchlistLoading, setWatchlistLoading] = useState(false);
@@ -79,6 +81,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange }: Place
     setLoading(true);
     setError(null);
     setActiveTab("original");
+    setShowStreetView(false);
     setShowWatchlistForm(false);
     setWatchlistReason("");
 
@@ -216,6 +219,28 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange }: Place
                     <p>{place.watch_list_reason}</p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Street View Preview */}
+            {coordinates && (
+              <div className="street-view-drawer">
+                <button
+                  className="street-view-drawer-toggle"
+                  onClick={() => setShowStreetView(!showStreetView)}
+                >
+                  <span>📷 Street View</span>
+                  <span style={{ transform: showStreetView ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+                </button>
+                {showStreetView && (
+                  <iframe
+                    className="street-view-drawer-iframe"
+                    src={`https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&location=${coordinates.lat},${coordinates.lng}&heading=0&pitch=0&fov=90`}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                )}
               </div>
             )}
 

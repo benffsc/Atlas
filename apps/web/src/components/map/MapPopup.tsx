@@ -21,6 +21,8 @@ function getPriorityBadgeClass(priority: string): string {
 interface PlaceData {
   id: string;
   address: string;
+  lat?: number;
+  lng?: number;
   cat_count?: number;
   priority?: string;
   service_zone?: string;
@@ -70,6 +72,12 @@ export function buildPlacePopup(place: PlaceData): string {
         </span>
       </div>
       <footer class="map-popup__actions">
+        ${place.lat && place.lng ? `
+          <button onclick="window.atlasMapOpenStreetView(${place.lat}, ${place.lng}, '${escapeHtml(place.address).replace(/'/g, "\\'")}')"
+                  class="map-popup__btn map-popup__btn--street-view">
+            Street View
+          </button>
+        ` : ''}
         <a href="/places/${place.id}" class="map-popup__btn map-popup__btn--primary" target="_blank">
           View Place
         </a>
