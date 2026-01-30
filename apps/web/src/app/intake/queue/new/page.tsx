@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { BackButton } from "@/components/BackButton";
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
@@ -387,7 +388,7 @@ export default function NewIntakeEntryPage() {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
       <div style={{ marginBottom: "1.5rem" }}>
-        <a href="/intake/queue" style={{ color: "var(--muted)", fontSize: "0.9rem" }}>← Back to Queue</a>
+        <BackButton fallbackHref="/intake/queue" />
         <h1 style={{ margin: "0.5rem 0 0 0" }}>New Intake Entry</h1>
         <p className="text-muted">Enter data from phone call, paper form, or walk-in</p>
       </div>

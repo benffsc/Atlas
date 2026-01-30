@@ -2,6 +2,7 @@
 
 import { useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { BackButton } from "@/components/BackButton";
 
 /**
  * This page redirects to the unified intake queue page with the submission
@@ -20,7 +21,7 @@ export default function SubmissionDetailPage({ params }: { params: Promise<{ id:
   // Show loading state while redirecting
   return (
     <div>
-      <a href="/intake/queue" style={{ color: "var(--muted)" }}>← Back to Queue</a>
+      <BackButton fallbackHref="/intake/queue" />
       <div style={{ marginTop: "2rem" }}>Redirecting to queue...</div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { formatDateLocal } from "@/lib/formatters";
+import { BackButton } from "@/components/BackButton";
 
 interface PartnerOrgCat {
   cat_id: string;
@@ -142,12 +143,7 @@ export default function PartnerOrgCatsPage() {
             Manage Orgs
           </Link>
           <span className="text-gray-400">|</span>
-          <Link
-            href="/admin"
-            className="text-blue-600 hover:text-blue-800"
-          >
-            Back to Admin
-          </Link>
+          <BackButton fallbackHref="/admin" />
         </div>
       </div>
 

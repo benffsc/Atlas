@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 
 interface PlaceUnit {
   place_id: string;
@@ -125,9 +126,9 @@ export default function LinkGoogleMapEntryPage() {
     return (
       <div className="p-8">
         <div className="text-red-600">Error: {error || "Failed to load"}</div>
-        <Link href="/map" className="text-blue-600 underline mt-4 block">
-          Back to Map
-        </Link>
+        <div className="mt-4">
+          <BackButton fallbackHref="/map" />
+        </div>
       </div>
     );
   }
@@ -138,9 +139,9 @@ export default function LinkGoogleMapEntryPage() {
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <p className="text-green-800">This entry is already linked to a place.</p>
         </div>
-        <Link href="/map" className="text-blue-600 underline mt-4 block">
-          Back to Map
-        </Link>
+        <div className="mt-4">
+          <BackButton fallbackHref="/map" />
+        </div>
       </div>
     );
   }
@@ -152,9 +153,7 @@ export default function LinkGoogleMapEntryPage() {
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
-          <Link href="/map" className="text-blue-600 hover:underline text-sm">
-            ← Back to Map
-          </Link>
+          <BackButton fallbackHref="/map" />
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">

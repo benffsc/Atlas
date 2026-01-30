@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { BackButton } from "@/components/BackButton";
 
 interface Staff {
   staff_id: string;
@@ -41,7 +42,6 @@ const DEPARTMENTS = [
 
 export default function StaffProfilePage() {
   const params = useParams();
-  const router = useRouter();
   const staffId = params.id as string;
 
   const [staff, setStaff] = useState<Staff | null>(null);
@@ -165,20 +165,9 @@ export default function StaffProfilePage() {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <h2 style={{ color: "var(--danger-text)" }}>{error || "Not found"}</h2>
-        <button
-          onClick={() => router.back()}
-          style={{
-            marginTop: "1rem",
-            padding: "0.5rem 1rem",
-            background: "var(--primary)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-          }}
-        >
-          Go Back
-        </button>
+        <div style={{ marginTop: "1rem" }}>
+          <BackButton fallbackHref="/admin/staff" />
+        </div>
       </div>
     );
   }
@@ -531,19 +520,7 @@ export default function StaffProfilePage() {
 
       {/* Back Link */}
       <div style={{ marginTop: "2rem" }}>
-        <button
-          onClick={() => router.back()}
-          style={{
-            padding: "0.5rem 1rem",
-            background: "transparent",
-            border: "1px solid var(--border)",
-            borderRadius: "6px",
-            cursor: "pointer",
-            color: "var(--foreground)",
-          }}
-        >
-          ← Back
-        </button>
+        <BackButton fallbackHref="/admin/staff" />
       </div>
 
       {/* Password Reset Modal */}

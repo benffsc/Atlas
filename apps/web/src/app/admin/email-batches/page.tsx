@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 
 interface ReadyRequest {
   request_id: string;
@@ -300,12 +301,7 @@ export default function EmailBatchesPage() {
             Batch emails for trapper assignments
           </p>
         </div>
-        <Link
-          href="/admin"
-          className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
-        >
-          ← Back to Admin
-        </Link>
+        <BackButton fallbackHref="/admin" />
       </div>
 
       {/* Error */}

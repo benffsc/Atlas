@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 
 interface PartnerOrg {
   org_id: string;
@@ -183,12 +184,7 @@ export default function PartnerOrgsPage() {
             FFSC
           </p>
         </div>
-        <Link
-          href="/admin"
-          className="text-blue-600 hover:text-blue-800"
-        >
-          Back to Admin
-        </Link>
+        <BackButton fallbackHref="/admin" />
       </div>
 
       {/* Stats */}

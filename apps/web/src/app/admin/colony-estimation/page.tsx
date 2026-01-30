@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { BackButton } from "@/components/BackButton";
 
 interface SourceConfidence {
   source_type: string;
@@ -673,9 +674,7 @@ export default function ColonyEstimationPage() {
 
       {/* Back link */}
       <div style={{ marginTop: "2rem" }}>
-        <a href="/admin" style={{ color: "var(--primary)" }}>
-          ← Back to Admin
-        </a>
+        <BackButton fallbackHref="/admin" />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BackButton } from "@/components/BackButton";
 
 interface SourceConfidence {
   source_system: string;
@@ -379,9 +380,7 @@ export default function SourceConfidencePage() {
 
       {/* Back link */}
       <div style={{ marginTop: "2rem" }}>
-        <a href="/admin" style={{ color: "#0d6efd" }}>
-          ← Back to Admin
-        </a>
+        <BackButton fallbackHref="/admin" />
       </div>
     </div>
   );
