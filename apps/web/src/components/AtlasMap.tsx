@@ -274,12 +274,14 @@ export default function AtlasMap() {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   // State
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const [isSatellite, setIsSatellite] = useState(false);
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.defaultEnabled]))
@@ -474,11 +476,12 @@ export default function AtlasMap() {
       bounceAtZoomLimits: false,
     }).setView([38.45, -122.75], 10);
 
-    // Add Google-like tile layer (CartoDB Voyager)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    // Add default street tile layer (CartoDB Voyager)
+    const streetTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom: 19,
     }).addTo(map);
+    tileLayerRef.current = streetTiles;
 
     // Custom zoom control position
     L.control.zoom({ position: "bottomright" }).addTo(map);
@@ -513,6 +516,25 @@ export default function AtlasMap() {
       mapRef.current = null;
     };
   }, []);
+
+  // Toggle satellite / street tile layer
+  useEffect(() => {
+    if (!mapRef.current || !tileLayerRef.current) return;
+    mapRef.current.removeLayer(tileLayerRef.current);
+    const newTiles = isSatellite
+      ? L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+          attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
+          maxZoom: 19,
+        })
+      : L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+        });
+    newTiles.addTo(mapRef.current);
+    // Keep tiles behind all markers
+    newTiles.setZIndex(0);
+    tileLayerRef.current = newTiles;
+  }, [isSatellite]);
 
   // Fetch data on mount and when filters change (debounced to avoid rapid re-fetches)
   useEffect(() => {
@@ -1651,19 +1673,25 @@ export default function AtlasMap() {
         }}>
           <a
             href="/"
-            title="Back to Atlas"
+            title="Back to Atlas dashboard"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 4,
+              gap: 6,
               marginRight: 8,
               textDecoration: "none",
               color: "#374151",
               fontWeight: 700,
               fontSize: 14,
               flexShrink: 0,
+              padding: "4px 8px 4px 4px",
+              borderRadius: 6,
+              transition: "background 0.15s",
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
             <img src="/logo.png" alt="" style={{ height: 22, width: "auto" }} />
             {!isMobile && <span>Atlas</span>}
           </a>
@@ -1912,6 +1940,34 @@ export default function AtlasMap() {
         >
           <span style={{ fontSize: 18 }}>{locatingUser ? "⏳" : "📍"}</span>
           {!isMobile && (locatingUser ? "Locating..." : "My Location")}
+        </button>
+
+        {/* Satellite toggle */}
+        <button
+          onClick={() => setIsSatellite(!isSatellite)}
+          title={isSatellite ? "Street view" : "Satellite view"}
+          style={{
+            background: isSatellite ? "#1d4ed8" : "white",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 14px",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            fontSize: 14,
+            fontWeight: 500,
+            color: isSatellite ? "white" : "#374151",
+            transition: "background 0.2s, color 0.2s",
+          }}
+          onMouseEnter={(e) => { if (!isSatellite) e.currentTarget.style.background = "#f9fafb"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = isSatellite ? "#1d4ed8" : "white"; }}
+        >
+          <span style={{ fontSize: 18 }}>{isSatellite ? "🗺️" : "🛰️"}</span>
+          {!isMobile && (isSatellite ? "Street" : "Satellite")}
         </button>
 
         {/* Zoom controls */}
