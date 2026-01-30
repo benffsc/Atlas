@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { SavedFilters, RequestFilters } from "@/components/SavedFilters";
+import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 
 interface Request {
   request_id: string;
@@ -33,46 +34,6 @@ interface Request {
   assignment_status: string;
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, { bg: string; color: string }> = {
-    new: { bg: "#0d6efd", color: "#fff" },
-    triaged: { bg: "#6610f2", color: "#fff" },
-    scheduled: { bg: "#198754", color: "#fff" },
-    in_progress: { bg: "#fd7e14", color: "#000" },
-    completed: { bg: "#20c997", color: "#000" },
-    cancelled: { bg: "#6c757d", color: "#fff" },
-    on_hold: { bg: "#ffc107", color: "#000" },
-  };
-  const style = colors[status] || { bg: "#6c757d", color: "#fff" };
-
-  return (
-    <span
-      className="badge"
-      style={{ background: style.bg, color: style.color }}
-    >
-      {status.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const colors: Record<string, { bg: string; color: string }> = {
-    urgent: { bg: "#dc3545", color: "#fff" },
-    high: { bg: "#fd7e14", color: "#000" },
-    normal: { bg: "#6c757d", color: "#fff" },
-    low: { bg: "#adb5bd", color: "#000" },
-  };
-  const style = colors[priority] || { bg: "#6c757d", color: "#fff" };
-
-  return (
-    <span
-      className="badge"
-      style={{ background: style.bg, color: style.color, fontSize: "0.7rem" }}
-    >
-      {priority}
-    </span>
-  );
-}
 
 function ColonySizeBadge({ count }: { count: number | null }) {
   const catCount = count ?? 0;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { MyItemsWidget } from "@/components/MyItemsWidget";
+import { StatusBadge, PriorityDot } from "@/components/StatusBadge";
 
 interface ActiveRequest {
   request_id: string;
@@ -64,71 +65,6 @@ function normalizeName(name: string | null): string {
   return name;
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, { bg: string; text: string }> = {
-    new: { bg: "bg-blue-100", text: "text-blue-800" },
-    in_progress: { bg: "bg-amber-100", text: "text-amber-800" },
-    scheduled: { bg: "bg-green-100", text: "text-green-800" },
-    complete: { bg: "bg-teal-100", text: "text-teal-800" },
-    completed: { bg: "bg-teal-100", text: "text-teal-800" },
-    triaged: { bg: "bg-purple-100", text: "text-purple-800" },
-    on_hold: { bg: "bg-yellow-100", text: "text-yellow-800" },
-    cancelled: { bg: "bg-gray-100", text: "text-gray-600" },
-  };
-  const style = colors[status] || { bg: "bg-gray-100", text: "text-gray-600" };
-  const label = status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-
-  return (
-    <span
-      style={{
-        padding: "2px 8px",
-        borderRadius: "9999px",
-        fontSize: "0.7rem",
-        fontWeight: 500,
-        textTransform: "capitalize",
-        background: style.bg === "bg-blue-100" ? "#dbeafe" :
-                   style.bg === "bg-amber-100" ? "#fef3c7" :
-                   style.bg === "bg-green-100" ? "#dcfce7" :
-                   style.bg === "bg-teal-100" ? "#ccfbf1" :
-                   style.bg === "bg-purple-100" ? "#f3e8ff" :
-                   style.bg === "bg-yellow-100" ? "#fef9c3" :
-                   "#f3f4f6",
-        color: style.text === "text-blue-800" ? "#1e40af" :
-               style.text === "text-amber-800" ? "#92400e" :
-               style.text === "text-green-800" ? "#166534" :
-               style.text === "text-teal-800" ? "#115e59" :
-               style.text === "text-purple-800" ? "#6b21a8" :
-               style.text === "text-yellow-800" ? "#854d0e" :
-               "#4b5563",
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function PriorityDot({ priority }: { priority: string }) {
-  const colors: Record<string, string> = {
-    urgent: "#dc2626",
-    high: "#f97316",
-    normal: "#6b7280",
-    low: "#9ca3af",
-  };
-  const color = colors[priority] || colors.normal;
-
-  return (
-    <span
-      style={{
-        width: "8px",
-        height: "8px",
-        borderRadius: "50%",
-        background: color,
-        display: "inline-block",
-      }}
-      title={priority}
-    />
-  );
-}
 
 // Helper to check if a date is stale (more than N days ago)
 function isStale(dateStr: string | null | undefined, daysThreshold: number): boolean {
@@ -218,7 +154,7 @@ function RequestRow({ request }: { request: ActiveRequest }) {
             STALE
           </span>
         )}
-        <StatusBadge status={request.status} />
+        <StatusBadge status={request.status} variant="soft" size="sm" />
       </div>
     </a>
   );
@@ -303,7 +239,7 @@ function IntakeRow({ submission }: { submission: IntakeSubmission }) {
             OVERDUE
           </span>
         )}
-        <StatusBadge status={status} />
+        <StatusBadge status={status} variant="soft" size="sm" />
         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", minWidth: "50px", textAlign: "right" }}>
           {formatDateLocal(submission.submitted_at)}
         </span>

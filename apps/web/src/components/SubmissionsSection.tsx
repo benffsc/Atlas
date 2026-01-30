@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface Submission {
   submission_id: string;
@@ -64,28 +65,6 @@ function SourceBadge({ isLegacy }: { isLegacy: boolean }) {
   );
 }
 
-// Unified status badge for the new submission_status field
-function StatusBadge({ submissionStatus }: { submissionStatus: string | null }) {
-  const colors: Record<string, { bg: string; color: string; label: string }> = {
-    "new": { bg: "#0d6efd", color: "#fff", label: "New" },
-    "in_progress": { bg: "#fd7e14", color: "#000", label: "In Progress" },
-    "scheduled": { bg: "#198754", color: "#fff", label: "Scheduled" },
-    "complete": { bg: "#20c997", color: "#000", label: "Complete" },
-    "archived": { bg: "#adb5bd", color: "#000", label: "Archived" },
-  };
-
-  const status = submissionStatus || "new";
-  const style = colors[status] || colors["new"];
-
-  return (
-    <span
-      className="badge"
-      style={{ background: style.bg, color: style.color, fontSize: "0.65rem" }}
-    >
-      {style.label}
-    </span>
-  );
-}
 
 function TriageBadge({ category }: { category: string | null }) {
   if (!category) return null;
@@ -203,7 +182,7 @@ export function SubmissionsSection({ entityType, entityId }: SubmissionsSectionP
             {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
               <SourceBadge isLegacy={submission.is_legacy} />
-              <StatusBadge submissionStatus={submission.submission_status} />
+              <StatusBadge status={submission.submission_status || "new"} size="sm" />
               <TriageBadge category={submission.triage_category} />
               <span className="text-muted text-sm" style={{ marginLeft: "auto" }}>
                 {new Date(submission.submitted_at).toLocaleDateString()}

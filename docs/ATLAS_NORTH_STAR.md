@@ -1,0 +1,370 @@
+# Atlas North Star
+
+**Version:** 1.0
+**Created:** 2026-01-28
+**Owner:** Engineering (Claude Code is lead engineer)
+
+---
+
+## What Atlas Is
+
+Atlas is the single operational + analytical data platform for Forgotten Felines of Sonoma County (FFSC). It captures every interaction FFSC has with people, cats, and places, then feeds that data into Beacon for population modeling and strategic TNR.
+
+This document defines the **system layers**, **invariants**, **data zones**, and **do-not-break contracts** that every change must respect.
+
+---
+
+## System Layers
+
+All data in Atlas flows through these layers, in order. No layer may be skipped.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  L1  RAW                                                            │
+│  Immutable audit trail. staged_records, ingest_runs, file_uploads.  │
+│  Rule: append-only. Never mutate. Never delete.                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  L2  NORMALIZE / IDENTITY                                           │
+│  Deduplication, identity resolution, merge chains.                  │
+│  find_or_create_* functions, Data Engine scoring, households.       │
+│  Rule: use centralized functions. Never inline INSERT to sot_*.     │
+├─────────────────────────────────────────────────────────────────────┤
+│  L3  ENRICHMENT (AI + Extraction)                                   │
+│  AI Extraction Engine, entity_attributes, extraction_queue.         │
+│  AI-inferred data from notes, forms, Google Maps, clinic records.   │
+│  Rule: all AI output labeled source_type='ai_parsed'. Debuggable.   │
+├─────────────────────────────────────────────────────────────────────┤
+│  L4  CLASSIFICATION                                                 │
+│  Classification Engine: place_contexts, context types, org links.   │
+│  Manual staff input (is_verified=TRUE) overrides AI (inferred).     │
+│  Rule: Manual > AI. Verified contexts are immutable to automation.  │
+├─────────────────────────────────────────────────────────────────────┤
+│  L5  SOURCE OF TRUTH (SoT)                                         │
+│  Canonical entities: sot_people, sot_cats, sot_requests,           │
+│  sot_appointments, places. Stable handles for all workflows.       │
+│  Rule: SoT records are never deleted. Soft-merge via merged_into.  │
+├─────────────────────────────────────────────────────────────────────┤
+│  L6  WORKFLOWS                                                      │
+│  Intake queue, request lifecycle, journal, trapper assignments,     │
+│  email automation, clinic days. Staff-facing operational tools.     │
+│  Rule: ACTIVE flows must not break. Changes must be additive.      │
+├─────────────────────────────────────────────────────────────────────┤
+│  L7  BEACON (Analytics + Visualization)                             │
+│  Population modeling, Chapman estimator, colony clustering,         │
+│  seasonal forecasting, map visualization.                           │
+│  Rule: reads from views over SoT+Classification. Never writes SoT. │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow Direction
+
+```
+External Sources → L1 (RAW) → L2 (IDENTITY) → L3 (ENRICHMENT) → L4 (CLASSIFICATION)
+                                                                        ↓
+                                                    L5 (SoT) ← published surfaces
+                                                        ↓
+                                              L6 (WORKFLOWS) → staff uses
+                                                        ↓
+                                              L7 (BEACON) → analytics reads
+```
+
+---
+
+## Atlas Orchestrator (Planned)
+
+### The Problem
+
+Today, each data source (Airtable, ClinicHQ, ShelterLuv, web intake, Google Maps, text dumps) has bespoke ingestion scripts with hand-wired routing to different canonical surfaces. Adding a new source requires custom code at every layer.
+
+### The Solution: Registry-Driven Orchestration
+
+The **Atlas Orchestrator** is a central spine that ensures every data source flows through the same L1→L7 pipeline with configuration-driven routing instead of bespoke glue.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      ATLAS ORCHESTRATOR                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │ Source        │    │ Pipeline     │    │ Surface      │          │
+│  │ Registry      │───▶│ Contract     │───▶│ Router       │          │
+│  │ (what/how)    │    │ (stages)     │    │ (where)      │          │
+│  └──────────────┘    └──────────────┘    └──────────────┘          │
+│                                                                     │
+│  Registry:                                                          │
+│    - Source declaration (name, type, schema, frequency)              │
+│    - Field mappings (source_field → canonical_target)               │
+│    - Provenance template (how to trace back to raw)                │
+│                                                                     │
+│  Pipeline Contract:                                                 │
+│    RAW → resolve_identity → extract_attributes →                    │
+│    classify → publish_surfaces → QA_check                           │
+│                                                                     │
+│  Surface Router:                                                    │
+│    - "cat_count" → place_colony_estimates                          │
+│    - "org_name" → place_contexts (organization)                    │
+│    - "person_email" → person_identifiers                           │
+│    - "microchip" → cat_identifiers                                 │
+│    - Routing is declarative, not code                              │
+│                                                                     │
+│  QA / Sense-Making:                                                │
+│    - Anomaly detection (cat_count=500 at a house?)                 │
+│    - "Why missing?" diagnostics                                    │
+│    - Staff override preserved (Manual > AI)                        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Invariants for Orchestrator
+
+1. **Backward compatible** - existing ingestion scripts continue working. Orchestrator wraps, not replaces.
+2. **Debuggable** - every routing decision is logged with reason (routed/skipped/merged/rejected).
+3. **Staff overrides intact** - Manual > AI at every layer. Orchestrator never overwrites verified data.
+4. **Provenance preserved** - every published surface traces back to raw source via (source_system, source_record_id, job_id).
+
+---
+
+## System Invariants (Non-Negotiable)
+
+These rules apply to ALL changes, ALL layers, ALL contributors.
+
+### INV-1: No Data Disappears
+
+- SoT records are **never hard-deleted**. Use `merged_into_*` for merges.
+- Merged entities must resolve to a **live canonical** entity (no merge chain black holes).
+- Views must follow merge chains: always filter `WHERE merged_into_*_id IS NULL`.
+- Orphan cleanup must check ALL foreign keys before deleting.
+
+### INV-2: Manual > AI
+
+- Staff-verified data (`is_verified = TRUE`, `evidence_type = 'manual'`) cannot be overwritten by AI/inferred data.
+- AI enrichment can add new data but never downgrade confidence or remove verified classifications.
+- The Classification Engine enforces this at the `assign_place_context()` function level.
+
+### INV-3: SoT Are Stable Handles
+
+- `sot_people.person_id`, `sot_cats.cat_id`, `places.place_id`, `sot_requests.request_id` are permanent references.
+- All relationship tables reference these IDs.
+- Entity creation goes through centralized functions only:
+  - `find_or_create_person()` → people
+  - `find_or_create_place_deduped()` → places
+  - `find_or_create_cat_by_microchip()` → cats
+  - `find_or_create_request()` → requests
+
+### INV-4: Provenance Is Required
+
+- Every record must carry `source_system` and `source_record_id`.
+- Valid `source_system` values: `airtable`, `clinichq`, `web_intake`, `atlas_ui`, `shelterluv`, `volunteerhub`.
+- AI-generated data must be labeled `source_type = 'ai_parsed'` or `evidence_type = 'inferred'`.
+- Raw data preserved in `staged_records` (append-only).
+
+### INV-5: Identity Matching By Identifier Only
+
+- People are matched by **email or phone**, never by name alone.
+- Phone normalization via `norm_phone_us()`.
+- Email normalization via `person_identifiers.id_value_norm`.
+- Name-only matches go to review queue, never auto-merge.
+
+### INV-6: Active Flows Are Sacred
+
+- Changes that touch ACTIVE flow tables/endpoints must be additive and backward-compatible.
+- See "Do-Not-Break" section below for the explicit list.
+- Any change touching these must pass the Active Flow Safety Gate (`docs/ACTIVE_FLOW_SAFETY_GATE.md`).
+
+### INV-7: One Write Path Per Destination Per User Action
+
+- A single user action (button click, form submit, modal confirm) must produce **exactly one INSERT** into any given destination table.
+- **Never create parallel write paths** where a UI action sends the same data to multiple endpoints/triggers that each independently write to the same table.
+- If a trigger already writes to a table on INSERT (e.g., `trg_site_obs_colony_estimate` writes to `place_colony_estimates` when a `site_observations` row is created), downstream functions that also target the same table **must detect and UPDATE the trigger-created record** rather than INSERT a duplicate.
+- The `UNIQUE (source_system, source_record_id)` constraint is **not sufficient** to prevent duplicates when one path sets `source_record_id` and another leaves it NULL (PostgreSQL treats `NULL != NULL` for unique constraints).
+
+**How to audit for this:**
+1. Trace every user-facing action to ALL the endpoints it calls (check the frontend component's submit handler).
+2. For each endpoint, trace the SQL path including any triggers that fire on INSERT.
+3. If two paths write to the same table, one must detect the other's record and UPDATE instead of INSERT.
+
+**Example (MIG_790 fix):**
+```
+CompleteRequestModal submit:
+  → POST /api/observations → site_observations INSERT
+      → trigger creates place_colony_estimates record  ← PATH A
+  → PATCH /api/requests/{id} → record_completion_observation()
+      → DETECTS Path A record, UPDATEs it              ← FIXED
+      → (previously: INSERT-ed a duplicate)             ← BUG
+```
+
+**When designing new features:**
+- If you add a trigger that writes to table X on INSERT into table Y, check if any existing code path also writes to table X after inserting into table Y.
+- If you add a UI modal that calls multiple API endpoints, verify they don't each independently write to the same destination table.
+
+---
+
+## Data Zones
+
+### ACTIVE Data
+
+Data actively used by staff daily. Changes require Safety Gate validation.
+
+| Table/View | Used By | Flow |
+|------------|---------|------|
+| `web_intake_submissions` | Phone intake, intake queue | Intake capture |
+| `sot_requests` | Request detail, dashboard | Request lifecycle |
+| `journal_entries` | Request detail | Journal/notes |
+| `request_trapper_assignments` | Request detail | Trapper assignment |
+| `places` | Place detail, intake form | Address management |
+| `sot_people` | People pages, intake | Person records |
+| `sot_cats` | Cat pages, request detail | Cat records |
+| `staff` / `staff_sessions` | Auth, navigation | Authentication |
+| `communication_logs` | Intake queue detail | Intake comms |
+
+### SEMI-ACTIVE Data
+
+Used by admin/power-user flows. Changes require testing but have lower blast radius.
+
+| Table/View | Used By | Flow |
+|------------|---------|------|
+| `colonies` / `colony_*` | Colony management | Admin colonies page |
+| `place_contexts` / `place_context_types` | Classification Engine | Place detail, intake |
+| `known_organizations` | Org registry | Place classification |
+| `extraction_queue` / `extraction_status` | AI Extraction Engine | Admin AI extraction |
+| `tippy_*` | Tippy AI assistant | Tippy chat |
+| `email_*` | Email system | Admin email |
+| `trapper_onboarding` | Trapper pipeline | Admin trappers |
+| `data_engine_*` | Data Engine | Admin data engine |
+
+### HISTORICAL / ANALYTICAL Data
+
+Read-only by Beacon and analytics. Changes are lower risk.
+
+| Table/View | Used By | Flow |
+|------------|---------|------|
+| `staged_records` | Audit trail | Raw layer |
+| `cat_birth_events` / `cat_mortality_events` | Beacon ecology | Population modeling |
+| `place_colony_estimates` | Beacon | Colony sizing |
+| `google_map_entries` | Google Maps context | Historical context |
+| `site_observations` | Beacon | Mark-recapture |
+| `cat_movement_events` | Beacon | Migration tracking |
+| `entity_attributes` | AI extraction output | Enrichment |
+| All `v_beacon_*` views | Beacon map | Analytics |
+| All `v_place_ecology_*` views | Beacon | Population stats |
+| `backup_*` tables | Recovery only | Not in active use |
+
+---
+
+## Do-Not-Break Contract
+
+### ACTIVE Pages (staff uses daily)
+
+| Page | Route | What Breaks If Down |
+|------|-------|---------------------|
+| Dashboard | `/` | Staff can't see work queue |
+| Phone Intake | `/admin/intake/call` | Can't capture new calls |
+| Intake Queue | `/intake/queue` | Can't triage submissions |
+| Intake Detail | `/intake/queue/[id]` | Can't process individual intakes |
+| Request Detail | `/requests/[id]` | Can't update requests, add notes, assign trappers |
+| Request List | `/requests` | Can't find requests |
+
+### ACTIVE API Endpoints
+
+| Endpoint | Method | What It Does |
+|----------|--------|-------------|
+| `/api/intake` | POST | Creates intake submission |
+| `/api/intake/queue` | GET | Lists intake queue |
+| `/api/requests` | GET | Lists requests |
+| `/api/requests/[id]` | GET/PUT/PATCH | Request CRUD |
+| `/api/journal` | GET/POST | Journal entries |
+| `/api/requests/[id]/trappers` | GET/POST/DELETE | Trapper assignments |
+| `/api/auth/me` | GET | Current user auth |
+| `/api/auth/login` | POST | Staff login |
+| `/api/staff` | GET | Staff list |
+| `/api/search` | GET | Global search |
+
+### ACTIVE Database Objects
+
+| Object | Type | Critical For |
+|--------|------|-------------|
+| `web_intake_submissions` | Table | Intake capture |
+| `sot_requests` | Table | Request lifecycle |
+| `journal_entries` | Table | Notes/journal |
+| `request_trapper_assignments` | Table | Trapper management |
+| `staff` / `staff_sessions` | Tables | Authentication |
+| `compute_intake_triage()` | Function | Auto-triage on intake |
+| `trg_auto_triage_intake` | Trigger | Triage on insert |
+| `trg_log_request_status` | Trigger | Status history |
+| `trg_set_resolved_at` | Trigger | Completion tracking |
+| `trg_intake_create_person` | Trigger | Person creation on intake |
+| `trg_intake_link_place` | Trigger | Place linking on intake |
+| `convert_intake_to_request()` | Function | Queue → request conversion |
+| `v_intake_triage_queue` | View | Intake queue display |
+| `v_request_journal` | View | Journal display |
+
+### ACTIVE Triggers on sot_requests (6 total)
+
+These fire on every request insert/update. Do not disable or alter behavior:
+
+1. `trg_auto_suggest_classification` - Suggests place context on new request
+2. `trg_request_activity` - Updates activity timestamps
+3. `trg_log_request_status` - Logs status changes to history
+4. `trg_validate_request_place_link` - Validates place FK
+5. `set_kitten_assessed_timestamp` - Tracks kitten assessment timing
+6. `trg_set_resolved_at` - Sets resolved_at on completion/cancellation
+7. `trg_assign_colony_context_on_request` - Auto-assigns colony_site context
+8. `trg_request_colony_estimate` - Creates colony estimate from request data
+9. `trg_queue_request_extraction` - Queues for AI extraction
+
+---
+
+## Current System Scale
+
+| Object | Count |
+|--------|-------|
+| Tables | 198 |
+| Views | 308 |
+| Functions | 598 |
+| Triggers | 55 |
+| Migrations | 253 |
+| API Routes | 192 |
+| UI Pages | 98 |
+| Components | 75 |
+| Scripts | 150+ |
+| Docs | 80+ |
+
+### Entity Counts
+
+| Entity | Active Records |
+|--------|---------------|
+| People | ~41,800 |
+| Cats | ~36,600 |
+| Appointments | ~47,500 |
+| Places | ~11,400 active + 4,400 merged |
+| Requests | (in sot_requests) |
+| Staged Records | ~174,000 |
+| Processing Jobs | ~26,400 (mostly queued) |
+
+---
+
+## Known Debt / Failure Modes
+
+Ranked by impact (see TASK_LEDGER.md for remediation):
+
+1. **Merge chain black holes**: 1,194 people merged into targets that are themselves merged. Following one hop lands on a dead record.
+2. **Processing pipeline stalled**: 26,383 jobs queued, only 6 completed. The async processing system is not running.
+3. **Unprocessed ShelterLuv**: 5,058 records never processed into SoT. Foster/adopter outcomes not reaching the system.
+4. **People without identifiers**: 986 active people with no email/phone. Unfindable, will be duplicated.
+5. **Cats without microchips**: 1,608 cats with no dedup key. Same cat can appear as multiple records.
+6. **Backup table bloat**: ~208K rows across 10 backup tables consuming space.
+7. **Places without geometry**: 93 places invisible to Beacon maps.
+
+---
+
+## Relationship to Other Docs
+
+| Document | Purpose |
+|----------|---------|
+| `ATLAS_MISSION_CONTRACT.md` | Beacon science, population modeling, ground truth principle |
+| `ACTIVE_FLOW_SAFETY_GATE.md` | Concrete validation steps after any change |
+| `TASK_LEDGER.md` | Ordered task cards with scope, safety, rollback |
+| `CLAUDE.md` | Developer rules, coding conventions, API patterns |
+| `CENTRALIZED_FUNCTIONS.md` | Entity creation function reference |
+| `DATA_INGESTION_RULES.md` | Ingest script conventions |
+| `UI_REDESIGN_SPEC.md` | UI redesign spec: nav, profiles, mobile, address mgmt, classification, export |

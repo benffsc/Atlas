@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
-interface NavItem {
+export interface NavItem {
   label: string;
   href: string;
   icon?: string;
 }
 
-interface NavSection {
+export interface NavSection {
   title: string;
   items: NavItem[];
 }
@@ -124,7 +124,7 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
   );
 
   return (
-    <div style={{ display: "flex", minHeight: "calc(100vh - 60px)", margin: "0 -1rem" }}>
+    <div style={{ display: "flex", minHeight: "calc(100vh - 56px)", margin: "0 -1rem" }}>
       {/* Mobile Menu Toggle */}
       {isMobile && (
         <button
@@ -175,9 +175,9 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
           background: "var(--background)",
           padding: "1rem 0",
           position: isMobile ? "fixed" : "sticky",
-          top: isMobile ? 0 : "60px",
+          top: isMobile ? 0 : "56px",
           left: isMobile ? (mobileMenuOpen ? 0 : "-280px") : undefined,
-          height: isMobile ? "100vh" : "calc(100vh - 60px)",
+          height: isMobile ? "100dvh" : "calc(100vh - 56px)",
           overflowY: "auto",
           zIndex: isMobile ? 1000 : undefined,
           transition: isMobile ? "left 0.3s ease-in-out" : undefined,
@@ -292,46 +292,47 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Main sidebar sections — exported so AppShell hamburger drawer can reuse them
+export const mainSidebarSections: NavSection[] = [
+  {
+    title: "Operations",
+    items: [
+      { label: "Dashboard", href: "/", icon: "🏠" },
+      { label: "Atlas Map", href: "/map", icon: "🗺️" },
+      { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
+      { label: "Requests", href: "/requests", icon: "📋" },
+      { label: "Trappers", href: "/trappers", icon: "🪤" },
+    ],
+  },
+  {
+    title: "Records",
+    items: [
+      { label: "Cats", href: "/cats", icon: "🐱" },
+      { label: "People", href: "/people", icon: "👥" },
+      { label: "Places", href: "/places", icon: "📍" },
+      { label: "Search", href: "/search", icon: "🔍" },
+    ],
+  },
+  {
+    title: "Beacon",
+    items: [
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📊" },
+      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
+      { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { label: "Admin Panel", href: "/admin", icon: "⚙️" },
+    ],
+  },
+];
+
 // Main app sidebar for all pages
 export function MainSidebar({ children }: { children: React.ReactNode }) {
-  const sections: NavSection[] = [
-    {
-      title: "Operations",
-      items: [
-        { label: "Dashboard", href: "/", icon: "🏠" },
-        { label: "Atlas Map", href: "/map", icon: "🗺️" },
-        { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
-        { label: "Requests", href: "/requests", icon: "📋" },
-        { label: "Trappers", href: "/trappers", icon: "🪤" },
-      ],
-    },
-    {
-      title: "Data",
-      items: [
-        { label: "Cats", href: "/cats", icon: "🐱" },
-        { label: "People", href: "/people", icon: "👥" },
-        { label: "Places", href: "/places", icon: "📍" },
-        { label: "Search", href: "/search", icon: "🔍" },
-      ],
-    },
-    {
-      title: "Beacon",
-      items: [
-        { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📊" },
-        { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
-        { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
-      ],
-    },
-    {
-      title: "Admin",
-      items: [
-        { label: "Admin Panel", href: "/admin", icon: "⚙️" },
-      ],
-    },
-  ];
-
   return (
-    <SidebarLayout sections={sections} title="Atlas">
+    <SidebarLayout sections={mainSidebarSections} title="Atlas">
       {children}
     </SidebarLayout>
   );

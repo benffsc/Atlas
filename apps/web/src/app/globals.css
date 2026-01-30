@@ -50,6 +50,24 @@
   /* Section backgrounds (for review cards, etc.) */
   --section-bg: #f8f9fa;
   --section-text: var(--foreground);
+
+  /* Layout dimensions */
+  --topbar-height: 56px;
+
+  /* Status badge colors (canonical) */
+  --status-new: #0d6efd;
+  --status-triaged: #6610f2;
+  --status-scheduled: #198754;
+  --status-in-progress: #fd7e14;
+  --status-completed: #20c997;
+  --status-cancelled: #6c757d;
+  --status-on-hold: #ffc107;
+
+  /* Priority colors */
+  --priority-urgent: #dc3545;
+  --priority-high: #fd7e14;
+  --priority-normal: #6c757d;
+  --priority-low: #adb5bd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -148,17 +166,25 @@ a:hover {
   padding: 0 1rem;
 }
 
-/* Navigation */
+/* Navigation - slim top bar */
 .nav {
   border-bottom: 1px solid var(--border);
-  padding: 1rem 0;
-  margin-bottom: 2rem;
+  background: var(--background);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
 }
 
 .nav-inner {
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 1rem;
+  width: 100%;
+  padding: 0 1rem;
+  max-width: none;
 }
 
 .nav-brand {
