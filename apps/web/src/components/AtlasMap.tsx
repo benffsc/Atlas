@@ -439,7 +439,9 @@ export default function AtlasMap() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Load markercluster plugin client-side only (it mutates L and needs window)
+    // leaflet.markercluster expects L as a global (window.L).
+    // Our ES module import gives us a module-scoped L, so we must bridge the gap.
+    (window as any).L = L;
     require("leaflet.markercluster");
 
     const map = L.map(mapContainerRef.current, {
