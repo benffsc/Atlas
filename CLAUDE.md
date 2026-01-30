@@ -1119,3 +1119,32 @@ Tippy uses this documentation to:
 - Provide context on why certain records can't be linked
 - Help staff understand system limitations
 - Answer questions about recent changes
+
+## Map & Search Architecture
+
+### AtlasMap Component
+- **File:** `apps/web/src/components/AtlasMap.tsx` — Main map component (Leaflet.js)
+- Uses `leaflet.markercluster` for atlas pin clustering (chunked loading, animated transitions)
+- Historical pins use canvas renderer (`L.circleMarker` + `L.canvas()`) for performance — no individual DOM elements
+- Manual clustering code was removed in favor of `L.markerClusterGroup` with `disableClusteringAtZoom: 16`
+
+### Map Search Rules
+- **Search API call must NOT filter by type** — use `/api/search?q=...&limit=8&suggestions=true` (no `type=` param)
+- **Filter results by coordinates**, not entity type: `s.metadata?.lat && s.metadata?.lng`
+- People, places, and cats with coordinates should all appear in map search results
+- `search_unified()` (MIG_791) returns `lat`/`lng` in metadata for both places and people
+  - Place coordinates come from `places.location` (PostGIS geography)
+  - Person coordinates come from their most recent linked place via `person_place_relationships`
+
+### Google Places → Atlas Matching
+- When Google Places navigates to an address, check `atlasPins` (not legacy `places` array)
+- Use coordinate tolerance of `0.001` degrees (~111m) to account for geocoding drift
+- If a matching Atlas pin is found, show "View Details" button (not "Create Request")
+- The `existsInAtlas` check must use the primary atlas pins layer, not legacy layers
+
+### Don't Do (Map)
+- Don't hardcode `type=place` in map search API calls — this excludes people
+- Don't check coordinate matches against legacy `places` array — use `atlasPins`
+- Don't use tight coordinate tolerance (< 0.001) for Google ↔ Atlas matching
+- Don't create individual DOM markers for historical pins — use canvas renderer
+- Don't manually cluster pins with `parent_place_id` grouping — use `markerClusterGroup`

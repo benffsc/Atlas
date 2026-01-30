@@ -1015,6 +1015,24 @@
   font-size: 16px;
 }
 
+/* Override default markercluster chrome to use Atlas design */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  background: transparent !important;
+}
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+  background: transparent !important;
+}
+
+/* Smooth cluster transitions */
+.marker-cluster-animated .leaflet-marker-icon,
+.marker-cluster-animated .leaflet-marker-shadow {
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
 /* ============================================================
    User Location Marker
    ============================================================ */

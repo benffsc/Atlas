@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "@/styles/atlas-map.css";
 import {
   createPinMarker,
@@ -11,7 +14,6 @@ import {
   createClinicMarker,
   createUserLocationMarker,
   createAtlasPinMarker,
-  createHistoricalDotMarker
 } from "@/lib/map-markers";
 import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
 import {
@@ -302,9 +304,12 @@ export default function AtlasMap() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
   const navigatedMarkerRef = useRef<L.Marker | null>(null);
+  const atlasPinsRef = useRef<AtlasPin[]>([]);
 
-  // Zoom level for clustering behavior
-  const [currentZoom, setCurrentZoom] = useState(10);
+  // Keep atlasPinsRef in sync without triggering effects
+  useEffect(() => {
+    atlasPinsRef.current = atlasPins;
+  }, [atlasPins]);
 
   // Drawer state for place details
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -437,6 +442,17 @@ export default function AtlasMap() {
 
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
+      // Smooth trackpad/scroll zoom
+      scrollWheelZoom: true,
+      wheelDebounceTime: 80,
+      wheelPxPerZoomLevel: 120,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      // Smooth panning
+      inertia: true,
+      inertiaDeceleration: 2000,
+      inertiaMaxSpeed: 1500,
+      bounceAtZoomLimits: false,
     }).setView([38.45, -122.75], 10);
 
     // Add Google-like tile layer (CartoDB Voyager)
@@ -447,11 +463,6 @@ export default function AtlasMap() {
 
     // Custom zoom control position
     L.control.zoom({ position: "bottomright" }).addTo(map);
-
-    // Track zoom level for clustering behavior
-    map.on("zoomend", () => {
-      setCurrentZoom(map.getZoom());
-    });
 
     mapRef.current = map;
 
@@ -484,9 +495,12 @@ export default function AtlasMap() {
     };
   }, []);
 
-  // Fetch data on mount and when filters change
+  // Fetch data on mount and when filters change (debounced to avoid rapid re-fetches)
   useEffect(() => {
-    fetchMapData();
+    const timer = setTimeout(() => {
+      fetchMapData();
+    }, 150);
+    return () => clearTimeout(timer);
   }, [fetchMapData]);
 
   // Update places layer
@@ -874,9 +888,7 @@ export default function AtlasMap() {
   }, [dataCoverage, enabledLayers.data_coverage]);
 
   // =========================================================================
-  // NEW: Atlas Pins layer (consolidated places + people + cats + history)
-  // Uses CircleMarker for better performance with large datasets
-  // Clusters multi-unit places (apartments/mobile homes) when zoomed out
+  // Atlas Pins layer — uses Leaflet.markercluster for smooth clustering
   // =========================================================================
   useEffect(() => {
     if (!mapRef.current) return;
@@ -885,83 +897,32 @@ export default function AtlasMap() {
     }
     if (!enabledLayers.atlas_pins || atlasPins.length === 0) return;
 
-    const layer = L.layerGroup();
+    const layer = (L as any).markerClusterGroup({
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      disableClusteringAtZoom: 16,
+      chunkedLoading: true,
+      chunkInterval: 100,
+      chunkDelay: 20,
+      iconCreateFunction: (cluster: any) => {
+        const count = cluster.getChildCount();
+        const markers = cluster.getAllChildMarkers();
+        const hasDisease = markers.some((m: any) => m.options.diseaseRisk);
+        const hasWatchList = markers.some((m: any) => m.options.watchList);
+        const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
+        const dim = sizeClass === "small" ? 32 : sizeClass === "medium" ? 40 : 50;
+        const clusterColor = hasDisease ? "#ea580c" : hasWatchList ? "#8b5cf6" : "#3b82f6";
+        return L.divIcon({
+          html: `<div class="map-cluster map-cluster--${sizeClass}" style="--cluster-color: ${clusterColor}">${count}</div>`,
+          className: "map-cluster-icon",
+          iconSize: L.point(dim, dim),
+        });
+      },
+    });
 
-    // Determine if we should cluster multi-unit places
-    const shouldCluster = currentZoom < 16;
-
-    // Type for clustered pins
-    interface ClusteredPin extends AtlasPin {
-      unit_count: number;
-      is_clustered: boolean;
-    }
-
-    // Process pins - cluster if zoomed out
-    let pinsToRender: ClusteredPin[];
-
-    if (shouldCluster) {
-      // Group pins by parent_place_id (or by themselves if no parent)
-      const groups = new Map<string, AtlasPin[]>();
-
-      atlasPins.forEach((pin) => {
-        // If pin has a parent, group it under parent; otherwise, use its own ID
-        const groupKey = pin.parent_place_id || pin.id;
-        if (!groups.has(groupKey)) {
-          groups.set(groupKey, []);
-        }
-        groups.get(groupKey)!.push(pin);
-      });
-
-      // Create clustered pins
-      pinsToRender = [];
-      groups.forEach((pins, groupKey) => {
-        if (pins.length === 1) {
-          // Single pin, no clustering needed
-          pinsToRender.push({ ...pins[0], unit_count: 1, is_clustered: false });
-        } else {
-          // Multiple pins - aggregate stats
-          // Find the parent building (the one without a parent_place_id) or use first pin
-          const parentPin = pins.find((p) => !p.parent_place_id) || pins[0];
-
-          // Aggregate stats from all units
-          const aggregated: ClusteredPin = {
-            ...parentPin,
-            // Keep parent's basic info but aggregate counts
-            cat_count: pins.reduce((sum, p) => sum + p.cat_count, 0),
-            person_count: pins.reduce((sum, p) => sum + p.person_count, 0),
-            people: Array.from(new Set(pins.flatMap((p) => p.people || []))).slice(0, 5),
-            request_count: pins.reduce((sum, p) => sum + p.request_count, 0),
-            active_request_count: pins.reduce((sum, p) => sum + p.active_request_count, 0),
-            google_entry_count: pins.reduce((sum, p) => sum + p.google_entry_count, 0),
-            google_summaries: pins.flatMap((p) => p.google_summaries || []).slice(0, 3),
-            total_altered: pins.reduce((sum, p) => sum + p.total_altered, 0),
-            // Disease risk if ANY unit has it
-            disease_risk: pins.some((p) => p.disease_risk),
-            disease_risk_notes: pins.find((p) => p.disease_risk_notes)?.disease_risk_notes || null,
-            watch_list: pins.some((p) => p.watch_list),
-            // Keep the most severe pin_style
-            pin_style: pins.some((p) => p.pin_style === "disease")
-              ? "disease"
-              : pins.some((p) => p.pin_style === "watch_list")
-              ? "watch_list"
-              : pins.some((p) => p.pin_style === "active")
-              ? "active"
-              : pins.some((p) => p.pin_style === "has_history")
-              ? "has_history"
-              : "minimal",
-            unit_count: pins.length,
-            is_clustered: true,
-          };
-
-          pinsToRender.push(aggregated);
-        }
-      });
-    } else {
-      // Zoomed in - show all individual pins
-      pinsToRender = atlasPins.map((pin) => ({ ...pin, unit_count: 1, is_clustered: false }));
-    }
-
-    pinsToRender.forEach((pin) => {
+    atlasPins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
       // Determine pin color based on style - Google Maps-like color palette
@@ -970,36 +931,37 @@ export default function AtlasMap() {
 
       switch (pin.pin_style) {
         case "disease":
-          color = "#ea580c"; // Orange for disease
-          size = pin.is_clustered ? 36 : 32;
+          color = "#ea580c";
+          size = 32;
           break;
         case "watch_list":
-          color = "#8b5cf6"; // Purple for watch list (distinct from disease orange)
-          size = pin.is_clustered ? 34 : 30;
+          color = "#8b5cf6";
+          size = 30;
           break;
         case "active":
-          color = "#22c55e"; // Green for active colony
-          size = pin.is_clustered ? 32 : 28;
+          color = "#22c55e";
+          size = 28;
           break;
         case "has_history":
-          color = "#6366f1"; // Indigo for has history
-          size = pin.is_clustered ? 30 : 26;
+          color = "#6366f1";
+          size = 26;
           break;
         default:
-          color = "#3b82f6"; // Blue default
-          size = pin.is_clustered ? 28 : 24;
+          color = "#3b82f6";
+          size = 24;
       }
 
-      // Use Google Maps-style drop pin markers
       const marker = L.marker([pin.lat, pin.lng], {
         icon: createAtlasPinMarker(color, {
           size,
           pinStyle: pin.pin_style,
-          isClustered: pin.is_clustered,
-          unitCount: pin.unit_count,
+          isClustered: false,
+          unitCount: 1,
           catCount: pin.cat_count,
         }),
-      });
+        diseaseRisk: pin.disease_risk,
+        watchList: pin.watch_list,
+      } as any);
 
       // Build consolidated popup
       // Filter out names that look like addresses (contain ", CA" or match the place address)
@@ -1049,50 +1011,41 @@ export default function AtlasMap() {
           ).join("")
         : "";
 
-      // Clustered building header
-      const clusterHeader = pin.is_clustered
-        ? `<div style="background: #dbeafe; border: 1px solid #93c5fd; padding: 6px 8px; margin-bottom: 8px; border-radius: 6px; font-size: 12px;">
-            <strong>🏢 ${pin.unit_count} Units</strong>
-            <span style="color: #3b82f6;"> • Zoom in to see individual units</span>
-          </div>`
-        : "";
-
       // Unit identifier for individual apartment units
-      const unitLabel = pin.unit_identifier && !pin.is_clustered
+      const unitLabel = pin.unit_identifier
         ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">Unit: ${pin.unit_identifier}</div>`
         : "";
 
       marker.bindPopup(`
         <div style="min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-          ${clusterHeader}
           <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${pin.address}</div>
           ${unitLabel}
 
           ${pin.disease_risk ? `
             <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 8px; margin: 8px 0; border-radius: 6px;">
-              <div style="color: #dc2626; font-weight: 600; font-size: 13px;">⚠️ Disease Risk${pin.is_clustered ? " (in building)" : ""}</div>
+              <div style="color: #dc2626; font-weight: 600; font-size: 13px;">⚠️ Disease Risk</div>
               ${pin.disease_risk_notes ? `<div style="font-size: 12px; color: #7f1d1d; margin-top: 4px;">${pin.disease_risk_notes}</div>` : ""}
             </div>
           ` : ""}
 
           ${pin.watch_list && !pin.disease_risk ? `
             <div style="background: #f5f3ff; border: 1px solid #c4b5fd; padding: 8px; margin: 8px 0; border-radius: 6px;">
-              <div style="color: #7c3aed; font-weight: 600; font-size: 13px;">👁️ Watch List${pin.is_clustered ? " (in building)" : ""}</div>
+              <div style="color: #7c3aed; font-weight: 600; font-size: 13px;">👁️ Watch List</div>
             </div>
           ` : ""}
 
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0;">
             <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
               <div style="font-size: 18px; font-weight: 700; color: #374151;">${pin.cat_count}</div>
-              <div style="font-size: 10px; color: #6b7280;">Cats${pin.is_clustered ? " (total)" : ""}</div>
+              <div style="font-size: 10px; color: #6b7280;">Cats</div>
             </div>
             <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
               <div style="font-size: 18px; font-weight: 700; color: #374151;">${filteredPeople.length}</div>
-              <div style="font-size: 10px; color: #6b7280;">People${pin.is_clustered ? " (total)" : ""}</div>
+              <div style="font-size: 10px; color: #6b7280;">People</div>
             </div>
             <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
               <div style="font-size: 18px; font-weight: 700; color: ${pin.active_request_count > 0 ? "#dc2626" : "#374151"};">${pin.request_count}</div>
-              <div style="font-size: 10px; color: #6b7280;">Requests${pin.is_clustered ? " (total)" : ""}</div>
+              <div style="font-size: 10px; color: #6b7280;">Requests</div>
             </div>
           </div>
 
@@ -1126,7 +1079,7 @@ export default function AtlasMap() {
             </button>
             <a href="/places/${pin.id}" target="_blank"
                style="flex: 1; padding: 8px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-size: 13px; font-weight: 500;">
-              ${pin.is_clustered ? "Open Page →" : "Open Page →"}
+              Open Page →
             </a>
           </div>
         </div>
@@ -1137,11 +1090,10 @@ export default function AtlasMap() {
 
     layer.addTo(mapRef.current);
     layersRef.current.atlas_pins = layer;
-  }, [atlasPins, enabledLayers.atlas_pins, currentZoom]);
+  }, [atlasPins, enabledLayers.atlas_pins]);
 
   // =========================================================================
-  // NEW: Historical Pins layer (unlinked Google Maps entries)
-  // Uses CircleMarker for better performance
+  // Historical Pins layer — uses Canvas renderer for performance
   // =========================================================================
   useEffect(() => {
     if (!mapRef.current) return;
@@ -1150,24 +1102,24 @@ export default function AtlasMap() {
     }
     if (!enabledLayers.historical_pins || historicalPins.length === 0) return;
 
+    const canvasRenderer = L.canvas({ padding: 0.5 });
     const layer = L.layerGroup();
 
     historicalPins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
-      // Small dot for historical context - uses SVG dot marker for consistency
       const isDisease = pin.disease_risk;
       const isWatchList = pin.watch_list;
       const color = isDisease ? "#ea580c" : isWatchList ? "#8b5cf6" : "#9ca3af";
-      const size = isDisease || isWatchList ? 12 : 10;
 
-      // Use SVG dot marker for better styling
-      const marker = L.marker([pin.lat, pin.lng], {
-        icon: createHistoricalDotMarker(color, {
-          size,
-          isDiseaseRisk: isDisease,
-          isWatchList: isWatchList && !isDisease,
-        }),
+      // Canvas-rendered circle markers — no DOM element per pin
+      const marker = L.circleMarker([pin.lat, pin.lng], {
+        radius: isDisease ? 6 : isWatchList ? 5 : 4,
+        fillColor: color,
+        fillOpacity: 0.7,
+        color: "#fff",
+        weight: 1.5,
+        renderer: canvasRenderer,
       });
 
       // Check if AI summary is a refusal message (don't show those)
@@ -1294,14 +1246,14 @@ export default function AtlasMap() {
     setSearchLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=place&limit=5&suggestions=true`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`);
         if (res.ok) {
           const data = await res.json();
-          // Get place suggestions with location data
-          const placeSuggestions = (data.suggestions || []).filter(
-            (s: AtlasSearchResult) => s.entity_type === 'place' && s.metadata?.lat && s.metadata?.lng
+          // Accept any entity with coordinates (places, people, etc.)
+          const suggestions = (data.suggestions || []).filter(
+            (s: AtlasSearchResult) => s.metadata?.lat && s.metadata?.lng
           );
-          setAtlasSearchResults(placeSuggestions);
+          setAtlasSearchResults(suggestions);
         }
       } catch (err) {
         console.error("Atlas search error:", err);
@@ -1425,46 +1377,107 @@ export default function AtlasMap() {
       zIndexOffset: 1000
     }).addTo(mapRef.current);
 
-    // Check if address exists in Atlas
-    const existsInAtlas = places.some(
-      p => Math.abs(p.lat - navigatedLocation.lat) < 0.0001 && Math.abs(p.lng - navigatedLocation.lng) < 0.0001
-    );
+    // Check if address exists in Atlas — search atlasPins (primary layer) with wider tolerance
+    // 0.001 degrees ~ 111m — enough to account for geocoding drift between Google and Atlas
+    // Uses ref to avoid re-running this effect when atlasPins array changes from filter toggles
+    // Finds the CLOSEST pin within tolerance, not just the first, to avoid wrong matches in dense areas
+    const COORD_TOLERANCE = 0.001;
+    let matchingPin: AtlasPin | undefined;
+    let bestDist = Infinity;
+    for (const p of atlasPinsRef.current) {
+      if (!p.lat || !p.lng) continue;
+      const dLat = Math.abs(p.lat - navigatedLocation.lat);
+      const dLng = Math.abs(p.lng - navigatedLocation.lng);
+      if (dLat < COORD_TOLERANCE && dLng < COORD_TOLERANCE) {
+        const dist = dLat * dLat + dLng * dLng;
+        if (dist < bestDist) {
+          bestDist = dist;
+          matchingPin = p;
+        }
+      }
+    }
+    const existsInAtlas = !!matchingPin;
 
     marker.bindPopup(`
       <div style="min-width: 240px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${navigatedLocation.address}</div>
         ${existsInAtlas
-          ? `<div style="color: #059669; font-size: 12px; margin-bottom: 8px;">✓ This location has Atlas data</div>`
-          : `<div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>`
+          ? `<div style="color: #059669; font-size: 12px; margin-bottom: 8px;">This location has Atlas data</div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+              <button onclick="window.atlasMapExpandPlace('${matchingPin!.id}')"
+                      style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        padding: 6px 12px;
+                        background: #059669;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                      ">
+                View Details
+              </button>
+              <a href="/places/${matchingPin!.id}" target="_blank"
+                 style="
+                   display: inline-flex;
+                   align-items: center;
+                   gap: 4px;
+                   padding: 6px 12px;
+                   background: #f3f4f6;
+                   color: #374151;
+                   text-decoration: none;
+                   border: 1px solid #d1d5db;
+                   border-radius: 6px;
+                   font-size: 12px;
+                   font-weight: 500;
+                 ">
+                Open Page
+              </a>
+              <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
+                      style="
+                        padding: 6px 12px;
+                        background: #f3f4f6;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        cursor: pointer;
+                      ">
+                Clear
+              </button>
+            </div>`
+          : `<div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+              <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}"
+                 style="
+                   display: inline-flex;
+                   align-items: center;
+                   gap: 4px;
+                   padding: 6px 12px;
+                   background: #3b82f6;
+                   color: white;
+                   text-decoration: none;
+                   border-radius: 6px;
+                   font-size: 12px;
+                   font-weight: 500;
+                 ">
+                + Create Request
+              </a>
+              <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
+                      style="
+                        padding: 6px 12px;
+                        background: #f3f4f6;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        cursor: pointer;
+                      ">
+                Clear
+              </button>
+            </div>`
         }
-        <div style="display: flex; gap: 8px; margin-top: 12px;">
-          <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}"
-             style="
-               display: inline-flex;
-               align-items: center;
-               gap: 4px;
-               padding: 6px 12px;
-               background: #3b82f6;
-               color: white;
-               text-decoration: none;
-               border-radius: 6px;
-               font-size: 12px;
-               font-weight: 500;
-             ">
-            + Create Request
-          </a>
-          <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
-                  style="
-                    padding: 6px 12px;
-                    background: #f3f4f6;
-                    border: 1px solid #d1d5db;
-                    border-radius: 6px;
-                    font-size: 12px;
-                    cursor: pointer;
-                  ">
-            Clear
-          </button>
-        </div>
       </div>
     `).openPopup();
 
@@ -1477,7 +1490,8 @@ export default function AtlasMap() {
     return () => {
       window.removeEventListener('clear-navigated-location', handleClear);
     };
-  }, [navigatedLocation, places]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigatedLocation]);
 
   const toggleLayer = (layerId: string) => {
     setEnabledLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
@@ -1692,7 +1706,7 @@ export default function AtlasMap() {
                   </div>
                 ))}
 
-                {/* Fuzzy search results from API */}
+                {/* Fuzzy search results from API (places, people, etc.) */}
                 {atlasSearchResults.filter(r => !searchResults.some(sr => sr.label === r.display_name)).map((result, i) => (
                   <div
                     key={`atlas-${i}`}
@@ -1708,14 +1722,18 @@ export default function AtlasMap() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
                   >
-                    <span style={{ fontSize: 16 }}>🔍</span>
+                    <span style={{ fontSize: 16 }}>
+                      {result.entity_type === "person" ? "👤" : result.entity_type === "cat" ? "🐱" : "📍"}
+                    </span>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 500, fontSize: 14 }}>{result.display_name}</div>
                       {result.subtitle && (
                         <div style={{ fontSize: 12, color: "#6b7280" }}>{result.subtitle}</div>
                       )}
                     </div>
-                    <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 500 }}>SEARCH</span>
+                    <span style={{ fontSize: 10, color: "#3b82f6", fontWeight: 500 }}>
+                      {result.entity_type === "person" ? "PERSON" : result.entity_type === "cat" ? "CAT" : "PLACE"}
+                    </span>
                   </div>
                 ))}
               </>
