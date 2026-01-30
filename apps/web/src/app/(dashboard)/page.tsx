@@ -104,65 +104,35 @@ function extractCity(address: string | null): string | null {
 export default function Home() {
   const [staff, setStaff] = useState<StaffInfo | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [myRequests, setMyRequests] = useState<ActiveRequest[]>([]);
+  const [requests, setRequests] = useState<ActiveRequest[]>([]);
   const [intake, setIntake] = useState<IntakeSubmission[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [loadingIntake, setLoadingIntake] = useState(true);
-  const [isMyRequests, setIsMyRequests] = useState(false);
 
   useEffect(() => {
-    // 1. Auth (immediate) — cascades into "my requests"
+    // All fetches fire in parallel — no cascading needed
+
+    // 1. Auth (for greeting)
     fetch("/api/auth/me")
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data?.authenticated && data.staff) {
-          setStaff(data.staff);
-          // 4. Fetch requests assigned to me (cascades from auth)
-          const personId = data.staff.person_id;
-          if (personId) {
-            setIsMyRequests(true);
-            fetch(`/api/requests?assigned_to_person=${personId}&limit=5`)
-              .then(res => res.ok ? res.json() : { requests: [] })
-              .then(d => {
-                const active = (d.requests || []).filter(
-                  (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
-                );
-                setMyRequests(active.slice(0, 5));
-              })
-              .catch(() => setMyRequests([]))
-              .finally(() => setLoadingRequests(false));
-          } else {
-            // Fallback: show all active requests
-            fetch("/api/requests?limit=5")
-              .then(res => res.ok ? res.json() : { requests: [] })
-              .then(d => {
-                const active = (d.requests || []).filter(
-                  (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
-                );
-                setMyRequests(active.slice(0, 5));
-              })
-              .catch(() => setMyRequests([]))
-              .finally(() => setLoadingRequests(false));
-          }
-        } else {
-          // Not authenticated — still load requests
-          fetch("/api/requests?limit=5")
-            .then(res => res.ok ? res.json() : { requests: [] })
-            .then(d => {
-              const active = (d.requests || []).filter(
-                (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
-              );
-              setMyRequests(active.slice(0, 5));
-            })
-            .catch(() => setMyRequests([]))
-            .finally(() => setLoadingRequests(false));
-        }
+        if (data?.authenticated && data.staff) setStaff(data.staff);
       })
-      .catch(() => {
-        setLoadingRequests(false);
-      });
+      .catch(() => {});
 
-    // 2. Dashboard stats (immediate, parallel)
+    // 2. Active requests (all — staff oversee everything)
+    fetch("/api/requests?limit=8")
+      .then(res => res.ok ? res.json() : { requests: [] })
+      .then(data => {
+        const active = (data.requests || []).filter(
+          (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
+        );
+        setRequests(active.slice(0, 6));
+      })
+      .catch(() => setRequests([]))
+      .finally(() => setLoadingRequests(false));
+
+    // 3. Dashboard stats
     fetch("/api/dashboard/stats")
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -170,7 +140,7 @@ export default function Home() {
       })
       .catch(() => {});
 
-    // 3. Recent intake (immediate, parallel)
+    // 4. Recent intake
     fetch("/api/intake/queue?mode=attention&limit=5")
       .then(res => res.ok ? res.json() : { submissions: [] })
       .then(data => setIntake((data.submissions || []).slice(0, 5)))
@@ -245,37 +215,52 @@ export default function Home() {
 
       {/* 4. Two-Column Content */}
       <div className="dashboard-grid">
-        {/* Left: My Active Requests */}
+        {/* Left: Active Requests */}
         <div className="dashboard-card">
           <h2>
-            {isMyRequests ? "My Active Requests" : "Active Requests"}
-            <a href={isMyRequests ? "/requests" : "/requests"}>View all</a>
+            Active Requests
+            <a href="/requests">View all</a>
           </h2>
 
           {loadingRequests ? (
             <p className="text-muted" style={{ textAlign: "center", padding: "1rem 0" }}>
               Loading...
             </p>
-          ) : myRequests.length === 0 ? (
+          ) : requests.length === 0 ? (
             <p className="text-muted" style={{ textAlign: "center", padding: "1rem 0" }}>
-              {isMyRequests ? "No requests assigned to you" : "No active requests"}
+              No active requests
             </p>
           ) : (
-            myRequests.map(req => {
+            requests.map(req => {
               const city = req.place_city || extractCity(req.place_address) || extractCity(req.place_name);
+              const shortAddress = req.place_address
+                ? req.place_address.split(",")[0]
+                : req.place_name;
               return (
                 <a
                   key={req.request_id}
                   href={`/requests/${req.request_id}`}
                   className="dashboard-card-row"
-                  style={{ textDecoration: "none", color: "inherit" }}
+                  style={{ textDecoration: "none", color: "inherit", flexWrap: "wrap" }}
                 >
                   <PriorityDot priority={req.priority} />
                   <span className="row-summary">
                     {req.summary || req.place_name || "Untitled"}
                   </span>
-                  {city && <span className="row-city">{city}</span>}
                   <StatusBadge status={req.status} variant="soft" size="sm" />
+                  {shortAddress && (
+                    <span style={{
+                      width: "100%",
+                      paddingLeft: "1.25rem",
+                      fontSize: "0.75rem",
+                      color: "var(--text-muted)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {shortAddress}{city && city !== shortAddress ? `, ${city}` : ""}
+                    </span>
+                  )}
                 </a>
               );
             })
