@@ -59,6 +59,24 @@ interface PlaceContext {
   is_verified: boolean;
   assigned_at: string;
   source_system: string | null;
+  organization_name?: string | null;
+  known_org_id?: string | null;
+  known_org_name?: string | null;
+}
+
+interface PartnerOrgInfo {
+  org_id: string;
+  org_name: string;
+  org_name_short: string | null;
+  org_type: string | null;
+  relationship_type: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  appointments_count: number | null;
+  cats_processed: number | null;
+  first_appointment_date: string | null;
+  last_appointment_date: string | null;
 }
 
 interface PlaceDetail {
@@ -83,6 +101,7 @@ interface PlaceDetail {
   verified_by: string | null;
   verified_by_name: string | null;
   contexts?: PlaceContext[];
+  partner_org?: PartnerOrgInfo | null;
 }
 
 interface RelatedRequest {
@@ -547,6 +566,90 @@ export default function PlaceDetailPage() {
           onActionComplete={fetchPlace}
         />
       </div>
+
+      {/* Organization Profile (shown when place is linked to a partner org) */}
+      {place.partner_org && (
+        <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem", borderLeft: "4px solid #0dcaf0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+            <div>
+              <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.25rem" }}>
+                Partner Organization
+              </div>
+              <h3 style={{ margin: 0, fontSize: "1.1rem" }}>{place.partner_org.org_name}</h3>
+              {place.partner_org.org_name_short && place.partner_org.org_name_short !== place.partner_org.org_name && (
+                <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>{place.partner_org.org_name_short}</div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              {place.partner_org.org_type && (
+                <span className="badge" style={{ fontSize: "0.7em", background: "#e9ecef" }}>
+                  {place.partner_org.org_type.replace(/_/g, " ")}
+                </span>
+              )}
+              {place.partner_org.relationship_type && (
+                <span className="badge" style={{ fontSize: "0.7em", background: "#cff4fc", color: "#055160" }}>
+                  {place.partner_org.relationship_type.replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Org stats row */}
+          {(place.partner_org.appointments_count || place.partner_org.cats_processed) && (
+            <div style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
+              {place.partner_org.appointments_count != null && (
+                <div>
+                  <span style={{ fontWeight: 600 }}>{place.partner_org.appointments_count.toLocaleString()}</span>
+                  <span style={{ color: "var(--muted)", marginLeft: "0.25rem" }}>appointments</span>
+                </div>
+              )}
+              {place.partner_org.cats_processed != null && (
+                <div>
+                  <span style={{ fontWeight: 600 }}>{place.partner_org.cats_processed.toLocaleString()}</span>
+                  <span style={{ color: "var(--muted)", marginLeft: "0.25rem" }}>cats processed</span>
+                </div>
+              )}
+              {place.partner_org.first_appointment_date && (
+                <div style={{ color: "var(--muted)" }}>
+                  Since {formatDateLocal(place.partner_org.first_appointment_date)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Contact info */}
+          {(place.partner_org.contact_name || place.partner_org.contact_email || place.partner_org.contact_phone) && (
+            <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.85rem", flexWrap: "wrap" }}>
+              {place.partner_org.contact_name && (
+                <div><span style={{ color: "var(--muted)" }}>Contact:</span> {place.partner_org.contact_name}</div>
+              )}
+              {place.partner_org.contact_email && (
+                <div>
+                  <a href={`mailto:${place.partner_org.contact_email}`} style={{ color: "var(--primary)" }}>
+                    {place.partner_org.contact_email}
+                  </a>
+                </div>
+              )}
+              {place.partner_org.contact_phone && (
+                <div>
+                  <a href={`tel:${place.partner_org.contact_phone}`} style={{ color: "var(--primary)" }}>
+                    {place.partner_org.contact_phone}
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
+            <a
+              href={`/admin/partner-orgs/${place.partner_org.org_id}`}
+              style={{ fontSize: "0.8rem", color: "var(--primary)" }}
+            >
+              View full organization profile
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Hero Gallery */}
       {heroMedia.length > 0 && (

@@ -32,6 +32,24 @@ interface PlaceContext {
   is_verified: boolean;
   assigned_at: string;
   source_system: string | null;
+  organization_name: string | null;
+  known_org_id: string | null;
+  known_org_name: string | null;
+}
+
+interface PartnerOrgInfo {
+  org_id: string;
+  org_name: string;
+  org_name_short: string | null;
+  org_type: string | null;
+  relationship_type: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  appointments_count: number | null;
+  cats_processed: number | null;
+  first_appointment_date: string | null;
+  last_appointment_date: string | null;
 }
 
 interface VerificationInfo {
@@ -171,9 +189,13 @@ export async function GET(
          pc.confidence,
          pc.is_verified,
          pc.assigned_at,
-         pc.source_system
+         pc.source_system,
+         pc.organization_name,
+         pc.known_org_id,
+         ko.canonical_name AS known_org_name
        FROM trapper.place_contexts pc
        JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
+       LEFT JOIN trapper.known_organizations ko ON ko.org_id = pc.known_org_id
        WHERE pc.place_id = $1
          AND pc.valid_to IS NULL
        ORDER BY pct.sort_order`,
@@ -181,12 +203,26 @@ export async function GET(
     );
     const contexts = contextsResult?.rows || [];
 
+    // Fetch partner org info if this place is linked to one
+    const partnerOrg = await queryOne<PartnerOrgInfo>(
+      `SELECT
+         org_id, org_name, org_name_short, org_type,
+         relationship_type, contact_name, contact_email, contact_phone,
+         appointments_count, cats_processed,
+         first_appointment_date::text, last_appointment_date::text
+       FROM trapper.partner_organizations
+       WHERE place_id = $1 AND is_active = TRUE
+       LIMIT 1`,
+      [placeId]
+    );
+
     const response = {
       ...place,
       verified_at: verification?.verified_at || null,
       verified_by: verification?.verified_by || null,
       verified_by_name: verification?.verified_by_name || null,
       contexts,
+      partner_org: partnerOrg || null,
     };
 
     // Include redirect info if the original ID was merged

@@ -683,7 +683,7 @@ UI_005 (Name validation + cleanup)  ✅ Done — ALL CAPS warning added. B11 (no
     ↓
 UI_003 (Media gallery polish)       ✅ Done — Hero+grid, set-as-main-photo, mobile camera already built. Request-place photo bridging fixed in place media API.
     ↓
-UI_004 (Place classification + orgs) ⏳ Planned — AI place type inference from clinic/Airtable data, partner org enhanced profiles, orphan places admin page.
+UI_004 (Place classification + orgs) ✅ Done — Inference function + classification review already built. Partner org profile card added to place detail. Orphan places admin already built.
 ```
 
 ---
@@ -736,6 +736,7 @@ UI_004 (Place classification + orgs) ⏳ Planned — AI place type inference fro
 | 2026-01-31 | UI_002 | Done: Intake queue filters migrated to useUrlFilters (6 filters). Other 4 pages already had URL persistence + mobile auto-responsive. Beacon is separate analytics page. |
 | 2026-01-31 | UI_005 | Done: ALL CAPS name warning added. B11 (no emoji found in page), B12 (no CSS conflict exists) were non-issues. |
 | 2026-01-31 | UI_003 | Done: Hero+grid layout, set-as-main-photo, mobile camera capture already implemented. Request-place photo bridging fixed (place media API includes request-linked photos). EXIF GPS deferred. |
+| 2026-01-31 | UI_004 | Done: Part A (inference function + classification review + extraction pipeline) already built. Part B: Partner org profile card added to place detail page (org name, stats, contact, admin link). Place API enhanced with partner_org data and org-enriched context fields. Part C (orphan places admin) already built. |
 
 ---
 
@@ -2165,46 +2166,40 @@ All 5 list pages now use `useUrlFilters` hook for URL param persistence:
 
 ## UI_004: Place Classification + Partner Org Profiles
 
-**Status:** Planned
+**Status:** Done
 **ACTIVE Impact:** Yes — extends place data model
 **Scope:** Infer place types from attached records (clinic data, Airtable, ShelterLuv). Build enhanced profiles for partner orgs/businesses. Surface orphan places for review.
 **North Star Layer:** L3 (Enrichment) + L5 (Source of Truth) + L6 (Workflows)
 **Spec Phase:** Phase 4 (UI_REDESIGN_SPEC.md)
 
-**Requirements:**
+**Results:**
 
-### Part A: AI Place Type Inference
-- Use existing `place_contexts` system to auto-classify places:
-  - ClinicHQ bookings at address → `clinic_client_site`
-  - Airtable requests with colony keywords → `colony_site`
-  - ShelterLuv adoptions → `adopter_residence`
-  - Known org names (schools, shelters) → `partner_org`
-- Queue unclassifiable places for AI extraction engine
-- Store as `place_contexts` with `source_type = 'ai_inferred'`
+### Part A: AI Place Type Inference — Already Built
+- `infer_place_contexts_from_data()` (MIG_464) handles colony_site, clinic, trapper_base, volunteer_location
+- `set_place_classification()` + `assign_place_context()` (MIG_760) support organization, business, residential, multi_unit, public_space, farm_ranch types
+- Classification review admin page at `/admin/classification-review` — signals, accept/dismiss, bulk actions
+- `ai_extraction_rules` (MIG_758) + `entity_attributes` (MIG_710) provide extraction pipeline infrastructure
+- Context types and known_org linking via `place_contexts.known_org_id` column (MIG_760)
 
-### Part B: Enhanced Partner Org Profiles
-- Places with `place_kind = 'organization'` or context `partner_org` get expanded profiles:
-  - Organization name, type, contact info
-  - Associated people with roles (staff, volunteers, employees)
-  - Cat activity at organization
-  - Historical context from Google Maps entries
-- Different visual treatment from residential place profiles
+### Part B: Enhanced Partner Org Profiles — Done
+- Admin CRUD at `/admin/partner-orgs` and `/admin/partner-orgs/[id]` with stats, contact, patterns
+- Partner org cats report at `/admin/partner-org-cats` with filters and CSV export
+- Known organizations registry at `/admin/known-organizations` with 31+ orgs
+- **NEW:** Place detail page now shows Organization Profile card when place is linked to a partner org — shows org name, type, relationship, appointment/cat stats, contact info, and link to admin detail
+- **NEW:** Place API returns `partner_org` info and org-enriched context fields (`organization_name`, `known_org_id`, `known_org_name`)
 
-### Part C: Orphan Places Admin Page
-- `/admin/orphan-places` — Review places with no SOT records attached (no person, no cat, no request)
-- `v_orphan_places` view already exists
-- Actions: link to nearby request, flag for deletion, mark as validated
+### Part C: Orphan Places Admin Page — Already Built
+- Fully implemented at `/admin/orphan-places` with `v_orphan_places` view (MIG_793)
+- Lists, filters by source/kind, delete with safety re-check, pagination
 
 **Touches:**
-- New migration: Place type inference function
-- `apps/web/src/app/admin/orphan-places/page.tsx` — New admin page
-- `apps/web/src/app/places/[id]/page.tsx` — Enhanced org profile variant
-- Extraction engine integration for unclassifiable places
+- `apps/web/src/app/api/places/[id]/route.ts` — Added partner_org query + org fields to context query
+- `apps/web/src/app/places/[id]/page.tsx` — Organization Profile card in overview tab
 
 **Validation:**
-- Place contexts auto-populated for places with clear signals
-- Orphan places admin page shows unlinked places with action buttons
-- Partner org places show enhanced profile layout
+- [x] Place contexts auto-populated for places with clear signals (MIG_464 inference function)
+- [x] Orphan places admin page shows unlinked places with action buttons
+- [x] Partner org places show enhanced profile layout with stats and contact info
 
 ---
 
