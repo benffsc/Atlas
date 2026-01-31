@@ -681,7 +681,7 @@ UI_002 (Filter persistence + mobile) ✅ Done — All 5 list pages use useUrlFil
     ↓
 UI_005 (Name validation + cleanup)  ✅ Done — ALL CAPS warning added. B11 (no emoji found), B12 (no CSS conflict) were non-issues.
     ↓
-UI_003 (Media gallery polish)       ⏳ Planned — Zillow-style hero image, "set as main photo", request-place photo bridging (Phase 5).
+UI_003 (Media gallery polish)       ✅ Done — Hero+grid, set-as-main-photo, mobile camera already built. Request-place photo bridging fixed in place media API.
     ↓
 UI_004 (Place classification + orgs) ⏳ Planned — AI place type inference from clinic/Airtable data, partner org enhanced profiles, orphan places admin page.
 ```
@@ -735,6 +735,7 @@ UI_004 (Place classification + orgs) ⏳ Planned — AI place type inference fro
 | 2026-01-31 | UI_001 | Verified Done: Dashboard already fully implemented with greeting, needs-attention bar, my requests, recent intake, map preview, mobile layout. |
 | 2026-01-31 | UI_002 | Done: Intake queue filters migrated to useUrlFilters (6 filters). Other 4 pages already had URL persistence + mobile auto-responsive. Beacon is separate analytics page. |
 | 2026-01-31 | UI_005 | Done: ALL CAPS name warning added. B11 (no emoji found in page), B12 (no CSS conflict exists) were non-issues. |
+| 2026-01-31 | UI_003 | Done: Hero+grid layout, set-as-main-photo, mobile camera capture already implemented. Request-place photo bridging fixed (place media API includes request-linked photos). EXIF GPS deferred. |
 
 ---
 
@@ -2132,7 +2133,7 @@ All 5 list pages now use `useUrlFilters` hook for URL param persistence:
 
 ## UI_003: Media Gallery Polish (Zillow-Style)
 
-**Status:** Planned
+**Status:** Done
 **ACTIVE Impact:** No — display-only changes
 **Scope:** Upgrade MediaGallery from basic grid to Zillow-inspired hero+grid layout. Add "set as main photo" and request-place photo bridging.
 **North Star Layer:** L6 (Workflows / Surfaces)
@@ -2145,15 +2146,20 @@ All 5 list pages now use `useUrlFilters` hook for URL param persistence:
 4. **Mobile camera capture** — Use HTML5 `capture` attribute on file inputs for native camera access
 5. **EXIF GPS extraction** — Pull lat/lng from photo metadata when available (future pin creation support)
 
+**Results:**
+- Items 1, 2, 4 already implemented: HeroGallery.tsx (hero+grid layout), /api/media/[id]/hero endpoint (set as main photo), MediaUploader.tsx has `capture` attribute for mobile camera
+- Item 3 (request-place photo bridging) fixed: place media API now includes photos from requests linked to that place via `sot_requests.place_id`
+- Item 5 (EXIF GPS) deferred — low priority, no immediate use case
+
 **Touches:**
-- `apps/web/src/components/MediaGallery.tsx` — Extend layout
-- `apps/web/src/app/places/[id]/page.tsx` — Hero image in Media tab
-- `apps/web/src/app/api/places/[id]/media/route.ts` — Include request-linked photos
+- `apps/web/src/components/MediaGallery.tsx` — Already has hero+grid layout
+- `apps/web/src/app/places/[id]/page.tsx` — Hero image in Media tab (already done)
+- `apps/web/src/app/api/places/[id]/media/route.ts` — Extended query to include request-linked photos
 
 **Validation:**
-- Place Media tab shows hero image with grid layout
-- "Set as main photo" persists and shows on place list cards
-- Request photos appear on linked place's Media tab
+- [x] Place Media tab shows hero image with grid layout
+- [x] "Set as main photo" persists and shows on place list cards
+- [x] Request photos appear on linked place's Media tab
 
 ---
 
