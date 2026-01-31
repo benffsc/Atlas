@@ -660,6 +660,20 @@ SC_003 (Surgical: trapper assignment gaps) ✅ Done — 6 missing assignments fi
 DH_D002 (Audit empty tables)         ✅ Done — 68 audited: 67 planned features, 1 legacy (kept), 0 lookup gaps. Audit only.
     ↓
 SC_004 (Surgical: assignment_status maintained field) ✅ Done — assignment_status backfilled + trigger + NOT NULL + v_request_list + API/UI filter (MIG_788)
+    ↓
+DH_E AUDIT (Place deduplication audit) ✅ Done — 3,317 duplicate pairs found, 4,019 places, 9,584 relinks needed
+    ↓
+DH_E005 (Apply MIG_793 + MIG_794)  ✅ Done — v_orphan_places view + relink functions applied. 0 orphan places found.
+    ↓
+DH_E001 (Harden normalize_address)  ✅ Done — MIG_799: Strip USA, em-dash city placeholders, periods, comma-before-zip, apartment→apt, 7 new street suffixes, 8 directionals. All 11,191 active places re-normalized.
+    ↓
+DH_E002 (Auto-merge duplicates)     ✅ Done — MIG_800: 188 exact duplicate pairs merged (3 passes). merge_place_into() function created. extract_house_number() + address_safe_to_merge() safety guards prevent false positives.
+    ↓
+DH_E003 (merged into E002)          ✅ Done — USA-suffix pairs resolved by enhanced normalize_address (no separate MIG needed).
+    ↓
+DH_E004 (Review ~307 structural dupes) ⏳ Planned — Admin UI for staff review. Remaining patterns: inverted addresses, missing commas, unit variants.
+    ↓
+MAP_001 (Show all places on map)    🔄 In Progress (parallel session) — MIG_798, LIMIT 12000, intake pins
 ```
 
 ---
@@ -694,6 +708,11 @@ SC_004 (Surgical: assignment_status maintained field) ✅ Done — assignment_st
 | 2026-01-29 | SC_003 | Completed: Fixed 6 missing trapper assignments from Airtable (MIG_787). Root cause: 2 Airtable trapper IDs each mapped to 2 Atlas people (duplicate person_roles). Cleaned duplicates, created 6 assignments. 0 Airtable gaps remaining. All Safety Gate checks pass. |
 | 2026-01-29 | DH_D002 | Completed: Audit of 68 empty tables. 67 are planned feature infrastructure (FK/view/function refs). 1 legacy table (`appointment_requests`, superseded by staged_records). 0 lookup tables needing population. No migration needed — audit only. |
 | 2026-01-29 | SC_004 | Completed: Made assignment_status a maintained lifecycle field (MIG_788). Backfilled 285 requests: 178 assigned, 83 pending, 24 client_trapping. Added auto-maintenance trigger on request_trapper_assignments. Column is NOT NULL DEFAULT 'pending'. v_request_list updated. API filter uses assignment_status. UI dropdown updated. All Safety Gate checks pass. |
+| 2026-01-30 | DH_E AUDIT | Completed: Full place deduplication audit. Found 3,317 duplicate place pairs (4,019 distinct places). 9,584 relationships need relinking. 398 people + 704 cats affected by definite duplicates. Root cause: `normalize_address()` too lightweight — misses ", USA", trailing whitespace, period stripping. Categorized: 73 auto-safe, 415 USA-suffix, 2,829 structural. MIG_793/794 files exist but NOT applied. |
+| 2026-01-30 | MAP_001 | In Progress (parallel session): MIG_798 show all interacted places on map. LIMIT 3000→12000. Intake submissions added to v_map_atlas_pins. 914 stale cat activity + 8,473 appointment activity flags fixed. Disease/watch_list flag regression being debugged. |
+| 2026-01-30 | DH_E005 | Completed: Applied MIG_793 (v_orphan_places view) + MIG_794 (relink_person_primary_address + unlink functions). Fixed column name mismatches (locality→location, source_system→data_source). 0 orphan places found. |
+| 2026-01-30 | DH_E001 | Completed: MIG_799 hardened normalize_address(). Added: TRIM, USA/US suffix stripping, em-dash city placeholder removal, comma-before-zip normalization, period stripping, apartment→apt, 7 new street suffixes, 8 directionals. Created extract_house_number() and address_safe_to_merge() guard functions. Re-normalized 11,191 active places. |
+| 2026-01-30 | DH_E002+E003 | Completed: MIG_800 created merge_place_into() function + merged 188 duplicate place pairs across 3 passes (36 exact + 151 em-dash/comma/suffix + 1 apartment). Full FK relinking across all 30+ referencing tables. Entity_edits audit trail for every merge. 0 exact duplicates remaining. ~307 fuzzy pairs remain for admin review (DH_E004). |
 
 ---
 
@@ -1883,3 +1902,158 @@ UPDATE trapper.sot_requests SET assignment_status = NULL;
 ### Stop Point
 
 `assignment_status` is now a maintained lifecycle field. Staff can filter by `pending` (needs trapper) instead of inferring from absence. The trigger automatically keeps it in sync when trappers are assigned or unassigned. All Safety Gate checks pass.
+
+---
+
+## DH_E: Place Deduplication — Audit & Remediation
+
+**Created:** 2026-01-30
+**Audit Source:** Full data audit of person/cat/place relationships
+**ACTIVE Impact:** Yes — places table is core SoT; merges affect person_place_relationships, cat_place_relationships, sot_requests
+**Root Cause:** `normalize_address()` function is too lightweight. It lowercases and abbreviates street suffixes (Road→Rd, etc.) but misses: trailing whitespace, ", USA" suffix, `", --,"` placeholder removal, period stripping, and structural format variations from different source systems (Google geocoder vs Airtable vs ClinicHQ).
+
+### Audit Findings (2026-01-30)
+
+| Metric | Count |
+|--------|-------|
+| **Total duplicate place pairs** (sim >0.7, within 100m) | **3,317** |
+| **Distinct places involved** | **4,019** |
+| **Relationships to relink** | **9,584** |
+| **People with definite duplicate place links** | **398** |
+| **People with probable duplicate place links** | **281** |
+| **Cats with definite duplicate place links** | **704** |
+| **Cats with probable duplicate place links** | **679** |
+
+### Duplication Pattern Breakdown
+
+| Pattern | Pairs | Avg Similarity | Merge Safety |
+|---------|-------|---------------|--------------|
+| Same after stripping special chars | 73 | 0.99 | **Auto-safe** |
+| One has ", USA" suffix | 415 | 0.79 | **Safe with review** |
+| Structural format difference | 2,829 | 0.81 | **Needs careful review** |
+
+### Three Dominant Format Variations
+
+1. **", USA" suffix**: Google geocoder appends ", USA"; Airtable/ClinicHQ don't
+   - `"123 Main St, Santa Rosa, CA 95401"` vs `"123 Main St, Santa Rosa, CA 95401, USA"`
+2. **Trailing whitespace**: Extra spaces in address components
+   - `"200 Cranbrook Way , Santa Rosa"` vs `"200 Cranbrook Way, Santa Rosa"`
+3. **Abbreviation/case/punctuation**: Mixed styles from different sources
+   - `"75 Hillview Dr."` vs `"75 Hillview Dr"`, `"1523 RAEGAN WAY"` vs `"1523 Raegan Way"`
+
+### UI Impact
+
+The person detail API uses `DISTINCT ON (place_id)` for deduplication within a person's links, but this only deduplicates when the SAME place_id appears from multiple sources. When a person is linked to TWO DIFFERENT place records for the same physical location, the Connections tab shows **two separate place cards** — which is what staff has observed.
+
+### Unapplied Migrations
+
+| Migration | Status | Purpose |
+|-----------|--------|---------|
+| MIG_793 (`v_orphan_places`) | **Applied** ✅ | Identifies places with zero FK references (0 found) |
+| MIG_794 (`relink_person_primary_address`) | **Applied** ✅ | Atomic address change operation + unlink function |
+
+---
+
+### DH_E001: Harden `normalize_address()` Function
+
+**Status:** Done ✅
+**ACTIVE Impact:** No — function is IMMUTABLE, existing normalized_address values recomputed
+**Migration:** `MIG_799__harden_normalize_address.sql`
+
+**Normalizations added (MIG_799):**
+1. `BTRIM()` input
+2. Strip `', USA'` / `', US'` / `', United States'` suffix
+3. Strip em-dash city placeholder (`", —,"` → `","`) — 1,194 addresses fixed
+4. Strip trailing em-dash/double-dash
+5. Normalize comma-before-zip (`", CA, 95404"` → `", CA 95404"`) — 1,429 addresses fixed
+6. Strip periods from abbreviations (`St.` → `St`, `P.O.` → `PO`)
+7. Normalize `apartment` → `apt`, `suite` → `ste`
+8. Strip comma after house number (`"1898, Cooper Rd"` → `"1898 Cooper Rd"`)
+9. 7 new street suffix abbreviations (Circle, Place, Highway, Terrace, Parkway, Trail, Square)
+10. 8 directional normalizations (North→N, Southeast→SE, etc.)
+11. Final `LOWER()` + `BTRIM()`
+
+**Helper functions created:**
+- `extract_house_number(normalized_address)` — extracts leading house number for merge safety
+- `address_safe_to_merge(addr_a, addr_b)` — validates house numbers match before allowing merge
+
+**Result:** All 11,191 active places re-normalized. 0 uppercase remaining. 0 exact duplicates remaining.
+
+---
+
+### DH_E002: Auto-Merge Duplicate Places (188 pairs)
+
+**Status:** Done ✅
+**ACTIVE Impact:** Yes (Surgical) — merged places and relinked all relationships
+**Migration:** `MIG_800__merge_exact_duplicate_places.sql`
+
+**Created `merge_place_into(loser, winner)` function** that atomically:
+1. Relinks ALL 30+ FK referencing tables (requests, appointments, person_place, cat_place, contexts, colonies, intake, google_map, households, life events, journals, etc.)
+2. Handles unique constraint conflicts on relationship tables (ON CONFLICT: update or delete)
+3. Marks loser as merged (`merged_into_place_id`, `merge_reason`)
+4. Logs to `entity_edits`
+
+**Merges executed in 3 passes:**
+| Pass | Trigger | Pairs Merged |
+|------|---------|-------------|
+| 1 | USA suffix, periods, street suffixes | 36 |
+| 2 | Em-dash city placeholder, comma-before-zip, case/directionals | 151 |
+| 3 | Apartment spelling, comma-after-house-number | 1 |
+| **Total** | | **188** |
+
+**False positive guard:** `extract_house_number()` prevents merging different addresses on the same street (e.g., 6000 vs 6030 Blank Road).
+
+---
+
+### DH_E003: Merge USA-Suffix Duplicate Places
+
+**Status:** Done ✅ (merged into DH_E002)
+**Note:** The enhanced `normalize_address()` handles USA suffix stripping, so all USA-suffix pairs were resolved in DH_E002's merge passes without needing a separate migration.
+
+---
+
+### DH_E004: Review Structural Duplicate Places (~307 remaining)
+
+**Status:** Planned
+**ACTIVE Impact:** Depends on outcome
+**Scope:** ~307 people still see similar-looking addresses. Remaining patterns include:
+- Inverted address format (`"valley ford rd 14495"` vs `"14495 valley ford rd"`)
+- Missing commas (`"75 hillview dr cloverdale"` vs `"75 hillview dr, cloverdale"`)
+- Unit number variants (`"365 enterprise dr"` vs `"365 enterprise dr #365"`)
+- Unknown/junk addresses (`"unknown, unknown, ca unknow"`)
+
+**Approach:**
+1. Create `v_place_duplicate_candidates` view that shows pair details + confidence
+2. Add admin UI page (`/admin/duplicate-places`) for staff review
+3. Staff can approve merge (uses `merge_place_into()`) or dismiss
+4. Track decisions in `entity_edits` for audit trail
+
+**This feeds into Phase 4 of UI Redesign (Address Management)**
+
+---
+
+### DH_E005: Apply MIG_793 + MIG_794
+
+**Status:** Done ✅
+**ACTIVE Impact:** No (additive)
+**Note:** Applied with column name fixes (`locality` → `location`, `source_system` → `data_source`).
+- `v_orphan_places` view created — 0 orphan places found
+- `relink_person_primary_address()` + `unlink_person_primary_address()` functions created
+
+---
+
+## MAP_001: Show All Interacted Places on Map (Parallel Session)
+
+**Status:** In Progress (separate session)
+**ACTIVE Impact:** Yes — modifies `v_map_atlas_pins` view and API limit
+**Scope:** Map currently only shows 3,000 places (LIMIT cutoff). Being fixed to show all 11,286.
+
+**Changes being made:**
+1. **MIG_798**: Update `v_map_atlas_pins` to LEFT JOIN `web_intake_submissions`, add `intake_count` column, fix stale activity flags (914 cat + 8,473 appointment flags fixed)
+2. **API**: Raise LIMIT from 3,000 to 12,000 in `/api/beacon/map-data/route.ts`
+3. **ORDER BY**: Improved to prioritize by pin_style (disease > watch_list > active > has_history > minimal) then by total interaction count
+4. **AtlasMap.tsx**: Add `intake_count` to AtlasPin interface
+
+**Issue Found in That Session:** `v_map_atlas_pins` view DROP + re-CREATE caused disease/watch_list flags to show 0 rows. Debug in progress — likely the `p.watch_list` column from MIG_737 is not being picked up correctly in the COALESCE chain. Monitor for resolution.
+
+**Note:** MIG_798 migration number conflicts with potential use here. Coordinate numbering across sessions.

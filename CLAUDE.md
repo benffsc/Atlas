@@ -294,6 +294,15 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 | Request | `trapper.find_or_create_request(source, record_id, source_created_at, ...)` | For all request creation (MIG_297) |
 | Cat→Place | `trapper.link_cat_to_place(cat_id, place_id, rel_type, evidence_type, source_system, ...)` | For all cat-place linking (MIG_797) |
 | Person→Cat | `trapper.link_person_to_cat(person_id, cat_id, rel_type, evidence_type, source_system, ...)` | For all person-cat linking (MIG_797) |
+| Place merge | `trapper.merge_place_into(loser_id, winner_id, reason, changed_by)` | Atomic place merge with full FK relinking (MIG_800) |
+| Address relink | `trapper.relink_person_primary_address(person_id, new_place_id, new_address_id)` | Atomic person address change (MIG_794) |
+
+**Address safety functions (MIG_799):**
+| Function | Purpose |
+|----------|---------|
+| `trapper.normalize_address(address)` | Full normalization (USA suffix, em-dash, periods, suffixes, case) |
+| `trapper.extract_house_number(normalized_addr)` | Extract leading house number for merge safety |
+| `trapper.address_safe_to_merge(addr_a, addr_b)` | Returns TRUE if addresses are safe to merge (rejects different house numbers) |
 
 **Why:**
 - These functions handle normalization, deduplication, identity matching, merged entities, and geocoding queue

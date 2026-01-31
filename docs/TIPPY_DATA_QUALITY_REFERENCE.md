@@ -907,6 +907,44 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - Staff can follow documented backfill process when pipeline stalls
 - Pipeline fix (MIG_795) is operational — re-upload owner_info to backfill Jan 19-30 gap
 
+### Session: 2026-01-30 - Place Deduplication Audit & Data Quality Review
+
+**Context:** Staff reported seeing duplicate place cards on person profiles (same address listed twice with slight formatting differences). Full database audit revealed systemic place deduplication failure.
+
+**Key Discoveries:**
+1. **3,317 duplicate place pairs** exist — same physical location stored as separate `places` records due to formatting differences in `formatted_address`
+2. **4,019 distinct places** are involved (roughly 36% of all non-merged places)
+3. **Root cause**: `normalize_address()` function only handles 6 street suffix abbreviations and basic whitespace. It misses: ", USA" suffix (415 pairs), trailing whitespace before commas (156 pairs), and 2,829 structural format differences between Google geocoder, Airtable, and ClinicHQ output
+4. **398 people** linked to definite duplicate places — shows as two identical-looking place cards in Connections tab
+5. **704 cats** linked to duplicate places — inflates place-level cat counts and fragments colony data
+6. **9,584 relationships** need relinking from duplicate to canonical places
+7. MIG_793 (`v_orphan_places`) and MIG_794 (`relink_person_primary_address`) were written in prior sessions but never applied to the database
+
+**Three Duplication Patterns:**
+- ", USA" suffix: Google adds it, other sources don't (`"123 Main St, Santa Rosa, CA 95401"` vs `"...95401, USA"`)
+- Trailing whitespace: `"200 Cranbrook Way , Santa Rosa"` vs `"200 Cranbrook Way, Santa Rosa"`
+- Case/punctuation: `"75 Hillview Dr."` vs `"75 Hillview Dr"`, `"1523 RAEGAN WAY"` vs `"1523 Raegan Way"`
+
+**Remediation COMPLETED (2026-01-30):**
+- DH_E005: Applied MIG_793 (`v_orphan_places`) + MIG_794 (`relink_person_primary_address`). 0 orphan places found.
+- DH_E001: MIG_799 hardened `normalize_address()` with 11 new normalizations (USA suffix, em-dash placeholders, periods, comma-before-zip, apartment spelling, 7 street suffixes, 8 directionals). All 11,191 active places re-normalized.
+- DH_E002+E003: MIG_800 merged **188 exact duplicate pairs** across 3 passes. Created `merge_place_into()` function for atomic merges with full FK relinking. `extract_house_number()` + `address_safe_to_merge()` guard functions prevent false positive merges.
+- DH_E004: **~307 fuzzy pairs remain** for admin review — inverted addresses, missing commas, unit variants. Planned for admin UI.
+
+**Results:**
+- 11,191 active places (down from 11,379)
+- 4,635 total merged places (up from 4,447)
+- 0 exact normalized duplicates
+- 0 uppercase in normalized addresses
+- House number guard verified against known false positives (6000 vs 6030 Blank Rd correctly rejected)
+
+**Staff Impact:**
+- Most duplicate place cards on person profiles are now RESOLVED — the 188 merged pairs covered the most visible cases
+- If staff still sees two place cards for similar addresses, ~307 known fuzzy pairs exist that need manual review via admin UI (coming soon)
+- Place-level cat counts should now be more accurate as fragmented records have been consolidated
+- Colony estimates on places may improve as data is no longer split across duplicates
+- New places created going forward will not create duplicates for the same patterns (normalize_address prevents it)
+
 ---
 
-*Last updated: 2026-01-30*
+*Last updated: 2026-01-30 (after DH_E implementation)*

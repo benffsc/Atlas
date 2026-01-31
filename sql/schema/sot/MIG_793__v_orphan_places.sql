@@ -9,8 +9,8 @@ SELECT
   p.display_name,
   p.formatted_address,
   p.place_kind,
-  p.locality,
-  p.source_system,
+  p.location,
+  p.data_source,
   p.created_at,
   CASE WHEN p.formatted_address IS NOT NULL AND p.formatted_address <> '' THEN TRUE ELSE FALSE END AS is_address_backed
 FROM trapper.places p

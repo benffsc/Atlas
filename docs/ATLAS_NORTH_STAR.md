@@ -441,14 +441,16 @@ These fire on every request insert/update. Do not disable or alter behavior:
 
 Ranked by impact (see TASK_LEDGER.md for remediation):
 
-1. **Merge chain black holes**: 1,194 people merged into targets that are themselves merged. Following one hop lands on a dead record.
-2. **Processing pipeline bugs RESOLVED (MIG_795)**: Four blocking bugs fixed (missing function, wrong column name, check constraint, missing column). Pipeline is operational. ~73 stuck jobs expired and re-queued. **Backfill needed:** Staff must re-upload owner_info for Jan 19-30 gap via `/admin/ingest`.
-3. **Unprocessed ShelterLuv**: 5,058 records never processed into SoT. Foster/adopter outcomes not reaching the system.
-4. **People without identifiers**: 986 active people with no email/phone. Unfindable, will be duplicated.
+1. **Merge chain black holes RESOLVED (MIG_770/771)**: 4,509 person + 10 place chains flattened. Prevention triggers added.
+2. **Processing pipeline bugs RESOLVED (MIG_795)**: Four blocking bugs fixed. Pipeline operational. **Backfill needed:** Staff must re-upload owner_info for Jan 19-30 gap via `/admin/ingest`.
+3. **Unprocessed ShelterLuv RESOLVED (MIG_786)**: All 5,058 records triaged. 909 chipless animals marked, 4 people processed.
+4. **People without identifiers PARTIALLY RESOLVED (MIG_773)**: 13 recovered, 973 remaining (no recoverable identifiers).
 5. **Cats without microchips**: 1,608 cats with no dedup key. Same cat can appear as multiple records.
-6. **Backup table bloat**: ~208K rows across 10 backup tables consuming space.
+6. **Backup table bloat RESOLVED (MIG_774)**: 10 tables dropped, 149 MB reclaimed.
 7. **Places without geometry**: 93 places invisible to Beacon maps.
-8. **INV-10 centralized functions IMPLEMENTED (MIG_797)**: `link_cat_to_place()` and `link_person_to_cat()` created. Three existing callers migrated. Ownership transfer API updated. Remaining callers using direct INSERT should be migrated as encountered.
+8. **INV-10 centralized functions IMPLEMENTED (MIG_797)**: `link_cat_to_place()` and `link_person_to_cat()` created. Remaining callers should be migrated as encountered.
+9. **Duplicate places MOSTLY RESOLVED (MIG_799, MIG_800)**: `normalize_address()` hardened with 11 new normalizations. 188 exact duplicate pairs merged with full FK relinking. House number guard (`extract_house_number()` + `address_safe_to_merge()`) prevents false positives. ~307 fuzzy pairs remain for admin review (DH_E004). 11,191 active places (down from 11,379).
+10. **Unapplied migrations RESOLVED**: MIG_793 (v_orphan_places) and MIG_794 (relink functions) applied. Column name mismatches fixed.
 
 ---
 

@@ -1072,20 +1072,25 @@ The redesign uses responsive CSS, not a separate mobile app. Every feature works
 
 ### Phase 1: Foundation (Nav + Design Tokens)
 
-**Changes:**
-- Replace top nav bar with collapsible left sidebar
-- Add mobile hamburger drawer
-- Implement new design tokens in globals.css
-- Add sidebar state persistence (localStorage)
-- Extract shared `StatusBadge` component (fix B1, B5)
-- Add URL-based filter persistence (fix B8)
+**Status:** ~90% Complete (2026-01-30)
+
+**Done:**
+- ✅ AppShell redesigned with drawer nav (hamburger menu, slide-over)
+- ✅ Mobile hamburger menu
+- ✅ GlobalSearch in top bar center
+- ✅ Active route highlighting in drawer
+- ✅ Map page full viewport bypass
+
+**Remaining:**
+- ⬜ Extract shared `StatusBadge` component (fix B1, B5)
+- ⬜ Add URL-based filter persistence for list pages (fix B8)
+- ⬜ Sidebar state persistence in localStorage (currently resets)
 
 **Files:**
-- `AppShell.tsx` (rewrite)
-- `globals.css` (extend tokens)
-- New: `components/Sidebar.tsx`
-- New: `components/StatusBadge.tsx` (shared)
-- All list pages (URL param filters)
+- `AppShell.tsx` (rewrite) ✅
+- `globals.css` (extend tokens) — partial
+- New: `components/StatusBadge.tsx` (shared) — not yet
+- All list pages (URL param filters) — not yet
 
 **Risk:** Medium - touches AppShell which wraps every page. Must not break active flows.
 
@@ -1093,25 +1098,29 @@ The redesign uses responsive CSS, not a separate mobile app. Every feature works
 
 ### Phase 2: Entity Profile Framework (Tabs)
 
-**Changes:**
-- Create `ProfileLayout` component with tab system
-- Implement tabbed layout for People detail
-- Implement tabbed layout for Places detail
-- Implement tabbed layout for Requests detail
-- Implement tabbed layout for Cats detail
-- URL-parameterized tab state (`?tab=activity`)
-- Lazy loading per tab
+**Status:** Complete (2026-01-30)
 
-**Files:**
-- New: `components/ProfileLayout.tsx`
-- `people/[id]/page.tsx` (restructure into tabs)
-- `places/[id]/page.tsx` (restructure into tabs)
-- `requests/[id]/page.tsx` (restructure into tabs)
-- `cats/[id]/page.tsx` (restructure into tabs)
+All entity profile pages use `ProfileLayout` with tabbed navigation:
 
-**Risk:** Medium - restructures detail pages but preserves all existing components.
+| Entity | Tabs | Key Features |
+|--------|------|-------------|
+| Requests | 6 (Case Summary, Details, Cats & Evidence, Activity, Nearby, Legacy Info) | Inline rename, status workflow buttons, multiple modals |
+| People | 4 (Overview, Connections, Activity, Data) | Inline name edit, address autocomplete, verification |
+| Places | 5 (Overview, Requests, Ecology, Media, Activity) | Context tagging, colony estimates, photo gallery |
+| Cats | 4 (Overview, Medical, Connections, Activity) | Multi-source transparency, birth/mortality tracking |
+
+**Features built:**
+- ✅ `ProfileLayout` component with URL tab state (`?tab=...`)
+- ✅ Conditional tab visibility (hide tabs based on data availability)
+- ✅ Badge counts on tab labels
+- ✅ Edit history panels (fixed right panel)
+- ✅ Quick actions per entity type
+- ✅ Verification badges
+- ✅ Inline editing with audit trail
 
 ### Phase 3: Dashboard Redesign
+
+**Status:** Not Started
 
 **Changes:**
 - Replace current dashboard with focused work queue
@@ -1127,23 +1136,43 @@ The redesign uses responsive CSS, not a separate mobile app. Every feature works
 
 **Risk:** Low-Medium - dashboard is a display-only page.
 
-### Phase 4: Address Management & Place Classification
+### Phase 4: Address Management, Place Deduplication & Classification
 
-**Changes:**
-- Implement address relink UX on person profiles
-- Add "Associated Addresses" section
-- Create `v_orphan_places` view
-- Add orphan place admin review queue
-- Add place type inference logic
-- Queue unclassifiable places for AI extraction
+**Status:** Partially Started — Data audit complete, migrations written but unapplied
+
+**Data Audit Findings (2026-01-30):**
+
+| Issue | Count | Impact |
+|-------|-------|--------|
+| Duplicate place pairs (same location, different format) | 3,317 | Fragmented data |
+| Distinct places involved in duplicates | 4,019 | ~36% of non-merged places |
+| People seeing duplicate place cards | 398 | Confusing Connections tab |
+| Cats linked to duplicate places | 704 | Inaccurate place-level cat counts |
+| Relationships to relink after merges | 9,584 | Data correctness |
+
+**Root Cause:** `normalize_address()` function misses: ", USA" suffix, trailing whitespace, period stripping, `"--"` placeholders. Different source systems (Google geocoder vs Airtable vs ClinicHQ) produce subtly different formatted_address values for the same physical location.
+
+**Changes (ordered):**
+1. ⬜ Apply MIG_793 (`v_orphan_places`) + MIG_794 (`relink_person_primary_address`) — files exist
+2. ⬜ Harden `normalize_address()` — prevent future duplicates (MIG_799)
+3. ⬜ Auto-merge 73 safe duplicate pairs (MIG_800)
+4. ⬜ Merge 415 USA-suffix duplicate pairs (MIG_801)
+5. ⬜ Admin UI for reviewing 2,829 structural duplicate pairs (`/admin/duplicate-places`)
+6. ⬜ Implement address relink UX on person profiles
+7. ⬜ Add orphan place admin review queue
+8. ⬜ Add place type inference logic
+9. ⬜ Queue unclassifiable places for AI extraction
 
 **Files:**
 - `people/[id]/page.tsx` (address section)
 - `API: PATCH /api/people/[id]/address` (relink logic)
-- New migration: orphan places view
+- New migrations: MIG_799, MIG_800, MIG_801
+- New: `admin/duplicate-places/page.tsx`
 - New: `admin/orphan-places/page.tsx`
 
-**Risk:** Medium - touches address management which is an active flow. Must use `find_or_create_place_deduped()`.
+**Risk:** Medium-High - place merges affect person_place_relationships, cat_place_relationships, sot_requests. Must use surgical merge procedure with backup + entity_edits audit trail.
+
+**See:** `TASK_LEDGER.md` DH_E category for full task cards.
 
 ### Phase 5: Media Gallery Enhancement
 
