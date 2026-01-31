@@ -96,6 +96,8 @@ interface PersonDetail {
   primary_address: string | null;
   primary_address_locality: string | null;
   data_source: string | null;
+  data_quality: string | null;
+  primary_place_id: string | null;
   identifiers: PersonIdentifier[] | null;
   entity_type: string | null;
   verified_at: string | null;
@@ -279,6 +281,23 @@ function DataSourceBadge({ dataSource }: { dataSource: string | null }) {
       {info.label}
     </span>
   );
+}
+
+// Human-readable source name mapping (shared between badge and contact card)
+const SOURCE_LABELS: Record<string, { label: string; bg: string; color: string }> = {
+  clinichq: { label: "ClinicHQ", bg: "#198754", color: "#fff" },
+  petlink: { label: "PetLink", bg: "#0d6efd", color: "#fff" },
+  legacy_import: { label: "Legacy Import", bg: "#ffc107", color: "#000" },
+  volunteerhub: { label: "VolunteerHub", bg: "#6f42c1", color: "#fff" },
+  airtable: { label: "Airtable", bg: "#ff6f00", color: "#fff" },
+  web_intake: { label: "Web Intake", bg: "#3b82f6", color: "#fff" },
+  atlas_ui: { label: "Atlas", bg: "#374151", color: "#fff" },
+  shelterluv: { label: "ShelterLuv", bg: "#e91e63", color: "#fff" },
+};
+
+function getSourceLabel(source: string | null): string {
+  if (!source) return "Unknown";
+  return SOURCE_LABELS[source]?.label || source;
 }
 
 export default function PersonDetailPage() {
@@ -722,6 +741,242 @@ export default function PersonDetailPage() {
           </p>
         )}
       </div>
+
+      {/* Contact Card — always visible above tabs */}
+      <div className="card" style={{ padding: "1rem 1.25rem", marginBottom: "1rem" }}>
+        {/* Source row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>Source</span>
+            {person.data_source && (() => {
+              const src = SOURCE_LABELS[person.data_source] || { label: person.data_source, bg: "#6c757d", color: "#fff" };
+              return (
+                <span
+                  className="badge"
+                  style={{ background: src.bg, color: src.color, fontSize: "0.8rem", padding: "0.2rem 0.6rem" }}
+                >
+                  {src.label}
+                </span>
+              );
+            })()}
+            {!person.data_source && (
+              <span className="text-muted" style={{ fontSize: "0.8rem" }}>Unknown</span>
+            )}
+          </div>
+          {!editingContact && !editingIdentifiers && (
+            <button
+              onClick={startEditingIdentifiers}
+              style={{
+                padding: "0.25rem 0.75rem",
+                fontSize: "0.8rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {/* Skeleton warning */}
+        {person.data_quality === "skeleton" && (
+          <div style={{
+            padding: "0.5rem 0.75rem",
+            background: "#fef3cd",
+            border: "1px solid #ffc107",
+            borderRadius: "6px",
+            fontSize: "0.8rem",
+            color: "#856404",
+            marginBottom: "0.75rem",
+          }}>
+            Skeleton record — contact info incomplete. Created from {getSourceLabel(person.data_source)} with name only.
+          </div>
+        )}
+
+        {editingIdentifiers ? (
+          <div>
+            {identifierError && (
+              <div style={{ color: "#dc3545", marginBottom: "0.75rem", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px", fontSize: "0.875rem" }}>
+                {identifierError}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Phone</label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Email</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            </div>
+
+            {/* Address edit */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label className="text-sm" style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Primary Address
+              </label>
+              <PlaceResolver
+                value={pendingPlace}
+                onChange={handlePlaceResolved}
+                placeholder="Search for an address..."
+                disabled={savingAddress}
+              />
+              {pendingPlace && (
+                <div style={{
+                  marginTop: "0.75rem",
+                  padding: "0.75rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  background: "var(--card-bg, #fff)",
+                }}>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--text-muted)" }}>
+                    Confirm Address Change
+                  </div>
+                  {person.primary_address && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <span className="text-sm text-muted">Current: </span>
+                      <span className="text-sm" style={{ textDecoration: "line-through", opacity: 0.6 }}>
+                        {person.primary_address}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <span className="text-sm text-muted">New: </span>
+                    <span className="text-sm" style={{ fontWeight: 500 }}>
+                      {pendingPlace.formatted_address || pendingPlace.display_name}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      onClick={confirmAddressChange}
+                      disabled={savingAddress}
+                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+                    >
+                      {savingAddress ? "Saving..." : "Confirm"}
+                    </button>
+                    <button
+                      onClick={() => setPendingPlace(null)}
+                      disabled={savingAddress}
+                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem", background: "transparent", border: "1px solid var(--border)" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p className="text-muted text-sm" style={{ marginBottom: "1rem" }}>
+              Contact info changes are tracked for audit purposes.
+            </p>
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button onClick={handleSaveIdentifiers} disabled={savingIdentifiers}>
+                {savingIdentifiers ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                onClick={cancelEditingIdentifiers}
+                disabled={savingIdentifiers}
+                style={{ background: "transparent", border: "1px solid var(--border)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {/* Address */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Addr</span>
+              {person.primary_address ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  {person.primary_place_id ? (
+                    <a
+                      href={`/places/${person.primary_place_id}`}
+                      style={{ fontSize: "0.9rem", color: "var(--primary)", textDecoration: "none" }}
+                    >
+                      {person.primary_address}
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: "0.9rem" }}>{person.primary_address}</span>
+                  )}
+                  {person.primary_address_locality && (
+                    <span className="text-muted" style={{ fontSize: "0.75rem" }}>
+                      ({person.primary_address_locality})
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-muted" style={{ fontSize: "0.85rem" }}>No address set</span>
+              )}
+            </div>
+
+            {/* Phone(s) */}
+            {(() => {
+              const phones = person.identifiers?.filter(i => i.id_type === "phone") || [];
+              if (phones.length === 0) {
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Phone</span>
+                    <span className="text-muted" style={{ fontSize: "0.85rem" }}>Not available</span>
+                  </div>
+                );
+              }
+              return phones.map((pid, idx) => (
+                <div key={`phone-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Phone</span>
+                  <span style={{ fontSize: "0.9rem" }}>{pid.id_value}</span>
+                  {pid.source_system && (
+                    <span className="text-muted" style={{ fontSize: "0.7rem" }}>
+                      ({getSourceLabel(pid.source_system)})
+                    </span>
+                  )}
+                </div>
+              ));
+            })()}
+
+            {/* Email(s) */}
+            {(() => {
+              const emails = person.identifiers?.filter(i => i.id_type === "email") || [];
+              if (emails.length === 0) {
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Email</span>
+                    <span className="text-muted" style={{ fontSize: "0.85rem" }}>Not available</span>
+                  </div>
+                );
+              }
+              return emails.map((eid, idx) => (
+                <div key={`email-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Email</span>
+                  <span style={{ fontSize: "0.9rem" }}>{eid.id_value}</span>
+                  {eid.source_system && (
+                    <span className="text-muted" style={{ fontSize: "0.7rem" }}>
+                      ({getSourceLabel(eid.source_system)})
+                    </span>
+                  )}
+                </div>
+              ));
+            })()}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -973,203 +1228,6 @@ export default function PersonDetailPage() {
         </div>
       </Section>
 
-      {/* Contact Info - with edit button */}
-      <Section
-        title="Contact Information"
-        onEdit={startEditingIdentifiers}
-        editMode={editingIdentifiers}
-      >
-        {editingIdentifiers ? (
-          <div>
-            {identifierError && (
-              <div style={{ color: "#dc3545", marginBottom: "0.75rem", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px", fontSize: "0.875rem" }}>
-                {identifierError}
-              </div>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Phone</label>
-                <input
-                  type="tel"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="(555) 123-4567"
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Email</label>
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  placeholder="email@example.com"
-                  style={{ width: "100%" }}
-                />
-              </div>
-            </div>
-
-            <p className="text-muted text-sm" style={{ marginBottom: "1rem" }}>
-              Contact info changes are tracked for audit purposes.
-            </p>
-
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button onClick={handleSaveIdentifiers} disabled={savingIdentifiers}>
-                {savingIdentifiers ? "Saving..." : "Save Changes"}
-              </button>
-              <button
-                onClick={cancelEditingIdentifiers}
-                disabled={savingIdentifiers}
-                style={{ background: "transparent", border: "1px solid var(--border)" }}
-              >
-                Cancel
-              </button>
-            </div>
-
-            {/* Address section */}
-            <div style={{ marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
-              <label className="text-sm" style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Primary Address
-              </label>
-              <PlaceResolver
-                value={pendingPlace}
-                onChange={handlePlaceResolved}
-                placeholder="Search for an address..."
-                disabled={savingAddress}
-              />
-              {pendingPlace && (
-                <div style={{
-                  marginTop: "0.75rem",
-                  padding: "0.75rem",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  background: "var(--card-bg, #fff)",
-                }}>
-                  <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--text-muted)" }}>
-                    Confirm Address Change
-                  </div>
-                  {person.primary_address && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span className="text-sm text-muted">Current: </span>
-                      <span className="text-sm" style={{ textDecoration: "line-through", opacity: 0.6 }}>
-                        {person.primary_address}
-                      </span>
-                    </div>
-                  )}
-                  <div style={{ marginBottom: "0.75rem" }}>
-                    <span className="text-sm text-muted">New: </span>
-                    <span className="text-sm" style={{ fontWeight: 500 }}>
-                      {pendingPlace.formatted_address || pendingPlace.display_name}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      onClick={confirmAddressChange}
-                      disabled={savingAddress}
-                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
-                    >
-                      {savingAddress ? "Saving..." : "Confirm"}
-                    </button>
-                    <button
-                      onClick={() => setPendingPlace(null)}
-                      disabled={savingAddress}
-                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem", background: "transparent", border: "1px solid var(--border)" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-              {savingAddress && !pendingPlace && (
-                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>Saving...</p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="detail-grid">
-            <div className="detail-item" style={{ gridColumn: "span 2" }}>
-              <span className="detail-label">Address</span>
-              {person.primary_address ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span className="detail-value">{person.primary_address}</span>
-                  <button
-                    onClick={handleRemoveAddress}
-                    style={{
-                      padding: "0.125rem 0.375rem",
-                      fontSize: "0.75rem",
-                      background: "transparent",
-                      border: "1px solid #dc3545",
-                      color: "#dc3545",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                    title="Remove address"
-                  >
-                    &times;
-                  </button>
-                </div>
-              ) : (
-                <span className="detail-value text-muted">No address set</span>
-              )}
-            </div>
-            {/* Show identifiers from data sources */}
-            {person.identifiers && person.identifiers.length > 0 ? (
-              <>
-                {person.identifiers.filter(i => i.id_type === "phone").map((pid, idx) => (
-                  <div className="detail-item" key={`phone-${idx}`}>
-                    <span className="detail-label">
-                      Phone
-                      {pid.source_system && (
-                        <span className="text-muted" style={{ fontSize: "0.7rem", marginLeft: "0.25rem" }}>
-                          ({pid.source_system})
-                        </span>
-                      )}
-                    </span>
-                    <span className="detail-value">{pid.id_value}</span>
-                  </div>
-                ))}
-                {person.identifiers.filter(i => i.id_type === "email").map((eid, idx) => (
-                  <div className="detail-item" key={`email-${idx}`}>
-                    <span className="detail-label">
-                      Email
-                      {eid.source_system && (
-                        <span className="text-muted" style={{ fontSize: "0.7rem", marginLeft: "0.25rem" }}>
-                          ({eid.source_system})
-                        </span>
-                      )}
-                    </span>
-                    <span className="detail-value">{eid.id_value}</span>
-                  </div>
-                ))}
-                {person.identifiers.filter(i => !["phone", "email"].includes(i.id_type)).length === person.identifiers.length && (
-                  <>
-                    <div className="detail-item">
-                      <span className="detail-label">Phone</span>
-                      <span className="detail-value text-muted">Not available</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Email</span>
-                      <span className="detail-value text-muted">Not available</span>
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="detail-item">
-                  <span className="detail-label">Phone</span>
-                  <span className="detail-value text-muted">Not available</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Email</span>
-                  <span className="detail-value text-muted">Not available</span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </Section>
     </>
   );
 

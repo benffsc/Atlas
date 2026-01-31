@@ -34,6 +34,8 @@ interface PersonDetailRow {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  data_quality: string | null;
+  primary_place_id: string | null;
   partner_orgs: PartnerOrg[] | null;
   associated_places: object[] | null;
 }
@@ -72,6 +74,11 @@ export async function GET(
         a.locality AS primary_address_locality,
         p.data_source,
         p.entity_type,
+        p.data_quality,
+        (SELECT pl.place_id FROM trapper.places pl
+         WHERE pl.sot_address_id = p.primary_address_id
+           AND pl.merged_into_place_id IS NULL
+         LIMIT 1) AS primary_place_id,
         p.verified_at,
         p.verified_by,
         s.display_name AS verified_by_name,
