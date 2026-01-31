@@ -329,6 +329,7 @@ export default function PersonDetailPage() {
   const [editDisplayName, setEditDisplayName] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [nameWarning, setNameWarning] = useState<string | null>(null);
 
   // Edit history panel
   const [showHistory, setShowHistory] = useState(false);
@@ -531,17 +532,20 @@ export default function PersonDetailPage() {
   const cancelEditingName = () => {
     setEditingName(false);
     setNameError(null);
+    setNameWarning(null);
   };
 
   const handleSaveName = async () => {
     const validation = validatePersonName(editDisplayName);
     if (!validation.valid) {
       setNameError(validation.error || "Invalid name");
+      setNameWarning(null);
       return;
     }
 
     setSavingName(true);
     setNameError(null);
+    setNameWarning(validation.warning || null);
 
     try {
       const response = await fetch(`/api/people/${id}`, {
@@ -727,6 +731,11 @@ export default function PersonDetailPage() {
         {nameError && (
           <div style={{ color: "#dc3545", marginTop: "0.5rem", fontSize: "0.875rem" }}>
             {nameError}
+          </div>
+        )}
+        {nameWarning && !nameError && (
+          <div style={{ color: "#856404", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+            {nameWarning}
           </div>
         )}
         <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>ID: {person.person_id}</p>

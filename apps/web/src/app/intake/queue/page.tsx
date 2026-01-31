@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 import CreateRequestWizard from "@/components/CreateRequestWizard";
 import PlaceResolver from "@/components/PlaceResolver";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
@@ -323,13 +324,26 @@ function IntakeQueueContent() {
 
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabType>("attention");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [sortBy, setSortBy] = useState<"date" | "category" | "type">("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [groupBy, setGroupBy] = useState<"" | "category" | "type" | "status">("");
+  const { filters, setFilter } = useUrlFilters({
+    tab: "attention",
+    category: "",
+    q: "",
+    sort: "date",
+    order: "desc",
+    group: "",
+  });
+  const activeTab = filters.tab as TabType;
+  const setActiveTab = (v: TabType) => setFilter("tab", v);
+  const categoryFilter = filters.category;
+  const setCategoryFilter = (v: string) => setFilter("category", v);
+  const searchQuery = filters.q;
+  const [searchInput, setSearchInput] = useState(filters.q);
+  const sortBy = filters.sort as "date" | "category" | "type";
+  const setSortBy = (v: "date" | "category" | "type") => setFilter("sort", v);
+  const sortOrder = filters.order as "asc" | "desc";
+  const setSortOrder = (v: "asc" | "desc") => setFilter("order", v);
+  const groupBy = filters.group as "" | "category" | "type" | "status";
+  const setGroupBy = (v: "" | "category" | "type" | "status") => setFilter("group", v);
   const [selectedSubmission, setSelectedSubmission] = useState<IntakeSubmission | null>(null);
   const [saving, setSaving] = useState(false);
   const [editingStatus, setEditingStatus] = useState(false);
@@ -1116,7 +1130,7 @@ function IntakeQueueContent() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setSearchQuery(searchInput);
+            setFilter("q", searchInput);
           }}
           style={{ display: "flex", gap: "0.5rem", flex: 1, minWidth: "200px", maxWidth: "400px" }}
         >
@@ -1145,7 +1159,7 @@ function IntakeQueueContent() {
               type="button"
               onClick={() => {
                 setSearchInput("");
-                setSearchQuery("");
+                setFilter("q", "");
               }}
               style={{
                 padding: "0.5rem 0.75rem",

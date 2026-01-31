@@ -15,7 +15,7 @@ const GARBAGE_PATTERNS = [
   /^remove$/i,
 ];
 
-export function validatePersonName(name: string): { valid: boolean; error?: string } {
+export function validatePersonName(name: string): { valid: boolean; error?: string; warning?: string } {
   const trimmed = name.trim();
 
   if (!trimmed) {
@@ -30,6 +30,11 @@ export function validatePersonName(name: string): { valid: boolean; error?: stri
     if (pattern.test(trimmed)) {
       return { valid: false, error: `"${trimmed}" is not a valid name` };
     }
+  }
+
+  // Warn on ALL CAPS (but allow save)
+  if (trimmed.length > 2 && trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed)) {
+    return { valid: true, warning: "Name is in ALL CAPS — consider using proper case" };
   }
 
   return { valid: true };
