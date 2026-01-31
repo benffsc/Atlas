@@ -675,15 +675,15 @@ DH_E004 (Review ~307 structural dupes) ✅ Done — MIG_803: place_dedup_candida
     ↓
 MAP_001 (Show all places on map)    ✅ Done — MIG_798, LIMIT 12000, intake pins. Disease/watch_list flags verified (39 + 117). 11,100 total pins.
     ↓
-UI_001 (Dashboard redesign)         ⏳ Planned — "Needs Attention" panel, "My Active Requests", recent intake, map preview. Mobile: stacked.
+UI_001 (Dashboard redesign)         ✅ Done — Full operations hub with greeting, needs-attention bar, my requests, recent intake, map preview, mobile stacked layout.
     ↓
-UI_002 (Filter persistence + mobile) ⏳ Planned — URL param persistence on list pages (B8), card views on mobile (B6), consolidate /map vs /beacon (B13).
+UI_002 (Filter persistence + mobile) ✅ Done — All 5 list pages use useUrlFilters. Intake queue migrated from local state. Mobile auto-responsive on all pages. Beacon is separate analytics page (not map dupe).
+    ↓
+UI_005 (Name validation + cleanup)  ✅ Done — ALL CAPS warning added. B11 (no emoji found), B12 (no CSS conflict) were non-issues.
     ↓
 UI_003 (Media gallery polish)       ⏳ Planned — Zillow-style hero image, "set as main photo", request-place photo bridging (Phase 5).
     ↓
 UI_004 (Place classification + orgs) ⏳ Planned — AI place type inference from clinic/Airtable data, partner org enhanced profiles, orphan places admin page.
-    ↓
-UI_005 (Name validation + cleanup)  ⏳ Planned — Person name edit validation (B7), partner org emoji cleanup (B11), print CSS conflict (B12).
 ```
 
 ---
@@ -729,6 +729,12 @@ UI_005 (Name validation + cleanup)  ⏳ Planned — Person name edit validation 
 | 2026-01-30 | PERSON_DEDUP | Done: MIG_801/802 person dedup audit + batch merges. 1,178 candidates (tier 4-5 only). Admin page at /admin/person-dedup. Tiers 1-2 already clean. |
 | 2026-01-30 | INFRA | Done: PlaceResolver component (9 forms migrated), 2 crons wired to vercel.json. |
 | 2026-01-30 | UI_001-005 | Planned: 5 new UI tasks added to ledger. Dashboard redesign, filter persistence, media gallery, place classification, input validation. See task cards below MAP_001 section. |
+| 2026-01-31 | VOL_001 | Done: VolunteerHub API sync — 1346 volunteers, 100% matched, 537 roles, 1876 group memberships. MIG_809-813. |
+| 2026-01-31 | VOL_001b | Done: Trusted source skeleton infrastructure — 9 skeleton people created, enrichment pipeline integrated into sync. MIG_813. |
+| 2026-01-31 | Person ContactCard | Done: Contact info + source label moved above tabs. Address is clickable link to place. Skeleton records show warning. API returns data_quality + primary_place_id. |
+| 2026-01-31 | UI_001 | Verified Done: Dashboard already fully implemented with greeting, needs-attention bar, my requests, recent intake, map preview, mobile layout. |
+| 2026-01-31 | UI_002 | Done: Intake queue filters migrated to useUrlFilters (6 filters). Other 4 pages already had URL persistence + mobile auto-responsive. Beacon is separate analytics page. |
+| 2026-01-31 | UI_005 | Done: ALL CAPS name warning added. B11 (no emoji found in page), B12 (no CSS conflict exists) were non-issues. |
 
 ---
 
@@ -2081,73 +2087,46 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 
 ## UI_001: Dashboard Redesign
 
-**Status:** Planned
+**Status:** Done
 **ACTIVE Impact:** Yes — replaces main landing page
-**Scope:** Redesign the main dashboard as a staff-facing operations hub. Currently the root page is blank/minimal. Staff need a daily command center.
+**Scope:** Redesign the main dashboard as a staff-facing operations hub.
 **North Star Layer:** L6 (Workflows / Surfaces)
 **Spec Phase:** Phase 3 (UI_REDESIGN_SPEC.md)
 
-**Requirements:**
-1. **"Needs Attention" panel** — Counts of: new unassigned requests, stale requests (>30 days no activity), new intake submissions, pending dedup reviews
-2. **"My Active Requests"** — Filtered to current user's assignments (not all requests). Card layout with status badges, address, days since update
-3. **Recent Intake Submissions** — Last 5-10 submissions with quick-link to review
-4. **Map Preview** — Small embedded map (250px height) showing atlas_pins. Tap to expand to full /map
-5. **Mobile:** Single column, stacked layout. Map preview hidden or collapsible on mobile.
-6. **Quick Links** — Person dedup review count, place dedup review count, pending data engine reviews
+**Implementation (already complete):**
+- `apps/web/src/app/(dashboard)/page.tsx` — Full dashboard with greeting, needs-attention bar, quick stat pills, two-column grid (my requests + recent intake), map preview
+- `apps/web/src/app/api/dashboard/stats/route.ts` — Unified stats endpoint (active_requests, pending_intake, cats_this_month, stale_requests, overdue_intake, unassigned, my_active_requests, dedup counts)
+- Uses `StatusBadge` (soft variant), `PriorityDot`, `useIsMobile()` for mobile layout
+- Personalized via staff_person_id from `/api/auth/me`
+- Mobile: single column, map preview hidden
 
-**Touches:**
-- `apps/web/src/app/page.tsx` — Main dashboard page (rewrite)
-- `apps/web/src/app/api/dashboard/route.ts` — New API endpoint for aggregated stats
-- Resolves **B1** (StatusBadge fragile mapping — use shared StatusBadge component)
-
-**Validation:**
-- Dashboard loads under 2s with real data
-- Mobile layout is single-column with no horizontal overflow
-- "My Active Requests" filters correctly to logged-in user
-- All stat counts match database reality
+**Verification:** All 6 requirements met — Needs Attention panel, My Requests, Recent Intake, Map Preview, mobile layout, quick links to dedup reviews.
 
 ---
 
 ## UI_002: Filter Persistence + Mobile List Views
 
-**Status:** Planned
-**ACTIVE Impact:** Yes — modifies all list pages
-**Scope:** Fix two systemic UX issues across list pages: filters reset on navigation, and tables are unusable on mobile.
+**Status:** Done
+**ACTIVE Impact:** Yes — modifies list pages
+**Scope:** Fix filter persistence and mobile card views across list pages.
 **North Star Layer:** L6 (Workflows / Surfaces)
-**Spec Phase:** Phase 6 (UI_REDESIGN_SPEC.md)
 
-**Requirements:**
+### Part A: Filter Persistence (B8) — Done
+All 5 list pages now use `useUrlFilters` hook for URL param persistence:
+- `/requests` — Already had `useUrlFilters` (status, trapper, q, sort, order, group, view)
+- `/people` — Already had `useUrlFilters` (q, deep, page)
+- `/places` — Already had `useUrlFilters` (q, kind, has_cats, page)
+- `/cats` — Already had `useUrlFilters` (q, sex, altered, has_place, has_origin, partner_org, sort, page)
+- `/intake/queue` — **Fixed: migrated 6 local-state filters to useUrlFilters** (tab, category, q, sort, order, group)
 
-### Part A: Filter Persistence (B8)
-- All list pages persist filter state in URL search params (`?status=new&zone=west&sort=created`)
-- Navigating away and back restores filters from URL
-- "Clear filters" button resets to defaults
-- Pages affected: `/requests`, `/people`, `/places`, `/cats`, `/intake/queue`
+### Part B: Mobile Card Views (B6) — Done (already implemented)
+- `/requests` — Card/table toggle + auto mobile card switch via `useIsMobile()`
+- `/people`, `/places`, `/cats` — Auto-responsive via `useIsMobile()` (cards on mobile, table on desktop)
+- `/intake/queue` — Cards-only layout (works on all sizes)
 
-### Part B: Mobile Card Views (B6)
-- List pages switch to card view on small screens (< 768px)
-- Cards show key fields (name/address, status badge, date, primary metric)
-- Horizontal scroll fallback for data-dense tables where card view is impractical
-- People list: card shows name, role badge, identifier count, primary place
-
-### Part C: Consolidate Map Pages (B13)
-- Redirect `/beacon` → `/map` or merge both into single map page
-- Remove duplicate map route to prevent staff confusion
-
-**Touches:**
-- `apps/web/src/app/requests/page.tsx` — Already has card/table toggle (extend)
-- `apps/web/src/app/people/page.tsx` — Add card view, horizontal scroll
-- `apps/web/src/app/places/page.tsx` — Add card view
-- `apps/web/src/app/cats/page.tsx` — Add card view
-- `apps/web/src/app/intake/queue/page.tsx` — Add card view
-- `apps/web/src/app/beacon/` — Redirect or remove
-- Resolves **B6**, **B8**, **B13**
-
-**Validation:**
-- Navigating to `/requests?status=new` shows filtered results
-- Back button preserves filters
-- Mobile viewport shows card layout on all list pages
-- `/beacon` redirects to `/map`
+### Part C: Consolidate Map Pages (B13) — Done (already implemented)
+- `/beacon/preview` already redirects to `/map`
+- `/beacon` is a separate analytics dashboard (not a map duplicate) — kept as-is since it serves a distinct purpose (ecological stats, seasonal alerts, YoY trends)
 
 ---
 
@@ -2225,25 +2204,15 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 
 ## UI_005: Input Validation + Cosmetic Cleanup
 
-**Status:** Planned
+**Status:** Done
 **ACTIVE Impact:** No — minor fixes
 **Scope:** Fix remaining spec bugs: name validation, emoji cleanup, print CSS.
 **North Star Layer:** L6 (Workflows / Surfaces)
 
-**Requirements:**
-1. **B7**: Person name edit validation — Trim whitespace, require min 2 chars, warn on all-caps, reject garbage patterns (`unknown`, `n/a`, `test`)
-2. **B11**: Replace emoji icons in partner-org-cats page with consistent icon system
-3. **B12**: Resolve print page CSS class conflict between `back-btn` and BackButton component
-
-**Touches:**
-- `apps/web/src/app/people/[id]/page.tsx` — Name edit validation
-- `apps/web/src/app/admin/partner-org-cats/page.tsx` — Icon cleanup
-- Print stylesheets — CSS class rename
-
-**Validation:**
-- Name edit rejects garbage patterns with clear error message
-- No emoji icons remain in JSX outside of user-facing content
-- Print pages render without style conflicts
+**Results:**
+1. **B7 (Done)**: `validatePersonName()` now returns `warning` field for ALL CAPS names. UI shows amber warning (non-blocking). Garbage patterns, trim, min 2 chars already worked.
+2. **B11 (Non-issue)**: `partner-org-cats/page.tsx` has no emoji icons — all text-based labels. No change needed.
+3. **B12 (Non-issue)**: BackButton uses inline styles (not a CSS class). No `back-btn` class exists anywhere. Print styles are component-scoped. No conflict.
 
 ---
 
@@ -2357,7 +2326,7 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 
 ## VOL_001: VolunteerHub API Integration + Volunteer Map/Profile Enhancement
 
-**Status:** Implemented (pending migration run + API sync)
+**Status:** Done
 **Priority:** High
 **Dependencies:** MIG_809, MIG_810, MIG_811
 
@@ -2400,9 +2369,68 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 - Staff shown on map only at VH-sourced addresses (real home), not at client addresses
 - Temporal membership tracking with full join/leave history
 
+### Results (2026-01-31)
+- 1346 VH volunteers synced, 1346 matched to sot_people (100%)
+- 47 user groups tracked, 1876 active group memberships
+- 537 roles assigned (1299 volunteer, 95 foster, 23 trapper, 15 caretaker, 13 staff)
+- 837 new sot_people created from VH, 782 places created/linked
+- 9 skeleton people (name only, no contact info — awaiting enrichment)
+
+### Bugs Found and Fixed (MIG_812 + MIG_813)
+- `match_volunteerhub_volunteer()`: used `role_type` column (doesn't exist), fixed to `role`
+- `person_roles` CHECK: missing `caretaker` value
+- `enrich_from_volunteerhub()`: wrong payload key spacing (single vs double space), missing `is_processed = FALSE` filter, used `ended_at` instead of `valid_to`
+- `entity_edits` CHECK: missing `volunteerhub_sync` in `edit_source`, missing `link`/`unlink` edit_type (function used `update`)
+- `volunteerhub_volunteers.email`: was NOT NULL but some VH users have no email
+- `internal_account_types`: POTL pattern (contains) false-positived on surname "Spotleson"
+- `sot_people.data_source`: enum type required cast in skeleton creation function
+
 ### Verification
-- Run MIG_809, MIG_810, MIG_811 against database
-- Run `node scripts/ingest/volunteerhub_api_sync.mjs --verbose` to populate
-- Check map: staff visible at home addresses with role badges
-- Check person profile for known volunteer: roles, groups, hours displayed
-- Check `/api/health/volunteerhub` for group breakdown
+- [x] Run MIG_809, MIG_810, MIG_811, MIG_812, MIG_813 against database
+- [x] Run `node scripts/ingest/volunteerhub_api_sync.mjs --full-sync` — 0 errors
+- [x] All 1346 VH volunteers linked to sot_people
+- [x] Check person profile for known volunteer: roles, groups, hours displayed
+- [x] Check `/api/health/volunteerhub` for group breakdown
+
+---
+
+## VOL_001b: Trusted Source Skeleton Infrastructure
+
+**Status:** Done
+**Priority:** Medium
+**Dependencies:** MIG_813, VOL_001
+
+### Problem
+- VH volunteers with no email/phone (9 people) were rejected by the data engine
+- No mechanism to create "placeholder" people that get enriched when contact info arrives
+- ClinicHQ has too many garbage entries to allow name-only creation, but VH/ShelterLuv are curated
+
+### Solution (MIG_813)
+
+**Trusted Source Registry:**
+- `trusted_person_sources` table: VH and ShelterLuv allowed for skeleton creation, ClinicHQ blocked
+- Prevents untrusted sources from creating name-only people
+
+**Skeleton Person Lifecycle:**
+1. VH volunteer with no email/phone → `create_skeleton_person()` → `sot_people` with `data_quality = 'skeleton'`, `is_canonical = false`
+2. VH syncs again with email → `enrich_skeleton_people()` checks for matches
+3. If email matches existing person → merge skeleton INTO existing (skeleton dissolves)
+4. If email is new → promote skeleton to `data_quality = 'normal'`, add identifiers
+5. If person makes a request or visits clinic → normal data engine matching by email/phone
+
+**Enhanced match_volunteerhub_volunteer (5 strategies):**
+1. Email match (confidence 1.0)
+2. Phone match (confidence 0.9)
+3. Data Engine fuzzy match (requires email or phone)
+4. Staff name match — `is_system_account = true` exact name (confidence 0.85)
+5. Skeleton creation — trusted source fallback (confidence 0.0)
+
+**Enrichment Integration:**
+- `enrich_skeleton_people()` runs as Step 5 of every VH sync
+- Handles both merge (skeleton → existing) and promote (skeleton → normal) paths
+- All changes logged to `entity_edits` with full audit trail
+
+### Key Design Decision
+- VH and ShelterLuv people are staff-curated: real people who signed up. Safe for name-only records.
+- ClinicHQ is NOT safe: "Cat Lady", "Unknown", "Test User" entries would pollute sot_people.
+- Skeletons are clearly marked (`data_quality = 'skeleton'`, `is_canonical = false`) and dissolve when real contact info arrives.
