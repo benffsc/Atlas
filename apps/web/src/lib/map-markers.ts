@@ -257,10 +257,11 @@ export function createAtlasPinMarker(
   color: string,
   options?: {
     size?: number;
-    pinStyle?: 'disease' | 'watch_list' | 'active' | 'has_history' | 'minimal';
+    pinStyle?: 'disease' | 'watch_list' | 'active' | 'active_requests' | 'has_history' | 'minimal';
     isClustered?: boolean;
     unitCount?: number;
     catCount?: number;
+    hasVolunteer?: boolean;
   }
 ): L.DivIcon {
   const {
@@ -268,7 +269,8 @@ export function createAtlasPinMarker(
     pinStyle = 'minimal',
     isClustered = false,
     unitCount = 1,
-    catCount = 0
+    catCount = 0,
+    hasVolunteer = false,
   } = options || {};
 
   const lighterColor = lightenColor(color, 15);
@@ -306,6 +308,14 @@ export function createAtlasPinMarker(
       <text x="12" y="12.5" text-anchor="middle" fill="white" font-size="6" font-weight="bold" font-family="system-ui">${catCount > 9 ? '9+' : catCount}</text>
     `;
     innerIcon = 'count';
+  } else if (pinStyle === 'active_requests') {
+    // Clipboard/request icon for places with requests but no verified cats
+    innerContent = `
+      <rect x="9" y="7" width="6" height="7" fill="none" stroke="${color}" stroke-width="1.2" rx="0.5"/>
+      <line x1="10.5" y1="9.5" x2="13.5" y2="9.5" stroke="${color}" stroke-width="0.8"/>
+      <line x1="10.5" y1="11.5" x2="13.5" y2="11.5" stroke="${color}" stroke-width="0.8"/>
+    `;
+    innerIcon = 'request';
   } else if (pinStyle === 'has_history') {
     // Document/history icon
     innerContent = `
@@ -320,6 +330,14 @@ export function createAtlasPinMarker(
     innerContent = `<circle cx="12" cy="10" r="3" fill="${color}"/>`;
     innerIcon = 'default';
   }
+
+  // Small star badge overlay for places with volunteers/staff
+  const volunteerBadge = hasVolunteer ? `
+    <g transform="translate(17, 0)">
+      <circle cx="0" cy="0" r="5" fill="#7c3aed" stroke="white" stroke-width="1"/>
+      <polygon points="0,-3.2 1.2,-1 3.4,-1 1.6,0.6 2.4,3 0,1.6 -2.4,3 -1.6,0.6 -3.4,-1 -1.2,-1" fill="white" transform="scale(0.7)"/>
+    </g>
+  ` : '';
 
   const svg = `
     <svg width="${size}" height="${Math.round(size * 1.35)}" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
@@ -346,6 +364,8 @@ export function createAtlasPinMarker(
       <circle cx="12" cy="10" r="6" fill="white"/>
       <!-- Status icon -->
       ${innerContent}
+      <!-- Volunteer/staff star badge -->
+      ${volunteerBadge}
     </svg>
   `;
 

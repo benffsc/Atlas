@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       place_kind: string | null;
       unit_identifier: string | null;
       cat_count: number;
-      people: string[];
+      people: Array<{ name: string; roles: string[]; is_staff: boolean }>;
       person_count: number;
       disease_risk: boolean;
       disease_risk_notes: string | null;
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       intake_count: number;
       total_altered: number;
       last_alteration_at: string | null;
-      pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
+      pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
     }>;
     historical_pins?: Array<{
       id: string;
@@ -217,7 +217,7 @@ export async function GET(req: NextRequest) {
         place_kind: string | null;
         unit_identifier: string | null;
         cat_count: number;
-        people: string[];
+        people: Array<{ name: string; roles: string[]; is_staff: boolean }>;
         person_count: number;
         disease_risk: boolean;
         disease_risk_notes: string | null;
@@ -229,7 +229,7 @@ export async function GET(req: NextRequest) {
         intake_count: number;
         total_altered: number;
         last_alteration_at: string | null;
-        pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
+        pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
       }>(`
         SELECT
           id::text,
@@ -554,26 +554,38 @@ export async function GET(req: NextRequest) {
           p.display_name as name,
           ST_Y(pl.location::geometry) as lat,
           ST_X(pl.location::geometry) as lng,
-          pr.trapper_type as role,
-          CASE pr.trapper_type
-            WHEN 'coordinator' THEN 'FFSC Coordinator'
-            WHEN 'head_trapper' THEN 'Head Trapper'
-            WHEN 'ffsc_trapper' THEN 'FFSC Trapper'
-            WHEN 'community_trapper' THEN 'Community Trapper'
-            ELSE INITCAP(REPLACE(pr.trapper_type, '_', ' '))
+          COALESCE(pr.trapper_type, pr.role) as role,
+          CASE
+            WHEN pr.trapper_type = 'coordinator' THEN 'FFSC Coordinator'
+            WHEN pr.trapper_type = 'head_trapper' THEN 'Head Trapper'
+            WHEN pr.trapper_type = 'ffsc_trapper' THEN 'FFSC Trapper'
+            WHEN pr.trapper_type = 'community_trapper' THEN 'Community Trapper'
+            WHEN pr.role = 'foster' THEN 'Foster'
+            WHEN pr.role = 'caretaker' THEN 'Colony Caretaker'
+            WHEN pr.role = 'staff' THEN 'Staff'
+            WHEN pr.role = 'volunteer' THEN 'Volunteer'
+            ELSE INITCAP(REPLACE(pr.role, '_', ' '))
           END as role_label,
           pl.service_zone,
-          pr.ended_at IS NULL as is_active
+          pr.role_status = 'active' as is_active
         FROM trapper.sot_people p
         JOIN trapper.person_roles pr ON pr.person_id = p.person_id
         JOIN trapper.person_place_relationships ppr ON ppr.person_id = p.person_id
         JOIN trapper.places pl ON pl.place_id = ppr.place_id
-        WHERE pr.trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper', 'community_trapper')
-          AND pr.ended_at IS NULL
+        WHERE pr.role IN ('trapper', 'foster', 'caretaker', 'staff', 'volunteer')
+          AND pr.role_status = 'active'
           AND pl.location IS NOT NULL
           AND pl.merged_into_place_id IS NULL
+          AND p.merged_into_person_id IS NULL
           ${zone ? `AND pl.service_zone = '${zone}'` : ""}
-        ORDER BY p.person_id, pr.started_at DESC
+        ORDER BY p.person_id,
+          CASE pr.role
+            WHEN 'trapper' THEN 1
+            WHEN 'staff' THEN 2
+            WHEN 'foster' THEN 3
+            WHEN 'caretaker' THEN 4
+            ELSE 5
+          END
         LIMIT 500
       `);
       result.volunteers = volunteers;

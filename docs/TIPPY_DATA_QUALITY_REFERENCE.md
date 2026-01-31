@@ -14,6 +14,7 @@ Understanding the strengths and limitations of each data source is critical for 
 | **Airtable** | Medium | Workflow data | Legacy migration issues, inconsistent entry | Request tracking |
 | **Google Maps KMZ** | Variable | 20+ years of notes | Predecessor's notes, inconsistent formatting | Historical context |
 | **Web Intake** | High | New submissions only | Self-reported, may exaggerate | Initial triage |
+| **VolunteerHub** | High | FFSC volunteers only | Volunteer data only, no cat/request data | Volunteer management, role tracking |
 | **Sonoma County (Census)** | High | Demographic only | 5-year lag, zip-level granularity | Socioeconomic context |
 
 ---
@@ -1036,4 +1037,77 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - `place_safe_to_merge()` blocks merges of FFSC facilities, parent-child pairs, and already-merged places
 - Run `SELECT * FROM trapper.refresh_place_dedup_candidates();` to re-scan after significant data changes
 
-*Last updated: 2026-01-30 (after place dedup audit system)*
+### Session: 2026-01-31 - Map Improvements (MAP_002-007)
+
+**Context:** Staff reported confusion about map pin colors, cluster contamination from single disease pins, system account names appearing on map popups, and search bar blocking the navigation marker.
+
+**Key Discoveries:**
+- **Root cause of Sandra Nicander pollution:** `process_clinichq_owner_info()` (MIG_574) resolved person identity via email/phone, then unconditionally created `person_place_relationships` with `role='resident'` for anyone on a ClinicHQ appointment. When FFSC staff were listed as contacts on appointments for colony cats, they got linked to every address they handled — hundreds of spurious "resident" links polluting map popups and search results.
+- `v_map_atlas_pins` people subquery also had no filtering for `is_system_account` or organization names
+- The `active` pin_style covered both places with verified cats AND places with only requests/intakes, making them visually indistinguishable
+- Cluster `iconCreateFunction` used `markers.some()`, causing a single disease pin to turn an entire cluster of 50+ pins orange
+- `organization_place_mappings.org_display_name` existed but wasn't used in the map view
+
+**Changes Made:**
+- MIG_806: Filtered `is_system_account` and `is_organization_name()` from people subquery, added org display name fallback via `organization_place_mappings`
+- MIG_807: Split `active` pin_style into `active` (verified cats, green with count badge) and `active_requests` (requests/intakes only, teal with clipboard icon)
+- MIG_808: **Root-cause fix** — 5 steps:
+  1. Created `should_link_person_to_place(person_id)` reusable guard function (blocks system accounts, org names, FFSC emails, coordinator/head_trapper roles; auto-flags newly-discovered system accounts)
+  2. Patched `process_clinichq_owner_info()` to call guard before creating place links (appointment linking preserved — we still track who handled the cat)
+  3. Flagged all `@forgottenfelines` email people and org-name people as `is_system_account = TRUE`
+  4. Cleaned ALL existing spurious place links for system accounts (not just >5)
+  5. Cleaned clinichq-sourced links for active coordinator/head_trapper staff
+- Cluster threshold: majority-wins (>50% = colored, minority = blue cluster + count badge)
+- Nearby people: navigated-location popup now shows people from nearby pins within ~200m
+- Street View fullscreen + mini map with nearby colored dots
+- Search bar minimizes to pill during Street View, nav marker z-index raised
+
+**Staff Impact:**
+- 605 Rohnert Park Expressway now shows "Food Maxx RP" instead of "Sandra Nicander"
+- Sandra Nicander and other FFSC staff are no longer linked as "residents" of client addresses — the root cause in the ingestion pipeline is fixed, so future ClinicHQ imports won't recreate the problem
+- The `should_link_person_to_place()` guard function is reusable and can be added to other ingestion paths
+- Map pins are now distinguishable: green = verified cats, teal = requests only
+- Collapsible legend at bottom-left explains all pin types
+- Clusters no longer turn orange from a single disease pin — blue clusters show small orange badge with count
+- Searching an address shows nearby people in the popup
+- Street View has fullscreen mode with mini map showing surrounding pins
+- Search bar no longer blocks the blue navigated-location marker
+
+*Last updated: 2026-01-31 (after MAP_002-007 map improvements)*
+
+### Session: 2026-01-31 - VolunteerHub API Integration (VOL_001)
+
+**Context:** Staff needed volunteer data pulled from VolunteerHub API instead of manual XLSX exports. Trapper/volunteer management was split between Airtable and VolunteerHub with no reconciliation. System accounts (staff) were appearing at client addresses on the map.
+
+**North Star Alignment:**
+- **L1 (RAW):** Raw VH API payloads staged in `staged_records` via `stage_volunteerhub_raw()`
+- **L2 (IDENTITY):** Identity resolution via `match_volunteerhub_volunteer()` → `find_or_create_person()` (INV-3, INV-5)
+- **L3 (ENRICHMENT):** Phone/place enrichment via `enrich_from_volunteerhub()`
+- **L4 (CLASSIFICATION):** VH group memberships → `person_roles` via `process_volunteerhub_group_roles()` (INV-2: preserves manual head_trapper/coordinator designations)
+- **L5 (SOT):** `person_roles`, `person_place_relationships` via centralized functions (INV-10)
+- **L6 (WORKFLOWS):** Cron endpoint for automated sync, health endpoint for monitoring
+- **L7 (BEACON):** Map displays role badges in popups, volunteer star overlay on pins
+- **INV-1:** Temporal membership tracking (left_at instead of deletion)
+- **INV-4:** All records carry `source_system='volunteerhub'` (approved in North Star INV-4)
+- **INV-8:** MIG_811 view filters `merged_into_person_id IS NULL`
+
+**Key Design Decisions:**
+- Atlas (via VH) becomes source of truth for volunteer/trapper management; Airtable is reference only
+- Only 2 source-derived trapper types: `ffsc_trapper` (VH "Approved Trappers"), `community_trapper` (Airtable/JotForm)
+- `head_trapper`/`coordinator` are Atlas-only manual designations (Crystal is the only head_trapper)
+- Staff shown on map only at VH-sourced addresses (real home), not client addresses (MIG_808 guard + MIG_811 filter)
+
+**Changes Made:**
+- MIG_809: `volunteerhub_user_groups`, `volunteerhub_group_memberships` (temporal), 17 new columns on `volunteerhub_volunteers`, `sync_volunteer_group_memberships()`, `v_volunteer_roster`
+- MIG_810: `process_volunteerhub_group_roles()`, `cross_reference_vh_trappers_with_airtable()`
+- MIG_811: Revised `v_map_atlas_pins` — people as `{name, roles[], is_staff}` JSONB objects, system accounts at VH addresses only
+- `scripts/ingest/volunteerhub_api_sync.mjs`: Full API sync (52 fields, FormAnswer decoding, incremental)
+- `VolunteerBadge` component, `/api/people/[id]/roles` endpoint, person profile volunteer section
+- Cron (`/api/cron/volunteerhub-sync`), health (`/api/health/volunteerhub`)
+
+**Staff Impact:**
+- Volunteers visible on map with role badges (Staff, Trapper, Foster, Caretaker, Volunteer)
+- Purple star badge on pins where staff/volunteers live
+- Person profiles show full volunteer info: groups, hours, skills, availability, notes
+- Automated sync every 6 hours — no more manual XLSX exports
+- Group join/leave history tracked for volunteer lifecycle management

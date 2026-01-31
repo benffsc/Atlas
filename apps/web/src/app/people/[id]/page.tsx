@@ -9,6 +9,7 @@ import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { TrapperBadge } from "@/components/TrapperBadge";
 import { TrapperStatsCard } from "@/components/TrapperStatsCard";
+import { VolunteerBadge } from "@/components/VolunteerBadge";
 import { SubmissionsSection } from "@/components/SubmissionsSection";
 import { EntityLink } from "@/components/EntityLink";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
@@ -115,6 +116,46 @@ interface RelatedRequest {
 interface TrapperInfo {
   trapper_type: string;
   is_ffsc_trapper: boolean;
+}
+
+interface VolunteerRolesData {
+  roles: Array<{
+    role: string;
+    trapper_type: string | null;
+    role_status: string;
+    source_system: string | null;
+    started_at: string | null;
+    ended_at: string | null;
+    notes: string | null;
+  }>;
+  volunteer_groups: {
+    active: Array<{ name: string; joined_at: string | null }>;
+    history: Array<{ name: string; joined_at: string | null; left_at: string | null }>;
+  };
+  volunteer_profile: {
+    hours_logged: number | null;
+    event_count: number | null;
+    last_activity: string | null;
+    last_login: string | null;
+    joined: string | null;
+    is_active: boolean | null;
+    notes: string | null;
+    motivation: string | null;
+    experience: string | null;
+    skills: Record<string, string> | null;
+    availability: string | null;
+    languages: string | null;
+    pronouns: string | null;
+    occupation: string | null;
+    how_heard: string | null;
+    emergency_contact: string | null;
+    can_drive: boolean | null;
+  } | null;
+  operational_summary: {
+    trapper_stats: { total_caught: number; active_assignments: number; last_catch: string | null } | null;
+    foster_stats: { cats_fostered: number; current_fosters: number };
+    places_linked: number;
+  };
 }
 
 
@@ -248,6 +289,7 @@ export default function PersonDetailPage() {
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [requests, setRequests] = useState<RelatedRequest[]>([]);
   const [trapperInfo, setTrapperInfo] = useState<TrapperInfo | null>(null);
+  const [volunteerRoles, setVolunteerRoles] = useState<VolunteerRolesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -332,18 +374,36 @@ export default function PersonDetailPage() {
     }
   }, [id]);
 
+  const fetchVolunteerRoles = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/people/${id}/roles`);
+      if (response.ok) {
+        const data: VolunteerRolesData = await response.json();
+        // Only set if they have any roles
+        if (data.roles && data.roles.length > 0) {
+          setVolunteerRoles(data);
+        } else {
+          setVolunteerRoles(null);
+        }
+      }
+    } catch (err) {
+      // No roles data - ignore
+      setVolunteerRoles(null);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
 
     const loadData = async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([fetchPerson(), fetchJournal(), fetchRequests(), fetchTrapperInfo()]);
+      await Promise.all([fetchPerson(), fetchJournal(), fetchRequests(), fetchTrapperInfo(), fetchVolunteerRoles()]);
       setLoading(false);
     };
 
     loadData();
-  }, [id, fetchPerson, fetchJournal, fetchRequests, fetchTrapperInfo]);
+  }, [id, fetchPerson, fetchJournal, fetchRequests, fetchTrapperInfo, fetchVolunteerRoles]);
 
   const handlePlaceResolved = (place: ResolvedPlace | null) => {
     setPendingPlace(place);
@@ -577,6 +637,17 @@ export default function PersonDetailPage() {
           {!editingName && (
             <>
               {trapperInfo && <TrapperBadge trapperType={trapperInfo.trapper_type} />}
+              {volunteerRoles?.roles
+                .filter(r => r.role_status === "active" && r.role !== "trapper" && r.role !== "volunteer")
+                .map(r => (
+                  <VolunteerBadge
+                    key={r.role}
+                    role={r.role as "foster" | "caretaker" | "staff"}
+                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)}
+                    size="md"
+                  />
+                ))
+              }
               <EntityTypeBadge entityType={person.entity_type} />
               <DataSourceBadge dataSource={person.data_source} />
             </>
@@ -676,6 +747,188 @@ export default function PersonDetailPage() {
       {trapperInfo && (
         <Section title="Trapper Statistics">
           <TrapperStatsCard personId={id} compact />
+        </Section>
+      )}
+
+      {/* Volunteer Profile (if person has volunteer roles) */}
+      {volunteerRoles && (volunteerRoles.volunteer_profile || volunteerRoles.volunteer_groups.active.length > 0) && (
+        <Section title="Volunteer Profile">
+          {/* Role badges */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
+            {volunteerRoles.roles
+              .filter(r => r.role_status === "active")
+              .map(r => {
+                if (r.role === "trapper") return null; // TrapperBadge handles this
+                if (r.role === "volunteer") return (
+                  <VolunteerBadge key={r.role} role="volunteer" size="md"
+                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)} />
+                );
+                return (
+                  <VolunteerBadge key={r.role} role={r.role as "foster" | "caretaker" | "staff"} size="md"
+                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)} />
+                );
+              })
+            }
+            {volunteerRoles.volunteer_profile?.is_active === false && (
+              <span style={{ fontSize: "0.75rem", color: "#dc2626", fontWeight: 500 }}>Inactive</span>
+            )}
+          </div>
+
+          {/* Active Groups */}
+          {volunteerRoles.volunteer_groups.active.length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Active Groups</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                {volunteerRoles.volunteer_groups.active.map(g => (
+                  <span key={g.name} style={{
+                    display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.75rem",
+                    background: "var(--bg-secondary)", borderRadius: "9999px", color: "var(--text-primary)"
+                  }}>
+                    {g.name}
+                    {g.joined_at && <span style={{ color: "var(--text-muted)", marginLeft: "0.25rem" }}>
+                      ({new Date(g.joined_at).toLocaleDateString()})
+                    </span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Activity stats */}
+          {volunteerRoles.volunteer_profile && (
+            <div className="detail-grid" style={{ marginBottom: "1rem" }}>
+              {volunteerRoles.volunteer_profile.hours_logged != null && (
+                <div className="detail-item">
+                  <span className="detail-label">Hours Logged</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.hours_logged}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.event_count != null && (
+                <div className="detail-item">
+                  <span className="detail-label">Events</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.event_count}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.joined && (
+                <div className="detail-item">
+                  <span className="detail-label">Member Since</span>
+                  <span className="detail-value">{formatDateLocal(volunteerRoles.volunteer_profile.joined)}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.last_activity && (
+                <div className="detail-item">
+                  <span className="detail-label">Last Activity</span>
+                  <span className="detail-value">{formatDateLocal(volunteerRoles.volunteer_profile.last_activity)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Skills/Interests */}
+          {volunteerRoles.volunteer_profile?.skills && Object.keys(volunteerRoles.volunteer_profile.skills).length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Skills &amp; Interests</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                {Object.entries(volunteerRoles.volunteer_profile.skills)
+                  .filter(([, v]) => v && v !== "false" && v !== "No")
+                  .map(([key, value]) => (
+                    <span key={key} style={{
+                      display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.7rem",
+                      background: "#f0fdf4", color: "#166534", borderRadius: "9999px", border: "1px solid #bbf7d0",
+                    }} title={String(value)}>
+                      {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    </span>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+
+          {/* Availability, Languages, Personal */}
+          {volunteerRoles.volunteer_profile && (
+            <div className="detail-grid">
+              {volunteerRoles.volunteer_profile.availability && (
+                <div className="detail-item">
+                  <span className="detail-label">Availability</span>
+                  <span className="detail-value" style={{ fontSize: "0.85rem" }}>{volunteerRoles.volunteer_profile.availability}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.languages && (
+                <div className="detail-item">
+                  <span className="detail-label">Languages</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.languages}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.pronouns && (
+                <div className="detail-item">
+                  <span className="detail-label">Pronouns</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.pronouns}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.occupation && (
+                <div className="detail-item">
+                  <span className="detail-label">Occupation</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.occupation}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.can_drive != null && (
+                <div className="detail-item">
+                  <span className="detail-label">Can Drive</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.can_drive ? "Yes" : "No"}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notes */}
+          {volunteerRoles.volunteer_profile?.notes && (
+            <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", fontSize: "0.85rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Volunteer Notes</div>
+              {volunteerRoles.volunteer_profile.notes}
+            </div>
+          )}
+
+          {/* Operational Summary */}
+          {(volunteerRoles.operational_summary.foster_stats.cats_fostered > 0 ||
+            volunteerRoles.operational_summary.places_linked > 0) && (
+            <div className="detail-grid" style={{ marginTop: "0.75rem" }}>
+              {volunteerRoles.operational_summary.foster_stats.cats_fostered > 0 && (
+                <>
+                  <div className="detail-item">
+                    <span className="detail-label">Cats Fostered</span>
+                    <span className="detail-value">{volunteerRoles.operational_summary.foster_stats.cats_fostered}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Current Fosters</span>
+                    <span className="detail-value">{volunteerRoles.operational_summary.foster_stats.current_fosters}</span>
+                  </div>
+                </>
+              )}
+              <div className="detail-item">
+                <span className="detail-label">Linked Places</span>
+                <span className="detail-value">{volunteerRoles.operational_summary.places_linked}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Group History (collapsed) */}
+          {volunteerRoles.volunteer_groups.history.length > 0 && (
+            <details style={{ marginTop: "0.75rem" }}>
+              <summary style={{ fontSize: "0.8rem", color: "var(--text-secondary)", cursor: "pointer" }}>
+                Group History ({volunteerRoles.volunteer_groups.history.length})
+              </summary>
+              <div style={{ marginTop: "0.5rem" }}>
+                {volunteerRoles.volunteer_groups.history.map((g, i) => (
+                  <div key={i} style={{ fontSize: "0.8rem", padding: "0.25rem 0", color: "var(--text-muted)" }}>
+                    {g.name}
+                    <span style={{ marginLeft: "0.5rem" }}>
+                      {g.joined_at && new Date(g.joined_at).toLocaleDateString()} &rarr; {g.left_at && new Date(g.left_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </Section>
       )}
 

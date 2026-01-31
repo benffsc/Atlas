@@ -458,17 +458,30 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 
 ## Remaining UI Work (TASK_LEDGER UI_001–005)
 
-All data quality and infrastructure tasks (TASK_001–006, ORCH_001–003, DH_A–E, SC_001–004, MAP_001) are **Done**. The remaining work is L6 (Workflow Surfaces):
+All data quality and infrastructure tasks (TASK_001–006, ORCH_001–003, DH_A–E, SC_001–004, MAP_001) are **Done**. UI_001–005 are **Done**. The remaining work is L6 cosmetics:
 
-| Task | Layer | Description | Resolves Bugs |
-|------|-------|-------------|---------------|
-| **UI_001** | L6 | Dashboard redesign — "Needs Attention" panel, my active requests, intake list, map preview | B1 |
-| **UI_002** | L6 | Filter persistence (URL params) + mobile card views + consolidate /map vs /beacon | B6, B8, B13 |
-| **UI_003** | L6 | Zillow-style media gallery — hero image, "set as main photo", request-place bridging | — |
-| **UI_004** | L3/L5/L6 | AI place type inference, partner org enhanced profiles, orphan places admin page | — |
-| **UI_005** | L6 | Name edit validation, emoji cleanup, print CSS conflict | B7, B11, B12 |
+| Task | Layer | Description | Status |
+|------|-------|-------------|--------|
+| **UI_001** | L6 | Dashboard redesign — "Needs Attention" panel, my active requests, intake list, map preview | Done |
+| **UI_002** | L6 | Filter persistence (URL params) + mobile card views + consolidate /map vs /beacon | Done |
+| **UI_003** | L6 | Zillow-style media gallery — hero image, "set as main photo", request-place bridging | Done |
+| **UI_004** | L3/L5/L6 | AI place type inference, partner org enhanced profiles, orphan places admin page | Done |
+| **UI_005** | L6 | Name edit validation, emoji cleanup, print CSS conflict | Planned |
 
-Full task cards with requirements, touched surfaces, and validation steps are in `TASK_LEDGER.md`.
+## Map Improvements (MAP_002–007)
+
+L7 (Visualization) improvements based on staff feedback:
+
+| Task | Layer | Description | Status |
+|------|-------|-------------|--------|
+| **MAP_002** | L7 | Pin differentiation: split active/active_requests, add legend | Done |
+| **MAP_003** | L7 | Cluster color threshold: majority-wins instead of any-match | Done |
+| **MAP_004** | L7 | Nearby people shown in navigated-location popup | Done |
+| **MAP_005** | L7 | Street View fullscreen + mini map with nearby colored dots | Done |
+| **MAP_006** | L7 | Search bar minimizes during Street View, higher z-index for nav marker | Done |
+| **MAP_007** | L2/L7 | System account / org name filtering from map, org display name fallback | Done |
+
+Full task cards in `TASK_LEDGER.md`.
 
 ---
 

@@ -2244,3 +2244,165 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 - Name edit rejects garbage patterns with clear error message
 - No emoji icons remain in JSX outside of user-facing content
 - Print pages render without style conflicts
+
+---
+
+## MAP_002: Pin Differentiation + Map Legend
+
+**Status:** Done
+**ACTIVE Impact:** No — map visualization only
+**Scope:** Split `active` pin_style into `active` (verified cats, green) and `active_requests` (requests/intakes only, teal). Add collapsible map legend.
+**North Star Layer:** L7 (Visualization)
+
+**Migrations:** MIG_807
+**Touches:** `v_map_atlas_pins` view, `map-markers.ts`, `map-data/route.ts`, `AtlasMap.tsx`, `atlas-map.css`
+
+**Validation:**
+- Green pins show cat count badge; teal pins show clipboard icon
+- Legend visible at bottom-left, collapsible
+- All 6 pin types distinguishable at zoom 14+
+
+---
+
+## MAP_003: Cluster Color Threshold (Majority-Wins)
+
+**Status:** Done
+**ACTIVE Impact:** No — map visualization only
+**Scope:** Replace `markers.some()` cluster coloring with majority-wins threshold. Cluster only turns orange/purple when >50% of contained markers match. Minority disease/watch pins show small badge on blue cluster.
+**North Star Layer:** L7 (Visualization)
+
+**Touches:** `AtlasMap.tsx` iconCreateFunction
+
+**Validation:**
+- At zoom 10, clusters with 1-2 disease pins among many are blue with small orange badge
+- Clusters only turn fully orange when >50% are disease pins
+
+---
+
+## MAP_004: Nearby People on Search
+
+**Status:** Done
+**ACTIVE Impact:** No — read-only popup enhancement
+**Scope:** When searching an address and dropping a navigated-location marker, scan nearby atlas pins (~200m) and show people names in the popup.
+**North Star Layer:** L7 (Visualization)
+
+**Touches:** `AtlasMap.tsx` navigated location effect
+
+**Validation:**
+- Search an address with nearby Atlas places → popup shows "Nearby People" section
+- Capped at 8 people with "+N more" overflow
+- Sorted by distance
+
+---
+
+## MAP_005: Street View Fullscreen + Mini Map
+
+**Status:** Done
+**ACTIVE Impact:** No — map visualization only
+**Scope:** Add fullscreen toggle to Street View panel. When fullscreen, map collapses to 0% and a mini Leaflet map appears in the bottom-right of the SV panel showing nearby colored dots. Escape exits fullscreen. Mini map updates position when user walks.
+**North Star Layer:** L7 (Visualization)
+
+**Touches:** `AtlasMap.tsx`, `atlas-map.css`
+
+**Validation:**
+- Click fullscreen button → SV fills screen, mini map appears
+- Mini map shows colored dots matching pin styles
+- Walking in SV updates mini map center
+- Escape key exits fullscreen
+
+---
+
+## MAP_006: Search Bar Fix
+
+**Status:** Done
+**ACTIVE Impact:** No — UI fix
+**Scope:** Minimize search bar to small pill button during Street View mode. Increase navigated marker z-index to 2000 so it appears above the search bar.
+**North Star Layer:** L7 (Visualization)
+
+**Touches:** `AtlasMap.tsx`
+
+**Validation:**
+- During Street View, search bar becomes small "Search" pill at top-left
+- Blue navigated-location marker always visible above other UI
+
+---
+
+## MAP_007: System Account / Org Name Map Pollution — Root-Cause Fix
+
+**Status:** Done
+**ACTIVE Impact:** Yes — fixes ingestion pipeline to prevent future pollution
+**Scope:** Root-cause fix for system accounts and org names being linked as "residents" of client addresses. The ingestion function `process_clinichq_owner_info()` blindly created `person_place_relationships` for anyone whose email/phone appeared on ClinicHQ appointments — including FFSC staff handling colony cats. Fix: reusable guard function + ingestion patch + comprehensive data cleanup.
+**North Star Layer:** L2 (Identity) + L4 (Data Engine) + L7 (Visualization)
+
+**Root Cause:** `process_clinichq_owner_info()` (MIG_574) resolved person identity via email/phone, then unconditionally INSERTed `person_place_relationships` with `role='resident'`. When FFSC staff (e.g., Sandra Nicander) were listed as contacts on appointments for colony cats, they got linked to every address they handled.
+
+**Migrations:** MIG_806 (view filter), MIG_807 (pin_style split, includes 806 changes), MIG_808 (root-cause fix)
+**Touches:** `should_link_person_to_place()` guard fn, `process_clinichq_owner_info()`, `v_map_atlas_pins`, `person_place_relationships`, `sot_people.is_system_account`
+
+**MIG_808 Steps:**
+1. Created `should_link_person_to_place(person_id)` — reusable guard blocking: `is_system_account`, `is_organization_name()`, `@forgottenfelines` emails, coordinator/head_trapper roles. Auto-flags newly-discovered system accounts.
+2. Patched `process_clinichq_owner_info()` to call guard before INSERT. Appointment linking preserved.
+3. Flagged all FFSC-email and org-name people as system accounts.
+4. Cleaned ALL existing spurious place links for system accounts.
+5. Cleaned clinichq-sourced links for active coordinator/head_trapper staff.
+
+**Validation:**
+- 605 Rohnert Park Expressway shows "Food Maxx RP" not "Sandra Nicander"
+- `should_link_person_to_place()` returns FALSE for Sandra Nicander
+- System accounts have zero non-office place links
+- Future clinichq ingestion runs skip system accounts automatically
+- Appointment linking still works (staff linked as handler, not "resident")
+
+---
+
+## VOL_001: VolunteerHub API Integration + Volunteer Map/Profile Enhancement
+
+**Status:** Implemented (pending migration run + API sync)
+**Priority:** High
+**Dependencies:** MIG_809, MIG_810, MIG_811
+
+### Problem
+- Staff/volunteer data from VolunteerHub was only ingested via manual XLSX export
+- No role mapping from VH user groups to Atlas person_roles
+- Volunteers not visible on map; no volunteer profile on person pages
+- Trapper management split between Airtable and VolunteerHub with no reconciliation
+- System accounts (staff) were appearing at client addresses on map due to ClinicHQ ingestion
+
+### Solution
+
+**Phase 1: SQL Schema**
+- MIG_809: `volunteerhub_user_groups` table (mirrors VH group hierarchy with atlas_role mapping), `volunteerhub_group_memberships` (temporal join/leave tracking), 17 new columns on `volunteerhub_volunteers`, `sync_volunteer_group_memberships()` function, `v_volunteer_roster` view
+- MIG_810: `process_volunteerhub_group_roles()` (maps VH groups → person_roles preserving manual designations like head_trapper), `cross_reference_vh_trappers_with_airtable()` reconciliation function
+
+**Phase 2: API Sync**
+- `scripts/ingest/volunteerhub_api_sync.mjs`: Full API sync with auth discovery, FormAnswer decoding for all 52 VH fields, incremental sync via LastUpdate, identity resolution, group membership tracking, role processing
+- Cron endpoint: `/api/cron/volunteerhub-sync` (every 6h incremental, weekly full sync on Sundays)
+
+**Phase 3: Map Display**
+- MIG_811: Revised `v_map_atlas_pins` — people subquery returns `{name, roles[], is_staff}` JSONB objects instead of plain strings. System accounts shown only at VH-sourced addresses (real home).
+- Map pins show purple star badge when staff/volunteers are at a location
+- Popup displays role badges (Staff, Trapper, Foster, Caretaker, Volunteer) next to person names
+- Volunteers layer expanded to include all roles (not just trappers)
+
+**Phase 4: Person Profile**
+- `VolunteerBadge` component (foster=#ec4899, caretaker=#06b6d4, volunteer=#8b5cf6, staff=#6366f1)
+- `/api/people/[id]/roles` endpoint: multi-dimensional response with roles, VH groups, volunteer profile (hours, skills, availability, etc.), operational summary
+- Person page: role badges in header, collapsible "Volunteer Profile" section with groups, activity stats, skills tags, availability, notes, foster stats, group history
+
+**Phase 5: Health/Monitoring**
+- `/api/health/volunteerhub`: sync status, group breakdown, trapper reconciliation, recent changes
+- Health endpoint reports sync freshness ("healthy" / "stale" / "never_synced")
+
+### Key Design Decisions
+- Atlas (via VH) is source of truth for volunteer/trapper management; Airtable is reference only
+- Only 2 source-derived trapper types: `ffsc_trapper` (VH "Approved Trappers"), `community_trapper` (Airtable/JotForm)
+- `head_trapper`/`coordinator` are Atlas-only manual designations (Crystal is the only head_trapper)
+- Staff shown on map only at VH-sourced addresses (real home), not at client addresses
+- Temporal membership tracking with full join/leave history
+
+### Verification
+- Run MIG_809, MIG_810, MIG_811 against database
+- Run `node scripts/ingest/volunteerhub_api_sync.mjs --verbose` to populate
+- Check map: staff visible at home addresses with role badges
+- Check person profile for known volunteer: roles, groups, hours displayed
+- Check `/api/health/volunteerhub` for group breakdown

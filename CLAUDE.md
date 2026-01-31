@@ -313,6 +313,7 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 - `'airtable'` - All Airtable data (not 'airtable_staff' or 'airtable_project75')
 - `'clinichq'` - All ClinicHQ data
 - `'shelterluv'` - ShelterLuv API data (animals, people, events)
+- `'volunteerhub'` - VolunteerHub API data (volunteers, groups, roles)
 - `'web_intake'` - Web intake form submissions
 - `'petlink'` - PetLink microchip data
 
@@ -467,6 +468,50 @@ Then update the prompt to include this data. The pattern handles rate limiting, 
 - Colony boundary estimation from cat sighting overlaps
 - Priority scoring for intake requests
 
+## VolunteerHub Integration (MIG_809-811)
+
+Atlas syncs volunteer data from VolunteerHub (VH) API to track FFSC volunteer roles, group memberships, and profile data.
+
+### Key Tables
+| Table | Purpose |
+|-------|---------|
+| `volunteerhub_user_groups` | Mirrors VH group hierarchy with `atlas_role` mapping |
+| `volunteerhub_group_memberships` | Temporal join/leave tracking (`joined_at`/`left_at`) |
+| `volunteerhub_volunteers` | Extended with 17 fields: skills, availability, notes, etc. |
+
+### Role Mapping (VH Groups → Atlas Roles)
+| VH Group | atlas_role | Notes |
+|----------|-----------|-------|
+| Approved Trappers | trapper (ffsc_trapper) | VH membership = authority for FFSC trapper status |
+| Approved Foster Parent | foster | |
+| Approved Colony Caretakers | caretaker | |
+| Admin/Office | staff | |
+| All other approved groups | volunteer | |
+
+### Key Functions
+- `process_volunteerhub_group_roles(person_id, vh_id)` — Maps VH groups to person_roles
+- `sync_volunteer_group_memberships(vh_id, group_uids[])` — Temporal membership tracking
+- `cross_reference_vh_trappers_with_airtable()` — Reconciliation report
+
+### Sync Script
+```bash
+# Full sync (all users since beginning)
+node scripts/ingest/volunteerhub_api_sync.mjs --full-sync --verbose
+
+# Incremental sync (since last sync)
+node scripts/ingest/volunteerhub_api_sync.mjs --verbose
+
+# Groups only
+node scripts/ingest/volunteerhub_api_sync.mjs --groups-only
+```
+
+### Cron
+- `/api/cron/volunteerhub-sync` — Every 6h incremental, weekly full sync Sundays
+- `/api/health/volunteerhub` — Sync status, group breakdown, trapper reconciliation
+
+### Environment Variables
+- `VOLUNTEERHUB_API_KEY` — VH API key (basic auth)
+
 ## Environment Variables
 
 Required in `.env`:
@@ -474,6 +519,7 @@ Required in `.env`:
 - `AIRTABLE_PAT` - Airtable Personal Access Token
 - `GOOGLE_PLACES_API_KEY` - For geocoding
 - `SHELTERLUV_API_KEY` - ShelterLuv API key (for automated sync)
+- `VOLUNTEERHUB_API_KEY` - VolunteerHub API key (for volunteer sync)
 
 ## Tippy Dynamic Schema Navigation (MIG_517-521)
 
@@ -1109,7 +1155,7 @@ Trappers are linked to appointments directly for accurate stats:
 - **Don't INSERT directly into places** - Use `find_or_create_place_deduped()`
 - **Don't INSERT directly into sot_cats** - Use `find_or_create_cat_by_microchip()`
 - **Don't INSERT directly into sot_requests** - Use `find_or_create_request()`
-- **Don't use custom source_system values** - Use 'airtable', 'clinichq', 'web_intake', or 'atlas_ui'
+- **Don't use custom source_system values** - Use 'airtable', 'clinichq', 'shelterluv', 'volunteerhub', 'web_intake', 'petlink', or 'atlas_ui'
 - Don't match people by name only - Email/phone only
 - Don't create fixed time windows for new features
 - Don't skip `entity_edits` logging for important changes

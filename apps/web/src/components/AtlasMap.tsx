@@ -184,7 +184,7 @@ interface AtlasPin {
   place_kind: string | null;
   unit_identifier: string | null;
   cat_count: number;
-  people: string[];
+  people: Array<{ name: string; roles: string[]; is_staff: boolean }>;
   person_count: number;
   disease_risk: boolean;
   disease_risk_notes: string | null;
@@ -196,7 +196,7 @@ interface AtlasPin {
   intake_count: number;
   total_altered: number;
   last_alteration_at: string | null;
-  pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
+  pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
 }
 
 // NEW: Historical Pin from v_map_historical_pins view (unlinked Google Maps entries)
@@ -283,6 +283,7 @@ export default function AtlasMap() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const [showLegend, setShowLegend] = useState(!isMobile);
   const [isSatellite, setIsSatellite] = useState(false);
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(
@@ -337,6 +338,9 @@ export default function AtlasMap() {
   const streetViewMarkerRef = useRef<L.Marker | null>(null);
   const streetViewIframeRef = useRef<HTMLIFrameElement>(null);
   const streetViewConePosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [streetViewFullscreen, setStreetViewFullscreen] = useState(false);
+  const miniMapRef = useRef<any>(null);
+  const miniMapContainerRef = useRef<HTMLDivElement>(null);
 
   // Listen for postMessage from interactive Street View iframe
   useEffect(() => {
@@ -351,11 +355,113 @@ export default function AtlasMap() {
         if (streetViewMarkerRef.current) {
           streetViewMarkerRef.current.setLatLng([event.data.lat, event.data.lng]);
         }
+        // Update mini map center if it exists
+        if (miniMapRef.current) {
+          miniMapRef.current.setView([event.data.lat, event.data.lng], 16, { animate: true });
+          // Move mini map cone marker
+          const layers = miniMapRef.current._miniMapConeMarker;
+          if (layers) {
+            layers.setLatLng([event.data.lat, event.data.lng]);
+          }
+        }
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, []);
+
+  // Mini map for Street View fullscreen mode
+  useEffect(() => {
+    if (!streetViewFullscreen || !miniMapContainerRef.current || !streetViewCoords) {
+      // Destroy mini map when exiting fullscreen
+      if (miniMapRef.current) {
+        miniMapRef.current.remove();
+        miniMapRef.current = null;
+      }
+      return;
+    }
+
+    // Create lightweight Leaflet map in the mini map container
+    const miniMap = L.map(miniMapContainerRef.current, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      touchZoom: false,
+    });
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19,
+    }).addTo(miniMap);
+
+    // Center on street view position
+    const conePos = streetViewConePosRef.current || streetViewCoords;
+    miniMap.setView([conePos.lat, conePos.lng], 16);
+
+    // Add cone marker (blue dot)
+    const coneMarker = L.circleMarker([conePos.lat, conePos.lng], {
+      radius: 6,
+      fillColor: "#3b82f6",
+      fillOpacity: 1,
+      color: "white",
+      weight: 2,
+    }).addTo(miniMap);
+    (miniMap as any)._miniMapConeMarker = coneMarker;
+
+    // Add nearby atlas pins within ~300m
+    const MINI_RADIUS = 0.003;
+    for (const p of atlasPinsRef.current) {
+      if (!p.lat || !p.lng) continue;
+      const dLat = Math.abs(p.lat - conePos.lat);
+      const dLng = Math.abs(p.lng - conePos.lng);
+      if (dLat < MINI_RADIUS && dLng < MINI_RADIUS) {
+        const dotColor = p.pin_style === "disease" ? "#ea580c"
+          : p.pin_style === "watch_list" ? "#8b5cf6"
+          : p.pin_style === "active" ? "#22c55e"
+          : p.pin_style === "active_requests" ? "#14b8a6"
+          : p.pin_style === "has_history" ? "#6366f1"
+          : "#94a3b8";
+        L.circleMarker([p.lat, p.lng], {
+          radius: 4,
+          fillColor: dotColor,
+          fillOpacity: 0.8,
+          color: "white",
+          weight: 1,
+        }).addTo(miniMap);
+      }
+    }
+
+    miniMapRef.current = miniMap;
+
+    // Invalidate size after render
+    setTimeout(() => miniMap.invalidateSize(), 100);
+
+    return () => {
+      miniMap.remove();
+      miniMapRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streetViewFullscreen, streetViewCoords]);
+
+  // Escape key exits Street View fullscreen
+  useEffect(() => {
+    if (!streetViewFullscreen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setStreetViewFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [streetViewFullscreen]);
+
+  // Invalidate map size when fullscreen toggles
+  useEffect(() => {
+    if (mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 350);
+    }
+  }, [streetViewFullscreen]);
 
   // Expose setSelectedPlaceId and street view globally for popup buttons
   useEffect(() => {
@@ -985,13 +1091,29 @@ export default function AtlasMap() {
       iconCreateFunction: (cluster: any) => {
         const count = cluster.getChildCount();
         const markers = cluster.getAllChildMarkers();
-        const hasDisease = markers.some((m: any) => m.options.diseaseRisk);
-        const hasWatchList = markers.some((m: any) => m.options.watchList);
+        const diseaseCount = markers.filter((m: any) => m.options.diseaseRisk).length;
+        const watchCount = markers.filter((m: any) => m.options.watchList).length;
+        const diseaseRatio = diseaseCount / count;
+        const watchRatio = watchCount / count;
         const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
         const dim = sizeClass === "small" ? 32 : sizeClass === "medium" ? 40 : 50;
-        const clusterColor = hasDisease ? "#ea580c" : hasWatchList ? "#8b5cf6" : "#3b82f6";
+
+        // Majority-wins: cluster only turns colored if >50% of markers match
+        let clusterColor = "#3b82f6"; // default blue
+        let badge = "";
+        if (diseaseRatio > 0.5) {
+          clusterColor = "#ea580c";
+        } else if (watchRatio > 0.5) {
+          clusterColor = "#8b5cf6";
+        } else if (diseaseCount > 0) {
+          // Minority disease — blue cluster + small orange badge
+          badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#ea580c;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${diseaseCount}</div>`;
+        } else if (watchCount > 0) {
+          badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#8b5cf6;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${watchCount}</div>`;
+        }
+
         return L.divIcon({
-          html: `<div class="map-cluster map-cluster--${sizeClass}" style="--cluster-color: ${clusterColor}">${count}</div>`,
+          html: `<div style="position:relative;"><div class="map-cluster map-cluster--${sizeClass}" style="--cluster-color: ${clusterColor}">${count}</div>${badge}</div>`,
           className: "map-cluster-icon",
           iconSize: L.point(dim, dim),
         });
@@ -1018,6 +1140,10 @@ export default function AtlasMap() {
           color = "#22c55e";
           size = 28;
           break;
+        case "active_requests":
+          color = "#14b8a6";
+          size = 26;
+          break;
         case "has_history":
           color = "#6366f1";
           size = 26;
@@ -1027,6 +1153,12 @@ export default function AtlasMap() {
           size = 24;
       }
 
+      // Check if any people at this pin have volunteer/staff roles
+      const hasVolunteerOrStaff = Array.isArray(pin.people) && pin.people.some(
+        (p: { roles: string[]; is_staff: boolean }) =>
+          p.is_staff || (p.roles && p.roles.some((r: string) => ['trapper', 'foster', 'staff', 'caretaker'].includes(r)))
+      );
+
       const marker = L.marker([pin.lat, pin.lng], {
         icon: createAtlasPinMarker(color, {
           size,
@@ -1034,6 +1166,7 @@ export default function AtlasMap() {
           isClustered: false,
           unitCount: 1,
           catCount: pin.cat_count,
+          hasVolunteer: hasVolunteerOrStaff,
         }),
         diseaseRisk: pin.disease_risk,
         watchList: pin.watch_list,
@@ -1044,19 +1177,51 @@ export default function AtlasMap() {
       const isLikelyAddress = (name: string): boolean => {
         if (!name) return true;
         const lowerName = name.toLowerCase();
-        // Check for address patterns
         if (lowerName.includes(", ca ") || lowerName.includes(", ca,") || lowerName.endsWith(", ca")) return true;
-        if (/\d{5}/.test(name)) return true; // Contains 5-digit zip
-        if (/^\d+\s+\w+\s+(st|rd|ave|blvd|dr|ln|ct|way|pl)\b/i.test(name)) return true; // Starts with street address
-        // Check if it matches the pin's address (ignoring case)
+        if (/\d{5}/.test(name)) return true;
+        if (/^\d+\s+\w+\s+(st|rd|ave|blvd|dr|ln|ct|way|pl)\b/i.test(name)) return true;
         if (pin.address && lowerName === pin.address.toLowerCase()) return true;
         return false;
       };
+
+      // Role badge colors
+      const roleBadgeStyle = (role: string): string => {
+        const styles: Record<string, string> = {
+          staff: "background:#eef2ff;color:#4338ca;",
+          trapper: "background:#ecfdf5;color:#065f46;",
+          foster: "background:#fdf2f8;color:#9d174d;",
+          caretaker: "background:#ecfeff;color:#0e7490;",
+          volunteer: "background:#f5f3ff;color:#6d28d9;",
+        };
+        return styles[role] || "background:#f3f4f6;color:#374151;";
+      };
+      const roleLabel = (role: string): string => {
+        const labels: Record<string, string> = {
+          staff: "Staff", trapper: "Trapper", foster: "Foster",
+          caretaker: "Caretaker", volunteer: "Volunteer",
+        };
+        return labels[role] || role;
+      };
+
+      // People are now objects: {name, roles[], is_staff}
       const filteredPeople = Array.isArray(pin.people)
-        ? pin.people.filter((name: string) => !isLikelyAddress(name))
+        ? pin.people.filter((p: { name: string }) => p.name && !isLikelyAddress(p.name))
         : [];
       const peopleList = filteredPeople.length > 0
-        ? filteredPeople.slice(0, 3).map((name: string) => `<div style="font-size: 12px;">• ${name}</div>`).join("")
+        ? filteredPeople.slice(0, 3).map((p: { name: string; roles: string[]; is_staff: boolean }) => {
+            const badges = (p.roles || [])
+              .filter((r: string) => r !== "volunteer") // Don't show generic volunteer badge if they have a specific role
+              .map((r: string) => `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;margin-left:4px;${roleBadgeStyle(r)}">${roleLabel(r)}</span>`)
+              .join("");
+            const staffBadge = p.is_staff && !(p.roles || []).includes("staff")
+              ? `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;margin-left:4px;background:#eef2ff;color:#4338ca;">Staff</span>`
+              : "";
+            // If they only have volunteer role, show it
+            const volOnly = (p.roles || []).length === 1 && (p.roles || [])[0] === "volunteer"
+              ? `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;margin-left:4px;${roleBadgeStyle("volunteer")}">Volunteer</span>`
+              : "";
+            return `<div style="font-size: 12px; line-height: 1.6;">&#8226; ${escapeHtml(p.name)}${badges}${staffBadge}${volOnly}</div>`;
+          }).join("")
         : "";
 
       // Helper to check for AI refusal messages in summaries
@@ -1462,7 +1627,7 @@ export default function AtlasMap() {
         iconAnchor: [16, 32],
         popupAnchor: [0, -32]
       }),
-      zIndexOffset: 1000
+      zIndexOffset: 2000
     }).addTo(mapRef.current);
 
     // Check if address exists in Atlas — search atlasPins (primary layer) with wider tolerance
@@ -1485,6 +1650,42 @@ export default function AtlasMap() {
       }
     }
     const existsInAtlas = !!matchingPin;
+
+    // Find nearby people within ~200m
+    const NEARBY_RADIUS = 0.002; // ~200m in degrees
+    const nearbyPeople: { name: string; address: string; dist: number }[] = [];
+    const seenNames = new Set<string>();
+    for (const p of atlasPinsRef.current) {
+      if (!p.lat || !p.lng || p.id === matchingPin?.id) continue;
+      const dLat = Math.abs(p.lat - navigatedLocation.lat);
+      const dLng = Math.abs(p.lng - navigatedLocation.lng);
+      if (dLat < NEARBY_RADIUS && dLng < NEARBY_RADIUS) {
+        const dist = Math.round(Math.sqrt(dLat ** 2 + dLng ** 2) * 111000);
+        for (const person of (p.people || [])) {
+          const pName = typeof person === 'string' ? person : person.name;
+          if (pName && !seenNames.has(pName)) {
+            seenNames.add(pName);
+            nearbyPeople.push({ name: pName, address: p.address, dist });
+          }
+        }
+      }
+    }
+    nearbyPeople.sort((a, b) => a.dist - b.dist);
+    const displayNearby = nearbyPeople.slice(0, 8);
+    const nearbyExtra = nearbyPeople.length - displayNearby.length;
+
+    const nearbyHtml = displayNearby.length > 0 ? `
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#374151;">Nearby People</div>
+        ${displayNearby.map(n => `
+          <div style="font-size:12px;color:#6b7280;padding:2px 0;">
+            <span style="font-weight:500;color:#374151;">${n.name}</span>
+            <span style="color:#9ca3af;"> — ${n.dist}m</span>
+          </div>
+        `).join("")}
+        ${nearbyExtra > 0 ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">+${nearbyExtra} more</div>` : ""}
+      </div>
+    ` : "";
 
     marker.bindPopup(`
       <div style="min-width: 240px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
@@ -1548,7 +1749,8 @@ export default function AtlasMap() {
                       ">
                 Clear
               </button>
-            </div>`
+            </div>
+            ${nearbyHtml}`
           : `<div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
               <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}"
@@ -1590,7 +1792,8 @@ export default function AtlasMap() {
                       ">
                 Clear
               </button>
-            </div>`
+            </div>
+            ${nearbyHtml}`
         }
       </div>
     `).openPopup();
@@ -1799,13 +2002,42 @@ export default function AtlasMap() {
       <div
         ref={mapContainerRef}
         style={{
-          flex: streetViewCoords ? "0 0 55%" : "1 1 100%",
+          flex: streetViewCoords ? (streetViewFullscreen ? "0 0 0%" : "0 0 55%") : "1 1 100%",
           width: "100%",
           transition: "flex 0.3s ease",
         }}
       />
 
-      {/* Search bar - Google style */}
+      {/* Search bar - Google style (minimized during Street View) */}
+      {streetViewCoords ? (
+        <div style={{
+          position: "absolute",
+          top: 12,
+          left: 16,
+          zIndex: 1000,
+        }}>
+          <button
+            onClick={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); searchInputRef.current?.focus(); }}
+            style={{
+              background: "white",
+              borderRadius: 20,
+              padding: "8px 14px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 500,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: "#374151",
+            }}
+          >
+            <span style={{ fontSize: 14 }}>&#x1F50D;</span> Search
+          </button>
+        </div>
+      ) : (
       <div style={{
         position: "absolute",
         top: 16,
@@ -2059,6 +2291,7 @@ export default function AtlasMap() {
           </div>
         )}
       </div>
+      )}
 
       {/* Right side controls */}
       <div style={{
@@ -2692,6 +2925,41 @@ export default function AtlasMap() {
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
       </div>}
 
+      {/* Map Legend */}
+      <div className="map-legend" style={{
+        position: "absolute",
+        bottom: 24,
+        left: 16,
+        zIndex: 800,
+      }}>
+        <button
+          onClick={() => setShowLegend(prev => !prev)}
+          className="map-legend-toggle"
+          title="Toggle legend"
+        >
+          {showLegend ? "Legend \u25BC" : "?"}
+        </button>
+        {showLegend && (
+          <div className="map-legend-panel">
+            {[
+              { color: "#ea580c", label: "Disease Risk", icon: "\u26A0" },
+              { color: "#8b5cf6", label: "Watch List", icon: "\uD83D\uDC41" },
+              { color: "#22c55e", label: "Verified Cats", icon: "\uD83D\uDC31" },
+              { color: "#14b8a6", label: "Requests Only", icon: "\uD83D\uDCCB" },
+              { color: "#6366f1", label: "History Only", icon: "\uD83D\uDCC4" },
+              { color: "#3b82f6", label: "Minimal Data", icon: "\u2022" },
+              { color: "#3b82f6", label: "Navigated Loc", icon: "\uD83D\uDCCD", isSpecial: true },
+            ].map(({ color, label, icon }) => (
+              <div key={label} className="map-legend-item">
+                <span className="map-legend-swatch" style={{ background: color }} />
+                <span className="map-legend-icon">{icon}</span>
+                <span className="map-legend-label">{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* CSS animations are in atlas-map.css */}
 
       {/* Street View Panel */}
@@ -2712,8 +2980,16 @@ export default function AtlasMap() {
                 Open in Google Maps
               </a>
               <button
+                className="sv-ctrl-btn"
+                onClick={() => setStreetViewFullscreen(prev => !prev)}
+                title={streetViewFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                style={{ fontSize: 16, width: 32, height: 32 }}
+              >
+                {streetViewFullscreen ? "\u2291" : "\u2292"}
+              </button>
+              <button
                 className="street-view-close"
-                onClick={() => setStreetViewCoords(null)}
+                onClick={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); }}
               >
                 &times;
               </button>
@@ -2778,14 +3054,25 @@ export default function AtlasMap() {
               </button>
             </div>
           </div>
-          <iframe
-            ref={streetViewIframeRef}
-            className="street-view-iframe"
-            src={streetViewUrl}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
+          <div style={{ position: "relative", flex: 1 }}>
+            <iframe
+              ref={streetViewIframeRef}
+              className="street-view-iframe"
+              src={streetViewUrl}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              style={{ width: "100%", height: "100%", border: "none" }}
+            />
+            {streetViewFullscreen && (
+              <div
+                ref={miniMapContainerRef}
+                className="street-view-minimap"
+                onClick={() => setStreetViewFullscreen(false)}
+                title="Click to exit fullscreen"
+              />
+            )}
+          </div>
         </div>
       )}
 
