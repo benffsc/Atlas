@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
       google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
       request_count: number;
       active_request_count: number;
+      intake_count: number;
       total_altered: number;
       last_alteration_at: string | null;
       pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
@@ -225,6 +226,7 @@ export async function GET(req: NextRequest) {
         google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
         request_count: number;
         active_request_count: number;
+        intake_count: number;
         total_altered: number;
         last_alteration_at: string | null;
         pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
@@ -249,6 +251,7 @@ export async function GET(req: NextRequest) {
           COALESCE(google_summaries, '[]')::jsonb as google_summaries,
           request_count::int,
           active_request_count::int,
+          intake_count::int,
           total_altered::int,
           last_alteration_at::text,
           pin_style
@@ -265,8 +268,8 @@ export async function GET(req: NextRequest) {
             WHEN 'has_history' THEN 4
             ELSE 5
           END,
-          cat_count DESC
-        LIMIT 3000
+          (cat_count + request_count + person_count + google_entry_count) DESC
+        LIMIT 12000
       `);
 
       // Parse JSONB columns

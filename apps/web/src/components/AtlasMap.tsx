@@ -193,6 +193,7 @@ interface AtlasPin {
   google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
   request_count: number;
   active_request_count: number;
+  intake_count: number;
   total_altered: number;
   last_alteration_at: string | null;
   pin_style: "disease" | "watch_list" | "active" | "has_history" | "minimal";
