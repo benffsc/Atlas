@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import PlaceResolver from "@/components/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/BackButton";
 import {
   OWNERSHIP_OPTIONS,
@@ -183,6 +184,7 @@ export default function NewIntakeEntryPage() {
 
   // Place selection state
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
 
   const updateForm = (updates: Partial<IntakeFormData>) => {
     setForm(prev => ({ ...prev, ...updates }));
@@ -248,29 +250,15 @@ export default function NewIntakeEntryPage() {
     setPersonSuggestions([]);
   };
 
-  // Handle address place selection
-  const handlePlaceSelect = (place: PlaceDetails) => {
-    setSelectedPlaceId(place.place_id);
-
-    let city = "";
-    let zip = "";
-    let county = "";
-
-    for (const component of place.address_components) {
-      if (component.types.includes("locality")) {
-        city = component.long_name;
-      } else if (component.types.includes("postal_code")) {
-        zip = component.long_name;
-      } else if (component.types.includes("administrative_area_level_2")) {
-        county = component.long_name.replace(" County", "").toLowerCase();
-      }
+  // Handle place resolved from PlaceResolver
+  const handlePlaceResolved = (place: ResolvedPlace | null) => {
+    setResolvedPlace(place);
+    setSelectedPlaceId(place?.place_id || null);
+    if (place) {
+      updateForm({
+        cats_address: place.formatted_address || place.display_name || "",
+      });
     }
-
-    updateForm({
-      cats_city: city || form.cats_city,
-      cats_zip: zip || form.cats_zip,
-      county: county || form.county,
-    });
   };
 
   // Close person dropdown on outside click
@@ -592,10 +580,9 @@ export default function NewIntakeEntryPage() {
           <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
             <div>
               <label className="text-sm">Street Address *</label>
-              <AddressAutocomplete
-                value={form.cats_address}
-                onChange={(value) => updateForm({ cats_address: value })}
-                onPlaceSelect={handlePlaceSelect}
+              <PlaceResolver
+                value={resolvedPlace}
+                onChange={handlePlaceResolved}
                 placeholder="Start typing address..."
               />
               {selectedPlaceId && (

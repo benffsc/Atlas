@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import PlaceResolver from "@/components/PlaceResolver";
+import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface HandoffRequestModalProps {
   isOpen: boolean;
@@ -23,15 +25,6 @@ interface PersonSearchResult {
   address: string | null;
 }
 
-interface PlacePrediction {
-  place_id: string;
-  description: string;
-  structured_formatting: {
-    main_text: string;
-    secondary_text: string;
-  };
-}
-
 const HANDOFF_REASONS = [
   { value: "caretaker_moving", label: "Original caretaker is moving" },
   { value: "new_caretaker", label: "New person taking over colony care" },
@@ -52,7 +45,7 @@ export function HandoffRequestModal({
 }: HandoffRequestModalProps) {
   const [handoffReason, setHandoffReason] = useState("");
   const [customReason, setCustomReason] = useState("");
-  const [newAddress, setNewAddress] = useState("");
+  const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
 
   // Person search state
   const [personSearch, setPersonSearch] = useState("");
@@ -85,15 +78,6 @@ export function HandoffRequestModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Address autocomplete state
-  const [addressPredictions, setAddressPredictions] = useState<PlacePrediction[]>([]);
-  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
-  const [addressLoading, setAddressLoading] = useState(false);
-  const addressInputRef = useRef<HTMLInputElement>(null);
-  const addressDropdownRef = useRef<HTMLDivElement>(null);
-  const addressDebounceRef = useRef<NodeJS.Timeout>();
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -110,7 +94,7 @@ export function HandoffRequestModal({
     if (isOpen) {
       setHandoffReason("");
       setCustomReason("");
-      setNewAddress("");
+      setResolvedPlace(null);
       setPersonSearch("");
       setPersonResults([]);
       setSelectedPerson(null);
@@ -129,8 +113,6 @@ export function HandoffRequestModal({
       setKittenNotNeededReason("");
       setError("");
       setSuccess(false);
-      setAddressPredictions([]);
-      setShowAddressDropdown(false);
     }
   }, [isOpen]);
 
@@ -178,9 +160,6 @@ export function HandoffRequestModal({
     setNewRequesterLastName(person.last_name || "");
     setNewRequesterPhone(person.phone || "");
     setNewRequesterEmail(person.email || "");
-    if (person.address) {
-      setNewAddress(person.address);
-    }
   };
 
   const clearSelection = () => {
@@ -191,74 +170,6 @@ export function HandoffRequestModal({
     setNewRequesterPhone("");
     setNewRequesterEmail("");
   };
-
-  // Address autocomplete functions
-  const fetchAddressPredictions = useCallback(async (input: string) => {
-    if (!input || input.length < 3) {
-      setAddressPredictions([]);
-      setShowAddressDropdown(false);
-      return;
-    }
-    setAddressLoading(true);
-    try {
-      const response = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(input)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAddressPredictions(data.predictions || []);
-        if ((data.predictions || []).length > 0) {
-          updateDropdownPosition();
-          setShowAddressDropdown(true);
-        }
-      }
-    } catch (err) {
-      console.error("Address autocomplete error:", err);
-    } finally {
-      setAddressLoading(false);
-    }
-  }, []);
-
-  const updateDropdownPosition = () => {
-    if (addressInputRef.current) {
-      const rect = addressInputRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
-  };
-
-  const handleAddressChange = (value: string) => {
-    setNewAddress(value);
-    if (addressDebounceRef.current) {
-      clearTimeout(addressDebounceRef.current);
-    }
-    addressDebounceRef.current = setTimeout(() => {
-      fetchAddressPredictions(value);
-    }, 300);
-  };
-
-  const handleAddressSelect = async (prediction: PlacePrediction) => {
-    setNewAddress(prediction.description);
-    setShowAddressDropdown(false);
-    setAddressPredictions([]);
-  };
-
-  // Close address dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        addressDropdownRef.current &&
-        !addressDropdownRef.current.contains(event.target as Node) &&
-        addressInputRef.current &&
-        !addressInputRef.current.contains(event.target as Node)
-      ) {
-        setShowAddressDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,8 +186,8 @@ export function HandoffRequestModal({
       return;
     }
 
-    if (!newAddress.trim()) {
-      setError("Please enter the new caretaker's address");
+    if (!resolvedPlace) {
+      setError("Please select the new caretaker's address");
       return;
     }
 
@@ -297,7 +208,8 @@ export function HandoffRequestModal({
             handoffReason === "other"
               ? customReason
               : HANDOFF_REASONS.find((r) => r.value === handoffReason)?.label,
-          new_address: newAddress,
+          new_address: resolvedPlace?.formatted_address || resolvedPlace?.display_name || "",
+          new_place_id: resolvedPlace?.place_id || null,
           // If person selected, pass their ID; otherwise pass name fields
           existing_person_id: selectedPerson?.entity_id || null,
           new_requester_first_name: newRequesterFirstName || null,
@@ -694,33 +606,11 @@ export function HandoffRequestModal({
             >
               New Location/Address *
             </label>
-            <input
-              ref={addressInputRef}
-              type="text"
-              value={newAddress}
-              onChange={(e) => handleAddressChange(e.target.value)}
-              onFocus={() => {
-                if (addressPredictions.length > 0) {
-                  updateDropdownPosition();
-                  setShowAddressDropdown(true);
-                }
-              }}
+            <PlaceResolver
+              value={resolvedPlace}
+              onChange={setResolvedPlace}
               placeholder="Start typing an address..."
-              autoComplete="off"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                background: "var(--input-bg, #fff)",
-              }}
             />
-            {addressLoading && (
-              <div style={{ fontSize: "0.75rem", color: "#6c757d", marginTop: "4px" }}>
-                Searching...
-              </div>
-            )}
           </div>
 
           {/* Contact Info */}
@@ -1076,47 +966,6 @@ export function HandoffRequestModal({
         </form>
       </div>
 
-      {/* Address autocomplete dropdown - fixed position to escape modal overflow */}
-      {showAddressDropdown && addressPredictions.length > 0 && (
-        <div
-          ref={addressDropdownRef}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "fixed",
-            top: dropdownPosition.top,
-            left: dropdownPosition.left,
-            width: dropdownPosition.width,
-            background: "var(--card-bg, #fff)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            zIndex: 1200,
-            maxHeight: "200px",
-            overflowY: "auto",
-          }}
-        >
-          {addressPredictions.map((prediction) => (
-            <div
-              key={prediction.place_id}
-              onClick={() => handleAddressSelect(prediction)}
-              style={{
-                padding: "10px 12px",
-                cursor: "pointer",
-                borderBottom: "1px solid var(--border)",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdfa")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>
-                {prediction.structured_formatting.main_text}
-              </div>
-              <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                {prediction.structured_formatting.secondary_text}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

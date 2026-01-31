@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import PlaceResolver from "@/components/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 // Form state type
 interface PhoneIntakeForm {
@@ -240,6 +241,7 @@ export default function PhoneIntakePage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<PhoneIntakeForm>(INITIAL_FORM);
+  const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ submission_id: string; triage_category: string } | null>(null);
@@ -630,13 +632,13 @@ export default function PhoneIntakePage() {
             </FormField>
 
             <FormField label="Address where cats are located" required>
-              <AddressAutocomplete
-                value={form.cats_address}
-                onChange={(value) => updateForm({ cats_address: value })}
-                onPlaceSelect={(place) => {
+              <PlaceResolver
+                value={resolvedPlace}
+                onChange={(place) => {
+                  setResolvedPlace(place);
                   updateForm({
-                    cats_address: place.formatted_address || "",
-                    selected_place_id: place.place_id || null,
+                    cats_address: place?.formatted_address || place?.display_name || "",
+                    selected_place_id: place?.place_id || null,
                   });
                 }}
                 placeholder="Start typing the address..."

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import PlaceResolver from "@/components/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
   HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
@@ -248,6 +249,8 @@ function IntakeForm() {
   // Place selection state
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [placeCoordinates, setPlaceCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [resolvedCatPlace, setResolvedCatPlace] = useState<ResolvedPlace | null>(null);
+  const [resolvedRequesterPlace, setResolvedRequesterPlace] = useState<ResolvedPlace | null>(null);
 
   // Address selection state (for known person addresses)
   const [personAddresses, setPersonAddresses] = useState<PersonAddress[]>([]);
@@ -402,33 +405,28 @@ function IntakeForm() {
     setSelectedPlaceId(address.place_id);
   };
 
-  // Handle address place selection from Google
-  const handlePlaceSelect = (place: PlaceDetails) => {
-    setSelectedPlaceId(place.place_id);
-    setPlaceCoordinates(place.geometry?.location || null);
-
-    // Extract city, zip, and county from address components
-    let city = "";
-    let zip = "";
-    let county = "";
-
-    for (const component of place.address_components) {
-      if (component.types.includes("locality")) {
-        city = component.long_name;
-      } else if (component.types.includes("postal_code")) {
-        zip = component.long_name;
-      } else if (component.types.includes("administrative_area_level_2")) {
-        // County is usually in administrative_area_level_2
-        county = component.long_name.replace(" County", "");
-      }
+  // Handle requester home address resolved from PlaceResolver
+  const handleRequesterPlaceResolved = (place: ResolvedPlace | null) => {
+    setResolvedRequesterPlace(place);
+    if (place) {
+      setFormData(prev => ({
+        ...prev,
+        requester_address: place.formatted_address || place.display_name || "",
+        requester_city: place.locality || prev.requester_city,
+      }));
     }
+  };
 
-    setFormData(prev => ({
-      ...prev,
-      cats_city: city || prev.cats_city,
-      cats_zip: zip || prev.cats_zip,
-      county: county || prev.county,
-    }));
+  // Handle cat address resolved from PlaceResolver
+  const handleCatPlaceResolved = (place: ResolvedPlace | null) => {
+    setResolvedCatPlace(place);
+    setSelectedPlaceId(place?.place_id || null);
+    if (place) {
+      setFormData(prev => ({
+        ...prev,
+        cats_address: place.formatted_address || place.display_name || "",
+      }));
+    }
   };
 
   // Close person dropdown on outside click
@@ -1351,16 +1349,15 @@ function IntakeForm() {
           {(!showAddressSelection || selectedAddressId === "new" || personAddresses.length === 0) && (
             <div>
               <label>Street Address *</label>
-              <AddressAutocomplete
-                value={formData.cats_address}
-                onChange={(value) => updateField("cats_address", value)}
-                onPlaceSelect={handlePlaceSelect}
+              <PlaceResolver
+                value={resolvedCatPlace}
+                onChange={handleCatPlaceResolved}
                 placeholder="Start typing address..."
               />
               {errors.cats_address && <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{errors.cats_address}</span>}
               {selectedPlaceId && selectedAddressId !== "new" && (
                 <span style={{ fontSize: "0.75rem", color: "#198754", marginTop: "0.25rem", display: "block" }}>
-                  Address verified via Google Maps
+                  Address verified
                 </span>
               )}
             </div>
@@ -1426,27 +1423,11 @@ function IntakeForm() {
               <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.75rem" }}>
                 Since the cats are at a different location, you can optionally provide your home address.
               </p>
-              <AddressAutocomplete
-                value={formData.requester_address}
-                onChange={(value) => updateField("requester_address", value)}
-                onPlaceSelect={(place) => {
-                  // Extract city and zip from requester address
-                  let city = "";
-                  let zip = "";
-                  for (const component of place.address_components) {
-                    if (component.types.includes("locality")) {
-                      city = component.long_name;
-                    } else if (component.types.includes("postal_code")) {
-                      zip = component.long_name;
-                    }
-                  }
-                  setFormData(prev => ({
-                    ...prev,
-                    requester_city: city || prev.requester_city,
-                    requester_zip: zip || prev.requester_zip,
-                  }));
-                }}
+              <PlaceResolver
+                value={resolvedRequesterPlace}
+                onChange={handleRequesterPlaceResolved}
                 placeholder="Start typing your home address..."
+                allowCreate={false}
               />
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
                 <input

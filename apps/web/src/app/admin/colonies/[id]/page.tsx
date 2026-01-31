@@ -3,12 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/BackButton";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
-
-interface PlaceSelectResult {
-  place_id: string;
-  formatted_address: string;
-}
+import PlaceResolver from "@/components/PlaceResolver";
+import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface ColonyDetail {
   colony_id: string;
@@ -177,6 +173,7 @@ export default function ColonyDetailPage() {
   const [showAddPlace, setShowAddPlace] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [selectedPlaceAddress, setSelectedPlaceAddress] = useState("");
+  const [resolvedColonyPlace, setResolvedColonyPlace] = useState<ResolvedPlace | null>(null);
   const [addingPlace, setAddingPlace] = useState(false);
 
   // Add observation modal
@@ -281,6 +278,7 @@ export default function ColonyDetailPage() {
       setShowAddPlace(false);
       setSelectedPlaceId(null);
       setSelectedPlaceAddress("");
+      setResolvedColonyPlace(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add place");
     } finally {
@@ -705,12 +703,17 @@ export default function ColonyDetailPage() {
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
                 Search Address
               </label>
-              <AddressAutocomplete
-                value={selectedPlaceAddress}
-                onChange={setSelectedPlaceAddress}
-                onPlaceSelect={(place: PlaceSelectResult | null) => {
-                  setSelectedPlaceId(place?.place_id || null);
-                  setSelectedPlaceAddress(place?.formatted_address || "");
+              <PlaceResolver
+                value={resolvedColonyPlace}
+                onChange={(place) => {
+                  setResolvedColonyPlace(place);
+                  if (place) {
+                    setSelectedPlaceId(place.place_id);
+                    setSelectedPlaceAddress(place.formatted_address || place.display_name || "");
+                  } else {
+                    setSelectedPlaceId(null);
+                    setSelectedPlaceAddress("");
+                  }
                 }}
                 placeholder="Type an address..."
               />
@@ -738,6 +741,7 @@ export default function ColonyDetailPage() {
                   setShowAddPlace(false);
                   setSelectedPlaceId(null);
                   setSelectedPlaceAddress("");
+                  setResolvedColonyPlace(null);
                 }}
                 style={{ background: "transparent", border: "1px solid var(--border)" }}
               >

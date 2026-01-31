@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import PlaceResolver from "@/components/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import JournalSection, { JournalEntry } from "@/components/JournalSection";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
@@ -251,9 +252,8 @@ export default function PersonDetailPage() {
 
   // Edit mode states
   const [editingContact, setEditingContact] = useState(false);
-  const [addressInput, setAddressInput] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
-  const [pendingAddress, setPendingAddress] = useState<PlaceDetails | null>(null);
+  const [pendingPlace, setPendingPlace] = useState<ResolvedPlace | null>(null);
 
   // Phone/Email edit state
   const [editingIdentifiers, setEditingIdentifiers] = useState(false);
@@ -344,31 +344,26 @@ export default function PersonDetailPage() {
     loadData();
   }, [id, fetchPerson, fetchJournal, fetchRequests, fetchTrapperInfo]);
 
-  const handlePlaceSelect = (place: PlaceDetails) => {
-    setPendingAddress(place);
+  const handlePlaceResolved = (place: ResolvedPlace | null) => {
+    setPendingPlace(place);
   };
 
   const confirmAddressChange = async () => {
-    if (!pendingAddress) return;
+    if (!pendingPlace) return;
     setSavingAddress(true);
     try {
       const response = await fetch(`/api/people/${id}/address`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          google_place_id: pendingAddress.place_id,
-          formatted_address: pendingAddress.formatted_address,
-          lat: pendingAddress.geometry.location.lat,
-          lng: pendingAddress.geometry.location.lng,
-          address_components: pendingAddress.address_components,
+          place_id: pendingPlace.place_id,
         }),
       });
 
       if (response.ok) {
         await fetchPerson();
         setEditingContact(false);
-        setAddressInput("");
-        setPendingAddress(null);
+        setPendingPlace(null);
       }
     } catch (err) {
       console.error("Failed to save address:", err);
@@ -782,14 +777,13 @@ export default function PersonDetailPage() {
               <label className="text-sm" style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 Primary Address
               </label>
-              <AddressAutocomplete
-                value={addressInput}
-                onChange={setAddressInput}
-                onPlaceSelect={handlePlaceSelect}
+              <PlaceResolver
+                value={pendingPlace}
+                onChange={handlePlaceResolved}
                 placeholder="Search for an address..."
-                disabled={savingAddress || !!pendingAddress}
+                disabled={savingAddress}
               />
-              {pendingAddress && (
+              {pendingPlace && (
                 <div style={{
                   marginTop: "0.75rem",
                   padding: "0.75rem",
@@ -811,7 +805,7 @@ export default function PersonDetailPage() {
                   <div style={{ marginBottom: "0.75rem" }}>
                     <span className="text-sm text-muted">New: </span>
                     <span className="text-sm" style={{ fontWeight: 500 }}>
-                      {pendingAddress.formatted_address}
+                      {pendingPlace.formatted_address || pendingPlace.display_name}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -823,7 +817,7 @@ export default function PersonDetailPage() {
                       {savingAddress ? "Saving..." : "Confirm"}
                     </button>
                     <button
-                      onClick={() => { setPendingAddress(null); setAddressInput(""); }}
+                      onClick={() => setPendingPlace(null)}
                       disabled={savingAddress}
                       style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem", background: "transparent", border: "1px solid var(--border)" }}
                     >
@@ -832,7 +826,7 @@ export default function PersonDetailPage() {
                   </div>
                 </div>
               )}
-              {savingAddress && !pendingAddress && (
+              {savingAddress && !pendingPlace && (
                 <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>Saving...</p>
               )}
             </div>

@@ -581,6 +581,9 @@ Map data comes from **SQL views** (not materialized), so it's always current:
 | `v_people_without_data_engine` | People missing Data Engine audit trail |
 | `v_potential_duplicate_people` | Possible duplicate people records |
 | `v_potential_duplicate_places` | Possible duplicate place records |
+| `v_person_dedup_candidates` | 5-tier person duplicate detection (email, phone+name, phone, name+place, name) |
+| `v_person_dedup_summary` | Aggregate person dedup counts by confidence tier |
+| `place_dedup_candidates` | Materialized place duplicate pairs (PostGIS proximity + trigram) — refreshed via `refresh_place_dedup_candidates()` |
 | `v_shelterluv_sync_status` | ShelterLuv API sync health and pending records |
 | `v_cat_field_sources_summary` | Multi-source field values per cat |
 | `v_cat_field_conflicts` | Cats where sources disagree on field values |
@@ -1121,6 +1124,9 @@ Trappers are linked to appointments directly for accurate stats:
 - Don't link one person's cats to another person's place without verified evidence
 - Don't forget to run `process_clinichq_owner_info()` after each ClinicHQ data ingest (INV-9)
 - Don't write queries joining entity tables without `merged_into_*_id IS NULL` filters (INV-8)
+- **Don't merge people without checking `person_safe_to_merge()`** - Returns 'safe', 'review', or block reason. Use `/admin/person-dedup` for comprehensive dedup review.
+- **Don't merge places without checking `place_safe_to_merge()`** - Returns 'safe', 'review', or block reason. Use `/admin/place-dedup` for comprehensive dedup review.
+- **Don't use AddressAutocomplete for place input** - Use `PlaceResolver` component (searches Atlas first, handles duplicate detection, unit creation). AddressAutocomplete is only kept for the address correction flow on `places/[id]`.
 
 ## Tippy Documentation Requirements
 

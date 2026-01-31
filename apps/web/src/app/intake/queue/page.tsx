@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import CreateRequestWizard from "@/components/CreateRequestWizard";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import PlaceResolver from "@/components/PlaceResolver";
+import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -387,6 +388,7 @@ function IntakeQueueContent() {
     cats_city: "",
     cats_zip: "",
   });
+  const [resolvedQueuePlace, setResolvedQueuePlace] = useState<ResolvedPlace | null>(null);
 
   // Edit history state
   const [editHistory, setEditHistory] = useState<Array<{
@@ -562,6 +564,7 @@ function IntakeQueueContent() {
   // Reset editing states when submission changes
   useEffect(() => {
     setEditingAddress(false);
+    setResolvedQueuePlace(null);
     setShowInlineContactForm(null);
   }, [selectedSubmission?.submission_id]);
 
@@ -2179,33 +2182,17 @@ function IntakeQueueContent() {
                     <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
                       Street Address * (start typing for suggestions)
                     </label>
-                    <AddressAutocomplete
-                      value={addressEdits.cats_address}
-                      onChange={(value) => setAddressEdits({ ...addressEdits, cats_address: value })}
-                      onPlaceSelect={(place) => {
-                        // Extract address components
-                        const getComponent = (types: string[]) => {
-                          const comp = place.address_components.find(c =>
-                            types.some(t => c.types.includes(t))
-                          );
-                          return comp?.long_name || "";
-                        };
-
-                        // Build street address from components
-                        const streetNumber = getComponent(["street_number"]);
-                        const streetName = getComponent(["route"]);
-                        const street = streetNumber && streetName
-                          ? `${streetNumber} ${streetName}`
-                          : place.formatted_address.split(",")[0];
-
-                        const city = getComponent(["locality", "sublocality", "administrative_area_level_2"]);
-                        const zip = getComponent(["postal_code"]);
-
-                        setAddressEdits({
-                          cats_address: street,
-                          cats_city: city,
-                          cats_zip: zip,
-                        });
+                    <PlaceResolver
+                      value={resolvedQueuePlace}
+                      onChange={(place) => {
+                        setResolvedQueuePlace(place);
+                        if (place) {
+                          setAddressEdits({
+                            cats_address: place.formatted_address || place.display_name || "",
+                            cats_city: place.locality || "",
+                            cats_zip: "",
+                          });
+                        }
                       }}
                       placeholder="Start typing address..."
                     />

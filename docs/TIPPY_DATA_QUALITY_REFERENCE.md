@@ -947,4 +947,93 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 
 ---
 
-*Last updated: 2026-01-30 (after DH_E implementation)*
+### Session: 2026-01-30 - Unified PlaceResolver System
+
+**Context:** Following the place deduplication audit, a deeper analysis revealed that 7+ frontend forms handled place/address input with inconsistent capabilities. The public intake form only searched Google and never checked Atlas, creating new duplicate places every time an address was submitted that already existed. The backend was already unified through `find_or_create_place_deduped()`, but the frontend was entirely fragmented.
+
+**Key Discoveries:**
+1. **AddressAutocomplete** (Google-only) was the root cause of continued duplicate place creation from intake forms
+2. `requests/new` had the best pattern (600+ lines of inline dual Atlas+Google search with duplicate detection) but it was completely non-reusable
+3. All other forms (intake, admin intake, queue, people profiles, handoff modal, colony management) only had Google search — no Atlas lookup, no duplicate detection
+
+**Changes Made:**
+- Created `usePlaceResolver` hook (~290 lines) — extracts reusable search + resolve logic
+- Created `PlaceResolver` component (~430 lines) — unified address input with Atlas search, Google search, duplicate detection, place kind selection, unit creation, describe location
+- Migrated 9 forms to PlaceResolver:
+  - `people/[id]` — person address changes
+  - `admin/intake/call` — staff phone intake
+  - `intake/queue/new` — staff request creation from queue
+  - `intake` — public intake form (both cat address and requester address)
+  - `places/new` — simplified from 416 → 155 lines
+  - `requests/new` — biggest cleanup, removed ~400 lines of inline code
+  - `HandoffRequestModal` — request handoff
+  - `intake/queue` — intake queue address editing
+  - `admin/colonies/[id]` — colony place addition
+- `AddressAutocomplete` retained only for `places/[id]` address correction flow (fundamentally different use case)
+
+**Staff Impact:**
+- **All address input forms now search Atlas first** — if an address already exists, staff will see it and can select it directly instead of accidentally creating a duplicate
+- **Duplicate detection on all forms** — selecting a Google address that already exists shows a modal with options to use existing or add unit
+- **Unit/apartment support everywhere** — all forms can now create units at existing addresses
+- **No workflow changes** — forms look and behave the same, just with more capabilities
+- Public intake submissions will no longer create duplicate places for known addresses
+
+*Last updated: 2026-01-30 (after PlaceResolver system)*
+
+### Session: 2026-01-30 - Person Deduplication Audit System
+
+**Context:** The task ledger reported ~14,536 exact-name duplicate people in `sot_people`. The existing dedup system only catches duplicates during new record ingestion (via `find_or_create_person()` and the Data Engine). It had never proactively scanned the full person table. Many duplicates were created before the Data Engine was operational.
+
+**Key Discoveries:**
+1. **Existing infrastructure was solid but unused at scale** — `merge_people()` (MIG_260), `merge_email_duplicates()` / `merge_phone_duplicates()` (MIG_575) existed but had never been run against the full dataset
+2. **Multiple detection signals needed layering** — email match alone misses phone-only duplicates; phone match alone can't distinguish household members from duplicates; name match alone has high false positive rate
+3. **Five confidence tiers emerged** from analysis:
+   - Tier 1: Same email (highest confidence, safe to auto-merge)
+   - Tier 2: Same phone + similar name (safe to auto-merge)
+   - Tier 3: Same phone + different name (likely household — needs review)
+   - Tier 4: Identical name + shared place (moderate confidence)
+   - Tier 5: Identical name only (lowest confidence)
+
+**Changes Made:**
+- MIG_801: Created `v_person_dedup_candidates` (5-tier comprehensive duplicate detection), `v_person_dedup_summary` (dashboard counts), `person_safe_to_merge()` (safety guard function), supporting indexes
+- MIG_802: Safe batch auto-merges for tiers 1-2, queues tiers 3-5 into `potential_person_duplicates` for staff review
+- `/admin/person-dedup` page: New admin UI with tier filter tabs, side-by-side comparison cards, batch actions (merge all, keep separate all, dismiss all), pagination
+- `/api/admin/person-dedup` endpoint: GET (paginated candidates with stats) + POST (single or batch resolve)
+
+**Staff Impact:**
+- **New admin page at `/admin/person-dedup`** for reviewing duplicate candidates by confidence tier
+- Tier 1-2 pairs are auto-merged by MIG_802 — staff only sees remaining ambiguous cases
+- Each candidate card shows both people side-by-side with identifier counts, place counts, cat counts, request counts, and shared place count
+- Staff can merge, keep separate, or skip individual pairs or batch-select multiple
+- Merged records retain all relationships — nothing is lost, the duplicate just gets absorbed into the canonical record
+- The existing `/admin/duplicates` page continues to handle ingestion-time flags independently
+
+*Last updated: 2026-01-30 (after person dedup audit system)*
+
+### Session: 2026-01-30 - Place Deduplication Audit System
+
+**Context:** With person dedup handled, the task ledger flagged DH_E004 (place dedup) as the next priority. Atlas has ~11K active places with geocoded locations. Many were created from different sources (Airtable, web intake, ClinicHQ) for the same physical address, leading to duplicate place records with split data.
+
+**Key Discoveries:**
+1. **View-based approach too slow** — An initial attempt using `CREATE VIEW` with PostGIS `ST_DWithin` cross-joins timed out on 11K+ places. Switched to materialized table approach with on-demand refresh function.
+2. **Three confidence tiers emerged** from geographic + address analysis:
+   - Tier 1: Within 30m + address similarity >= 0.6 (753 pairs — almost certainly same place)
+   - Tier 2: Within 30m + low address similarity (691 pairs — same spot, different text, possibly unit vs parent)
+   - Tier 3: 30-100m + address similarity >= 0.7 (2,409 pairs — possible mis-geocode)
+3. **3,853 total place duplicate candidates** detected across all tiers.
+4. **Safety guards needed** — FFSC facilities, parent-child relationships, and already-merged places must be blocked from merge.
+
+**Changes Made:**
+- MIG_803: Created `place_dedup_candidates` table, `refresh_place_dedup_candidates()` function, `place_safe_to_merge()` safety guard, PostGIS + trigram indexes
+- `/admin/place-dedup` page: Admin UI with tier filter tabs, side-by-side place comparison (address, name, kind, request/cat/child unit counts), distance + similarity indicators, batch actions
+- `/api/admin/place-dedup` endpoint: GET (paginated candidates from table) + POST (merge via `merge_place_into()`, keep_separate, dismiss)
+
+**Staff Impact:**
+- **New admin page at `/admin/place-dedup`** for reviewing place duplicate candidates by confidence tier
+- Each card shows both places side-by-side with address, display name, place kind, distance apart, address similarity percentage, request count, cat count, and child unit count
+- Staff can merge, keep separate, or skip individual pairs or batch-select multiple
+- Merging uses `merge_place_into()` which atomically relinks all 23+ FK references
+- `place_safe_to_merge()` blocks merges of FFSC facilities, parent-child pairs, and already-merged places
+- Run `SELECT * FROM trapper.refresh_place_dedup_candidates();` to re-scan after significant data changes
+
+*Last updated: 2026-01-30 (after place dedup audit system)*
