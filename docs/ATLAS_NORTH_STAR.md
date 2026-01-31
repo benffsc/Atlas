@@ -447,10 +447,28 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 4. **People without identifiers PARTIALLY RESOLVED (MIG_773)**: 13 recovered, 973 remaining (no recoverable identifiers).
 5. **Cats without microchips**: 1,608 cats with no dedup key. Same cat can appear as multiple records.
 6. **Backup table bloat RESOLVED (MIG_774)**: 10 tables dropped, 149 MB reclaimed.
-7. **Places without geometry**: 93 places invisible to Beacon maps.
+7. **Places without geometry**: 93 places invisible to Beacon maps. Geocode cron runs every 30 min.
 8. **INV-10 centralized functions IMPLEMENTED (MIG_797)**: `link_cat_to_place()` and `link_person_to_cat()` created. Remaining callers should be migrated as encountered.
-9. **Duplicate places MOSTLY RESOLVED (MIG_799, MIG_800)**: `normalize_address()` hardened with 11 new normalizations. 188 exact duplicate pairs merged with full FK relinking. House number guard (`extract_house_number()` + `address_safe_to_merge()`) prevents false positives. ~307 fuzzy pairs remain for admin review (DH_E004). 11,191 active places (down from 11,379).
+9. **Duplicate places RESOLVED (MIG_799, MIG_800, MIG_803)**: `normalize_address()` hardened with 11 new normalizations. 188 exact pairs auto-merged. MIG_803 detected 3,853 fuzzy candidates via PostGIS proximity + trigram similarity (753 T1 + 691 T2 + 2,409 T3). Admin review at `/admin/place-dedup` with `place_safe_to_merge()` safety guard. 11,100 active places.
 10. **Unapplied migrations RESOLVED**: MIG_793 (v_orphan_places) and MIG_794 (relink functions) applied. Column name mismatches fixed.
+11. **Duplicate people DETECTED (MIG_801, MIG_802)**: 5-tier detection found 1,178 candidates. Tiers 1-2 (email/phone+name) already clean — Data Engine handled them. 1,178 remaining are tier 4-5 (name+place, name only) queued for staff review at `/admin/person-dedup`. `person_safe_to_merge()` safety guard blocks staff merges and same-person pairs.
+12. **Email notifications NOT LIVE**: Resend email fully implemented in code (`lib/email.ts`, templates, `/api/cron/send-emails`). Needs `RESEND_API_KEY` environment variable set in Vercel to activate.
+
+---
+
+## Remaining UI Work (TASK_LEDGER UI_001–005)
+
+All data quality and infrastructure tasks (TASK_001–006, ORCH_001–003, DH_A–E, SC_001–004, MAP_001) are **Done**. The remaining work is L6 (Workflow Surfaces):
+
+| Task | Layer | Description | Resolves Bugs |
+|------|-------|-------------|---------------|
+| **UI_001** | L6 | Dashboard redesign — "Needs Attention" panel, my active requests, intake list, map preview | B1 |
+| **UI_002** | L6 | Filter persistence (URL params) + mobile card views + consolidate /map vs /beacon | B6, B8, B13 |
+| **UI_003** | L6 | Zillow-style media gallery — hero image, "set as main photo", request-place bridging | — |
+| **UI_004** | L3/L5/L6 | AI place type inference, partner org enhanced profiles, orphan places admin page | — |
+| **UI_005** | L6 | Name edit validation, emoji cleanup, print CSS conflict | B7, B11, B12 |
+
+Full task cards with requirements, touched surfaces, and validation steps are in `TASK_LEDGER.md`.
 
 ---
 
@@ -460,8 +478,9 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 |----------|---------|
 | `ATLAS_MISSION_CONTRACT.md` | Beacon science, population modeling, ground truth principle |
 | `ACTIVE_FLOW_SAFETY_GATE.md` | Concrete validation steps after any change |
-| `TASK_LEDGER.md` | Ordered task cards with scope, safety, rollback |
+| `TASK_LEDGER.md` | Ordered task cards with scope, safety, rollback. UI_001–005 are current work. |
 | `CLAUDE.md` | Developer rules, coding conventions, API patterns |
 | `CENTRALIZED_FUNCTIONS.md` | Entity creation function reference |
 | `DATA_INGESTION_RULES.md` | Ingest script conventions |
 | `UI_REDESIGN_SPEC.md` | UI redesign spec: nav, profiles, mobile, address mgmt, classification, export |
+| `TIPPY_DATA_QUALITY_REFERENCE.md` | Staff-facing data quality explanations, session logs for Tippy AI |

@@ -418,7 +418,7 @@ export default function RequestPrintPage() {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(39,174,96,0.4);
           }
-          .print-controls .back-btn {
+          .print-controls .print-back-btn {
             background: #f0f0f0;
             color: #333;
           }
@@ -429,7 +429,7 @@ export default function RequestPrintPage() {
       <div className="print-controls">
         <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
         <a href={`/requests/${id}`} style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>← Back to Request</button>
+          <button className="print-back-btn" style={{ width: "100%" }}>← Back to Request</button>
         </a>
       </div>
 

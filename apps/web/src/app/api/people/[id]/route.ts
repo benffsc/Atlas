@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { logFieldEdits, detectChanges, type FieldChange } from "@/lib/audit";
+import { validatePersonName } from "@/lib/validation";
 
 interface PartnerOrg {
   org_id: string;
@@ -262,11 +263,14 @@ export async function PATCH(
     }
 
     // Validate display_name if provided
-    if (body.display_name !== undefined && body.display_name.trim() === "") {
-      return NextResponse.json(
-        { error: "display_name cannot be empty" },
-        { status: 400 }
-      );
+    if (body.display_name !== undefined) {
+      const validation = validatePersonName(body.display_name);
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error || "Invalid name" },
+          { status: 400 }
+        );
+      }
     }
 
     // Get current values for audit comparison

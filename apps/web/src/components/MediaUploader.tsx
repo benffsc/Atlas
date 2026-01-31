@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 export interface MediaItem {
   media_id: string;
@@ -58,6 +59,7 @@ export function MediaUploader({
   autoGroupMultiple = false,
   defaultConfidence = "unidentified",
 }: MediaUploaderProps) {
+  const isMobile = useIsMobile();
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [mediaType, setMediaType] = useState(defaultMediaType);
   const [caption, setCaption] = useState("");
@@ -497,9 +499,34 @@ export function MediaUploader({
           type="file"
           accept="image/*,.pdf"
           multiple={allowMultiple}
+          capture={isMobile ? "environment" : undefined}
           onChange={(e) => e.target.files && handleFilesSelect(e.target.files)}
           style={{ display: "none" }}
         />
+        {isMobile && (
+          <button
+            type="button"
+            onClick={() => {
+              // Reset capture for gallery pick if they want non-camera
+              if (fileInputRef.current) {
+                fileInputRef.current.removeAttribute("capture");
+                fileInputRef.current.click();
+              }
+            }}
+            style={{
+              marginTop: "0.5rem",
+              padding: "0.5rem 1rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              width: "100%",
+            }}
+          >
+            Choose from Gallery
+          </button>
+        )}
       </div>
 
       {/* Media type selector */}

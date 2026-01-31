@@ -291,7 +291,7 @@ export default function TrapperCallSheet() {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(39,174,96,0.4);
           }
-          .print-controls .back-btn {
+          .print-controls .print-back-btn {
             background: #f0f0f0;
             color: #333;
             margin-top: 8px;
@@ -350,7 +350,7 @@ export default function TrapperCallSheet() {
           Print Call Sheet
         </button>
         <a href="/requests" style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>← Back to Requests</button>
+          <button className="print-back-btn" style={{ width: "100%" }}>← Back to Requests</button>
         </a>
         <div className="hint">
           Fill in what you know from the voicemail, then print for Crystal to complete during the callback.

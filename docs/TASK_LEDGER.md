@@ -671,9 +671,19 @@ DH_E002 (Auto-merge duplicates)     ✅ Done — MIG_800: 188 exact duplicate pa
     ↓
 DH_E003 (merged into E002)          ✅ Done — USA-suffix pairs resolved by enhanced normalize_address (no separate MIG needed).
     ↓
-DH_E004 (Review ~307 structural dupes) ⏳ Planned — Admin UI for staff review. Remaining patterns: inverted addresses, missing commas, unit variants.
+DH_E004 (Review ~307 structural dupes) ✅ Done — MIG_803: place_dedup_candidates table + refresh function. 3,853 candidates (753 T1 + 691 T2 + 2,409 T3). Admin UI at /admin/place-dedup.
     ↓
-MAP_001 (Show all places on map)    🔄 In Progress (parallel session) — MIG_798, LIMIT 12000, intake pins
+MAP_001 (Show all places on map)    ✅ Done — MIG_798, LIMIT 12000, intake pins. Disease/watch_list flags verified (39 + 117). 11,100 total pins.
+    ↓
+UI_001 (Dashboard redesign)         ⏳ Planned — "Needs Attention" panel, "My Active Requests", recent intake, map preview. Mobile: stacked.
+    ↓
+UI_002 (Filter persistence + mobile) ⏳ Planned — URL param persistence on list pages (B8), card views on mobile (B6), consolidate /map vs /beacon (B13).
+    ↓
+UI_003 (Media gallery polish)       ⏳ Planned — Zillow-style hero image, "set as main photo", request-place photo bridging (Phase 5).
+    ↓
+UI_004 (Place classification + orgs) ⏳ Planned — AI place type inference from clinic/Airtable data, partner org enhanced profiles, orphan places admin page.
+    ↓
+UI_005 (Name validation + cleanup)  ⏳ Planned — Person name edit validation (B7), partner org emoji cleanup (B11), print CSS conflict (B12).
 ```
 
 ---
@@ -709,10 +719,16 @@ MAP_001 (Show all places on map)    🔄 In Progress (parallel session) — MIG_
 | 2026-01-29 | DH_D002 | Completed: Audit of 68 empty tables. 67 are planned feature infrastructure (FK/view/function refs). 1 legacy table (`appointment_requests`, superseded by staged_records). 0 lookup tables needing population. No migration needed — audit only. |
 | 2026-01-29 | SC_004 | Completed: Made assignment_status a maintained lifecycle field (MIG_788). Backfilled 285 requests: 178 assigned, 83 pending, 24 client_trapping. Added auto-maintenance trigger on request_trapper_assignments. Column is NOT NULL DEFAULT 'pending'. v_request_list updated. API filter uses assignment_status. UI dropdown updated. All Safety Gate checks pass. |
 | 2026-01-30 | DH_E AUDIT | Completed: Full place deduplication audit. Found 3,317 duplicate place pairs (4,019 distinct places). 9,584 relationships need relinking. 398 people + 704 cats affected by definite duplicates. Root cause: `normalize_address()` too lightweight — misses ", USA", trailing whitespace, period stripping. Categorized: 73 auto-safe, 415 USA-suffix, 2,829 structural. MIG_793/794 files exist but NOT applied. |
-| 2026-01-30 | MAP_001 | In Progress (parallel session): MIG_798 show all interacted places on map. LIMIT 3000→12000. Intake submissions added to v_map_atlas_pins. 914 stale cat activity + 8,473 appointment activity flags fixed. Disease/watch_list flag regression being debugged. |
+| 2026-01-30 | MAP_001 | Done: MIG_798 show all interacted places on map. LIMIT 3000→12000. Intake submissions added to v_map_atlas_pins. 914 stale cat activity + 8,473 appointment activity flags fixed. Disease/watch_list flags verified working (39 disease + 117 watch_list pins). 11,100 total pins. |
+| 2026-01-30 | DH_E004 | Done: MIG_803 place dedup detection (table+function approach). 3,853 candidates across 3 tiers (753 T1 close+similar, 691 T2 close+different, 2,409 T3 farther+similar). Admin page at /admin/place-dedup with merge/keep_separate/dismiss. place_safe_to_merge() safety guard. |
 | 2026-01-30 | DH_E005 | Completed: Applied MIG_793 (v_orphan_places view) + MIG_794 (relink_person_primary_address + unlink functions). Fixed column name mismatches (locality→location, source_system→data_source). 0 orphan places found. |
 | 2026-01-30 | DH_E001 | Completed: MIG_799 hardened normalize_address(). Added: TRIM, USA/US suffix stripping, em-dash city placeholder removal, comma-before-zip normalization, period stripping, apartment→apt, 7 new street suffixes, 8 directionals. Created extract_house_number() and address_safe_to_merge() guard functions. Re-normalized 11,191 active places. |
 | 2026-01-30 | DH_E002+E003 | Completed: MIG_800 created merge_place_into() function + merged 188 duplicate place pairs across 3 passes (36 exact + 151 em-dash/comma/suffix + 1 apartment). Full FK relinking across all 30+ referencing tables. Entity_edits audit trail for every merge. 0 exact duplicates remaining. ~307 fuzzy pairs remain for admin review (DH_E004). |
+| 2026-01-30 | DH_E004 | Done: MIG_803 place dedup detection (table+function approach). 3,853 candidates across 3 tiers. Admin page at /admin/place-dedup. |
+| 2026-01-30 | MAP_001 | Done: All 4 changes verified working. 11,100 pins, disease/watch_list flags correct. |
+| 2026-01-30 | PERSON_DEDUP | Done: MIG_801/802 person dedup audit + batch merges. 1,178 candidates (tier 4-5 only). Admin page at /admin/person-dedup. Tiers 1-2 already clean. |
+| 2026-01-30 | INFRA | Done: PlaceResolver component (9 forms migrated), 2 crons wired to vercel.json. |
+| 2026-01-30 | UI_001-005 | Planned: 5 new UI tasks added to ledger. Dashboard redesign, filter persistence, media gallery, place classification, input validation. See task cards below MAP_001 section. |
 
 ---
 
@@ -2044,16 +2060,187 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 
 ## MAP_001: Show All Interacted Places on Map (Parallel Session)
 
-**Status:** In Progress (separate session)
+**Status:** Done
 **ACTIVE Impact:** Yes — modifies `v_map_atlas_pins` view and API limit
-**Scope:** Map currently only shows 3,000 places (LIMIT cutoff). Being fixed to show all 11,286.
+**Scope:** Map now shows all 11,100 interacted places (was limited to 3,000).
 
-**Changes being made:**
-1. **MIG_798**: Update `v_map_atlas_pins` to LEFT JOIN `web_intake_submissions`, add `intake_count` column, fix stale activity flags (914 cat + 8,473 appointment flags fixed)
-2. **API**: Raise LIMIT from 3,000 to 12,000 in `/api/beacon/map-data/route.ts`
+**Changes made:**
+1. **MIG_798**: Updated `v_map_atlas_pins` to LEFT JOIN `web_intake_submissions`, added `intake_count` column, fixed stale activity flags (914 cat + 8,473 appointment flags fixed)
+2. **API**: Raised LIMIT from 3,000 to 12,000 in `/api/beacon/map-data/route.ts`
 3. **ORDER BY**: Improved to prioritize by pin_style (disease > watch_list > active > has_history > minimal) then by total interaction count
-4. **AtlasMap.tsx**: Add `intake_count` to AtlasPin interface
+4. **AtlasMap.tsx**: Added `intake_count` to AtlasPin interface
 
-**Issue Found in That Session:** `v_map_atlas_pins` view DROP + re-CREATE caused disease/watch_list flags to show 0 rows. Debug in progress — likely the `p.watch_list` column from MIG_737 is not being picked up correctly in the COALESCE chain. Monitor for resolution.
+**Issue Resolved:** Disease/watch_list flags initially showed 0 rows after view re-creation. Now working correctly: 39 disease pins + 117 watch_list pins (matching 40 + 118 AI-detected from google_map_entries — 1 entry each has no matching place with coordinates).
 
-**Note:** MIG_798 migration number conflicts with potential use here. Coordinate numbering across sessions.
+**Verification:**
+- 11,100 total pins (39 disease + 117 watch_list + 8,533 active + 174 has_history + 2,237 minimal)
+- 935 places with intake submissions now visible
+- All pins within 12,000 LIMIT
+
+---
+
+## UI_001: Dashboard Redesign
+
+**Status:** Planned
+**ACTIVE Impact:** Yes — replaces main landing page
+**Scope:** Redesign the main dashboard as a staff-facing operations hub. Currently the root page is blank/minimal. Staff need a daily command center.
+**North Star Layer:** L6 (Workflows / Surfaces)
+**Spec Phase:** Phase 3 (UI_REDESIGN_SPEC.md)
+
+**Requirements:**
+1. **"Needs Attention" panel** — Counts of: new unassigned requests, stale requests (>30 days no activity), new intake submissions, pending dedup reviews
+2. **"My Active Requests"** — Filtered to current user's assignments (not all requests). Card layout with status badges, address, days since update
+3. **Recent Intake Submissions** — Last 5-10 submissions with quick-link to review
+4. **Map Preview** — Small embedded map (250px height) showing atlas_pins. Tap to expand to full /map
+5. **Mobile:** Single column, stacked layout. Map preview hidden or collapsible on mobile.
+6. **Quick Links** — Person dedup review count, place dedup review count, pending data engine reviews
+
+**Touches:**
+- `apps/web/src/app/page.tsx` — Main dashboard page (rewrite)
+- `apps/web/src/app/api/dashboard/route.ts` — New API endpoint for aggregated stats
+- Resolves **B1** (StatusBadge fragile mapping — use shared StatusBadge component)
+
+**Validation:**
+- Dashboard loads under 2s with real data
+- Mobile layout is single-column with no horizontal overflow
+- "My Active Requests" filters correctly to logged-in user
+- All stat counts match database reality
+
+---
+
+## UI_002: Filter Persistence + Mobile List Views
+
+**Status:** Planned
+**ACTIVE Impact:** Yes — modifies all list pages
+**Scope:** Fix two systemic UX issues across list pages: filters reset on navigation, and tables are unusable on mobile.
+**North Star Layer:** L6 (Workflows / Surfaces)
+**Spec Phase:** Phase 6 (UI_REDESIGN_SPEC.md)
+
+**Requirements:**
+
+### Part A: Filter Persistence (B8)
+- All list pages persist filter state in URL search params (`?status=new&zone=west&sort=created`)
+- Navigating away and back restores filters from URL
+- "Clear filters" button resets to defaults
+- Pages affected: `/requests`, `/people`, `/places`, `/cats`, `/intake/queue`
+
+### Part B: Mobile Card Views (B6)
+- List pages switch to card view on small screens (< 768px)
+- Cards show key fields (name/address, status badge, date, primary metric)
+- Horizontal scroll fallback for data-dense tables where card view is impractical
+- People list: card shows name, role badge, identifier count, primary place
+
+### Part C: Consolidate Map Pages (B13)
+- Redirect `/beacon` → `/map` or merge both into single map page
+- Remove duplicate map route to prevent staff confusion
+
+**Touches:**
+- `apps/web/src/app/requests/page.tsx` — Already has card/table toggle (extend)
+- `apps/web/src/app/people/page.tsx` — Add card view, horizontal scroll
+- `apps/web/src/app/places/page.tsx` — Add card view
+- `apps/web/src/app/cats/page.tsx` — Add card view
+- `apps/web/src/app/intake/queue/page.tsx` — Add card view
+- `apps/web/src/app/beacon/` — Redirect or remove
+- Resolves **B6**, **B8**, **B13**
+
+**Validation:**
+- Navigating to `/requests?status=new` shows filtered results
+- Back button preserves filters
+- Mobile viewport shows card layout on all list pages
+- `/beacon` redirects to `/map`
+
+---
+
+## UI_003: Media Gallery Polish (Zillow-Style)
+
+**Status:** Planned
+**ACTIVE Impact:** No — display-only changes
+**Scope:** Upgrade MediaGallery from basic grid to Zillow-inspired hero+grid layout. Add "set as main photo" and request-place photo bridging.
+**North Star Layer:** L6 (Workflows / Surfaces)
+**Spec Phase:** Phase 5 (UI_REDESIGN_SPEC.md)
+
+**Requirements:**
+1. **Hero image** on place detail page — Large featured photo at top, 4-photo grid below with "+N more" overlay
+2. **"Set as main photo"** action on any photo in gallery
+3. **Request-place photo bridging** — Photos uploaded to a request also appear on the linked place's Media tab (read-only reference, not duplication)
+4. **Mobile camera capture** — Use HTML5 `capture` attribute on file inputs for native camera access
+5. **EXIF GPS extraction** — Pull lat/lng from photo metadata when available (future pin creation support)
+
+**Touches:**
+- `apps/web/src/components/MediaGallery.tsx` — Extend layout
+- `apps/web/src/app/places/[id]/page.tsx` — Hero image in Media tab
+- `apps/web/src/app/api/places/[id]/media/route.ts` — Include request-linked photos
+
+**Validation:**
+- Place Media tab shows hero image with grid layout
+- "Set as main photo" persists and shows on place list cards
+- Request photos appear on linked place's Media tab
+
+---
+
+## UI_004: Place Classification + Partner Org Profiles
+
+**Status:** Planned
+**ACTIVE Impact:** Yes — extends place data model
+**Scope:** Infer place types from attached records (clinic data, Airtable, ShelterLuv). Build enhanced profiles for partner orgs/businesses. Surface orphan places for review.
+**North Star Layer:** L3 (Enrichment) + L5 (Source of Truth) + L6 (Workflows)
+**Spec Phase:** Phase 4 (UI_REDESIGN_SPEC.md)
+
+**Requirements:**
+
+### Part A: AI Place Type Inference
+- Use existing `place_contexts` system to auto-classify places:
+  - ClinicHQ bookings at address → `clinic_client_site`
+  - Airtable requests with colony keywords → `colony_site`
+  - ShelterLuv adoptions → `adopter_residence`
+  - Known org names (schools, shelters) → `partner_org`
+- Queue unclassifiable places for AI extraction engine
+- Store as `place_contexts` with `source_type = 'ai_inferred'`
+
+### Part B: Enhanced Partner Org Profiles
+- Places with `place_kind = 'organization'` or context `partner_org` get expanded profiles:
+  - Organization name, type, contact info
+  - Associated people with roles (staff, volunteers, employees)
+  - Cat activity at organization
+  - Historical context from Google Maps entries
+- Different visual treatment from residential place profiles
+
+### Part C: Orphan Places Admin Page
+- `/admin/orphan-places` — Review places with no SOT records attached (no person, no cat, no request)
+- `v_orphan_places` view already exists
+- Actions: link to nearby request, flag for deletion, mark as validated
+
+**Touches:**
+- New migration: Place type inference function
+- `apps/web/src/app/admin/orphan-places/page.tsx` — New admin page
+- `apps/web/src/app/places/[id]/page.tsx` — Enhanced org profile variant
+- Extraction engine integration for unclassifiable places
+
+**Validation:**
+- Place contexts auto-populated for places with clear signals
+- Orphan places admin page shows unlinked places with action buttons
+- Partner org places show enhanced profile layout
+
+---
+
+## UI_005: Input Validation + Cosmetic Cleanup
+
+**Status:** Planned
+**ACTIVE Impact:** No — minor fixes
+**Scope:** Fix remaining spec bugs: name validation, emoji cleanup, print CSS.
+**North Star Layer:** L6 (Workflows / Surfaces)
+
+**Requirements:**
+1. **B7**: Person name edit validation — Trim whitespace, require min 2 chars, warn on all-caps, reject garbage patterns (`unknown`, `n/a`, `test`)
+2. **B11**: Replace emoji icons in partner-org-cats page with consistent icon system
+3. **B12**: Resolve print page CSS class conflict between `back-btn` and BackButton component
+
+**Touches:**
+- `apps/web/src/app/people/[id]/page.tsx` — Name edit validation
+- `apps/web/src/app/admin/partner-org-cats/page.tsx` — Icon cleanup
+- Print stylesheets — CSS class rename
+
+**Validation:**
+- Name edit rejects garbage patterns with clear error message
+- No emoji icons remain in JSX outside of user-facing content
+- Print pages render without style conflicts

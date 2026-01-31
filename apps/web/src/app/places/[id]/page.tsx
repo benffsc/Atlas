@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import JournalSection, { JournalEntry } from "@/components/JournalSection";
 import { BackButton } from "@/components/BackButton";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
@@ -19,6 +19,8 @@ import { SiteStatsCard } from "@/components/SiteStatsCard";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
 import { formatDateLocal } from "@/lib/formatters";
 import { MediaGallery } from "@/components/MediaGallery";
+import { HeroGallery } from "@/components/HeroGallery";
+import { MediaItem } from "@/components/MediaUploader";
 import { QuickActions, usePlaceQuickActionState } from "@/components/QuickActions";
 import { CatPresenceReconciliation } from "@/components/CatPresenceReconciliation";
 import { CreateColonyModal } from "@/components/CreateColonyModal";
@@ -126,9 +128,12 @@ function Section({
 
 export default function PlaceDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const id = params.id as string;
 
   const [place, setPlace] = useState<PlaceDetail | null>(null);
+  const [heroMedia, setHeroMedia] = useState<(MediaItem & { is_hero?: boolean })[]>([]);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [requests, setRequests] = useState<RelatedRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,18 +209,47 @@ export default function PlaceDetailPage() {
     }
   }, [id]);
 
+  const fetchHeroMedia = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/places/${id}/media`);
+      if (response.ok) {
+        const data = await response.json();
+        setHeroMedia(data.media || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch media:", err);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
 
     const loadData = async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([fetchPlace(), fetchJournal(), fetchRequests()]);
+      await Promise.all([fetchPlace(), fetchJournal(), fetchRequests(), fetchHeroMedia()]);
       setLoading(false);
     };
 
     loadData();
-  }, [id, fetchPlace, fetchJournal, fetchRequests]);
+  }, [id, fetchPlace, fetchJournal, fetchRequests, fetchHeroMedia]);
+
+  const handleSetHero = async (mediaId: string) => {
+    try {
+      const res = await fetch(`/api/media/${mediaId}/hero`, { method: "PATCH" });
+      if (res.ok) {
+        await fetchHeroMedia();
+      }
+    } catch (err) {
+      console.error("Failed to set hero:", err);
+    }
+  };
+
+  const handleViewAllMedia = () => {
+    const params = new URLSearchParams();
+    params.set("tab", "media");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const startEditing = () => {
     if (place) {
@@ -514,6 +548,17 @@ export default function PlaceDetailPage() {
         />
       </div>
 
+      {/* Hero Gallery */}
+      {heroMedia.length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <HeroGallery
+            media={heroMedia}
+            onSetHero={handleSetHero}
+            onViewAll={handleViewAllMedia}
+          />
+        </div>
+      )}
+
       {/* Location Details */}
       <Section
         title="Location Details"
@@ -560,17 +605,50 @@ export default function PlaceDetailPage() {
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                   Place Type
                 </label>
-                <select
-                  value={editPlaceKind}
-                  onChange={(e) => setEditPlaceKind(e.target.value)}
-                  style={{ minWidth: "200px" }}
-                >
-                  {PLACE_KINDS.map((kind) => (
-                    <option key={kind.value} value={kind.value}>
-                      {kind.label}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <select
+                    value={editPlaceKind}
+                    onChange={(e) => setEditPlaceKind(e.target.value)}
+                    style={{ minWidth: "200px" }}
+                  >
+                    {PLACE_KINDS.map((kind) => (
+                      <option key={kind.value} value={kind.value}>
+                        {kind.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/places/${place.place_id}/suggest-type`);
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        if (data.suggested_kind) {
+                          if (confirm(`Suggestion: ${data.suggested_kind.replace(/_/g, " ")} (${Math.round(data.confidence * 100)}% confidence)\n\nReason: ${data.reason}\n\nApply this?`)) {
+                            setEditPlaceKind(data.suggested_kind);
+                          }
+                        } else {
+                          alert("No suggestion available — not enough context tags to infer type.");
+                        }
+                      } catch {
+                        alert("Failed to get suggestion");
+                      }
+                    }}
+                    style={{
+                      padding: "0.25rem 0.75rem",
+                      fontSize: "0.8rem",
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      color: "var(--text-muted)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Suggest Type
+                  </button>
+                </div>
                 <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
                   Helps categorize locations for filtering and reporting.
                 </p>

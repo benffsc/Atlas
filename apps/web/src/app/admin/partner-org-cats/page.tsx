@@ -127,53 +127,53 @@ export default function PartnerOrgCatsPage() {
   const totalAppointments = data?.organizations.reduce((sum, org) => sum + Number(org.appointment_count), 0) || 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div style={{ padding: "1.5rem", maxWidth: "80rem", margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 className="text-2xl font-bold">Partner Org Cats</h1>
-          <p className="text-gray-600">
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Partner Org Cats</h1>
+          <p style={{ color: "var(--text-muted)", marginTop: "0.25rem" }}>
             View cats that came from partner organizations (SCAS, Rohnert Park, etc.)
           </p>
         </div>
-        <div className="flex gap-2">
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <Link
             href="/admin/partner-orgs"
-            className="text-blue-600 hover:text-blue-800"
+            style={{ color: "var(--primary)", textDecoration: "none" }}
           >
             Manage Orgs
           </Link>
-          <span className="text-gray-400">|</span>
+          <span style={{ color: "var(--text-muted)" }}>|</span>
           <BackButton fallbackHref="/admin" />
         </div>
       </div>
 
       {/* Summary Cards */}
       {data && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-500">Partner Orgs</div>
-            <div className="text-2xl font-bold">{data.organizations.length}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div style={{ background: "var(--card-bg)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>Partner Orgs</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{data.organizations.length}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-500">Total Cats</div>
-            <div className="text-2xl font-bold text-blue-600">{totalCats.toLocaleString()}</div>
+          <div style={{ background: "var(--card-bg)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>Total Cats</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0d6efd" }}>{totalCats.toLocaleString()}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-500">Total Appointments</div>
-            <div className="text-2xl font-bold text-green-600">{totalAppointments.toLocaleString()}</div>
+          <div style={{ background: "var(--card-bg)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>Total Appointments</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#198754" }}>{totalAppointments.toLocaleString()}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-500">Filtered Results</div>
-            <div className="text-2xl font-bold text-purple-600">{data.total.toLocaleString()}</div>
+          <div style={{ background: "var(--card-bg)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>Filtered Results</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#6f42c1" }}>{data.total.toLocaleString()}</div>
           </div>
         </div>
       )}
 
       {/* Org Breakdown */}
       {data && data.organizations.length > 0 && (
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <h2 className="font-semibold mb-3">Cats by Organization</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div style={{ background: "var(--card-bg)", borderRadius: "8px", border: "1px solid var(--border)", marginBottom: "1.5rem", padding: "1rem" }}>
+          <h2 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Cats by Organization</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem" }}>
             {data.organizations.map(org => (
               <button
                 key={org.org_id}
@@ -181,20 +181,23 @@ export default function PartnerOrgCatsPage() {
                   setSelectedOrg(selectedOrg === org.org_id ? "" : org.org_id);
                   setPage(0);
                 }}
-                className={`p-3 rounded-lg border text-left transition-colors ${
-                  selectedOrg === org.org_id
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
+                style={{
+                  padding: "0.75rem",
+                  borderRadius: "8px",
+                  border: selectedOrg === org.org_id ? "2px solid var(--primary)" : "1px solid var(--border)",
+                  background: selectedOrg === org.org_id ? "var(--primary-bg, #e8f0fe)" : "var(--card-bg)",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
               >
-                <div className="font-medium">
+                <div style={{ fontWeight: 500 }}>
                   {org.org_name_short || org.org_name}
                 </div>
-                <div className="text-sm text-gray-500">
+                <div style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
                   {org.cat_count} cats / {org.appointment_count} appts
                 </div>
                 {org.last_date && (
-                  <div className="text-xs text-gray-400">
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                     Last: {formatDateLocal(org.last_date)}
                   </div>
                 )}
@@ -205,16 +208,16 @@ export default function PartnerOrgCatsPage() {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow mb-6 p-4">
-        <div className="flex flex-wrap gap-4 items-end">
+      <div style={{ background: "var(--card-bg)", borderRadius: "8px", border: "1px solid var(--border)", marginBottom: "1.5rem", padding: "1rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "flex-end" }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
               Organization
             </label>
             <select
               value={selectedOrg}
               onChange={(e) => { setSelectedOrg(e.target.value); setPage(0); }}
-              className="border rounded px-3 py-2 min-w-[200px]"
+              style={{ border: "1px solid var(--border)", borderRadius: "4px", padding: "0.5rem 0.75rem", minWidth: "200px" }}
             >
               <option value="">All Organizations</option>
               {data?.organizations.map(org => (
@@ -226,37 +229,37 @@ export default function PartnerOrgCatsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
               Start Date
             </label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => { setStartDate(e.target.value); setPage(0); }}
-              className="border rounded px-3 py-2"
+              style={{ border: "1px solid var(--border)", borderRadius: "4px", padding: "0.5rem 0.75rem" }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
               End Date
             </label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => { setEndDate(e.target.value); setPage(0); }}
-              className="border rounded px-3 py-2"
+              style={{ border: "1px solid var(--border)", borderRadius: "4px", padding: "0.5rem 0.75rem" }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
               Altered Status
             </label>
             <select
               value={alteredStatus}
               onChange={(e) => { setAlteredStatus(e.target.value); setPage(0); }}
-              className="border rounded px-3 py-2"
+              style={{ border: "1px solid var(--border)", borderRadius: "4px", padding: "0.5rem 0.75rem" }}
             >
               <option value="">All</option>
               <option value="Spayed">Spayed</option>
@@ -268,7 +271,7 @@ export default function PartnerOrgCatsPage() {
 
           <button
             onClick={resetFilters}
-            className="px-4 py-2 border rounded hover:bg-gray-50"
+            style={{ padding: "0.5rem 1rem", border: "1px solid var(--border)", borderRadius: "4px", background: "var(--card-bg)", cursor: "pointer" }}
           >
             Reset
           </button>
@@ -276,7 +279,15 @@ export default function PartnerOrgCatsPage() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            style={{
+              padding: "0.5rem 1rem",
+              background: exporting ? "#6c757d" : "#198754",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: exporting ? "not-allowed" : "pointer",
+              opacity: exporting ? 0.5 : 1,
+            }}
           >
             {exporting ? "Exporting..." : "Export CSV"}
           </button>
@@ -285,77 +296,77 @@ export default function PartnerOrgCatsPage() {
 
       {/* Error State */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc3545", padding: "1rem", borderRadius: "8px", marginBottom: "1.5rem" }}>
           {error}
         </div>
       )}
 
       {/* Loading State */}
       {loading && (
-        <div className="text-center py-8">Loading...</div>
+        <div style={{ textAlign: "center", padding: "2rem 0" }}>Loading...</div>
       )}
 
       {/* Cats Table */}
       {!loading && !error && data && (
         <>
-          <p className="text-sm text-gray-500 mb-2">
+          <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
             Showing {data.offset + 1}-{Math.min(data.offset + data.cats.length, data.total)} of {data.total} results
           </p>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <div style={{ background: "var(--card-bg)", borderRadius: "8px", border: "1px solid var(--border)", overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "var(--table-header-bg, #f8f9fa)" }}>
+                  <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Cat
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Microchip
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Sex / Altered
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Appointment
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Origin Address
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", fontWeight: 500, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Partner Org
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {data.cats.map((cat, idx) => (
-                  <tr key={`${cat.cat_id}-${cat.appointment_date}-${idx}`} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                  <tr key={`${cat.cat_id}-${cat.appointment_date}-${idx}`} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td style={{ padding: "0.75rem 1rem" }}>
                       <Link
                         href={`/cats/${cat.cat_id}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
+                        style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 500 }}
                       >
                         {cat.display_name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-sm font-mono text-gray-600">
-                      {cat.microchip || <span className="text-gray-400">-</span>}
+                    <td style={{ padding: "0.75rem 1rem", fontSize: "0.875rem", fontFamily: "monospace", color: "var(--text-muted)" }}>
+                      {cat.microchip || <span style={{ color: "var(--text-muted)" }}>-</span>}
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td style={{ padding: "0.75rem 1rem", fontSize: "0.875rem" }}>
                       <div>{cat.sex || "-"}</div>
-                      <div className="text-gray-500">{cat.altered_status || "-"}</div>
+                      <div style={{ color: "var(--text-muted)" }}>{cat.altered_status || "-"}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td style={{ padding: "0.75rem 1rem", fontSize: "0.875rem" }}>
                       <div>{formatDateLocal(cat.appointment_date)}</div>
                       {cat.service_type && (
-                        <div className="text-gray-500 text-xs">{cat.service_type}</div>
+                        <div style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>{cat.service_type}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td style={{ padding: "0.75rem 1rem", fontSize: "0.875rem" }}>
                       {cat.origin_address ? (
                         cat.origin_place_id ? (
                           <Link
                             href={`/places/${cat.origin_place_id}`}
-                            className="text-blue-600 hover:text-blue-800"
+                            style={{ color: "var(--primary)", textDecoration: "none" }}
                           >
                             {cat.origin_address}
                           </Link>
@@ -363,11 +374,20 @@ export default function PartnerOrgCatsPage() {
                           cat.origin_address
                         )
                       ) : (
-                        <span className="text-gray-400">Unknown</span>
+                        <span style={{ color: "var(--text-muted)" }}>Unknown</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    <td style={{ padding: "0.75rem 1rem" }}>
+                      <span style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "0.125rem 0.625rem",
+                        borderRadius: "9999px",
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        background: "#f3e8ff",
+                        color: "#6f42c1",
+                      }}>
                         {cat.partner_org_short || cat.partner_org_name}
                       </span>
                     </td>
@@ -379,21 +399,35 @@ export default function PartnerOrgCatsPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-4 mt-4">
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "1rem", marginTop: "1rem" }}>
               <button
                 onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50"
+                style={{
+                  padding: "0.5rem 1rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "4px",
+                  background: "var(--card-bg)",
+                  cursor: page === 0 ? "not-allowed" : "pointer",
+                  opacity: page === 0 ? 0.5 : 1,
+                }}
               >
                 Previous
               </button>
-              <span className="text-sm text-gray-600">
+              <span style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
                 Page {page + 1} of {totalPages}
               </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50"
+                style={{
+                  padding: "0.5rem 1rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "4px",
+                  background: "var(--card-bg)",
+                  cursor: page >= totalPages - 1 ? "not-allowed" : "pointer",
+                  opacity: page >= totalPages - 1 ? 0.5 : 1,
+                }}
               >
                 Next
               </button>
@@ -404,11 +438,11 @@ export default function PartnerOrgCatsPage() {
 
       {/* Empty State */}
       {!loading && !error && data && data.cats.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">No cats found matching your filters.</p>
+        <div style={{ textAlign: "center", padding: "3rem 0", background: "var(--card-bg)", borderRadius: "8px", border: "1px solid var(--border)" }}>
+          <p style={{ color: "var(--text-muted)" }}>No cats found matching your filters.</p>
           <button
             onClick={resetFilters}
-            className="mt-4 text-blue-600 hover:text-blue-800"
+            style={{ marginTop: "1rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}
           >
             Clear filters
           </button>

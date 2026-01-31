@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { SavedFilters, RequestFilters } from "@/components/SavedFilters";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Request {
   request_id: string;
@@ -308,17 +310,23 @@ function RequestCard({ request }: { request: Request }) {
   );
 }
 
-export default function RequestsPage() {
+const FILTER_DEFAULTS = {
+  status: "",
+  trapper: "",
+  q: "",
+  sort: "status",
+  order: "asc",
+  group: "",
+  view: "cards",
+};
+
+function RequestsPageContent() {
+  const { filters, setFilter, setFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
+  const isMobile = useIsMobile();
+
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [trapperFilter, setTrapperFilter] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
-  const [sortBy, setSortBy] = useState<"created" | "status" | "priority" | "type">("status");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [groupBy, setGroupBy] = useState<"" | "status" | "type">("");
+  const [searchInput, setSearchInput] = useState(filters.q);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -342,17 +350,17 @@ export default function RequestsPage() {
 
   // Build current filters object for SavedFilters component
   const currentFilters: RequestFilters = {
-    status: statusFilter ? [statusFilter] : undefined,
+    status: filters.status ? [filters.status] : undefined,
   };
 
   // Handle applying saved filters
-  const handleApplyFilters = useCallback((filters: RequestFilters) => {
-    if (filters.status && filters.status.length > 0) {
-      setStatusFilter(filters.status[0]);
+  const handleApplyFilters = useCallback((applied: RequestFilters) => {
+    if (applied.status && applied.status.length > 0) {
+      setFilter("status", applied.status[0]);
     } else {
-      setStatusFilter("");
+      setFilter("status", "");
     }
-  }, []);
+  }, [setFilter]);
 
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -390,11 +398,11 @@ export default function RequestsPage() {
       setBulkStatusTarget("");
       // Refresh the list
       const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
-      if (trapperFilter) params.set("trapper", trapperFilter);
-      if (debouncedSearch) params.set("q", debouncedSearch);
-      params.set("sort_by", sortBy);
-      params.set("sort_order", sortOrder);
+      if (filters.status) params.set("status", filters.status);
+      if (filters.trapper) params.set("trapper", filters.trapper);
+      if (filters.q) params.set("q", filters.q);
+      params.set("sort_by", filters.sort);
+      params.set("sort_order", filters.order);
       params.set("limit", "100");
       const response = await fetch(`/api/requests?${params.toString()}`);
       if (response.ok) {
@@ -436,24 +444,33 @@ export default function RequestsPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Debounce search input
+  // Debounce search input → sync to URL param
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
+      if (searchInput !== filters.q) {
+        setFilter("q", searchInput);
+      }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-select card view on mobile
+  useEffect(() => {
+    if (isMobile && filters.view === "table") {
+      setFilter("view", "cards");
+    }
+  }, [isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const fetchRequests = async () => {
       setLoading(true);
       try {
         const params = new URLSearchParams();
-        if (statusFilter) params.set("status", statusFilter);
-        if (trapperFilter) params.set("trapper", trapperFilter);
-        if (debouncedSearch) params.set("q", debouncedSearch);
-        params.set("sort_by", sortBy);
-        params.set("sort_order", sortOrder);
+        if (filters.status) params.set("status", filters.status);
+        if (filters.trapper) params.set("trapper", filters.trapper);
+        if (filters.q) params.set("q", filters.q);
+        params.set("sort_by", filters.sort);
+        params.set("sort_order", filters.order);
         params.set("limit", "100");
 
         const response = await fetch(`/api/requests?${params.toString()}`);
@@ -469,7 +486,7 @@ export default function RequestsPage() {
     };
 
     fetchRequests();
-  }, [statusFilter, trapperFilter, debouncedSearch, sortBy, sortOrder]);
+  }, [filters.status, filters.trapper, filters.q, filters.sort, filters.order]);
 
   return (
     <div>
@@ -518,8 +535,8 @@ export default function RequestsPage() {
         <div style={{ position: "relative", flex: "1 1 250px", maxWidth: "400px" }}>
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search requests..."
             style={{ width: "100%", paddingLeft: "2.5rem" }}
           />
@@ -535,9 +552,9 @@ export default function RequestsPage() {
           >
             🔍
           </span>
-          {searchQuery && (
+          {searchInput && (
             <button
-              onClick={() => setSearchQuery("")}
+              onClick={() => { setSearchInput(""); setFilter("q", ""); }}
               style={{
                 position: "absolute",
                 right: "0.5rem",
@@ -556,8 +573,8 @@ export default function RequestsPage() {
         </div>
 
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={filters.status}
+          onChange={(e) => setFilter("status", e.target.value)}
           style={{ minWidth: "150px" }}
         >
           <option value="">All statuses</option>
@@ -571,8 +588,8 @@ export default function RequestsPage() {
         </select>
 
         <select
-          value={trapperFilter}
-          onChange={(e) => setTrapperFilter(e.target.value)}
+          value={filters.trapper}
+          onChange={(e) => setFilter("trapper", e.target.value)}
           style={{ minWidth: "150px" }}
         >
           <option value="">All assignments</option>
@@ -583,8 +600,8 @@ export default function RequestsPage() {
 
         {/* Sort controls */}
         <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "created" | "status" | "priority" | "type")}
+          value={filters.sort}
+          onChange={(e) => setFilter("sort", e.target.value)}
           style={{ minWidth: "130px" }}
         >
           <option value="status">Sort by Status</option>
@@ -595,8 +612,8 @@ export default function RequestsPage() {
 
         {/* Group by */}
         <select
-          value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as "" | "status" | "type")}
+          value={filters.group}
+          onChange={(e) => setFilter("group", e.target.value)}
           style={{ minWidth: "120px" }}
         >
           <option value="">No grouping</option>
@@ -604,7 +621,7 @@ export default function RequestsPage() {
           <option value="type">Group by Type</option>
         </select>
         <button
-          onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+          onClick={() => setFilter("order", filters.order === "asc" ? "desc" : "asc")}
           style={{
             padding: "0.5rem 0.75rem",
             border: "1px solid var(--border)",
@@ -612,35 +629,35 @@ export default function RequestsPage() {
             background: "transparent",
             cursor: "pointer",
           }}
-          title={sortOrder === "desc" ? "Newest first" : "Oldest first"}
+          title={filters.order === "desc" ? "Newest first" : "Oldest first"}
         >
-          {sortOrder === "desc" ? "↓" : "↑"}
+          {filters.order === "desc" ? "↓" : "↑"}
         </button>
 
         {/* View Toggle */}
         <div style={{ display: "flex", gap: "4px", marginLeft: "auto" }}>
           <button
-            onClick={() => setViewMode("cards")}
+            onClick={() => setFilter("view", "cards")}
             style={{
               padding: "6px 12px",
               border: "1px solid var(--card-border)",
               borderRadius: "4px 0 0 4px",
-              background: viewMode === "cards" ? "var(--foreground)" : "transparent",
-              color: viewMode === "cards" ? "var(--background)" : "inherit",
+              background: filters.view === "cards" ? "var(--foreground)" : "transparent",
+              color: filters.view === "cards" ? "var(--background)" : "inherit",
               cursor: "pointer",
             }}
           >
             Cards
           </button>
           <button
-            onClick={() => setViewMode("table")}
+            onClick={() => setFilter("view", "table")}
             style={{
               padding: "6px 12px",
               border: "1px solid var(--card-border)",
               borderLeft: "none",
               borderRadius: "0 4px 4px 0",
-              background: viewMode === "table" ? "var(--foreground)" : "transparent",
-              color: viewMode === "table" ? "var(--background)" : "inherit",
+              background: filters.view === "table" ? "var(--foreground)" : "transparent",
+              color: filters.view === "table" ? "var(--background)" : "inherit",
               cursor: "pointer",
             }}
           >
@@ -732,9 +749,9 @@ export default function RequestsPage() {
       {/* Helper to group requests */}
       {(() => {
         // Group requests if groupBy is set
-        const groupedRequests = groupBy
+        const groupedRequests = filters.group
           ? requests.reduce((acc, req) => {
-              const key = groupBy === "type"
+              const key = filters.group === "type"
                 ? (req.is_legacy_request ? "Legacy (Airtable)" : "Native (Atlas)")
                 : req.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
               if (!acc[key]) acc[key] = [];
@@ -744,7 +761,7 @@ export default function RequestsPage() {
           : { "": requests };
 
         // Sort group keys
-        const groupOrder = groupBy === "type"
+        const groupOrder = filters.group === "type"
           ? ["Native (Atlas)", "Legacy (Airtable)"]
           : ["New", "Triaged", "Scheduled", "In Progress", "On Hold", "Completed", "Cancelled"];
 
@@ -761,11 +778,11 @@ export default function RequestsPage() {
             <p>No requests found</p>
             <a href="/requests/new">Create your first request</a>
           </div>
-        ) : viewMode === "cards" ? (
+        ) : filters.view === "cards" ? (
           <div>
             {sortedGroups.map(([groupName, groupRequests]) => (
               <div key={groupName || "all"} style={{ marginBottom: "2rem" }}>
-                {groupBy && (
+                {filters.group && (
                   <h3 style={{
                     fontSize: "1rem",
                     fontWeight: 600,
@@ -917,5 +934,13 @@ export default function RequestsPage() {
         );
       })()}
     </div>
+  );
+}
+
+export default function RequestsPage() {
+  return (
+    <Suspense fallback={<div className="loading">Loading requests...</div>}>
+      <RequestsPageContent />
+    </Suspense>
   );
 }

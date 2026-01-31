@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { MyItemsWidget } from "@/components/MyItemsWidget";
 import { StatusBadge, PriorityDot } from "@/components/StatusBadge";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface ActiveRequest {
   request_id: string;
@@ -54,6 +55,9 @@ interface DashboardStats {
   unassigned_requests: number;
   needs_attention_total: number;
   requests_with_location: number;
+  my_active_requests: number;
+  person_dedup_pending: number;
+  place_dedup_pending: number;
 }
 
 interface StaffInfo {
@@ -102,45 +106,55 @@ function extractCity(address: string | null): string | null {
 }
 
 export default function Home() {
+  const isMobile = useIsMobile();
   const [staff, setStaff] = useState<StaffInfo | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [requests, setRequests] = useState<ActiveRequest[]>([]);
   const [intake, setIntake] = useState<IntakeSubmission[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [loadingIntake, setLoadingIntake] = useState(true);
+  const [showMyRequests, setShowMyRequests] = useState(true);
 
+  // Fetch auth first, then kick off dependent fetches
   useEffect(() => {
-    // All fetches fire in parallel — no cascading needed
+    let staffData: StaffInfo | null = null;
 
-    // 1. Auth (for greeting)
+    // 1. Auth (for greeting + person_id)
     fetch("/api/auth/me")
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data?.authenticated && data.staff) setStaff(data.staff);
+        if (data?.authenticated && data.staff) {
+          staffData = data.staff;
+          setStaff(data.staff);
+        }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        // 2. Active requests
+        fetch("/api/requests?limit=8")
+          .then(res => res.ok ? res.json() : { requests: [] })
+          .then(data => {
+            const active = (data.requests || []).filter(
+              (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
+            );
+            setRequests(active.slice(0, 6));
+          })
+          .catch(() => setRequests([]))
+          .finally(() => setLoadingRequests(false));
 
-    // 2. Active requests (all — staff oversee everything)
-    fetch("/api/requests?limit=8")
-      .then(res => res.ok ? res.json() : { requests: [] })
-      .then(data => {
-        const active = (data.requests || []).filter(
-          (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
-        );
-        setRequests(active.slice(0, 6));
-      })
-      .catch(() => setRequests([]))
-      .finally(() => setLoadingRequests(false));
+        // 3. Dashboard stats (with staff_person_id for "my requests" count)
+        const statsUrl = staffData?.person_id
+          ? `/api/dashboard/stats?staff_person_id=${staffData.person_id}`
+          : "/api/dashboard/stats";
+        fetch(statsUrl)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data && !data.error) setStats(data);
+          })
+          .catch(() => {});
+      });
 
-    // 3. Dashboard stats
-    fetch("/api/dashboard/stats")
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && !data.error) setStats(data);
-      })
-      .catch(() => {});
-
-    // 4. Recent intake
+    // 4. Recent intake (parallel, no auth dependency)
     fetch("/api/intake/queue?mode=attention&limit=5")
       .then(res => res.ok ? res.json() : { submissions: [] })
       .then(data => setIntake((data.submissions || []).slice(0, 5)))
@@ -177,10 +191,10 @@ export default function Home() {
       </div>
 
       {/* 2. Needs Attention Bar */}
-      {stats && stats.needs_attention_total > 0 && (
-        <div className="attention-bar">
+      {stats && (stats.needs_attention_total > 0 || (staff?.auth_role === "admin" && (stats.person_dedup_pending > 0 || stats.place_dedup_pending > 0))) && (
+        <div className="attention-bar" style={{ flexWrap: "wrap" }}>
           {stats.stale_requests > 0 && (
-            <a href="/requests?sort_by=created" className="attention-chip">
+            <a href="/requests?sort=created&order=asc" className="attention-chip">
               <span className="chip-count">{stats.stale_requests}</span> stale requests
             </a>
           )}
@@ -190,15 +204,25 @@ export default function Home() {
             </a>
           )}
           {stats.unassigned_requests > 0 && (
-            <a href="/requests?trapper=needs_trapper" className="attention-chip">
+            <a href="/requests?trapper=pending" className="attention-chip">
               <span className="chip-count">{stats.unassigned_requests}</span> unassigned
+            </a>
+          )}
+          {staff?.auth_role === "admin" && stats.person_dedup_pending > 0 && (
+            <a href="/admin/person-dedup" className="attention-chip">
+              <span className="chip-count">{stats.person_dedup_pending}</span> person dedup
+            </a>
+          )}
+          {staff?.auth_role === "admin" && stats.place_dedup_pending > 0 && (
+            <a href="/admin/place-dedup" className="attention-chip">
+              <span className="chip-count">{stats.place_dedup_pending}</span> place dedup
             </a>
           )}
         </div>
       )}
 
       {/* 3. Stat Pills */}
-      <div className="stat-pills">
+      <div className="stat-pills" style={{ flexWrap: "wrap", gap: "8px" }}>
         <a href="/requests" className="stat-pill blue">
           <span className="pill-count">{stats?.active_requests ?? "..."}</span>
           Active Requests
@@ -218,7 +242,26 @@ export default function Home() {
         {/* Left: Active Requests */}
         <div className="dashboard-card">
           <h2>
-            Active Requests
+            <span style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
+              {showMyRequests && staff?.person_id ? "My Requests" : "Active Requests"}
+              {staff?.person_id && (
+                <button
+                  onClick={() => setShowMyRequests(!showMyRequests)}
+                  style={{
+                    fontSize: "0.7rem",
+                    padding: "2px 8px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "4px",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "var(--text-muted)",
+                    fontWeight: 400,
+                  }}
+                >
+                  {showMyRequests ? "Show All" : "Show Mine"}
+                </button>
+              )}
+            </span>
             <a href="/requests">View all</a>
           </h2>
 
@@ -337,19 +380,21 @@ export default function Home() {
       </div>
 
       {/* 5. Map Preview (desktop only) */}
-      <div className="map-preview">
-        <div className="map-preview-card">
-          <div>
-            <div className="map-label">Active requests on map</div>
-            <div className="map-count">
-              {stats?.requests_with_location ?? "..."} with location data
+      {!isMobile && (
+        <div className="map-preview">
+          <div className="map-preview-card">
+            <div>
+              <div className="map-label">Active requests on map</div>
+              <div className="map-count">
+                {stats?.requests_with_location ?? "..."} with location data
+              </div>
             </div>
+            <a href="/map" className="btn btn-primary" style={{ fontSize: "0.85rem" }}>
+              Open Map
+            </a>
           </div>
-          <a href="/map" className="btn btn-primary" style={{ fontSize: "0.85rem" }}>
-            Open Map
-          </a>
         </div>
-      </div>
+      )}
 
       {/* 6. My Items */}
       <MyItemsWidget maxItems={3} />

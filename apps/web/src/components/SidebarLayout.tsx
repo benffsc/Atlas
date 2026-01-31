@@ -269,6 +269,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
         { label: "Trapper Reports", href: "/admin/trapper-reports", icon: "📧" },
         { label: "Google Maps Sync", href: "/admin/beacon-data/google-maps-sync", icon: "📍" },
         { label: "Duplicates", href: "/admin/duplicates", icon: "🔍" },
+        { label: "Orphan Places", href: "/admin/orphan-places", icon: "🏚️" },
         { label: "Import/Export", href: "/admin/import", icon: "📦" },
         { label: "Needs Review", href: "/admin/needs-review", icon: "⚠️" },
       ],

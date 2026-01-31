@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 
 // Cache for 5 minutes
@@ -13,15 +13,31 @@ interface DashboardStats {
   unassigned_requests: number;
   needs_attention_total: number;
   requests_with_location: number;
+  my_active_requests: number;
+  person_dedup_pending: number;
+  place_dedup_pending: number;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const staffPersonId = request.nextUrl.searchParams.get("staff_person_id");
+
     const stats = await queryOne<DashboardStats>(`
       WITH active AS (
         SELECT COUNT(*)::int AS cnt
         FROM trapper.sot_requests
         WHERE status NOT IN ('completed', 'cancelled')
+      ),
+      my_active AS (
+        SELECT COUNT(*)::int AS cnt
+        FROM trapper.sot_requests r
+        WHERE r.status NOT IN ('completed', 'cancelled')
+          AND ($1::uuid IS NOT NULL AND EXISTS (
+            SELECT 1 FROM trapper.request_trapper_assignments rta
+            WHERE rta.request_id = r.request_id
+              AND rta.trapper_person_id = $1::uuid
+              AND rta.status = 'active'
+          ))
       ),
       intake AS (
         SELECT COUNT(*)::int AS cnt
@@ -57,21 +73,35 @@ export async function GET() {
         JOIN trapper.places p ON p.place_id = r.place_id
         WHERE r.status NOT IN ('completed', 'cancelled')
           AND p.latitude IS NOT NULL
+      ),
+      person_dedup AS (
+        SELECT COUNT(*)::int AS cnt
+        FROM trapper.potential_person_duplicates
+        WHERE status = 'pending'
+      ),
+      place_dedup AS (
+        SELECT COUNT(*)::int AS cnt
+        FROM trapper.place_dedup_candidates
+        WHERE status = 'pending'
       )
       SELECT
         active.cnt AS active_requests,
+        my_active.cnt AS my_active_requests,
         intake.cnt AS pending_intake,
         cats.cnt AS cats_this_month,
         stale.cnt AS stale_requests,
         overdue.cnt AS overdue_intake,
         unassigned.cnt AS unassigned_requests,
         (stale.cnt + overdue.cnt + unassigned.cnt) AS needs_attention_total,
-        with_location.cnt AS requests_with_location
-      FROM active, intake, cats, stale, overdue, unassigned, with_location
-    `);
+        with_location.cnt AS requests_with_location,
+        person_dedup.cnt AS person_dedup_pending,
+        place_dedup.cnt AS place_dedup_pending
+      FROM active, my_active, intake, cats, stale, overdue, unassigned, with_location, person_dedup, place_dedup
+    `, [staffPersonId || null]);
 
     return NextResponse.json(stats || {
       active_requests: 0,
+      my_active_requests: 0,
       pending_intake: 0,
       cats_this_month: 0,
       stale_requests: 0,
@@ -79,6 +109,8 @@ export async function GET() {
       unassigned_requests: 0,
       needs_attention_total: 0,
       requests_with_location: 0,
+      person_dedup_pending: 0,
+      place_dedup_pending: 0,
     }, {
       headers: {
         "Cache-Control": "private, max-age=300, stale-while-revalidate=600",

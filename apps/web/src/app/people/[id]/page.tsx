@@ -13,6 +13,7 @@ import { SubmissionsSection } from "@/components/SubmissionsSection";
 import { EntityLink } from "@/components/EntityLink";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
 import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
+import { validatePersonName } from "@/lib/validation";
 import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
 import { formatDateLocal } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
@@ -454,8 +455,9 @@ export default function PersonDetailPage() {
   };
 
   const handleSaveName = async () => {
-    if (!editDisplayName.trim()) {
-      setNameError("Name cannot be empty");
+    const validation = validatePersonName(editDisplayName);
+    if (!validation.valid) {
+      setNameError(validation.error || "Invalid name");
       return;
     }
 

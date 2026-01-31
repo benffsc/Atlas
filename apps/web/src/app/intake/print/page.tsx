@@ -389,7 +389,7 @@ export default function PrintableIntakeForm() {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(52,152,219,0.4);
           }
-          .print-controls .back-btn {
+          .print-controls .print-back-btn {
             background: #f0f0f0;
             color: #333;
           }
@@ -460,7 +460,7 @@ export default function PrintableIntakeForm() {
           Print / Save PDF
         </button>
         <a href="/intake/queue" style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>← Back to Queue</button>
+          <button className="print-back-btn" style={{ width: "100%" }}>← Back to Queue</button>
         </a>
       </div>
 

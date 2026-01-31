@@ -52,13 +52,33 @@ export default function BeaconPage() {
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: 0 }}>
-          Beacon
-        </h1>
-        <p style={{ color: "var(--text-muted)", margin: "0.5rem 0 0 0" }}>
-          Ecological analytics and TNR impact assessment
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem" }}>
+        <div>
+          <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: 0 }}>
+            Beacon
+          </h1>
+          <p style={{ color: "var(--text-muted)", margin: "0.5rem 0 0 0" }}>
+            Ecological analytics and TNR impact assessment
+          </p>
+        </div>
+        <a
+          href="/map"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.5rem 1rem",
+            background: "var(--foreground)",
+            color: "var(--background)",
+            borderRadius: "6px",
+            textDecoration: "none",
+            fontSize: "0.9rem",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Open Atlas Map
+        </a>
       </div>
 
       {/* Summary Stats */}

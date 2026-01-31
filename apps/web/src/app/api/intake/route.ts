@@ -252,9 +252,13 @@ export async function POST(request: NextRequest) {
     queryOne("SELECT trapper.match_intake_to_person($1)", [data.submission_id])
       .catch((err: unknown) => console.error("Person matching error:", err));
 
-    // Link to place and queue for geocoding (async, don't wait)
-    queryOne("SELECT trapper.link_intake_submission_to_place($1)", [data.submission_id])
-      .catch((err: unknown) => console.error("Place linking error:", err));
+    // Link to place and queue for geocoding — await to ensure place gets created
+    try {
+      await queryOne("SELECT trapper.link_intake_submission_to_place($1)", [data.submission_id]);
+    } catch (err: unknown) {
+      console.error("Place linking error:", err);
+      // Non-fatal: submission was already saved, place linking can be retried
+    }
 
     // Return success with submission ID and triage info
     return NextResponse.json({
