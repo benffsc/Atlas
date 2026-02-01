@@ -2435,3 +2435,73 @@ All 5 list pages now use `useUrlFilters` hook for URL param persistence:
 - VH and ShelterLuv people are staff-curated: real people who signed up. Safe for name-only records.
 - ClinicHQ is NOT safe: "Cat Lady", "Unknown", "Test User" entries would pollute sot_people.
 - Skeletons are clearly marked (`data_quality = 'skeleton'`, `is_canonical = false`) and dissolve when real contact info arrives.
+
+---
+
+## DIS_001: Disease Tracking System
+
+**Status:** Done
+**Commit:** dc8ee5a
+**ACTIVE Impact:** No (new feature, no active workflow changes)
+**Priority:** High
+
+### Problem
+- Atlas had a single `places.disease_risk` boolean — no differentiation between FeLV, FIV, ringworm, etc.
+- Map showed one orange pin for all disease types with no way to filter by disease
+- No time-based decay: once flagged, a place stayed flagged forever (or until manually cleared)
+- No way to override false positives or mark a site as permanently affected
+- AI extraction couldn't distinguish "FeLV neg" (negative) from "FeLV+" (positive)
+
+### Solution (MIG_814)
+
+**Schema:**
+- `disease_types` registry: Extensible lookup with short_code (1-letter), color, decay_window_months per disease. Seeded: FeLV (F), FIV (V), Ringworm (R), Heartworm (H), Panleukopenia (P)
+- `place_disease_status`: Per-(place, disease) status with time decay. Statuses: confirmed_active, suspected, historical, perpetual, false_flag, cleared
+- `test_type_disease_mapping`: Maps `cat_test_results` test_type + result_detail → disease_key
+- `compute_place_disease_status()`: Aggregates cat test results → place flags, respects manual overrides
+- `set_place_disease_override()`: Manual override with entity_edits logging
+- `process_disease_extraction()`: Post-extraction hook — positive AI result → flag linked places
+- `v_place_disease_summary`: One row per place with JSONB `disease_badges` array
+- Updated `v_map_atlas_pins` with disease_badges and disease_count columns
+
+**API:**
+- `GET /api/places/[id]/disease-status` — All statuses for a place + available types
+- `PATCH /api/places/[id]/disease-status` — Manual override (confirm, dismiss, perpetual, clear, historical)
+- `GET/POST/PATCH /api/admin/disease-types` — Disease type registry CRUD
+- Enhanced `GET /api/beacon/map-data` — disease_badges, disease_count, disease_filter param
+
+**UI:**
+- Map pins: Colored sub-icon badges (F/V/R/H/P) below pins, max 3 shown + overflow
+- Map legend: Per-disease filter checkboxes with toggle behavior
+- PlaceDetailDrawer: Per-disease colored badges replacing boolean banner
+- Place detail page: DiseaseStatusSection with per-status action buttons and override controls
+- Admin page: `/admin/disease-types` for CRUD on disease type registry
+
+**Extraction:**
+- Per-disease attribute definitions with polarity-aware descriptions ("FeLV neg = negative, NOT a concern")
+- Sonnet escalation for disease mentions (polarity accuracy is critical)
+- Post-extraction hook: positive result → auto-flag linked places as "suspected"
+
+### Files
+
+| File | Change |
+|------|--------|
+| `sql/schema/sot/MIG_814__disease_tracking_system.sql` | NEW — All schema (717 lines) |
+| `apps/web/src/app/api/places/[id]/disease-status/route.ts` | NEW — GET + PATCH |
+| `apps/web/src/app/api/admin/disease-types/route.ts` | NEW — CRUD |
+| `apps/web/src/app/admin/disease-types/page.tsx` | NEW — Admin page |
+| `apps/web/src/components/DiseaseStatusSection.tsx` | NEW — Place detail section |
+| `apps/web/src/app/api/beacon/map-data/route.ts` | MOD — disease_badges + filter |
+| `apps/web/src/app/api/places/[id]/map-details/route.ts` | MOD — disease badges query |
+| `apps/web/src/app/places/[id]/page.tsx` | MOD — DiseaseStatusSection integration |
+| `apps/web/src/components/map/PlaceDetailDrawer.tsx` | MOD — Per-disease badges |
+| `apps/web/src/components/AtlasMap.tsx` | MOD — Legend + filter + badge rendering |
+| `apps/web/src/lib/map-colors.ts` | MOD — Disease colors |
+| `apps/web/src/lib/map-markers.ts` | MOD — Sub-icon badge SVG |
+| `scripts/jobs/extract_clinic_attributes.mjs` | MOD — Disease escalation + hook |
+
+### Activation
+1. Run `MIG_814__disease_tracking_system.sql` against the database
+2. Run `SELECT trapper.compute_place_disease_status()` to backfill from existing cat_test_results
+3. Verify map shows disease badges on affected pins
+4. Admin configures disease types at `/admin/disease-types`
