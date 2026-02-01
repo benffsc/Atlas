@@ -57,23 +57,16 @@ AMBIGUOUS — only flag if context clearly indicates presence at location:
 
 Valid disease_key values: felv, fiv, ringworm, heartworm, panleukopenia
 
-Return a JSON array of extractions. If no disease mentions found, return [].
+Respond with ONLY a JSON array — no explanation, no markdown, no text before or after.
+If no disease mentions found, respond with exactly: []
 
-Example response:
-[
-  {
-    "disease_key": "felv",
-    "polarity": "positive",
-    "approximate_date": "2017-09-01",
-    "evidence": "Tested him and he was FeLV positive",
-    "confidence": 0.95
-  }
-]
+Format:
+[{"disease_key":"felv","polarity":"positive","approximate_date":"2017-09-01","evidence":"Tested him and he was FeLV positive","confidence":0.95}]
 
 For approximate_date:
-- If the note says "09/17" interpret as September 2017 (format: YYYY-MM-DD → "2017-09-01")
-- If the note says "2019" interpret as January 2019 → "2019-01-01"
-- If no date is discernible, use null`;
+- "09/17" → "2017-09-01"
+- "2019" → "2019-01-01"
+- No date → null`;
 
 async function main() {
   const startTime = Date.now();
@@ -128,7 +121,7 @@ async function main() {
       try {
         const response = await client.messages.create({
           model: MODEL,
-          max_tokens: 500,
+          max_tokens: 300,
           system: SYSTEM_PROMPT,
           messages: [{
             role: "user",
@@ -147,10 +140,22 @@ async function main() {
         let extractions = [];
 
         try {
-          // Extract JSON from response (may be wrapped in markdown code blocks)
-          const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            extractions = JSON.parse(jsonMatch[0]);
+          // Extract first valid JSON array using bracket counting
+          // (greedy regex fails when Sonnet appends text after the array)
+          const arrayStart = responseText.indexOf('[');
+          if (arrayStart !== -1) {
+            let depth = 0;
+            let arrayEnd = -1;
+            for (let i = arrayStart; i < responseText.length; i++) {
+              if (responseText[i] === '[') depth++;
+              else if (responseText[i] === ']') {
+                depth--;
+                if (depth === 0) { arrayEnd = i + 1; break; }
+              }
+            }
+            if (arrayEnd > arrayStart) {
+              extractions = JSON.parse(responseText.substring(arrayStart, arrayEnd));
+            }
           }
         } catch (parseErr) {
           console.warn(`  Parse error for ${entry.kml_name}: ${parseErr.message}`);
