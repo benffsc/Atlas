@@ -299,8 +299,9 @@ SELECT
     'felv_fiv',
     a.appointment_date,
     CASE
-        WHEN sr.payload->>'FeLV/FIV (SNAP test, in-house)' ILIKE '%negative%' THEN 'negative'::trapper.test_result
+        -- Check positive FIRST: "Negative/Positive" or "Positive/Negative" both contain 'positive'
         WHEN sr.payload->>'FeLV/FIV (SNAP test, in-house)' ILIKE '%positive%' THEN 'positive'::trapper.test_result
+        WHEN sr.payload->>'FeLV/FIV (SNAP test, in-house)' ILIKE '%negative%' THEN 'negative'::trapper.test_result
         ELSE 'inconclusive'::trapper.test_result
     END,
     sr.payload->>'FeLV/FIV (SNAP test, in-house)',
