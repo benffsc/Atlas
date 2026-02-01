@@ -66,7 +66,8 @@ export function GoogleMapContextCard({ placeId, className = "" }: GoogleMapConte
               <div className="text-sm font-medium text-gray-900 mb-1">{entry.kml_name}</div>
             )}
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {entry.display_content || entry.original_content}
+              {(entry.display_content || entry.original_content || "")
+                .replace(/<br\s*\/?>/gi, "\n")}
             </p>
             <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
               {entry.parsed_cat_count && (

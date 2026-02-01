@@ -1433,4 +1433,63 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 | Same address, different formatting | `normalize_address()` catches most variants; `find_or_create_place_deduped` handles the rest |
 | Deleted row in source | Atlas retains the record — no deletion propagation |
 
-*Last updated: 2026-01-31 (after DIS_002 + DIS_003 + ingestion pipeline documentation)*
+### Session: 2026-01-31 - Unified Map Pins & Reverse Geocoding (MAP_011)
+
+**Context:** Map had three pin types (active, reference, historical dots) causing confusion. ~2,466 Google Maps entries were unlinked "floating" historical dots. Staff reported overlapping pins, broken popups, and confusing "Minimal Data" labels.
+
+**Key Discoveries:**
+- Google Maps KML pins placed at approximate coordinates, not exact addresses
+- `acos()` floating-point bug in `try_match_google_map_entries_to_place()` caused trigger failures
+- `place_origin` check constraint rejected 'google_maps' value
+- `chk_address_backed_has_address` requires `sot_address_id` when `is_address_backed = TRUE`
+- `<br>` tags from KML import rendered as literal text in notes display
+
+**Changes Made:**
+- **MIG_820**: Auto-linked 876 GM entries within 50m to nearest Atlas place; filtered empty apartment_building overlapping pins from `v_map_atlas_pins`
+- **MIG_821**: Created 1,590 coordinate-only places from GM coordinates; built reverse geocoding pipeline (`create_place_from_coordinates`, `get_reverse_geocoding_queue`, `record_reverse_geocoding_result`); fixed acos bug with PostGIS `ST_Distance`/`ST_DWithin`; added 'google_maps' to `place_origin` constraint
+- **Reverse geocoding batch**: 1,392 places upgraded with real addresses, 172 merged into existing places, 0 failed
+- **Frontend**: Removed `historical_pins` layer entirely; fixed reference pin popups to use drawer instead of new tab; fixed `<br>` tag rendering in notes
+- **Geocoding cron** (`/api/cron/geocode`): Extended with Phase 2 reverse geocoding using remaining budget
+
+**Staff Impact:**
+- Map now shows only two pin types: **active** (full teardrop) and **reference** (small muted)
+- No more grey historical dots — all Google Maps data appears on proper Atlas pins
+- Reference pin popups now show data summary and open the detail drawer (not a new tab)
+- Google Maps notes display with proper line breaks instead of raw `<br>` tags
+- 172 coordinate-only locations were automatically identified as duplicates and merged
+
+**What Tippy should know:**
+> "All Google Maps historical data is now integrated into Atlas pins. The old grey dots are gone. If a staff member asks about a location that used to show as a grey dot, it's now either a reference pin (small blue) or has been merged into an existing address pin. Reference pins have a 'Details' button that opens the full detail drawer."
+
+> "Some coordinate-only places may still show with their Google Maps name (like 'Oliver's Market') instead of a street address — these have been reverse-geocoded and most now show the real address. A small number (~83) couldn't be resolved and remain as coordinate-only reference pins."
+
+### Session: 2026-02-01 - Structural Place Family System (MIG_822)
+
+**Context:** After MAP_011 (MIG_820-821), staff reported Google Maps notes invisible at some locations (1080 Jennings Ave). Investigation revealed multi-unit buildings had overlapping pins and notes only showed on the specific place they were linked to — not across related places (parent building, sibling units). Initial fix used 15m proximity radius which was rejected as a bandaid.
+
+**Key Discoveries:**
+- ~809 groups of places share exact coordinates but lack structural `parent_place_id` links
+- `google-map-context` endpoint only queried `place_id`, completely missed `linked_place_id` (root cause bug)
+- 15m `ST_DWithin` proximity for cross-place data was arbitrary and could match different buildings
+- `backfill_apartment_hierarchy()` catches units with indicators (#, Apt, Unit) but many co-located places predate this system
+- `find_or_create_place_deduped()` already handles unit detection for new data (MIG_246)
+
+**Changes Made:**
+- **MIG_822**: Created `get_place_family(place_id)` function — returns structurally related place IDs via parent/child/sibling relationships AND co-located detection (1m = same geocoded point)
+- **MIG_822**: Re-ran `backfill_apartment_hierarchy()` to classify unlinked units
+- **MIG_822**: Updated `v_map_atlas_pins` to filter empty unclassified co-located places (eliminates overlapping empty pins)
+- **API fix**: Both `map-details` and `google-map-context` endpoints now use `get_place_family()` instead of 15m proximity
+- **Root cause fix**: `google-map-context` now queries both `place_id` AND `linked_place_id`
+
+**Staff Impact:**
+- Google Maps notes now visible from ANY related place — clicking a unit shows building-level notes and sibling notes
+- Empty overlapping pins at same coordinates are hidden (data-rich pin still shows)
+- Apartment units properly linked to parent buildings where detectable
+- No more invisible notes for places like 1080 Jennings Ave
+
+**What Tippy should know:**
+> "Google Maps notes are now aggregated across related places using `get_place_family()`. If a note was written about a building, it's visible from any unit at that address. If staff can't find a note they know exists, check if it's linked to a different unit or the parent building — the system now handles this automatically."
+
+> "Some places share exact coordinates without being classified as apartment buildings. The system detects these as 'co-located' (same physical point within 1 meter) and aggregates their data together. Empty co-located places are hidden from the map to prevent confusing overlapping pins."
+
+*Last updated: 2026-02-01 (after MIG_822 structural place family)*

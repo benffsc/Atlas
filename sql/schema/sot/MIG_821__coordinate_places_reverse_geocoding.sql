@@ -344,11 +344,12 @@ BEGIN
                 'google_address', p_google_address
             );
         ELSE
-            -- NO MATCH: Upgrade this place to address-backed
+            -- NO MATCH: Upgrade place with resolved address
+            -- Don't set is_address_backed = TRUE (requires sot_address_id per constraint)
+            -- Follow same pattern as forward geocoding: set formatted_address, clear geocode flags
             UPDATE trapper.places
             SET formatted_address = p_google_address,
                 -- normalized_address set by trg_normalize_place_address trigger
-                is_address_backed = TRUE,
                 quality_tier = 'C',
                 geocode_attempts = v_attempts + 1,
                 geocode_last_attempt = NOW(),

@@ -460,6 +460,7 @@ function OriginalNotesList({ notes }: { notes: GoogleNote[] }) {
           </div>
           <div className="note-body">
             {(note.original_redacted || note.original_content || "No content")
+              .replace(/<br\s*\/?>/gi, "\n")
               .split("\n")
               .map((line, i) => (
                 <p key={i}>{line || "\u00A0"}</p>

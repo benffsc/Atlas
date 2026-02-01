@@ -294,6 +294,7 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 | Request | `trapper.find_or_create_request(source, record_id, source_created_at, ...)` | For all request creation (MIG_297) |
 | Cat→Place | `trapper.link_cat_to_place(cat_id, place_id, rel_type, evidence_type, source_system, ...)` | For all cat-place linking (MIG_797) |
 | Person→Cat | `trapper.link_person_to_cat(person_id, cat_id, rel_type, evidence_type, source_system, ...)` | For all person-cat linking (MIG_797) |
+| Coord Place | `trapper.create_place_from_coordinates(lat, lng, display_name, source_system)` | For coordinate-only places (Google Maps, pin-placing UI). Dedup within 10m. (MIG_821) |
 | Place merge | `trapper.merge_place_into(loser_id, winner_id, reason, changed_by)` | Atomic place merge with full FK relinking (MIG_800) |
 | Address relink | `trapper.relink_person_primary_address(person_id, new_place_id, new_address_id)` | Atomic person address change (MIG_794) |
 
@@ -303,6 +304,12 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 | `trapper.normalize_address(address)` | Full normalization (USA suffix, em-dash, periods, suffixes, case) |
 | `trapper.extract_house_number(normalized_addr)` | Extract leading house number for merge safety |
 | `trapper.address_safe_to_merge(addr_a, addr_b)` | Returns TRUE if addresses are safe to merge (rejects different house numbers) |
+
+**Place family & aggregation (MIG_822):**
+| Function | Purpose |
+|----------|---------|
+| `trapper.get_place_family(place_id)` | Returns UUID[] of structurally related places: parent, children, siblings (via parent_place_id), and co-located (within 1m). Use for aggregating GM notes, people, journal entries across related places. |
+| `trapper.backfill_apartment_hierarchy(dry_run)` | Re-classifies places with unit indicators as apartment_unit with parent_place_id. Run after bulk imports. |
 
 **Why:**
 - These functions handle normalization, deduplication, identity matching, merged entities, and geocoding queue
@@ -316,6 +323,8 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 - `'volunteerhub'` - VolunteerHub API data (volunteers, groups, roles)
 - `'web_intake'` - Web intake form submissions
 - `'petlink'` - PetLink microchip data
+- `'google_maps'` - Google Maps KML data (coordinate-only places, GM entries)
+- `'atlas_ui'` - Atlas web app (pin-placing, manual edits)
 
 **See `docs/INGEST_GUIDELINES.md` for complete documentation.**
 
@@ -562,21 +571,32 @@ The Atlas Map (`/map`) visualizes all location data with Google Maps-style pins.
 
 | Layer | Data Source | Pin Style |
 |-------|-------------|-----------|
-| `atlas_pins` | `v_map_atlas_pins` view | Google teardrop pins |
-| `historical_pins` | `v_map_historical_pins` view | Small dots |
+| `atlas_pins` | `v_map_atlas_pins` view | Google teardrop pins (two tiers) |
 | `google_pins` | `google_map_entries` | Drop pins with labels |
 | `tnr_priority` | Places needing TNR | Priority-colored pins |
 | `volunteers` | Person with trapper role | Star markers |
+
+**Note:** `historical_pins` layer was removed in MIG_820. All Google Maps entries are now linked to Atlas places and appear as reference-tier atlas pins.
+
+### Two-Tier Pin System (MIG_820)
+
+All pins are either **active** (full teardrop) or **reference** (smaller muted pin):
+
+| Tier | Criteria | Description |
+|------|----------|-------------|
+| `active` | Disease risk, cats, requests, active volunteers, intake submissions | Full teardrop pins with data |
+| `reference` | History only, minimal data | Smaller muted pins for locations with only GM history or no data |
 
 ### Pin Styles (by status)
 
 | Style | Color | Icon | Trigger |
 |-------|-------|------|---------|
-| `disease` | Orange (#ea580c) | ⚠️ | `disease_risk = true` |
-| `watch_list` | Purple (#8b5cf6) | 👁️ | `watch_list = true` |
+| `disease` | Orange (#ea580c) | Alert | `disease_risk = true` |
+| `watch_list` | Purple (#8b5cf6) | Eye | `watch_list = true` |
 | `active` | Green (#22c55e) | Cat count | `cat_count > 0` |
-| `has_history` | Indigo (#6366f1) | 📄 | `google_entry_count > 0` |
-| `minimal` | Blue (#3b82f6) | • | Default |
+| `active_requests` | Blue (#3b82f6) | Request | `request_count > 0` or `intake_count > 0` |
+| `has_history` | Indigo (#6366f1) | Document | `google_entry_count > 0` |
+| `minimal` | Blue (#3b82f6) | Dot | Default |
 
 ### Data Flow (Real-Time)
 
@@ -600,6 +620,83 @@ Map data comes from **SQL views** (not materialized), so it's always current:
 | `GET /api/beacon/map-data` | All map layer data with filters |
 | `GET /api/places/[id]/map-details` | Full place details for drawer |
 | `PUT /api/places/[id]/watchlist` | Toggle watchlist status |
+| `GET /api/cron/geocode` | Forward + reverse geocoding (cron every 5-10 min) |
+
+## Coordinate-Only Places & Reverse Geocoding (MIG_820-822)
+
+Some places have coordinates but no street address — from Google Maps KML data or future "place a pin" UI. These are **coordinate-only places**.
+
+### Place Types by Address Status
+
+| `is_address_backed` | `formatted_address` | Description | Quality |
+|---------------------|---------------------|-------------|---------|
+| `TRUE` | Set | Full address with `sot_address_id` | A-B |
+| `FALSE` | Set | Has address text but no structured address record | C |
+| `FALSE` | `NULL` | Coordinate-only, needs reverse geocoding | D |
+
+### Reverse Geocoding Pipeline
+
+Coordinate-only places are automatically resolved via Google Reverse Geocoding:
+
+1. `get_reverse_geocoding_queue(limit)` — Returns places needing reverse geocoding
+2. Google API: `GET /maps/api/geocode/json?latlng={lat},{lng}` → address
+3. `record_reverse_geocoding_result(place_id, success, google_address, error)`:
+   - **Match found**: Merges coordinate place into existing address-backed place (transfers all FK links)
+   - **No match**: Upgrades place with `formatted_address`, keeps `is_address_backed = FALSE`
+   - **Failure**: Exponential backoff (1, 5, 15, 60 min, then permanent fail)
+
+### Key Functions (MIG_821)
+
+| Function | Purpose |
+|----------|---------|
+| `create_place_from_coordinates(lat, lng, name, source)` | Create coordinate-only place (10m dedup) |
+| `get_reverse_geocoding_queue(limit)` | Queue of places needing reverse geocoding |
+| `record_reverse_geocoding_result(place_id, success, addr, err)` | Record result with auto-merge |
+| `try_match_google_map_entries_to_place(place_id)` | PostGIS-based GM entry matching (fixes acos bug) |
+
+### Cron Integration
+
+`/api/cron/geocode` runs every 5-10 minutes with a shared budget of 50 API calls:
+- **Phase 1**: Forward geocoding (address → coordinates)
+- **Phase 2**: Reverse geocoding (coordinates → address) with remaining budget
+
+### Batch Script
+
+```bash
+# One-shot batch for all pending reverse geocoding
+node scripts/jobs/reverse_geocode_batch.mjs
+node scripts/jobs/reverse_geocode_batch.mjs --limit 100
+node scripts/jobs/reverse_geocode_batch.mjs --dry-run
+```
+
+### Stats View
+
+```sql
+SELECT * FROM trapper.v_reverse_geocoding_stats;
+-- Returns: coordinate_only_total, pending_reverse, failed_reverse, ready_to_process
+```
+
+### Place Family System (MIG_822)
+
+Multi-unit buildings and co-located places are linked structurally:
+
+**Structural relationships** (via `parent_place_id`):
+- `apartment_building` → parent record (may be empty shell)
+- `apartment_unit` → child with `parent_place_id` and `unit_identifier`
+- Auto-created by `find_or_create_place_deduped()` when unit is detected in address
+
+**Co-located detection** (via `get_place_family()`):
+- Places within 1m of each other at the same geocoded point
+- Catches unclassified groups that predate the apartment hierarchy (MIG_190)
+- 1m = same physical point (not arbitrary — GPS precision is ~3m)
+
+**How it works in practice:**
+- API endpoints use `get_place_family(place_id)` to aggregate GM notes, people, etc.
+- `v_map_atlas_pins` filters out empty co-located places (no overlapping pins)
+- `backfill_apartment_hierarchy()` classifies units with indicators in their address
+- Ongoing: `find_or_create_place_deduped()` handles new unit addresses automatically
+
+**NEVER use arbitrary distance radius (like 15m) for cross-place data aggregation.** Use `get_place_family()` instead.
 
 ## Views to Know
 
@@ -620,8 +717,8 @@ Map data comes from **SQL views** (not materialized), so it's always current:
 | `v_tippy_view_popularity` | Which views Tippy queries most |
 | `v_tippy_pending_corrections` | Data corrections awaiting review |
 | `v_tippy_gaps_review` | Unanswerable questions for gap analysis |
-| `v_map_atlas_pins` | Consolidated map pins (places + people + cats + history) |
-| `v_map_historical_pins` | Unlinked Google Maps entries for historical context |
+| `v_map_atlas_pins` | Consolidated map pins: two-tier (active/reference), filters empty apartment shells + empty co-located places (MIG_822) |
+| `v_reverse_geocoding_stats` | Coordinate-only place geocoding progress |
 | `v_data_flow_status` | Unified data flow monitoring across all sources |
 | `v_data_engine_coverage` | Summary statistics of Data Engine coverage |
 | `v_people_without_data_engine` | People missing Data Engine audit trail |
@@ -633,7 +730,6 @@ Map data comes from **SQL views** (not materialized), so it's always current:
 | `v_shelterluv_sync_status` | ShelterLuv API sync health and pending records |
 | `v_cat_field_sources_summary` | Multi-source field values per cat |
 | `v_cat_field_conflicts` | Cats where sources disagree on field values |
-| `v_map_atlas_pins` | Consolidated map pins with cat counts, people, disease risk, clustering fields |
 
 ## Key Tables
 
@@ -1242,5 +1338,9 @@ Tippy uses this documentation to:
 - Don't hardcode `type=place` in map search API calls — this excludes people
 - Don't check coordinate matches against legacy `places` array — use `atlasPins`
 - Don't use tight coordinate tolerance (< 0.001) for Google ↔ Atlas matching
-- Don't create individual DOM markers for historical pins — use canvas renderer
 - Don't manually cluster pins with `parent_place_id` grouping — use `markerClusterGroup`
+- Don't create a `historical_pins` layer — removed in MIG_820, all GM entries now appear as reference atlas pins
+- Don't set `is_address_backed = TRUE` without a valid `sot_address_id` — violates `chk_address_backed_has_address`
+- Don't bypass `create_place_from_coordinates()` for coordinate-only places — it handles dedup and reverse geocoding queue
+- **Don't use `ST_DWithin` proximity queries for cross-place data aggregation** — use `get_place_family()` instead (MIG_822). This returns structurally related places via parent_place_id + 1m co-located detection.
+- Don't show GM notes from only `place_id` — always query both `place_id` and `linked_place_id` against the full `get_place_family()` result

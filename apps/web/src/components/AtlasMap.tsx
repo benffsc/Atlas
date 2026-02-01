@@ -1149,8 +1149,11 @@ export default function AtlasMap() {
         const dataSummary = summaryParts.length > 0 ? summaryParts.join(" · ") : "Reference location";
 
         // First GM note snippet
-        const gmSnippet = pin.google_summaries && pin.google_summaries.length > 0 && pin.google_summaries[0]?.summary
-          ? `<div style="color:#6b7280;font-size:11px;margin-top:4px;line-height:1.3;max-height:40px;overflow:hidden;">"${String(pin.google_summaries[0].summary).substring(0, 120)}${String(pin.google_summaries[0].summary).length > 120 ? "…" : ""}"</div>`
+        const gmRawSummary = pin.google_summaries && pin.google_summaries.length > 0 && pin.google_summaries[0]?.summary
+          ? String(pin.google_summaries[0].summary).replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "")
+          : "";
+        const gmSnippet = gmRawSummary
+          ? `<div style="color:#6b7280;font-size:11px;margin-top:4px;line-height:1.3;max-height:40px;overflow:hidden;">"${gmRawSummary.substring(0, 120)}${gmRawSummary.length > 120 ? "…" : ""}"</div>`
           : "";
 
         // People names

@@ -37,7 +37,23 @@ export async function GET(
   }
 
   try {
+    // Check if place was merged — follow the merge chain
+    const mergeCheck = await queryRows<{ merged_into_place_id: string | null }>(
+      `SELECT merged_into_place_id FROM trapper.places WHERE place_id = $1`,
+      [id]
+    );
+    const placeId = mergeCheck?.[0]?.merged_into_place_id || id;
+
+    // Include entries from this place AND all structurally related places:
+    // - Parent building (if this is a unit)
+    // - Child units (if this is a building)
+    // - Sibling units (other units of same building)
+    // - Co-located places (same geocoded point, within 1m)
+    // Uses both place_id and linked_place_id to catch all linking methods
     const sql = `
+      WITH family AS (
+        SELECT unnest(trapper.get_place_family($1)) AS fid
+      )
       SELECT
         entry_id,
         kml_name,
@@ -53,11 +69,12 @@ export async function GET(
         matched_at::TEXT,
         imported_at::TEXT
       FROM trapper.google_map_entries
-      WHERE place_id = $1
+      WHERE place_id IN (SELECT fid FROM family)
+         OR linked_place_id IN (SELECT fid FROM family)
       ORDER BY parsed_date DESC NULLS LAST, imported_at DESC
     `;
 
-    const entries = await queryRows<GoogleMapEntry>(sql, [id]);
+    const entries = await queryRows<GoogleMapEntry>(sql, [placeId]);
 
     return NextResponse.json({
       entries,
