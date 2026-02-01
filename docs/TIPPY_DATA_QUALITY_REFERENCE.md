@@ -115,6 +115,40 @@ Understanding the strengths and limitations of each data source is critical for 
 
 ---
 
+### VolunteerHub (Volunteer Data)
+
+**What it is:** FFSC's volunteer management system. Contains all volunteer signups, group memberships, hours, skills, availability, and profile data. Synced via API every 6 hours.
+
+**Strengths:**
+- Staff-curated: every volunteer personally signed up and was approved by staff
+- 47 user groups with temporal join/leave tracking
+- Rich profile data: skills, availability, languages, pronouns, occupation, motivation
+- Hours logged and event participation tracked
+- Authority for FFSC volunteer/trapper status (VH "Approved Trappers" group = ffsc_trapper)
+
+**Limitations:**
+- Volunteer data only — no cat or request data
+- Some volunteers have no email/phone in VH (9 of 1346 = 0.7%)
+- Historical hours/events not available via API v2 (only v1, which has limited fields)
+- Two VH records can represent the same person (duplicate VH accounts)
+
+**Data Quality:**
+- `data_quality = 'normal'` for VH people with email/phone (99.3%)
+- `data_quality = 'skeleton'` for VH people with name only, no contact info (0.7%)
+- Skeleton people are automatically enriched when contact info appears in subsequent syncs
+- VH is a "trusted source" — allowed to create name-only skeleton people (unlike ClinicHQ)
+
+**What Tippy should know:**
+> "VolunteerHub data is curated — these are real people who signed up as volunteers. If a person record shows data_source='volunteerhub' and data_quality='skeleton', it means they have no email or phone on file yet. Their name is real but we can't verify identity until contact info arrives. When they update their VH profile or visit the clinic, the skeleton record will automatically merge with or promote to a full record."
+
+**Key Tables:**
+- `volunteerhub_volunteers` — staging/mirror of VH user data (1346 records)
+- `volunteerhub_user_groups` — 47 VH groups with atlas_role mapping
+- `volunteerhub_group_memberships` — temporal join/leave tracking
+- `trusted_person_sources` — registry controlling which sources allow skeleton creation
+
+---
+
 ### Reference Data (Census, Parameters)
 
 **What it is:** External reference data for ecological modeling.
@@ -1111,3 +1145,45 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - Person profiles show full volunteer info: groups, hours, skills, availability, notes
 - Automated sync every 6 hours — no more manual XLSX exports
 - Group join/leave history tracked for volunteer lifecycle management
+
+### Session: 2026-01-31 — VolunteerHub Sync Execution + Robustness Fixes
+
+**Context:** First full VH API sync run. Multiple bugs discovered and fixed during execution. User requested infrastructure for future recurring syncs and handling of VH volunteers with no contact info.
+
+**Key Discoveries:**
+- `match_volunteerhub_volunteer()` used wrong column name (`role_type` instead of `role`) — never ran successfully before
+- `person_roles` CHECK constraint was missing `caretaker` role (needed for VH "Approved Colony Caretakers" group)
+- `enrich_from_volunteerhub()` had mismatched payload keys (single vs double space around hyphens in VH field names like "Name - FirstName" vs "Name -  FirstName")
+- `entity_edits` table had CHECK constraints that didn't include `volunteerhub_sync` as edit_source or `link`/`unlink` as edit_type
+- `internal_account_types` had a "POTL" contains pattern that false-positived on the surname "Spotleson" (real volunteer Oceana Spotleson)
+- 9 VH volunteers have NO email or phone — data engine correctly rejects them (no identifiers), but these are real people who signed up on VolunteerHub
+- `sot_people.data_source` is an enum, not text — required explicit cast
+
+**Bugs Fixed (MIG_812 + MIG_813):**
+1. `match_volunteerhub_volunteer()`: `role_type` → `role` column
+2. `person_roles` CHECK: added `caretaker`
+3. `enrich_from_volunteerhub()`: COALESCE for both key spacings, added `is_processed = FALSE` filter, `ended_at` → `valid_to`
+4. `entity_edits` edit_source CHECK: added `volunteerhub_sync`
+5. `sync_volunteer_group_memberships()`: edit_type `update` → `link`/`unlink`
+6. `internal_account_types`: POTL pattern `contains` → `starts_with`
+7. `volunteerhub_volunteers.email`: dropped NOT NULL
+8. `create_skeleton_person()`: added `::trapper.data_source` cast
+
+**New Infrastructure (MIG_813):**
+- `trusted_person_sources` table: registry of sources allowed to create skeleton people (VH + ShelterLuv = yes, ClinicHQ = no)
+- `create_skeleton_person()`: creates `sot_people` with `data_quality = 'skeleton'`, `is_canonical = false` from trusted sources
+- Enhanced `match_volunteerhub_volunteer()`: 5 strategies (email → phone → data_engine → staff_name → skeleton)
+- `enrich_skeleton_people()`: periodic function that merges skeletons INTO existing people when contact info arrives, or promotes them to normal quality
+- Integrated into sync script as Step 5 (runs every sync)
+
+**Sync Results:**
+- 1346 VH volunteers, 1346 matched to sot_people (100%)
+- 47 user groups, 1876 active memberships
+- 537 roles: 1299 volunteer, 95 foster, 23 ffsc_trapper, 15 caretaker, 13 staff
+- 837 new sot_people from VH, 782 places created
+- 9 skeleton people (name only, awaiting enrichment)
+
+**Staff Impact:**
+- VH data now fully integrated. Every sync automatically: upserts volunteers, tracks group joins/leaves, assigns roles, creates/enriches places, handles skeleton people.
+- If a skeleton person (no email) later updates their VH profile with email, the next sync automatically merges them into existing records or promotes them to full quality.
+- Staff name matching ensures VH records for known staff (e.g., Jennifer Cochran) auto-link to existing staff accounts even without email in VH.

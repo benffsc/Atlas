@@ -164,7 +164,7 @@ function buildQuestionMapping(orgData) {
     const questions = form.FormQuestions || form.formQuestions || [];
     for (const q of questions) {
       const uid = q.FormQuestionUid || q.formQuestionUid;
-      const label = q.Label || q.label || q.Text || q.text || '';
+      const label = q.Name || q.name || q.Label || q.label || q.Text || q.text || '';
       if (uid && label) {
         mapping[uid] = label;
       }
@@ -205,8 +205,24 @@ function decodeFormAnswers(formAnswers, questionMapping) {
       continue;
     }
 
-    // FormAnswerString / other types — use the label
-    const value = answer.Value || answer.value || answer.BoolValue || answer.boolValue || '';
+    // FormAnswerEmailAddress — VH may use EmailAddress property
+    if (answer.EmailAddress !== undefined || answer.emailAddress !== undefined) {
+      fields[label] = answer.EmailAddress || answer.emailAddress || '';
+      continue;
+    }
+
+    // FormAnswerPhoneNumber — VH may use PhoneNumber property
+    if (answer.PhoneNumber !== undefined || answer.phoneNumber !== undefined) {
+      fields[label] = answer.PhoneNumber || answer.phoneNumber || '';
+      continue;
+    }
+
+    // FormAnswerString / Boolean / other types — use the label
+    const value = answer.Value !== undefined ? answer.Value
+                : answer.value !== undefined ? answer.value
+                : answer.BoolValue !== undefined ? answer.BoolValue
+                : answer.boolValue !== undefined ? answer.boolValue
+                : '';
     fields[label] = value;
   }
 
@@ -404,10 +420,11 @@ async function seedRoleMappings(client) {
 async function upsertVolunteer(client, data) {
   const fullAddress = [data.address, data.city, data.state, data.zip].filter(Boolean).join(', ');
 
+  // Generated columns (display_name, phone_norm, email_norm, full_address) excluded from INSERT
   const res = await client.query(`
     INSERT INTO trapper.volunteerhub_volunteers (
-      volunteerhub_id, username, email, phone, first_name, last_name, display_name,
-      address, city, state, zip, full_address,
+      volunteerhub_id, username, email, phone, first_name, last_name,
+      address, city, state, zip,
       status, is_active, hours_logged, event_count,
       joined_at, last_activity_at, last_login_at,
       vh_version, user_group_uids, last_api_sync_at,
@@ -416,15 +433,15 @@ async function upsertVolunteer(client, data) {
       emergency_contact_raw, can_drive, date_of_birth, volunteer_experience,
       waiver_status, raw_data, synced_at, sync_status
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7,
-      $8, $9, $10, $11, $12,
-      CASE WHEN $13 THEN 'active' ELSE 'inactive' END, $13, $14, $15,
-      $16::timestamptz, $17::timestamptz, $18::timestamptz,
-      $19, $20, NOW(),
-      $21, $22, $23, $24,
-      $25, $26, $27, $28,
-      $29, $30, $31::date, $32,
-      $33, $34, NOW(), 'pending'
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10,
+      CASE WHEN $11 THEN 'active' ELSE 'inactive' END, $11, $12, $13,
+      $14::timestamptz, $15::timestamptz, $16::timestamptz,
+      $17, $18, NOW(),
+      $19, $20, $21, $22,
+      $23, $24, $25, $26,
+      $27, $28, $29::date, $30,
+      $31, $32, NOW(), 'pending'
     )
     ON CONFLICT (volunteerhub_id) DO UPDATE SET
       username = EXCLUDED.username,
@@ -432,10 +449,8 @@ async function upsertVolunteer(client, data) {
       phone = COALESCE(EXCLUDED.phone, volunteerhub_volunteers.phone),
       first_name = EXCLUDED.first_name,
       last_name = EXCLUDED.last_name,
-      display_name = EXCLUDED.display_name,
       address = EXCLUDED.address, city = EXCLUDED.city,
       state = EXCLUDED.state, zip = EXCLUDED.zip,
-      full_address = EXCLUDED.full_address,
       status = EXCLUDED.status, is_active = EXCLUDED.is_active,
       hours_logged = EXCLUDED.hours_logged, event_count = EXCLUDED.event_count,
       last_activity_at = EXCLUDED.last_activity_at,
@@ -461,8 +476,8 @@ async function upsertVolunteer(client, data) {
     RETURNING (xmax = 0) as was_inserted
   `, [
     data.volunteerhub_id, data.username, data.email, data.phone,
-    data.first_name, data.last_name, data.display_name,
-    data.address, data.city, data.state, data.zip, fullAddress,
+    data.first_name, data.last_name,
+    data.address, data.city, data.state, data.zip,
     data.is_active, data.hours_logged, data.event_count,
     data.joined_at, data.last_activity_at, data.last_login_at,
     data.vh_version, data.user_group_uids,
@@ -681,6 +696,8 @@ async function main() {
     errors: 0,
     group_joins: 0,
     group_leaves: 0,
+    skeletons_promoted: 0,
+    skeletons_merged: 0,
   };
 
   for (let i = 0; i < users.length; i++) {
@@ -752,9 +769,30 @@ async function main() {
     }
   }
 
-  // Step 5: Reconciliation
+  // Step 5: Skeleton enrichment (merge/promote skeletons that now have contact info)
   if (client && !options.dryRun) {
-    console.log(`\n${colors.cyan}Step 5:${colors.reset} Trapper reconciliation (VH vs Airtable)...`);
+    console.log(`\n${colors.cyan}Step 5:${colors.reset} Enriching skeleton people...`);
+    try {
+      const enrichRes = await client.query(`SELECT trapper.enrich_skeleton_people(200) as result`);
+      const e = enrichRes.rows[0]?.result;
+      if (e) {
+        stats.skeletons_promoted = e.promoted || 0;
+        stats.skeletons_merged = e.merged || 0;
+        if (e.promoted > 0 || e.merged > 0) {
+          console.log(`  ${colors.green}Promoted:${colors.reset} ${e.promoted} (contact info added, now normal quality)`);
+          console.log(`  ${colors.green}Merged:${colors.reset} ${e.merged} (matched to existing person)`);
+        } else {
+          console.log(`  No skeletons ready for enrichment`);
+        }
+      }
+    } catch (e) {
+      console.log(`  ${colors.yellow}Skeleton enrichment warning:${colors.reset} ${e.message}`);
+    }
+  }
+
+  // Step 6: Reconciliation
+  if (client && !options.dryRun) {
+    console.log(`\n${colors.cyan}Step 6:${colors.reset} Trapper reconciliation (VH vs Airtable)...`);
     try {
       const recon = await client.query(`SELECT trapper.cross_reference_vh_trappers_with_airtable() as result`);
       const r = recon.rows[0]?.result;
@@ -782,6 +820,10 @@ async function main() {
   console.log(`  Roles assigned: ${stats.roles_assigned}`);
   console.log(`  Group joins:    ${stats.group_joins}`);
   console.log(`  Group leaves:   ${stats.group_leaves}`);
+  if (stats.skeletons_promoted || stats.skeletons_merged) {
+    console.log(`  Skeletons promoted: ${stats.skeletons_promoted || 0}`);
+    console.log(`  Skeletons merged:   ${stats.skeletons_merged || 0}`);
+  }
   console.log(`  Errors:         ${stats.errors}`);
   if (options.dryRun) console.log(`\n  ${colors.yellow}DRY RUN — no database changes made${colors.reset}`);
   console.log('');
