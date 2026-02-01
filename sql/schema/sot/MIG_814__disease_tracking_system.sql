@@ -109,13 +109,12 @@ Used by compute_place_disease_status() to derive place disease from cat tests.';
 
 INSERT INTO trapper.test_type_disease_mapping (test_type, result_pattern, disease_key)
 VALUES
-  -- FeLV/FIV combo test: parse result_detail for specific virus
-  ('felv_fiv', 'FeLV+', 'felv'),
-  ('felv_fiv', 'FIV+', 'fiv'),
-  -- Combo test generic positive (when result_detail doesn't specify which)
-  -- Map to felv as the more dangerous default
-  ('felv_fiv', 'positive', 'felv'),
-  -- Ringworm tests
+  -- FeLV/FIV combo test: result_detail format is "FeLV_result/FIV_result"
+  -- e.g., "Negative/Positive" = FeLV neg, FIV pos
+  -- e.g., "Positive/Negative" = FeLV pos, FIV neg
+  ('felv_fiv', 'Positive/', 'felv'),    -- FeLV positive (first part of combo)
+  ('felv_fiv', '/Positive', 'fiv'),     -- FIV positive (second part of combo)
+  -- Ringworm tests (pattern matched case-insensitively via ILIKE)
   ('ringworm_woods_lamp', 'positive', 'ringworm'),
   ('skin_scrape', 'positive', 'ringworm'),
   -- Heartworm
@@ -150,26 +149,30 @@ BEGIN
       WHERE pl.merged_into_place_id IS NULL
         AND (p_place_id IS NULL OR cpr.place_id = p_place_id)
     ),
-    -- Get all positive test results mapped to disease keys
+    -- Get all test results mapped to disease keys via pattern matching
+    -- Uses ILIKE for case-insensitive matching against result_detail
+    -- Combo tests (felv_fiv) use "Negative/Positive" format — patterns like
+    -- "Positive/" match FeLV+ and "/Positive" match FIV+
     place_disease_data AS (
       SELECT
         tp.place_id,
         m.disease_key,
-        COUNT(DISTINCT ctr.cat_id) FILTER (WHERE ctr.result = 'positive') AS positive_cats,
+        COUNT(DISTINCT ctr.cat_id) AS positive_cats,
         COUNT(DISTINCT ctr.cat_id) AS total_tested,
-        MIN(ctr.test_date) FILTER (WHERE ctr.result = 'positive') AS first_positive,
-        MAX(ctr.test_date) FILTER (WHERE ctr.result = 'positive') AS last_positive
+        MIN(ctr.test_date) AS first_positive,
+        MAX(ctr.test_date) AS last_positive
       FROM target_places tp
       JOIN trapper.cat_place_relationships cpr ON cpr.place_id = tp.place_id
       JOIN trapper.cat_test_results ctr ON ctr.cat_id = cpr.cat_id
       JOIN trapper.test_type_disease_mapping m ON m.test_type = ctr.test_type
         AND (
-          -- Match on result_detail text (e.g., "FeLV+/FIV-" contains "FeLV+")
-          (ctr.result_detail IS NOT NULL AND ctr.result_detail LIKE '%' || m.result_pattern || '%')
-          -- OR match on result enum value (e.g., result='positive' matches pattern 'positive')
-          OR (ctr.result::TEXT = m.result_pattern AND ctr.result_detail IS NULL)
+          -- Match on result_detail text case-insensitively
+          -- e.g., "Negative/Positive" ILIKE '%/Positive%' for FIV
+          -- e.g., "Positive" ILIKE '%positive%' for ringworm
+          (ctr.result_detail IS NOT NULL AND ctr.result_detail ILIKE '%' || m.result_pattern || '%')
+          -- OR match on result enum value for simple tests without result_detail
+          OR (ctr.result::TEXT ILIKE m.result_pattern AND ctr.result_detail IS NULL)
         )
-      WHERE ctr.result = 'positive'
       GROUP BY tp.place_id, m.disease_key
     )
     SELECT
@@ -585,34 +588,35 @@ People subquery returns JSONB objects with {name, roles[], is_staff} (from MIG_8
 
 -- Add per-disease status attributes for cat entity extraction
 INSERT INTO trapper.entity_attribute_definitions
-  (attribute_key, entity_type, data_type, description, enum_values, extraction_keywords, priority)
+  (attribute_key, entity_type, data_type, display_label, description, enum_values, extraction_keywords, priority)
 VALUES
-  ('felv_status', 'cat', 'enum',
+  ('felv_status', 'cat', 'enum', 'FeLV Status',
    'FeLV (Feline Leukemia Virus) test result status. CRITICAL: "FeLV neg", "FeLV negative", "FeLV-", "SNAP neg" = negative (not a concern). Only "FeLV+", "FeLV positive", "positive for FeLV" = positive.',
    ARRAY['positive', 'negative', 'inconclusive', 'not_tested'],
    ARRAY['felv', 'feline leukemia', 'snap test', 'snap neg', 'snap pos'],
    5),
-  ('fiv_status', 'cat', 'enum',
+  ('fiv_status', 'cat', 'enum', 'FIV Status',
    'FIV (Feline Immunodeficiency Virus) test result status. CRITICAL: "FIV neg", "FIV negative", "FIV-" = negative (not a concern). Only "FIV+", "FIV positive", "positive for FIV" = positive.',
    ARRAY['positive', 'negative', 'inconclusive', 'not_tested'],
    ARRAY['fiv', 'feline immunodeficiency', 'feline aids', 'snap test'],
    5),
-  ('ringworm_status', 'cat', 'enum',
+  ('ringworm_status', 'cat', 'enum', 'Ringworm Status',
    'Ringworm test/observation status. "Woods lamp negative" or "no ringworm" = negative. "Woods lamp positive", "ringworm confirmed", "dermatophytosis" = positive.',
    ARRAY['positive', 'negative', 'inconclusive', 'not_tested'],
    ARRAY['ringworm', 'dermatophyte', 'dermatophytosis', 'woods lamp', 'fungal'],
    10),
-  ('heartworm_status', 'cat', 'enum',
+  ('heartworm_status', 'cat', 'enum', 'Heartworm Status',
    'Heartworm test result status.',
    ARRAY['positive', 'negative', 'inconclusive', 'not_tested'],
    ARRAY['heartworm', 'dirofilaria'],
    15),
-  ('panleukopenia_status', 'cat', 'enum',
+  ('panleukopenia_status', 'cat', 'enum', 'Panleukopenia Status',
    'Panleukopenia (feline distemper) status. Look for parvo, panleuk, distemper references.',
    ARRAY['positive', 'negative', 'inconclusive', 'not_tested'],
    ARRAY['panleukopenia', 'panleuk', 'feline distemper', 'parvo', 'fpv'],
    10)
 ON CONFLICT (attribute_key) DO UPDATE SET
+  display_label = EXCLUDED.display_label,
   description = EXCLUDED.description,
   extraction_keywords = EXCLUDED.extraction_keywords;
 
