@@ -188,6 +188,8 @@ interface AtlasPin {
   person_count: number;
   disease_risk: boolean;
   disease_risk_notes: string | null;
+  disease_badges: Array<{ disease_key: string; short_code: string; color: string; status: string; last_positive: string | null; positive_cats: number }>;
+  disease_count: number;
   watch_list: boolean;
   google_entry_count: number;
   google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
@@ -308,6 +310,7 @@ export default function AtlasMap() {
   // Filters for atlas_pins layer
   const [riskFilter, setRiskFilter] = useState<"all" | "disease" | "watch_list" | "needs_tnr">("all");
   const [dataFilter, setDataFilter] = useState<"all" | "has_atlas" | "has_google" | "has_people">("all");
+  const [diseaseFilter, setDiseaseFilter] = useState<string[]>([]);
 
   // Show legacy layers toggle
   const [showLegacyLayers, setShowLegacyLayers] = useState(false);
@@ -563,6 +566,9 @@ export default function AtlasMap() {
       if (layers.includes("atlas_pins")) {
         params.set("risk_filter", riskFilter);
         params.set("data_filter", dataFilter);
+        if (diseaseFilter.length > 0) {
+          params.set("disease_filter", diseaseFilter.join(","));
+        }
       }
 
       const response = await fetch(`/api/beacon/map-data?${params}`);
@@ -587,7 +593,7 @@ export default function AtlasMap() {
     } finally {
       setLoading(false);
     }
-  }, [enabledLayers, selectedZone, riskFilter, dataFilter]);
+  }, [enabledLayers, selectedZone, riskFilter, dataFilter, diseaseFilter]);
 
   // Initialize map
   useEffect(() => {
@@ -1159,6 +1165,13 @@ export default function AtlasMap() {
           p.is_staff || (p.roles && p.roles.some((r: string) => ['trapper', 'foster', 'staff', 'caretaker'].includes(r)))
       );
 
+      // Build disease badge data for sub-icons
+      const diseaseBadges = Array.isArray(pin.disease_badges)
+        ? pin.disease_badges
+            .filter((b: { status: string }) => b.status !== 'historical')
+            .map((b: { short_code: string; color: string }) => ({ short_code: b.short_code, color: b.color }))
+        : [];
+
       const marker = L.marker([pin.lat, pin.lng], {
         icon: createAtlasPinMarker(color, {
           size,
@@ -1167,6 +1180,7 @@ export default function AtlasMap() {
           unitCount: 1,
           catCount: pin.cat_count,
           hasVolunteer: hasVolunteerOrStaff,
+          diseaseBadges,
         }),
         diseaseRisk: pin.disease_risk,
         watchList: pin.watch_list,
@@ -1546,25 +1560,63 @@ export default function AtlasMap() {
     setShowSearchResults(false);
   };
 
-  // Handle Atlas fuzzy search result selection
-  const handleAtlasSearchSelect = (result: AtlasSearchResult) => {
-    if (mapRef.current && result.metadata?.lat && result.metadata?.lng) {
-      // Has coordinates — navigate on map and drop a marker (same as Google Places flow)
-      setNavigatedLocation({
-        lat: result.metadata.lat,
-        lng: result.metadata.lng,
-        address: result.display_name,
-      });
-      mapRef.current.setView([result.metadata.lat, result.metadata.lng], 16, { animate: true, duration: 0.5 });
+  // Handle Atlas fuzzy search result selection — always try to pan on map
+  const handleAtlasSearchSelect = async (result: AtlasSearchResult) => {
+    setSearchQuery("");
+    setShowSearchResults(false);
+
+    // 1. Check API-enriched metadata first
+    let lat = result.metadata?.lat;
+    let lng = result.metadata?.lng;
+
+    // 2. For places, also check the already-loaded atlas pins
+    if ((!lat || !lng) && result.entity_type === "place") {
+      const pin = atlasPinsRef.current.find((p) => p.id === result.entity_id);
+      if (pin?.lat && pin?.lng) {
+        lat = pin.lat;
+        lng = pin.lng;
+      }
+    }
+
+    // 3. If still no coords, fetch the entity's linked place coordinates
+    if (!lat || !lng) {
+      try {
+        const apiPath = result.entity_type === "cat" ? "cats"
+          : result.entity_type === "person" ? "people"
+          : "places";
+        const res = await fetch(`/api/${apiPath}/${result.entity_id}`);
+        if (res.ok) {
+          const data = await res.json();
+          // Places API returns { coordinates: { lat, lng } }
+          // Cat/people APIs may return place relationships with place_id
+          if (data.coordinates?.lat) {
+            lat = data.coordinates.lat;
+            lng = data.coordinates.lng;
+          } else if (data.place_relationships?.[0]) {
+            // Cat or person with a linked place — look up in loaded pins
+            const placeId = data.place_relationships[0].place_id;
+            const pin = atlasPinsRef.current.find((p) => p.id === placeId);
+            if (pin?.lat && pin?.lng) {
+              lat = pin.lat;
+              lng = pin.lng;
+            }
+          }
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    if (mapRef.current && lat && lng) {
+      setNavigatedLocation({ lat, lng, address: result.display_name });
+      mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
     } else {
-      // No coordinates — open the entity detail page
+      // Absolute last resort — open detail page
       const path = result.entity_type === "person" ? "/people"
         : result.entity_type === "cat" ? "/cats"
         : "/places";
       window.open(`${path}/${result.entity_id}`, "_blank");
     }
-    setSearchQuery("");
-    setShowSearchResults(false);
   };
 
   // Handle Google Places selection - navigate to arbitrary address
@@ -2528,6 +2580,62 @@ export default function AtlasMap() {
                 </div>
               </div>
 
+              {/* Disease type filter */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Disease Type</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {[
+                    { key: "felv", code: "F", label: "FeLV", color: "#dc2626" },
+                    { key: "fiv", code: "V", label: "FIV", color: "#ea580c" },
+                    { key: "ringworm", code: "R", label: "Ringworm", color: "#ca8a04" },
+                    { key: "heartworm", code: "H", label: "Heartworm", color: "#7c3aed" },
+                    { key: "panleukopenia", code: "P", label: "Panleuk", color: "#be185d" },
+                  ].map(({ key, code, label, color }) => {
+                    const isActive = diseaseFilter.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setDiseaseFilter(prev =>
+                            prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+                          );
+                        }}
+                        style={{
+                          padding: "4px 10px",
+                          fontSize: 11,
+                          border: isActive ? `2px solid ${color}` : "2px solid transparent",
+                          borderRadius: 12,
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          background: isActive ? color : "#f3f4f6",
+                          color: isActive ? "white" : "#6b7280",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        {code} {label}
+                      </button>
+                    );
+                  })}
+                  {diseaseFilter.length > 0 && (
+                    <button
+                      onClick={() => setDiseaseFilter([])}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: 10,
+                        border: "none",
+                        borderRadius: 12,
+                        cursor: "pointer",
+                        fontWeight: 500,
+                        background: "#fee2e2",
+                        color: "#991b1b",
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Data filter */}
               <div>
                 <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Data Source</div>
@@ -2941,6 +3049,7 @@ export default function AtlasMap() {
         </button>
         {showLegend && (
           <div className="map-legend-panel">
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Pin Status</div>
             {[
               { color: "#ea580c", label: "Disease Risk", icon: "\u26A0" },
               { color: "#8b5cf6", label: "Watch List", icon: "\uD83D\uDC41" },
@@ -2948,11 +3057,35 @@ export default function AtlasMap() {
               { color: "#14b8a6", label: "Requests Only", icon: "\uD83D\uDCCB" },
               { color: "#6366f1", label: "History Only", icon: "\uD83D\uDCC4" },
               { color: "#3b82f6", label: "Minimal Data", icon: "\u2022" },
-              { color: "#3b82f6", label: "Navigated Loc", icon: "\uD83D\uDCCD", isSpecial: true },
+              { color: "#3b82f6", label: "Navigated Loc", icon: "\uD83D\uDCCD" },
             ].map(({ color, label, icon }) => (
               <div key={label} className="map-legend-item">
                 <span className="map-legend-swatch" style={{ background: color }} />
                 <span className="map-legend-icon">{icon}</span>
+                <span className="map-legend-label">{label}</span>
+              </div>
+            ))}
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Disease Badges</div>
+            {[
+              { color: "#dc2626", code: "F", label: "FeLV" },
+              { color: "#ea580c", code: "V", label: "FIV" },
+              { color: "#ca8a04", code: "R", label: "Ringworm" },
+              { color: "#7c3aed", code: "H", label: "Heartworm" },
+              { color: "#be185d", code: "P", label: "Panleukopenia" },
+            ].map(({ color, code, label }) => (
+              <div key={code} className="map-legend-item">
+                <span className="map-legend-swatch" style={{
+                  background: color,
+                  borderRadius: "50%",
+                  width: 14,
+                  height: 14,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontSize: 8,
+                  fontWeight: 700,
+                }}>{code}</span>
                 <span className="map-legend-label">{label}</span>
               </div>
             ))}
