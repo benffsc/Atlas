@@ -88,8 +88,29 @@ export const createTestCat = (overrides = {}) => ({
   ...overrides,
 });
 
+// Test annotation data
+export const createTestAnnotation = (overrides = {}) => ({
+  lat: 38.44,
+  lng: -122.72,
+  label: `${TEST_PREFIX}annotation-${Date.now()}`,
+  note: 'E2E test annotation - auto cleanup',
+  annotation_type: 'general',
+  created_by: 'e2e_test',
+  ...overrides,
+});
+
+// Test journal entry data
+export const createTestJournalEntry = (overrides = {}) => ({
+  body: `${TEST_PREFIX}journal-${Date.now()} - auto cleanup`,
+  entry_kind: 'note',
+  created_by: 'e2e_test',
+  ...overrides,
+});
+
 // Cleanup query - removes all test records
 export const CLEANUP_QUERIES = [
+  `DELETE FROM trapper.journal_entries WHERE created_by = 'e2e_test' OR body LIKE 'e2e-test-%'`,
+  `DELETE FROM trapper.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'`,
   `DELETE FROM trapper.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'`,
   `DELETE FROM trapper.sot_requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%'`,
   `DELETE FROM trapper.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%'`,

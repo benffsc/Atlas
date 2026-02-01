@@ -1492,4 +1492,34 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 > "Some places share exact coordinates without being classified as apartment buildings. The system detects these as 'co-located' (same physical point within 1 meter) and aggregates their data together. Empty co-located places are hidden from the map to prevent confusing overlapping pins."
 
-*Last updated: 2026-02-01 (after MIG_822 structural place family)*
+### Session: 2026-02-01 - Annotation Journaling, Data Integrity Audit, E2E Test Suite
+
+**Context:** Staff needed to attach journal notes to map annotations (reference pins, colony sightings, hazards). Also needed data integrity verification for recent migrations (MIG_555/556/557) and a comprehensive e2e test suite.
+
+**Key Discoveries:**
+1. `journal_entries` used nullable FK columns for polymorphic entity linking — extending to annotations follows the same pattern
+2. `v_journal_entries` view required DROP + CREATE (not CREATE OR REPLACE) because adding `primary_annotation_id` changed column order
+3. MIG_555 initial run failed due to `source_table NOT NULL` constraint on `cat_place_relationships` — fixed by adding `source_table: 'person_cat_relationships'`
+4. `journal_entity_links` CHECK constraint needed expansion to include `'annotation'` as valid entity type
+
+**Changes Made:**
+- **MIG_826**: Journal annotation support — `primary_annotation_id UUID` FK on `journal_entries`, partial index, entity type constraint expansion, view rebuild
+- **MIG_555 fix**: Added missing `source_table` column to INSERT (1,742 adopted cats linked to places)
+- **MIG_556**: Queued 3,050 places for geocoding (882 ClinicHQ, 1,432 ShelterLuv, 736 VolunteerHub)
+- **MIG_557**: Backfilled 2,130 people with `primary_address_id`, created auto-set trigger
+- **Journal API**: Added `annotation_id` filter/create support to GET/POST `/api/journal`
+- **Annotation API**: Added GET handler to `/api/annotations/[id]` returning annotation details + journal entries
+- **AnnotationDetailDrawer**: New component for viewing/journaling on annotations from the map
+- **AtlasMap**: "Details" button in annotation popups opens the drawer
+- **E2e test suite**: 3 new spec files (map-ux-audit, map-journal-writes, migration-data-integrity) + test fixture updates
+
+**Staff Impact:**
+- Staff can now click "Details" on any map annotation to view its full detail drawer with journal section
+- Adding a note to an annotation creates a journal entry linked to that annotation
+- Journal entries on annotations are visible from both the annotation drawer and the journal API
+- Map annotations (reference pins, colony sightings, hazards, feeding sites) are now first-class journalable entities
+
+**What Tippy should know:**
+> "Map annotations now support journal entries. Staff can attach notes to any annotation on the map (reference pins, colony sightings, hazards, feeding sites) using the annotation detail drawer. These journal entries are filtered by `primary_annotation_id` and are visible via `/api/journal?annotation_id=UUID`. Annotations are lightweight map objects — they are NOT places, but they can hold field notes and observations."
+
+*Last updated: 2026-02-01 (after annotation journaling + e2e test suite)*

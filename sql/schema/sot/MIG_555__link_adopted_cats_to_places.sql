@@ -28,12 +28,13 @@ WHERE pcr.relationship_type = 'adopter'
   );
 
 -- Create cat_place_relationships for adopted cats at their adopter's address
-INSERT INTO trapper.cat_place_relationships (cat_id, place_id, relationship_type, source_system)
+INSERT INTO trapper.cat_place_relationships (cat_id, place_id, relationship_type, source_system, source_table)
 SELECT DISTINCT
   pcr.cat_id,
   ppr.place_id,
   'adopter_residence',
-  'shelterluv'
+  'shelterluv',
+  'person_cat_relationships'
 FROM trapper.person_cat_relationships pcr
 JOIN trapper.person_place_relationships ppr ON ppr.person_id = pcr.person_id
 JOIN trapper.places pl ON pl.place_id = ppr.place_id AND pl.merged_into_place_id IS NULL

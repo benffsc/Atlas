@@ -19,6 +19,7 @@ interface JournalEntryRow {
   primary_place_id: string | null;
   primary_request_id: string | null;
   primary_submission_id: string | null;
+  primary_annotation_id: string | null;
   contact_method: string | null;
   contact_result: string | null;
   created_by: string | null;
@@ -37,6 +38,7 @@ interface JournalEntryRow {
   person_name?: string;
   place_name?: string;
   submission_name?: string;
+  annotation_label?: string;
   created_by_staff_name?: string;
   created_by_staff_role?: string;
 }
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
   const placeId = searchParams.get("place_id");
   const requestId = searchParams.get("request_id");
   const submissionId = searchParams.get("submission_id");
+  const annotationId = searchParams.get("annotation_id");
   const entryKind = searchParams.get("entry_kind");
   const includeArchived = searchParams.get("include_archived") === "true";
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
@@ -109,6 +112,15 @@ export async function GET(request: NextRequest) {
     paramIndex++;
   }
 
+  if (annotationId) {
+    if (!isValidUUID(annotationId)) {
+      return NextResponse.json({ entries: [], total: 0 });
+    }
+    conditions.push(`je.primary_annotation_id = $${paramIndex}`);
+    params.push(annotationId);
+    paramIndex++;
+  }
+
   if (entryKind) {
     conditions.push(`je.entry_kind = $${paramIndex}::trapper.journal_entry_kind`);
     params.push(entryKind);
@@ -129,6 +141,7 @@ export async function GET(request: NextRequest) {
         je.primary_place_id,
         je.primary_request_id,
         je.primary_submission_id,
+        je.primary_annotation_id,
         je.contact_method,
         je.contact_result,
         je.created_by,
@@ -146,6 +159,7 @@ export async function GET(request: NextRequest) {
         p.display_name AS person_name,
         pl.display_name AS place_name,
         sub.first_name || ' ' || sub.last_name AS submission_name,
+        ma.label AS annotation_label,
         s.display_name AS created_by_staff_name,
         s.role AS created_by_staff_role
       FROM trapper.journal_entries je
@@ -153,6 +167,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN trapper.sot_people p ON p.person_id = je.primary_person_id
       LEFT JOIN trapper.places pl ON pl.place_id = je.primary_place_id
       LEFT JOIN trapper.web_intake_submissions sub ON sub.submission_id = je.primary_submission_id
+      LEFT JOIN trapper.map_annotations ma ON ma.annotation_id = je.primary_annotation_id
       LEFT JOIN trapper.staff s ON s.staff_id = je.created_by_staff_id
       ${whereClause}
       ORDER BY je.is_pinned DESC, COALESCE(je.occurred_at, je.created_at) DESC
@@ -197,6 +212,7 @@ interface CreateEntryBody {
   place_id?: string;
   request_id?: string;
   submission_id?: string;
+  annotation_id?: string;
   // Contact attempt fields (for entry_kind = 'contact_attempt')
   contact_method?: string;
   contact_result?: string;
@@ -230,9 +246,9 @@ export async function POST(request: NextRequest) {
     }
 
     // At least one entity must be linked
-    if (!data.cat_id && !data.person_id && !data.place_id && !data.request_id && !data.submission_id) {
+    if (!data.cat_id && !data.person_id && !data.place_id && !data.request_id && !data.submission_id && !data.annotation_id) {
       return NextResponse.json(
-        { error: "At least one of cat_id, person_id, place_id, request_id, or submission_id is required" },
+        { error: "At least one of cat_id, person_id, place_id, request_id, submission_id, or annotation_id is required" },
         { status: 400 }
       );
     }
@@ -252,6 +268,7 @@ export async function POST(request: NextRequest) {
         primary_place_id,
         primary_request_id,
         primary_submission_id,
+        primary_annotation_id,
         contact_method,
         contact_result,
         created_by,
@@ -272,7 +289,8 @@ export async function POST(request: NextRequest) {
         $11,
         $12,
         $13,
-        $14
+        $14,
+        $15
       )
       RETURNING id`,
       [
@@ -284,6 +302,7 @@ export async function POST(request: NextRequest) {
         data.place_id || null,
         data.request_id || null,
         data.submission_id || null,
+        data.annotation_id || null,
         data.contact_method || null,
         data.contact_result || null,
         createdBy,

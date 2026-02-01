@@ -173,6 +173,8 @@ Where:
 - `processing_jobs` - Centralized job queue for data processing
 - `place_contexts` - Place relevance tags (colony_site, foster_home, etc.)
 - `person_cat_relationships` - Foster/adopter/owner links between people and cats
+- `map_annotations` - Lightweight staff map pins (colony sightings, hazards, feeding sites, reference notes)
+- `journal_entries` - Polymorphic journal notes linked to any entity (request, cat, person, place, annotation)
 
 ### Centralized Processing Pipeline (MIG_312, MIG_313)
 
@@ -730,6 +732,7 @@ Multi-unit buildings and co-located places are linked structurally:
 | `v_shelterluv_sync_status` | ShelterLuv API sync health and pending records |
 | `v_cat_field_sources_summary` | Multi-source field values per cat |
 | `v_cat_field_conflicts` | Cats where sources disagree on field values |
+| `v_journal_entries` | Journal entries with joined entity names (request, cat, person, place, annotation) |
 
 ## Key Tables
 

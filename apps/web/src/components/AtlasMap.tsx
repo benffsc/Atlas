@@ -28,6 +28,7 @@ import {
   escapeHtml,
 } from "@/components/map/MapPopup";
 import { PlaceDetailDrawer } from "@/components/map/PlaceDetailDrawer";
+import { AnnotationDetailDrawer } from "@/components/map/AnnotationDetailDrawer";
 import { PlacementPanel } from "@/components/map/PlacementPanel";
 
 function useIsMobile(breakpoint = 768) {
@@ -341,6 +342,7 @@ export default function AtlasMap() {
   }
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const annotationLayerRef = useRef<L.LayerGroup | null>(null);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
   // Street View state
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
@@ -2008,6 +2010,7 @@ export default function AtlasMap() {
           ${photoHtml}
           ${expiryText}
           <div style="margin-top:8px;display:flex;gap:6px;">
+            <button onclick="window.__openAnnotationDrawer__&&window.__openAnnotationDrawer__('${ann.annotation_id}')" style="background:#eff6ff;color:#3b82f6;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">Details</button>
             <button onclick="fetch('/api/annotations/${ann.annotation_id}',{method:'DELETE'}).then(()=>window.location.reload())" style="background:#fef2f2;color:#dc2626;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">Delete</button>
           </div>
         </div>
@@ -2015,6 +2018,16 @@ export default function AtlasMap() {
       marker.addTo(annotationLayerRef.current!);
     }
   }, [annotations]);
+
+  // Register annotation drawer callback for popup buttons
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__openAnnotationDrawer__ = (id: string) => {
+      setSelectedAnnotationId(id);
+    };
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__openAnnotationDrawer__;
+    };
+  }, []);
 
   // Calculate total counts for display
   const totalMarkers = (enabledLayers.atlas_pins ? atlasPins.length : 0) +
@@ -3399,6 +3412,14 @@ export default function AtlasMap() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Annotation Detail Drawer */}
+      {selectedAnnotationId && (
+        <AnnotationDetailDrawer
+          annotationId={selectedAnnotationId}
+          onClose={() => setSelectedAnnotationId(null)}
+        />
       )}
 
       {/* Place Detail Drawer */}

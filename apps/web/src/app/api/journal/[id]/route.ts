@@ -11,6 +11,7 @@ interface JournalEntryRow {
   primary_person_id: string | null;
   primary_place_id: string | null;
   primary_request_id: string | null;
+  primary_annotation_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_by: string | null;
@@ -23,6 +24,7 @@ interface JournalEntryRow {
   cat_name?: string;
   person_name?: string;
   place_name?: string;
+  annotation_label?: string;
 }
 
 // GET /api/journal/[id] - Get a single journal entry
@@ -43,6 +45,7 @@ export async function GET(
         je.primary_person_id,
         je.primary_place_id,
         je.primary_request_id,
+        je.primary_annotation_id,
         je.created_by,
         je.created_at,
         je.updated_by,
@@ -54,11 +57,13 @@ export async function GET(
         je.tags,
         c.display_name AS cat_name,
         p.display_name AS person_name,
-        pl.display_name AS place_name
+        pl.display_name AS place_name,
+        ma.label AS annotation_label
       FROM trapper.journal_entries je
       LEFT JOIN trapper.sot_cats c ON c.cat_id = je.primary_cat_id
       LEFT JOIN trapper.sot_people p ON p.person_id = je.primary_person_id
       LEFT JOIN trapper.places pl ON pl.place_id = je.primary_place_id
+      LEFT JOIN trapper.map_annotations ma ON ma.annotation_id = je.primary_annotation_id
       WHERE je.id = $1`,
       [id]
     );
@@ -203,7 +208,7 @@ export async function DELETE(
       `UPDATE trapper.journal_entries
        SET is_archived = TRUE,
            updated_by = $2,
-           meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object('archive_reason', $3)
+           meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object('archive_reason', $3::TEXT)
        WHERE id = $1 AND is_archived = FALSE
        RETURNING id`,
       [id, archivedBy, reason]

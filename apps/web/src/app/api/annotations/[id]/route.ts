@@ -1,5 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
+
+// GET /api/annotations/[id] - Get annotation details with journal entries
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const annotation = await queryOne<{
+      annotation_id: string;
+      label: string;
+      note: string | null;
+      photo_url: string | null;
+      annotation_type: string;
+      created_by: string;
+      expires_at: string | null;
+      is_active: boolean;
+      created_at: string;
+      lat: number;
+      lng: number;
+      journal_count: number;
+    }>(
+      `SELECT
+        a.annotation_id,
+        a.label,
+        a.note,
+        a.photo_url,
+        a.annotation_type,
+        a.created_by,
+        a.expires_at::TEXT,
+        a.is_active,
+        a.created_at::TEXT,
+        ST_Y(a.location::geometry) AS lat,
+        ST_X(a.location::geometry) AS lng,
+        (SELECT COUNT(*) FROM trapper.journal_entries je
+         WHERE je.primary_annotation_id = a.annotation_id AND je.is_archived = FALSE) AS journal_count
+      FROM trapper.map_annotations a
+      WHERE a.annotation_id = $1`,
+      [id]
+    );
+
+    if (!annotation) {
+      return NextResponse.json(
+        { error: "Annotation not found" },
+        { status: 404 }
+      );
+    }
+
+    // Fetch journal entries for this annotation
+    const journalEntries = await queryRows<{
+      id: string;
+      entry_kind: string;
+      title: string | null;
+      body: string;
+      created_by: string | null;
+      created_at: string;
+    }>(
+      `SELECT
+        id::TEXT,
+        entry_kind::TEXT,
+        title,
+        body,
+        created_by,
+        created_at::TEXT
+      FROM trapper.journal_entries
+      WHERE primary_annotation_id = $1 AND is_archived = FALSE
+      ORDER BY created_at DESC
+      LIMIT 50`,
+      [id]
+    );
+
+    return NextResponse.json({
+      ...annotation,
+      journal_entries: journalEntries,
+    });
+  } catch (error) {
+    console.error("Error fetching annotation:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch annotation" },
+      { status: 500 }
+    );
+  }
+}
 
 // PATCH /api/annotations/[id] - Update an annotation
 export async function PATCH(
