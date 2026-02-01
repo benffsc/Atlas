@@ -1088,6 +1088,7 @@ export default function AtlasMap() {
     }
     if (!enabledLayers.atlas_pins || atlasPins.length === 0) return;
 
+    // Active pins cluster — full-size pins with disease/watch badges
     const layer = leafletCjsRef.current.markerClusterGroup({
       maxClusterRadius: 50,
       spiderfyOnMaxZoom: true,
@@ -1129,10 +1130,32 @@ export default function AtlasMap() {
       },
     });
 
+    // Reference pins cluster — more aggressive clustering, smaller/muted appearance
+    const refLayer = leafletCjsRef.current.markerClusterGroup({
+      maxClusterRadius: 80, // Larger radius = clusters more aggressively
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      disableClusteringAtZoom: 17, // Only unclusters at higher zoom than active
+      chunkedLoading: true,
+      chunkInterval: 100,
+      chunkDelay: 20,
+      iconCreateFunction: (cluster: any) => {
+        const count = cluster.getChildCount();
+        const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
+        const dim = sizeClass === "small" ? 24 : sizeClass === "medium" ? 30 : 38;
+        return L.divIcon({
+          html: `<div style="width:${dim}px;height:${dim}px;border-radius:50%;background:rgba(148,163,184,0.65);color:#475569;font-size:${dim < 30 ? 10 : 11}px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.15);">${count}</div>`,
+          className: "map-cluster-icon",
+          iconSize: L.point(dim, dim),
+        });
+      },
+    });
+
     atlasPins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
-      // Reference tier: smaller, muted pins for history-only / minimal data
+      // Reference tier: smaller, muted pins → separate cluster layer
       if (pin.pin_tier === "reference") {
         const refColor = pin.pin_style === "has_history" ? "#6366f1" : "#94a3b8";
         const marker = L.marker([pin.lat, pin.lng], {
@@ -1150,7 +1173,7 @@ export default function AtlasMap() {
           <div style="margin-top:6px;"><a href="/places/${pin.id}" target="_blank" style="color:#3b82f6;text-decoration:none;font-size:11px;">Open details &rarr;</a></div>
         </div>`;
         marker.bindPopup(refPopup, { maxWidth: 320 });
-        layer.addLayer(marker);
+        refLayer.addLayer(marker);
         return;
       }
 
@@ -1373,8 +1396,10 @@ export default function AtlasMap() {
       layer.addLayer(marker);
     });
 
-    layer.addTo(mapRef.current);
-    layersRef.current.atlas_pins = layer;
+    // Add both cluster layers to map as a single layer group
+    const combined = L.layerGroup([layer, refLayer]);
+    combined.addTo(mapRef.current);
+    layersRef.current.atlas_pins = combined;
   }, [atlasPins, enabledLayers.atlas_pins]);
 
   // =========================================================================

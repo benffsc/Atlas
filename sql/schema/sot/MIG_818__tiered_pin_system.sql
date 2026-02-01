@@ -68,6 +68,8 @@ SELECT
   END as pin_style,
 
   -- NEW: Pin tier (active = full teardrop, reference = smaller muted pin)
+  -- Auto-graduates when: disease flagged, cat data linked, request created,
+  -- or an active volunteer/trapper/staff lives at the place.
   CASE
     WHEN (COALESCE(p.disease_risk, FALSE)
           OR COALESCE(gme.has_disease_risk, FALSE)
@@ -76,6 +78,7 @@ SELECT
     WHEN COALESCE(cc.cat_count, 0) > 0 THEN 'active'
     WHEN COALESCE(req.request_count, 0) > 0
       OR COALESCE(intake.intake_count, 0) > 0 THEN 'active'
+    WHEN active_roles.place_id IS NOT NULL THEN 'active'
     ELSE 'reference'
   END as pin_tier,
 
@@ -170,6 +173,16 @@ LEFT JOIN (
   GROUP BY place_id
 ) intake ON intake.place_id = p.place_id
 
+-- Active important roles at this place (for auto-graduation)
+LEFT JOIN (
+  SELECT DISTINCT ppr.place_id
+  FROM trapper.person_place_relationships ppr
+  JOIN trapper.person_roles pr ON pr.person_id = ppr.person_id
+  WHERE pr.role_status = 'active'
+    AND pr.role IN ('volunteer', 'trapper', 'coordinator', 'head_trapper',
+                    'ffsc_trapper', 'community_trapper', 'foster')
+) active_roles ON active_roles.place_id = p.place_id
+
 -- TNR stats
 LEFT JOIN (
   SELECT
@@ -184,9 +197,9 @@ WHERE p.merged_into_place_id IS NULL
 
 COMMENT ON VIEW trapper.v_map_atlas_pins IS
 'MIG_818: Added pin_tier column (active/reference) for tiered map display.
-Active: disease, watch_list, active (cat data), active_requests.
+Active: disease, watch_list, cat data, requests/intakes, or active volunteer/trapper/staff at place.
 Reference: has_history (Google Maps only), minimal (no data).
-People subquery returns JSONB objects with {name, roles[], is_staff} filtering role_status=active.';
+Auto-graduates when person becomes active volunteer, cat data linked, request created, etc.';
 
 -- ============================================================
 -- Part 2: process_disease_extraction_for_place()
