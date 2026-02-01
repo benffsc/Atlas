@@ -671,7 +671,7 @@ DH_E002 (Auto-merge duplicates)     ✅ Done — MIG_800: 188 exact duplicate pa
     ↓
 DH_E003 (merged into E002)          ✅ Done — USA-suffix pairs resolved by enhanced normalize_address (no separate MIG needed).
     ↓
-DH_E004 (Review ~307 structural dupes) ✅ Done — MIG_803: place_dedup_candidates table + refresh function. 3,853 candidates (753 T1 + 691 T2 + 2,409 T3). Admin UI at /admin/place-dedup.
+DH_E004 (Review ~307 structural dupes) ✅ Done — MIG_803 + MIG_815: Enhanced with Tier 4 text-only matching, inverted address normalization, junk address flagging, refresh button, people counts. Admin UI at /admin/place-dedup.
     ↓
 MAP_001 (Show all places on map)    ✅ Done — MIG_798, LIMIT 12000, intake pins. Disease/watch_list flags verified (39 + 117). 11,100 total pins.
     ↓
@@ -737,6 +737,8 @@ UI_004 (Place classification + orgs) ✅ Done — Inference function + classific
 | 2026-01-31 | UI_005 | Done: ALL CAPS name warning added. B11 (no emoji found in page), B12 (no CSS conflict exists) were non-issues. |
 | 2026-01-31 | UI_003 | Done: Hero+grid layout, set-as-main-photo, mobile camera capture already implemented. Request-place photo bridging fixed (place media API includes request-linked photos). EXIF GPS deferred. |
 | 2026-01-31 | UI_004 | Done: Part A (inference function + classification review + extraction pipeline) already built. Part B: Partner org profile card added to place detail page (org name, stats, contact, admin link). Place API enhanced with partner_org data and org-enriched context fields. Part C (orphan places admin) already built. |
+| 2026-01-31 | DIS_001 | Done: Disease tracking system. MIG_814 (schema: disease_types, place_disease_status, process_disease_extraction hook, 6 disease attribute definitions). API endpoints (/places/[id]/disease-status, /admin/disease-types). DiseaseStatusSection in place detail. Extraction hook in extract_clinic_attributes.mjs. |
+| 2026-01-31 | DH_E004 | Enhanced: MIG_815 — Tier 4 text-only matching for coordinate-less places, inverted address normalization, normalize_address_for_dedup(), junk address flagging (is_junk_address column), functional index. API: refresh_candidates action, people counts, junk count. UI: Tier 4 tab, refresh button, clickable links, null distance handling. |
 
 ---
 
@@ -2038,21 +2040,33 @@ The person detail API uses `DISTINCT ON (place_id)` for deduplication within a p
 
 ### DH_E004: Review Structural Duplicate Places (~307 remaining)
 
-**Status:** Planned
-**ACTIVE Impact:** Depends on outcome
-**Scope:** ~307 people still see similar-looking addresses. Remaining patterns include:
-- Inverted address format (`"valley ford rd 14495"` vs `"14495 valley ford rd"`)
-- Missing commas (`"75 hillview dr cloverdale"` vs `"75 hillview dr, cloverdale"`)
-- Unit number variants (`"365 enterprise dr"` vs `"365 enterprise dr #365"`)
-- Unknown/junk addresses (`"unknown, unknown, ca unknow"`)
+**Status:** Done ✅
+**ACTIVE Impact:** Yes — enhanced detection catches more duplicates, junk flagging reduces noise
+**Scope:** Extended place dedup system with structural pattern detection and text-only matching.
 
-**Approach:**
-1. Create `v_place_duplicate_candidates` view that shows pair details + confidence
-2. Add admin UI page (`/admin/duplicate-places`) for staff review
-3. Staff can approve merge (uses `merge_place_into()`) or dismiss
-4. Track decisions in `entity_edits` for audit trail
+**Changes (MIG_815):**
+1. **Enhanced `normalize_address()`** — Step 5d: inverted address detection (`"valley ford rd 14495"` → `"14495 valley ford rd"`)
+2. **`normalize_address_for_dedup()`** — Aggressive comparison-only normalization (strips commas, trailing state+zip, collapses whitespace)
+3. **`is_junk_address` column** + `flag_junk_addresses()` function — Flags empty, too-short, "unknown"/"n/a"/"none"/"tbd" addresses
+4. **Tier 4 text-only matching** — `refresh_place_dedup_candidates()` extended with text comparison for places without coordinates (dedup normalization equality OR trigram ≥ 0.85)
+5. **Functional index** — `idx_places_dedup_norm` on `normalize_address_for_dedup(formatted_address)` for Tier 4 performance
+6. **Re-normalize + flag + refresh** — All places re-normalized with improved function, junk addresses flagged, candidates refreshed
 
-**This feeds into Phase 4 of UI Redesign (Address Management)**
+**API enhancements (`/api/admin/place-dedup`):**
+- `refresh_candidates` POST action — calls `refresh_place_dedup_candidates()`, returns per-tier counts
+- People count — `canonical_people` and `duplicate_people` in GET response
+- Tier 4 label — `'Text Match Only'`
+- Junk address count in GET response
+
+**UI enhancements (`/admin/place-dedup`):**
+- Tier 4 tab (cyan, "Text Match Only")
+- "Refresh Candidates" button — triggers full rescan, shows per-tier counts
+- People count shown per candidate pair
+- Clickable address links open place detail in new tab
+- Null distance handling for Tier 4 ("N/A / no coords")
+- Junk address count card (red border)
+
+**Files:** `MIG_815__structural_place_dedup.sql`, `place-dedup/route.ts`, `place-dedup/page.tsx`
 
 ---
 
