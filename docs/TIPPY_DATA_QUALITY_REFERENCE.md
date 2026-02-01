@@ -1187,3 +1187,47 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - VH data now fully integrated. Every sync automatically: upserts volunteers, tracks group joins/leaves, assigns roles, creates/enriches places, handles skeleton people.
 - If a skeleton person (no email) later updates their VH profile with email, the next sync automatically merges them into existing records or promotes them to full quality.
 - Staff name matching ensures VH records for known staff (e.g., Jennifer Cochran) auto-link to existing staff accounts even without email in VH.
+
+---
+
+### Session: 2026-01-31 - Disease Tracking System (DIS_001) & Data Audit
+
+**Context:** Built per-disease tracking at place level (MIG_814). During activation, discovered the compute function wasn't matching any data — fixed mapping and matching logic. Then audited Google Maps entries for disease mentions to assess data completeness.
+
+**Key Discoveries:**
+
+**Bug in MIG_814 compute function (fixed):**
+- `test_type_disease_mapping` patterns didn't match actual data format. FeLV/FIV combo tests store result_detail as `"Negative/Positive"` (FeLV result/FIV result), not `"FIV+"` or `"FeLV+"`
+- LIKE (case-sensitive) didn't match `"Positive"` against pattern `"positive"` — needed ILIKE
+- `WHERE ctr.result = 'positive'` excluded ALL FIV+ combo tests because the result enum was `'negative'` (since FeLV was negative in the combo)
+- After fix: 87 disease statuses computed (was 0 before)
+
+**Disease data reality (from `cat_test_results`):**
+
+| Disease | Active Places | Historical Places | Positive Cats |
+|---------|--------------|------------------|---------------|
+| FIV | 69 | 4 | 93 |
+| Ringworm | 0 | 14 (decayed, 12-month window) | 21 |
+| FeLV | 0 | 0 | 0 |
+| Heartworm | 0 | 0 | 0 |
+| Panleukopenia | 0 | 0 | 0 |
+
+**Google Maps disease gap (qualitative data not in clinic tests):**
+- **78 Google Maps entries** mention disease at linked places
+- **44 FeLV+ mentions** across 44 places — ZERO FeLV positives in clinic test data
+- **19 FIV+ mentions** across 19 places — only 2 already tracked from clinic tests
+- **15 ringworm mentions** across 15 places — only 1 already tracked from clinic tests
+- **9 of these places have clinic test data** — ALL test results are negative (the disease events described in Google Maps are from different cats or different time periods)
+- **~66 places have no clinic test data at all** — the disease mentions are purely from historical staff notes (some dating to 2012)
+
+**Why the gap exists:**
+Google Maps KMZ notes are the predecessor's 20+ years of informal case notes. They describe events like "FeLV positive cat euthanized" or "ringworm colony" — but these cats were often euthanized before structured testing was implemented, or the positive results were recorded informally and never entered the clinic's structured test system. The structured `cat_test_results` table only covers cats tested at the FFSC clinic from ~2021 onward.
+
+**What Tippy should know:**
+> "Disease tracking currently reflects structured clinic test results (FeLV/FIV combo tests and Woods lamp ringworm screening). 69 places have confirmed active FIV, and 14 places have historical ringworm. However, Google Maps notes mention disease at roughly 66 additional places that aren't reflected in clinic tests — these are historical/qualitative notes from before structured testing. A future AI extraction job will parse these Google Maps entries to backfill historical disease data."
+
+**Staff Impact:**
+- Map now shows disease badges on 69 FIV-active pins (was showing 0)
+- Ringworm places exist but are all historical (last positive: Oct 2024, 12-month decay)
+- No FeLV positives in clinic data — all FeLV mentions are historical Google Maps notes
+- Staff can manually override disease status at `/admin/disease-types` if they know of current cases not in the data

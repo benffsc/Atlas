@@ -738,6 +738,7 @@ UI_004 (Place classification + orgs) ✅ Done — Inference function + classific
 | 2026-01-31 | UI_003 | Done: Hero+grid layout, set-as-main-photo, mobile camera capture already implemented. Request-place photo bridging fixed (place media API includes request-linked photos). EXIF GPS deferred. |
 | 2026-01-31 | UI_004 | Done: Part A (inference function + classification review + extraction pipeline) already built. Part B: Partner org profile card added to place detail page (org name, stats, contact, admin link). Place API enhanced with partner_org data and org-enriched context fields. Part C (orphan places admin) already built. |
 | 2026-01-31 | DIS_001 | Done: Disease tracking system. MIG_814 (schema: disease_types, place_disease_status, process_disease_extraction hook, 6 disease attribute definitions). API endpoints (/places/[id]/disease-status, /admin/disease-types). DiseaseStatusSection in place detail. Extraction hook in extract_clinic_attributes.mjs. |
+| 2026-01-31 | DIS_001 fix | Fixed MIG_814: mapping patterns matched actual combo test format (Negative/Positive not FIV+), ILIKE for case-insensitivity, removed WHERE result='positive' filter. 87 disease statuses computed (was 0). Data audit: 69 FIV active + 14 ringworm historical from clinic. 66 additional places with disease mentions in Google Maps not in clinic data — needs AI extraction (DIS_002). |
 | 2026-01-31 | DH_E004 | Enhanced: MIG_815 — Tier 4 text-only matching for coordinate-less places, inverted address normalization, normalize_address_for_dedup(), junk address flagging (is_junk_address column), functional index. API: refresh_candidates action, people counts, junk count. UI: Tier 4 tab, refresh button, clickable links, null distance handling. |
 
 ---
@@ -2515,7 +2516,64 @@ All 5 list pages now use `useUrlFilters` hook for URL param persistence:
 | `scripts/jobs/extract_clinic_attributes.mjs` | MOD — Disease escalation + hook |
 
 ### Activation
-1. Run `MIG_814__disease_tracking_system.sql` against the database
-2. Run `SELECT trapper.compute_place_disease_status()` to backfill from existing cat_test_results
-3. Verify map shows disease badges on affected pins
+1. ~~Run `MIG_814__disease_tracking_system.sql` against the database~~ Done 2026-01-31
+2. ~~Run `SELECT trapper.compute_place_disease_status()` to backfill from existing cat_test_results~~ Done — 87 statuses (69 FIV active, 4 FIV historical, 14 ringworm historical)
+3. ~~Verify map shows disease badges on affected pins~~ Done — 69 pins with disease badges
 4. Admin configures disease types at `/admin/disease-types`
+
+### Data Audit (2026-01-31)
+
+**Bug found and fixed:** Mapping patterns didn't match actual combo test format. See session log.
+
+**Clinic test data (structured ground truth):**
+- 2,178 total test results: 1,449 FeLV/FIV neg/neg, 286 FeLV neg/FIV pos, 407 ringworm neg, 36 ringworm pos
+- Zero FeLV positives in structured test data
+- 69 FIV active places, 14 ringworm historical places
+
+**Google Maps gap (66 untracked places):**
+- 78 Google Maps entries mention disease at linked places
+- 44 FeLV+ mentions, 19 FIV+ mentions, 15 ringworm mentions
+- Only 3 places overlap with clinic-tracked disease status
+- 9 places have clinic test data — ALL results are negative (different cats/time periods)
+- ~66 places have NO clinic test data — purely historical qualitative notes
+- Needs AI extraction job to parse → DIS_002
+
+---
+
+## DIS_002: Google Maps Disease Extraction
+
+**Status:** Planned
+**ACTIVE Impact:** No (additive enrichment to Beacon/ecological data)
+**Priority:** Medium
+**Depends on:** DIS_001 (schema + `process_disease_extraction()` hook)
+
+### Problem
+Google Maps KMZ notes contain ~78 disease mentions across 66+ linked places that have no corresponding structured test data. These are historical staff notes (some from 2012) describing FeLV+ cats, ringworm colonies, FIV+ results, etc. — but the cats were euthanized, relocated, or recorded informally before structured clinic testing was in place.
+
+### Current State
+- `cat_test_results` covers structured tests from ~2021 onward
+- Google Maps notes go back 20+ years with rich disease context
+- `extract_clinic_attributes.mjs` already has disease extraction patterns + `process_disease_extraction()` hook
+- Need a new job targeting `google_map_entries.original_content` instead of `sot_appointments.medical_notes`
+
+### Approach
+1. Create `scripts/jobs/extract_google_map_disease.mjs` — AI extraction job that:
+   - Reads `google_map_entries` with linked places
+   - Extracts disease mentions (FeLV, FIV, ringworm, panleukopenia, heartworm)
+   - Distinguishes positive from negative mentions (critical: "FeLV neg" ≠ FeLV+)
+   - Extracts approximate dates when available
+   - Calls `process_disease_extraction()` to flag places as `suspected` (not `confirmed_active` since these are historical notes, not structured tests)
+   - Uses Sonnet for all disease mentions (polarity accuracy critical)
+2. Status should be `historical` (not confirmed_active) since these are old qualitative notes
+3. Evidence source should be `google_maps_extraction` (not `test_result`)
+
+### Scope
+- ~78 entries to process (small batch, ~$0.04 estimated)
+- ~66 new place disease statuses expected
+- Mostly FeLV (44) and FIV (19) — fills the zero-FeLV gap in clinic data
+
+### Files
+| File | Change |
+|------|--------|
+| `scripts/jobs/extract_google_map_disease.mjs` | NEW — Extraction job |
+| Possibly: minor update to `process_disease_extraction()` | MOD — Accept `historical` status parameter |
