@@ -745,6 +745,9 @@ UI_004 (Place classification + orgs) ✅ Done — Inference function + classific
 | 2026-01-31 | MAP_009 | Done: MIG_818 — pin_tier column in v_map_atlas_pins (active/reference). createReferencePinMarker() in map-markers.ts (18px, 0.65 opacity, muted gradient). AtlasMap branches on pin_tier for rendering. Legend shows Active/Reference sections. process_disease_extraction_for_place() function added. |
 | 2026-01-31 | MAP_010 | Done: MIG_817 — Creates correct place via find_or_create_place_deduped(), links Google Maps entries, fixes 5 merged records pointing to wrong target (107 Verde Ct), flags malformed person "410 Corde Pintado Dr." |
 | 2026-01-31 | DIS_002 | Done: extract_google_map_disease.mjs — AI extraction of disease mentions from Google Maps entries. Sonnet for all entries (polarity critical). Calls process_disease_extraction_for_place(). ~78 entries, ~$0.04. CLI: --dry-run, --limit N. |
+| 2026-01-31 | DIS_002 fix | Fixed greedy regex parser (bracket-counting), tighter prompt, max_tokens 500→300. Re-ran all 399 entries — 0 parse errors (was 10). Total: 76 positives across 3 batches, $1.97 total cost. |
+| 2026-01-31 | DIS_002+ | Separate reference pin clustering: refLayer with radius 80, uncluster zoom 17, muted cluster icons. Volunteer auto-graduation: active_roles JOIN in v_map_atlas_pins — 252 places graduated to active tier. |
+| 2026-01-31 | DIS_003 | Combo test bug: MIG_164 checked ILIKE '%negative%' first, matching "Negative/Positive" (FIV+) as negative. Fixed parsing order, corrected 286 records. Extracted 2 FeLV + 55 FIV flags from medical notes via process_disease_extraction(). Zero FeLV in structured tests is genuine — ClinicHQ doesn't record FeLV+ in combo field (cats euthanized/sent to IDEXX). Final: 168 place disease flags (38 FeLV, 94 FIV, 32 ringworm, 3 panleukopenia, 1 heartworm). |
 
 ---
 
@@ -2717,3 +2720,50 @@ Google Maps entry "410 Corte Pintado" (about a mom cat + kittens, contact Vickie
 2. Link the Google Maps entry to it
 3. Clean up the malformed "410 Corde Pintado Dr." person record
 4. Verify the 5 merged place records are correctly handled (they point to 107 Verde Ct, which is wrong)
+
+---
+
+## DIS_003: Combo Test Parsing Bug + Medical Notes Disease Extraction
+
+**Status:** Done (MIG_164 fix + DB corrections — commit 424d43f)
+**ACTIVE Impact:** No (data quality fix, no UI changes)
+**Priority:** High (data accuracy)
+
+### Problem 1: Combo test result enum wrong for FIV+ cats
+
+MIG_164 parses ClinicHQ's `FeLV/FIV (SNAP test, in-house)` field with `ILIKE '%negative%'` checked first. The combo format is `"FeLV_result/FIV_result"`:
+- `"Negative/Negative"` → correctly negative
+- `"Negative/Positive"` (FIV+) → matches `%negative%` first → **incorrectly marked negative**
+
+286 FIV+ combo test records had `result='negative'` in `cat_test_results`.
+
+**Fix:** Swapped CASE order in MIG_164 to check `%positive%` first. Updated 286 existing records to `result='positive'`.
+
+### Problem 2: Zero FeLV in structured clinic data
+
+Investigation found this is **genuine, not a bug**:
+- Raw staged data: 516 Negative/Negative + 76 Negative/Positive. Zero Positive/Negative or Positive/Positive.
+- ClinicHQ's structured combo test field is never filled for FeLV+ cats — they're euthanized immediately or sent to IDEXX for confirmatory testing.
+- Only 2 medical notes mention FeLV+ explicitly (Pumpkin 2025-11-12, Smoochie 2022-07-20).
+
+### Problem 3: Disease data in medical notes unexploited
+
+42 notes mention FeLV, 113 mention FIV+. Structured regex parsing (no AI needed) extracted:
+- 2 FeLV+ cats → 3 places flagged as `suspected` (evidence_source: `computed`)
+- 55 FIV+ cats → 15 new places flagged as `suspected`
+
+### Final Disease Status Totals (168 place flags)
+
+| Disease | Test Result | Computed | Google Maps | Total |
+|---------|-----------|----------|-------------|-------|
+| FeLV | 0 | 3 | 35 | 38 |
+| FIV | 73 | 15 | 6 | 94 |
+| Ringworm | 14 | 0 | 18 | 32 |
+| Panleukopenia | 0 | 0 | 3 | 3 |
+| Heartworm | 0 | 0 | 1 | 1 |
+
+### Files
+| File | Change |
+|------|--------|
+| `sql/schema/sot/MIG_164__extract_medical_data.sql` | MOD — Swapped CASE order |
+| `scripts/jobs/extract_google_map_disease.mjs` | MOD — Bracket-counting parser, tighter prompt |
