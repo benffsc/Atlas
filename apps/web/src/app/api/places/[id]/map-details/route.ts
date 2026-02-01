@@ -48,11 +48,22 @@ interface GoogleNote {
 }
 
 interface JournalEntry {
-  entry_id: string;
-  entry_type: string;
-  content: string;
-  author_name: string | null;
+  id: string;
+  entry_kind: string;
+  title: string | null;
+  body: string;
+  created_by: string | null;
   created_at: string;
+}
+
+interface PlaceContext {
+  context_type: string;
+  display_label: string;
+}
+
+interface DataSource {
+  source_system: string;
+  source_description: string;
 }
 
 interface DiseaseBadge {
@@ -201,26 +212,72 @@ export async function GET(
       [placeId]
     );
 
-    // Get journal entries for this place (if table exists)
+    // Get journal entries for this place
     let journalEntries: JournalEntry[] = [];
     try {
       journalEntries = await queryRows<JournalEntry>(
         `SELECT
-          entry_id::TEXT,
-          entry_type,
-          content,
-          author_name,
+          id::TEXT,
+          entry_kind,
+          title,
+          body,
+          created_by,
           created_at::TEXT
-        FROM trapper.entity_journal
-        WHERE entity_type = 'place'
-          AND entity_id = $1
-          AND is_deleted = FALSE
+        FROM trapper.journal_entries
+        WHERE primary_place_id = $1
+          AND is_archived = FALSE
         ORDER BY created_at DESC`,
         [placeId]
       );
     } catch {
-      // Table may not exist yet - return empty array
       journalEntries = [];
+    }
+
+    // Get active place contexts (colony_site, foster_home, adopter_residence, etc.)
+    let contexts: PlaceContext[] = [];
+    try {
+      contexts = await queryRows<PlaceContext>(
+        `SELECT pc.context_type, pct.display_label
+        FROM trapper.place_contexts pc
+        JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
+        WHERE pc.place_id = $1 AND pc.valid_to IS NULL
+        ORDER BY pct.sort_order`,
+        [placeId]
+      );
+    } catch {
+      contexts = [];
+    }
+
+    // Get data sources for provenance display
+    let dataSources: DataSource[] = [];
+    try {
+      dataSources = await queryRows<DataSource>(
+        `SELECT source_system, source_description FROM (
+          SELECT DISTINCT ppr.source_system, 'People' AS source_description
+          FROM trapper.person_place_relationships ppr
+          WHERE ppr.place_id = $1 AND ppr.source_system IS NOT NULL
+          UNION
+          SELECT DISTINCT r.source_system, 'Requests'
+          FROM trapper.sot_requests r
+          WHERE r.place_id = $1 AND r.source_system IS NOT NULL
+          UNION
+          SELECT DISTINCT cpr.source_system, 'Cat Links'
+          FROM trapper.cat_place_relationships cpr
+          WHERE cpr.place_id = $1 AND cpr.source_system IS NOT NULL
+          UNION
+          SELECT p.data_source, 'Place Record'
+          FROM trapper.places p
+          WHERE p.place_id = $1 AND p.data_source IS NOT NULL
+          UNION
+          SELECT DISTINCT pc.source_system, 'Context Tags'
+          FROM trapper.place_contexts pc
+          WHERE pc.place_id = $1 AND pc.source_system IS NOT NULL
+        ) sources
+        ORDER BY source_system`,
+        [placeId]
+      );
+    } catch {
+      dataSources = [];
     }
 
     // Get per-disease status badges
@@ -288,6 +345,8 @@ export async function GET(
       cats,
       google_notes: googleNotes,
       journal_entries: journalEntries,
+      contexts,
+      data_sources: dataSources,
       disease_badges: diseaseBadges,
     });
   } catch (error) {

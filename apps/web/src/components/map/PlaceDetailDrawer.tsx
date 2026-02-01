@@ -14,11 +14,22 @@ interface GoogleNote {
 }
 
 interface JournalEntry {
-  entry_id: string;
-  entry_type: string;
-  content: string;
-  author_name: string | null;
+  id: string;
+  entry_kind: string;
+  title: string | null;
+  body: string;
+  created_by: string | null;
   created_at: string;
+}
+
+interface PlaceContext {
+  context_type: string;
+  display_label: string;
+}
+
+interface DataSource {
+  source_system: string;
+  source_description: string;
 }
 
 interface DiseaseBadge {
@@ -76,6 +87,10 @@ interface PlaceDetails {
   // Notes
   google_notes: GoogleNote[];
   journal_entries: JournalEntry[];
+
+  // Context & provenance
+  contexts: PlaceContext[];
+  data_sources: DataSource[];
 }
 
 interface PlaceDetailDrawerProps {
@@ -99,6 +114,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistReason, setWatchlistReason] = useState("");
   const [showWatchlistForm, setShowWatchlistForm] = useState(false);
+
+  // Journal entry creation
+  const [journalBody, setJournalBody] = useState("");
+  const [journalSaving, setJournalSaving] = useState(false);
 
   // Fetch place details when placeId changes
   useEffect(() => {
@@ -191,6 +210,39 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       alert("Failed to update watch list");
     } finally {
       setWatchlistLoading(false);
+    }
+  };
+
+  // Refetch place details (used after adding journal entries)
+  const refetchPlace = () => {
+    if (!placeId) return;
+    fetch(`/api/places/${placeId}/map-details`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data) setPlace(data); });
+  };
+
+  // Handle journal entry creation
+  const handleJournalSubmit = async () => {
+    if (!place || !journalBody.trim()) return;
+    setJournalSaving(true);
+    try {
+      const res = await fetch("/api/journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          primary_place_id: place.place_id,
+          body: journalBody.trim(),
+          entry_kind: "note",
+          created_by: "staff",
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setJournalBody("");
+      refetchPlace();
+    } catch {
+      alert("Failed to save journal entry");
+    } finally {
+      setJournalSaving(false);
     }
   };
 
@@ -387,6 +439,29 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               </div>
             )}
 
+            {/* Context Tags */}
+            {place.contexts && place.contexts.length > 0 && (
+              <div className="context-tags">
+                {place.contexts.map((ctx) => (
+                  <span key={ctx.context_type} className={`context-tag context-tag-${ctx.context_type}`}>
+                    {ctx.display_label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Data Sources */}
+            {place.data_sources && place.data_sources.length > 0 && (
+              <div className="data-sources">
+                <span className="data-sources-label">Sources:</span>
+                {place.data_sources.map((ds) => (
+                  <span key={`${ds.source_system}-${ds.source_description}`} className="data-source-badge">
+                    {formatSourceName(ds.source_system)}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Stats Grid */}
             <div className="stats-grid">
               <div className="stat-card">
@@ -517,7 +592,30 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                   <AISummariesList notes={place.google_notes} />
                 )}
                 {activeTab === "journal" && (
-                  <JournalEntriesList entries={place.journal_entries} />
+                  <>
+                    <div className="journal-add-form">
+                      <textarea
+                        placeholder="Add a note..."
+                        value={journalBody}
+                        onChange={(e) => setJournalBody(e.target.value)}
+                        rows={2}
+                        className="journal-add-textarea"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && journalBody.trim()) {
+                            handleJournalSubmit();
+                          }
+                        }}
+                      />
+                      <button
+                        className="journal-add-btn"
+                        onClick={handleJournalSubmit}
+                        disabled={journalSaving || !journalBody.trim()}
+                      >
+                        {journalSaving ? "Saving..." : "Add"}
+                      </button>
+                    </div>
+                    <JournalEntriesList entries={place.journal_entries} />
+                  </>
                 )}
               </div>
             </div>
@@ -671,16 +769,16 @@ function JournalEntriesList({ entries }: { entries: JournalEntry[] }) {
   return (
     <div className="notes-list">
       {entries.map((entry) => (
-        <div key={entry.entry_id} className="note-entry note-journal">
+        <div key={entry.id} className="note-entry note-journal">
           <div className="note-header">
             <span className="note-date">
               {new Date(entry.created_at).toLocaleDateString()}
             </span>
-            {entry.author_name && <span className="note-author">{entry.author_name}</span>}
-            <span className="note-badge">{formatEntryType(entry.entry_type)}</span>
+            {entry.created_by && <span className="note-author">{entry.created_by}</span>}
+            <span className="note-badge">{formatEntryType(entry.entry_kind)}</span>
           </div>
           <div className="note-body">
-            {entry.content.split("\n").map((line, i) => (
+            {entry.body.split("\n").map((line, i) => (
               <p key={i}>{line || "\u00A0"}</p>
             ))}
           </div>
@@ -726,6 +824,25 @@ function formatServiceType(serviceType: string): string {
   if (services.length === 0) return "";
   if (services.length <= 3) return services.join(", ");
   return services.slice(0, 3).join(", ") + ` +${services.length - 3} more`;
+}
+
+// Helper to format data source system names for display
+function formatSourceName(source: string): string {
+  const labels: Record<string, string> = {
+    shelterluv: "ShelterLuv",
+    volunteerhub: "VolunteerHub",
+    google_maps: "Google Maps",
+    clinichq: "ClinicHQ",
+    airtable: "Airtable",
+    airtable_sync: "Airtable",
+    atlas_ui: "Atlas",
+    web_intake: "Web Intake",
+    web_app: "Atlas",
+    file_upload: "Import",
+    app: "Atlas",
+    legacy_import: "Legacy",
+  };
+  return labels[source] || source;
 }
 
 // Helper to format disease status for display

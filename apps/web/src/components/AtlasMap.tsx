@@ -3242,6 +3242,18 @@ export default function AtlasMap() {
                 <span className="map-legend-label">{label}</span>
               </div>
             ))}
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Pin Badges</div>
+            <div className="map-legend-item">
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 14, height: 14, borderRadius: "50%", background: "#7c3aed", flexShrink: 0,
+              }}>
+                <svg width="8" height="8" viewBox="-3.5 -3.5 7 7">
+                  <polygon points="0,-3.2 1.2,-1 3.4,-1 1.6,0.6 2.4,3 0,1.6 -2.4,3 -1.6,0.6 -3.4,-1 -1.2,-1" fill="white" transform="scale(0.7)" />
+                </svg>
+              </span>
+              <span className="map-legend-label">Volunteer / Staff</span>
+            </div>
             <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Disease Badges</div>
             {[
               { color: "#dc2626", code: "F", label: "FeLV" },

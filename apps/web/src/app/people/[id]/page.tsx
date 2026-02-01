@@ -931,6 +931,18 @@ export default function PersonDetailPage() {
                     </span>
                   )}
                 </div>
+              ) : person.associated_places && person.associated_places.length > 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <a
+                    href={`/places/${person.associated_places[0].place_id}`}
+                    style={{ fontSize: "0.9rem", color: "var(--primary)", textDecoration: "none" }}
+                  >
+                    {person.associated_places[0].display_name || person.associated_places[0].formatted_address || "Unknown"}
+                  </a>
+                  <span className="text-muted" style={{ fontSize: "0.7rem", padding: "1px 5px", background: "#f3f4f6", borderRadius: "4px" }}>
+                    via {person.associated_places[0].source_type}
+                  </span>
+                </div>
               ) : (
                 <span className="text-muted" style={{ fontSize: "0.85rem" }}>No address set</span>
               )}

@@ -1612,6 +1612,115 @@
   color: #6b7280;
 }
 
+/* Context Tags */
+.context-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.context-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.context-tag-colony_site { background: #dcfce7; color: #166534; }
+.context-tag-foster_home { background: #fef3c7; color: #92400e; }
+.context-tag-adopter_residence { background: #dbeafe; color: #1e40af; }
+.context-tag-volunteer_location { background: #ede9fe; color: #5b21b6; }
+.context-tag-trapper_base { background: #fce7f3; color: #9d174d; }
+.context-tag-clinic { background: #e0f2fe; color: #075985; }
+.context-tag-shelter { background: #f3e8ff; color: #6b21a8; }
+.context-tag-partner_org { background: #fef9c3; color: #854d0e; }
+.context-tag-organization { background: #f1f5f9; color: #334155; }
+.context-tag-business { background: #f1f5f9; color: #334155; }
+.context-tag-residential { background: #f0fdf4; color: #166534; }
+.context-tag-farm_ranch { background: #fef3c7; color: #78350f; }
+
+/* Data Sources */
+.data-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.data-sources-label {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.data-source-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+
+/* Journal Add Form */
+.journal-add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: flex-end;
+}
+
+.journal-add-textarea {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--map-control-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  background: var(--map-control-bg);
+  color: var(--map-control-text);
+  min-height: 40px;
+}
+
+.journal-add-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.journal-add-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  height: 36px;
+}
+
+.journal-add-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.journal-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Watchlist Section */
 .watchlist-section {
   margin-top: 20px;
