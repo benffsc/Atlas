@@ -262,6 +262,7 @@ export function createAtlasPinMarker(
     unitCount?: number;
     catCount?: number;
     hasVolunteer?: boolean;
+    diseaseBadges?: Array<{ short_code: string; color: string }>;
   }
 ): L.DivIcon {
   const {
@@ -271,6 +272,7 @@ export function createAtlasPinMarker(
     unitCount = 1,
     catCount = 0,
     hasVolunteer = false,
+    diseaseBadges = [],
   } = options || {};
 
   const lighterColor = lightenColor(color, 15);
@@ -339,8 +341,33 @@ export function createAtlasPinMarker(
     </g>
   ` : '';
 
+  // Disease sub-icon badges below the pin (max 3 shown, "+N" overflow)
+  const maxBadges = 3;
+  const visibleBadges = diseaseBadges.slice(0, maxBadges);
+  const overflowCount = diseaseBadges.length - maxBadges;
+  const badgeRadius = 4.5;
+  const badgeSpacing = 10;
+  const badgeStartX = 12 - ((Math.min(diseaseBadges.length, maxBadges + (overflowCount > 0 ? 1 : 0)) - 1) * badgeSpacing) / 2;
+  const badgeY = 27;
+
+  const diseaseBadgeSvg = diseaseBadges.length > 0
+    ? visibleBadges.map((b, i) => `
+        <circle cx="${badgeStartX + i * badgeSpacing}" cy="${badgeY}" r="${badgeRadius}" fill="${b.color}" stroke="white" stroke-width="1"/>
+        <text x="${badgeStartX + i * badgeSpacing}" y="${badgeY + 2.5}" text-anchor="middle" fill="white" font-size="5.5" font-weight="bold" font-family="system-ui">${b.short_code}</text>
+      `).join('')
+      + (overflowCount > 0 ? `
+        <circle cx="${badgeStartX + maxBadges * badgeSpacing}" cy="${badgeY}" r="${badgeRadius}" fill="#6b7280" stroke="white" stroke-width="1"/>
+        <text x="${badgeStartX + maxBadges * badgeSpacing}" y="${badgeY + 2.5}" text-anchor="middle" fill="white" font-size="5" font-weight="bold" font-family="system-ui">+${overflowCount}</text>
+      ` : '')
+    : '';
+
+  // Extend viewBox height when badges are present
+  const hasDiseaseBadges = diseaseBadges.length > 0;
+  const viewBoxHeight = hasDiseaseBadges ? 35 : 32;
+  const svgHeight = hasDiseaseBadges ? Math.round(size * 1.5) : Math.round(size * 1.35);
+
   const svg = `
-    <svg width="${size}" height="${Math.round(size * 1.35)}" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${size}" height="${svgHeight}" viewBox="0 0 24 ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="atlas-pin-grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="${lighterColor}"/>
@@ -366,14 +393,16 @@ export function createAtlasPinMarker(
       ${innerContent}
       <!-- Volunteer/staff star badge -->
       ${volunteerBadge}
+      <!-- Disease sub-icon badges -->
+      ${diseaseBadgeSvg}
     </svg>
   `;
 
   return L.divIcon({
-    className: `map-marker-atlas-pin marker-${pinStyle} ${isClustered ? 'marker-clustered' : ''}`,
+    className: `map-marker-atlas-pin marker-${pinStyle} ${isClustered ? 'marker-clustered' : ''} ${hasDiseaseBadges ? 'marker-has-disease' : ''}`,
     html: `<div class="atlas-pin-wrapper" data-icon="${innerIcon}">${svg}</div>`,
-    iconSize: [size, Math.round(size * 1.35)],
-    iconAnchor: [size / 2, Math.round(size * 1.35)],
+    iconSize: [size, svgHeight],
+    iconAnchor: [size / 2, svgHeight],
     popupAnchor: [0, -Math.round(size * 1.1)],
   });
 }

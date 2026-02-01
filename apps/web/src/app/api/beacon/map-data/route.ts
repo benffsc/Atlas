@@ -23,6 +23,7 @@ import { queryRows } from "@/lib/db";
  *   - bounds: lat1,lng1,lat2,lng2 bounding box (optional)
  *   - risk_filter: 'all' | 'disease' | 'watch_list' | 'needs_tnr' (for atlas_pins)
  *   - data_filter: 'all' | 'has_atlas' | 'has_google' | 'has_people' (for atlas_pins)
+ *   - disease_filter: comma-separated disease keys to filter atlas_pins (e.g. 'felv,fiv')
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -32,6 +33,8 @@ export async function GET(req: NextRequest) {
   const bounds = searchParams.get("bounds");
   const riskFilter = searchParams.get("risk_filter") || "all";
   const dataFilter = searchParams.get("data_filter") || "all";
+  const diseaseFilterParam = searchParams.get("disease_filter") || "";
+  const diseaseFilterKeys = diseaseFilterParam ? diseaseFilterParam.split(",").map(k => k.trim()).filter(Boolean) : [];
 
   const result: {
     // NEW consolidated layers
@@ -50,6 +53,8 @@ export async function GET(req: NextRequest) {
       person_count: number;
       disease_risk: boolean;
       disease_risk_notes: string | null;
+      disease_badges: Array<{ disease_key: string; short_code: string; color: string; status: string; last_positive: string | null; positive_cats: number }>;
+      disease_count: number;
       watch_list: boolean;
       google_entry_count: number;
       google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
@@ -206,6 +211,17 @@ export async function GET(req: NextRequest) {
         dataCondition = "AND person_count > 0";
       }
 
+      // Disease type filter: only show pins with specific disease types
+      let diseaseCondition = "";
+      if (diseaseFilterKeys.length > 0) {
+        // Filter atlas_pins that have any of the specified disease keys in their badges
+        const escaped = diseaseFilterKeys.map(k => `'${k.replace(/'/g, "''")}'`).join(",");
+        diseaseCondition = `AND disease_count > 0 AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(disease_badges) b
+          WHERE b->>'disease_key' IN (${escaped})
+        )`;
+      }
+
       const atlasPins = await queryRows<{
         id: string;
         address: string;
@@ -221,6 +237,8 @@ export async function GET(req: NextRequest) {
         person_count: number;
         disease_risk: boolean;
         disease_risk_notes: string | null;
+        disease_badges: Array<{ disease_key: string; short_code: string; color: string; status: string; last_positive: string | null; positive_cats: number }>;
+        disease_count: number;
         watch_list: boolean;
         google_entry_count: number;
         google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
@@ -246,6 +264,8 @@ export async function GET(req: NextRequest) {
           person_count::int,
           disease_risk,
           disease_risk_notes,
+          COALESCE(disease_badges, '[]')::jsonb as disease_badges,
+          COALESCE(disease_count, 0)::int as disease_count,
           watch_list,
           google_entry_count::int,
           COALESCE(google_summaries, '[]')::jsonb as google_summaries,
@@ -260,6 +280,7 @@ export async function GET(req: NextRequest) {
           ${zone ? `AND service_zone = '${zone}'` : ""}
           ${riskCondition}
           ${dataCondition}
+          ${diseaseCondition}
         ORDER BY
           CASE pin_style
             WHEN 'disease' THEN 1
@@ -277,6 +298,7 @@ export async function GET(req: NextRequest) {
         ...pin,
         people: Array.isArray(pin.people) ? pin.people : [],
         google_summaries: Array.isArray(pin.google_summaries) ? pin.google_summaries : [],
+        disease_badges: Array.isArray(pin.disease_badges) ? pin.disease_badges : [],
       }));
     }
 

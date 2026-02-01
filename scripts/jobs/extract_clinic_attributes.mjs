@@ -48,6 +48,8 @@ const REQUIRES_SONNET = {
   reproduction: /litter\s*(of|size)?\s*\d|(\d+)\s*kittens|pregnant|gestational|lactating|nursing\s+mom|has\s+milk/i,
   // Complex historical patterns
   complex_history: /(\d+)\s*years?\s+(feeding|feed)|feeding\s+(since|for)\s+\d{4}|trap\s+shy|wont?\s+go\s+in/i,
+  // Disease mentions - polarity is critical (FeLV neg vs FeLV+)
+  disease_status: /felv|fiv|feline\s+leukemia|feline\s+immunodeficiency|ringworm|dermatophyt|heartworm|panleukopenia|panleuk|feline\s+distemper|parvo|snap\s+(pos|neg|test)/i,
 };
 
 function shouldUseSonnet(text) {
@@ -201,6 +203,26 @@ async function main() {
               sourceInfo
             );
             attributesExtracted += saved;
+
+            // Post-extraction hook: flag places for positive disease results
+            for (const extraction of result.extractions) {
+              if (extraction.attribute_key.endsWith('_status') && extraction.value === 'positive') {
+                const diseaseKey = extraction.attribute_key.replace('_status', '');
+                try {
+                  const hookResult = await pool.query(
+                    `SELECT trapper.process_disease_extraction($1, $2, $3, $4)`,
+                    [appt.cat_id, diseaseKey, 'positive', 'ai_extraction']
+                  );
+                  const placesUpdated = hookResult.rows[0]?.process_disease_extraction || 0;
+                  if (placesUpdated > 0) {
+                    console.log(`  🦠 Disease hook: ${diseaseKey}+ → flagged ${placesUpdated} place(s)`);
+                  }
+                } catch (hookErr) {
+                  // process_disease_extraction may not exist yet (pre-MIG_814)
+                  console.warn(`  Disease hook skipped (${diseaseKey}): ${hookErr.message}`);
+                }
+              }
+            }
           }
 
           console.log(

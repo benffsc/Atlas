@@ -21,6 +21,15 @@ interface JournalEntry {
   created_at: string;
 }
 
+interface DiseaseBadge {
+  disease_key: string;
+  short_code: string;
+  color: string;
+  status: string;
+  last_positive_date: string | null;
+  positive_cat_count: number;
+}
+
 interface PlaceDetails {
   place_id: string;
   address: string;
@@ -32,6 +41,9 @@ interface PlaceDetails {
   disease_risk_notes: string | null;
   watch_list: boolean;
   watch_list_reason: string | null;
+
+  // Disease tracking
+  disease_badges: DiseaseBadge[];
 
   // Stats
   cat_count: number;
@@ -197,10 +209,39 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
 
         {place && !loading && (
           <>
-            {/* Flags Section */}
-            {place.disease_risk && (
+            {/* Disease Badges Section */}
+            {place.disease_badges && place.disease_badges.length > 0 && (
+              <div className="disease-badges-section">
+                {place.disease_badges.map((badge) => (
+                  <div
+                    key={badge.disease_key}
+                    className="disease-badge-item"
+                    style={{ borderLeftColor: badge.color }}
+                  >
+                    <span
+                      className="disease-badge-code"
+                      style={{ backgroundColor: badge.color }}
+                    >
+                      {badge.short_code}
+                    </span>
+                    <div className="disease-badge-info">
+                      <strong>{formatDiseaseStatus(badge.status)}</strong>
+                      <span className="disease-badge-detail">
+                        {badge.positive_cat_count} cat{badge.positive_cat_count !== 1 ? "s" : ""} positive
+                        {badge.last_positive_date && (
+                          <> &middot; Last: {new Date(badge.last_positive_date).toLocaleDateString()}</>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Legacy disease risk banner (for places without per-disease data) */}
+            {place.disease_risk && (!place.disease_badges || place.disease_badges.length === 0) && (
               <div className="flag-banner flag-disease">
-                <div className="flag-icon">⚠️</div>
+                <div className="flag-icon">&#9888;&#65039;</div>
                 <div className="flag-content">
                   <strong>Disease Risk</strong>
                   {place.disease_risk_notes && (
@@ -521,4 +562,17 @@ function formatEntryType(type: string): string {
     observation: "Observation",
   };
   return labels[type] || type;
+}
+
+// Helper to format disease status for display
+function formatDiseaseStatus(status: string): string {
+  const labels: Record<string, string> = {
+    confirmed_active: "Confirmed Active",
+    suspected: "Suspected",
+    historical: "Historical",
+    perpetual: "Perpetual",
+    false_flag: "Dismissed",
+    cleared: "Cleared",
+  };
+  return labels[status] || status.replace(/_/g, " ");
 }

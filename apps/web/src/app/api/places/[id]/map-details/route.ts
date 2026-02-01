@@ -55,6 +55,15 @@ interface JournalEntry {
   created_at: string;
 }
 
+interface DiseaseBadge {
+  disease_key: string;
+  short_code: string;
+  color: string;
+  status: string;
+  last_positive_date: string | null;
+  positive_cat_count: number;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -187,11 +196,35 @@ export async function GET(
       journalEntries = [];
     }
 
+    // Get per-disease status badges
+    let diseaseBadges: DiseaseBadge[] = [];
+    try {
+      diseaseBadges = await queryRows<DiseaseBadge>(
+        `SELECT
+          dt.disease_key,
+          dt.short_code,
+          dt.color,
+          pds.status,
+          pds.last_positive_date::TEXT,
+          COALESCE(pds.positive_cat_count, 0) AS positive_cat_count
+        FROM trapper.place_disease_status pds
+        JOIN trapper.disease_types dt ON dt.disease_key = pds.disease_type_key
+        WHERE pds.place_id = $1
+          AND pds.status NOT IN ('false_flag', 'cleared')
+        ORDER BY dt.severity_order`,
+        [placeId]
+      );
+    } catch {
+      // Table may not exist yet
+      diseaseBadges = [];
+    }
+
     return NextResponse.json({
       ...place,
       people,
       google_notes: googleNotes,
       journal_entries: journalEntries,
+      disease_badges: diseaseBadges,
     });
   } catch (error) {
     console.error("Error fetching place map details:", error);

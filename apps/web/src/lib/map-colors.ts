@@ -72,6 +72,16 @@ export const MAP_COLORS = {
     sparse: '#f59e0b',           // Amber
     gap: '#dc2626',              // Red
   },
+
+  // Disease type colors (defaults, actual colors come from disease_types table)
+  disease: {
+    felv: '#dc2626',             // Red - Feline Leukemia
+    fiv: '#ea580c',              // Orange - Feline Immunodeficiency
+    ringworm: '#ca8a04',         // Yellow - Ringworm
+    heartworm: '#7c3aed',        // Purple - Heartworm
+    panleukopenia: '#be185d',    // Pink - Panleukopenia
+    fallback: '#6b7280',         // Gray - unknown/new types
+  },
 } as const;
 
 /**
@@ -104,6 +114,15 @@ export function getClassificationColor(classification: string): string {
 export function getVolunteerRoleColor(role: string): string {
   return MAP_COLORS.volunteerRoles[role as keyof typeof MAP_COLORS.volunteerRoles]
     || MAP_COLORS.volunteerRoles.community_trapper;
+}
+
+/**
+ * Get disease color by key (falls back to table-provided color or default gray)
+ */
+export function getDiseaseColor(diseaseKey: string, tableColor?: string): string {
+  return MAP_COLORS.disease[diseaseKey as keyof typeof MAP_COLORS.disease]
+    || tableColor
+    || MAP_COLORS.disease.fallback;
 }
 
 /**

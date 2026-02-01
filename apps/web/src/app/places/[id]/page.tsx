@@ -27,6 +27,7 @@ import { CreateColonyModal } from "@/components/CreateColonyModal";
 import { PlaceContextEditor } from "@/components/PlaceContextEditor";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import { ProfileLayout } from "@/components/ProfileLayout";
+import DiseaseStatusSection from "@/components/DiseaseStatusSection";
 
 interface Cat {
   cat_id: string;
@@ -650,6 +651,11 @@ export default function PlaceDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Disease Status */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <DiseaseStatusSection placeId={place.place_id} onStatusChange={fetchPlace} />
+      </div>
 
       {/* Hero Gallery */}
       {heroMedia.length > 0 && (
