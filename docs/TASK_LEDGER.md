@@ -740,10 +740,11 @@ UI_004 (Place classification + orgs) ✅ Done — Inference function + classific
 | 2026-01-31 | DIS_001 | Done: Disease tracking system. MIG_814 (schema: disease_types, place_disease_status, process_disease_extraction hook, 6 disease attribute definitions). API endpoints (/places/[id]/disease-status, /admin/disease-types). DiseaseStatusSection in place detail. Extraction hook in extract_clinic_attributes.mjs. |
 | 2026-01-31 | DIS_001 fix | Fixed MIG_814: mapping patterns matched actual combo test format (Negative/Positive not FIV+), ILIKE for case-insensitivity, removed WHERE result='positive' filter. 87 disease statuses computed (was 0). Data audit: 69 FIV active + 14 ringworm historical from clinic. 66 additional places with disease mentions in Google Maps not in clinic data — needs AI extraction (DIS_002). |
 | 2026-01-31 | DH_E004 | Enhanced: MIG_815 — Tier 4 text-only matching for coordinate-less places, inverted address normalization, normalize_address_for_dedup(), junk address flagging (is_junk_address column), functional index. API: refresh_candidates action, people counts, junk count. UI: Tier 4 tab, refresh button, clickable links, null distance handling. |
-| 2026-01-31 | MAP_008 | Planned: Manual disease override from map + legend fixes. Cindy Tyrrell case (FeLV+ in Google Maps, no clinic test data). Legend z-index fix, actual pin SVGs in legend. |
-| 2026-01-31 | VOL_002 | Planned: Volunteer approval filtering. Britteny Robinette case — VH applicant shown as active volunteer. Root cause: match_volunteerhub_volunteer() assigns active role before group processing. Fix: pending role until approved group membership confirmed. |
-| 2026-01-31 | MAP_009 | Planned: Tiered pin system (Active vs Reference). Full teardrops for places/people with real data. Smaller dots for legacy/applicant/minimal-data pins. Auto-graduation when data changes. |
-| 2026-01-31 | MAP_010 | Planned: Google Maps mis-linking fix for 410 Corte Pintado. Unlinked entry, 5 misspelled duplicates merged to wrong target (107 Verde Ct), malformed person record "410 Corde Pintado Dr." |
+| 2026-01-31 | MAP_008 | Done: Legend z-index 800→1002, keyboard shortcut K to toggle legend, SVG teardrop pins in legend (generateLegendPinSvg). DiseaseStatusSection already supports adding new disease flags — no code change needed. |
+| 2026-01-31 | VOL_002 | Done: MIG_816 — Recreated match_volunteerhub_volunteer() to assign 'pending' instead of 'active'. Recreated process_volunteerhub_group_roles() with approved-group check. Backfilled: non-approved VH volunteers set to 'pending'. Map auto-filters via existing role_status='active' check. |
+| 2026-01-31 | MAP_009 | Done: MIG_818 — pin_tier column in v_map_atlas_pins (active/reference). createReferencePinMarker() in map-markers.ts (18px, 0.65 opacity, muted gradient). AtlasMap branches on pin_tier for rendering. Legend shows Active/Reference sections. process_disease_extraction_for_place() function added. |
+| 2026-01-31 | MAP_010 | Done: MIG_817 — Creates correct place via find_or_create_place_deduped(), links Google Maps entries, fixes 5 merged records pointing to wrong target (107 Verde Ct), flags malformed person "410 Corde Pintado Dr." |
+| 2026-01-31 | DIS_002 | Done: extract_google_map_disease.mjs — AI extraction of disease mentions from Google Maps entries. Sonnet for all entries (polarity critical). Calls process_disease_extraction_for_place(). ~78 entries, ~$0.04. CLI: --dry-run, --limit N. |
 
 ---
 
@@ -2546,7 +2547,7 @@ All 5 list pages now use `useUrlFilters` hook for URL param persistence:
 
 ## DIS_002: Google Maps Disease Extraction
 
-**Status:** Planned
+**Status:** Done (MIG_818 + extract_google_map_disease.mjs — commit 0480408)
 **ACTIVE Impact:** No (additive enrichment to Beacon/ecological data)
 **Priority:** Medium
 **Depends on:** DIS_001 (schema + `process_disease_extraction()` hook)
@@ -2586,7 +2587,7 @@ Google Maps KMZ notes contain ~78 disease mentions across 66+ linked places that
 
 ## MAP_008: Manual Disease Override from Map + Legend Fixes
 
-**Status:** Planned
+**Status:** Done (AtlasMap legend fixes, SVG pins, keyboard shortcut — commit 0480408)
 **ACTIVE Impact:** Yes — UI behavior fixes
 **Priority:** High (staff workflow)
 
@@ -2620,7 +2621,7 @@ Google Maps KMZ notes contain ~78 disease mentions across 66+ linked places that
 
 ## VOL_002: Volunteer Approval Filtering + Applicant Pin Tier
 
-**Status:** Planned
+**Status:** Done (MIG_816 — commit 0480408)
 **ACTIVE Impact:** Yes — affects volunteer display on map and person roles
 **Priority:** High (data accuracy)
 
@@ -2653,7 +2654,7 @@ Britteny is a real person FFSC interacted with. She shouldn't disappear from the
 
 ## MAP_009: Tiered Pin System (Active vs Reference)
 
-**Status:** Planned
+**Status:** Done (MIG_818 + AtlasMap + map-markers — commit 0480408)
 **ACTIVE Impact:** Yes — changes map visual hierarchy
 **Priority:** Medium
 **Depends on:** VOL_002 (applicant filtering feeds into pin tier logic)
@@ -2699,7 +2700,7 @@ Legend should show both tiers with their visual difference. The pin image in the
 
 ## MAP_010: Google Maps Entry Mis-linking (Corte Pintado)
 
-**Status:** Planned
+**Status:** Done (MIG_817 — commit 0480408)
 **ACTIVE Impact:** No (data quality)
 **Priority:** Low
 
