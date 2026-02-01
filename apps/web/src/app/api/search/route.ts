@@ -199,6 +199,87 @@ export async function GET(request: NextRequest) {
         Math.min(limit, 10),
       ]);
 
+      // Enrich suggestions with lat/lng so the map can pan to results
+      // instead of navigating away from the page
+      if (suggestions.length > 0) {
+        const placeIds = suggestions
+          .filter((s) => s.entity_type === "place")
+          .map((s) => s.entity_id);
+        const catIds = suggestions
+          .filter((s) => s.entity_type === "cat")
+          .map((s) => s.entity_id);
+        const personIds = suggestions
+          .filter((s) => s.entity_type === "person")
+          .map((s) => s.entity_id);
+
+        // Build a single enrichment query for all entity types
+        const coordMap = new Map<string, { lat: number; lng: number }>();
+
+        if (placeIds.length > 0) {
+          const placeCoords = await queryRows<{
+            id: string;
+            lat: number;
+            lng: number;
+          }>(`
+            SELECT place_id::text AS id,
+                   ST_Y(location::geometry) AS lat,
+                   ST_X(location::geometry) AS lng
+            FROM trapper.places
+            WHERE place_id = ANY($1::uuid[])
+              AND location IS NOT NULL
+          `, [placeIds]);
+          for (const p of placeCoords) coordMap.set(p.id, { lat: p.lat, lng: p.lng });
+        }
+
+        if (catIds.length > 0) {
+          const catCoords = await queryRows<{
+            id: string;
+            lat: number;
+            lng: number;
+          }>(`
+            SELECT DISTINCT ON (cpr.cat_id)
+                   cpr.cat_id::text AS id,
+                   ST_Y(p.location::geometry) AS lat,
+                   ST_X(p.location::geometry) AS lng
+            FROM trapper.cat_place_relationships cpr
+            JOIN trapper.places p ON p.place_id = cpr.place_id
+            WHERE cpr.cat_id = ANY($1::uuid[])
+              AND p.location IS NOT NULL
+              AND p.merged_into_place_id IS NULL
+            ORDER BY cpr.cat_id, cpr.created_at DESC
+          `, [catIds]);
+          for (const c of catCoords) coordMap.set(c.id, { lat: c.lat, lng: c.lng });
+        }
+
+        if (personIds.length > 0) {
+          const personCoords = await queryRows<{
+            id: string;
+            lat: number;
+            lng: number;
+          }>(`
+            SELECT DISTINCT ON (ppr.person_id)
+                   ppr.person_id::text AS id,
+                   ST_Y(p.location::geometry) AS lat,
+                   ST_X(p.location::geometry) AS lng
+            FROM trapper.person_place_relationships ppr
+            JOIN trapper.places p ON p.place_id = ppr.place_id
+            WHERE ppr.person_id = ANY($1::uuid[])
+              AND p.location IS NOT NULL
+              AND p.merged_into_place_id IS NULL
+            ORDER BY ppr.person_id, ppr.is_primary DESC NULLS LAST, ppr.created_at DESC
+          `, [personIds]);
+          for (const pr of personCoords) coordMap.set(pr.id, { lat: pr.lat, lng: pr.lng });
+        }
+
+        // Merge coordinates into metadata
+        for (const s of suggestions) {
+          const coords = coordMap.get(s.entity_id);
+          if (coords) {
+            s.metadata = { ...s.metadata, lat: coords.lat, lng: coords.lng };
+          }
+        }
+      }
+
       return NextResponse.json({
         query: q,
         mode: "canonical",
