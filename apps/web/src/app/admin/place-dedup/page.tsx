@@ -21,6 +21,8 @@ interface PlaceDedupCandidate {
   duplicate_requests: number;
   duplicate_cats: number;
   duplicate_children: number;
+  canonical_people: number;
+  duplicate_people: number;
 }
 
 interface PlaceDedupSummary {
@@ -38,6 +40,7 @@ interface PlaceDedupResponse {
     offset: number;
     hasMore: boolean;
   };
+  junkAddressCount?: number;
   note?: string;
 }
 
@@ -46,6 +49,7 @@ const TIER_TABS = [
   { tier: 1, label: "Close + Similar", color: "#198754" },
   { tier: 2, label: "Close + Different", color: "#fd7e14" },
   { tier: 3, label: "Farther + Similar", color: "#6f42c1" },
+  { tier: 4, label: "Text Match Only", color: "#0dcaf0" },
 ];
 
 function tierColor(tier: number): string {
@@ -60,17 +64,20 @@ function PlaceStats({
   requests,
   cats,
   children,
+  people,
   kind,
 }: {
   requests: number;
   cats: number;
   children: number;
+  people: number;
   kind: string;
 }) {
   return (
     <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", flexWrap: "wrap" }}>
       <span title="Service requests">{requests} requests</span>
       <span title="Cat relationships">{cats} cats</span>
+      <span title="People linked">{people} people</span>
       {children > 0 && <span title="Child units">{children} units</span>}
       {kind && <span title="Place kind" style={{ opacity: 0.7 }}>{kind}</span>}
     </div>
@@ -85,6 +92,7 @@ export default function PlaceDedupPage() {
   const [resolving, setResolving] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchAction, setBatchAction] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const limit = 30;
 
@@ -206,12 +214,51 @@ export default function PlaceDedupPage() {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!confirm("Refresh all candidate pairs? This re-scans all places and may take a moment.")) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/admin/place-dedup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refresh_candidates" }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        alert(`Refreshed: T1=${result.tier1_count}, T2=${result.tier2_count}, T3=${result.tier3_count}, T4=${result.tier4_count}, Total=${result.total}`);
+        fetchCandidates();
+      }
+    } catch (error) {
+      console.error("Refresh failed:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const totalPairs =
     data?.summary.reduce((sum, s) => sum + s.pair_count, 0) || 0;
 
   return (
     <div>
-      <h1 style={{ marginBottom: "0.5rem" }}>Place Dedup Review</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+        <h1 style={{ margin: 0 }}>Place Dedup Review</h1>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          style={{
+            padding: "0.5rem 1rem",
+            background: "#0d6efd",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            cursor: refreshing ? "default" : "pointer",
+            opacity: refreshing ? 0.6 : 1,
+            fontSize: "0.85rem",
+          }}
+        >
+          {refreshing ? "Refreshing..." : "Refresh Candidates"}
+        </button>
+      </div>
       <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
         Geographic proximity + address similarity duplicate detection.
         Review and resolve candidate pairs.
@@ -271,6 +318,23 @@ export default function PlaceDedupPage() {
               <div className="text-muted text-sm">{s.tier_label}</div>
             </div>
           ))}
+          {(data?.junkAddressCount ?? 0) > 0 && (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                background: "rgba(220, 53, 69, 0.08)",
+                borderRadius: "8px",
+                textAlign: "center",
+                minWidth: "80px",
+                borderLeft: "3px solid #dc3545",
+              }}
+            >
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#dc3545" }}>
+                {data?.junkAddressCount}
+              </div>
+              <div className="text-muted text-sm">Junk Addresses</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -472,7 +536,7 @@ export default function PlaceDedupPage() {
                     {tierLabel(c.match_tier)}
                   </span>
                   <span className="text-muted text-sm">
-                    {c.distance_meters}m apart
+                    {c.distance_meters != null ? `${c.distance_meters}m apart` : "no coords"}
                   </span>
                   <span className="text-muted text-sm">
                     {Math.round(c.address_similarity * 100)}% address match
@@ -516,7 +580,7 @@ export default function PlaceDedupPage() {
                       marginBottom: "0.25rem",
                     }}
                   >
-                    <a href={`/places/${c.canonical_place_id}`}>
+                    <a href={`/places/${c.canonical_place_id}`} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline dotted" }}>
                       {c.canonical_address || "(no address)"}
                     </a>
                   </div>
@@ -529,6 +593,7 @@ export default function PlaceDedupPage() {
                     requests={c.canonical_requests}
                     cats={c.canonical_cats}
                     children={c.canonical_children}
+                    people={c.canonical_people}
                     kind={c.canonical_kind}
                   />
                 </div>
@@ -560,18 +625,17 @@ export default function PlaceDedupPage() {
                   <div className="text-muted" style={{ fontSize: "0.7rem" }}>
                     address
                   </div>
-                  <div
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: 600,
-                      marginTop: "0.25rem",
-                    }}
-                  >
-                    {c.distance_meters}m
-                  </div>
-                  <div className="text-muted" style={{ fontSize: "0.7rem" }}>
-                    apart
-                  </div>
+                  {c.distance_meters != null ? (
+                    <>
+                      <div style={{ fontSize: "1rem", fontWeight: 600, marginTop: "0.25rem" }}>{c.distance_meters}m</div>
+                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>apart</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#6c757d", marginTop: "0.25rem" }}>N/A</div>
+                      <div className="text-muted" style={{ fontSize: "0.7rem" }}>no coords</div>
+                    </>
+                  )}
                 </div>
 
                 {/* Duplicate place (absorb) */}
@@ -601,7 +665,7 @@ export default function PlaceDedupPage() {
                       marginBottom: "0.25rem",
                     }}
                   >
-                    <a href={`/places/${c.duplicate_place_id}`}>
+                    <a href={`/places/${c.duplicate_place_id}`} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline dotted" }}>
                       {c.duplicate_address || "(no address)"}
                     </a>
                   </div>
@@ -614,6 +678,7 @@ export default function PlaceDedupPage() {
                     requests={c.duplicate_requests}
                     cats={c.duplicate_cats}
                     children={c.duplicate_children}
+                    people={c.duplicate_people}
                     kind={c.duplicate_kind}
                   />
                 </div>

@@ -21,6 +21,8 @@ interface PlaceDedupCandidate {
   duplicate_requests: number;
   duplicate_cats: number;
   duplicate_children: number;
+  canonical_people: number;
+  duplicate_people: number;
 }
 
 interface PlaceDedupSummary {
@@ -65,7 +67,18 @@ export async function GET(request: NextRequest) {
         -- Duplicate place stats
         (SELECT COUNT(*)::int FROM trapper.sot_requests WHERE place_id = c.duplicate_place_id) AS duplicate_requests,
         (SELECT COUNT(*)::int FROM trapper.cat_place_relationships WHERE place_id = c.duplicate_place_id) AS duplicate_cats,
-        (SELECT COUNT(*)::int FROM trapper.places ch WHERE ch.parent_place_id = c.duplicate_place_id AND ch.merged_into_place_id IS NULL) AS duplicate_children
+        (SELECT COUNT(*)::int FROM trapper.places ch WHERE ch.parent_place_id = c.duplicate_place_id AND ch.merged_into_place_id IS NULL) AS duplicate_children,
+        -- People counts
+        (SELECT COUNT(DISTINCT ppr.person_id)::int
+         FROM trapper.person_place_relationships ppr
+         JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+         WHERE ppr.place_id = c.canonical_place_id
+           AND per.merged_into_person_id IS NULL) AS canonical_people,
+        (SELECT COUNT(DISTINCT ppr.person_id)::int
+         FROM trapper.person_place_relationships ppr
+         JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+         WHERE ppr.place_id = c.duplicate_place_id
+           AND per.merged_into_person_id IS NULL) AS duplicate_people
       FROM trapper.place_dedup_candidates c
       WHERE c.status = 'pending'
       ${tierClause}
@@ -81,6 +94,7 @@ export async function GET(request: NextRequest) {
           WHEN 1 THEN 'Close + Similar Address'
           WHEN 2 THEN 'Close + Different Address'
           WHEN 3 THEN 'Farther + Very Similar'
+          WHEN 4 THEN 'Text Match Only'
         END AS tier_label,
         COUNT(*)::int AS pair_count
       FROM trapper.place_dedup_candidates
@@ -89,9 +103,22 @@ export async function GET(request: NextRequest) {
       ORDER BY match_tier`
     );
 
+    let junkAddressCount = 0;
+    try {
+      const junkCount = await queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM trapper.places
+         WHERE merged_into_place_id IS NULL AND is_junk_address = TRUE`
+      );
+      junkAddressCount = junkCount?.count || 0;
+    } catch {
+      // is_junk_address column may not exist before MIG_815
+      junkAddressCount = 0;
+    }
+
     return NextResponse.json({
       candidates,
       summary,
+      junkAddressCount,
       pagination: { tier, limit, offset, hasMore: candidates.length === limit },
     });
   } catch (error) {
@@ -124,11 +151,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, pairs } = body;
 
-    if (!action || !["merge", "keep_separate", "dismiss"].includes(action)) {
+    if (!action || !["merge", "keep_separate", "dismiss", "refresh_candidates"].includes(action)) {
       return NextResponse.json(
-        { error: "action must be 'merge', 'keep_separate', or 'dismiss'" },
+        { error: "action must be 'merge', 'keep_separate', 'dismiss', or 'refresh_candidates'" },
         { status: 400 }
       );
+    }
+
+    if (action === "refresh_candidates") {
+      const result = await queryOne<{
+        tier1_count: number;
+        tier2_count: number;
+        tier3_count: number;
+        tier4_count: number;
+        total: number;
+      }>(`SELECT * FROM trapper.refresh_place_dedup_candidates()`);
+      return NextResponse.json({ action: "refresh_candidates", ...result });
     }
 
     const pairList: { candidate_id: string; canonical_place_id: string; duplicate_place_id: string }[] =
