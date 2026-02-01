@@ -7,7 +7,7 @@ import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
 // Supports uploading to: requests, cats, places
 // Supports single file or batch upload (multiple files)
 
-type EntityType = "request" | "cat" | "place";
+type EntityType = "request" | "cat" | "place" | "annotation";
 
 type ConfidenceLevel = "confirmed" | "likely" | "uncertain" | "unidentified";
 
@@ -31,6 +31,7 @@ const entityQueries: Record<EntityType, string> = {
   request: "SELECT request_id FROM trapper.sot_requests WHERE request_id = $1",
   cat: "SELECT cat_id FROM trapper.sot_cats WHERE cat_id = $1",
   place: "SELECT place_id FROM trapper.places WHERE place_id = $1",
+  annotation: "SELECT annotation_id FROM trapper.map_annotations WHERE annotation_id = $1",
 };
 
 // Storage path prefixes
@@ -38,6 +39,7 @@ const storagePathPrefix: Record<EntityType, string> = {
   request: "requests",
   cat: "cats",
   place: "places",
+  annotation: "annotations",
 };
 
 // Helper: Get files from FormData (handles both single 'file' and multiple 'files[]')
@@ -149,6 +151,18 @@ async function uploadSingleFile(
     options.photoGroupId,
   ];
 
+  // Annotations store photo_url directly — skip DB record, return storage URL
+  if (entityType === "annotation") {
+    return {
+      success: true,
+      result: {
+        media_id: `annotation_${entityId}_${Date.now()}`,
+        stored_filename: storedFilename,
+        storage_path: publicUrl,
+      },
+    };
+  }
+
   // Add entity-specific column
   let entityColumn: string;
   switch (entityType) {
@@ -161,6 +175,8 @@ async function uploadSingleFile(
     case "place":
       entityColumn = "place_id";
       break;
+    default:
+      entityColumn = "request_id";
   }
 
   insertColumns.unshift(entityColumn);
@@ -228,9 +244,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!entityType || !["request", "cat", "place"].includes(entityType)) {
+    if (!entityType || !["request", "cat", "place", "annotation"].includes(entityType)) {
       return NextResponse.json(
-        { error: "Invalid entity_type. Must be 'request', 'cat', or 'place'" },
+        { error: "Invalid entity_type. Must be 'request', 'cat', 'place', or 'annotation'" },
         { status: 400 }
       );
     }

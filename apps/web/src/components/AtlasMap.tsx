@@ -14,6 +14,7 @@ import {
   createUserLocationMarker,
   createAtlasPinMarker,
   createReferencePinMarker,
+  createAnnotationMarker,
   generateLegendPinSvg,
 } from "@/lib/map-markers";
 import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
@@ -27,6 +28,7 @@ import {
   escapeHtml,
 } from "@/components/map/MapPopup";
 import { PlaceDetailDrawer } from "@/components/map/PlaceDetailDrawer";
+import { PlacementPanel } from "@/components/map/PlacementPanel";
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
@@ -315,6 +317,30 @@ export default function AtlasMap() {
 
   // Drawer state for place details
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const selectedPlaceIdRef = useRef<string | null>(null);
+  const [drawerFromAddPoint, setDrawerFromAddPoint] = useState(false);
+  useEffect(() => { selectedPlaceIdRef.current = selectedPlaceId; }, [selectedPlaceId]);
+
+  // Add Point mode state
+  const [addPointMode, setAddPointMode] = useState<'place' | 'annotation' | null>(null);
+  const [pendingClick, setPendingClick] = useState<{ lat: number; lng: number } | null>(null);
+  const [showAddPointMenu, setShowAddPointMenu] = useState(false);
+
+  // Annotations state
+  interface Annotation {
+    annotation_id: string;
+    lat: number;
+    lng: number;
+    label: string;
+    note: string | null;
+    photo_url: string | null;
+    annotation_type: string;
+    created_by: string;
+    expires_at: string | null;
+    created_at: string;
+  }
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const annotationLayerRef = useRef<L.LayerGroup | null>(null);
 
   // Street View state
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
@@ -1173,6 +1199,15 @@ export default function AtlasMap() {
           </div>
         </div>`;
         marker.bindPopup(refPopup, { maxWidth: 320 });
+        // Click-switching: if drawer is open, switch directly instead of showing popup
+        marker.on('click', (e: L.LeafletMouseEvent) => {
+          if (selectedPlaceIdRef.current) {
+            setSelectedPlaceId(pin.id);
+            mapRef.current?.closePopup();
+            mapRef.current?.panTo([pin.lat, pin.lng], { animate: true });
+            L.DomEvent.stopPropagation(e);
+          }
+        });
         refLayer.addLayer(marker);
         return;
       }
@@ -1392,6 +1427,16 @@ export default function AtlasMap() {
           </div>
         </div>
       `);
+
+      // Click-switching: if drawer is open, switch directly instead of showing popup
+      marker.on('click', (e: L.LeafletMouseEvent) => {
+        if (selectedPlaceIdRef.current) {
+          setSelectedPlaceId(pin.id);
+          mapRef.current?.closePopup();
+          mapRef.current?.panTo([pin.lat, pin.lng], { animate: true });
+          L.DomEvent.stopPropagation(e);
+        }
+      });
 
       layer.addLayer(marker);
     });
@@ -1863,6 +1908,11 @@ export default function AtlasMap() {
         case "Escape":
           setShowSearchResults(false);
           setShowLayerPanel(false);
+          if (addPointMode) {
+            setAddPointMode(null);
+            setPendingClick(null);
+            setShowAddPointMenu(false);
+          }
           break;
         case "+":
         case "=":
@@ -1886,12 +1936,85 @@ export default function AtlasMap() {
         case "K":
           setShowLegend(prev => !prev);
           break;
+        case "a":
+        case "A":
+          if (!addPointMode) {
+            setShowAddPointMenu(prev => !prev);
+          } else {
+            setAddPointMode(null);
+            setPendingClick(null);
+            setShowAddPointMenu(false);
+          }
+          break;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [addPointMode]);
+
+  // Add Point mode: map click handler and cursor
+  useEffect(() => {
+    if (!mapRef.current || !addPointMode) return;
+    const map = mapRef.current;
+    const container = map.getContainer();
+    container.style.cursor = 'crosshair';
+
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+      setPendingClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+      container.style.cursor = '';
+    };
+  }, [addPointMode]);
+
+  // Annotations: fetch and render
+  const fetchAnnotations = useCallback(async () => {
+    try {
+      const res = await fetch('/api/annotations');
+      const data = await res.json();
+      setAnnotations(data.annotations || []);
+    } catch (e) {
+      console.error('Failed to fetch annotations:', e);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchAnnotations();
+  }, [fetchAnnotations]);
+
+  // Render annotation markers
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (annotationLayerRef.current) {
+      annotationLayerRef.current.clearLayers();
+    } else {
+      annotationLayerRef.current = L.layerGroup().addTo(mapRef.current);
+    }
+    for (const ann of annotations) {
+      const icon = createAnnotationMarker(ann.annotation_type, ann.label);
+      const marker = L.marker([ann.lat, ann.lng], { icon });
+      const expiryText = ann.expires_at ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;">Expires: ${new Date(ann.expires_at).toLocaleDateString()}</div>` : '';
+      const photoHtml = ann.photo_url ? `<img src="${ann.photo_url}" style="width:100%;max-height:120px;object-fit:cover;border-radius:4px;margin-top:6px;" />` : '';
+      const typeLabel = ann.annotation_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      marker.bindPopup(`
+        <div style="min-width:200px;max-width:280px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${escapeHtml(ann.label)}</div>
+          <div style="display:inline-block;padding:2px 6px;border-radius:3px;background:#f3f4f6;font-size:10px;color:#6b7280;margin-bottom:6px;">${typeLabel}</div>
+          ${ann.note ? `<div style="font-size:12px;color:#374151;margin-top:4px;">${escapeHtml(ann.note)}</div>` : ''}
+          ${photoHtml}
+          ${expiryText}
+          <div style="margin-top:8px;display:flex;gap:6px;">
+            <button onclick="fetch('/api/annotations/${ann.annotation_id}',{method:'DELETE'}).then(()=>window.location.reload())" style="background:#fef2f2;color:#dc2626;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">Delete</button>
+          </div>
+        </div>
+      `, { maxWidth: 300 });
+      marker.addTo(annotationLayerRef.current!);
+    }
+  }, [annotations]);
 
   // Calculate total counts for display
   const totalMarkers = (enabledLayers.atlas_pins ? atlasPins.length : 0) +
@@ -2315,6 +2438,84 @@ export default function AtlasMap() {
           <span style={{ fontSize: 18 }}>☰</span>
           {!isMobile && "Layers"}
         </button>
+
+        {/* Add Point button */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => {
+              if (addPointMode) {
+                setAddPointMode(null);
+                setPendingClick(null);
+                setShowAddPointMenu(false);
+              } else {
+                setShowAddPointMenu(prev => !prev);
+              }
+            }}
+            title="Add point to map (A)"
+            style={{
+              background: addPointMode ? "#2563eb" : "white",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 14px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              color: addPointMode ? "white" : "#374151",
+              transition: "background 0.2s, color 0.2s",
+            }}
+            onMouseEnter={(e) => { if (!addPointMode) e.currentTarget.style.background = "#f9fafb"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = addPointMode ? "#2563eb" : "white"; }}
+          >
+            <span style={{ fontSize: 18 }}>{addPointMode ? "✕" : "+"}</span>
+            {!isMobile && (addPointMode ? "Cancel" : "Add Point")}
+          </button>
+          {showAddPointMenu && !addPointMode && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              right: 0,
+              marginTop: 4,
+              background: "white",
+              borderRadius: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              overflow: "hidden",
+              minWidth: 160,
+              zIndex: 1001,
+            }}>
+              <button
+                onClick={() => { setAddPointMode('place'); setShowAddPointMenu(false); }}
+                style={{
+                  display: "block", width: "100%", padding: "10px 14px", border: "none",
+                  background: "white", textAlign: "left", cursor: "pointer",
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                  fontSize: 13, fontWeight: 500, color: "#374151",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#f3f4f6"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "white"}
+              >
+                📍 Add Place
+              </button>
+              <button
+                onClick={() => { setAddPointMode('annotation'); setShowAddPointMenu(false); }}
+                style={{
+                  display: "block", width: "100%", padding: "10px 14px", border: "none",
+                  background: "white", textAlign: "left", cursor: "pointer", borderTop: "1px solid #f3f4f6",
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                  fontSize: 13, fontWeight: 500, color: "#374151",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#f3f4f6"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "white"}
+              >
+                📝 Add Note
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* My Location button */}
         <button
@@ -2892,6 +3093,63 @@ export default function AtlasMap() {
         </div>
       )}
 
+      {/* Add Point mode banner */}
+      {addPointMode && !pendingClick && (
+        <div style={{
+          position: "absolute",
+          top: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1001,
+          background: "#2563eb",
+          color: "white",
+          padding: "10px 20px",
+          borderRadius: 8,
+          boxShadow: "0 4px 12px rgba(37,99,235,0.3)",
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          fontSize: 13,
+          fontWeight: 500,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          whiteSpace: "nowrap",
+        }}>
+          <span>{addPointMode === 'place' ? '📍' : '📝'}</span>
+          Click on the map to {addPointMode === 'place' ? 'place a point' : 'add a note'}.
+          <kbd style={{
+            background: "rgba(255,255,255,0.2)",
+            padding: "2px 6px",
+            borderRadius: 4,
+            fontSize: 11,
+          }}>Esc</kbd>
+          to cancel
+        </div>
+      )}
+
+      {/* PlacementPanel — shown when map is clicked in add-point mode */}
+      {pendingClick && addPointMode && (
+        <PlacementPanel
+          mode={addPointMode}
+          coordinates={pendingClick}
+          onPlaceSelected={(placeId) => {
+            setSelectedPlaceId(placeId);
+            setDrawerFromAddPoint(true);
+            setPendingClick(null);
+            setAddPointMode(null);
+            // Pan to the placed point
+            mapRef.current?.panTo([pendingClick.lat, pendingClick.lng], { animate: true });
+          }}
+          onAnnotationCreated={() => {
+            setPendingClick(null);
+            setAddPointMode(null);
+            fetchAnnotations();
+          }}
+          onCancel={() => {
+            setPendingClick(null);
+          }}
+        />
+      )}
+
       {/* Loading overlay */}
       {loading && (
         <div className="map-loading-overlay">
@@ -2934,6 +3192,8 @@ export default function AtlasMap() {
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>/</kbd> search
         <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>L</kbd> layers
+        <span style={{ margin: "0 6px" }}>·</span>
+        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>A</kbd> add point
         <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
       </div>}
@@ -3133,8 +3393,9 @@ export default function AtlasMap() {
       {selectedPlaceId && (
         <PlaceDetailDrawer
           placeId={selectedPlaceId}
-          onClose={() => setSelectedPlaceId(null)}
+          onClose={() => { setSelectedPlaceId(null); setDrawerFromAddPoint(false); }}
           onWatchlistChange={fetchMapData}
+          showQuickActions={drawerFromAddPoint}
           coordinates={(() => {
             const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
                         places.find(p => p.id === selectedPlaceId);

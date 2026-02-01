@@ -150,6 +150,18 @@ export async function GET(req: NextRequest) {
       description: string | null;
       opacity: number;
     }>;
+    annotations?: Array<{
+      annotation_id: string;
+      lat: number;
+      lng: number;
+      label: string;
+      note: string | null;
+      photo_url: string | null;
+      annotation_type: string;
+      created_by: string;
+      expires_at: string | null;
+      created_at: string;
+    }>;
     data_coverage?: Array<{
       zone_id: string;
       zone_name: string;
@@ -651,6 +663,37 @@ export async function GET(req: NextRequest) {
     }
 
     // Data Coverage layer - zone-level data coverage stats
+    // =========================================================================
+    // Annotations layer (staff map notes)
+    // =========================================================================
+    if (layers.includes("annotations")) {
+      const annotations = await queryRows<{
+        annotation_id: string;
+        lat: number;
+        lng: number;
+        label: string;
+        note: string | null;
+        photo_url: string | null;
+        annotation_type: string;
+        created_by: string;
+        expires_at: string | null;
+        created_at: string;
+      }>(`
+        SELECT
+          annotation_id,
+          ST_Y(location::geometry) AS lat,
+          ST_X(location::geometry) AS lng,
+          label, note, photo_url, annotation_type,
+          created_by, expires_at::text, created_at::text
+        FROM trapper.map_annotations
+        WHERE is_active = TRUE
+          AND (expires_at IS NULL OR expires_at > NOW())
+        ORDER BY created_at DESC
+        LIMIT 500
+      `);
+      result.annotations = annotations;
+    }
+
     if (layers.includes("data_coverage")) {
       // First ensure the coverage table is populated
       try {

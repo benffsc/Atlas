@@ -585,3 +585,102 @@ export function createReferencePinMarker(
     popupAnchor: [0, -Math.round(size * 1.1)],
   });
 }
+
+/**
+ * Create an annotation marker (rounded square with dashed border)
+ * Visually distinct from teardrop place pins - used for spatial annotations
+ */
+export function createAnnotationMarker(
+  annotationType: string,
+  label?: string
+): L.DivIcon {
+  const size = 22;
+  const uniqueId = Math.random().toString(36).substr(2, 9);
+
+  // Color by annotation type
+  const colorMap: Record<string, string> = {
+    general: '#6b7280',
+    colony_sighting: '#f59e0b',
+    trap_location: '#06b6d4',
+    hazard: '#ef4444',
+    feeding_site: '#22c55e',
+    other: '#6b7280',
+  };
+  const color = colorMap[annotationType] || '#6b7280';
+
+  // Icon by annotation type (simple SVG shapes)
+  let innerIcon: string;
+  switch (annotationType) {
+    case 'colony_sighting':
+      // Eye/binoculars icon
+      innerIcon = `
+        <ellipse cx="11" cy="11" rx="3.5" ry="2.2" fill="none" stroke="white" stroke-width="1.2"/>
+        <circle cx="11" cy="11" r="1.2" fill="white"/>
+      `;
+      break;
+    case 'trap_location':
+      // Crosshairs icon
+      innerIcon = `
+        <circle cx="11" cy="11" r="4" fill="none" stroke="white" stroke-width="1.2"/>
+        <line x1="11" y1="5" x2="11" y2="8" stroke="white" stroke-width="1.2"/>
+        <line x1="11" y1="14" x2="11" y2="17" stroke="white" stroke-width="1.2"/>
+        <line x1="5" y1="11" x2="8" y2="11" stroke="white" stroke-width="1.2"/>
+        <line x1="14" y1="11" x2="17" y2="11" stroke="white" stroke-width="1.2"/>
+      `;
+      break;
+    case 'hazard':
+      // Warning triangle
+      innerIcon = `
+        <path d="M11 7 L15 14 H7 Z" fill="white" stroke="white" stroke-width="0.8"/>
+        <text x="11" y="13" text-anchor="middle" fill="${color}" font-size="5" font-weight="bold">!</text>
+      `;
+      break;
+    case 'feeding_site':
+      // Circle/dot (bowl)
+      innerIcon = `
+        <circle cx="11" cy="11" r="3" fill="white"/>
+        <circle cx="11" cy="11" r="1.5" fill="${color}"/>
+      `;
+      break;
+    case 'general':
+    case 'other':
+    default:
+      // Notepad/note icon
+      innerIcon = `
+        <rect x="7" y="6" width="8" height="10" fill="white" rx="1"/>
+        <line x1="9" y1="9" x2="13" y2="9" stroke="${color}" stroke-width="0.8"/>
+        <line x1="9" y1="11" x2="13" y2="11" stroke="${color}" stroke-width="0.8"/>
+        <line x1="9" y1="13" x2="11" y2="13" stroke="${color}" stroke-width="0.8"/>
+      `;
+      break;
+  }
+
+  const svg = `
+    <svg width="${size}" height="${size}" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="annotation-shadow-${uniqueId}" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.25"/>
+        </filter>
+      </defs>
+      <!-- Rounded square with dashed border -->
+      <rect
+        x="1" y="1" width="20" height="20" rx="4"
+        fill="${color}"
+        stroke="white"
+        stroke-width="1"
+        stroke-dasharray="2,2"
+        filter="url(#annotation-shadow-${uniqueId})"
+      />
+      <!-- Inner icon -->
+      ${innerIcon}
+    </svg>
+  `;
+
+  return L.divIcon({
+    className: 'map-marker-annotation',
+    html: svg,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2 - 4],
+  });
+}

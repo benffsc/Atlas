@@ -65,11 +65,12 @@ interface PlaceDetailDrawerProps {
   onClose: () => void;
   onWatchlistChange?: () => void;
   coordinates?: { lat: number; lng: number };
+  showQuickActions?: boolean;
 }
 
 type NotesTab = "original" | "ai" | "journal";
 
-export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates }: PlaceDetailDrawerProps) {
+export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions }: PlaceDetailDrawerProps) {
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +210,89 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
 
         {place && !loading && (
           <>
+            {/* Quick Actions Section */}
+            {showQuickActions && (
+              <div style={{
+                display: "flex",
+                gap: "8px",
+                marginBottom: "12px",
+                padding: "0"
+              }}>
+                <a
+                  href={`/intake/new?place_id=${place.place_id}&address=${encodeURIComponent(place.address)}`}
+                  style={{
+                    flex: 1,
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    backgroundColor: "#eff6ff",
+                    borderRadius: "6px",
+                    border: "1px solid #bfdbfe",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#1e40af",
+                    textDecoration: "none",
+                    transition: "background-color 0.15s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
+                >
+                  <span>+</span>
+                  <span>Create Request</span>
+                </a>
+                <a
+                  href={`/places/${place.place_id}#people`}
+                  style={{
+                    flex: 1,
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    backgroundColor: "#eff6ff",
+                    borderRadius: "6px",
+                    border: "1px solid #bfdbfe",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#1e40af",
+                    textDecoration: "none",
+                    transition: "background-color 0.15s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
+                >
+                  <span>👤</span>
+                  <span>Link Person</span>
+                </a>
+                <a
+                  href={`/places/${place.place_id}#notes`}
+                  style={{
+                    flex: 1,
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    backgroundColor: "#eff6ff",
+                    borderRadius: "6px",
+                    border: "1px solid #bfdbfe",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#1e40af",
+                    textDecoration: "none",
+                    transition: "background-color 0.15s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
+                >
+                  <span>📝</span>
+                  <span>Add Note</span>
+                </a>
+              </div>
+            )}
+
             {/* Disease Badges Section */}
             {place.disease_badges && place.disease_badges.length > 0 && (
               <div className="disease-badges-section">
