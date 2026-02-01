@@ -740,6 +740,10 @@ UI_004 (Place classification + orgs) ✅ Done — Inference function + classific
 | 2026-01-31 | DIS_001 | Done: Disease tracking system. MIG_814 (schema: disease_types, place_disease_status, process_disease_extraction hook, 6 disease attribute definitions). API endpoints (/places/[id]/disease-status, /admin/disease-types). DiseaseStatusSection in place detail. Extraction hook in extract_clinic_attributes.mjs. |
 | 2026-01-31 | DIS_001 fix | Fixed MIG_814: mapping patterns matched actual combo test format (Negative/Positive not FIV+), ILIKE for case-insensitivity, removed WHERE result='positive' filter. 87 disease statuses computed (was 0). Data audit: 69 FIV active + 14 ringworm historical from clinic. 66 additional places with disease mentions in Google Maps not in clinic data — needs AI extraction (DIS_002). |
 | 2026-01-31 | DH_E004 | Enhanced: MIG_815 — Tier 4 text-only matching for coordinate-less places, inverted address normalization, normalize_address_for_dedup(), junk address flagging (is_junk_address column), functional index. API: refresh_candidates action, people counts, junk count. UI: Tier 4 tab, refresh button, clickable links, null distance handling. |
+| 2026-01-31 | MAP_008 | Planned: Manual disease override from map + legend fixes. Cindy Tyrrell case (FeLV+ in Google Maps, no clinic test data). Legend z-index fix, actual pin SVGs in legend. |
+| 2026-01-31 | VOL_002 | Planned: Volunteer approval filtering. Britteny Robinette case — VH applicant shown as active volunteer. Root cause: match_volunteerhub_volunteer() assigns active role before group processing. Fix: pending role until approved group membership confirmed. |
+| 2026-01-31 | MAP_009 | Planned: Tiered pin system (Active vs Reference). Full teardrops for places/people with real data. Smaller dots for legacy/applicant/minimal-data pins. Auto-graduation when data changes. |
+| 2026-01-31 | MAP_010 | Planned: Google Maps mis-linking fix for 410 Corte Pintado. Unlinked entry, 5 misspelled duplicates merged to wrong target (107 Verde Ct), malformed person record "410 Corde Pintado Dr." |
 
 ---
 
@@ -2577,3 +2581,138 @@ Google Maps KMZ notes contain ~78 disease mentions across 66+ linked places that
 |------|--------|
 | `scripts/jobs/extract_google_map_disease.mjs` | NEW — Extraction job |
 | Possibly: minor update to `process_disease_extraction()` | MOD — Accept `historical` status parameter |
+
+---
+
+## MAP_008: Manual Disease Override from Map + Legend Fixes
+
+**Status:** Planned
+**ACTIVE Impact:** Yes — UI behavior fixes
+**Priority:** High (staff workflow)
+
+### Problem 1: Cannot manually flag disease from place detail
+
+**Case study: Cindy Tyrrell (1505 Helman Lane, Cotati)**
+- Google Maps: "09/17. S/N client. She brought in two cats one very sickly. Tested him and he was FeLV positive. We euthanized the fella."
+- ClinicHQ: One appointment (2017-09-20) for "Cat 1" — no medical notes, no test results, only "Euthanasia" service item
+- Current status: `disease_risk = false` — the FeLV+ result exists only in the Google Maps note
+- `set_place_disease_override()` function exists but needs accessible UI for staff to use from the place detail page
+
+**Fix:** The DiseaseStatusSection component already has override controls (confirm, dismiss, perpetual, clear, historical). Verify they work for **adding** a new disease status (not just modifying an existing one). Staff should be able to select a disease type (e.g., FeLV) and set it as historical/confirmed.
+
+### Problem 2: Legend cannot be reopened after hiding
+
+- Legend toggle button z-index is 800, but layer panel and search box are at z-index 1001
+- When legend is closed, the small "?" toggle button may be obscured by other controls
+- No keyboard shortcut exists to reopen the legend (only "L" toggles the layer panel)
+
+**Fix:** Raise legend z-index to match other controls. Add keyboard shortcut (e.g., Shift+L).
+
+### Problem 3: Legend shows colored dots, not actual pin images
+
+- Current legend uses 10x10px colored circles + emoji icons (⚠️ 👁️ 🐱 etc.)
+- The actual map pins are teardrop SVGs with gradient fills, shadows, and inner icons
+- Visual disconnect between legend and map
+
+**Fix:** Render small versions of the actual `createAtlasPinMarker()` SVGs in the legend instead of colored dots.
+
+---
+
+## VOL_002: Volunteer Approval Filtering + Applicant Pin Tier
+
+**Status:** Planned
+**ACTIVE Impact:** Yes — affects volunteer display on map and person roles
+**Priority:** High (data accuracy)
+
+### Problem: Non-approved VH applicants shown as volunteers
+
+**Case study: Britteny Robinette (407 Corte Pintado, Rohnert Park)**
+- VolunteerHub status: In "New Applicants - Orientation" group (UID: `91f364cb`)
+- NOT in "Approved Volunteers" group (UID: `029c9184`, `is_approved_parent=true`)
+- Atlas role: `volunteer` with `role_status='active'` — **wrong**
+- Shows as "Volunteer" pin on map with full volunteer pin styling
+
+**Root cause:** `match_volunteerhub_volunteer()` (MIG_812 lines 110-114) assigns `role='volunteer'` with `role_status='active'` immediately when ANY VH user is matched to a person, before group memberships are processed. This means everyone who signs up on VolunteerHub (including applicants who never get approved) gets an active volunteer role.
+
+**Fix:**
+1. `match_volunteerhub_volunteer()` should assign `role_status='pending'` initially (not 'active')
+2. Only `process_volunteerhub_group_roles()` should upgrade to `role_status='active'` when the person is in any group under the `is_approved_parent=true` group
+3. Map pins query should filter `role_status='active'` (already does, but roles are prematurely active)
+4. Add `applicant` as a valid role or use `role_status='pending'` for applicants
+
+**Approved Volunteers hierarchy (from VolunteerHub):**
+- "Approved Volunteers" (parent, `is_approved_parent=true`) — ALL current FFSC volunteers
+  - Admin/Office, Approved Adoption Counselors, Approved Barn Cat Volunteers, Approved Cat Cuddler, Approved Colony Caretakers, Approved Forever Foster, Approved Foster Parent, Approved Kennel Asst., Approved Rehabilitation/Medical Holder, Approved Spay/Neuter Clinic Volunteer, Approved Trappers, Community & Special Events Aide, Community Outreach Team Members, Cooks & Bakers, Enrichment Sessions, Fabric/Textile Volunteers, Holiday Card Crew, Laundry Angels, Pick of the Litter Volunteer (+ sub-groups), Reunification Aid, Sewing Angels, Transporter/Driver
+- Other groups (NOT approved): "New Applicants - Orientation" etc.
+
+### Secondary issue: Applicant pin should still exist (smaller)
+
+Britteny is a real person FFSC interacted with. She shouldn't disappear from the map — she should appear as a lower-priority pin. If she later becomes an approved volunteer, the system should auto-upgrade her pin.
+
+---
+
+## MAP_009: Tiered Pin System (Active vs Reference)
+
+**Status:** Planned
+**ACTIVE Impact:** Yes — changes map visual hierarchy
+**Priority:** Medium
+**Depends on:** VOL_002 (applicant filtering feeds into pin tier logic)
+
+### Problem: All points treated equally
+
+All map pins currently use the same size/prominence regardless of data significance. Legacy Google Maps points with no cat data appear the same as active colony sites with 50+ cats. Volunteer applicants appear the same as active FFSC trappers.
+
+### Proposed two-tier system
+
+**Tier 1 — Active Pins (current full-size teardrop):**
+- Places with cat data (cat_place_relationships)
+- Places with active requests
+- People with important roles: approved volunteers, staff, trappers
+- Places with disease status (confirmed_active or perpetual)
+- Places with colony estimates
+
+**Tier 2 — Reference Pins (smaller, less prominent):**
+- Legacy Google Maps points with no linked cat/request data
+- People who only applied (VH applicants, `role_status='pending'`)
+- Places with only historical context (no active data)
+- Orphan places with minimal data
+- Still clickable, still show details on click
+- Smaller marker (e.g., `createHistoricalDotMarker()` or scaled-down teardrop)
+- Lighter opacity or muted colors
+
+**Graduation:** A reference pin automatically becomes active when:
+- A cat gets linked to the place
+- A request is created at the address
+- The person becomes an approved volunteer
+- Disease status changes to confirmed_active
+- This happens naturally through the existing `pin_style` logic in `v_map_atlas_pins`
+
+### Clustering consideration
+
+Reference pins could use a separate cluster layer with smaller cluster icons, so they don't overwhelm the active pins visually but are still accessible when zoomed in.
+
+### UI representation
+
+Legend should show both tiers with their visual difference. The pin image in the legend should reflect the actual rendering.
+
+---
+
+## MAP_010: Google Maps Entry Mis-linking (Corte Pintado)
+
+**Status:** Planned
+**ACTIVE Impact:** No (data quality)
+**Priority:** Low
+
+### Problem
+
+Google Maps entry "410 Corte Pintado" (about a mom cat + kittens, contact Vickie Sneed) is currently **unlinked** (no `linked_place_id`). Meanwhile:
+- 5 duplicate place records "410 Corde Pintado" (misspelled) were created and merged into **107 Verde Ct** (wrong target — different address entirely)
+- A malformed person record "410 Corde Pintado Dr." was created with an address as the person name
+- Britteny Robinette's place at **407 Corte Pintado** is a separate address and should not absorb 410's data
+- The Google Maps entry's nearest place is 515 Corte Naranja (30.9m away — outside 15m auto-link threshold)
+
+### Fix
+1. Create the correct place for 410 Corte Pintado, Rohnert Park via `find_or_create_place_deduped()`
+2. Link the Google Maps entry to it
+3. Clean up the malformed "410 Corde Pintado Dr." person record
+4. Verify the 5 merged place records are correctly handled (they point to 107 Verde Ct, which is wrong)
