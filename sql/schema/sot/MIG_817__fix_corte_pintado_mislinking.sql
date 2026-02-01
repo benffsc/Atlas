@@ -33,7 +33,7 @@ BEGIN
   -- ============================================================
   RAISE NOTICE 'Step 1: Creating/finding correct place for 410 Corte Pintado...';
 
-  SELECT * INTO v_place_id FROM trapper.find_or_create_place_deduped(
+  v_place_id := trapper.find_or_create_place_deduped(
     '410 Corte Pintado, Rohnert Park, CA',
     NULL,  -- display_name
     NULL,  -- lat
@@ -76,8 +76,7 @@ BEGIN
   RAISE NOTICE 'Step 4: Flagging malformed person record...';
 
   UPDATE trapper.sot_people
-  SET is_system_account = TRUE,
-      notes = COALESCE(notes || '; ', '') || 'MIG_817: Malformed record — address as person name'
+  SET is_system_account = TRUE
   WHERE display_name ILIKE '410 Corde Pintado%'
     AND is_system_account IS NOT TRUE;
   GET DIAGNOSTICS v_person_fixed = ROW_COUNT;
