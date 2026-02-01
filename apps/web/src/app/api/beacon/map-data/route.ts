@@ -11,8 +11,6 @@ import { queryRows } from "@/lib/db";
  *   - layers: comma-separated list of layers to include
  *     NEW (simplified):
  *     - atlas_pins: Consolidated Atlas data (places + people + cats + Google history)
- *     - historical_pins: Unlinked Google Maps entries for historical context
- *
  *     LEGACY (still supported):
  *     - places: Places with cat activity
  *     - google_pins: Google Maps entries with parsed signals
@@ -65,23 +63,6 @@ export async function GET(req: NextRequest) {
       last_alteration_at: string | null;
       pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
       pin_tier: "active" | "reference";
-    }>;
-    historical_pins?: Array<{
-      id: string;
-      name: string;
-      lat: number;
-      lng: number;
-      notes: string;
-      ai_summary: string | null;
-      ai_meaning: string | null;
-      parsed_date: string | null;
-      disease_risk: boolean;
-      watch_list: boolean;
-      icon_type: string | null;
-      icon_color: string | null;
-      nearest_place_id: string | null;
-      nearest_place_distance_m: number | null;
-      requires_unit_selection: boolean;
     }>;
     // LEGACY layers (still supported)
     places?: Array<{
@@ -303,54 +284,6 @@ export async function GET(req: NextRequest) {
         google_summaries: Array.isArray(pin.google_summaries) ? pin.google_summaries : [],
         disease_badges: Array.isArray(pin.disease_badges) ? pin.disease_badges : [],
       }));
-    }
-
-    // =========================================================================
-    // NEW: Historical Pins layer (unlinked Google Maps entries)
-    // =========================================================================
-    if (layers.includes("historical_pins")) {
-      const historicalPins = await queryRows<{
-        id: string;
-        name: string;
-        lat: number;
-        lng: number;
-        notes: string;
-        ai_summary: string | null;
-        ai_meaning: string | null;
-        parsed_date: string | null;
-        disease_risk: boolean;
-        watch_list: boolean;
-        icon_type: string | null;
-        icon_color: string | null;
-        nearest_place_id: string | null;
-        nearest_place_distance_m: number | null;
-        requires_unit_selection: boolean;
-      }>(`
-        SELECT
-          v.id::text,
-          v.name,
-          v.lat,
-          v.lng,
-          v.notes,
-          v.ai_summary,
-          v.ai_meaning,
-          v.parsed_date::text,
-          v.disease_risk,
-          v.watch_list,
-          v.icon_type,
-          v.icon_color,
-          v.nearest_place_id::text,
-          v.nearest_place_distance_m,
-          COALESCE(e.requires_unit_selection, FALSE) as requires_unit_selection
-        FROM trapper.v_map_historical_pins v
-        LEFT JOIN trapper.google_map_entries e ON e.entry_id = v.id
-        ORDER BY
-          CASE WHEN v.disease_risk THEN 0 ELSE 1 END,
-          CASE WHEN v.watch_list THEN 0 ELSE 1 END,
-          v.imported_at DESC
-        LIMIT 2000
-      `);
-      result.historical_pins = historicalPins;
     }
 
     // =========================================================================

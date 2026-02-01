@@ -204,25 +204,6 @@ interface AtlasPin {
   pin_tier: "active" | "reference";
 }
 
-// NEW: Historical Pin from v_map_historical_pins view (unlinked Google Maps entries)
-interface HistoricalPin {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  notes: string;
-  ai_summary: string | null;
-  ai_meaning: string | null;
-  parsed_date: string | null;
-  disease_risk: boolean;
-  watch_list: boolean;
-  icon_type: string | null;
-  icon_color: string | null;
-  nearest_place_id: string | null;
-  nearest_place_distance_m: number | null;
-  requires_unit_selection: boolean;
-}
-
 interface MapSummary {
   total_places: number;
   total_cats: number;
@@ -242,7 +223,6 @@ interface LayerConfig {
 // Primary layers (shown by default)
 const PRIMARY_LAYER_CONFIGS: LayerConfig[] = [
   { id: "atlas_pins", label: "Atlas Data", icon: "📍", color: "#3b82f6", description: "Places, people, cats, and history", defaultEnabled: true },
-  { id: "historical_pins", label: "Historical Notes", icon: "⚪", color: "#9ca3af", description: "Unlinked Google Maps notes", defaultEnabled: true },
 ];
 
 // Legacy layers (hidden by default, advanced users only)
@@ -297,7 +277,6 @@ export default function AtlasMap() {
 
   // Data - NEW simplified layers
   const [atlasPins, setAtlasPins] = useState<AtlasPin[]>([]);
-  const [historicalPins, setHistoricalPins] = useState<HistoricalPin[]>([]);
 
   // Data - Legacy layers
   const [places, setPlaces] = useState<Place[]>([]);
@@ -543,7 +522,6 @@ export default function AtlasMap() {
     if (layers.length === 0) {
       // Clear new layers
       setAtlasPins([]);
-      setHistoricalPins([]);
       // Clear legacy layers
       setPlaces([]);
       setGooglePins([]);
@@ -580,7 +558,6 @@ export default function AtlasMap() {
       const data = await response.json();
       // New layers
       setAtlasPins(data.atlas_pins || []);
-      setHistoricalPins(data.historical_pins || []);
       // Legacy layers
       setPlaces(data.places || []);
       setGooglePins(data.google_pins || []);
@@ -1163,14 +1140,34 @@ export default function AtlasMap() {
           diseaseRisk: pin.disease_risk,
           watchList: pin.watch_list,
         } as any);
-        // Simplified popup for reference pins
-        const refLabel = pin.pin_style === "has_history" ? "History Only" : "Minimal Data";
-        const refPopup = `<div style="min-width:200px;font-family:system-ui;font-size:12px;">
+        // Build data summary parts
+        const summaryParts: string[] = [];
+        if (pin.person_count > 0) summaryParts.push(`${pin.person_count} ${pin.person_count === 1 ? "person" : "people"}`);
+        if (pin.cat_count > 0) summaryParts.push(`${pin.cat_count} ${pin.cat_count === 1 ? "cat" : "cats"}`);
+        if (pin.google_entry_count > 0) summaryParts.push(`${pin.google_entry_count} Google Maps ${pin.google_entry_count === 1 ? "note" : "notes"}`);
+        if (pin.request_count > 0) summaryParts.push(`${pin.request_count} ${pin.request_count === 1 ? "request" : "requests"}`);
+        const dataSummary = summaryParts.length > 0 ? summaryParts.join(" · ") : "Reference location";
+
+        // First GM note snippet
+        const gmSnippet = pin.google_summaries && pin.google_summaries.length > 0 && pin.google_summaries[0]?.summary
+          ? `<div style="color:#6b7280;font-size:11px;margin-top:4px;line-height:1.3;max-height:40px;overflow:hidden;">"${String(pin.google_summaries[0].summary).substring(0, 120)}${String(pin.google_summaries[0].summary).length > 120 ? "…" : ""}"</div>`
+          : "";
+
+        // People names
+        const peopleNames = pin.people && pin.people.length > 0
+          ? `<div style="color:#374151;font-size:11px;margin-top:4px;">${pin.people.slice(0, 3).map((p: any) => p.name).join(", ")}${pin.people.length > 3 ? ` +${pin.people.length - 3}` : ""}</div>`
+          : "";
+
+        const refPopup = `<div style="min-width:220px;font-family:system-ui;font-size:12px;">
           <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${pin.display_name || pin.address}</div>
-          ${pin.display_name ? `<div style="color:#6b7280;font-size:11px;margin-bottom:6px;">${pin.address}</div>` : ""}
-          <div style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:#f1f5f9;color:#64748b;margin-bottom:4px;">${refLabel}</div>
-          ${pin.google_entry_count > 0 ? `<div style="color:#6b7280;margin-top:4px;">${pin.google_entry_count} Google Maps note${pin.google_entry_count !== 1 ? "s" : ""}</div>` : ""}
-          <div style="margin-top:6px;"><a href="/places/${pin.id}" target="_blank" style="color:#3b82f6;text-decoration:none;font-size:11px;">Open details &rarr;</a></div>
+          ${pin.display_name && pin.address ? `<div style="color:#6b7280;font-size:11px;margin-bottom:6px;">${pin.address}</div>` : ""}
+          <div style="color:#64748b;font-size:11px;margin-bottom:4px;">${dataSummary}</div>
+          ${peopleNames}
+          ${gmSnippet}
+          <div style="margin-top:8px;display:flex;gap:8px;">
+            <button onclick="window.atlasMapExpandPlace('${pin.id}')" style="background:#3b82f6;color:white;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Details</button>
+            <button onclick="window.open('https://www.google.com/maps/@${pin.lat},${pin.lng},3a,75y,90t/data=!3m6!1e1!3m4!1s!2e0!7i16384!8i8192','_blank')" style="background:#f1f5f9;color:#475569;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Street View</button>
+          </div>
         </div>`;
         marker.bindPopup(refPopup, { maxWidth: 320 });
         refLayer.addLayer(marker);
@@ -1401,122 +1398,6 @@ export default function AtlasMap() {
     combined.addTo(mapRef.current);
     layersRef.current.atlas_pins = combined;
   }, [atlasPins, enabledLayers.atlas_pins]);
-
-  // =========================================================================
-  // Historical Pins layer — uses Canvas renderer for performance
-  // =========================================================================
-  useEffect(() => {
-    if (!mapRef.current) return;
-    if (layersRef.current.historical_pins) {
-      mapRef.current.removeLayer(layersRef.current.historical_pins);
-    }
-    if (!enabledLayers.historical_pins || historicalPins.length === 0) return;
-
-    const canvasRenderer = L.canvas({ padding: 0.5 });
-    const layer = L.layerGroup();
-
-    historicalPins.forEach((pin) => {
-      if (!pin.lat || !pin.lng) return;
-
-      const isDisease = pin.disease_risk;
-      const isWatchList = pin.watch_list;
-      const color = isDisease ? "#ea580c" : isWatchList ? "#8b5cf6" : "#9ca3af";
-
-      // Canvas-rendered circle markers — no DOM element per pin
-      const marker = L.circleMarker([pin.lat, pin.lng], {
-        radius: isDisease ? 6 : isWatchList ? 5 : 4,
-        fillColor: color,
-        fillOpacity: 0.7,
-        color: "#fff",
-        weight: 1.5,
-        renderer: canvasRenderer,
-      });
-
-      // Check if AI summary is a refusal message (don't show those)
-      const isAiRefusal = (text: string | null | undefined): boolean => {
-        if (!text) return false;
-        const lowerText = text.toLowerCase();
-        return lowerText.includes("i can't paraphrase") ||
-               lowerText.includes("i cannot paraphrase") ||
-               lowerText.includes("i appreciate the question") ||
-               lowerText.includes("i need to clarify my role") ||
-               lowerText.includes("violate my instructions") ||
-               lowerText.includes("here's the original") ||
-               lowerText.includes("here's the cleaned version") ||
-               lowerText.includes("no changes needed");
-      };
-
-      // Get the best available note text - prefer original, skip AI refusals
-      const getNoteText = (): string => {
-        // If AI summary exists and is not a refusal, use it
-        if (pin.ai_summary && !isAiRefusal(pin.ai_summary)) {
-          return pin.ai_summary;
-        }
-        // Otherwise use original notes
-        if (pin.notes) return pin.notes;
-        return "No notes available";
-      };
-      const noteText = getNoteText();
-
-      // Build nearest place info for popup
-      const nearestInfo = pin.nearest_place_id && pin.nearest_place_distance_m !== null
-        ? `<div style="font-size: 11px; color: #6b7280; margin-top: 8px; padding: 8px; background: #f0f9ff; border-radius: 4px; border: 1px solid #bae6fd;">
-            📍 Nearest Atlas place: <strong>${Math.round(pin.nearest_place_distance_m)}m away</strong>
-            ${pin.requires_unit_selection
-              ? `<div style="color: #ea580c; font-size: 10px; margin-top: 4px;">🏢 Multi-unit building - unit selection required</div>`
-              : ``
-            }
-            <div style="margin-top: 6px;">
-              <a href="/admin/google-map-entries/${pin.id}/link"
-                 style="display: inline-block; padding: 4px 10px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; font-size: 11px; font-weight: 500;">
-                ${pin.requires_unit_selection ? "Select Unit & Link" : "Link to Place"}
-              </a>
-            </div>
-          </div>`
-        : `<div style="font-size: 11px; color: #9ca3af; margin-top: 8px;">
-            No nearby Atlas place found
-          </div>`;
-
-      marker.bindPopup(`
-        <div style="min-width: 260px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${pin.name || "Historical Note"}</div>
-
-          ${isDisease ? `
-            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 6px 8px; margin-bottom: 8px; border-radius: 4px; color: #dc2626; font-size: 12px; font-weight: 600;">
-              ⚠️ Disease Risk Mentioned
-            </div>
-          ` : ""}
-
-          ${isWatchList && !isDisease ? `
-            <div style="background: #f5f3ff; border: 1px solid #c4b5fd; padding: 6px 8px; margin-bottom: 8px; border-radius: 4px; color: #7c3aed; font-size: 12px; font-weight: 600;">
-              👁️ Watch List
-            </div>
-          ` : ""}
-
-          <div style="font-size: 12px; color: #374151; background: #f9fafb; padding: 8px; border-radius: 6px; max-height: 100px; overflow-y: auto;">
-            ${noteText}
-          </div>
-
-          ${pin.parsed_date ? `
-            <div style="font-size: 11px; color: #9ca3af; margin-top: 8px;">
-              📅 Date: ${pin.parsed_date}
-            </div>
-          ` : ""}
-
-          ${nearestInfo}
-
-          <div style="font-size: 10px; color: #9ca3af; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
-            ⚪ Unlinked historical data from Google Maps
-          </div>
-        </div>
-      `);
-
-      layer.addLayer(marker);
-    });
-
-    layer.addTo(mapRef.current);
-    layersRef.current.historical_pins = layer;
-  }, [historicalPins, enabledLayers.historical_pins]);
 
   // Search functionality - uses fuzzy search API for better matching
   useEffect(() => {
@@ -1998,9 +1879,6 @@ export default function AtlasMap() {
         case "1":
           toggleLayer("atlas_pins");
           break;
-        case "2":
-          toggleLayer("historical_pins");
-          break;
         case "k":
         case "K":
           setShowLegend(prev => !prev);
@@ -2014,7 +1892,6 @@ export default function AtlasMap() {
 
   // Calculate total counts for display
   const totalMarkers = (enabledLayers.atlas_pins ? atlasPins.length : 0) +
-    (enabledLayers.historical_pins ? historicalPins.length : 0) +
     (enabledLayers.places ? places.length : 0) +
     (enabledLayers.google_pins ? googlePins.length : 0) +
     (enabledLayers.tnr_priority ? tnrPriority.length : 0) +
@@ -2727,8 +2604,7 @@ export default function AtlasMap() {
           {/* Primary Layer toggles */}
           <div style={{ padding: "8px 0" }}>
             {PRIMARY_LAYER_CONFIGS.map((layer) => {
-              const count = layer.id === "atlas_pins" ? atlasPins.length :
-                layer.id === "historical_pins" ? historicalPins.length : 0;
+              const count = layer.id === "atlas_pins" ? atlasPins.length : 0;
 
               return (
                 <div
@@ -2862,7 +2738,7 @@ export default function AtlasMap() {
           </div>
 
           {/* Legend */}
-          {(enabledLayers.atlas_pins || enabledLayers.historical_pins || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
+          {(enabledLayers.atlas_pins || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
             <div style={{ padding: 16, borderTop: "1px solid #e5e7eb" }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
                 Legend
@@ -2892,35 +2768,6 @@ export default function AtlasMap() {
                         {label}
                       </span>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {enabledLayers.historical_pins && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Historical Context</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {[
-                      { label: "Disease Mentioned", color: "#ea580c" },
-                      { label: "Watch List", color: "#8b5cf6" },
-                      { label: "General Note", color: "#9ca3af" },
-                    ].map(({ label, color }) => (
-                      <span key={label} style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        fontSize: 10,
-                        padding: "2px 6px",
-                        background: `${color}15`,
-                        borderRadius: 8,
-                      }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>
-                    Small dots = unlinked Google Maps data
                   </div>
                 </div>
               )}

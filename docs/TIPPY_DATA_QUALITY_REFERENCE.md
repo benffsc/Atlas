@@ -1224,10 +1224,213 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 Google Maps KMZ notes are the predecessor's 20+ years of informal case notes. They describe events like "FeLV positive cat euthanized" or "ringworm colony" — but these cats were often euthanized before structured testing was implemented, or the positive results were recorded informally and never entered the clinic's structured test system. The structured `cat_test_results` table only covers cats tested at the FFSC clinic from ~2021 onward.
 
 **What Tippy should know:**
-> "Disease tracking currently reflects structured clinic test results (FeLV/FIV combo tests and Woods lamp ringworm screening). 69 places have confirmed active FIV, and 14 places have historical ringworm. However, Google Maps notes mention disease at roughly 66 additional places that aren't reflected in clinic tests — these are historical/qualitative notes from before structured testing. A future AI extraction job will parse these Google Maps entries to backfill historical disease data."
+> "Disease tracking now combines three data sources: structured clinic test results, AI extraction from medical notes, and AI extraction from Google Maps historical notes. 168 disease flags exist across 161 unique places. 69 places have confirmed active FIV from clinic tests. FeLV data comes exclusively from Google Maps historical notes — there are zero FeLV positives in structured clinic test data (see DIS_003 below for why)."
 
 **Staff Impact:**
 - Map now shows disease badges on 69 FIV-active pins (was showing 0)
 - Ringworm places exist but are all historical (last positive: Oct 2024, 12-month decay)
-- No FeLV positives in clinic data — all FeLV mentions are historical Google Maps notes
+- FeLV data backfilled from Google Maps (29 historical, 6 suspected, 3 from medical notes)
 - Staff can manually override disease status at `/admin/disease-types` if they know of current cases not in the data
+
+### Session: 2026-01-31 - Google Maps Disease Extraction (DIS_002)
+
+**Context:** Following DIS_001 audit that found ~66 places with disease mentions in Google Maps but zero structured data, built and ran an AI extraction pipeline to parse disease polarity from historical notes.
+
+**Key Discoveries:**
+1. **Polarity detection is critical** — majority of disease keyword matches are NEGATIVE results ("FeLV neg", "SNAP negative"). Only ~18% of entries contain actual positives.
+2. **Initial parser bug:** Greedy regex `/\[[\s\S]*\]/` captured trailing text when Sonnet appended explanations after the JSON array. Bracket-counting parser fixed this (0 parse errors vs 10 previously).
+3. **Duplicate entries across runs:** Same Google Maps entry can match multiple disease keywords (e.g., "FeLV neg, FIV pos" → 2 extractions). `extraction_status` table prevents re-processing.
+4. **CLI parsing:** `--limit 400` (space-separated) doesn't work; must use `--limit=400` (equals sign).
+
+**Changes Made:**
+- `scripts/jobs/extract_google_map_disease.mjs`: New extraction script
+  - Uses Sonnet for ALL entries (polarity accuracy critical)
+  - Custom prompt emphasizing negative vs positive indicators
+  - Bracket-counting JSON parser (replaces greedy regex)
+  - Calls `process_disease_extraction_for_place()` for each positive
+  - CLI: `--dry-run`, `--limit=N`
+- `sql/schema/sot/MIG_818__tiered_pin_system.sql`: Contains `process_disease_extraction_for_place()` function
+
+**Extraction Results (3 runs, ~400 entries):**
+
+| Run | Entries | Positives | Parse Errors | Cost |
+|-----|---------|-----------|--------------|------|
+| Dry run | 200 | 36 | 3 | $0.89 |
+| Live run 1 | 200 | 36 | 0 | $0.90 |
+| Live run 2 (rerun after fix) | 200 | 8 | 0 | $0.56 |
+| Live run 3 | 199 | 32 | 0 | $0.79 |
+
+**Disease flags from Google Maps (63 total):**
+
+| Disease | Suspected | Historical | Total |
+|---------|-----------|------------|-------|
+| FeLV | 6 | 29 | 35 |
+| FIV | 2 | 4 | 6 |
+| Ringworm | 1 | 17 | 18 |
+| Panleukopenia | 0 | 3 | 3 |
+| Heartworm | 0 | 1 | 1 |
+
+**What Tippy should know:**
+> "Google Maps disease extraction has been completed. 63 disease flags were extracted from historical notes using AI. Most FeLV data in the system comes from these historical notes — the predecessor documented FeLV colonies extensively. Status is auto-determined: entries with dates beyond the decay window (36 months for FeLV, 24 for FIV, 12 for ringworm) are marked 'historical'; recent ones are 'suspected'. Staff can upgrade or clear any flag at `/admin/disease-types`."
+
+**Staff Impact:**
+- 63 new disease flags from Google Maps backfill
+- FeLV now visible on map for first time (35 places, mostly historical)
+- 4 remaining Google Maps entries were false-positive keyword matches (harmless, marked as processed)
+
+---
+
+### 2026-01-31: FIV Combo Test Parsing Bug & Medical Notes Extraction (DIS_003)
+
+**Problem:** Two issues discovered during disease data audit:
+1. **Combo test parsing bug (MIG_164):** The FeLV/FIV SNAP combo test stores results as `"Negative/Positive"` (FeLV result/FIV result). The original CASE statement checked `ILIKE '%negative%'` BEFORE `ILIKE '%positive%'`, so `"Negative/Positive"` (meaning FeLV neg, FIV pos) matched the negative branch first. **286 FIV-positive cats were classified as negative.**
+2. **Zero FeLV in structured data:** Investigation confirmed this is genuine — zero `"Positive/Negative"` or `"Positive/Positive"` combo test results exist in raw staged data. All FeLV positives in the system are from Google Maps historical notes or medical notes.
+
+**Investigation:**
+- `cat_test_results` table had 1,735 FeLV/FIV combo test results, ALL marked `result = 'negative'`
+- `result_detail` breakdown: 1,449 `"Negative/Negative"` + 286 `"Negative/Positive"`
+- The 286 `"Negative/Positive"` entries are FIV-positive cats wrongly classified as negative
+- Raw `staged_records` payload confirmed: zero `"Positive/Negative"` or `"Positive/Positive"` entries exist
+- Medical notes (2 appointments) mention FeLV explicitly; 55 appointments mention FIV
+
+**Solution:**
+1. **Fixed 286 combo test records:** `UPDATE cat_test_results SET result = 'positive' WHERE result_detail = 'Negative/Positive'`
+2. **Fixed MIG_164 parsing order:** Swapped CASE to check `ILIKE '%positive%'` FIRST
+3. **Extracted disease from medical notes:** AI parsed 57 appointments mentioning FeLV/FIV → 3 FeLV places + 15 FIV places flagged (via `process_disease_extraction_for_place()` with `evidence_source = 'computed'`)
+
+**Result:**
+- 286 FIV-positive cats now correctly classified
+- 18 new disease flags from medical notes (3 FeLV + 15 FIV)
+- Total disease flags in system: **168 across 161 unique places**
+
+**Current disease status (all sources combined):**
+
+| Disease | Confirmed Active | Suspected | Historical | Total |
+|---------|-----------------|-----------|------------|-------|
+| FIV | 69 (test_result) | 17 (computed + google_maps) | 8 | 94 |
+| FeLV | 0 | 9 (computed + google_maps) | 29 | 38 |
+| Ringworm | 0 | 1 | 31 | 32 |
+| Panleukopenia | 0 | 0 | 3 | 3 |
+| Heartworm | 0 | 0 | 1 | 1 |
+| **Total** | **69** | **27** | **72** | **168** |
+
+**Three evidence sources feed disease data:**
+
+| Source | Description | Count |
+|--------|-------------|-------|
+| `test_result` | Structured FeLV/FIV combo tests from ClinicHQ | 87 |
+| `google_maps` | AI extraction from historical notes (DIS_002) | 63 |
+| `computed` | AI extraction from medical appointment notes | 18 |
+
+**What Tippy should know:**
+> "FIV data is the most reliable — 69 confirmed-active places from structured clinic combo tests. FeLV has zero positives in structured tests (genuinely none in the raw data), so all FeLV flags come from historical Google Maps notes or medical note mentions. If staff asks 'why no FeLV?', the answer is: the FeLV/FIV SNAP combo test at FFSC has never returned a FeLV-positive result in the structured data. FeLV-positive cats documented in Google Maps were likely tested elsewhere or euthanized before FFSC's current testing system."
+
+**Staff Impact:**
+- 286 cats that were FIV-positive but mislabeled as negative are now corrected
+- Disease flags now come from 3 complementary sources covering both structured and unstructured data
+- Future ClinicHQ imports will correctly parse combo test polarity (positive checked before negative)
+
+---
+
+## Ingestion Pipeline: Auto-Triggers & Data Freshness
+
+Understanding how data flows through Atlas and what triggers automatically vs manually is important for explaining why data may appear stale or incomplete.
+
+### Automatic Triggers (no manual intervention needed)
+
+| Trigger | What It Does | Frequency |
+|---------|-------------|-----------|
+| `/api/cron/ingest-process` | Runs `process_next_job()` for queued processing jobs | Every 10 min (cron) |
+| `/api/cron/entity-linking` | Runs `run_all_entity_linking()` (cat→place, appointment→trapper) | Every 30 min (cron) |
+| `/api/cron/geocode-pending` | Geocodes new places via Google Places API | Every 30 min (cron) |
+| `/api/cron/beacon-enrich` | Colony estimate refresh, extraction queue, data staleness | Daily 10 AM PT |
+| `/api/cron/volunteerhub-sync` | Full VH API sync (volunteers, groups, memberships, roles) | Every 6 hours |
+| `trg_queue_appointment_extraction` | Queues new appointments for AI attribute extraction | On INSERT to `sot_appointments` |
+| `trg_queue_intake_extraction` | Queues new intake submissions for extraction | On INSERT to `web_intake_submissions` |
+| `trg_queue_request_extraction` | Queues new requests for extraction | On INSERT to `sot_requests` |
+| `trg_site_obs_colony_estimate` | Creates colony estimate from site observations | On INSERT to `site_observations` |
+
+### Semi-Automatic (triggered by staff action)
+
+| Action | What Triggers | What Happens |
+|--------|--------------|--------------|
+| ClinicHQ CSV upload | File upload via `/api/ingest/clinichq` | Stages records → queues processing jobs |
+| Owner info upload | File upload via `/api/ingest/clinichq` | Queues `owner_info` processing → identity resolution |
+| Airtable sync | Manual or cron `/api/cron/airtable-sync` | Stages records → processes requests/people |
+| Web intake submission | Public form submission | Creates request → triggers extraction queue |
+
+### Manual Only (requires explicit script run)
+
+| Script | Purpose | When to Run |
+|--------|---------|-------------|
+| `extract_clinic_attributes.mjs` | AI extracts structured attributes from appointment notes | After significant new appointment data |
+| `extract_request_attributes.mjs` | AI extracts attributes from request notes | After Airtable sync with new requests |
+| `extract_google_map_disease.mjs` | AI extracts disease polarity from Google Maps notes | One-time backfill (completed) |
+| `process_extraction_queue.mjs` | Unified queue processor for all extraction types | When extraction_queue has pending items |
+
+### Known Gap: `needs_reextraction` Not Auto-Triggered
+
+The `extraction_status` table has a `needs_reextraction` column, but it is **never automatically set to true** when source data changes. This means:
+- If an appointment note is updated in ClinicHQ and re-uploaded, the old extraction is kept
+- If a request note is edited in Atlas, the old attributes are not re-extracted
+
+**Current workaround:** Delete the extraction_status row for the source record and re-run the extraction script. This is a known technical debt item.
+
+### Map Data Freshness
+
+`v_map_atlas_pins` is a **VIEW** (not materialized) — it reflects current database state on every query. No refresh needed. Changes to:
+- Person roles → immediately reflected in pin popups
+- Disease status → immediately reflected in pin badges
+- Place contexts → immediately reflected in pin style
+- Request status → immediately reflected in pin tier
+
+---
+
+## Overlapping Export & Updated Row Handling
+
+When ClinicHQ CSV exports overlap (e.g., staff exports Jan 1-31 then Jan 15-Feb 15), Atlas handles the duplicate rows gracefully.
+
+### How Deduplication Works
+
+**Stage 1: `staged_records` table**
+```
+UNIQUE (source_system, source_table, row_hash)
+```
+- Each row is hashed (`row_hash = md5(payload::text)`)
+- On conflict (same source + table + hash): `DO UPDATE SET updated_at = NOW()`
+- Effect: Identical rows from overlapping exports are **silently deduplicated** — no duplicate processing
+
+**Stage 2: Entity Resolution Functions**
+```
+find_or_create_person(email, phone, first, last, ...)
+find_or_create_cat_by_microchip(chip, name, ...)
+find_or_create_request(source, record_id, ...)
+find_or_create_place_deduped(address, name, ...)
+```
+- Each function checks for existing records before creating new ones
+- Uses email/phone for people, microchip for cats, source_record_id for requests, normalized address for places
+- If record exists: returns existing ID, may update metadata
+- If new: creates and returns new ID
+
+**Stage 3: Updated Rows (Same Record, Changed Data)**
+
+If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will have a **different `row_hash`**. This means:
+- The staging step treats it as a new record (different hash)
+- Processing re-runs entity resolution, which finds the existing entity by source_record_id
+- The entity is updated with the new data
+- `extraction_status.needs_reextraction` is NOT auto-set (known gap)
+
+**What Tippy should know:**
+> "Staff can safely re-upload overlapping ClinicHQ exports without creating duplicates. Identical rows are silently skipped. Changed rows will update the existing records. However, if a note was corrected and AI extraction needs to re-run, that requires manual re-extraction (delete the extraction_status row and re-run the script)."
+
+### Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| Same row, same data, different export | Deduplicated via row_hash — no processing |
+| Same row, corrected data | New row_hash → re-processed → entity updated |
+| Same person, different email | Data Engine creates new entity, flags for review |
+| Same address, different formatting | `normalize_address()` catches most variants; `find_or_create_place_deduped` handles the rest |
+| Deleted row in source | Atlas retains the record — no deletion propagation |
+
+*Last updated: 2026-01-31 (after DIS_002 + DIS_003 + ingestion pipeline documentation)*

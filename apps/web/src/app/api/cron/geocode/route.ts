@@ -3,8 +3,10 @@ import { queryRows, queryOne } from "@/lib/db";
 
 // Geocoding Cron Job
 //
-// Processes places in the geocoding queue. Run every 5-10 minutes
-// to ensure new places get coordinates promptly.
+// Phase 1: Forward geocoding (address → coordinates) for places missing location
+// Phase 2: Reverse geocoding (coordinates → address) for coordinate-only places
+//
+// Run every 5-10 minutes. Shares a budget of 50 API calls per run.
 //
 // Vercel Cron: Add to vercel.json:
 //   "crons": [{ "path": "/api/cron/geocode", "schedule": "every-5-min" }]
@@ -18,6 +20,14 @@ const CRON_SECRET = process.env.CRON_SECRET;
 interface QueuedPlace {
   place_id: string;
   formatted_address: string;
+  geocode_attempts: number;
+}
+
+interface ReverseQueuedPlace {
+  place_id: string;
+  lat: number;
+  lng: number;
+  display_name: string;
   geocode_attempts: number;
 }
 
@@ -38,30 +48,22 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime = Date.now();
-  const BATCH_LIMIT = 50; // Process 50 places per run (increased from 25)
+  const BATCH_LIMIT = 50;
 
   try {
-    // Get places from queue using the existing function
+    // =====================================================================
+    // Phase 1: Forward geocoding (address → coordinates)
+    // =====================================================================
     const queue = await queryRows<QueuedPlace>(
       "SELECT * FROM trapper.get_geocoding_queue($1)",
       [BATCH_LIMIT]
     );
 
-    if (queue.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No places need geocoding",
-        processed: 0,
-        duration_ms: Date.now() - startTime,
-      });
-    }
-
-    let successCount = 0;
-    let failCount = 0;
+    let forwardSuccess = 0;
+    let forwardFail = 0;
 
     for (const place of queue) {
       try {
-        // Call Google Geocoding API
         const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
         url.searchParams.set("address", place.formatted_address);
         url.searchParams.set("key", GOOGLE_API_KEY);
@@ -73,14 +75,12 @@ export async function GET(request: NextRequest) {
           const { lat, lng } = data.results[0].geometry.location;
           const googleFormattedAddress = data.results[0].formatted_address;
 
-          // Record success
           await queryOne(
             "SELECT trapper.record_geocoding_result($1, TRUE, $2, $3, NULL, $4)",
             [place.place_id, lat, lng, googleFormattedAddress]
           );
-          successCount++;
+          forwardSuccess++;
         } else {
-          // Record failure
           const error = data.status === "ZERO_RESULTS"
             ? "Address not found"
             : data.error_message || data.status || "Unknown error";
@@ -89,10 +89,9 @@ export async function GET(request: NextRequest) {
             "SELECT trapper.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
             [place.place_id, error]
           );
-          failCount++;
+          forwardFail++;
         }
 
-        // Rate limit - 50ms between requests
         await new Promise((r) => setTimeout(r, 50));
       } catch (err) {
         const error = err instanceof Error ? err.message : "Request failed";
@@ -100,7 +99,66 @@ export async function GET(request: NextRequest) {
           "SELECT trapper.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
           [place.place_id, error]
         );
-        failCount++;
+        forwardFail++;
+      }
+    }
+
+    // =====================================================================
+    // Phase 2: Reverse geocoding (coordinates → address)
+    // Processes coordinate-only places (from Google Maps data, pin placing)
+    // =====================================================================
+    const reverseBudget = Math.max(0, BATCH_LIMIT - queue.length);
+    let reverseSuccess = 0;
+    let reverseFail = 0;
+    let reverseMerged = 0;
+
+    if (reverseBudget > 0) {
+      const reverseQueue = await queryRows<ReverseQueuedPlace>(
+        "SELECT * FROM trapper.get_reverse_geocoding_queue($1)",
+        [reverseBudget]
+      );
+
+      for (const place of reverseQueue) {
+        try {
+          const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+          url.searchParams.set("latlng", `${place.lat},${place.lng}`);
+          url.searchParams.set("key", GOOGLE_API_KEY);
+
+          const response = await fetch(url.toString());
+          const data = await response.json();
+
+          if (data.status === "OK" && data.results?.[0]?.formatted_address) {
+            const googleAddress = data.results[0].formatted_address;
+
+            const result = await queryOne<{ record_reverse_geocoding_result: { action: string } }>(
+              "SELECT trapper.record_reverse_geocoding_result($1, TRUE, $2)",
+              [place.place_id, googleAddress]
+            );
+
+            const action = result?.record_reverse_geocoding_result?.action;
+            if (action === "merged") reverseMerged++;
+            reverseSuccess++;
+          } else {
+            const error = data.status === "ZERO_RESULTS"
+              ? "No address found for coordinates"
+              : data.error_message || data.status || "Unknown error";
+
+            await queryOne(
+              "SELECT trapper.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
+              [place.place_id, error]
+            );
+            reverseFail++;
+          }
+
+          await new Promise((r) => setTimeout(r, 50));
+        } catch (err) {
+          const error = err instanceof Error ? err.message : "Request failed";
+          await queryOne(
+            "SELECT trapper.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
+            [place.place_id, error]
+          );
+          reverseFail++;
+        }
       }
     }
 
@@ -111,13 +169,29 @@ export async function GET(request: NextRequest) {
       failed: number;
     }>("SELECT * FROM trapper.v_geocoding_stats");
 
+    const reverseStats = await queryOne<{
+      pending_reverse: number;
+    }>("SELECT * FROM trapper.v_reverse_geocoding_stats");
+
+    const totalProcessed = queue.length + reverseSuccess + reverseFail;
+
     return NextResponse.json({
       success: true,
-      message: `Geocoded ${successCount} places, ${failCount} failed`,
-      processed: queue.length,
-      geocoded: successCount,
-      failed: failCount,
-      remaining: stats?.pending || 0,
+      message: `Forward: ${forwardSuccess} geocoded, ${forwardFail} failed. Reverse: ${reverseSuccess} resolved (${reverseMerged} merged), ${reverseFail} failed.`,
+      forward: {
+        processed: queue.length,
+        geocoded: forwardSuccess,
+        failed: forwardFail,
+        remaining: stats?.pending || 0,
+      },
+      reverse: {
+        processed: reverseSuccess + reverseFail,
+        resolved: reverseSuccess,
+        merged: reverseMerged,
+        failed: reverseFail,
+        remaining: reverseStats?.pending_reverse || 0,
+      },
+      processed: totalProcessed,
       duration_ms: Date.now() - startTime,
     });
   } catch (error) {
