@@ -30,6 +30,21 @@ interface DiseaseBadge {
   positive_cat_count: number;
 }
 
+interface CatLink {
+  cat_id: string;
+  display_name: string;
+  sex: string | null;
+  altered_status: string | null;
+  microchip: string | null;
+  breed: string | null;
+  primary_color: string | null;
+  is_deceased: boolean;
+  relationship_type: string;
+  appointment_count: number;
+  latest_appointment_date: string | null;
+  latest_service_type: string | null;
+}
+
 interface PlaceDetails {
   place_id: string;
   address: string;
@@ -54,6 +69,9 @@ interface PlaceDetails {
 
   // People
   people: Array<{ person_id: string; display_name: string }>;
+
+  // Cats
+  cats: CatLink[];
 
   // Notes
   google_notes: GoogleNote[];
@@ -413,6 +431,55 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               </div>
             )}
 
+            {/* Cats Section */}
+            {place.cats && place.cats.length > 0 && (
+              <div className="section">
+                <h3>Cats at Location</h3>
+                <div className="cats-list">
+                  {place.cats.map((cat) => (
+                    <a
+                      key={cat.cat_id}
+                      href={`/cats/${cat.cat_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="cat-card"
+                    >
+                      <div className="cat-card-header">
+                        <span className="cat-name">{cat.display_name || "Unknown"}</span>
+                        <div className="cat-badges">
+                          {cat.altered_status === "spayed" || cat.altered_status === "neutered" ? (
+                            <span className="cat-badge cat-badge-altered">{cat.altered_status === "spayed" ? "S" : "N"}</span>
+                          ) : (
+                            <span className="cat-badge cat-badge-intact">?</span>
+                          )}
+                          {cat.sex && <span className="cat-badge cat-badge-sex">{cat.sex === "Male" ? "M" : cat.sex === "Female" ? "F" : cat.sex.charAt(0)}</span>}
+                          {cat.is_deceased && <span className="cat-badge cat-badge-deceased">Dec</span>}
+                        </div>
+                      </div>
+                      <div className="cat-card-details">
+                        {cat.breed && <span>{cat.breed}</span>}
+                        {cat.primary_color && <span>{cat.primary_color}</span>}
+                        {cat.microchip && <span className="cat-microchip">{cat.microchip}</span>}
+                      </div>
+                      {cat.appointment_count > 0 && (
+                        <div className="cat-card-appointments">
+                          {cat.appointment_count} appointment{cat.appointment_count !== 1 ? "s" : ""}
+                          {cat.latest_appointment_date && (
+                            <> &middot; Last: {new Date(cat.latest_appointment_date).toLocaleDateString()}</>
+                          )}
+                        </div>
+                      )}
+                      {cat.latest_service_type && (
+                        <div className="cat-card-services">
+                          {formatServiceType(cat.latest_service_type)}
+                        </div>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Notes Section with Tabs */}
             <div className="section notes-section">
               <div className="notes-tabs">
@@ -647,6 +714,18 @@ function formatEntryType(type: string): string {
     observation: "Observation",
   };
   return labels[type] || type;
+}
+
+// Helper to format service type from appointment data
+function formatServiceType(serviceType: string): string {
+  // Service types come as "Service1 / /; Service2 / /; ..."
+  const services = serviceType
+    .split(/;\s*/)
+    .map((s) => s.replace(/\s*\/\s*\/?\s*/g, "").trim())
+    .filter((s) => s.length > 0 && s !== "/");
+  if (services.length === 0) return "";
+  if (services.length <= 3) return services.join(", ");
+  return services.slice(0, 3).join(", ") + ` +${services.length - 3} more`;
 }
 
 // Helper to format disease status for display

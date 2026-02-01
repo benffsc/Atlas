@@ -64,6 +64,21 @@ interface DiseaseBadge {
   positive_cat_count: number;
 }
 
+interface CatLink {
+  cat_id: string;
+  display_name: string;
+  sex: string | null;
+  altered_status: string | null;
+  microchip: string | null;
+  breed: string | null;
+  primary_color: string | null;
+  is_deceased: boolean;
+  relationship_type: string;
+  appointment_count: number;
+  latest_appointment_date: string | null;
+  latest_service_type: string | null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -83,7 +98,7 @@ export async function GET(
 
     const placeId = mergeCheck?.merged_into_place_id || id;
 
-    // Get place details from the map pins view
+    // Get place details — direct queries instead of expensive view LEFT JOINs
     const place = await queryOne<PlaceDetails>(
       `SELECT
         p.place_id,
@@ -98,18 +113,20 @@ export async function GET(
         COALESCE(ppl.person_count, 0) AS person_count,
         COALESCE(req.request_count, 0) AS request_count,
         COALESCE(req.active_request_count, 0) AS active_request_count,
-        COALESCE(tnr.total_altered, 0) AS total_altered
+        COALESCE(alt.total_altered, 0) AS total_altered
       FROM trapper.places p
       LEFT JOIN (
         SELECT place_id, COUNT(DISTINCT cat_id) AS cat_count
         FROM trapper.cat_place_relationships
+        WHERE place_id = $1
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
       LEFT JOIN (
         SELECT ppr.place_id, COUNT(DISTINCT ppr.person_id) AS person_count
         FROM trapper.person_place_relationships ppr
         JOIN trapper.sot_people per ON per.person_id = ppr.person_id
-        WHERE per.merged_into_person_id IS NULL
+        WHERE ppr.place_id = $1
+          AND per.merged_into_person_id IS NULL
           AND per.display_name IS NOT NULL
           AND per.display_name !~ ', CA[ ,]'
           AND per.display_name !~ '\\d{5}'
@@ -122,13 +139,17 @@ export async function GET(
           COUNT(*) AS request_count,
           COUNT(*) FILTER (WHERE status IN ('new', 'triaged', 'scheduled', 'in_progress')) AS active_request_count
         FROM trapper.sot_requests
-        WHERE place_id IS NOT NULL
+        WHERE place_id = $1
         GROUP BY place_id
       ) req ON req.place_id = p.place_id
       LEFT JOIN (
-        SELECT place_id, total_cats_altered AS total_altered
-        FROM trapper.v_place_alteration_history
-      ) tnr ON tnr.place_id = p.place_id
+        SELECT cpr.place_id, COUNT(DISTINCT cp.cat_id) AS total_altered
+        FROM trapper.cat_place_relationships cpr
+        JOIN trapper.cat_procedures cp ON cp.cat_id = cpr.cat_id
+          AND (cp.is_spay OR cp.is_neuter)
+        WHERE cpr.place_id = $1
+        GROUP BY cpr.place_id
+      ) alt ON alt.place_id = p.place_id
       WHERE p.place_id = $1`,
       [placeId]
     );
@@ -225,9 +246,46 @@ export async function GET(
       diseaseBadges = [];
     }
 
+    // Get cats linked to this place with latest appointment info
+    const cats = await queryRows<CatLink>(
+      `SELECT
+        c.cat_id,
+        c.display_name,
+        c.sex,
+        c.altered_status,
+        ci.id_value AS microchip,
+        c.breed,
+        c.primary_color,
+        COALESCE(c.is_deceased, FALSE) AS is_deceased,
+        cpr.relationship_type,
+        COALESCE(apt.appointment_count, 0) AS appointment_count,
+        apt.latest_appointment_date,
+        apt.latest_service_type
+      FROM trapper.cat_place_relationships cpr
+      JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+        AND c.merged_into_cat_id IS NULL
+      LEFT JOIN LATERAL (
+        SELECT id_value FROM trapper.cat_identifiers
+        WHERE cat_id = c.cat_id AND id_type = 'microchip'
+        LIMIT 1
+      ) ci ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) AS appointment_count,
+          MAX(appointment_date)::TEXT AS latest_appointment_date,
+          (ARRAY_AGG(service_type ORDER BY appointment_date DESC))[1] AS latest_service_type
+        FROM trapper.sot_appointments
+        WHERE cat_id = c.cat_id
+      ) apt ON TRUE
+      WHERE cpr.place_id = $1
+      ORDER BY apt.latest_appointment_date DESC NULLS LAST, c.display_name`,
+      [placeId]
+    );
+
     return NextResponse.json({
       ...place,
       people,
+      cats,
       google_notes: googleNotes,
       journal_entries: journalEntries,
       disease_badges: diseaseBadges,

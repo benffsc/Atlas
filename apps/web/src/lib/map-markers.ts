@@ -361,13 +361,18 @@ export function createAtlasPinMarker(
       ` : '')
     : '';
 
-  // Extend viewBox height when badges are present
+  // Extend viewBox to account for:
+  // - Volunteer star badge above pin (extends to Y=-6)
+  // - Disease badges below pin (extend to Y=32)
   const hasDiseaseBadges = diseaseBadges.length > 0;
-  const viewBoxHeight = hasDiseaseBadges ? 35 : 32;
-  const svgHeight = hasDiseaseBadges ? Math.round(size * 1.5) : Math.round(size * 1.35);
+  const viewBoxTop = hasVolunteer ? -7 : 0;
+  const viewBoxBottom = hasDiseaseBadges ? 35 : 32;
+  const viewBoxTotalHeight = viewBoxBottom - viewBoxTop;
+  const heightScale = viewBoxTotalHeight / 32; // ratio vs base 32
+  const svgHeight = Math.round(size * 1.35 * heightScale);
 
   const svg = `
-    <svg width="${size}" height="${svgHeight}" viewBox="0 0 24 ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${size}" height="${svgHeight}" viewBox="0 ${viewBoxTop} 24 ${viewBoxTotalHeight}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="atlas-pin-grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="${lighterColor}"/>
@@ -398,12 +403,15 @@ export function createAtlasPinMarker(
     </svg>
   `;
 
+  // Pin tip is at Y=30 in SVG coords. Map that to pixel space for the anchor.
+  const pinTipPixelY = Math.round(((30 - viewBoxTop) / viewBoxTotalHeight) * svgHeight);
+
   return L.divIcon({
     className: `map-marker-atlas-pin marker-${pinStyle} ${isClustered ? 'marker-clustered' : ''} ${hasDiseaseBadges ? 'marker-has-disease' : ''}`,
     html: `<div class="atlas-pin-wrapper" data-icon="${innerIcon}">${svg}</div>`,
     iconSize: [size, svgHeight],
-    iconAnchor: [size / 2, svgHeight],
-    popupAnchor: [0, -Math.round(size * 1.1)],
+    iconAnchor: [size / 2, pinTipPixelY],
+    popupAnchor: [0, -pinTipPixelY],
   });
 }
 
