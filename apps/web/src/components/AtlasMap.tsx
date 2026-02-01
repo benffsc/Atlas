@@ -13,6 +13,8 @@ import {
   createClinicMarker,
   createUserLocationMarker,
   createAtlasPinMarker,
+  createReferencePinMarker,
+  generateLegendPinSvg,
 } from "@/lib/map-markers";
 import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
 import {
@@ -199,6 +201,7 @@ interface AtlasPin {
   total_altered: number;
   last_alteration_at: string | null;
   pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+  pin_tier: "active" | "reference";
 }
 
 // NEW: Historical Pin from v_map_historical_pins view (unlinked Google Maps entries)
@@ -1129,6 +1132,29 @@ export default function AtlasMap() {
     atlasPins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
+      // Reference tier: smaller, muted pins for history-only / minimal data
+      if (pin.pin_tier === "reference") {
+        const refColor = pin.pin_style === "has_history" ? "#6366f1" : "#94a3b8";
+        const marker = L.marker([pin.lat, pin.lng], {
+          icon: createReferencePinMarker(refColor, { size: 18, pinStyle: pin.pin_style }),
+          diseaseRisk: pin.disease_risk,
+          watchList: pin.watch_list,
+        } as any);
+        // Simplified popup for reference pins
+        const refLabel = pin.pin_style === "has_history" ? "History Only" : "Minimal Data";
+        const refPopup = `<div style="min-width:200px;font-family:system-ui;font-size:12px;">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${pin.display_name || pin.address}</div>
+          ${pin.display_name ? `<div style="color:#6b7280;font-size:11px;margin-bottom:6px;">${pin.address}</div>` : ""}
+          <div style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:#f1f5f9;color:#64748b;margin-bottom:4px;">${refLabel}</div>
+          ${pin.google_entry_count > 0 ? `<div style="color:#6b7280;margin-top:4px;">${pin.google_entry_count} Google Maps note${pin.google_entry_count !== 1 ? "s" : ""}</div>` : ""}
+          <div style="margin-top:6px;"><a href="/places/${pin.id}" target="_blank" style="color:#3b82f6;text-decoration:none;font-size:11px;">Open details &rarr;</a></div>
+        </div>`;
+        marker.bindPopup(refPopup, { maxWidth: 320 });
+        layer.addLayer(marker);
+        return;
+      }
+
+      // Active tier: full-size teardrop pins
       // Determine pin color based on style - Google Maps-like color palette
       let color: string;
       let size: number;
@@ -1949,6 +1975,10 @@ export default function AtlasMap() {
           break;
         case "2":
           toggleLayer("historical_pins");
+          break;
+        case "k":
+        case "K":
+          setShowLegend(prev => !prev);
           break;
       }
     };
@@ -3038,7 +3068,7 @@ export default function AtlasMap() {
         position: "absolute",
         bottom: 24,
         left: 16,
-        zIndex: 800,
+        zIndex: 1002,
       }}>
         <button
           onClick={() => setShowLegend(prev => !prev)}
@@ -3049,19 +3079,31 @@ export default function AtlasMap() {
         </button>
         {showLegend && (
           <div className="map-legend-panel">
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Pin Status</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Active Pins</div>
             {[
-              { color: "#ea580c", label: "Disease Risk", icon: "\u26A0" },
-              { color: "#8b5cf6", label: "Watch List", icon: "\uD83D\uDC41" },
-              { color: "#22c55e", label: "Verified Cats", icon: "\uD83D\uDC31" },
-              { color: "#14b8a6", label: "Requests Only", icon: "\uD83D\uDCCB" },
-              { color: "#6366f1", label: "History Only", icon: "\uD83D\uDCC4" },
-              { color: "#3b82f6", label: "Minimal Data", icon: "\u2022" },
-              { color: "#3b82f6", label: "Navigated Loc", icon: "\uD83D\uDCCD" },
-            ].map(({ color, label, icon }) => (
+              { color: "#ea580c", label: "Disease Risk", pinStyle: "disease" },
+              { color: "#8b5cf6", label: "Watch List", pinStyle: "watch_list" },
+              { color: "#22c55e", label: "Verified Cats", pinStyle: "active" },
+              { color: "#14b8a6", label: "Requests Only", pinStyle: "active_requests" },
+            ].map(({ color, label, pinStyle }) => (
               <div key={label} className="map-legend-item">
-                <span className="map-legend-swatch" style={{ background: color }} />
-                <span className="map-legend-icon">{icon}</span>
+                <span
+                  dangerouslySetInnerHTML={{ __html: generateLegendPinSvg(color, pinStyle, 14) }}
+                  style={{ display: "inline-flex", width: 14, height: 19, flexShrink: 0 }}
+                />
+                <span className="map-legend-label">{label}</span>
+              </div>
+            ))}
+            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Reference Pins</div>
+            {[
+              { color: "#6366f1", label: "History Only", pinStyle: "has_history" },
+              { color: "#94a3b8", label: "Minimal Data", pinStyle: "minimal" },
+            ].map(({ color, label, pinStyle }) => (
+              <div key={label} className="map-legend-item">
+                <span
+                  dangerouslySetInnerHTML={{ __html: generateLegendPinSvg(color, pinStyle, 12) }}
+                  style={{ display: "inline-flex", width: 12, height: 16, flexShrink: 0, opacity: 0.65 }}
+                />
                 <span className="map-legend-label">{label}</span>
               </div>
             ))}
@@ -3089,6 +3131,9 @@ export default function AtlasMap() {
                 <span className="map-legend-label">{label}</span>
               </div>
             ))}
+            <div style={{ borderTop: "1px solid #e5e7eb", marginTop: 8, paddingTop: 6, fontSize: 10, color: "#9ca3af" }}>
+              <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3, fontSize: 9 }}>K</kbd> toggle legend
+            </div>
           </div>
         )}
       </div>

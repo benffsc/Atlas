@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
       total_altered: number;
       last_alteration_at: string | null;
       pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+      pin_tier: "active" | "reference";
     }>;
     historical_pins?: Array<{
       id: string;
@@ -248,6 +249,7 @@ export async function GET(req: NextRequest) {
         total_altered: number;
         last_alteration_at: string | null;
         pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+        pin_tier: "active" | "reference";
       }>(`
         SELECT
           id::text,
@@ -274,7 +276,8 @@ export async function GET(req: NextRequest) {
           intake_count::int,
           total_altered::int,
           last_alteration_at::text,
-          pin_style
+          pin_style,
+          pin_tier
         FROM trapper.v_map_atlas_pins
         WHERE 1=1
           ${zone ? `AND service_zone = '${zone}'` : ""}

@@ -472,3 +472,116 @@ export function createClusterIcon(
     iconAnchor: [sizeValue / 2, sizeValue / 2],
   });
 }
+
+/**
+ * Generate a small SVG string for legend display (not a Leaflet icon).
+ * Reuses the same teardrop path and inner icon logic as createAtlasPinMarker
+ * but without unique filter IDs, disease badges, or volunteer stars.
+ */
+export function generateLegendPinSvg(
+  color: string,
+  pinStyle: string,
+  size: number = 16
+): string {
+  const lighterColor = lightenColor(color, 15);
+  const svgHeight = Math.round(size * 1.35);
+
+  let innerContent: string;
+  switch (pinStyle) {
+    case 'disease':
+      innerContent = `
+        <path d="M12 6 L16 14 H8 Z" fill="${color}" stroke="white" stroke-width="0.5"/>
+        <text x="12" y="13" text-anchor="middle" fill="white" font-size="6" font-weight="bold">!</text>`;
+      break;
+    case 'watch_list':
+      innerContent = `
+        <ellipse cx="12" cy="10" rx="4" ry="2.5" fill="none" stroke="${color}" stroke-width="1.5"/>
+        <circle cx="12" cy="10" r="1.5" fill="${color}"/>`;
+      break;
+    case 'active':
+      innerContent = `
+        <circle cx="12" cy="10" r="4" fill="${color}"/>
+        <text x="12" y="12.5" text-anchor="middle" fill="white" font-size="6" font-weight="bold" font-family="system-ui">N</text>`;
+      break;
+    case 'active_requests':
+      innerContent = `
+        <rect x="9" y="7" width="6" height="7" fill="none" stroke="${color}" stroke-width="1.2" rx="0.5"/>
+        <line x1="10.5" y1="9.5" x2="13.5" y2="9.5" stroke="${color}" stroke-width="0.8"/>
+        <line x1="10.5" y1="11.5" x2="13.5" y2="11.5" stroke="${color}" stroke-width="0.8"/>`;
+      break;
+    case 'has_history':
+      innerContent = `
+        <rect x="9" y="6" width="6" height="8" fill="${color}" rx="1"/>
+        <line x1="10" y1="8" x2="14" y2="8" stroke="white" stroke-width="0.8"/>
+        <line x1="10" y1="10" x2="14" y2="10" stroke="white" stroke-width="0.8"/>
+        <line x1="10" y1="12" x2="12" y2="12" stroke="white" stroke-width="0.8"/>`;
+      break;
+    default:
+      innerContent = `<circle cx="12" cy="10" r="3" fill="${color}"/>`;
+  }
+
+  return `<svg width="${size}" height="${svgHeight}" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
+    <path fill="${lighterColor}" stroke="#fff" stroke-width="1.5"
+      d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"/>
+    <circle cx="12" cy="10" r="6" fill="white"/>
+    ${innerContent}
+  </svg>`;
+}
+
+/**
+ * Create a smaller, muted teardrop marker for reference-tier pins.
+ * Same shape as createAtlasPinMarker but reduced size, lower opacity,
+ * no disease badges, no volunteer star.
+ */
+export function createReferencePinMarker(
+  color: string,
+  options?: {
+    size?: number;
+    pinStyle?: string;
+  }
+): L.DivIcon {
+  const { size = 18, pinStyle = 'minimal' } = options || {};
+  const lighterColor = lightenColor(color, 25);
+  const uniqueId = Math.random().toString(36).substr(2, 9);
+  const svgHeight = Math.round(size * 1.35);
+
+  let innerContent: string;
+  switch (pinStyle) {
+    case 'has_history':
+      innerContent = `
+        <rect x="9" y="6" width="6" height="8" fill="${color}" rx="1"/>
+        <line x1="10" y1="8" x2="14" y2="8" stroke="white" stroke-width="0.8"/>
+        <line x1="10" y1="10" x2="14" y2="10" stroke="white" stroke-width="0.8"/>`;
+      break;
+    default:
+      innerContent = `<circle cx="12" cy="10" r="3" fill="${color}"/>`;
+  }
+
+  const svg = `
+    <svg width="${size}" height="${svgHeight}" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.65">
+      <defs>
+        <linearGradient id="ref-pin-grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${lighterColor}"/>
+          <stop offset="100%" stop-color="${color}"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="12" cy="30" rx="4" ry="1.5" fill="rgba(0,0,0,0.12)"/>
+      <path
+        fill="url(#ref-pin-grad-${uniqueId})"
+        stroke="#fff"
+        stroke-width="1.5"
+        d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"
+      />
+      <circle cx="12" cy="10" r="5" fill="white" opacity="0.85"/>
+      ${innerContent}
+    </svg>
+  `;
+
+  return L.divIcon({
+    className: `map-marker-atlas-pin marker-reference marker-${pinStyle}`,
+    html: `<div class="atlas-pin-wrapper" data-icon="reference">${svg}</div>`,
+    iconSize: [size, svgHeight],
+    iconAnchor: [size / 2, svgHeight],
+    popupAnchor: [0, -Math.round(size * 1.1)],
+  });
+}
