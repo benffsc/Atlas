@@ -32,9 +32,6 @@ interface PlaceContext {
   is_verified: boolean;
   assigned_at: string;
   source_system: string | null;
-  organization_name: string | null;
-  known_org_id: string | null;
-  known_org_name: string | null;
 }
 
 interface PartnerOrgInfo {
@@ -189,13 +186,9 @@ export async function GET(
          pc.confidence,
          pc.is_verified,
          pc.assigned_at,
-         pc.source_system,
-         pc.organization_name,
-         pc.known_org_id,
-         ko.canonical_name AS known_org_name
+         pc.source_system
        FROM trapper.place_contexts pc
        JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
-       LEFT JOIN trapper.known_organizations ko ON ko.org_id = pc.known_org_id
        WHERE pc.place_id = $1
          AND pc.valid_to IS NULL
        ORDER BY pct.sort_order`,
