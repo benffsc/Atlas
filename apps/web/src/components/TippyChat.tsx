@@ -30,6 +30,9 @@ interface MapContext {
   bounds?: { north: number; south: number; east: number; west: number };
   selectedPlace?: { place_id: string; address: string };
   navigatedLocation?: { lat: number; lng: number; address: string };
+  drawerOpen?: boolean;
+  visiblePinCount?: number;
+  lastSearchQuery?: string | null;
 }
 
 export function TippyChat() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 interface GoogleNote {
   entry_id: string;
@@ -79,7 +79,7 @@ interface PlaceDetails {
   total_altered: number;
 
   // People
-  people: Array<{ person_id: string; display_name: string }>;
+  people: Array<{ person_id: string; display_name: string; role?: string; is_home?: boolean; is_manual?: boolean }>;
 
   // Cats
   cats: CatLink[];
@@ -118,6 +118,14 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   // Journal entry creation
   const [journalBody, setJournalBody] = useState("");
   const [journalSaving, setJournalSaving] = useState(false);
+
+  // Manual people management
+  const [showAddPerson, setShowAddPerson] = useState(false);
+  const [addPersonQuery, setAddPersonQuery] = useState("");
+  const [addPersonResults, setAddPersonResults] = useState<Array<{ entity_id: string; display_name: string; subtitle: string | null }>>([]);
+  const [addPersonRole, setAddPersonRole] = useState("resident");
+  const [addPersonLoading, setAddPersonLoading] = useState(false);
+  const [addPersonSelected, setAddPersonSelected] = useState<{ entity_id: string; display_name: string } | null>(null);
 
   // Fetch place details when placeId changes
   useEffect(() => {
@@ -243,6 +251,69 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       alert("Failed to save journal entry");
     } finally {
       setJournalSaving(false);
+    }
+  };
+
+  // Debounced person search
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handlePersonSearch = useCallback((query: string) => {
+    setAddPersonQuery(query);
+    setAddPersonSelected(null);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (query.trim().length < 2) {
+      setAddPersonResults([]);
+      return;
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=person&suggestions=true&limit=5`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setAddPersonResults(data.results || data.suggestions || []);
+      } catch {
+        // silently fail
+      }
+    }, 300);
+  }, []);
+
+  // Add person to place
+  const handleAddPerson = async () => {
+    if (!place || !addPersonSelected) return;
+    setAddPersonLoading(true);
+    try {
+      const res = await fetch(`/api/places/${place.place_id}/people`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ person_id: addPersonSelected.entity_id, role: addPersonRole }),
+      });
+      if (!res.ok) throw new Error("Failed to link person");
+      // Reset form and refetch
+      setShowAddPerson(false);
+      setAddPersonQuery("");
+      setAddPersonResults([]);
+      setAddPersonSelected(null);
+      setAddPersonRole("resident");
+      refetchPlace();
+    } catch {
+      alert("Failed to link person to place");
+    } finally {
+      setAddPersonLoading(false);
+    }
+  };
+
+  // Remove person from place
+  const handleRemovePerson = async (personId: string, role: string) => {
+    if (!place) return;
+    if (!confirm("Remove this person link?")) return;
+    try {
+      const res = await fetch(
+        `/api/places/${place.place_id}/people?person_id=${encodeURIComponent(personId)}&role=${encodeURIComponent(role || "")}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error("Failed to remove person");
+      refetchPlace();
+    } catch {
+      alert("Failed to remove person link");
     }
   };
 
@@ -487,24 +558,190 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
             </div>
 
             {/* People Section */}
-            {uniquePeople.length > 0 && (
-              <div className="section">
-                <h3>People Linked</h3>
+            <div className="section">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ margin: 0 }}>People Linked</h3>
+                <button
+                  onClick={() => setShowAddPerson(!showAddPerson)}
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    backgroundColor: showAddPerson ? "#94a3b8" : "#6366f1",
+                    color: "#fff",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    lineHeight: "1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                  }}
+                  title={showAddPerson ? "Cancel" : "Link a person"}
+                >
+                  {showAddPerson ? "\u00d7" : "+"}
+                </button>
+              </div>
+
+              {/* Inline add person form */}
+              {showAddPerson && (
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      placeholder="Search people by name..."
+                      value={addPersonQuery}
+                      onChange={(e) => handlePersonSearch(e.target.value)}
+                      style={{
+                        width: "100%",
+                        fontSize: "13px",
+                        padding: "8px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    {addPersonResults.length > 0 && !addPersonSelected && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          backgroundColor: "#fff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "6px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          maxHeight: "150px",
+                          overflowY: "auto",
+                          zIndex: 10,
+                        }}
+                      >
+                        {addPersonResults.map((r) => (
+                          <div
+                            key={r.entity_id}
+                            onClick={() => {
+                              setAddPersonSelected({ entity_id: r.entity_id, display_name: r.display_name });
+                              setAddPersonQuery(r.display_name);
+                              setAddPersonResults([]);
+                            }}
+                            style={{
+                              padding: "8px 10px",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f3f4f6",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f9fafb")}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
+                          >
+                            <div style={{ fontWeight: 500 }}>{r.display_name}</div>
+                            {r.subtitle && (
+                              <div style={{ fontSize: "11px", color: "#6b7280" }}>{r.subtitle}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <select
+                    value={addPersonRole}
+                    onChange={(e) => setAddPersonRole(e.target.value)}
+                    style={{
+                      width: "100%",
+                      fontSize: "13px",
+                      padding: "8px",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "6px",
+                      boxSizing: "border-box",
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    <option value="resident">Resident</option>
+                    <option value="owner">Owner</option>
+                    <option value="tenant">Tenant</option>
+                    <option value="manager">Manager</option>
+                    <option value="requester">Requester</option>
+                    <option value="contact">Contact</option>
+                    <option value="emergency_contact">Emergency Contact</option>
+                    <option value="employee">Employee</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <button
+                    onClick={handleAddPerson}
+                    disabled={!addPersonSelected || addPersonLoading}
+                    style={{
+                      padding: "8px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      backgroundColor: addPersonSelected ? "#6366f1" : "#e5e7eb",
+                      color: addPersonSelected ? "#fff" : "#9ca3af",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: addPersonSelected ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {addPersonLoading ? "Linking..." : "Link Person"}
+                  </button>
+                </div>
+              )}
+
+              {uniquePeople.length > 0 && (
                 <div className="people-list">
-                  {uniquePeople.map((person) => (
-                    <a
+                  {uniquePeople
+                    .sort((a, b) => (b.is_home ? 1 : 0) - (a.is_home ? 1 : 0))
+                    .map((person) => (
+                    <div
                       key={person.person_id}
-                      href={`/people/${person.person_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="person-link"
+                      style={{ display: "flex", alignItems: "center", gap: "4px" }}
                     >
-                      {person.display_name}
-                    </a>
+                      <a
+                        href={`/people/${person.person_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`person-link ${person.is_home ? "person-link-home" : ""}`}
+                        style={{ flex: 1 }}
+                      >
+                        {person.display_name}
+                        {person.role && (
+                          <span className={`person-role-badge ${person.is_home ? "person-role-home" : "person-role-assoc"}`}>
+                            {person.role === "resident" ? "Resident" :
+                             person.role === "owner" ? "Owner" :
+                             person.role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                          </span>
+                        )}
+                      </a>
+                      {person.is_manual && (
+                        <button
+                          onClick={() => handleRemovePerson(person.person_id, person.role || "")}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            color: "#9ca3af",
+                            padding: "2px 4px",
+                            lineHeight: 1,
+                            flexShrink: 0,
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = "#dc3545")}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+                          title="Remove this link"
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+
+              {uniquePeople.length === 0 && !showAddPerson && (
+                <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "4px" }}>
+                  No people linked yet.
+                </div>
+              )}
+            </div>
 
             {/* Cats Section */}
             {place.cats && place.cats.length > 0 && (

@@ -1336,6 +1336,34 @@
   background: rgba(99, 102, 241, 0.2);
 }
 
+.person-link-home {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+
+.person-link-home:hover {
+  background: rgba(22, 163, 74, 0.2);
+}
+
+.person-role-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  text-transform: capitalize;
+}
+
+.person-role-home {
+  background: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+}
+
+.person-role-assoc {
+  background: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
+}
+
 /* Cats Section */
 .cats-list {
   display: flex;

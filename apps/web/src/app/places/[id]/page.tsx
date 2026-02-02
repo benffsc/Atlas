@@ -186,6 +186,7 @@ export default function PlaceDetailPage() {
     { value: "clinic", label: "Clinic" },
     { value: "neighborhood", label: "Neighborhood" },
     { value: "outdoor_site", label: "Outdoor Site" },
+    { value: "mobile_home_space", label: "Mobile Home Space" },
   ];
 
   const fetchPlace = useCallback(async () => {
@@ -420,6 +421,7 @@ export default function PlaceDetailPage() {
     clinic: "#dc3545",
     outdoor_site: "#20c997",
     neighborhood: "#6c757d",
+    mobile_home_space: "#795548",
   };
 
   // Context type colors for badges

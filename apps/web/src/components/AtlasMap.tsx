@@ -520,6 +520,9 @@ export default function AtlasMap() {
             address: selectedPlace.address,
           } : null,
           navigatedLocation: navigatedLocation,
+          drawerOpen: !!selectedPlaceId,
+          visiblePinCount: atlasPins.length,
+          lastSearchQuery: searchQuery || null,
         }
       }));
     };
@@ -648,6 +651,8 @@ export default function AtlasMap() {
     const urlZoom = searchParams.get('zoom');
     const urlSearch = searchParams.get('search');
 
+    const urlHighlight = searchParams.get('highlight');
+
     if (urlLat && urlLng) {
       const lat = parseFloat(urlLat);
       const lng = parseFloat(urlLng);
@@ -656,7 +661,7 @@ export default function AtlasMap() {
       if (!isNaN(lat) && !isNaN(lng)) {
         map.setView([lat, lng], zoom);
         // Set navigated location to show a marker at this point
-        setNavigatedLocation({ lat, lng, address: 'Selected location' });
+        setNavigatedLocation({ lat, lng, address: urlHighlight || 'Selected location' });
       }
     } else if (urlSearch) {
       // Pre-populate search query from URL and trigger search
@@ -2207,7 +2212,7 @@ export default function AtlasMap() {
           <input
             ref={searchInputRef}
             type="text"
-            placeholder={isMobile ? "Search..." : "Search addresses, pins, or volunteers... (press /)"}
+            placeholder={isMobile ? "Search..." : "Search people, places, or cats... (press /)"}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);

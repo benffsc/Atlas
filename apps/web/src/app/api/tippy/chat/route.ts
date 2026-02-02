@@ -155,6 +155,9 @@ interface MapContext {
   bounds?: { north: number; south: number; east: number; west: number };
   selectedPlace?: { place_id: string; address: string };
   navigatedLocation?: { lat: number; lng: number; address: string };
+  drawerOpen?: boolean;
+  visiblePinCount?: number;
+  lastSearchQuery?: string | null;
 }
 
 interface PageContext {
@@ -468,6 +471,15 @@ export async function POST(request: NextRequest) {
       }
       if (mapState.navigatedLocation) {
         mapContextStr += `\n- User navigated to: ${mapState.navigatedLocation.address} (${mapState.navigatedLocation.lat.toFixed(5)}, ${mapState.navigatedLocation.lng.toFixed(5)})`;
+      }
+      if (mapState.drawerOpen && mapState.selectedPlace) {
+        mapContextStr += `\n- A place detail drawer is currently open for: ${mapState.selectedPlace.address}. The user can see people, cats, and notes about this place. Use comprehensive_place_lookup to help with questions about it.`;
+      }
+      if (mapState.lastSearchQuery) {
+        mapContextStr += `\n- The user recently searched for: "${mapState.lastSearchQuery}"`;
+      }
+      if (mapState.visiblePinCount) {
+        mapContextStr += `\n- ${mapState.visiblePinCount} map pins are currently loaded in view.`;
       }
 
       mapContextStr += "\n\nWhen the user asks spatial questions like 'what's nearby?', 'any colonies in this area?', or 'are there feeders around here?', use the map context to understand what they're looking at. If a place is selected, use comprehensive_place_lookup to get details about that location.";

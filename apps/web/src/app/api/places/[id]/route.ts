@@ -137,7 +137,9 @@ export async function GET(
           ), '[]'::json) AS cats,
           COALESCE((
             SELECT json_agg(json_build_object(
-              'person_id', per.person_id, 'display_name', per.display_name
+              'person_id', per.person_id,
+              'display_name', per.display_name,
+              'role', ppr.role::text
             ))
             FROM trapper.person_place_relationships ppr
             JOIN trapper.sot_people per ON per.person_id = ppr.person_id
@@ -247,6 +249,7 @@ const VALID_PLACE_KINDS = [
   "clinic",
   "neighborhood",
   "outdoor_site",
+  "mobile_home_space",
 ] as const;
 
 interface UpdatePlaceBody {

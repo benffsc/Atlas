@@ -11,6 +11,7 @@ interface SearchResult {
   match_strength: string;
   match_reason: string;
   score: number;
+  metadata?: { lat?: number; lng?: number; [key: string]: unknown };
 }
 
 interface SuggestionsResponse {
@@ -110,8 +111,12 @@ export default function GlobalSearch() {
     e.stopPropagation();
     setIsOpen(false);
     setQuery("");
-    // Navigate to map with search query to center on this location
-    router.push(`/map?search=${encodeURIComponent(result.display_name)}`);
+    // Navigate to map — use coordinates if available, otherwise search by name
+    if (result.metadata?.lat && result.metadata?.lng) {
+      router.push(`/map?lat=${result.metadata.lat}&lng=${result.metadata.lng}&zoom=16&highlight=${encodeURIComponent(result.display_name)}`);
+    } else {
+      router.push(`/map?search=${encodeURIComponent(result.display_name)}`);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -281,7 +286,8 @@ export default function GlobalSearch() {
                         {matchBadge && (
                           <span className="search-match-badge">{matchBadge}</span>
                         )}
-                        {suggestion.entity_type === "place" && (
+                        {(suggestion.entity_type === "place" ||
+                          (suggestion.entity_type === "person" && suggestion.metadata?.lat)) && (
                           <button
                             className="search-map-btn"
                             onClick={(e) => navigateToMap(suggestion, e)}

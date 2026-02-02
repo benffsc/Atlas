@@ -34,6 +34,9 @@ interface PlaceDetails {
 interface PersonLink {
   person_id: string;
   display_name: string;
+  role: string;
+  is_home: boolean;
+  is_manual: boolean;
 }
 
 interface GoogleNote {
@@ -173,19 +176,30 @@ export async function GET(
     // Use DISTINCT ON to deduplicate when a person has multiple roles (resident, owner, contact)
     // Filter out entries that look like addresses (have state abbreviations or zip codes)
     const people = await queryRows<PersonLink>(
-      `SELECT DISTINCT ON (per.person_id)
+      `SELECT
         per.person_id,
-        per.display_name
+        per.display_name,
+        (ARRAY_AGG(ppr.role::text ORDER BY
+          CASE ppr.role
+            WHEN 'resident' THEN 1
+            WHEN 'owner' THEN 2
+            WHEN 'tenant' THEN 3
+            WHEN 'manager' THEN 4
+            ELSE 5
+          END
+        ))[1] AS role,
+        BOOL_OR(ppr.role IN ('resident', 'owner')) AS is_home,
+        BOOL_OR(ppr.source_system = 'atlas_ui') AS is_manual
       FROM trapper.person_place_relationships ppr
       JOIN trapper.sot_people per ON per.person_id = ppr.person_id
       WHERE ppr.place_id = $1
         AND per.merged_into_person_id IS NULL
-        -- Exclude entries that look like addresses
         AND per.display_name IS NOT NULL
-        AND per.display_name !~ ', CA[ ,]'  -- Contains ", CA " or ", CA,"
-        AND per.display_name !~ '\\d{5}'     -- Contains 5-digit zip code
-        AND per.display_name !~* '^\\d+\\s+\\w+\\s+(st|rd|ave|blvd|dr|ln|ct|way|pl)\\b'  -- Starts with street address
-      ORDER BY per.person_id, per.display_name`,
+        AND per.display_name !~ ', CA[ ,]'
+        AND per.display_name !~ '\\d{5}'
+        AND per.display_name !~* '^\\d+\\s+\\w+\\s+(st|rd|ave|blvd|dr|ln|ct|way|pl)\\b'
+      GROUP BY per.person_id, per.display_name
+      ORDER BY BOOL_OR(ppr.role IN ('resident', 'owner')) DESC, per.display_name`,
       [placeId]
     );
 
