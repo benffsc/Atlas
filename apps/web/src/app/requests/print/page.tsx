@@ -47,8 +47,8 @@ export default function TrapperCallSheet() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-bottom: 8px;
-          margin-bottom: 12px;
+          padding-bottom: 6px;
+          margin-bottom: 8px;
           border-bottom: 3px solid #27ae60;
         }
 
@@ -70,7 +70,7 @@ export default function TrapperCallSheet() {
         }
 
         .section {
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
 
         .section-title {
@@ -120,9 +120,9 @@ export default function TrapperCallSheet() {
         }
 
         .field-input.sm { min-height: 22px; }
-        .field-input.md { min-height: 50px; }
-        .field-input.lg { min-height: 80px; }
-        .field-input.xl { min-height: 140px; }
+        .field-input.md { min-height: 36px; }
+        .field-input.lg { min-height: 60px; }
+        .field-input.xl { min-height: 80px; }
 
         .options-row {
           display: flex;
@@ -174,8 +174,8 @@ export default function TrapperCallSheet() {
           background: #f0fdf4;
           border: 1.5px solid #86efac;
           border-radius: 6px;
-          padding: 10px 12px;
-          margin-bottom: 12px;
+          padding: 8px 10px;
+          margin-bottom: 8px;
         }
 
         .info-box .title {
@@ -189,8 +189,8 @@ export default function TrapperCallSheet() {
           background: #fef3c7;
           border: 1.5px solid #fcd34d;
           border-radius: 6px;
-          padding: 10px 12px;
-          margin-bottom: 12px;
+          padding: 8px 10px;
+          margin-bottom: 8px;
         }
 
         .warning-box .title {
@@ -203,8 +203,8 @@ export default function TrapperCallSheet() {
         .quick-notes {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 8px;
-          margin-bottom: 10px;
+          gap: 6px;
+          margin-bottom: 6px;
         }
 
         .quick-note {
@@ -212,15 +212,15 @@ export default function TrapperCallSheet() {
           align-items: center;
           gap: 6px;
           font-size: 9pt;
-          padding: 4px 0;
+          padding: 2px 0;
         }
 
         .date-line {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-top: 10px;
-          margin-top: 10px;
+          padding-top: 6px;
+          margin-top: 6px;
           border-top: 1px solid #ecf0f1;
           font-size: 9.5pt;
         }
@@ -548,7 +548,7 @@ export default function TrapperCallSheet() {
           <div style={{ fontSize: "8pt", color: "#7f8c8d", marginBottom: "6px" }}>
             Situation details, cat behaviors, access instructions, hazards, callback preferences, anything else relevant
           </div>
-          <div className={`field-input xl ${prefill.notes ? 'prefilled' : ''}`} style={{ minHeight: "160px" }}>
+          <div className={`field-input xl ${prefill.notes ? 'prefilled' : ''}`}>
             {prefill.notes || ''}
           </div>
         </div>

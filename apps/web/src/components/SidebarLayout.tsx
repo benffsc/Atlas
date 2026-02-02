@@ -480,6 +480,7 @@ export function IntakeSidebar({ children }: { children: React.ReactNode }) {
       items: [
         { label: "Triage Queue", href: "/intake/queue", icon: "📥" },
         { label: "New Submission", href: "/intake/queue/new", icon: "➕" },
+        { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "📞" },
       ],
     },
     {
