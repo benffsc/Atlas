@@ -50,9 +50,10 @@ const NO_TRAPPER_REASON_LABELS: Record<string, string> = {
 interface Props {
   requestId: string;
   compact?: boolean;
+  onAssignmentChange?: () => void;
 }
 
-export function TrapperAssignments({ requestId, compact = false }: Props) {
+export function TrapperAssignments({ requestId, compact = false, onAssignmentChange }: Props) {
   const [trappers, setTrappers] = useState<TrapperAssignment[]>([]);
   const [history, setHistory] = useState<AssignmentHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,6 +169,7 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
         setAssignMode("official");
         setNoTrapperReason(null);
         fetchData();
+        onAssignmentChange?.();
       }
     } catch (err) {
       console.error("Failed to assign trapper:", err);
@@ -191,6 +193,7 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
           setAssignmentStatus("client_trapping");
         }
         setShowReasonForm(false);
+        onAssignmentChange?.();
       }
     } catch (err) {
       console.error("Failed to set no_trapper_reason:", err);
@@ -210,6 +213,7 @@ export function TrapperAssignments({ requestId, compact = false }: Props) {
       if (response.ok) {
         setNoTrapperReason(null);
         setAssignmentStatus(trappers.length > 0 ? "assigned" : "pending");
+        onAssignmentChange?.();
       }
     } catch (err) {
       console.error("Failed to clear no_trapper_reason:", err);

@@ -10,6 +10,7 @@ export interface RequestFilters {
   hasKittens?: boolean;
   dateRange?: string;
   search?: string;
+  trapperStatus?: string;
 }
 
 export interface SavedFilter {
@@ -67,6 +68,12 @@ const PRESET_FILTERS: SavedFilter[] = [
     id: "in-progress",
     name: "In Progress",
     filters: { status: ["in_progress"] },
+    isPreset: true,
+  },
+  {
+    id: "needs-trapper",
+    name: "Needs Trapper",
+    filters: { status: ["new", "triaged", "scheduled", "in_progress"], trapperStatus: "pending" },
     isPreset: true,
   },
 ];

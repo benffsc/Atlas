@@ -21,6 +21,7 @@ interface CaseSummaryTabProps {
   onSaveEmailSummary: () => void;
   onCancelEmailSummary: () => void;
   onEmailSummaryChange: (value: string) => void;
+  onAssignmentChange?: () => void;
 }
 
 export function CaseSummaryTab({
@@ -38,6 +39,7 @@ export function CaseSummaryTab({
   onSaveEmailSummary,
   onCancelEmailSummary,
   onEmailSummaryChange,
+  onAssignmentChange,
 }: CaseSummaryTabProps) {
   return (
     <>
@@ -373,7 +375,7 @@ export function CaseSummaryTab({
       {/* Assigned Trappers Card */}
       <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
         <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Assigned Trappers</h2>
-        <TrapperAssignments requestId={requestId} />
+        <TrapperAssignments requestId={requestId} onAssignmentChange={onAssignmentChange} />
       </div>
 
       {/* Ready to Email Card (MIG_605) */}

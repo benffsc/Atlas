@@ -212,6 +212,19 @@ export default function RequestDetailPage() {
     fetchJournalEntries();
   }, [requestId, fetchJournalEntries]);
 
+  // Lightweight refresh: updates request data (badges, trapper info) without resetting form state
+  const refreshRequest = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/requests/${requestId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRequest(data);
+      }
+    } catch {
+      // silent — this is a background refresh
+    }
+  }, [requestId]);
+
   // Fetch current session/staff info for auto-fill
   useEffect(() => {
     fetch("/api/auth/me")
@@ -1255,6 +1268,7 @@ export default function RequestDetailPage() {
                   onSaveEmailSummary={handleSaveEmailSummary}
                   onCancelEmailSummary={handleCancelEmailSummary}
                   onEmailSummaryChange={setEmailSummaryDraft}
+                  onAssignmentChange={refreshRequest}
                 />
               ),
             },

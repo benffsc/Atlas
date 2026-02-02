@@ -19,7 +19,7 @@ import { queryRows } from "@/lib/db";
  *
  *   - zone: filter by service_zone (optional)
  *   - bounds: lat1,lng1,lat2,lng2 bounding box (optional)
- *   - risk_filter: 'all' | 'disease' | 'watch_list' | 'needs_tnr' (for atlas_pins)
+ *   - risk_filter: 'all' | 'disease' | 'watch_list' | 'needs_tnr' | 'needs_trapper' (for atlas_pins)
  *   - data_filter: 'all' | 'has_atlas' | 'has_google' | 'has_people' (for atlas_pins)
  *   - disease_filter: comma-separated disease keys to filter atlas_pins (e.g. 'felv,fiv')
  */
@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
       google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
       request_count: number;
       active_request_count: number;
+      needs_trapper_count: number;
       intake_count: number;
       total_altered: number;
       last_alteration_at: string | null;
@@ -194,6 +195,8 @@ export async function GET(req: NextRequest) {
         riskCondition = "AND watch_list = TRUE";
       } else if (riskFilter === "needs_tnr") {
         riskCondition = "AND pin_style = 'active' AND total_altered < cat_count";
+      } else if (riskFilter === "needs_trapper") {
+        riskCondition = "AND needs_trapper_count > 0";
       }
 
       let dataCondition = "";
@@ -238,6 +241,7 @@ export async function GET(req: NextRequest) {
         google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
         request_count: number;
         active_request_count: number;
+        needs_trapper_count: number;
         intake_count: number;
         total_altered: number;
         last_alteration_at: string | null;
@@ -266,6 +270,7 @@ export async function GET(req: NextRequest) {
           COALESCE(google_summaries, '[]')::jsonb as google_summaries,
           request_count::int,
           active_request_count::int,
+          COALESCE(needs_trapper_count, 0)::int as needs_trapper_count,
           intake_count::int,
           total_altered::int,
           last_alteration_at::text,

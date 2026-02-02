@@ -262,6 +262,7 @@ export function createAtlasPinMarker(
     unitCount?: number;
     catCount?: number;
     hasVolunteer?: boolean;
+    needsTrapper?: boolean;
     diseaseBadges?: Array<{ short_code: string; color: string }>;
   }
 ): L.DivIcon {
@@ -272,6 +273,7 @@ export function createAtlasPinMarker(
     unitCount = 1,
     catCount = 0,
     hasVolunteer = false,
+    needsTrapper = false,
     diseaseBadges = [],
   } = options || {};
 
@@ -341,6 +343,14 @@ export function createAtlasPinMarker(
     </g>
   ` : '';
 
+  // Orange dot badge for places needing trapper assignment (top-left)
+  const trapperBadge = needsTrapper ? `
+    <g transform="translate(7, 0)">
+      <circle cx="0" cy="0" r="5" fill="#f97316" stroke="white" stroke-width="1"/>
+      <text x="0" y="3" text-anchor="middle" fill="white" font-size="7" font-weight="bold" font-family="system-ui">T</text>
+    </g>
+  ` : '';
+
   // Disease sub-icon badges below the pin (max 3 shown, "+N" overflow)
   const maxBadges = 3;
   const visibleBadges = diseaseBadges.slice(0, maxBadges);
@@ -365,7 +375,7 @@ export function createAtlasPinMarker(
   // - Volunteer star badge above pin (extends to Y=-6)
   // - Disease badges below pin (extend to Y=32)
   const hasDiseaseBadges = diseaseBadges.length > 0;
-  const viewBoxTop = hasVolunteer ? -7 : 0;
+  const viewBoxTop = (hasVolunteer || needsTrapper) ? -7 : 0;
   const viewBoxBottom = hasDiseaseBadges ? 35 : 32;
   const viewBoxTotalHeight = viewBoxBottom - viewBoxTop;
   const heightScale = viewBoxTotalHeight / 32; // ratio vs base 32
@@ -398,6 +408,8 @@ export function createAtlasPinMarker(
       ${innerContent}
       <!-- Volunteer/staff star badge -->
       ${volunteerBadge}
+      <!-- Needs trapper badge -->
+      ${trapperBadge}
       <!-- Disease sub-icon badges -->
       ${diseaseBadgeSvg}
     </svg>

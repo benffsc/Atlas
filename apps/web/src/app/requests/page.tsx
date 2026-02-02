@@ -69,12 +69,26 @@ const FLAG_CONFIG: Record<string, { label: string; bg: string; color: string }> 
   no_requester: { label: "No requester", bg: "#e0e7ff", color: "#3730a3" },
 };
 
-function DataQualityFlags({ flags }: { flags: string[] }) {
+function DataQualityFlags({
+  flags,
+  requestId,
+  onTrapperAction,
+  actionMenuOpen,
+  onToggleMenu,
+}: {
+  flags: string[];
+  requestId?: string;
+  onTrapperAction?: (requestId: string, reason: string) => void;
+  actionMenuOpen?: boolean;
+  onToggleMenu?: (requestId: string | null) => void;
+}) {
   if (!flags || flags.length === 0) return null;
   return (
     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
       {flags.map((flag) => {
         const cfg = FLAG_CONFIG[flag] || { label: flag, bg: "#e5e7eb", color: "#374151" };
+        const isClickable = flag === "no_trapper" && requestId && onTrapperAction;
+
         return (
           <span
             key={flag}
@@ -86,9 +100,86 @@ function DataQualityFlags({ flags }: { flags: string[] }) {
               color: cfg.color,
               fontWeight: 500,
               lineHeight: "1.4",
+              cursor: isClickable ? "pointer" : undefined,
+              position: isClickable ? "relative" : undefined,
             }}
+            onClick={isClickable ? (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onToggleMenu?.(actionMenuOpen ? null : requestId);
+            } : undefined}
           >
-            {cfg.label}
+            {cfg.label}{isClickable ? " \u25BE" : ""}
+            {isClickable && actionMenuOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: "4px",
+                  background: "var(--card-bg, #fff)",
+                  border: "1px solid var(--border-default, #e5e7eb)",
+                  borderRadius: "6px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  zIndex: 50,
+                  minWidth: "160px",
+                  overflow: "hidden",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => onTrapperAction(requestId, "client_trapping")}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: "8px 12px",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--text-primary, #111)",
+                    fontSize: "0.8rem",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = "var(--bg-secondary, #f3f4f6)")}
+                  onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  Client trapping
+                </button>
+                <button
+                  onClick={() => onTrapperAction(requestId, "not_needed")}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: "8px 12px",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--text-primary, #111)",
+                    fontSize: "0.8rem",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = "var(--bg-secondary, #f3f4f6)")}
+                  onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  Not needed
+                </button>
+                <a
+                  href={`/requests/${requestId}`}
+                  style={{
+                    display: "block",
+                    padding: "8px 12px",
+                    borderTop: "1px solid var(--border-default, #e5e7eb)",
+                    color: "var(--primary, #0d6efd)",
+                    fontSize: "0.8rem",
+                    textDecoration: "none",
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = "var(--bg-secondary, #f3f4f6)")}
+                  onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  Assign trapper &rarr;
+                </a>
+              </div>
+            )}
           </span>
         );
       })}
@@ -193,7 +284,12 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
   );
 }
 
-function RequestCard({ request }: { request: Request }) {
+function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
+  request: Request;
+  onTrapperAction?: (requestId: string, reason: string) => void;
+  actionMenuId?: string | null;
+  onToggleMenu?: (id: string | null) => void;
+}) {
   return (
     <a
       href={`/requests/${request.request_id}`}
@@ -245,7 +341,13 @@ function RequestCard({ request }: { request: Request }) {
           </div>
 
           {/* Data Quality Flags */}
-          <DataQualityFlags flags={request.data_quality_flags} />
+          <DataQualityFlags
+            flags={request.data_quality_flags}
+            requestId={request.request_id}
+            onTrapperAction={onTrapperAction}
+            actionMenuOpen={actionMenuId === request.request_id}
+            onToggleMenu={onToggleMenu}
+          />
 
           {/* Summary */}
           <div
@@ -327,6 +429,8 @@ function RequestsPageContent() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(filters.q);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -351,6 +455,7 @@ function RequestsPageContent() {
   // Build current filters object for SavedFilters component
   const currentFilters: RequestFilters = {
     status: filters.status ? [filters.status] : undefined,
+    trapperStatus: filters.trapper || undefined,
   };
 
   // Handle applying saved filters
@@ -360,7 +465,29 @@ function RequestsPageContent() {
     } else {
       setFilter("status", "");
     }
+    if (applied.trapperStatus) {
+      setFilter("trapper", applied.trapperStatus);
+    } else {
+      setFilter("trapper", "");
+    }
   }, [setFilter]);
+
+  // Quick trapper action from badge popover on request cards
+  const handleQuickTrapperAction = async (requestId: string, reason: string) => {
+    try {
+      const response = await fetch(`/api/requests/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ no_trapper_reason: reason }),
+      });
+      if (response.ok) {
+        setActionMenuId(null);
+        setRefreshTrigger((n) => n + 1);
+      }
+    } catch (err) {
+      console.error("Failed to update trapper reason:", err);
+    }
+  };
 
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -486,7 +613,7 @@ function RequestsPageContent() {
     };
 
     fetchRequests();
-  }, [filters.status, filters.trapper, filters.q, filters.sort, filters.order]);
+  }, [filters.status, filters.trapper, filters.q, filters.sort, filters.order, refreshTrigger]);
 
   return (
     <div>
@@ -811,7 +938,13 @@ function RequestsPageContent() {
                   }}
                 >
                   {groupRequests.map((req) => (
-                    <RequestCard key={req.request_id} request={req} />
+                    <RequestCard
+                      key={req.request_id}
+                      request={req}
+                      onTrapperAction={handleQuickTrapperAction}
+                      actionMenuId={actionMenuId}
+                      onToggleMenu={setActionMenuId}
+                    />
                   ))}
                 </div>
               </div>
@@ -921,7 +1054,13 @@ function RequestsPageContent() {
                     )}
                   </td>
                   <td>
-                    <DataQualityFlags flags={req.data_quality_flags} />
+                    <DataQualityFlags
+                      flags={req.data_quality_flags}
+                      requestId={req.request_id}
+                      onTrapperAction={handleQuickTrapperAction}
+                      actionMenuOpen={actionMenuId === req.request_id}
+                      onToggleMenu={setActionMenuId}
+                    />
                   </td>
                   <td className="text-sm text-muted">
                     {formatDateLocal(req.source_created_at || req.created_at)}
@@ -933,6 +1072,14 @@ function RequestsPageContent() {
         </div>
         );
       })()}
+
+      {/* Click outside to close trapper action menu */}
+      {actionMenuId && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 49 }}
+          onClick={() => setActionMenuId(null)}
+        />
+      )}
     </div>
   );
 }

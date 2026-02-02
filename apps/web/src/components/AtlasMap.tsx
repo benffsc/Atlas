@@ -200,6 +200,7 @@ interface AtlasPin {
   google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
   request_count: number;
   active_request_count: number;
+  needs_trapper_count: number;
   intake_count: number;
   total_altered: number;
   last_alteration_at: string | null;
@@ -293,7 +294,7 @@ export default function AtlasMap() {
   const [summary, setSummary] = useState<MapSummary | null>(null);
 
   // Filters for atlas_pins layer
-  const [riskFilter, setRiskFilter] = useState<"all" | "disease" | "watch_list" | "needs_tnr">("all");
+  const [riskFilter, setRiskFilter] = useState<"all" | "disease" | "watch_list" | "needs_tnr" | "needs_trapper">("all");
   const [dataFilter, setDataFilter] = useState<"all" | "has_atlas" | "has_google" | "has_people">("all");
   const [diseaseFilter, setDiseaseFilter] = useState<string[]>([]);
 
@@ -1271,6 +1272,7 @@ export default function AtlasMap() {
           unitCount: 1,
           catCount: pin.cat_count,
           hasVolunteer: hasVolunteerOrStaff,
+          needsTrapper: pin.needs_trapper_count > 0,
           diseaseBadges,
         }),
         diseaseRisk: pin.disease_risk,
@@ -1415,6 +1417,12 @@ export default function AtlasMap() {
           ${pin.total_altered > 0 ? `
             <div style="margin-top: 8px; font-size: 12px; color: #059669;">
               ✓ ${pin.total_altered} cats altered at this location
+            </div>
+          ` : ""}
+
+          ${pin.needs_trapper_count > 0 ? `
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 6px 8px; margin-top: 8px; border-radius: 6px; font-size: 12px; color: #c2410c; font-weight: 500;">
+              ${pin.needs_trapper_count} ${pin.needs_trapper_count === 1 ? 'request needs' : 'requests need'} trapper
             </div>
           ` : ""}
 
@@ -2717,6 +2725,7 @@ export default function AtlasMap() {
                     { value: "disease", label: "Disease Risk", color: "#ea580c" },
                     { value: "watch_list", label: "Watch List", color: "#8b5cf6" },
                     { value: "needs_tnr", label: "Needs TNR", color: "#dc2626" },
+                    { value: "needs_trapper", label: "Needs Trapper", color: "#f97316" },
                   ].map(({ value, label, color }) => (
                     <button
                       key={value}
@@ -3276,6 +3285,16 @@ export default function AtlasMap() {
                 </svg>
               </span>
               <span className="map-legend-label">Volunteer / Staff</span>
+            </div>
+            <div className="map-legend-item">
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 14, height: 14, borderRadius: "50%", background: "#f97316", flexShrink: 0,
+                color: "white", fontSize: 9, fontWeight: 700,
+              }}>
+                T
+              </span>
+              <span className="map-legend-label">Needs Trapper</span>
             </div>
             <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Disease Badges</div>
             {[
