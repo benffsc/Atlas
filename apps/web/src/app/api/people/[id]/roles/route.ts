@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryOne } from "@/lib/db";
+import { queryRows, queryOne, query } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 
 /**
  * GET /api/people/[id]/roles
@@ -149,7 +150,7 @@ export async function GET(
     }>(
       `SELECT
          COUNT(*) FILTER (WHERE relationship_type = 'foster')::int as cats_fostered,
-         COUNT(*) FILTER (WHERE relationship_type = 'foster' AND ended_at IS NULL)::int as current_fosters
+         COUNT(DISTINCT cat_id) FILTER (WHERE relationship_type = 'foster')::int as current_fosters
        FROM trapper.person_cat_relationships
        WHERE person_id = $1`,
       [id]
@@ -199,6 +200,164 @@ export async function GET(
     console.error("Error fetching person roles:", error);
     return NextResponse.json(
       { error: "Failed to fetch person roles" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/people/[id]/roles
+ *
+ * Update a person's role status (deactivate or activate).
+ * Requires authenticated staff session.
+ *
+ * Body:
+ *   role: string       - Role to update (e.g., 'foster', 'trapper', 'volunteer')
+ *   action: 'deactivate' | 'activate'
+ *   notes?: string     - Optional reason for the change
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "Person ID is required" },
+      { status: 400 }
+    );
+  }
+
+  // Validate session (authenticated staff only)
+  const session = await getSession(request);
+  if (!session) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const body = await request.json();
+    const { role, action, notes } = body as {
+      role?: string;
+      action?: string;
+      notes?: string;
+    };
+
+    // Validate required fields
+    if (!role || !action) {
+      return NextResponse.json(
+        { error: "Both 'role' and 'action' are required" },
+        { status: 400 }
+      );
+    }
+
+    if (action !== "deactivate" && action !== "activate") {
+      return NextResponse.json(
+        { error: "Action must be 'deactivate' or 'activate'" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch the current role record
+    const currentRole = await queryOne<{
+      role: string;
+      role_status: string;
+      trapper_type: string | null;
+      started_at: string | null;
+      ended_at: string | null;
+      notes: string | null;
+    }>(
+      `SELECT role, role_status, trapper_type, started_at::text, ended_at::text, notes
+       FROM trapper.person_roles
+       WHERE person_id = $1 AND role = $2`,
+      [id, role]
+    );
+
+    if (!currentRole) {
+      return NextResponse.json(
+        { error: `Role '${role}' not found for this person` },
+        { status: 404 }
+      );
+    }
+
+    const oldStatus = currentRole.role_status;
+    const newStatus = action === "deactivate" ? "inactive" : "active";
+
+    // Update the role
+    let updatedRole;
+    if (action === "deactivate") {
+      updatedRole = await queryOne<{
+        role: string;
+        trapper_type: string | null;
+        role_status: string;
+        source_system: string | null;
+        started_at: string | null;
+        ended_at: string | null;
+        notes: string | null;
+      }>(
+        `UPDATE trapper.person_roles
+         SET role_status = 'inactive',
+             ended_at = CURRENT_DATE,
+             notes = $3,
+             updated_at = NOW()
+         WHERE person_id = $1 AND role = $2
+         RETURNING role, trapper_type, role_status, source_system,
+                   started_at::text, ended_at::text, notes`,
+        [id, role, notes || null]
+      );
+    } else {
+      updatedRole = await queryOne<{
+        role: string;
+        trapper_type: string | null;
+        role_status: string;
+        source_system: string | null;
+        started_at: string | null;
+        ended_at: string | null;
+        notes: string | null;
+      }>(
+        `UPDATE trapper.person_roles
+         SET role_status = 'active',
+             ended_at = NULL,
+             notes = $3,
+             updated_at = NOW()
+         WHERE person_id = $1 AND role = $2
+         RETURNING role, trapper_type, role_status, source_system,
+                   started_at::text, ended_at::text, notes`,
+        [id, role, notes || null]
+      );
+    }
+
+    if (!updatedRole) {
+      return NextResponse.json(
+        { error: "Failed to update role" },
+        { status: 500 }
+      );
+    }
+
+    // Log to entity_edits for audit trail
+    await query(
+      `INSERT INTO trapper.entity_edits (
+         entity_type, entity_id, edit_type, field_name,
+         old_value, new_value, reason, edit_source, edited_by
+       ) VALUES (
+         'person', $1, 'status_change', 'role_status',
+         to_jsonb($2::text), to_jsonb($3::text),
+         $4, 'web_ui', $5
+       )`,
+      [id, oldStatus, newStatus, notes || null, session.staff_id]
+    );
+
+    return NextResponse.json({
+      success: true,
+      role: updatedRole,
+    });
+  } catch (error) {
+    console.error("Error updating person role:", error);
+    return NextResponse.json(
+      { error: "Failed to update person role" },
       { status: 500 }
     );
   }

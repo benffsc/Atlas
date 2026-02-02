@@ -190,6 +190,125 @@ ORDER BY p.display_name;
 
 ---
 
+## DQ-004: Stale VolunteerHub Roles — No Automated Deactivation
+
+**Date:** 2026-02-01
+**Reporter:** System investigation (DQ-001 follow-up)
+**Symptoms:** People who left VolunteerHub groups still show active roles and map badges
+
+### Investigation Findings
+
+**Root Cause:** When a VH volunteer leaves all approved groups, `volunteerhub_group_memberships.left_at` is set by `sync_volunteer_group_memberships()`, but `person_roles.role_status` stays `'active'` forever. The `process_volunteerhub_group_roles()` function only UPGRADES to active — it never DOWNGRADES to inactive.
+
+### Fixes Applied
+
+| # | Fix | Status | File |
+|---|-----|--------|------|
+| 1 | `deactivate_orphaned_vh_roles()` function | Done | MIG_829 |
+| 2 | `v_stale_volunteer_roles` view | Done | MIG_829 |
+| 3 | `role_reconciliation_log` table | Done | MIG_829 |
+| 4 | Retroactive cleanup | Done | MIG_831 |
+
+### Test Coverage
+
+| Test | File |
+|------|------|
+| Map pin foster/trapper requires volunteer | `e2e/role-lifecycle.spec.ts` |
+| Active roles on pins match person_roles | `e2e/role-lifecycle.spec.ts` |
+
+---
+
+## DQ-005: ShelterLuv Name-Only Foster Matching
+
+**Date:** 2026-02-01
+**Reporter:** System investigation (DQ-001 follow-up)
+**Symptoms:** ClinicHQ clinic clients incorrectly assigned foster roles because name substring-matches ShelterLuv "Hold For" field
+
+### Investigation Findings
+
+**Root Cause:** `process_shelterluv_animal()` (MIG_469, updated MIG_621) uses `display_name ILIKE '%' || v_hold_for || '%'` — pure substring match violating "never match by name alone" rule. ShelterLuv provides `Foster Person Email` field but it was not being used.
+
+**Secondary processor:** MIG_511 (`process_shelterluv_foster_relationships()`) already uses email-first matching correctly, but only creates person_cat_relationships — does NOT assign person_roles.
+
+### Fixes Applied
+
+| # | Fix | Status | File |
+|---|-----|--------|------|
+| 1 | Replace name-only matching with email-first | Done | MIG_828 |
+| 2 | `shelterluv_unmatched_fosters` queue table | Done | MIG_828 |
+| 3 | Flag legacy name-only matches | Done | MIG_828 |
+| 4 | Deactivate suspect foster roles | Done | MIG_831 |
+
+### Test Coverage
+
+| Test | File |
+|------|------|
+| No org names in map pin people | `e2e/role-lifecycle.spec.ts` |
+| Role audit API returns valid structure | `e2e/role-lifecycle.spec.ts` |
+| Person roles API returns valid data | `e2e/role-lifecycle.spec.ts` |
+
+---
+
+## DQ-006: Foster/Trapper Without Volunteer Role (Business Rule)
+
+**Date:** 2026-02-01
+**Reporter:** Staff (via DQ-001 investigation)
+**Symptoms:** People have foster or trapper badges but no volunteer role — violates business rule
+
+### Investigation Findings
+
+**Root Cause:** Three pathways can assign foster/trapper roles without first checking for volunteer:
+1. ShelterLuv `process_shelterluv_animal()` assigns foster role with no volunteer check
+2. Airtable trapper sync can create trapper role without volunteer role
+3. No enforcement of "volunteer is prerequisite for foster/trapper" at the role assignment level
+
+**Business Rule:** All fosters and trappers are FFSC Volunteers first. In VolunteerHub: Approved Volunteers → subgroups (Approved Trappers, Approved Foster Parent).
+
+### Fixes Applied
+
+| # | Fix | Status | File |
+|---|-----|--------|------|
+| 1 | `v_role_without_volunteer` view | Done | MIG_829 |
+| 2 | Admin visibility via role-audit page | Done | `/admin/role-audit` |
+| 3 | PATCH /api/people/[id]/roles for manual fix | Done | route.ts |
+
+### Test Coverage
+
+| Test | File |
+|------|------|
+| Map pin foster/trapper requires volunteer | `e2e/role-lifecycle.spec.ts` |
+| Role audit endpoint returns valid structure | `e2e/role-lifecycle.spec.ts` |
+
+---
+
+## DQ-007: Role-Source Conflicts (Atlas vs Source System)
+
+**Date:** 2026-02-01
+**Reporter:** System investigation (DQ-001 follow-up)
+**Symptoms:** Roles show as active in Atlas but the source system (VH/ShelterLuv) shows departed/inactive
+
+### Investigation Findings
+
+**Root Cause:** No automated reconciliation between Atlas `person_roles` and source systems. When VH volunteers depart or ShelterLuv foster assignments end, Atlas retains the active status indefinitely.
+
+### Fixes Applied
+
+| # | Fix | Status | File |
+|---|-----|--------|------|
+| 1 | `v_role_source_conflicts` view | Done | MIG_829 |
+| 2 | `deactivate_orphaned_vh_roles()` automation | Done | MIG_829 |
+| 3 | Admin role-audit dashboard | Done | `/admin/role-audit` |
+| 4 | Data cleanup | Done | MIG_831 |
+
+### Test Coverage
+
+| Test | File |
+|------|------|
+| Role audit counts match arrays | `e2e/role-lifecycle.spec.ts` |
+| Stale roles count accurate | `e2e/role-lifecycle.spec.ts` |
+
+---
+
 ## Template for New Entries
 
 ```markdown

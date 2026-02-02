@@ -123,14 +123,15 @@ test.describe("DQ: Organization Names Filtered from People", () => {
 });
 
 // ============================================================================
-// DQ-001: Role Consistency — Foster/Trapper Requires Volunteer
-// Business rule: All fosters and trappers are FFSC Volunteers first
+// DQ-001: Role Consistency — Foster Requires Volunteer, VH is Authority
+// Business rule: VH is source of truth. Fosters are VH Volunteers.
+// Community trappers (Airtable) are the only exception.
 // ============================================================================
 
 test.describe("DQ: Role Consistency Checks", () => {
   test.setTimeout(30000);
 
-  test("Beacon map data does not show foster/trapper without volunteer basis", async ({ request }) => {
+  test("Beacon map data does not show foster without volunteer basis", async ({ request }) => {
     // Fetch map data with atlas_pins layer
     const data = await fetchJson(
       request,
@@ -146,12 +147,13 @@ test.describe("DQ: Role Consistency Checks", () => {
       for (const person of pin.people) {
         const roles: string[] = person.roles || [];
         const hasFoster = roles.includes("foster");
-        const hasTrapper = roles.includes("trapper");
         const hasVolunteer = roles.includes("volunteer");
 
-        // If person has foster or trapper, they should ideally also have volunteer
-        // This is a data quality signal, not a hard constraint in the DB
-        if ((hasFoster || hasTrapper) && !hasVolunteer) {
+        // Fosters must always have volunteer role (they are VH volunteers).
+        // Trappers are NOT checked here because community_trapper is a
+        // legitimate trapper type that does NOT require volunteer role,
+        // and the pin JSONB does not include trapper_type.
+        if (hasFoster && !hasVolunteer) {
           violations.push(
             `"${person.name}" at ${pin.address || pin.id}: has [${roles.join(", ")}] but no volunteer role`
           );
@@ -161,15 +163,14 @@ test.describe("DQ: Role Consistency Checks", () => {
 
     if (violations.length > 0) {
       console.warn(
-        `Found ${violations.length} people with foster/trapper but no volunteer role:`,
-        violations.slice(0, 10) // Log first 10
+        `Found ${violations.length} fosters without volunteer role:`,
+        violations.slice(0, 10)
       );
     }
 
-    // This test documents the business rule expectation
-    // Currently may have violations from data quality issues
-    // Once DQ-001 fix migration is applied, this should pass cleanly
-    expect(violations.length).toBeLessThanOrEqual(5); // Allow small number during transition
+    // Business rule: foster requires volunteer role
+    // MIG_828 + MIG_831 fix the root causes and clean up existing data
+    expect(violations.length).toBe(0);
   });
 
   test("Map pins with people show valid role values only", async ({ request }) => {
@@ -337,11 +338,12 @@ test.describe("DQ: Beacon Map Pin Integrity", () => {
       expect(pin.id).toBeTruthy();
       expect(typeof pin.lat).toBe("number");
       expect(typeof pin.lng).toBe("number");
-      // lat/lng should be in Sonoma County area roughly
-      expect(pin.lat).toBeGreaterThan(38.0);
-      expect(pin.lat).toBeLessThan(39.0);
-      expect(pin.lng).toBeGreaterThan(-123.5);
-      expect(pin.lng).toBeLessThan(-122.0);
+      // lat/lng should be valid US coordinates (not just Sonoma County —
+      // places include homes of people who use FFSC clinic from other areas)
+      expect(pin.lat).toBeGreaterThan(24.0);
+      expect(pin.lat).toBeLessThan(50.0);
+      expect(pin.lng).toBeGreaterThan(-130.0);
+      expect(pin.lng).toBeLessThan(-65.0);
     }
   });
 

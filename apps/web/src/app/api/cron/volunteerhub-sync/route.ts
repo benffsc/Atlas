@@ -283,6 +283,19 @@ async function syncUsers(
 
         if (result?.was_inserted) {
           stats.inserted++;
+
+          // New volunteer: run identity matching (respects match_locked + soft blacklist)
+          try {
+            await execute(
+              `SELECT trapper.match_volunteerhub_volunteer($1)`,
+              [user.UserId]
+            );
+          } catch (matchErr) {
+            console.error(
+              `Match error for new volunteer ${user.UserId}:`,
+              matchErr instanceof Error ? matchErr.message : matchErr
+            );
+          }
         } else {
           stats.updated++;
         }
@@ -396,7 +409,26 @@ export async function GET(request: NextRequest) {
       `Users synced: ${userStats.fetched} fetched, ${userStats.inserted} new, ${userStats.updated} updated`
     );
 
-    // Step 5: Log to ingest_runs
+    // Step 5: Reconcile — deactivate roles not backed by current VH groups
+    let reconciliation: { deactivated: number } | null = null;
+    try {
+      const result = await queryOne<{ result: string }>(
+        `SELECT trapper.enforce_vh_role_authority(p_dry_run := false)::text AS result`
+      );
+      if (result?.result) {
+        reconciliation = JSON.parse(result.result);
+        console.log(
+          `Role reconciliation: ${reconciliation?.deactivated ?? 0} roles deactivated`
+        );
+      }
+    } catch (reconcileErr) {
+      console.error(
+        "Role reconciliation error:",
+        reconcileErr instanceof Error ? reconcileErr.message : reconcileErr
+      );
+    }
+
+    // Step 6: Log to ingest_runs
     const durationMs = Date.now() - startTime;
     try {
       await execute(
@@ -423,6 +455,9 @@ export async function GET(request: NextRequest) {
             roles_processed: userStats.rolesProcessed,
             api_pages: userStats.apiPages,
             incremental_cutoff: incrementalCutoff,
+            reconciliation: reconciliation
+              ? { roles_deactivated: reconciliation.deactivated }
+              : null,
           }),
         ]
       );
@@ -446,6 +481,9 @@ export async function GET(request: NextRequest) {
         errors: userStats.errors,
         api_pages: userStats.apiPages,
       },
+      reconciliation: reconciliation
+        ? { roles_deactivated: reconciliation.deactivated }
+        : null,
       duration_ms: durationMs,
     });
   } catch (error) {

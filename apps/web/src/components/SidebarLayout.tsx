@@ -272,6 +272,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
         { label: "Orphan Places", href: "/admin/orphan-places", icon: "🏚️" },
         { label: "Import/Export", href: "/admin/import", icon: "📦" },
         { label: "Needs Review", href: "/admin/needs-review", icon: "⚠️" },
+        { label: "Role Audit", href: "/admin/role-audit", icon: "🛡️" },
       ],
     },
     {

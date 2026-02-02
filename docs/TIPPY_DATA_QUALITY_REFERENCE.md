@@ -1552,3 +1552,33 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 **What Tippy should know:**
 > "If staff notice someone showing as Foster or Trapper on the map who shouldn't be, this is a known data quality issue where the identity matching system can sometimes merge records from different sources (ClinicHQ clinic clients with VolunteerHub volunteers). The source_system column on person_roles tracks which pipeline assigned the role. Organization names like campground/winery/lodge names sometimes appear as person names — MIG_827 expanded the detection patterns to catch these."
+
+### Session: 2026-02-01 — Map Badge Integrity: Eliminating False Positives & Negatives
+
+**Context:** Follow-up to the Holiday Duncan investigation. Deep-dive into all systemic causes of incorrect map pin badges, plus creation of automated tooling to prevent recurrence.
+
+**Key Discoveries:**
+1. **No automated role deactivation existed.** When VH volunteers left ALL groups, `volunteerhub_group_memberships.left_at` was set but `person_roles.role_status` stayed `'active'` forever — stale badges persisted indefinitely.
+2. **ShelterLuv provides `Foster Person Email`** but `process_shelterluv_animal()` (MIG_469/621) never used it — relied on name-only `ILIKE '%name%'` matching instead.
+3. **MIG_511 already had correct email-first matching** for foster relationships but did NOT assign person_roles — only created person_cat_relationships.
+4. **Business rule enforcement gap:** No code path validated "foster/trapper requires volunteer" before role assignment.
+
+**Changes Made:**
+- **MIG_828**: Replaced `process_shelterluv_animal()` name-only foster matching with email-first via `person_identifiers`. Unmatched fosters queued in `shelterluv_unmatched_fosters` for staff review.
+- **MIG_829**: Created `deactivate_orphaned_vh_roles()` function (30-day grace period), `role_reconciliation_log` table, and reconciliation views: `v_stale_volunteer_roles`, `v_role_without_volunteer`, `v_role_source_conflicts`.
+- **MIG_831**: Retroactive data cleanup — deactivated ShelterLuv name-only foster roles, orphaned VH roles, and Holiday Duncan's incorrect badges.
+- **PATCH /api/people/[id]/roles**: Staff can now deactivate/activate roles with audit trail.
+- **GET /api/admin/role-audit**: Dashboard API with stale roles, missing volunteer, source conflicts, unmatched fosters, and reconciliation log.
+- **`/admin/role-audit` page**: Full admin dashboard for monitoring and resolving role integrity issues.
+- **`e2e/role-lifecycle.spec.ts`**: 10 tests covering map badge accuracy, role audit API, person role data integrity, and Holiday Duncan regression guard.
+- **Updated `e2e/data-quality-guards.spec.ts`**: Tightened foster/trapper-without-volunteer threshold from ≤5 to 0.
+
+**Staff Impact:**
+- Holiday Duncan no longer shows Foster/Trapper badges on the map (after MIG_831)
+- Wildhaven Campgrounds no longer shows as a person (after MIG_827)
+- Staff can view and resolve role issues at `/admin/role-audit`
+- Automated deactivation runs during VH sync — stale badges clear within 30 days of departure
+- ShelterLuv foster matching now requires email verification — no more name-guessing
+
+**What Tippy should know:**
+> "The map badge system has been significantly hardened. If staff notice stale badges, the `/admin/role-audit` page shows all role integrity issues and allows one-click deactivation. ShelterLuv foster assignments now require email verification — name-only matches are queued for manual review. VH volunteer roles are automatically deactivated 30 days after leaving all approved groups."
