@@ -267,7 +267,9 @@ export async function GET(request: NextRequest) {
               AND p.location IS NOT NULL
               AND p.merged_into_place_id IS NULL
             ORDER BY ppr.person_id,
-                     CASE ppr.role WHEN 'resident' THEN 1 WHEN 'owner' THEN 2 ELSE 3 END,
+                     ppr.confidence DESC,
+                     CASE ppr.source_system WHEN 'volunteerhub' THEN 1 WHEN 'atlas_ui' THEN 2 WHEN 'airtable' THEN 3 ELSE 4 END,
+                     CASE ppr.role WHEN 'owner' THEN 1 WHEN 'resident' THEN 2 ELSE 3 END,
                      ppr.created_at DESC
           `, [personIds]);
           for (const pr of personCoords) coordMap.set(pr.id, { lat: pr.lat, lng: pr.lng });

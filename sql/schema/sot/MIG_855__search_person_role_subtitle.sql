@@ -188,7 +188,9 @@ BEGIN
             JOIN trapper.places pl2 ON pl2.place_id = ppr2.place_id
             WHERE ppr2.person_id = p.person_id AND pl2.location IS NOT NULL
             ORDER BY
-              CASE ppr2.role WHEN 'resident' THEN 1 WHEN 'owner' THEN 2 ELSE 3 END,
+              ppr2.confidence DESC,
+              CASE ppr2.source_system WHEN 'volunteerhub' THEN 1 WHEN 'atlas_ui' THEN 2 WHEN 'airtable' THEN 3 ELSE 4 END,
+              CASE ppr2.role WHEN 'owner' THEN 1 WHEN 'resident' THEN 2 ELSE 3 END,
               ppr2.created_at DESC
             LIMIT 1
         ) person_loc ON true

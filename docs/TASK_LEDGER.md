@@ -2915,3 +2915,56 @@ These are **two genuinely separate (non-merged) place records** for the same phy
 **Status:** Planned
 **Layer:** L2
 **Description:** Two non-merged place records exist for 441 Alta Ave. Run through `place_safe_to_merge()` and merge if safe. Check for similar cases where `display_name` differs from `formatted_address` for the same physical location.
+
+---
+
+## DQ_009: ClinicHQ False Resident Roles for Trappers/Staff
+
+**Status:** Done (MIG_856)
+**ACTIVE Impact:** No (data quality fix, no UI changes)
+**Priority:** High (search navigation broken)
+
+### Problem
+
+ClinicHQ pipeline creates `person_place_relationships` with `role = 'resident'` for the owner/contact on every appointment. For trappers who bring cats from many addresses, this creates hundreds of false `resident` links:
+
+| Person | False Resident Links | Root Cause |
+|--------|---------------------|-----------|
+| Sandra Nicander | 317 | FFSC org phone `7075767999` on 1,200+ appointments |
+| Crystal Furtado | 36 | Active trapper, brings cats from many sites |
+| Ellen Beckworth | 14 | Active trapper |
+| 17 others | 4-12 each | Active trappers/volunteers |
+
+**Sandra's case:** Not a trapper. FFSC's organizational phone `7075767999` was used as default `owner_phone` on 1,200+ clinic appointments. Pipeline matched it to Sandra via `person_identifiers` (source: volunteerhub), creating a `resident` link at every appointment address.
+
+**Crystal's case:** Active trapper who brings cats from 36 different trapping sites. Her actual home is 441 Alta Ave (`owner` role, 0.90 confidence). Search navigated to a random trapping site (13839 Old Redwood Hwy) instead.
+
+### Fix
+
+1. **Blacklisted FFSC org phone** `7075767999` in `data_engine_soft_blacklist`
+2. **Reclassified 347 relationships** from `resident` to `contact` for 20 people with active trapper/staff/volunteer roles and >3 clinichq resident links
+3. **Kept 1 highest-confidence** link as `resident` per person (actual home)
+4. **Fixed coordinate lookup** in `search_unified()` and search API to prefer:
+   - Higher confidence first (0.90 owner > 0.70 resident)
+   - VH/atlas_ui sources over clinichq
+   - `owner` role over `resident`
+
+### Verification
+
+- Crystal Furtado: coords now point to 441 Alta Ave (38.338, -122.703) ✅
+- Sandra Nicander: 1 resident + 316 contact (was 317 resident) ✅
+- FFSC phone blacklisted ✅
+- All changes audited in entity_edits ✅
+
+### Invariant Added
+
+**INV-12** added to NORTH_STAR: ClinicHQ relationships must not assume residency for people with active trapper/staff/volunteer roles.
+
+### Files
+
+| File | Change |
+|------|--------|
+| `sql/schema/sot/MIG_856__reclassify_trapper_clinichq_resident_roles.sql` | NEW — reclassification + blacklist |
+| `sql/schema/sot/MIG_855__search_person_role_subtitle.sql` | MOD — confidence-first coordinate ordering |
+| `apps/web/src/app/api/search/route.ts` | MOD — confidence-first enrichment ordering |
+| `docs/ATLAS_NORTH_STAR.md` | MOD — INV-12, INV-8/11 addendums, debt items 13-14 |

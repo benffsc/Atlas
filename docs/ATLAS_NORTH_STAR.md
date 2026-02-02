@@ -215,11 +215,17 @@ CompleteRequestModal submit:
     → MUST filter pl.merged_into_place_id IS NULL
 ```
 
+**Also (MAP_009, 2026-02-02):**
+`search_unified()` PLACES section was missing `merged_into_place_id IS NULL`. Searching "441 Alta Ave" returned both canonical and merged records as separate results. Fixed in MIG_855 re-application.
+
+**SQL functions with UNION ALL are especially vulnerable** — each branch must independently filter merged records. `search_unified()` has 3 branches (cats, people, places); the people branch correctly filtered, the places branch did not.
+
 **When designing new queries:**
 - If you JOIN to `places`, add `AND p.merged_into_place_id IS NULL`
 - If you JOIN to `sot_people`, add `AND p.merged_into_person_id IS NULL`
 - If you JOIN to `sot_cats`, add `AND c.merged_into_cat_id IS NULL`
 - Views should include these filters. If a view misses one, fix it immediately.
+- **UNION ALL branches must each independently filter** — don't assume one branch's filter covers another.
 
 ### INV-9: Cat Linking Requires Owner Contact Info
 
@@ -290,6 +296,41 @@ Four bugs blocked the ingestion pipeline for 12+ days:
 2. `process_next_job()` referenced `next_attempt_at` (actual: `next_retry_at`)
 3. `data_engine_resolve_identity()` wrote `'needs_review'` (not in check constraint)
 4. `process_next_job()` wrote to `result` column (never created)
+
+**Also (MAP_009, 2026-02-02):**
+Search API `route.ts` referenced `ppr.is_primary` on `person_place_relationships` — a column that never existed. This caused **all person searches to return HTTP 500**, completely breaking person search on the map. Fixed by replacing with role-based ordering.
+
+### INV-12: ClinicHQ Relationships Must Not Assume Residency
+
+- The clinichq pipeline creates `person_place_relationships` for the owner/contact on each appointment. For regular pet owners (1-2 addresses), `role = 'resident'` is correct.
+- **For trappers, staff, and volunteers who bring cats from many locations**, the pipeline creates false `resident` links at every trapping site. Crystal Furtado (trapper) had 36 false `resident` links. Sandra Nicander (staff) had 317.
+- **Root cause of Sandra's 317 links:** FFSC's organizational phone `7075767999` was used on 1,200+ appointments. Pipeline matched it to Sandra via `person_identifiers`, creating a `resident` link at every appointment address.
+- **Org phone blacklisted (MIG_856):** `7075767999` added to `data_engine_soft_blacklist`.
+- **Role heuristic:** For people with active trapper/staff/volunteer roles and >3 clinichq `resident` links, only the highest-confidence one is kept as `resident`. The rest are reclassified to `contact`.
+
+**When designing pipelines that assign roles:**
+1. Check if the person has active trapper/staff/volunteer roles before assigning `resident`
+2. Use `confidence` to distinguish actual home (higher) from trapping sites (lower)
+3. Check `data_engine_soft_blacklist` for organizational identifiers before matching
+4. Prefer `owner` role (0.90 confidence) over `resident` (0.70 confidence) for home address determination
+
+**Coordinate lookup ordering (for search, map, etc.):**
+```sql
+ORDER BY
+  ppr.confidence DESC,                    -- highest confidence first (0.90 owner > 0.70 resident)
+  CASE ppr.source_system                  -- prefer verified sources
+    WHEN 'volunteerhub' THEN 1
+    WHEN 'atlas_ui' THEN 2
+    WHEN 'airtable' THEN 3
+    ELSE 4 END,
+  CASE ppr.role                           -- prefer owner over resident
+    WHEN 'owner' THEN 1
+    WHEN 'resident' THEN 2
+    ELSE 3 END,
+  ppr.created_at DESC
+```
+
+**Scale of the problem (MIG_856):** 20 people with >3 false `resident` links, 347 relationships reclassified to `contact`.
 
 ---
 
@@ -453,6 +494,8 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 10. **Unapplied migrations RESOLVED**: MIG_793 (v_orphan_places) and MIG_794 (relink functions) applied. Column name mismatches fixed.
 11. **Duplicate people DETECTED (MIG_801, MIG_802)**: 5-tier detection found 1,178 candidates. Tiers 1-2 (email/phone+name) already clean — Data Engine handled them. 1,178 remaining are tier 4-5 (name+place, name only) queued for staff review at `/admin/person-dedup`. `person_safe_to_merge()` safety guard blocks staff merges and same-person pairs.
 12. **Email notifications NOT LIVE**: Resend email fully implemented in code (`lib/email.ts`, templates, `/api/cron/send-emails`). Needs `RESEND_API_KEY` environment variable set in Vercel to activate.
+13. **ClinicHQ false resident links RESOLVED (MIG_856)**: Trappers/staff had hundreds of false `resident` relationships from clinichq appointments. Sandra Nicander: 317 (FFSC org phone reuse), Crystal Furtado: 36 (trapping sites). 347 relationships reclassified to `contact`. FFSC org phone `7075767999` blacklisted. INV-12 added.
+14. **Search bugs RESOLVED (MAP_009)**: Person search 500 (is_primary column DNE), merged place duplicates in search_unified, map search opening new tabs. All fixed.
 
 ---
 
