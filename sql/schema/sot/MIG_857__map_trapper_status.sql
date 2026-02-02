@@ -55,8 +55,6 @@ SELECT
   -- Request counts
   COALESCE(req.request_count, 0) as request_count,
   COALESCE(req.active_request_count, 0) as active_request_count,
-  -- MIG_857: Requests needing trapper assignment
-  COALESCE(req.needs_trapper_count, 0) as needs_trapper_count,
 
   -- Intake submission counts
   COALESCE(intake.intake_count, 0) as intake_count,
@@ -93,7 +91,10 @@ SELECT
 
   -- Metadata
   p.created_at,
-  p.last_activity_at
+  p.last_activity_at,
+
+  -- MIG_857: Requests needing trapper assignment (appended to preserve column order)
+  COALESCE(req.needs_trapper_count, 0) as needs_trapper_count
 
 FROM trapper.places p
 
