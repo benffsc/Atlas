@@ -1523,3 +1523,32 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 > "Map annotations now support journal entries. Staff can attach notes to any annotation on the map (reference pins, colony sightings, hazards, feeding sites) using the annotation detail drawer. These journal entries are filtered by `primary_annotation_id` and are visible via `/api/journal?annotation_id=UUID`. Annotations are lightweight map objects — they are NOT places, but they can hold field notes and observations."
 
 *Last updated: 2026-02-01 (after annotation journaling + e2e test suite)*
+
+---
+
+### Session: 2026-02-01 — Volunteer Role Data Quality + Test Infrastructure
+
+**Context:** Staff noticed "Holiday Duncan" at 2411 Alexander Valley Rd, Healdsburg showing as both "Foster" and "Trapper" on the Beacon map, despite being a ClinicHQ clinic client (not an FFSC volunteer). Also "Wildhaven Campgrounds" appeared as a person name.
+
+**Key Discoveries:**
+1. **Map pin role badges come from `person_roles` table**, NOT `person_place_relationships`. The `v_map_atlas_pins` view (MIG_822) runs a correlated subquery: `SELECT ARRAY_AGG(DISTINCT pr.role) FROM person_roles WHERE role_status = 'active'`.
+2. **ClinicHQ processing does NOT assign volunteer roles** — `process_clinichq_owner_info()` creates people and links them to places but never calls `assign_person_role()`.
+3. **Three pathways can incorrectly assign roles:**
+   - **ShelterLuv name matching** (HIGH RISK): `process_shelterluv_animal()` uses `ILIKE '%name%'` substring matching to assign foster roles — no email/phone verification required.
+   - **VolunteerHub Data Engine matching** (MODERATE): Phone/name collision can merge a ClinicHQ person with a VH volunteer, inheriting their group roles.
+   - **Airtable trapper sync** (MODERATE): Phone collision between trapper and clinic client.
+4. **Business rule: All fosters and trappers are FFSC Volunteers first.** In VolunteerHub: Approved Volunteers → subgroups (Approved Trappers, Approved Foster Parent). A person should not have foster/trapper without also having volunteer.
+5. **"Wildhaven Campgrounds"** — `is_organization_name()` didn't include campground/RV patterns. MIG_827 adds them.
+
+**Changes Made:**
+- **MIG_827**: Expanded `is_organization_name()` with campground/RV/lodging patterns, flagged affected people as `is_system_account = TRUE`
+- **Test Suite Working Ledger**: Created `docs/TEST_SUITE_WORKING_LEDGER.md` — tracks data quality investigations, diagnostic SQL, and test coverage
+- **Data Quality Guard Tests**: Created `e2e/data-quality-guards.spec.ts` — 10 tests covering org name filtering, role consistency, person/place data integrity, map pin validation
+
+**Staff Impact:**
+- After MIG_827: "Wildhaven Campgrounds" will no longer appear as a person name on map pins
+- Diagnostic SQL in the working ledger can identify other people with incorrect foster/trapper roles
+- The broader role consistency fix (requiring volunteer before foster/trapper) needs further review before implementation
+
+**What Tippy should know:**
+> "If staff notice someone showing as Foster or Trapper on the map who shouldn't be, this is a known data quality issue where the identity matching system can sometimes merge records from different sources (ClinicHQ clinic clients with VolunteerHub volunteers). The source_system column on person_roles tracks which pipeline assigned the role. Organization names like campground/winery/lodge names sometimes appear as person names — MIG_827 expanded the detection patterns to catch these."
