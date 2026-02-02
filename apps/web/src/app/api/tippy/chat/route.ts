@@ -262,6 +262,17 @@ function detectIntentAndForceToolChoice(
     return { type: "tool", name: "query_partner_org_stats" };
   }
 
+  // ADDRESS / PLACE patterns — force comprehensive_place_lookup for address queries
+  // Matches: "what do we know about 123 Main St", "situation at 456 Oak Ave",
+  // "tell me about 789 Elm Rd, Santa Rosa", "cats at 101 Fisher Lane"
+  const addressPattern = /\d+\s+[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;
+  if (addressPattern.test(message)) {
+    const placeQueryPattern = /(?:what(?:'s| do we| is)|tell me|situation|anything|know about|activity|info|cats? at|colony|look ?up)/i;
+    if (placeQueryPattern.test(lower)) {
+      return { type: "tool", name: "comprehensive_place_lookup" };
+    }
+  }
+
   return undefined; // Let Claude decide
 }
 
@@ -559,6 +570,28 @@ export async function POST(request: NextRequest) {
         system: systemPrompt,
         messages,
         tools: availableTools.length > 0 ? availableTools : undefined,
+      });
+    }
+
+    // If the loop exited because we hit max iterations but Claude still wants tools,
+    // make one final call WITHOUT tools to force a text summary of the tool results.
+    if (response.stop_reason === "tool_use" && iterations >= maxIterations) {
+      messages.push({
+        role: "assistant",
+        content: response.content,
+      });
+      // Add a synthetic user message nudging Claude to summarize
+      messages.push({
+        role: "user",
+        content: "Please summarize what you found from the tool results above. Do not call any more tools.",
+      });
+
+      response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages,
+        // No tools provided — forces text-only response
       });
     }
 
