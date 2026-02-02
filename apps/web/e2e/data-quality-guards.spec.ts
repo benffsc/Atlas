@@ -188,6 +188,7 @@ test.describe("DQ: Role Consistency Checks", () => {
       "board_member",
       "donor",
       "caretaker",
+      "adopter",
     ];
 
     const invalidRoles: string[] = [];

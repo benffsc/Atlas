@@ -192,6 +192,7 @@ interface UserSyncStats {
   inserted: number;
   updated: number;
   rolesProcessed: number;
+  placesLinked: number;
   errors: number;
   apiPages: number;
 }
@@ -204,6 +205,7 @@ async function syncUsers(
     inserted: 0,
     updated: 0,
     rolesProcessed: 0,
+    placesLinked: 0,
     errors: 0,
     apiPages: 0,
   };
@@ -318,6 +320,15 @@ async function syncUsers(
               [matched.matched_person_id, user.UserId]
             );
             stats.rolesProcessed++;
+
+            // Link volunteer to their home place (uses VH address data)
+            const linkResult = await queryOne<{ result: string }>(
+              `SELECT trapper.link_vh_volunteer_to_place($1)::text AS result`,
+              [user.UserId]
+            );
+            if (linkResult?.result?.includes('"linked"')) {
+              stats.placesLinked++;
+            }
           } catch (roleErr) {
             console.error(
               `Role processing error for ${user.UserId}:`,
@@ -478,6 +489,7 @@ export async function GET(request: NextRequest) {
         inserted: userStats.inserted,
         updated: userStats.updated,
         roles_processed: userStats.rolesProcessed,
+        places_linked: userStats.placesLinked,
         errors: userStats.errors,
         api_pages: userStats.apiPages,
       },
