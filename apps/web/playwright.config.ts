@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local (for STAFF_DEFAULT_PASSWORD, etc.)
+dotenv.config({ path: '.env.local' });
 
 /**
  * Playwright E2E Test Configuration for Atlas
@@ -17,7 +21,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 4,
   reporter: [
     ['html', { open: 'never' }],
     ['list'],
@@ -30,9 +34,19 @@ export default defineConfig({
   },
 
   projects: [
+    // Auth setup runs once before all tests, saves session state
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Reuse auth state from setup (cookies + localStorage)
+        storageState: 'e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
   ],
 
