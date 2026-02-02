@@ -266,7 +266,9 @@ export async function GET(request: NextRequest) {
             WHERE ppr.person_id = ANY($1::uuid[])
               AND p.location IS NOT NULL
               AND p.merged_into_place_id IS NULL
-            ORDER BY ppr.person_id, ppr.is_primary DESC NULLS LAST, ppr.created_at DESC
+            ORDER BY ppr.person_id,
+                     CASE ppr.role WHEN 'resident' THEN 1 WHEN 'owner' THEN 2 ELSE 3 END,
+                     ppr.created_at DESC
           `, [personIds]);
           for (const pr of personCoords) coordMap.set(pr.id, { lat: pr.lat, lng: pr.lng });
         }

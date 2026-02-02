@@ -1597,12 +1597,17 @@ export default function AtlasMap() {
     if (mapRef.current && lat && lng) {
       setNavigatedLocation({ lat, lng, address: result.display_name });
       mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
+      // For places, also open the detail drawer
+      if (result.entity_type === "place") {
+        setSelectedPlaceId(result.entity_id);
+      }
+    } else if (result.entity_type === "place") {
+      // Places without coords — open drawer anyway, user stays on map
+      setSelectedPlaceId(result.entity_id);
     } else {
-      // Absolute last resort — open detail page
-      const path = result.entity_type === "person" ? "/people"
-        : result.entity_type === "cat" ? "/cats"
-        : "/places";
-      window.open(`${path}/${result.entity_id}`, "_blank");
+      // People/cats without any coords — navigate in same tab (not new tab)
+      const path = result.entity_type === "person" ? "/people" : "/cats";
+      window.location.href = `${path}/${result.entity_id}`;
     }
   };
 

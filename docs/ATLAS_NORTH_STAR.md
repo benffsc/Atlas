@@ -468,7 +468,7 @@ All data quality and infrastructure tasks (TASK_001–006, ORCH_001–003, DH_A�
 | **UI_004** | L3/L5/L6 | AI place type inference, partner org enhanced profiles, orphan places admin page | Done |
 | **UI_005** | L6 | Name edit validation, emoji cleanup, print CSS conflict | Planned |
 
-## Map Improvements (MAP_002–007)
+## Map Improvements (MAP_002–011)
 
 L7 (Visualization) improvements based on staff feedback:
 
@@ -480,6 +480,16 @@ L7 (Visualization) improvements based on staff feedback:
 | **MAP_005** | L7 | Street View fullscreen + mini map with nearby colored dots | Done |
 | **MAP_006** | L7 | Search bar minimizes during Street View, higher z-index for nav marker | Done |
 | **MAP_007** | L2/L7 | System account / org name filtering from map, org display name fallback | Done |
+| **MAP_008** | L5/L6/L7 | People-first map search, role badges, manual people-place linking, Tippy context | Done |
+| **MAP_009** | L5/L7 | Fix search: person search 500 (is_primary), merged place duplicates, map navigation | Done |
+
+## Planned Map Improvements
+
+| Task | Layer | Description | Status |
+|------|-------|-------------|--------|
+| **MAP_010_F** | L7 | Person detail drawer on map (parity with PlaceDetailDrawer) | Planned |
+| **MAP_011_F** | L7 | Cat detail drawer on map (view cat info without leaving map) | Planned |
+| **MAP_012_F** | L2/L7 | 441 Alta Ave duplicate place dedup (2 non-merged records for same address) | Planned |
 
 Full task cards in `TASK_LEDGER.md`.
 

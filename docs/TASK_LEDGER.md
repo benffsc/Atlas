@@ -2767,3 +2767,151 @@ Investigation found this is **genuine, not a bug**:
 |------|--------|
 | `sql/schema/sot/MIG_164__extract_medical_data.sql` | MOD — Swapped CASE order |
 | `scripts/jobs/extract_google_map_disease.mjs` | MOD — Bracket-counting parser, tighter prompt |
+
+---
+
+## MAP_008: People-First Map Search, Role Badges, Manual Linking, Tippy Context
+
+**Status:** Done
+**ACTIVE Impact:** Yes (Surgical) — `/api/search` is ACTIVE, `/api/places/[id]` is SEMI-ACTIVE
+**Scope:** Make people first-class on the Atlas map with searchability, role visibility, manual linking, and Tippy awareness.
+**Priority:** High
+
+### What Changed
+
+**Phase 1: mobile_home_space gap**
+- Added `"mobile_home_space"` to `VALID_PLACE_KINDS` in place API and UI dropdown
+
+**Phase 2: Surface person_place_role in APIs**
+- `map-details` endpoint returns `role`, `is_home`, `is_manual` per person via GROUP BY aggregation
+- Place detail API includes `role` in people subquery
+
+**Phase 3: Role badges in PlaceDetailDrawer**
+- Residents/owners shown first with green badges
+- Associated people shown with gray role badges (e.g., "Requester", "Contact")
+- Solves the Stephanie Freele pattern: "Resident" at home, "Requester" at other places
+
+**Phase 4: Improved person search**
+- MIG_855: Person subtitle shows active roles (e.g., "Staff, Trapper, Volunteer") instead of cat count
+- Person coordinate lookup prefers resident/owner places
+- GlobalSearch "View on Map" button for people with coordinates
+- AtlasMap handles `lat`/`lng`/`highlight` URL params for deep linking from GlobalSearch
+
+**Phase 5: Manual people-at-place management**
+- New `POST/DELETE /api/places/[id]/people` endpoint
+- Source_system = `atlas_ui` for manual links; only manual links deletable
+- Inline add/remove UI in PlaceDetailDrawer with person search + role dropdown
+
+**Phase 6: Tippy context enrichment**
+- `tippy-map-context` event now includes `drawerOpen`, `visiblePinCount`, `lastSearchQuery`
+- Tippy system prompt uses these for contextual hints
+
+### Invariant Alignment
+
+| Invariant | Status |
+|-----------|--------|
+| **INV-1** (No Data Disappears) | ✅ Manual links use INSERT, not DELETE of automated data |
+| **INV-4** (Provenance) | ✅ Manual links carry `source_system = 'atlas_ui'`, logged to `entity_edits` |
+| **INV-6** (Active Flows Sacred) | ✅ Additive changes only — new fields, new endpoint |
+| **INV-8** (Merge-Aware) | ⚠️ VIOLATED in search_unified PLACES section — fixed in MAP_009 |
+
+### Files
+
+| File | Change |
+|------|--------|
+| `apps/web/src/app/api/places/[id]/route.ts` | MOD — mobile_home_space + role in people subquery |
+| `apps/web/src/app/api/places/[id]/map-details/route.ts` | MOD — role, is_home, is_manual via GROUP BY |
+| `apps/web/src/app/places/[id]/page.tsx` | MOD — mobile_home_space in UI |
+| `apps/web/src/components/map/PlaceDetailDrawer.tsx` | MOD — role badges, manual add/remove UI |
+| `apps/web/src/app/api/places/[id]/people/route.ts` | NEW — POST/DELETE manual people management |
+| `sql/schema/sot/MIG_855__search_person_role_subtitle.sql` | NEW — person role subtitles in search |
+| `apps/web/src/components/AtlasMap.tsx` | MOD — placeholder, URL params, Tippy context |
+| `apps/web/src/components/GlobalSearch.tsx` | MOD — map button for people |
+| `apps/web/src/components/TippyChat.tsx` | MOD — MapContext fields |
+| `apps/web/src/app/api/tippy/chat/route.ts` | MOD — context hints |
+| `apps/web/src/styles/atlas-map.css` | MOD — role badge CSS |
+
+---
+
+## MAP_009: Search Bugs — Person 500, Merged Duplicates, Navigation
+
+**Status:** Done
+**ACTIVE Impact:** Yes (Surgical) — `/api/search` is ACTIVE
+**Scope:** Three bugs in Atlas search found during MAP_008 verification.
+**Priority:** Critical (person search completely broken)
+
+### Bug 1: Person search returns 500 (CRITICAL)
+
+**Problem:** `/api/search?q=crystal+furtado&suggestions=true` returns HTTP 500. The coordinate enrichment query (search/route.ts line 269) references `ppr.is_primary` — a column that does **not exist** on `person_place_relationships`. This causes a PostgreSQL error that crashes the entire search endpoint whenever person results are returned.
+
+**Root Cause:** `is_primary` was likely from an older schema design. The column was never created.
+
+**Fix:** Replaced `ppr.is_primary DESC NULLS LAST` with role-based ordering matching MIG_855's LATERAL join:
+```sql
+CASE ppr.role WHEN 'resident' THEN 1 WHEN 'owner' THEN 2 ELSE 3 END
+```
+
+**Impact:** Searching for any person name (Crystal Furtado, Stephanie Freele, etc.) was completely broken. Now works with correct coordinates.
+
+**Invariant:** **INV-11** (Pipeline Functions Must Reference Actual Schema) — violated. The search API referenced a non-existent column.
+
+### Bug 2: Merged places in search results (INV-8 violation)
+
+**Problem:** Searching "441 Alta Ave" returns duplicate places because `search_unified()` PLACES section lacks `merged_into_place_id IS NULL` filter. Merged place records appear alongside their canonical targets.
+
+**Fix:** Added `AND pl.merged_into_place_id IS NULL` to the PLACES WHERE clause in search_unified (MIG_855 re-applied).
+
+**Invariant:** **INV-8** (Merge-Aware Queries) — violated. Every query returning entities must filter merged records.
+
+### Bug 3: Map search opens new tabs (UX)
+
+**Problem:** When map search results lack coordinates, `handleAtlasSearchSelect` calls `window.open()` to open a detail page in a **new browser tab**. This is jarring — users expect to stay on the map.
+
+**Fix:**
+- Places with coords: pan map AND open PlaceDetailDrawer
+- Places without coords: open PlaceDetailDrawer (stay on map)
+- People/cats without coords: navigate in same tab (not new tab)
+
+### Verification
+
+- Crystal Furtado: "Staff, Trapper, Volunteer" subtitle, coords (38.603, -122.858) ✅
+- 441 Alta Ave: 2 results (non-merged), down from duplicates ✅
+- TypeScript: 0 errors ✅
+
+### Files
+
+| File | Change |
+|------|--------|
+| `apps/web/src/app/api/search/route.ts` | MOD — removed is_primary, use role-based ordering |
+| `sql/schema/sot/MIG_855__search_person_role_subtitle.sql` | MOD — added merged_into_place_id IS NULL |
+| `apps/web/src/components/AtlasMap.tsx` | MOD — drawer for places, same-tab fallback |
+
+### Data Quality Note: 441 Alta Ave
+
+After the merged filter fix, 441 Alta Ave still shows 2 results:
+- `441 Alta Ave` (place_id: 832692fb...)
+- `441 Alta Ave, Rohnert Park, CA 94928` (place_id: f1c2d642...)
+
+These are **two genuinely separate (non-merged) place records** for the same physical address. They should be candidates for place deduplication (tracked as MAP_012_F in NORTH_STAR).
+
+---
+
+## Planned Future Work
+
+### MAP_010_F: Person Detail Drawer on Map
+
+**Status:** Planned
+**Layer:** L7
+**Description:** When clicking a person search result on the map, show a person detail drawer (similar to PlaceDetailDrawer) instead of navigating away. Would show: person name, roles, linked places, linked cats, contact info.
+
+### MAP_011_F: Cat Detail Drawer on Map
+
+**Status:** Planned
+**Layer:** L7
+**Description:** When clicking a cat search result on the map, show a cat detail drawer. Would show: cat name, microchip, breed, appointments, linked places/people.
+
+### MAP_012_F: 441 Alta Ave Dedup
+
+**Status:** Planned
+**Layer:** L2
+**Description:** Two non-merged place records exist for 441 Alta Ave. Run through `place_safe_to_merge()` and merge if safe. Check for similar cases where `display_name` differs from `formatted_address` for the same physical location.

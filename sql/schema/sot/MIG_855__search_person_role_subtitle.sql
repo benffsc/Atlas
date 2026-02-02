@@ -246,6 +246,7 @@ BEGIN
             ) AS metadata
         FROM trapper.places pl
         WHERE (p_type IS NULL OR p_type = 'place')
+          AND pl.merged_into_place_id IS NULL
           AND (
               LOWER(COALESCE(pl.display_name, '')) LIKE v_query_pattern
               OR LOWER(COALESCE(pl.formatted_address, '')) LIKE v_query_pattern
