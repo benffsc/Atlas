@@ -151,7 +151,7 @@ export default function RequestDetailPage() {
 
   const fetchJournalEntries = useCallback(async () => {
     try {
-      const response = await fetch(`/api/journal?request_id=${requestId}`);
+      const response = await fetch(`/api/journal?request_id=${requestId}&include_related=true`);
       if (response.ok) {
         const data = await response.json();
         setJournalEntries(data.entries || []);
@@ -1301,9 +1301,9 @@ export default function RequestDetailPage() {
                     fetch(`/api/requests/${requestId}`)
                       .then((r) => r.ok ? r.json() : null)
                       .then((d) => { if (d) setRequest(d); });
-                    fetch(`/api/requests/${requestId}/journal`)
-                      .then((r) => r.ok ? r.json() : [])
-                      .then(setJournalEntries);
+                    fetch(`/api/journal?request_id=${requestId}&include_related=true`)
+                      .then((r) => r.ok ? r.json() : null)
+                      .then((d) => { if (d) setJournalEntries(d.entries || []); });
                   }}
                 />
               ),

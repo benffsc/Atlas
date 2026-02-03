@@ -355,7 +355,7 @@ export default function PersonDetailPage() {
 
   const fetchJournal = useCallback(async () => {
     try {
-      const response = await fetch(`/api/journal?person_id=${id}&limit=50`);
+      const response = await fetch(`/api/journal?person_id=${id}&limit=50&include_related=true`);
       if (response.ok) {
         const data = await response.json();
         setJournal(data.entries || []);

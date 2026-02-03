@@ -38,6 +38,7 @@ export interface JournalEntry {
   primary_cat_id?: string | null;
   primary_person_id?: string | null;
   primary_place_id?: string | null;
+  cross_ref_source?: string | null;
 }
 
 interface JournalSectionProps {
@@ -526,6 +527,25 @@ export default function JournalSection({
                   {entry.edit_count > 0 && (
                     <span style={{ fontSize: "0.7rem", color: "var(--muted)", fontStyle: "italic" }}>
                       edited
+                    </span>
+                  )}
+
+                  {/* Cross-reference source */}
+                  {entry.cross_ref_source && (
+                    <span
+                      style={{
+                        padding: "0.15rem 0.4rem",
+                        borderRadius: "3px",
+                        background: "rgba(108,117,125,0.08)",
+                        color: "var(--muted, #6c757d)",
+                        fontSize: "0.6rem",
+                        fontWeight: 500,
+                        fontStyle: "italic",
+                        border: "1px dashed var(--border, #dee2e6)",
+                      }}
+                      title={`Originally on a linked ${entry.cross_ref_source}`}
+                    >
+                      via {entry.cross_ref_source}
                     </span>
                   )}
 

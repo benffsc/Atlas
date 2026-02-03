@@ -239,11 +239,57 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
   const offset = parseInt(searchParams.get("offset") || "0", 10);
 
+  const includeRelated = searchParams.get("include_related") === "true";
+
+  // Cross-entity linking: when include_related=true with a single entity filter,
+  // also fetch entries from linked entities within a 2-month attribution window.
+  const singleEntityForCrossRef =
+    includeRelated &&
+    !submissionId && !annotationId && !placeId &&
+    [requestId, personId, catId].filter(Boolean).length === 1;
+
+  if (singleEntityForCrossRef) {
+    const entityType = requestId ? "request" : personId ? "person" : "cat";
+    const entityId = (requestId || personId || catId)!;
+    if (!isValidUUID(entityId)) {
+      return NextResponse.json({ entries: [], total: 0 });
+    }
+
+    try {
+      const { sql, countSql, params } = buildCrossRefQuery(
+        entityType as "request" | "person" | "cat",
+        entityId,
+        includeArchived,
+        entryKind,
+        limit,
+        offset,
+      );
+
+      const [dataResult, countResult] = await Promise.all([
+        queryRows<JournalEntryRow>(sql, params),
+        query(countSql, params.slice(0, -2)),
+      ]);
+
+      return NextResponse.json({
+        entries: dataResult,
+        total: parseInt(countResult.rows[0]?.total || "0", 10),
+        limit,
+        offset,
+      });
+    } catch (error) {
+      console.error("Error fetching cross-ref journal entries:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch journal entries" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Standard single-entity query (no cross-referencing)
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
 
-  // Filter by archived status
   if (!includeArchived) {
     conditions.push("je.is_archived = FALSE");
   }
@@ -336,6 +382,7 @@ export async function GET(request: NextRequest) {
         je.is_pinned,
         je.edit_count,
         je.tags,
+        NULL::TEXT AS cross_ref_source,
         c.display_name AS cat_name,
         p.display_name AS person_name,
         pl.display_name AS place_name,
