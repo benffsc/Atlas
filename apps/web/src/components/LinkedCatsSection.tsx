@@ -115,7 +115,7 @@ export function LinkedCatsSection({
   const cardStyle: CSSProperties = {
     padding: "0.75rem",
     borderRadius: "6px",
-    background: "var(--bg-muted, #f8f9fa)",
+    background: "var(--section-bg, #f8f9fa)",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
