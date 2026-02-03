@@ -8,6 +8,8 @@ import { createHash } from "crypto";
 import { parseStringPromise } from "xml2js";
 import JSZip from "jszip";
 
+export const maxDuration = 120;
+
 interface FileUpload {
   upload_id: string;
   original_filename: string;
@@ -18,31 +20,15 @@ interface FileUpload {
   file_content: Buffer | null;
 }
 
-// Parse XLSX or CSV file
+// Parse XLSX or CSV file — uses XLSX library for both to handle
+// quoted fields, BOM markers, and edge cases correctly
 function parseFile(buffer: Buffer, filename: string): { headers: string[]; rows: Record<string, unknown>[] } {
-  const ext = filename.split('.').pop()?.toLowerCase();
-
-  if (ext === 'csv') {
-    // Parse CSV
-    const text = buffer.toString('utf-8');
-    const lines = text.split('\n').filter(l => l.trim());
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-    const rows = lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const row: Record<string, unknown> = {};
-      headers.forEach((h, i) => { row[h] = values[i] || ''; });
-      return row;
-    });
-    return { headers, rows };
-  } else {
-    // Parse XLSX
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-    const headers = data.length > 0 ? Object.keys(data[0]) : [];
-    return { headers, rows: data };
-  }
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  const headers = data.length > 0 ? Object.keys(data[0]) : [];
+  return { headers, rows: data };
 }
 
 // Get ID field for a source/table combo
@@ -97,9 +83,9 @@ export async function POST(
       );
     }
 
-    // Mark as processing
+    // Mark as processing with timestamp for stuck-job detection
     await query(
-      `UPDATE trapper.file_uploads SET status = 'processing' WHERE upload_id = $1`,
+      `UPDATE trapper.file_uploads SET status = 'processing', processed_at = NOW() WHERE upload_id = $1`,
       [uploadId]
     );
 
@@ -283,10 +269,10 @@ export async function POST(
       }
     }
 
-    // Run post-processing for ClinicHQ
+    // Run post-processing for ClinicHQ (scoped to this upload's records)
     let postProcessingResults = null;
     if (upload.source_system === 'clinichq') {
-      postProcessingResults = await runClinicHQPostProcessing(upload.source_table);
+      postProcessingResults = await runClinicHQPostProcessing(upload.source_table, uploadId);
     }
 
     // Mark as completed (persist post-processing results for UI display)
@@ -331,13 +317,28 @@ export async function POST(
   }
 }
 
-// Post-processing for ClinicHQ data
-async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<string, number>> {
-  const results: Record<string, number> = {};
+// Post-processing for ClinicHQ data — scoped to a single upload's records
+async function runClinicHQPostProcessing(sourceTable: string, uploadId: string): Promise<Record<string, unknown>> {
+  const results: Record<string, unknown> = {};
+  let stepNum = 0;
+
+  // Save intermediate progress to DB so the UI can poll for step-by-step status
+  async function saveProgress(step?: string) {
+    stepNum++;
+    if (step) results._current_step = step;
+    results._step_num = stepNum;
+    try {
+      await query(
+        `UPDATE trapper.file_uploads SET post_processing_results = $2 WHERE upload_id = $1`,
+        [uploadId, JSON.stringify(results)]
+      );
+    } catch { /* best-effort progress saving */ }
+  }
 
   if (sourceTable === 'cat_info') {
     // Step 1: Create cats from microchips using find_or_create_cat_by_microchip
     // This creates new cats or returns existing ones
+    await saveProgress('Creating cats from microchips...');
     const catsCreated = await query(`
       WITH cat_data AS (
         SELECT DISTINCT ON (payload->>'Microchip Number')
@@ -352,6 +353,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
           AND payload->>'Microchip Number' IS NOT NULL
           AND TRIM(payload->>'Microchip Number') != ''
           AND LENGTH(TRIM(payload->>'Microchip Number')) >= 9
+          AND file_upload_id = $1
         ORDER BY payload->>'Microchip Number', created_at DESC
       ),
       created_cats AS (
@@ -372,10 +374,11 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         WHERE cd.microchip IS NOT NULL
       )
       SELECT COUNT(*) as cnt FROM created_cats WHERE cat_id IS NOT NULL
-    `);
+    `, [uploadId]);
     results.cats_created_or_matched = parseInt(catsCreated.rows?.[0]?.cnt || '0');
 
     // Step 2: Update sex on existing cats from cat_info records
+    await saveProgress('Updating cat sex data...');
     const sexUpdates = await query(`
       UPDATE trapper.sot_cats c
       SET sex = sr.payload->>'Sex'
@@ -384,15 +387,17 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
       WHERE ci.cat_id = c.cat_id
         AND sr.source_system = 'clinichq'
         AND sr.source_table = 'cat_info'
+        AND sr.file_upload_id = $1
         AND sr.payload->>'Sex' IS NOT NULL
         AND sr.payload->>'Sex' != ''
         AND LOWER(c.sex) IS DISTINCT FROM LOWER(sr.payload->>'Sex')
-    `);
+    `, [uploadId]);
     results.sex_updates = sexUpdates.rowCount || 0;
 
     // Step 3: Link orphaned appointments to cats via microchip
     // Appointments may have been created before cats existed
     // NOTE: We match on payload->>'Number' because source_row_id is a composite (Number_Date)
+    await saveProgress('Linking orphaned appointments to cats...');
     const appointmentsLinked = await query(`
       UPDATE trapper.sot_appointments a
       SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
@@ -410,6 +415,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
 
     // Step 4: Extract weight from cat_info into cat_vitals
     // This ensures weight data is captured during real-time ingest, not just via migrations
+    await saveProgress('Extracting weight vitals...');
     const weightVitals = await query(`
       INSERT INTO trapper.cat_vitals (
         cat_id, recorded_at, weight_lbs, source_system, source_record_id
@@ -429,6 +435,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         AND ci.id_type = 'microchip'
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'cat_info'
+        AND sr.file_upload_id = $1
         AND sr.payload->>'Weight' IS NOT NULL
         AND sr.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
         AND (sr.payload->>'Weight')::numeric > 0
@@ -439,13 +446,14 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         )
       ORDER BY ci.cat_id, (sr.payload->>'Date')::date DESC NULLS LAST
       ON CONFLICT DO NOTHING
-    `);
+    `, [uploadId]);
     results.weight_vitals_created = weightVitals.rowCount || 0;
   }
 
   if (sourceTable === 'owner_info') {
     // Step 1: Create people using find_or_create_person SQL function (consistent with other ingests)
     // This finds existing people by email/phone OR creates new ones
+    await saveProgress('Creating people from owner records...');
     const peopleCreated = await query(`
       WITH owner_data AS (
         SELECT DISTINCT ON (COALESCE(NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''), trapper.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone'))))
@@ -458,6 +466,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         FROM trapper.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'owner_info'
+          AND file_upload_id = $1
           AND (
             (payload->>'Owner Email' IS NOT NULL AND TRIM(payload->>'Owner Email') != '')
             OR (payload->>'Owner Phone' IS NOT NULL AND TRIM(payload->>'Owner Phone') != '')
@@ -487,11 +496,12 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         WHERE od.first_name IS NOT NULL
       )
       SELECT COUNT(*) as cnt FROM created_people WHERE created_person_id IS NOT NULL
-    `);
+    `, [uploadId]);
     results.people_created_or_matched = parseInt(peopleCreated.rows?.[0]?.cnt || '0');
 
     // Step 2: Create places from owner addresses using find_or_create_place_deduped
     // This auto-queues for geocoding
+    await saveProgress('Creating places from addresses...');
     const placesCreated = await query(`
       WITH owner_addresses AS (
         SELECT DISTINCT ON (TRIM(payload->>'Owner Address'))
@@ -501,6 +511,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         FROM trapper.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'owner_info'
+          AND file_upload_id = $1
           AND payload->>'Owner Address' IS NOT NULL
           AND TRIM(payload->>'Owner Address') != ''
           AND LENGTH(TRIM(payload->>'Owner Address')) > 10
@@ -519,10 +530,11 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         FROM owner_addresses oa
       )
       SELECT COUNT(*) as cnt FROM created_places WHERE place_id IS NOT NULL
-    `);
+    `, [uploadId]);
     results.places_created_or_matched = parseInt(placesCreated.rows?.[0]?.cnt || '0');
 
     // Step 3: Link people to places via person_place_relationships
+    await saveProgress('Linking people to places...');
     const personPlaceLinks = await query(`
       INSERT INTO trapper.person_place_relationships (person_id, place_id, role, confidence, source_system, source_table)
       SELECT DISTINCT
@@ -541,6 +553,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         AND p.merged_into_place_id IS NULL
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
+        AND sr.file_upload_id = $1
         AND sr.payload->>'Owner Address' IS NOT NULL
         AND TRIM(sr.payload->>'Owner Address') != ''
         AND NOT EXISTS (
@@ -548,10 +561,11 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
           WHERE ppr.person_id = pi.person_id AND ppr.place_id = p.place_id
         )
       ON CONFLICT DO NOTHING
-    `);
+    `, [uploadId]);
     results.person_place_links = personPlaceLinks.rowCount || 0;
 
     // Step 4: Link people to appointments via email/phone match through person_identifiers
+    await saveProgress('Linking appointments to people...');
     const personLinks = await query(`
       UPDATE trapper.sot_appointments a
       SET person_id = pi.person_id
@@ -562,12 +576,14 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
       )
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
+        AND sr.file_upload_id = $1
         AND a.appointment_number = sr.payload->>'Number'
         AND a.person_id IS NULL
-    `);
+    `, [uploadId]);
     results.appointments_linked_to_people = personLinks.rowCount || 0;
 
     // Step 5: Link cats to people via appointments
+    await saveProgress('Linking cats to people...');
     const catPersonLinks = await query(`
       INSERT INTO trapper.person_cat_relationships (cat_id, person_id, relationship_type, confidence, source_system, source_table)
       SELECT DISTINCT
@@ -592,6 +608,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
   if (sourceTable === 'appointment_info') {
     // Step 0: Link orphaned appointments to cats (in case cat_info was processed first)
     // This ensures order doesn't matter - process cat_info OR appointment_info first
+    await saveProgress('Pre-linking orphaned appointments...');
     const orphanedLinked = await query(`
       UPDATE trapper.sot_appointments a
       SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
@@ -601,14 +618,16 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
         AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
         AND sr.source_system = 'clinichq'
         AND sr.source_table = 'appointment_info'
+        AND sr.file_upload_id = $1
         AND a.cat_id IS NULL
         AND sr.payload->>'Microchip Number' IS NOT NULL
         AND TRIM(sr.payload->>'Microchip Number') != ''
-    `);
+    `, [uploadId]);
     results.orphaned_appointments_linked_pre = orphanedLinked.rowCount || 0;
 
     // Step 1: Create sot_appointments from staged_records
     // Uses get_canonical_cat_id to handle merged cats
+    await saveProgress('Creating appointments...');
     const newAppointments = await query(`
       INSERT INTO trapper.sot_appointments (
         cat_id, appointment_date, appointment_number, service_type,
@@ -638,6 +657,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
       LEFT JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'appointment_info'
+        AND sr.file_upload_id = $1
         AND sr.payload->>'Date' IS NOT NULL AND sr.payload->>'Date' != ''
         AND NOT EXISTS (
           SELECT 1 FROM trapper.sot_appointments a
@@ -645,10 +665,11 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
             AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
         )
       ON CONFLICT DO NOTHING
-    `);
+    `, [uploadId]);
     results.new_appointments = newAppointments.rowCount || 0;
 
     // Create cat_procedures from appointments with spay service_type
+    await saveProgress('Creating spay procedures...');
     const newSpays = await query(`
       INSERT INTO trapper.cat_procedures (
         cat_id, appointment_id, procedure_type, procedure_date, status,
@@ -672,6 +693,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     results.new_spays = newSpays.rowCount || 0;
 
     // Create cat_procedures for neuter service_type
+    await saveProgress('Creating neuter procedures...');
     const newNeuters = await query(`
       INSERT INTO trapper.cat_procedures (
         cat_id, appointment_id, procedure_type, procedure_date, status,
@@ -695,6 +717,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     results.new_neuters = newNeuters.rowCount || 0;
 
     // Fix procedures based on cat sex
+    await saveProgress('Fixing procedure types...');
     const fixedMales = await query(`
       UPDATE trapper.cat_procedures cp
       SET procedure_type = 'neuter', is_spay = FALSE, is_neuter = TRUE
@@ -717,6 +740,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
 
     // Mark altered_by_clinic = TRUE when FFSC performed the spay/neuter
     // (service_type contains "Cat Spay" or "Cat Neuter")
+    await saveProgress('Marking cats altered by clinic...');
     const alteredByClinic = await query(`
       UPDATE trapper.sot_cats c
       SET altered_by_clinic = TRUE
@@ -738,6 +762,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     // See: docs/AUDIT_PLACE_CONSOLIDATION_ISSUE.md
 
     // Update altered_status
+    await saveProgress('Updating altered status...');
     await query(`
       UPDATE trapper.sot_cats c SET altered_status = 'spayed'
       WHERE c.altered_status IS DISTINCT FROM 'spayed'
@@ -750,6 +775,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     `);
 
     // Link appointments to trappers for accurate trapper stats
+    await saveProgress('Linking appointments to trappers...');
     const trapperLinks = await query(`
       SELECT * FROM trapper.link_appointments_to_trappers()
     `);
@@ -760,6 +786,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     // Link appointments via embedded microchips in Animal Name
     // ClinicHQ quirk: recaptured cats often have microchip in name field instead of microchip field
     // Must run AFTER appointments are created so we have records to link
+    await saveProgress('Extracting embedded microchips...');
     const embeddedChipLinks = await query(`
       SELECT * FROM trapper.extract_and_link_microchips_from_animal_name()
     `);
@@ -770,6 +797,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
 
     // Create cat_vitals records from appointments with temperature/reproductive data
     // This ensures vitals are captured during real-time ingest, not just via migrations
+    await saveProgress('Creating appointment vitals...');
     const appointmentVitals = await query(`
       INSERT INTO trapper.cat_vitals (
         cat_id, appointment_id, recorded_at,
@@ -805,6 +833,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
     // AUTO-LINK CATS TO REQUESTS based on attribution windows
     // This is the key integration that was missing - cats visiting clinic should be
     // automatically linked to any active request at their place
+    await saveProgress('Linking cats to requests...');
     const catRequestLinks = await query(`
       INSERT INTO trapper.request_cat_links (request_id, cat_id, link_purpose, link_notes, linked_by)
       SELECT DISTINCT
@@ -843,6 +872,7 @@ async function runClinicHQPostProcessing(sourceTable: string): Promise<Record<st
 
     // Queue new appointments for AI extraction
     // This ensures recapture detection and other attributes are extracted promptly
+    await saveProgress('Queuing AI extraction...');
     const aiQueueResult = await query(`
       SELECT trapper.queue_appointment_extraction(100, 10) as queued
     `);

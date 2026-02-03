@@ -36,6 +36,18 @@ export async function GET(request: NextRequest) {
   const BATCH_LIMIT = 10; // Process up to 10 uploads per run
 
   try {
+    // Auto-reset stuck uploads (processing > 5 minutes with no progress)
+    const stuckReset = await query(`
+      UPDATE trapper.file_uploads
+      SET status = 'failed',
+          error_message = 'Processing timed out after 5 minutes (auto-reset by cron)'
+      WHERE status = 'processing'
+        AND processed_at < NOW() - INTERVAL '5 minutes'
+    `);
+    if (stuckReset.rowCount && stuckReset.rowCount > 0) {
+      console.log(`Auto-reset ${stuckReset.rowCount} stuck upload(s)`);
+    }
+
     // Find pending uploads that need processing
     const pendingUploads = await queryRows<PendingUpload>(`
       SELECT upload_id, original_filename, source_system, source_table, uploaded_at

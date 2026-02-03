@@ -2968,3 +2968,68 @@ ClinicHQ pipeline creates `person_place_relationships` with `role = 'resident'` 
 | `sql/schema/sot/MIG_855__search_person_role_subtitle.sql` | MOD — confidence-first coordinate ordering |
 | `apps/web/src/app/api/search/route.ts` | MOD — confidence-first enrichment ordering |
 | `docs/ATLAS_NORTH_STAR.md` | MOD — INV-12, INV-8/11 addendums, debt items 13-14 |
+
+---
+
+## INGEST_001: Fix Silent Ingest Pipeline Failures
+
+**Status:** Done
+**ACTIVE Impact:** No (admin-only data ingest page, no staff workflow changes)
+**Priority:** Critical (data uploads fail silently, staff can't ingest ClinicHQ data)
+
+### Problem
+
+Admin UI uploads via `/admin/ingest` failed silently. A ClinicHQ owner_info upload stayed stuck on "pending" and never completed. Root cause analysis found **6 bugs**:
+
+| Bug | Severity | Root Cause |
+|-----|----------|------------|
+| **Missing `maxDuration`** | CRITICAL | `process/[id]/route.ts` had no `maxDuration` export. Vercel killed the lambda at 10-15s default. ClinicHQ owner_info post-processing runs `find_or_create_person()` for hundreds of owners — easily takes 30-60s. |
+| **CSV parser breaks on commas** | CRITICAL | `line.split(',')` at line 29 breaks on addresses like `"123 Main St, Apt 4, Petaluma, CA"`. |
+| **Unscoped post-processing** | HIGH | `runClinicHQPostProcessing()` queried ALL staged records (`source_system + source_table`), not just the current upload. Re-uploading re-processed ALL historical data. |
+| **Status stuck on kill** | HIGH | Status set to 'processing' then 'completed' after work. If lambda killed, catch block never runs → status stuck as 'processing' forever. |
+| **No progress UI** | MEDIUM | Single blocking `await` with no feedback. 60s+ processing looks identical to a hang. |
+| **alert() errors** | LOW | Processing errors shown via `alert()` — dismissible, no detail, loses context immediately. |
+
+### Fix
+
+**Process endpoint (`apps/web/src/app/api/ingest/process/[id]/route.ts`):**
+1. Added `export const maxDuration = 120` (2 minutes for file processing + post-processing)
+2. Unified CSV and XLSX parsing through XLSX library (handles RFC 4180 quoted fields, BOM markers)
+3. Changed `runClinicHQPostProcessing(sourceTable)` → `runClinicHQPostProcessing(sourceTable, uploadId)`
+4. Added `AND file_upload_id = $1` with parameterized `[uploadId]` to all 9 staged_records queries
+5. Added `saveProgress()` helper that writes intermediate results to `file_uploads.post_processing_results` after each step (21 steps total across cat_info/owner_info/appointment_info)
+6. Set `processed_at = NOW()` when entering 'processing' state for stuck-job detection
+
+**Admin ingest page (`apps/web/src/app/admin/ingest/page.tsx`):**
+1. Replaced blocking `handleUploadAndProcess` with fire-and-forget POST + polling
+2. Added 2-second polling that reads `post_processing_results` from the uploads API
+3. Built floating progress overlay showing current step, completed steps with counts, and elapsed timer
+4. Replaced all `alert()` calls with inline `setUploadError()` display
+5. Updated `isStuck` threshold from 1 hour to 5 minutes using `processed_at`
+
+**Cron (`apps/web/src/app/api/cron/process-uploads/route.ts`):**
+1. Added stuck-job auto-reset: uploads in 'processing' for >5 minutes are auto-set to 'failed'
+2. This runs before processing pending uploads, ensuring stuck jobs don't block the queue
+
+### Verification
+
+- [ ] Upload a ClinicHQ owner_info XLSX — should show progress overlay with step-by-step results
+- [ ] Upload a CSV with commas in addresses (e.g., "123 Main St, Apt 4, Petaluma, CA") — should parse correctly
+- [ ] Processing should complete within 120s (scoped to current upload only)
+- [ ] If processing is interrupted, cron should auto-reset after 5 minutes
+- [ ] Errors shown inline, not via alert()
+- [ ] Retry a failed upload — should work
+
+### Invariant Added
+
+**INV-13** added to NORTH_STAR: Ingest pipeline must be resilient to serverless timeouts. All processing routes must export `maxDuration`, scope to `file_upload_id`, save intermediate progress, and never block the UI.
+
+### Files
+
+| File | Change |
+|------|--------|
+| `apps/web/src/app/api/ingest/process/[id]/route.ts` | MOD — maxDuration, XLSX CSV parser, upload-scoped queries, saveProgress |
+| `apps/web/src/app/admin/ingest/page.tsx` | MOD — polling UI, progress overlay, inline errors, isStuck fix |
+| `apps/web/src/app/api/cron/process-uploads/route.ts` | MOD — stuck-job auto-reset before processing |
+| `docs/ATLAS_NORTH_STAR.md` | MOD — INV-13, debt item 15, MAP_010_F/011_F done |
+| `docs/TASK_LEDGER.md` | MOD — INGEST_001 task card |

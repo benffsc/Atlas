@@ -332,6 +332,21 @@ ORDER BY
 
 **Scale of the problem (MIG_856):** 20 people with >3 false `resident` links, 347 relationships reclassified to `contact`.
 
+### INV-13: Ingest Pipeline Must Be Resilient to Serverless Timeouts
+
+- **Every ingest/processing API route must export `maxDuration`** (typically 120s). Without it, Vercel kills the lambda at 10-15s default — too short for post-processing that calls `find_or_create_person()` hundreds of times.
+- **Post-processing must scope to the current upload** via `file_upload_id`. Without scoping, re-uploading data re-processes ALL historical staged records, causing exponential slowdown.
+- **Processing must save intermediate progress** to `file_uploads.post_processing_results` after each step. This enables the UI to poll for step-by-step progress and prevents complete data loss if the lambda is killed mid-flight.
+- **The cron must auto-reset stuck uploads**: Any upload in `status='processing'` for >5 minutes is auto-reset to `failed` so it can be retried.
+- **UI must never block on processing**: Use fire-and-forget POST + polling instead of awaiting the full processing response.
+
+**When adding new ingest source types:**
+1. Export `maxDuration` on the processing route
+2. Pass `uploadId` to all post-processing functions
+3. Add `file_upload_id` filter to every `staged_records` query
+4. Use `saveProgress()` between steps
+5. Parse CSV files via XLSX library (handles RFC 4180 quoted fields), never `line.split(',')`
+
 ---
 
 ## Data Zones
@@ -496,6 +511,7 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 12. **Email notifications NOT LIVE**: Resend email fully implemented in code (`lib/email.ts`, templates, `/api/cron/send-emails`). Needs `RESEND_API_KEY` environment variable set in Vercel to activate.
 13. **ClinicHQ false resident links RESOLVED (MIG_856)**: Trappers/staff had hundreds of false `resident` relationships from clinichq appointments. Sandra Nicander: 317 (FFSC org phone reuse), Crystal Furtado: 36 (trapping sites). 347 relationships reclassified to `contact`. FFSC org phone `7075767999` blacklisted. INV-12 added.
 14. **Search bugs RESOLVED (MAP_009)**: Person search 500 (is_primary column DNE), merged place duplicates in search_unified, map search opening new tabs. All fixed.
+15. **Ingest pipeline silent failures RESOLVED (INGEST_001)**: Admin UI uploads failed silently. 6 bugs: missing `maxDuration` (Vercel killed lambda at 10s), CSV parser broke on quoted commas, post-processing queried ALL staged records (not current upload), stuck status on lambda kill, no progress UI, alert() errors. All fixed with upload-scoped processing, fire-and-forget + polling UI, stuck-job auto-recovery in cron. INV-13 added.
 
 ---
 
@@ -530,8 +546,8 @@ L7 (Visualization) improvements based on staff feedback:
 
 | Task | Layer | Description | Status |
 |------|-------|-------------|--------|
-| **MAP_010_F** | L7 | Person detail drawer on map (parity with PlaceDetailDrawer) | Planned |
-| **MAP_011_F** | L7 | Cat detail drawer on map (view cat info without leaving map) | Planned |
+| **MAP_010_F** | L7 | Person detail drawer on map (parity with PlaceDetailDrawer) | Done |
+| **MAP_011_F** | L7 | Cat detail drawer on map (view cat info without leaving map) | Done |
 | **MAP_012_F** | L2/L7 | 441 Alta Ave duplicate place dedup (2 non-merged records for same address) | Planned |
 
 Full task cards in `TASK_LEDGER.md`.

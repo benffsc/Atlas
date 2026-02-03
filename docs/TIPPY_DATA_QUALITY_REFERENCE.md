@@ -1582,3 +1582,34 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 **What Tippy should know:**
 > "The map badge system has been significantly hardened. If staff notice stale badges, the `/admin/role-audit` page shows all role integrity issues and allows one-click deactivation. ShelterLuv foster assignments now require email verification — name-only matches are queued for manual review. VH volunteer roles are automatically deactivated 30 days after leaving all approved groups."
+
+### Session: 2026-02-02 — Ingest Pipeline Silent Failures (INGEST_001)
+
+**Context:** Staff uploaded a ClinicHQ owner_info export via `/admin/ingest`. It stayed stuck on "pending" and never completed. Comprehensive audit of the data ingestion pipeline uncovered 6 bugs.
+
+**Key Discoveries:**
+1. **Missing `maxDuration`** on the process endpoint — Vercel killed the lambda at 10-15s default, but owner_info post-processing calls `find_or_create_person()` for hundreds of owners (~30-60s).
+2. **CSV parser used `line.split(',')`** — breaks on addresses containing commas in quoted fields (e.g., `"123 Main St, Apt 4, Petaluma, CA"`).
+3. **Post-processing queried ALL staged records** — not scoped to the current upload. Re-uploading any data re-processed ALL historical records, causing exponential slowdown.
+4. **Stuck status on lambda kill** — If Vercel killed the lambda mid-processing, the catch block never ran. Status stayed `'processing'` forever.
+5. **No progress feedback** — Single blocking `await` in the UI with no polling. 60s+ processing looked identical to a hang.
+6. **`alert()` for errors** — Processing errors shown via dismissible browser alert, losing all context.
+
+**Changes Made:**
+- Added `export const maxDuration = 120` to the process endpoint
+- Unified CSV + XLSX parsing through the XLSX library (handles RFC 4180 quoted fields)
+- Scoped all 9 staged_records queries in post-processing to `file_upload_id` of the current upload
+- Added `saveProgress()` calls between all 21 processing steps (writes intermediate results to DB)
+- Built fire-and-forget processing with 2-second polling and floating progress overlay
+- Added stuck-job auto-reset in the cron (>5 minutes = auto-fail)
+- Replaced all `alert()` with inline error display
+
+**Staff Impact:**
+- Data uploads via `/admin/ingest` now show real-time step-by-step progress
+- Uploads are resilient to serverless timeouts — progress is saved per step
+- Stuck uploads are automatically recovered by the cron job
+- CSV files with commas in addresses parse correctly
+- Error messages are shown inline with full detail
+
+**What Tippy should know:**
+> "The data ingest pipeline at `/admin/ingest` has been fixed. If staff upload ClinicHQ data and see the progress overlay, that's the new real-time processing view. Each step (creating people, places, linking) reports results as it completes. If an upload gets stuck, the system automatically resets it after 5 minutes so it can be retried. CSV files with commas in addresses are now handled correctly."

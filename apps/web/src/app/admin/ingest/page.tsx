@@ -35,7 +35,7 @@ interface FileUpload {
   error_message: string | null;
   data_date_min: string | null;
   data_date_max: string | null;
-  post_processing_results: Record<string, number> | null;
+  post_processing_results: Record<string, unknown> | null;
 }
 
 interface ProcessingResult {
@@ -44,7 +44,7 @@ interface ProcessingResult {
   rows_inserted: number;
   rows_updated: number;
   rows_skipped: number;
-  post_processing?: Record<string, number>;
+  post_processing?: Record<string, unknown>;
 }
 
 function formatBytes(bytes: number): string {
@@ -98,6 +98,11 @@ export default function IngestPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
 
+  // Progress polling state
+  const [pollingUploadId, setPollingUploadId] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [processingProgress, setProcessingProgress] = useState<Record<string, unknown> | null>(null);
+
   // ShelterLuv sync state
   const [shelterLuvStatus, setShelterLuvStatus] = useState<ShelterLuvSyncStatus[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -137,6 +142,71 @@ export default function IngestPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Poll for processing progress when an upload is being processed
+  useEffect(() => {
+    if (!pollingUploadId) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/ingest/uploads');
+        if (!res.ok) return;
+        const data = await res.json();
+        const upload = (data.uploads as FileUpload[]).find(u => u.upload_id === pollingUploadId);
+        if (!upload) return;
+
+        if (upload.post_processing_results) {
+          setProcessingProgress(upload.post_processing_results);
+        }
+
+        if (upload.status === 'completed' || upload.status === 'failed') {
+          setUploads(data.uploads);
+          if (upload.status === 'completed') {
+            setUploadSuccess(
+              `Processed ${upload.rows_total} rows: ` +
+              `${upload.rows_inserted} new, ` +
+              `${upload.rows_updated || 0} updated, ` +
+              `${upload.rows_skipped || 0} skipped`
+            );
+            if (upload.post_processing_results) {
+              const ppResults = Object.fromEntries(
+                Object.entries(upload.post_processing_results).filter(([k]) => !k.startsWith('_'))
+              );
+              setProcessResult({
+                success: true,
+                rows_total: upload.rows_total || 0,
+                rows_inserted: upload.rows_inserted || 0,
+                rows_updated: upload.rows_updated || 0,
+                rows_skipped: upload.rows_skipped || 0,
+                post_processing: ppResults,
+              });
+            }
+          } else {
+            setUploadError(`Processing failed: ${upload.error_message || 'Unknown error'}`);
+          }
+          setPollingUploadId(null);
+          setProcessingProgress(null);
+          setElapsedSeconds(0);
+          return; // Don't schedule another poll
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    };
+
+    // Poll immediately, then every 2 seconds
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [pollingUploadId]);
+
+  // Elapsed time counter during processing
+  useEffect(() => {
+    if (!pollingUploadId) return;
+    setElapsedSeconds(0);
+    const timer = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [pollingUploadId]);
 
   // Get available tables for selected source
   const selectedSourceConfig = sources.find((s) => s.value === selectedSource);
@@ -192,30 +262,15 @@ export default function IngestPage() {
 
   // Handle file processing
   const handleProcess = async (uploadId: string) => {
-    setProcessingId(uploadId);
     setProcessResult(null);
+    setUploadError(null);
+    setProcessingProgress(null);
 
-    try {
-      const response = await fetch(`/api/ingest/process/${uploadId}`, {
-        method: "POST",
-      });
+    // Fire-and-forget: kick off processing
+    fetch(`/api/ingest/process/${uploadId}`, { method: "POST" }).catch(() => {});
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        alert(result.error || "Processing failed");
-        fetchData(); // Refresh list even on failure to show updated status
-        return;
-      }
-
-      setProcessResult(result);
-      fetchData(); // Refresh list
-    } catch (err) {
-      alert("Network error during processing");
-      fetchData(); // Refresh list even on error
-    } finally {
-      setProcessingId(null);
-    }
+    // Start polling for progress
+    setPollingUploadId(uploadId);
   };
 
   // Handle ShelterLuv sync
@@ -249,12 +304,12 @@ export default function IngestPage() {
       const response = await fetch(`/api/ingest/uploads/${uploadId}`, { method: "DELETE" });
       const result = await response.json();
       if (!response.ok) {
-        alert(result.error || "Failed to delete");
+        setUploadError(result.error || "Failed to delete");
         return;
       }
       fetchData();
     } catch {
-      alert("Network error");
+      setUploadError("Network error");
     } finally {
       setDeletingId(null);
     }
@@ -272,22 +327,23 @@ export default function IngestPage() {
       });
       const result = await response.json();
       if (!response.ok) {
-        alert(result.error || "Failed to reset");
+        setUploadError(result.error || "Failed to reset");
         return;
       }
       fetchData();
     } catch {
-      alert("Network error");
+      setUploadError("Network error");
     } finally {
       setResettingId(null);
     }
   };
 
-  // Check if upload is stuck (processing > 1 hour)
   const isStuck = (upload: FileUpload) => {
     if (upload.status !== "processing") return false;
-    const uploadedAt = new Date(upload.uploaded_at).getTime();
-    return Date.now() - uploadedAt > 60 * 60 * 1000;
+    const startedAt = upload.processed_at
+      ? new Date(upload.processed_at).getTime()
+      : new Date(upload.uploaded_at).getTime();
+    return Date.now() - startedAt > 5 * 60 * 1000; // 5 minutes
   };
 
   // Filter uploads by status
@@ -301,6 +357,7 @@ export default function IngestPage() {
     setUploadError(null);
     setUploadSuccess(null);
     setProcessResult(null);
+    setProcessingProgress(null);
 
     if (!selectedFile || !selectedSource || !selectedTable) {
       setUploadError("Please select a file, source, and table");
@@ -310,7 +367,6 @@ export default function IngestPage() {
     setUploading(true);
 
     try {
-      // Upload
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("source_system", selectedSource);
@@ -328,38 +384,20 @@ export default function IngestPage() {
         return;
       }
 
-      setUploadSuccess(`Uploaded: ${uploadResult.stored_filename}. Processing...`);
-
-      // Process
-      const processResponse = await fetch(`/api/ingest/process/${uploadResult.upload_id}`, {
-        method: "POST",
-      });
-
-      const processResultData = await processResponse.json();
-
-      if (!processResponse.ok) {
-        setUploadError(`Upload succeeded but processing failed: ${processResultData.error}`);
-        fetchData();
-        return;
-      }
-
-      setProcessResult(processResultData);
-      setUploadSuccess(
-        `Processed ${processResultData.rows_total} rows: ` +
-        `${processResultData.rows_inserted} new, ` +
-        `${processResultData.rows_updated} updated, ` +
-        `${processResultData.rows_skipped} skipped`
-      );
-
       // Reset form
       setSelectedFile(null);
       const fileInput = document.getElementById("file-input") as HTMLInputElement;
       if (fileInput) fileInput.value = "";
 
+      // Fire-and-forget: kick off processing
+      fetch(`/api/ingest/process/${uploadResult.upload_id}`, { method: "POST" }).catch(() => {});
+
+      // Start polling for progress
+      setPollingUploadId(uploadResult.upload_id);
+      setUploadSuccess(`Uploaded: ${uploadResult.original_filename}. Processing...`);
+    } catch {
+      setUploadError("Network error during upload");
       fetchData();
-    } catch (err) {
-      setUploadError("Network error");
-      fetchData(); // Refresh list even on error
     } finally {
       setUploading(false);
     }
@@ -464,7 +502,7 @@ export default function IngestPage() {
             <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem", color: "var(--text-primary)" }}>
               {Object.entries(processResult.post_processing).map(([key, value]) => (
                 <li key={key}>
-                  {key.replace(/_/g, " ")}: {value}
+                  {key.replace(/_/g, " ")}: {String(value)}
                 </li>
               ))}
             </ul>
@@ -669,7 +707,7 @@ export default function IngestPage() {
                                 {Object.entries(upload.post_processing_results).map(([key, value]) => (
                                   <div key={key} style={{ fontSize: "0.8rem" }}>
                                     <span className="text-muted">{key.replace(/_/g, " ")}:</span>{" "}
-                                    <strong>{value}</strong>
+                                    <strong>{String(value)}</strong>
                                   </div>
                                 ))}
                               </div>
@@ -807,6 +845,63 @@ export default function IngestPage() {
           </ul>
         </div>
       </div>
+
+      {/* Processing Progress Overlay */}
+      {pollingUploadId && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          width: '380px',
+          background: 'var(--card-bg, #fff)',
+          border: '1px solid var(--border-default, #e5e7eb)',
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          padding: '1.25rem',
+          zIndex: 1000,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <strong style={{ fontSize: '0.875rem' }}>Processing Upload</strong>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+              {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, '0')}
+            </span>
+          </div>
+
+          {processingProgress ? (
+            <div style={{ fontSize: '0.8rem' }}>
+              {typeof processingProgress._current_step === 'string' && (
+                <div style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'rgba(13, 110, 253, 0.08)',
+                  borderRadius: '6px',
+                  marginBottom: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}>
+                  <span className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
+                  <span>{String(processingProgress._current_step)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {Object.entries(processingProgress)
+                  .filter(([k]) => !k.startsWith('_'))
+                  .map(([key, value]) => (
+                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{key.replace(/_/g, ' ')}</span>
+                      <strong>{String(value)}</strong>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              <span className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
+              Starting processing...
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
