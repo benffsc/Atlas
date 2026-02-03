@@ -3117,3 +3117,62 @@ Added enrichment section at end of `runClinicHQPostProcessing()`:
 | `apps/web/src/app/api/ingest/process/[id]/route.ts` | MOD — inline enrichment, second-pass cat-request linking, maxDuration 180 |
 | `sql/schema/sot/MIG_858__fix_run_all_entity_linking.sql` | NEW — fix broken function reference + fault tolerance |
 | `docs/TASK_LEDGER.md` | MOD — Round 3 findings |
+
+---
+
+## JOURNAL_001: Staff Attribution Bug + Communication Logging + Person Page Restructure
+
+**Status:** Done
+**ACTIVE Impact:** Yes — Journal input on all entity detail pages (person, cat, place, request)
+**Scope:** JournalSection component, Person page, Request page, ActivityTab
+
+### Bugs Found
+
+| Bug | Page | Severity | Description |
+|-----|------|----------|-------------|
+| Missing staff auto-fill | `people/[id]` | Medium | JournalSection not passed `currentStaffId`/`currentStaffName`. Staff must manually pick from dropdown every time. |
+| Missing staff auto-fill | `cats/[id]` | Medium | Same — no session info passed to JournalSection. |
+| Missing staff auto-fill | `places/[id]` | Medium | Same — no session info passed to JournalSection. |
+| Request page works | `requests/[id]` | N/A | Only page that correctly fetched `/api/auth/me` and passed props. Reference implementation. |
+
+**Root cause:** JournalSection required parents to manually fetch `/api/auth/me` and pass `currentStaffId`/`currentStaffName` props. 3 of 4 consuming pages never did this. The request page had it because it was added later for modal auto-fill, and the pattern was never propagated.
+
+### Fix: Self-Resolving Staff
+
+JournalSection now calls `useCurrentUser()` hook internally (5-min module-level cache at `src/hooks/useCurrentUser.ts`). All pages fixed simultaneously without touching page code. Props still work as override for backward compatibility.
+
+### Enhancement: Communication Logging
+
+JournalSection enhanced with Note/Communication mode toggle. Communication mode exposes:
+- **Contact method**: Phone Call, Text/SMS, Email, Voicemail, In Person, Mail, Online Form
+- **Contact result**: Answered/Spoke, No Answer, Left Voicemail, Sent, Scheduled, No Response, Bounced, Other
+
+Sets `entry_kind = 'contact_attempt'` and sends `contact_method` + `contact_result` to API. No schema or API changes needed — these columns and enum values already existed (MIG_276).
+
+Communication entries display with color-coded method/result badges (green for answered, red for no answer/bounced).
+
+### Enhancement: Person Page Journal Tab
+
+Journal promoted from buried position in Activity tab (3rd section, behind Requests and Submissions) to its own top-level tab (2nd position). Tab order:
+
+`Overview | Journal (badge) | Connections | History (badge) | Data`
+
+Former "Activity" tab split into "Journal" and "History" (requests + submissions).
+
+### Enhancement: Request Page Cleanup
+
+Replaced manual `useEffect` + `useState` for `/api/auth/me` with `useCurrentUser()` hook. Staff info still available for modals (LogSiteVisit, CompleteRequest, HoldRequest, CreateColony). Removed staff prop drilling through ActivityTab.
+
+### Files
+
+| File | Change |
+|------|--------|
+| `apps/web/src/components/JournalSection.tsx` | MOD — useCurrentUser hook, communication mode UI, contact display badges |
+| `apps/web/src/app/people/[id]/page.tsx` | MOD — Split Activity into Journal + History tabs |
+| `apps/web/src/app/requests/[id]/page.tsx` | MOD — Replace manual auth fetch with useCurrentUser hook |
+| `apps/web/src/app/requests/[id]/tabs/ActivityTab.tsx` | MOD — Remove staff prop drilling |
+| `docs/TASK_LEDGER.md` | MOD — JOURNAL_001 |
+
+**Auto-fixed** (no code change needed):
+- `apps/web/src/app/cats/[id]/page.tsx` — JournalSection self-resolves staff via hook
+- `apps/web/src/app/places/[id]/page.tsx` — Same

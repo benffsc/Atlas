@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { LegacyUpgradeWizard } from "@/components/LegacyUpgradeWizard";
@@ -108,9 +109,10 @@ export default function RequestDetailPage() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showColonyModal, setShowColonyModal] = useState(false);
 
-  // Session/Staff info for auto-fill
-  const [currentStaffId, setCurrentStaffId] = useState<string | null>(null);
-  const [currentStaffName, setCurrentStaffName] = useState<string | null>(null);
+  // Session/Staff info for auto-fill (used by modals; JournalSection self-resolves)
+  const { user: currentUser } = useCurrentUser();
+  const currentStaffId = currentUser?.staff_id || null;
+  const currentStaffName = currentUser?.display_name || null;
 
   // Kitten assessment state
   const [editingKittens, setEditingKittens] = useState(false);
@@ -225,20 +227,7 @@ export default function RequestDetailPage() {
     }
   }, [requestId]);
 
-  // Fetch current session/staff info for auto-fill
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.authenticated && data.staff) {
-          setCurrentStaffId(data.staff.staff_id);
-          setCurrentStaffName(data.staff.display_name);
-        }
-      })
-      .catch(() => {
-        // Ignore errors - staff info is optional
-      });
-  }, []);
+  // Staff info now comes from useCurrentUser() hook (cached, shared across components)
 
   // Fetch map when request has coordinates
   useEffect(() => {
@@ -1316,8 +1305,6 @@ export default function RequestDetailPage() {
                       .then((r) => r.ok ? r.json() : [])
                       .then(setJournalEntries);
                   }}
-                  currentStaffId={currentStaffId || undefined}
-                  currentStaffName={currentStaffName || undefined}
                 />
               ),
             },

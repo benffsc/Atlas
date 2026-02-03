@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 interface StaffMember {
   staff_id: string;
@@ -28,6 +29,8 @@ export interface JournalEntry {
   is_pinned: boolean;
   edit_count: number;
   tags: string[];
+  contact_method?: string | null;
+  contact_result?: string | null;
   // Optional linked entity names
   cat_name?: string | null;
   person_name?: string | null;
@@ -42,10 +45,34 @@ interface JournalSectionProps {
   entityType: "cat" | "person" | "place" | "request";
   entityId: string;
   onEntryAdded: () => void;
-  /** Auto-fill staff from session - hides dropdown when provided */
+  /** Auto-fill staff from session - hides dropdown when provided.
+   *  If omitted, resolves automatically from useCurrentUser() hook. */
   currentStaffId?: string;
   currentStaffName?: string;
 }
+
+// Contact method options
+const CONTACT_METHODS = [
+  { value: "phone", label: "Phone Call" },
+  { value: "text", label: "Text / SMS" },
+  { value: "email", label: "Email" },
+  { value: "voicemail", label: "Voicemail" },
+  { value: "in_person", label: "In Person" },
+  { value: "mail", label: "Mail" },
+  { value: "online_form", label: "Online Form" },
+];
+
+// Contact result options
+const CONTACT_RESULTS = [
+  { value: "answered", label: "Answered / Spoke" },
+  { value: "no_answer", label: "No Answer" },
+  { value: "left_voicemail", label: "Left Voicemail" },
+  { value: "sent", label: "Sent" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "no_response", label: "No Response" },
+  { value: "bounced", label: "Bounced" },
+  { value: "other", label: "Other" },
+];
 
 // Get initials from a name
 function getInitials(name: string | null): string {
@@ -85,6 +112,8 @@ function formatDate(dateStr: string): string {
 const ENTRY_KIND_STYLES: Record<string, { bg: string; label: string }> = {
   note: { bg: "#0d6efd", label: "Note" },
   contact: { bg: "#17a2b8", label: "Contact" },
+  contact_attempt: { bg: "#6f42c1", label: "Communication" },
+  communication: { bg: "#17a2b8", label: "Communication" },
   field_visit: { bg: "#28a745", label: "Field Visit" },
   medical: { bg: "#dc3545", label: "Medical" },
   trap_event: { bg: "#fd7e14", label: "Trap" },
@@ -92,6 +121,31 @@ const ENTRY_KIND_STYLES: Record<string, { bg: string; label: string }> = {
   release: { bg: "#20c997", label: "Release" },
   status_change: { bg: "#6c757d", label: "Status" },
   system: { bg: "#adb5bd", label: "System" },
+};
+
+// Contact method display labels
+const CONTACT_METHOD_LABELS: Record<string, string> = {
+  phone: "Phone",
+  text: "Text",
+  email: "Email",
+  voicemail: "Voicemail",
+  in_person: "In Person",
+  mail: "Mail",
+  online_form: "Form",
+};
+
+// Contact result display labels
+const CONTACT_RESULT_LABELS: Record<string, string> = {
+  answered: "Answered",
+  no_answer: "No Answer",
+  left_voicemail: "Left VM",
+  sent: "Sent",
+  scheduled: "Scheduled",
+  spoke: "Spoke",
+  meeting_held: "Met",
+  no_response: "No Response",
+  bounced: "Bounced",
+  other: "Other",
 };
 
 export default function JournalSection({
@@ -102,14 +156,22 @@ export default function JournalSection({
   currentStaffId,
   currentStaffName,
 }: JournalSectionProps) {
+  // Self-resolve staff from session when props not provided
+  const { user } = useCurrentUser();
+  const effectiveStaffId = currentStaffId || user?.staff_id || "";
+  const effectiveStaffName = currentStaffName || user?.display_name || "";
+  const isStaffAutoFilled = !!(currentStaffId || user?.staff_id);
+
   const [newNote, setNewNote] = useState("");
-  const [selectedStaffId, setSelectedStaffId] = useState<string>(currentStaffId || "");
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(effectiveStaffId);
   const [addingNote, setAddingNote] = useState(false);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
 
-  // Auto-select current staff if provided
-  const isStaffAutoFilled = !!currentStaffId;
+  // Communication logging state
+  const [entryMode, setEntryMode] = useState<"note" | "communication">("note");
+  const [contactMethod, setContactMethod] = useState("phone");
+  const [contactResult, setContactResult] = useState("answered");
 
   // Fetch staff list on mount (only needed if no auto-fill)
   useEffect(() => {
@@ -121,40 +183,47 @@ export default function JournalSection({
     }
   }, [isStaffAutoFilled]);
 
-  // Keep selectedStaffId in sync if currentStaffId changes
+  // Keep selectedStaffId in sync with effective staff
   useEffect(() => {
-    if (currentStaffId) {
-      setSelectedStaffId(currentStaffId);
+    const id = currentStaffId || user?.staff_id;
+    if (id) {
+      setSelectedStaffId(id);
     }
-  }, [currentStaffId]);
+  }, [currentStaffId, user?.staff_id]);
 
-  const handleAddNote = async () => {
+  const handleAddEntry = async () => {
     if (!newNote.trim() || !selectedStaffId) return;
 
-    // Use currentStaffName if auto-filled, otherwise look up from list
+    // Use effective name if auto-filled, otherwise look up from list
     const displayName = isStaffAutoFilled
-      ? currentStaffName
+      ? effectiveStaffName
       : staffList.find(s => s.staff_id === selectedStaffId)?.display_name;
 
     setAddingNote(true);
     try {
-      const body: Record<string, string> = {
+      const payload: Record<string, string> = {
         body: newNote,
-        entry_kind: "note",
+        entry_kind: entryMode === "communication" ? "contact_attempt" : "note",
         created_by: displayName || "Unknown",
         created_by_staff_id: selectedStaffId,
       };
 
+      // Communication-specific fields
+      if (entryMode === "communication") {
+        payload.contact_method = contactMethod;
+        payload.contact_result = contactResult;
+      }
+
       // Set the appropriate entity ID
-      if (entityType === "cat") body.cat_id = entityId;
-      else if (entityType === "person") body.person_id = entityId;
-      else if (entityType === "place") body.place_id = entityId;
-      else if (entityType === "request") body.request_id = entityId;
+      if (entityType === "cat") payload.cat_id = entityId;
+      else if (entityType === "person") payload.person_id = entityId;
+      else if (entityType === "place") payload.place_id = entityId;
+      else if (entityType === "request") payload.request_id = entityId;
 
       const response = await fetch("/api/journal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
@@ -162,7 +231,7 @@ export default function JournalSection({
         onEntryAdded();
       }
     } catch (err) {
-      console.error("Failed to add note:", err);
+      console.error("Failed to add entry:", err);
     } finally {
       setAddingNote(false);
     }
@@ -212,20 +281,23 @@ export default function JournalSection({
     ) : null;
   };
 
+  const isCommunication = entryMode === "communication";
+
   return (
     <div>
-      {/* Add new note */}
+      {/* Entry creation form */}
       <div style={{ marginBottom: "1rem" }}>
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
+        {/* Staff attribution */}
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
           {isStaffAutoFilled ? (
             <span style={{
-              padding: "0.5rem 0.75rem",
+              padding: "0.375rem 0.625rem",
               background: "var(--info-bg)",
               borderRadius: "4px",
-              fontSize: "0.875rem",
+              fontSize: "0.8rem",
               color: "var(--info-text)",
             }}>
-              Logged by: <strong>{currentStaffName || "You"}</strong>
+              Logged by: <strong>{effectiveStaffName || "You"}</strong>
             </span>
           ) : (
             <select
@@ -247,19 +319,91 @@ export default function JournalSection({
             </select>
           )}
         </div>
+
+        {/* Mode toggle: Note vs Communication */}
+        <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={() => setEntryMode("note")}
+            style={{
+              padding: "0.375rem 0.75rem",
+              fontSize: "0.8rem",
+              fontWeight: 500,
+              border: "1px solid var(--border)",
+              borderRadius: "4px 0 0 4px",
+              background: !isCommunication ? "#0d6efd" : "var(--card-bg, #f8f9fa)",
+              color: !isCommunication ? "#fff" : "var(--foreground)",
+              cursor: "pointer",
+            }}
+          >
+            Note
+          </button>
+          <button
+            type="button"
+            onClick={() => setEntryMode("communication")}
+            style={{
+              padding: "0.375rem 0.75rem",
+              fontSize: "0.8rem",
+              fontWeight: 500,
+              border: "1px solid var(--border)",
+              borderLeft: "none",
+              borderRadius: "0 4px 4px 0",
+              background: isCommunication ? "#6f42c1" : "var(--card-bg, #f8f9fa)",
+              color: isCommunication ? "#fff" : "var(--foreground)",
+              cursor: "pointer",
+            }}
+          >
+            Log Communication
+          </button>
+        </div>
+
+        {/* Communication-specific fields */}
+        {isCommunication && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+            <select
+              value={contactMethod}
+              onChange={(e) => setContactMethod(e.target.value)}
+              style={{
+                padding: "0.375rem 0.5rem",
+                borderRadius: "4px",
+                border: "1px solid var(--border)",
+                fontSize: "0.85rem",
+              }}
+            >
+              {CONTACT_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <select
+              value={contactResult}
+              onChange={(e) => setContactResult(e.target.value)}
+              style={{
+                padding: "0.375rem 0.5rem",
+                borderRadius: "4px",
+                border: "1px solid var(--border)",
+                fontSize: "0.85rem",
+              }}
+            >
+              {CONTACT_RESULTS.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <textarea
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
-          placeholder="Add a note..."
+          placeholder={isCommunication ? "Describe the communication..." : "Add a note..."}
           rows={2}
           style={{ width: "100%", resize: "vertical" }}
         />
         <button
-          onClick={handleAddNote}
+          onClick={handleAddEntry}
           disabled={addingNote || !newNote.trim() || !selectedStaffId}
           style={{ marginTop: "0.5rem" }}
         >
-          {addingNote ? "Adding..." : "Add Note"}
+          {addingNote ? "Saving..." : isCommunication ? "Log Communication" : "Add Note"}
         </button>
       </div>
 
@@ -329,6 +473,42 @@ export default function JournalSection({
                   >
                     {kindStyle.label}
                   </span>
+
+                  {/* Contact method badge */}
+                  {entry.contact_method && (
+                    <span
+                      style={{
+                        padding: "0.15rem 0.4rem",
+                        borderRadius: "3px",
+                        background: "var(--bg-secondary, #e9ecef)",
+                        color: "var(--foreground)",
+                        fontSize: "0.65rem",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {CONTACT_METHOD_LABELS[entry.contact_method] || entry.contact_method}
+                    </span>
+                  )}
+
+                  {/* Contact result badge */}
+                  {entry.contact_result && (
+                    <span
+                      style={{
+                        padding: "0.15rem 0.4rem",
+                        borderRadius: "3px",
+                        background: entry.contact_result === "answered" || entry.contact_result === "spoke"
+                          ? "#d4edda" : entry.contact_result === "no_answer" || entry.contact_result === "bounced"
+                          ? "#f8d7da" : "var(--bg-secondary, #e9ecef)",
+                        color: entry.contact_result === "answered" || entry.contact_result === "spoke"
+                          ? "#155724" : entry.contact_result === "no_answer" || entry.contact_result === "bounced"
+                          ? "#721c24" : "var(--foreground)",
+                        fontSize: "0.65rem",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {CONTACT_RESULT_LABELS[entry.contact_result] || entry.contact_result}
+                    </span>
+                  )}
 
                   {/* Pinned indicator */}
                   {entry.is_pinned && (

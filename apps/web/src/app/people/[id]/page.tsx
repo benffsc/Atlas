@@ -1360,7 +1360,18 @@ export default function PersonDetailPage() {
     </>
   );
 
-  const activityTab = (
+  const journalTab = (
+    <Section title="Journal & Communications">
+      <JournalSection
+        entries={journal}
+        entityType="person"
+        entityId={id}
+        onEntryAdded={fetchJournal}
+      />
+    </Section>
+  );
+
+  const historyTab = (
     <>
       {/* Related Requests */}
       <Section title="Requests">
@@ -1406,16 +1417,6 @@ export default function PersonDetailPage() {
       {/* Website Submissions */}
       <Section title="Website Submissions">
         <SubmissionsSection entityType="person" entityId={id} />
-      </Section>
-
-      {/* Journal / Notes */}
-      <Section title="Journal">
-        <JournalSection
-          entries={journal}
-          entityType="person"
-          entityId={id}
-          onEntryAdded={fetchJournal}
-        />
       </Section>
     </>
   );
@@ -1464,8 +1465,9 @@ export default function PersonDetailPage() {
       defaultTab="overview"
       tabs={[
         { id: "overview", label: "Overview", content: overviewTab },
+        { id: "journal", label: "Journal", content: journalTab, badge: journal.length || undefined },
         { id: "connections", label: "Connections", content: connectionsTab, badge: connectionCount || undefined },
-        { id: "activity", label: "Activity", content: activityTab, badge: requests.length || undefined },
+        { id: "history", label: "History", content: historyTab, badge: requests.length || undefined },
         { id: "data", label: "Data", content: dataTab, show: !!(person.identifiers && person.identifiers.length > 0) },
       ]}
     >
