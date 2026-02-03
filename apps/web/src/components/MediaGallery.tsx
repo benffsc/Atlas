@@ -17,6 +17,12 @@ interface ExtendedMediaItem extends MediaItem {
   cross_ref_source?: string | null;
 }
 
+interface EntitySummary {
+  name?: string;
+  details?: string[];
+  imageUrl?: string;
+}
+
 interface MediaGalleryProps {
   entityType: "cat" | "place" | "request" | "person";
   entityId: string;
@@ -26,6 +32,7 @@ interface MediaGalleryProps {
   defaultMediaType?: string;
   allowedMediaTypes?: string[];
   includeRelated?: boolean;
+  entitySummary?: EntitySummary;
   // New props for grouping
   showGrouping?: boolean;
   defaultToGroupView?: boolean;
@@ -41,6 +48,7 @@ export function MediaGallery({
   defaultMediaType,
   allowedMediaTypes,
   includeRelated = false,
+  entitySummary,
   showGrouping = false,
   defaultToGroupView = false,
   availableCats = [],
@@ -223,21 +231,106 @@ export function MediaGallery({
         </div>
       )}
 
-      {/* Upload form */}
+      {/* Upload modal */}
       {showUploader && (
-        <div style={{ marginBottom: "1rem" }}>
-          <MediaUploader
-            entityType={entityType}
-            entityId={entityId}
-            onUploadComplete={handleUploadComplete}
-            onCancel={() => setShowUploader(false)}
-            showCatDescription={showCatDescription || entityType === "request"}
-            defaultMediaType={defaultMediaType || (entityType === "cat" ? "cat_photo" : "site_photo")}
-            allowedMediaTypes={allowedMediaTypes || ["cat_photo", "site_photo", "evidence"]}
-            allowMultiple={true}
-            showConfidenceSelector={showGrouping && entityType === "request"}
-            autoGroupMultiple={showGrouping}
-          />
+        <div
+          onClick={() => setShowUploader(false)}
+          style={{
+            position: "fixed",
+            inset: "0",
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+            padding: "2rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--card-bg, white)",
+              borderRadius: "12px",
+              width: "100%",
+              maxWidth: entitySummary ? "720px" : "520px",
+              maxHeight: "90vh",
+              overflow: "auto",
+              display: "flex",
+              gap: "0",
+            }}
+          >
+            {/* Entity summary sidebar */}
+            {entitySummary && (
+              <div style={{
+                width: "200px",
+                minWidth: "200px",
+                padding: "1.5rem",
+                borderRight: "1px solid var(--border, #dee2e6)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}>
+                {(entitySummary.imageUrl || media[0]?.storage_path) && (
+                  <img
+                    src={entitySummary.imageUrl || media[0]?.storage_path}
+                    alt={entitySummary.name || ""}
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                      background: "#e9ecef",
+                    }}
+                  />
+                )}
+                {entitySummary.name && (
+                  <div style={{ fontWeight: 600, fontSize: "1rem" }}>
+                    {entitySummary.name}
+                  </div>
+                )}
+                {entitySummary.details?.map((detail, i) => (
+                  <div key={i} style={{ fontSize: "0.8rem", color: "var(--text-muted, #6c757d)" }}>
+                    {detail}
+                  </div>
+                ))}
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #6c757d)", marginTop: "auto" }}>
+                  {media.length} photo{media.length !== 1 ? "s" : ""} uploaded
+                </div>
+              </div>
+            )}
+            {/* Uploader */}
+            <div style={{ flex: 1, padding: "1.5rem", minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Upload Photos</h3>
+                <button
+                  onClick={() => setShowUploader(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    fontSize: "1.5rem",
+                    cursor: "pointer",
+                    color: "var(--text-muted, #6c757d)",
+                    lineHeight: 1,
+                    padding: "0 0.25rem",
+                  }}
+                >
+                  &times;
+                </button>
+              </div>
+              <MediaUploader
+                entityType={entityType}
+                entityId={entityId}
+                onUploadComplete={handleUploadComplete}
+                onCancel={() => setShowUploader(false)}
+                showCatDescription={showCatDescription || entityType === "request"}
+                defaultMediaType={defaultMediaType || (entityType === "cat" ? "cat_photo" : "site_photo")}
+                allowedMediaTypes={allowedMediaTypes || ["cat_photo", "site_photo", "evidence"]}
+                allowMultiple={true}
+                showConfidenceSelector={showGrouping && entityType === "request"}
+                autoGroupMultiple={showGrouping}
+              />
+            </div>
+          </div>
         </div>
       )}
 

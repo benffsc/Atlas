@@ -749,6 +749,15 @@ export default function CatDetailPage() {
               maxDisplay={1}
               defaultMediaType="cat_photo"
               allowedMediaTypes={["cat_photo"]}
+              entitySummary={{
+                name: cat.display_name || "Unknown Cat",
+                details: [
+                  cat.sex ? `Sex: ${cat.sex.charAt(0).toUpperCase() + cat.sex.slice(1).toLowerCase()}` : "Sex: Unknown",
+                  cat.breed ? `Breed: ${cat.breed}` : undefined,
+                  cat.color ? `Color: ${cat.color}` : undefined,
+                  cat.microchip ? `Chip: ${cat.microchip}` : undefined,
+                ].filter(Boolean) as string[],
+              }}
             />
           </div>
 
