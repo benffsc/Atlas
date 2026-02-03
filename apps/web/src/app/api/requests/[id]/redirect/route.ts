@@ -101,8 +101,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Audit log
       await queryOne(
-        `INSERT INTO trapper.entity_edits (entity_type, entity_id, field_name, new_value, reason, edited_by)
-         VALUES ('request', $1, 'status', 'redirected', $2, $3)`,
+        `INSERT INTO trapper.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
+         VALUES ('request', $1, 'field_update', 'status', to_jsonb('redirected'::TEXT), $2, $3)`,
         [requestId, `Redirected to existing request ${existing_target_request_id}: ${redirect_reason}`, `staff:${session.staff_id}`]
       );
 
@@ -191,6 +191,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           { status: 400 }
         );
       }
+    }
+
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: `Failed to redirect request: ${error.message}` },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(

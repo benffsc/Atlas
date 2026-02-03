@@ -113,8 +113,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Audit log
       await queryOne(
-        `INSERT INTO trapper.entity_edits (entity_type, entity_id, field_name, new_value, reason, edited_by)
-         VALUES ('request', $1, 'status', 'handed_off', $2, $3)`,
+        `INSERT INTO trapper.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
+         VALUES ('request', $1, 'field_update', 'status', to_jsonb('handed_off'::TEXT), $2, $3)`,
         [requestId, `Handed off to existing request ${existing_target_request_id}: ${handoff_reason}`, `staff:${session.staff_id}`]
       );
 
