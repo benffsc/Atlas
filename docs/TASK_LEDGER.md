@@ -3065,3 +3065,55 @@ Verified all three upload types (cat_info, owner_info, appointment_info) are ind
 | `apps/web/src/app/api/cron/process-uploads/route.ts` | MOD — stuck-job auto-reset before processing |
 | `docs/ATLAS_NORTH_STAR.md` | MOD — INV-13, debt item 15, MAP_010_F/011_F done |
 | `docs/TASK_LEDGER.md` | MOD — INGEST_001 task card |
+
+### Round 3: Inline Enrichment + Entity Linking Audit
+
+After Round 2 deployment, user requested:
+1. Enrichment (entity linking, geocoding, beacon) should run inline on ingest instead of waiting for cron
+2. Full audit of cat-to-request attribution window linking
+
+#### Inline Enrichment (committed ed03247, 2f07c87)
+
+Added enrichment section at end of `runClinicHQPostProcessing()`:
+- **Entity linking**: Calls `link_appointments_to_owners()`, `run_cat_place_linking()`, `run_appointment_trapper_linking()` individually
+- **Cat→place via appointment person**: Direct INSERT for broader coverage
+- **Cat→request second pass**: `link_cats_to_requests_safe()` after entity linking (see ordering fix below)
+- **Geocoding**: Fire-and-forget HTTP to `/api/cron/geocode`
+- **Beacon birth events**: Lactating appointment → birth event (appointment_date - 42 days)
+- **Beacon mortality events**: Euthanasia/death notes → mortality event + deceased flag
+- Bumped `maxDuration` from 120 → 180
+
+#### Issues Discovered
+
+| Issue | Severity | Root Cause | Impact |
+|-------|----------|------------|--------|
+| **`run_all_entity_linking()` broken** | CRITICAL | Called `link_appointments_to_partner_orgs()` which does not exist. Correct function: `link_all_appointments_to_partner_orgs()`. | Entity-linking cron silently failing for unknown period. **6,124 cat-place relationships backlogged**, 9,506 appointment places never inferred. |
+| **Cat-request linking ordering** | HIGH | Cat-to-request linking (appointment_info post-processing) runs BEFORE entity linking creates cat→place relationships. Cats without prior place links are missed. | Only 15 cats linked during ingest; 96 more were linkable after entity linking ran. |
+| **`link_clinic_cats_to_places()` constraint assumption** | MEDIUM | Uses `ON CONFLICT (cat_id, place_id) DO NOTHING` but no such unique constraint exists on `cat_place_relationships`. | Replaced with `NOT EXISTS` subquery in inline enrichment. |
+
+#### Fixes Applied
+
+1. **Inline enrichment uses individual function calls** instead of broken `run_all_entity_linking()` wrapper (committed 2f07c87)
+2. **Second-pass cat-request linking** added after entity linking in enrichment section — catches newly-placed cats the first pass missed
+3. **`run_all_entity_linking()` fixed in database** — replaced broken reference, added BEGIN/EXCEPTION fault tolerance. Migration: `MIG_858__fix_run_all_entity_linking.sql`
+
+#### Data Recovery (manual, run against production)
+
+| Operation | Result |
+|-----------|--------|
+| `link_appointments_to_owners()` | 140 appointments updated, 15 new people, 19 linked |
+| `run_cat_place_linking()` | 0 (already done) |
+| `run_appointment_trapper_linking()` | 10 linked |
+| Cat-place via appointment person | 6,124 relationships created for 1,325 places |
+| Infer appointment places | 9,506 appointments got place_id |
+| `link_cats_to_requests_safe()` | 96 cats linked to requests |
+| Birth events | 0 new (all caught by previous runs) |
+| Mortality events | 0 new |
+
+#### Files (Round 3)
+
+| File | Change |
+|------|--------|
+| `apps/web/src/app/api/ingest/process/[id]/route.ts` | MOD — inline enrichment, second-pass cat-request linking, maxDuration 180 |
+| `sql/schema/sot/MIG_858__fix_run_all_entity_linking.sql` | NEW — fix broken function reference + fault tolerance |
+| `docs/TASK_LEDGER.md` | MOD — Round 3 findings |

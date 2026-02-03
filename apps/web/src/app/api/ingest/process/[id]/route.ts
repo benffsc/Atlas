@@ -952,6 +952,22 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
 
   results.entity_linking = linking;
 
+  // Cat-to-request linking (second pass): now that entity linking has created
+  // fresh cat→place relationships, link newly-placed cats to active requests.
+  // The first pass (in appointment_info post-processing) only catches cats that
+  // ALREADY had place links; this catches the rest.
+  try {
+    await saveProgress('Linking cats to requests (post entity-linking)...');
+    const postLinkResult = await queryOne<{ linked: number; skipped: number }>(
+      `SELECT * FROM trapper.link_cats_to_requests_safe()`
+    );
+    if (postLinkResult) {
+      results.cats_linked_to_requests_post = postLinkResult.linked;
+    }
+  } catch (err) {
+    console.error('Post-linking cats to requests failed (non-fatal):', err);
+  }
+
   // Geocoding: fire-and-forget so new places get coordinates for map
   try {
     await saveProgress('Triggering geocoding...');
