@@ -22,7 +22,7 @@ interface AlterationStats {
   effective_request_date: string;
   window_start: string;
   window_end: string;
-  window_type?: "legacy_fixed" | "resolved_with_buffer" | "active_rolling";
+  window_type?: "active" | "resolved" | "redirected_closed" | "handoff_closed" | "redirect_child" | "handoff_child";
   cats_caught: number;
   cats_for_request: number; // Cats caught specifically for THIS request
   cats_altered: number;
@@ -146,22 +146,16 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
               borderRadius: "4px",
               fontSize: "0.65rem",
               fontWeight: 500,
-              background: stats.window_type === "active_rolling" ? "#198754"
-                : stats.window_type === "resolved_with_buffer" ? "#6c757d"
-                : "#ffc107",
-              color: stats.window_type === "legacy_fixed" ? "#000" : "#fff",
+              background: stats.window_type === "active" ? "#198754" : "#6c757d",
+              color: "#fff",
             }}
             title={
-              stats.window_type === "active_rolling"
-                ? "Window extends as new cats are brought to clinic"
-                : stats.window_type === "resolved_with_buffer"
-                ? "Window closed 3 months after resolution"
-                : "Fixed window for pre-May 2025 requests"
+              stats.window_type === "active"
+                ? "Request is active — all cats from clinic count"
+                : "Request resolved — cats within 6 months of creation or while active"
             }
           >
-            {stats.window_type === "active_rolling" ? "Rolling"
-              : stats.window_type === "resolved_with_buffer" ? "Closed"
-              : "Legacy"}
+            {stats.window_type === "active" ? "Active" : "Resolved"}
           </span>
         )}
       </div>

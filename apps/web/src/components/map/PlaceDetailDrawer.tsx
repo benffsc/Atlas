@@ -109,6 +109,9 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<NotesTab>("original");
   const [showStreetView, setShowStreetView] = useState(false);
+  const [svHeading, setSvHeading] = useState(0);
+  const svPositionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const svIframeRef = useRef<HTMLIFrameElement>(null);
 
   // Watchlist toggle state
   const [watchlistLoading, setWatchlistLoading] = useState(false);
@@ -140,6 +143,8 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     setError(null);
     setActiveTab("original");
     setShowStreetView(false);
+    setSvHeading(0);
+    svPositionRef.current = null;
     setShowWatchlistForm(false);
     setWatchlistReason("");
 
@@ -157,6 +162,21 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
         setLoading(false);
       });
   }, [placeId]);
+
+  // Listen for heading/position updates from interactive Street View iframe
+  useEffect(() => {
+    if (!showStreetView) return;
+    const handler = (event: MessageEvent) => {
+      if (!event.data?.type) return;
+      if (event.data.type === "streetview-pov") {
+        setSvHeading(event.data.heading);
+      } else if (event.data.type === "streetview-position") {
+        svPositionRef.current = { lat: event.data.lat, lng: event.data.lng };
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [showStreetView]);
 
   // Deduplicate people by person_id (safety net in case API returns duplicates)
   const uniquePeople = useMemo(() => {
@@ -488,24 +508,46 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               </div>
             )}
 
-            {/* Street View Preview */}
+            {/* Street View Preview (Interactive) */}
             {coordinates && (
               <div className="street-view-drawer">
                 <button
                   className="street-view-drawer-toggle"
-                  onClick={() => setShowStreetView(!showStreetView)}
+                  onClick={() => { setShowStreetView(!showStreetView); setSvHeading(0); svPositionRef.current = null; }}
                 >
                   <span>📷 Street View</span>
                   <span style={{ transform: showStreetView ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
                 </button>
                 {showStreetView && (
-                  <iframe
-                    className="street-view-drawer-iframe"
-                    src={`/api/streetview/embed?lat=${coordinates.lat}&lng=${coordinates.lng}`}
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
+                  <>
+                    <iframe
+                      ref={svIframeRef}
+                      className="street-view-drawer-iframe"
+                      src={`/api/streetview/interactive?lat=${coordinates.lat}&lng=${coordinates.lng}`}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                    <div className="street-view-drawer-controls">
+                      <span className="street-view-drawer-compass">
+                        {["N","NE","E","SE","S","SW","W","NW"][Math.round(svHeading / 45) % 8]}
+                        <span className="street-view-drawer-degrees">{svHeading}°</span>
+                      </span>
+                      <button
+                        className="street-view-drawer-expand"
+                        onClick={() => {
+                          const pos = svPositionRef.current || coordinates;
+                          const addr = place?.address || place?.display_name;
+                          (window as unknown as { atlasMapOpenStreetView?: (lat: number, lng: number, address?: string) => void })
+                            .atlasMapOpenStreetView?.(pos.lat, pos.lng, addr || undefined);
+                          setShowStreetView(false);
+                        }}
+                        title="Open full street view panel"
+                      >
+                        Expand
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}

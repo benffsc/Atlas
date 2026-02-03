@@ -330,20 +330,28 @@ The **Data Engine** is Atlas's unified system for identity resolution and entity
 
 **See `docs/INGEST_GUIDELINES.md` for complete documentation.**
 
-### Attribution Windows (MIG_208)
+### Attribution Windows (MIG_860)
 
-When linking cats to requests, use the **rolling window system**:
+A cat is linked to a request if its appointment was:
+1. **Within 6 months of request creation**, OR
+2. **While the request was still active** (not closed/complete)
 
 ```sql
--- Legacy requests (before May 2025): Fixed window
-WHEN source_created_at < '2025-05-01' THEN source_created_at + '6 months'
-
--- Resolved requests: Buffer after completion
-WHEN resolved_at IS NOT NULL THEN resolved_at + '3 months'
-
--- Active requests: Rolling to future
-ELSE NOW() + '6 months'
+-- Appointment must be after request creation
+AND appointment_date >= source_created_at
+-- Within 6 months of creation OR while request was active
+AND (
+    appointment_date <= source_created_at + '6 months'
+    OR resolved_at IS NULL           -- request still active
+    OR appointment_date <= resolved_at -- brought in before resolution
+)
 ```
+
+| Request State | Window |
+|---------------|--------|
+| Active (not resolved) | `source_created_at` → now (open-ended) |
+| Resolved | `source_created_at` → GREATEST(source_created_at + 6 months, resolved_at) |
+| Redirected/handed off | `source_created_at` → redirect_at |
 
 **DO NOT** create custom time window logic. Always use `v_request_alteration_stats` view.
 

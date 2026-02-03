@@ -3176,3 +3176,119 @@ Replaced manual `useEffect` + `useState` for `/api/auth/me` with `useCurrentUser
 **Auto-fixed** (no code change needed):
 - `apps/web/src/app/cats/[id]/page.tsx` — JournalSection self-resolves staff via hook
 - `apps/web/src/app/places/[id]/page.tsx` — Same
+
+---
+
+## LINKING_002: Cat-Request Linking Race Condition (60-day Lookback)
+
+**Status:** Done
+**ACTIVE Impact:** No (entity linking pipeline, not user-facing workflows)
+**Scope:** Fix `link_cats_to_requests_safe()` race condition; backfill 113 missed cat-request links system-wide.
+
+### Investigation
+
+**Trigger:** Thea Torgersen (person `d6bb39f1`) has 6 cats via clinic appointments, all at 543 Lakeville Cir (place `9d2ba3df`), all within her request's attribution window. Only 5 were linked to her request (`0c7979d4`). Sneakers (cat `ba984b45`, appointment 2025-11-05) was missing.
+
+**Root Cause:** `link_cats_to_requests_safe()` has a hard 60-day lookback:
+```sql
+AND a.appointment_date >= CURRENT_DATE - INTERVAL '60 days'
+```
+
+This creates a **race condition** between two pipeline steps:
+1. **Step 2** (`run_cat_place_linking`): Creates `cat_place_relationships` (cat → place)
+2. **Step 5** (`link_cats_to_requests_safe`): Links cats to requests using those relationships
+
+If Step 2 creates the `cat_place_relationship` **after** the appointment is >60 days old, Step 5 will never catch it because the appointment is permanently outside the lookback window.
+
+**Sneakers timeline:**
+| Date | Event |
+|------|-------|
+| 2025-11-05 | Sneakers' appointment |
+| 2026-01-12 | 3 other cats get cat_place_relationships → linked by mig_258 |
+| 2026-01-22 | Sneakers finally gets cat_place_relationship (78 days after appointment) |
+| 2026-01-22 | Brownie (appt 2025-12-17, 36 days old) linked ✓ |
+| 2026-01-22 | Sneakers (appt 2025-11-05, 78 days old) **NOT linked** ✗ — outside 60-day window |
+
+**Systemic scope:** 69+ cats system-wide had missing request links due to this same race condition.
+
+### Fix (MIG_859)
+
+**Function fix:** Added 14-day catch-up clause for recently-created `cat_place_relationships`:
+```sql
+AND (
+    a.appointment_date >= CURRENT_DATE - INTERVAL '60 days'
+    OR cpr.created_at >= NOW() - INTERVAL '14 days'
+)
+```
+
+This ensures:
+- **Normal flow:** Recent appointments (last 60 days) processed as before
+- **Catch-up:** Any cat whose place link was created in the last 14 days is processed regardless of appointment age
+- **Ingest coverage:** When ClinicHQ data ingests and creates cat_place_relationships, the next entity linking run will catch them even if the appointment is old
+
+**Backfill:** One-time INSERT linked **113 cats** to their correct requests that had fallen through the gap.
+
+### Validation
+
+- Thea Torgersen: All 6 cats now linked (was 5, Sneakers added by mig_859_backfill)
+- 113 total cats backfilled system-wide
+- Function now prevents future race conditions via 14-day catch-up window
+
+### Files
+
+| File | Change |
+|------|--------|
+| `sql/schema/sot/MIG_859__fix_cat_request_linking_race_condition.sql` | NEW — Function fix + backfill |
+| `docs/TASK_LEDGER.md` | MOD — LINKING_002 |
+
+---
+
+## LINKING_003: Unified Attribution Window Rule
+
+**Status:** Done
+**ACTIVE Impact:** No (view + function change, same data pipeline)
+**Scope:** Replace multi-tier attribution window (legacy_fixed, active_rolling, resolved_with_buffer) with a single unified rule.
+
+### Rule
+
+A cat is linked to a request if its appointment was:
+1. **Within 6 months of request creation**, OR
+2. **While the request was still active** (not closed/complete)
+
+```
+Active request:   source_created_at → now (open-ended)
+Resolved request: source_created_at → GREATEST(source_created_at + 6 months, resolved_at)
+Redirected:       source_created_at → redirect_at
+```
+
+### Previous Logic (Replaced)
+
+| Window Type | Old Logic |
+|-------------|-----------|
+| `legacy_fixed` | source_created_at + 6 months (pre-May 2025 requests) |
+| `resolved_with_buffer` | resolved_at + 3 months |
+| `active_rolling` | GREATEST(last_activity_at + 6m, NOW() + 3m) |
+
+The old system had 5 tiers with special cases for legacy vs modern requests. The new system has one rule that applies uniformly to all requests.
+
+### Changes (MIG_860)
+
+1. **`link_cats_to_requests_safe()`**: Attribution window logic replaced with unified rule. Performance guard (60-day + 14-day catch-up from MIG_859) preserved.
+2. **`v_request_alteration_stats`**: View recreated with simplified window_start/window_end. Window types reduced to: `active`, `resolved`, `redirected_closed`, `handoff_closed`, `redirect_child`, `handoff_child`.
+3. **`AlterationStatsCard.tsx`**: UI badge updated for new window types (Active/Resolved instead of Rolling/Closed/Legacy).
+4. **`CLAUDE.md`**: Attribution window documentation updated to reflect unified rule.
+
+### Validation
+
+- 0 additional cats backfilled (MIG_859 already caught everything)
+- Window type distribution: 124 active, 151 resolved, 2 handoff
+- Thea Torgersen's request unchanged: all 6 cats still linked, 4 TNR alterations at 100%
+
+### Files
+
+| File | Change |
+|------|--------|
+| `sql/schema/sot/MIG_860__unified_attribution_window.sql` | NEW — Unified function + view + backfill |
+| `apps/web/src/components/AlterationStatsCard.tsx` | MOD — New window type names |
+| `CLAUDE.md` | MOD — Attribution window docs |
+| `docs/TASK_LEDGER.md` | MOD — LINKING_003 |
