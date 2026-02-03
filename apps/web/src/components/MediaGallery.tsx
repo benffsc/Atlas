@@ -100,6 +100,20 @@ export function MediaGallery({
     setShowUploader(false);
   };
 
+  // Set a photo as the main/hero photo
+  const handleSetHero = useCallback(async (mediaId: string) => {
+    try {
+      const res = await fetch(`/api/media/${mediaId}/hero`, { method: "PATCH" });
+      if (res.ok) {
+        // Re-fetch to get updated sort order
+        fetchMedia();
+        setLightboxIndex(null);
+      }
+    } catch (err) {
+      console.error("Error setting hero:", err);
+    }
+  }, [fetchMedia]);
+
   // Determine which media to display
   const displayMedia = maxDisplay ? media.slice(0, maxDisplay) : media;
   const hasMore = maxDisplay && media.length > maxDisplay;
@@ -437,6 +451,7 @@ export function MediaGallery({
           media={media}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          onSetHero={handleSetHero}
         />
       )}
     </div>

@@ -24,11 +24,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         m.storage_path, m.thumbnail_path, m.caption, m.notes,
         m.cat_description, m.linked_cat_id,
         m.uploaded_by, m.uploaded_at,
-        COALESCE(m.is_hero, FALSE) AS is_hero,
-        COALESCE(m.display_order, 0) AS display_order
+        COALESCE(m.is_hero, FALSE) AS is_hero
        FROM trapper.request_media m
        WHERE m.person_id = $1 AND NOT m.is_archived
-       ORDER BY m.is_hero DESC, m.display_order ASC, m.uploaded_at DESC`,
+       ORDER BY is_hero DESC, m.uploaded_at DESC`,
       [id]
     );
 

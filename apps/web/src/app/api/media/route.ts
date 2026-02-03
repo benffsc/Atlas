@@ -9,7 +9,8 @@ const MEDIA_COLS = `
   m.media_id, m.media_type::TEXT AS media_type, m.original_filename,
   m.storage_path, m.thumbnail_path, m.caption, m.notes,
   m.cat_description, m.linked_cat_id,
-  m.uploaded_by, m.uploaded_at`;
+  m.uploaded_by, m.uploaded_at,
+  COALESCE(m.is_hero, FALSE) AS is_hero`;
 
 const WINDOW_CONDITION = `
   AND (r.resolved_at IS NULL
@@ -128,7 +129,7 @@ function buildMediaCrossRefQuery(
       ORDER BY media_id, cross_ref_source NULLS FIRST
     )
     SELECT * FROM deduped
-    ORDER BY uploaded_at DESC
+    ORDER BY is_hero DESC, uploaded_at DESC
   `;
 
   return { sql, params };
@@ -180,7 +181,7 @@ export async function GET(request: NextRequest) {
            OR ($1 = 'cat' AND (m.direct_cat_id = $2 OR m.linked_cat_id = $2))
            OR ($1 = 'person' AND m.person_id = $2)
          )
-       ORDER BY uploaded_at DESC`,
+       ORDER BY is_hero DESC, uploaded_at DESC`,
       [entityType, entityId],
     );
     return NextResponse.json({ media });

@@ -3,8 +3,10 @@ import { execute, queryOne } from "@/lib/db";
 
 interface MediaRow {
   media_id: string;
+  request_id: string | null;
   place_id: string | null;
-  request_id: string;
+  direct_cat_id: string | null;
+  person_id: string | null;
 }
 
 export async function PATCH(
@@ -14,9 +16,9 @@ export async function PATCH(
   const { id: mediaId } = await params;
 
   try {
-    // Get the media item to find its place_id and request_id
     const media = await queryOne<MediaRow>(
-      `SELECT media_id, place_id, request_id FROM trapper.request_media WHERE media_id = $1 AND is_archived = FALSE`,
+      `SELECT media_id, request_id, place_id, direct_cat_id, person_id
+       FROM trapper.request_media WHERE media_id = $1 AND is_archived = FALSE`,
       [mediaId]
     );
 
@@ -24,19 +26,31 @@ export async function PATCH(
       return NextResponse.json({ error: "Media not found" }, { status: 404 });
     }
 
-    // Clear existing hero for same place (if place-linked)
+    // Clear existing hero for each linked entity
+    if (media.direct_cat_id) {
+      await execute(
+        `UPDATE trapper.request_media SET is_hero = FALSE WHERE direct_cat_id = $1 AND is_hero = TRUE`,
+        [media.direct_cat_id]
+      );
+    }
     if (media.place_id) {
       await execute(
         `UPDATE trapper.request_media SET is_hero = FALSE WHERE place_id = $1 AND is_hero = TRUE`,
         [media.place_id]
       );
     }
-
-    // Clear existing hero for same request
-    await execute(
-      `UPDATE trapper.request_media SET is_hero = FALSE WHERE request_id = $1 AND is_hero = TRUE`,
-      [media.request_id]
-    );
+    if (media.request_id) {
+      await execute(
+        `UPDATE trapper.request_media SET is_hero = FALSE WHERE request_id = $1 AND is_hero = TRUE`,
+        [media.request_id]
+      );
+    }
+    if (media.person_id) {
+      await execute(
+        `UPDATE trapper.request_media SET is_hero = FALSE WHERE person_id = $1 AND is_hero = TRUE`,
+        [media.person_id]
+      );
+    }
 
     // Set this one as hero
     await execute(

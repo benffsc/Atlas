@@ -7,9 +7,10 @@ interface MediaLightboxProps {
   media: MediaItem[];
   initialIndex: number;
   onClose: () => void;
+  onSetHero?: (mediaId: string) => void;
 }
 
-export function MediaLightbox({ media, initialIndex, onClose }: MediaLightboxProps) {
+export function MediaLightbox({ media, initialIndex, onClose, onSetHero }: MediaLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   const currentMedia = media[currentIndex];
@@ -222,26 +223,45 @@ export function MediaLightbox({ media, initialIndex, onClose }: MediaLightboxPro
           {currentMedia.uploaded_by && ` &bull; by ${currentMedia.uploaded_by}`}
         </div>
 
-        {/* Download button */}
-        <a
-          href={currentMedia.storage_path}
-          download={currentMedia.original_filename}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            display: "inline-block",
-            marginTop: "0.5rem",
-            padding: "0.25rem 0.75rem",
-            background: "rgba(255,255,255,0.2)",
-            color: "white",
-            textDecoration: "none",
-            borderRadius: "4px",
-            fontSize: "0.75rem",
-          }}
-        >
-          Download
-        </a>
+        {/* Actions */}
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", justifyContent: "center" }}>
+          {onSetHero && media.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetHero(currentMedia.media_id);
+              }}
+              style={{
+                padding: "0.25rem 0.75rem",
+                background: "#0d6efd",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+              }}
+            >
+              Set as Main Photo
+            </button>
+          )}
+          <a
+            href={currentMedia.storage_path}
+            download={currentMedia.original_filename}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              padding: "0.25rem 0.75rem",
+              background: "rgba(255,255,255,0.2)",
+              color: "white",
+              textDecoration: "none",
+              borderRadius: "4px",
+              fontSize: "0.75rem",
+            }}
+          >
+            Download
+          </a>
+        </div>
       </div>
     </div>
   );
