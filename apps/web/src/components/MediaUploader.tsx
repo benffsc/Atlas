@@ -218,105 +218,92 @@ export function MediaUploader({
     });
 
     try {
-      const formData = new FormData();
+      // Helper to upload a single file and parse the response
+      const uploadOneFile = async (file: File): Promise<{ success: true; result: { media_id: string; storage_path: string; stored_filename: string; photo_group_id?: string } } | { success: false; error: string }> => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("entity_type", entityType);
+        formData.append("entity_id", entityId);
+        formData.append("media_type", mediaType);
+        formData.append("uploaded_by", "app_user");
+        formData.append("cat_identification_confidence", confidence);
+        if (caption) formData.append("caption", caption);
+        if (catDescription) formData.append("cat_description", catDescription);
 
-      // Add files
-      if (selectedFiles.length === 1) {
-        formData.append("file", selectedFiles[0].file);
-      } else {
-        selectedFiles.forEach((sf) => {
-          formData.append("files[]", sf.file);
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          body: formData,
         });
-      }
 
-      formData.append("entity_type", entityType);
-      formData.append("entity_id", entityId);
-      formData.append("media_type", mediaType);
-      formData.append("uploaded_by", "app_user");
-      formData.append("cat_identification_confidence", confidence);
+        if (!response.ok) {
+          let errorMessage = `Upload failed (${response.status})`;
+          try {
+            const data = await response.json();
+            errorMessage = data.error || errorMessage;
+          } catch {
+            const text = await response.text().catch(() => "");
+            if (text) errorMessage = text;
+          }
+          return { success: false, error: errorMessage };
+        }
 
-      if (caption) formData.append("caption", caption);
-      if (catDescription) formData.append("cat_description", catDescription);
+        const result = await response.json();
+        return { success: true, result };
+      };
 
-      // Photo grouping options
-      if (groupPhotos && selectedFiles.length > 1 && entityType === "request") {
-        formData.append("create_photo_group", "true");
-        if (groupName) formData.append("photo_group_name", groupName);
-      }
+      // Upload files one at a time for reliable progress and to avoid body size limits
+      const uploadedItems: MediaItem[] = [];
+      let failedCount = 0;
 
-      const response = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Upload failed");
-      }
-
-      const result = await response.json();
-
-      // Handle response based on single vs batch
-      if (selectedFiles.length === 1) {
-        // Single file response
-        const mediaItem: MediaItem = {
-          media_id: result.media_id,
-          media_type: mediaType,
-          original_filename: selectedFiles[0].file.name,
-          storage_path: result.storage_path,
-          caption: caption || null,
-          cat_description: catDescription || null,
-          uploaded_by: "app_user",
-          uploaded_at: new Date().toISOString(),
-          cat_identification_confidence: confidence,
-          photo_group_id: result.photo_group_id,
-        };
-
-        setProgress({ total: 1, completed: 1, failed: 0, current: null });
-        clearAllFiles();
-        setCaption("");
-        setCatDescription("");
-        setGroupName("");
-        onUploadComplete?.(mediaItem);
-      } else {
-        // Batch response
-        const uploadedCount = result.results?.length || 0;
-        const failedCount = result.failed?.length || 0;
-
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const sf = selectedFiles[i];
         setProgress({
           total: selectedFiles.length,
-          completed: uploadedCount,
+          completed: uploadedItems.length,
           failed: failedCount,
-          current: null,
+          current: sf.file.name,
         });
 
-        if (failedCount > 0 && uploadedCount === 0) {
-          throw new Error(`All ${failedCount} uploads failed`);
+        const result = await uploadOneFile(sf.file);
+
+        if (result.success) {
+          uploadedItems.push({
+            media_id: result.result.media_id,
+            media_type: mediaType,
+            original_filename: sf.file.name,
+            storage_path: result.result.storage_path,
+            caption: caption || null,
+            cat_description: catDescription || null,
+            uploaded_by: "app_user",
+            uploaded_at: new Date().toISOString(),
+            cat_identification_confidence: confidence,
+            photo_group_id: result.result.photo_group_id,
+          });
+        } else {
+          failedCount++;
         }
-
-        const mediaItems: MediaItem[] = (result.results || []).map((r: { media_id: string; storage_path: string; stored_filename: string }, index: number) => ({
-          media_id: r.media_id,
-          media_type: mediaType,
-          original_filename: selectedFiles[index]?.file.name || r.stored_filename,
-          storage_path: r.storage_path,
-          caption: caption || null,
-          cat_description: catDescription || null,
-          uploaded_by: "app_user",
-          uploaded_at: new Date().toISOString(),
-          cat_identification_confidence: confidence,
-          photo_group_id: result.photo_group_id,
-        }));
-
-        if (failedCount > 0) {
-          setError(`${uploadedCount} uploaded, ${failedCount} failed`);
-        }
-
-        clearAllFiles();
-        setCaption("");
-        setCatDescription("");
-        setGroupName("");
-        onUploadComplete?.(mediaItems);
       }
+
+      setProgress({
+        total: selectedFiles.length,
+        completed: uploadedItems.length,
+        failed: failedCount,
+        current: null,
+      });
+
+      if (uploadedItems.length === 0) {
+        throw new Error(`All ${failedCount} uploads failed`);
+      }
+
+      if (failedCount > 0) {
+        setError(`${uploadedItems.length} uploaded, ${failedCount} failed`);
+      }
+
+      clearAllFiles();
+      setCaption("");
+      setCatDescription("");
+      setGroupName("");
+      onUploadComplete?.(uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
