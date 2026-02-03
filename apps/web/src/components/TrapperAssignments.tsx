@@ -161,6 +161,21 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         }),
       });
       if (response.ok) {
+        // Journal audit entry
+        const trapperName =
+          availableTrappers.find((t) => t.person_id === selectedTrapperId)?.display_name ||
+          personResults.find((p) => p.entity_id === selectedTrapperId)?.display_name ||
+          "Unknown";
+        fetch("/api/journal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            entry_kind: "system",
+            body: `Assigned trapper: ${trapperName}${isPrimary ? " (primary)" : ""}`,
+          }),
+        }).catch(() => {});
+
         setShowAddForm(false);
         setSelectedTrapperId("");
         setIsPrimary(false);
@@ -188,6 +203,18 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         body: JSON.stringify({ no_trapper_reason: reason }),
       });
       if (response.ok) {
+        // Journal audit entry
+        const label = NO_TRAPPER_REASON_LABELS[reason] || reason;
+        fetch("/api/journal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            entry_kind: "system",
+            body: `Set no-trapper reason: ${label}`,
+          }),
+        }).catch(() => {});
+
         setNoTrapperReason(reason);
         if (reason === "client_trapping") {
           setAssignmentStatus("client_trapping");
@@ -211,6 +238,17 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         body: JSON.stringify({ no_trapper_reason: null }),
       });
       if (response.ok) {
+        // Journal audit entry
+        fetch("/api/journal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            entry_kind: "system",
+            body: "Cleared no-trapper reason (trapper needed again)",
+          }),
+        }).catch(() => {});
+
         setNoTrapperReason(null);
         setAssignmentStatus(trappers.length > 0 ? "assigned" : "pending");
         onAssignmentChange?.();

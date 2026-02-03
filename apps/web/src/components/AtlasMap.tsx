@@ -525,11 +525,18 @@ export default function AtlasMap() {
         setStreetViewConeOnly(false);
       }
     };
+    // Open street view directly in fullscreen mode (used by drawer Expand button)
+    (window as unknown as { atlasMapExpandStreetViewFullscreen: (lat: number, lng: number, address?: string) => void }).atlasMapExpandStreetViewFullscreen = (lat: number, lng: number, address?: string) => {
+      setStreetViewCoords({ lat, lng, address });
+      setStreetViewConeOnly(false);
+      setStreetViewFullscreen(true);
+    };
     return () => {
       delete (window as unknown as { atlasMapExpandPlace?: (id: string) => void }).atlasMapExpandPlace;
       delete (window as unknown as { atlasMapOpenStreetView?: (lat: number, lng: number, address?: string) => void }).atlasMapOpenStreetView;
       delete (window as unknown as { atlasMapShowStreetViewCone?: (lat: number, lng: number) => void }).atlasMapShowStreetViewCone;
       delete (window as unknown as { atlasMapHideStreetViewCone?: () => void }).atlasMapHideStreetViewCone;
+      delete (window as unknown as { atlasMapExpandStreetViewFullscreen?: (lat: number, lng: number, address?: string) => void }).atlasMapExpandStreetViewFullscreen;
     };
   }, []);
 

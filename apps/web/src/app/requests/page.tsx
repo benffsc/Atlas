@@ -483,6 +483,20 @@ function RequestsPageContent() {
       if (response.ok) {
         setActionMenuId(null);
         setRefreshTrigger((n) => n + 1);
+        // Log to journal as system entry
+        fetch("/api/journal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            entry_kind: "system",
+            body: reason === "client_trapping"
+              ? "Marked as client trapping (trapper not needed)"
+              : reason === "not_needed"
+              ? "Marked as trapper not needed"
+              : `Trapper status updated: ${reason}`,
+          }),
+        }).catch(() => {}); // fire-and-forget
       }
     } catch (err) {
       console.error("Failed to update trapper reason:", err);
@@ -662,7 +676,7 @@ function RequestsPageContent() {
       </div>
 
       {/* Saved Filters */}
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{ marginBottom: "0.75rem" }}>
         <SavedFilters
           currentFilters={currentFilters}
           onApplyFilter={handleApplyFilters}
@@ -670,24 +684,33 @@ function RequestsPageContent() {
         />
       </div>
 
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+      {/* Search + Compact Filter Bar */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
         {/* Search Bar */}
-        <div style={{ position: "relative", flex: "1 1 250px", maxWidth: "400px" }}>
+        <div style={{ position: "relative", flex: "1 1 200px", maxWidth: "320px" }}>
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search requests..."
-            style={{ width: "100%", paddingLeft: "2.5rem" }}
+            placeholder="Search..."
+            style={{
+              width: "100%",
+              paddingLeft: "2rem",
+              padding: "0.3rem 0.6rem 0.3rem 2rem",
+              fontSize: "0.8rem",
+              borderRadius: "16px",
+              border: "1px solid var(--border)",
+            }}
           />
           <span
             style={{
               position: "absolute",
-              left: "0.75rem",
+              left: "0.6rem",
               top: "50%",
               transform: "translateY(-50%)",
               color: "var(--text-muted)",
               pointerEvents: "none",
+              fontSize: "0.75rem",
             }}
           >
             🔍
@@ -697,14 +720,15 @@ function RequestsPageContent() {
               onClick={() => { setSearchInput(""); setFilter("q", ""); }}
               style={{
                 position: "absolute",
-                right: "0.5rem",
+                right: "0.4rem",
                 top: "50%",
                 transform: "translateY(-50%)",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
                 color: "var(--text-muted)",
-                padding: "0.25rem",
+                padding: "2px",
+                fontSize: "0.7rem",
               }}
             >
               ✕
@@ -712,76 +736,122 @@ function RequestsPageContent() {
           )}
         </div>
 
-        <select
-          value={filters.status}
-          onChange={(e) => setFilter("status", e.target.value)}
-          style={{ minWidth: "150px" }}
-        >
-          <option value="">All statuses</option>
-          <option value="new">New</option>
-          <option value="triaged">Triaged</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="on_hold">On Hold</option>
-        </select>
+        {/* Pill selects */}
+        {[
+          {
+            value: filters.status,
+            onChange: (v: string) => setFilter("status", v),
+            options: [
+              { value: "", label: "Status" },
+              { value: "new", label: "New" },
+              { value: "triaged", label: "Triaged" },
+              { value: "scheduled", label: "Scheduled" },
+              { value: "in_progress", label: "In Progress" },
+              { value: "completed", label: "Completed" },
+              { value: "cancelled", label: "Cancelled" },
+              { value: "on_hold", label: "On Hold" },
+            ],
+          },
+          {
+            value: filters.trapper,
+            onChange: (v: string) => setFilter("trapper", v),
+            options: [
+              { value: "", label: "Assignment" },
+              { value: "assigned", label: "Assigned" },
+              { value: "pending", label: "Needs Trapper" },
+              { value: "client_trapping", label: "Client Trapping" },
+            ],
+          },
+          {
+            value: filters.sort,
+            onChange: (v: string) => setFilter("sort", v),
+            options: [
+              { value: "status", label: "By Status" },
+              { value: "created", label: "By Date" },
+              { value: "priority", label: "By Priority" },
+              { value: "type", label: "By Type" },
+            ],
+          },
+          {
+            value: filters.group,
+            onChange: (v: string) => setFilter("group", v),
+            options: [
+              { value: "", label: "Group" },
+              { value: "status", label: "By Status" },
+              { value: "type", label: "By Type" },
+            ],
+          },
+        ].map((sel, i) => (
+          <select
+            key={i}
+            value={sel.value}
+            onChange={(e) => sel.onChange(e.target.value)}
+            style={{
+              padding: "0.3rem 1.4rem 0.3rem 0.6rem",
+              fontSize: "0.8rem",
+              borderRadius: "16px",
+              border: `1px solid ${sel.value && sel.value !== "status" ? "var(--primary)" : "var(--border)"}`,
+              background: sel.value && sel.value !== "status" ? "var(--info-bg, #eff6ff)" : "var(--background)",
+              color: "var(--foreground)",
+              cursor: "pointer",
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              appearance: "none",
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b7280'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "right 0.5rem center",
+            }}
+          >
+            {sel.options.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        ))}
 
-        <select
-          value={filters.trapper}
-          onChange={(e) => setFilter("trapper", e.target.value)}
-          style={{ minWidth: "150px" }}
-        >
-          <option value="">All assignments</option>
-          <option value="assigned">Assigned</option>
-          <option value="pending">Needs trapper</option>
-          <option value="client_trapping">Client trapping</option>
-        </select>
-
-        {/* Sort controls */}
-        <select
-          value={filters.sort}
-          onChange={(e) => setFilter("sort", e.target.value)}
-          style={{ minWidth: "130px" }}
-        >
-          <option value="status">Sort by Status</option>
-          <option value="created">Sort by Date</option>
-          <option value="priority">Sort by Priority</option>
-          <option value="type">Sort by Type</option>
-        </select>
-
-        {/* Group by */}
-        <select
-          value={filters.group}
-          onChange={(e) => setFilter("group", e.target.value)}
-          style={{ minWidth: "120px" }}
-        >
-          <option value="">No grouping</option>
-          <option value="status">Group by Status</option>
-          <option value="type">Group by Type</option>
-        </select>
+        {/* Order toggle */}
         <button
           onClick={() => setFilter("order", filters.order === "asc" ? "desc" : "asc")}
           style={{
-            padding: "0.5rem 0.75rem",
+            padding: "0.3rem 0.5rem",
+            fontSize: "0.8rem",
+            borderRadius: "16px",
             border: "1px solid var(--border)",
-            borderRadius: "4px",
-            background: "transparent",
+            background: "var(--background)",
             cursor: "pointer",
+            lineHeight: 1,
           }}
           title={filters.order === "desc" ? "Newest first" : "Oldest first"}
         >
           {filters.order === "desc" ? "↓" : "↑"}
         </button>
 
+        {/* Needs Trapper toggle */}
+        <button
+          onClick={() => setFilter("trapper", filters.trapper === "pending" ? "" : "pending")}
+          style={{
+            padding: "0.3rem 0.75rem",
+            fontSize: "0.8rem",
+            fontWeight: 500,
+            borderRadius: "16px",
+            border: filters.trapper === "pending" ? "1px solid #f97316" : "1px solid var(--border)",
+            background: filters.trapper === "pending" ? "#f97316" : "var(--background)",
+            color: filters.trapper === "pending" ? "white" : "var(--foreground)",
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
+        >
+          Needs Trapper
+        </button>
+
         {/* View Toggle */}
-        <div style={{ display: "flex", gap: "4px", marginLeft: "auto" }}>
+        <div style={{ display: "flex", gap: "2px", marginLeft: "auto" }}>
           <button
             onClick={() => setFilter("view", "cards")}
             style={{
-              padding: "6px 12px",
+              padding: "0.3rem 0.6rem",
+              fontSize: "0.75rem",
               border: "1px solid var(--card-border)",
-              borderRadius: "4px 0 0 4px",
+              borderRadius: "16px 0 0 16px",
               background: filters.view === "cards" ? "var(--foreground)" : "transparent",
               color: filters.view === "cards" ? "var(--background)" : "inherit",
               cursor: "pointer",
@@ -792,10 +862,11 @@ function RequestsPageContent() {
           <button
             onClick={() => setFilter("view", "table")}
             style={{
-              padding: "6px 12px",
+              padding: "0.3rem 0.6rem",
+              fontSize: "0.75rem",
               border: "1px solid var(--card-border)",
               borderLeft: "none",
-              borderRadius: "0 4px 4px 0",
+              borderRadius: "0 16px 16px 0",
               background: filters.view === "table" ? "var(--foreground)" : "transparent",
               color: filters.view === "table" ? "var(--background)" : "inherit",
               cursor: "pointer",
@@ -946,8 +1017,8 @@ function RequestsPageContent() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                    gap: "1rem",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+                    gap: "0.75rem",
                   }}
                 >
                   {groupRequests.map((req) => (

@@ -169,7 +169,7 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
       {/* Sidebar */}
       <aside
         style={{
-          width: isMobile ? "280px" : "220px",
+          width: isMobile ? "280px" : "180px",
           flexShrink: 0,
           borderRight: "1px solid var(--card-border)",
           background: "var(--background)",
@@ -210,7 +210,7 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
       <main
         style={{
           flex: 1,
-          padding: isMobile ? "1rem" : "1rem 2rem",
+          padding: isMobile ? "1rem" : "1rem 1.25rem",
           minWidth: 0,
           marginLeft: isMobile ? 0 : undefined,
         }}

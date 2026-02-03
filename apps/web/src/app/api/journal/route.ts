@@ -41,6 +41,187 @@ interface JournalEntryRow {
   annotation_label?: string;
   created_by_staff_name?: string;
   created_by_staff_role?: string;
+  cross_ref_source?: string | null;
+}
+
+// ── Cross-entity journal linking ──
+// When include_related=true, also fetch journal entries from linked entities
+// within a 2-month attribution window (or while request is open).
+const ENTITY_NAME_JOINS = `
+  LEFT JOIN trapper.sot_cats c ON c.cat_id = d.primary_cat_id
+  LEFT JOIN trapper.sot_people p ON p.person_id = d.primary_person_id
+  LEFT JOIN trapper.places pl ON pl.place_id = d.primary_place_id
+  LEFT JOIN trapper.web_intake_submissions sub ON sub.submission_id = d.primary_submission_id
+  LEFT JOIN trapper.map_annotations ma ON ma.annotation_id = d.primary_annotation_id
+  LEFT JOIN trapper.staff s ON s.staff_id = d.created_by_staff_id
+`;
+
+const ENTITY_NAME_COLS = `
+  c.display_name AS cat_name,
+  p.display_name AS person_name,
+  pl.display_name AS place_name,
+  sub.first_name || ' ' || sub.last_name AS submission_name,
+  ma.label AS annotation_label,
+  s.display_name AS created_by_staff_name,
+  s.role AS created_by_staff_role
+`;
+
+const WINDOW_CONDITION = `
+  AND (r.resolved_at IS NULL
+    OR COALESCE(je.occurred_at, je.created_at)
+       BETWEEN COALESCE(r.source_created_at, r.created_at) - INTERVAL '2 months'
+       AND COALESCE(r.resolved_at, NOW()) + INTERVAL '2 months')`;
+
+function buildCrossRefQuery(
+  entityType: "request" | "person" | "cat",
+  entityId: string,
+  includeArchived: boolean,
+  entryKind: string | null,
+  limit: number,
+  offset: number,
+): { sql: string; countSql: string; params: unknown[] } {
+  const archivedFilter = includeArchived ? "" : "AND je.is_archived = FALSE";
+  const crossRefArchived = "AND je.is_archived = FALSE";
+  const noQuickNotes = "AND NOT (je.tags @> ARRAY['quick_note'])";
+
+  const params: unknown[] = [entityId];
+  let paramIdx = 2;
+  let kindFilter = "";
+  if (entryKind) {
+    kindFilter = `AND je.entry_kind = $${paramIdx}::trapper.journal_entry_kind`;
+    params.push(entryKind);
+    paramIdx++;
+  }
+
+  const unions: string[] = [];
+
+  if (entityType === "request") {
+    // Direct entries on this request
+    unions.push(`
+      SELECT je.*, NULL::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      WHERE je.primary_request_id = $1 ${archivedFilter} ${kindFilter}
+    `);
+    // Requester person's entries
+    unions.push(`
+      SELECT je.*, 'person'::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      JOIN trapper.sot_requests r ON r.request_id = $1
+      WHERE je.primary_person_id = r.requester_person_id
+        AND r.requester_person_id IS NOT NULL
+        AND je.primary_request_id IS DISTINCT FROM $1
+        ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
+    `);
+    // Linked cats' entries
+    unions.push(`
+      SELECT je.*, 'cat'::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      JOIN trapper.request_cat_links rcl ON rcl.cat_id = je.primary_cat_id
+      JOIN trapper.sot_requests r ON r.request_id = $1
+      WHERE rcl.request_id = $1
+        AND je.primary_request_id IS DISTINCT FROM $1
+        ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
+    `);
+    // Place entries
+    unions.push(`
+      SELECT je.*, 'place'::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      JOIN trapper.sot_requests r ON r.request_id = $1
+      WHERE je.primary_place_id = r.place_id
+        AND r.place_id IS NOT NULL
+        AND je.primary_request_id IS DISTINCT FROM $1
+        ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
+    `);
+  } else if (entityType === "person") {
+    // Direct entries on this person
+    unions.push(`
+      SELECT je.*, NULL::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      WHERE je.primary_person_id = $1 ${archivedFilter} ${kindFilter}
+    `);
+    // Request entries where person is requester
+    unions.push(`
+      SELECT je.*, 'request'::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      JOIN trapper.sot_requests r ON r.request_id = je.primary_request_id
+      WHERE r.requester_person_id = $1
+        AND je.primary_person_id IS DISTINCT FROM $1
+        ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
+    `);
+  } else {
+    // cat
+    // Direct entries on this cat
+    unions.push(`
+      SELECT je.*, NULL::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      WHERE je.primary_cat_id = $1 ${archivedFilter} ${kindFilter}
+    `);
+    // Request entries from linked requests
+    unions.push(`
+      SELECT je.*, 'request'::TEXT AS cross_ref_source
+      FROM trapper.journal_entries je
+      JOIN trapper.request_cat_links rcl ON rcl.request_id = je.primary_request_id
+      JOIN trapper.sot_requests r ON r.request_id = rcl.request_id
+      WHERE rcl.cat_id = $1
+        AND je.primary_cat_id IS DISTINCT FROM $1
+        ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
+    `);
+  }
+
+  const unionSql = unions.join("\nUNION ALL\n");
+
+  params.push(limit, offset);
+
+  const sql = `
+    WITH all_entries AS (${unionSql}),
+    deduped AS (
+      SELECT DISTINCT ON (id) *
+      FROM all_entries
+      ORDER BY id, cross_ref_source NULLS FIRST
+    )
+    SELECT
+      d.id,
+      d.entry_kind::TEXT AS entry_kind,
+      d.title,
+      d.body,
+      d.primary_cat_id,
+      d.primary_person_id,
+      d.primary_place_id,
+      d.primary_request_id,
+      d.primary_submission_id,
+      d.primary_annotation_id,
+      d.contact_method,
+      d.contact_result,
+      d.created_by,
+      d.created_by_staff_id,
+      d.created_at,
+      d.updated_by,
+      d.updated_by_staff_id,
+      d.updated_at,
+      d.occurred_at,
+      d.is_archived,
+      d.is_pinned,
+      d.edit_count,
+      d.tags,
+      d.cross_ref_source,
+      ${ENTITY_NAME_COLS}
+    FROM deduped d
+    ${ENTITY_NAME_JOINS}
+    ORDER BY d.is_pinned DESC, COALESCE(d.occurred_at, d.created_at) DESC
+    LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+  `;
+
+  const countSql = `
+    WITH all_entries AS (${unionSql}),
+    deduped AS (
+      SELECT DISTINCT ON (id) *
+      FROM all_entries
+      ORDER BY id, cross_ref_source NULLS FIRST
+    )
+    SELECT COUNT(*) as total FROM deduped
+  `;
+
+  return { sql, countSql, params };
 }
 
 // GET /api/journal - Fetch journal entries

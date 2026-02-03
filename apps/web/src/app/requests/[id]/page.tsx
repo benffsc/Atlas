@@ -1309,6 +1309,17 @@ export default function RequestDetailPage() {
               ),
             },
             {
+              id: "actions",
+              label: "Actions",
+              content: (
+                <EditHistory
+                  entityType="request"
+                  entityId={requestId}
+                  limit={100}
+                />
+              ),
+            },
+            {
               id: "nearby",
               label: `Nearby${nearbyCounts ? ` (${nearbyCounts.requests + nearbyCounts.places + nearbyCounts.people + nearbyCounts.cats})` : ""}`,
               show: !!request.place_coordinates,

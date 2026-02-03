@@ -70,12 +70,6 @@ const PRESET_FILTERS: SavedFilter[] = [
     filters: { status: ["in_progress"] },
     isPreset: true,
   },
-  {
-    id: "needs-trapper",
-    name: "Needs Trapper",
-    filters: { status: ["new", "triaged", "scheduled", "in_progress"], trapperStatus: "pending" },
-    isPreset: true,
-  },
 ];
 
 const STORAGE_KEY = "atlas-saved-request-filters";
