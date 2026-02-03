@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import JournalSection, { JournalEntry } from "@/components/JournalSection";
+import QuickNotes from "@/components/QuickNotes";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { OwnershipTransferWizard } from "@/components/OwnershipTransferWizard";
@@ -1028,6 +1029,14 @@ export default function CatDetailPage() {
           />
         </div>
       )}
+
+      {/* Staff Quick Notes */}
+      <QuickNotes
+        entityType="cat"
+        entityId={cat.cat_id}
+        entries={journal}
+        onNoteAdded={fetchJournal}
+      />
 
       {(cat.primary_origin_place || (cat.partner_orgs && cat.partner_orgs.length > 0)) && (
         <Section title="Origin Information">

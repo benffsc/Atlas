@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import JournalSection, { JournalEntry } from "@/components/JournalSection";
+import QuickNotes from "@/components/QuickNotes";
 import { BackButton } from "@/components/BackButton";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { EditHistory } from "@/components/EditHistory";
@@ -569,6 +570,14 @@ export default function PlaceDetailPage() {
           onActionComplete={fetchPlace}
         />
       </div>
+
+      {/* Staff Quick Notes */}
+      <QuickNotes
+        entityType="place"
+        entityId={place.place_id}
+        entries={journal}
+        onNoteAdded={fetchJournal}
+      />
 
       {/* Organization Profile (shown when place is linked to a partner org) */}
       {place.partner_org && (

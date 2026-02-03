@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import JournalSection, { JournalEntry } from "@/components/JournalSection";
+import QuickNotes from "@/components/QuickNotes";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { TrapperBadge } from "@/components/TrapperBadge";
@@ -1018,6 +1019,15 @@ export default function PersonDetailPage() {
           onActionComplete={fetchPerson}
         />
       </div>
+
+      {/* Staff Quick Notes */}
+      <QuickNotes
+        entityType="person"
+        entityId={person.person_id}
+        entries={journal}
+        onNoteAdded={fetchJournal}
+        activityTabId="journal"
+      />
 
       {/* Trapper Stats (if person is a trapper) */}
       {trapperInfo && (
