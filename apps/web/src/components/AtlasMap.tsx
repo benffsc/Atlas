@@ -503,6 +503,19 @@ export default function AtlasMap() {
   // Keep cone-only ref in sync with state
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
 
+  // Auto-collapse legend when any drawer is open to reduce clutter
+  const legendWasOpenRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const anyDrawerOpen = !!(selectedPlaceId || selectedCatId || selectedPersonId || selectedAnnotationId);
+    if (anyDrawerOpen && legendWasOpenRef.current === null) {
+      legendWasOpenRef.current = showLegend;
+      setShowLegend(false);
+    } else if (!anyDrawerOpen && legendWasOpenRef.current !== null) {
+      setShowLegend(legendWasOpenRef.current);
+      legendWasOpenRef.current = null;
+    }
+  }, [selectedPlaceId, selectedCatId, selectedPersonId, selectedAnnotationId]);
+
   // Expose setSelectedPlaceId and street view globally for popup buttons + drawer
   useEffect(() => {
     (window as unknown as { atlasMapExpandPlace: (id: string) => void }).atlasMapExpandPlace = (id: string) => {

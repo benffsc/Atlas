@@ -552,12 +552,12 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         onClick={() => {
                           const pos = svPositionRef.current || coordinates;
                           const addr = place?.address || place?.display_name;
-                          // Transition from cone-only to full panel at same location
-                          (window as unknown as { atlasMapOpenStreetView?: (lat: number, lng: number, address?: string) => void })
-                            .atlasMapOpenStreetView?.(pos.lat, pos.lng, addr || undefined);
+                          // Expand to fullscreen street view with minimap
+                          (window as unknown as { atlasMapExpandStreetViewFullscreen?: (lat: number, lng: number, address?: string) => void })
+                            .atlasMapExpandStreetViewFullscreen?.(pos.lat, pos.lng, addr || undefined);
                           setShowStreetView(false);
                         }}
-                        title="Open full street view panel"
+                        title="Expand to fullscreen street view"
                       >
                         Expand
                       </button>
