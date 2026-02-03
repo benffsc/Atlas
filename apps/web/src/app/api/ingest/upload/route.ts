@@ -184,6 +184,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       upload_id: result?.upload_id,
+      original_filename: file.name,
       stored_filename: storedFilename,
       file_size: buffer.length,
       message: "File uploaded successfully. Ready for processing.",

@@ -223,36 +223,45 @@ export async function POST(
         .digest('hex')
         .substring(0, 16);
 
-      // Check if exists by row_id OR by hash (unique constraint is on hash)
-      const existing = await queryOne<{ id: string; row_hash: string; source_row_id: string; file_upload_id: string | null }>(
-        `SELECT id, row_hash, source_row_id, file_upload_id FROM trapper.staged_records
-         WHERE source_system = $1 AND source_table = $2
-           AND (source_row_id = $3 OR row_hash = $4)`,
-        [upload.source_system, upload.source_table, sourceRowId, rowHash]
+      // Step 1: Check if exact content already exists (by hash)
+      // This is the primary dedup — same content = skip regardless of source_row_id
+      const byHash = await queryOne<{ id: string; file_upload_id: string | null }>(
+        `SELECT id, file_upload_id FROM trapper.staged_records
+         WHERE source_system = $1 AND source_table = $2 AND row_hash = $3`,
+        [upload.source_system, upload.source_table, rowHash]
       );
 
-      if (existing) {
-        if (existing.row_hash === rowHash) {
-          // Exact same content - skip (but update file_upload_id if not set)
-          if (!existing.file_upload_id) {
-            await query(
-              `UPDATE trapper.staged_records SET file_upload_id = $1 WHERE id = $2`,
-              [uploadId, existing.id]
-            );
-          }
-          skipped++;
-        } else {
-          // Same row_id but different content - update
+      if (byHash) {
+        // Exact same content exists — skip (but claim for this upload if unclaimed)
+        if (!byHash.file_upload_id) {
           await query(
-            `UPDATE trapper.staged_records
-             SET payload = $1, row_hash = $2, file_upload_id = $3, updated_at = NOW()
-             WHERE id = $4`,
-            [JSON.stringify(row), rowHash, uploadId, existing.id]
+            `UPDATE trapper.staged_records SET file_upload_id = $1 WHERE id = $2`,
+            [uploadId, byHash.id]
           );
-          updated++;
         }
+        skipped++;
+        continue;
+      }
+
+      // Step 2: Check if same logical record exists with different content (by source_row_id)
+      // Safe to update row_hash here because Step 1 guarantees the new hash doesn't exist
+      const byRowId = await queryOne<{ id: string }>(
+        `SELECT id FROM trapper.staged_records
+         WHERE source_system = $1 AND source_table = $2 AND source_row_id = $3`,
+        [upload.source_system, upload.source_table, sourceRowId]
+      );
+
+      if (byRowId) {
+        // Same logical record, updated content — safe to update hash (no conflict possible)
+        await query(
+          `UPDATE trapper.staged_records
+           SET payload = $1, row_hash = $2, file_upload_id = $3, updated_at = NOW()
+           WHERE id = $4`,
+          [JSON.stringify(row), rowHash, uploadId, byRowId.id]
+        );
+        updated++;
       } else {
-        // Insert new record with ON CONFLICT to handle race conditions
+        // New record — INSERT with ON CONFLICT as safety net for race conditions
         const insertResult = await query(
           `INSERT INTO trapper.staged_records
            (source_system, source_table, source_row_id, payload, row_hash, file_upload_id)

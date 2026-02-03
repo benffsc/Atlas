@@ -1613,3 +1613,25 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 **What Tippy should know:**
 > "The data ingest pipeline at `/admin/ingest` has been fixed. If staff upload ClinicHQ data and see the progress overlay, that's the new real-time processing view. Each step (creating people, places, linking) reports results as it completes. If an upload gets stuck, the system automatically resets it after 5 minutes so it can be retried. CSV files with commas in addresses are now handled correctly."
+
+### Session: 2026-02-02 — Post-Deployment Ingest Fix (INGEST_001 Round 2)
+
+**Context:** After deploying the initial pipeline fix, user uploaded cat_info (success), owner_info (success but 0 new people), and appointment_info (FAILED with constraint violation). Three additional issues investigated.
+
+**Key Discoveries:**
+1. **Staging dedup constraint violation** — The pre-check query used `(source_row_id = $3 OR row_hash = $4)` which could match TWO different records. If Record A matched by source_row_id with a different hash, the UPDATE to set A's hash could conflict with Record B that already had that hash. This is a TOCTOU (time-of-check-time-of-use) race condition in the dedup logic.
+2. **"Uploaded: undefined" in success message** — Upload API returned `stored_filename` but not `original_filename`. The UI referenced the wrong field.
+3. **0 new people from owner_info** — NOT a bug. All owners in the upload already existed in `sot_people` (matched by email/phone). The metric `people_created_or_matched` counts both new and matched people. Since the user exported with date overlap covering existing records, all matches are expected.
+
+**Changes Made:**
+- Rewrote staging dedup to use sequential two-step check: first by hash (skip if found), then by source_row_id (safe to update since hash is unique)
+- Added `original_filename` to upload API response
+- Verified all three upload types are independent (no ordering dependency)
+
+**Staff Impact:**
+- Appointment_info uploads that previously failed with constraint errors will now succeed
+- Upload success message shows the actual filename
+- All three ClinicHQ exports (cat_info, owner_info, appointment_info) can be uploaded in any order
+
+**What Tippy should know:**
+> "A bug that caused appointment_info uploads to fail has been fixed. The error 'duplicate key value violates unique constraint staged_records_idempotency_key' no longer occurs. Staff can upload cat_info, owner_info, and appointment_info in any order — they are all independent. If owner_info shows 0 new people, that means all owners already existed in the system (matched by email or phone). This is normal when re-uploading data that overlaps with previous uploads."

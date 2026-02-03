@@ -3011,14 +3011,45 @@ Admin UI uploads via `/admin/ingest` failed silently. A ClinicHQ owner_info uplo
 1. Added stuck-job auto-reset: uploads in 'processing' for >5 minutes are auto-set to 'failed'
 2. This runs before processing pending uploads, ensuring stuck jobs don't block the queue
 
+### Post-Deployment Bugs (Round 2)
+
+After deploying the initial fix, user uploaded cat_info (success), owner_info (success, 0 new people), and appointment_info (FAILED). Three additional bugs found:
+
+| Bug | Severity | Root Cause |
+|-----|----------|------------|
+| **Staging dedup constraint violation** | CRITICAL | The pre-check query `(source_row_id = $3 OR row_hash = $4)` could match TWO different records via the `OR`. If it matched Record A by source_row_id and Record A's hash differed, the UPDATE would set A's hash to a value already used by Record B → violated `staged_records_idempotency_key` unique constraint. |
+| **"Uploaded: undefined" in success message** | LOW | Upload API response returned `stored_filename` but not `original_filename`. The UI referenced `uploadResult.original_filename` which was undefined. |
+| **0 new people (investigation)** | N/A — Not a bug | All owners in the upload already existed in `sot_people` (matched by email/phone via Data Engine). The metric `people_created_or_matched` conflates new and matched. User exported with date overlap, so this is expected. |
+
+### Round 2 Fix
+
+**Staging dedup logic (`apps/web/src/app/api/ingest/process/[id]/route.ts`):**
+- Replaced single `OR` query with sequential two-step check:
+  1. First check by **hash** (exact content dedup) → skip if found
+  2. Then check by **source_row_id** (same logical record, different content) → safe to update since Step 1 guarantees hash is unique
+  3. INSERT with `ON CONFLICT` as safety net for race conditions
+- This eliminates the TOCTOU race condition where `queryOne` could return the wrong record
+
+**Upload API response (`apps/web/src/app/api/ingest/upload/route.ts`):**
+- Added `original_filename: file.name` to the JSON response so the UI can display it
+
+### Upload Independence
+
+Verified all three upload types (cat_info, owner_info, appointment_info) are independent:
+- Each creates its own entities without requiring the others
+- Cross-linking steps (e.g., owner_info linking people to appointments) gracefully produce 0 links if the other data hasn't been processed yet
+- No upload will fail due to ordering
+
 ### Verification
 
-- [ ] Upload a ClinicHQ owner_info XLSX — should show progress overlay with step-by-step results
-- [ ] Upload a CSV with commas in addresses (e.g., "123 Main St, Apt 4, Petaluma, CA") — should parse correctly
-- [ ] Processing should complete within 120s (scoped to current upload only)
-- [ ] If processing is interrupted, cron should auto-reset after 5 minutes
-- [ ] Errors shown inline, not via alert()
+- [x] Upload a ClinicHQ owner_info XLSX — shows progress overlay with step-by-step results
+- [ ] Upload a ClinicHQ appointment_info export — should succeed (constraint violation fixed)
+- [ ] Upload a CSV with commas in addresses — should parse correctly
+- [x] Processing completes within 120s (scoped to current upload only)
+- [x] Cron auto-resets stuck uploads after 5 minutes
+- [x] Errors shown inline, not via alert()
 - [ ] Retry a failed upload — should work
+- [ ] Success message shows actual filename (not "undefined")
 
 ### Invariant Added
 
@@ -3028,8 +3059,9 @@ Admin UI uploads via `/admin/ingest` failed silently. A ClinicHQ owner_info uplo
 
 | File | Change |
 |------|--------|
-| `apps/web/src/app/api/ingest/process/[id]/route.ts` | MOD — maxDuration, XLSX CSV parser, upload-scoped queries, saveProgress |
+| `apps/web/src/app/api/ingest/process/[id]/route.ts` | MOD — maxDuration, XLSX CSV parser, upload-scoped queries, saveProgress, dedup fix (Round 2) |
 | `apps/web/src/app/admin/ingest/page.tsx` | MOD — polling UI, progress overlay, inline errors, isStuck fix |
+| `apps/web/src/app/api/ingest/upload/route.ts` | MOD — added original_filename to response (Round 2) |
 | `apps/web/src/app/api/cron/process-uploads/route.ts` | MOD — stuck-job auto-reset before processing |
 | `docs/ATLAS_NORTH_STAR.md` | MOD — INV-13, debt item 15, MAP_010_F/011_F done |
 | `docs/TASK_LEDGER.md` | MOD — INGEST_001 task card |
