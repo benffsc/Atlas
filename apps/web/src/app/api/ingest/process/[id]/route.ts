@@ -894,16 +894,63 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   // Each step is non-fatal (crons are safety net).
   // ================================================================
 
-  // Entity linking: cats→places, people→places, appointments→trappers
+  // Entity linking: call individual functions (run_all_entity_linking has a
+  // broken reference to link_appointments_to_partner_orgs, so we call directly)
+  const linking: Record<string, number> = {};
   try {
-    await saveProgress('Linking entities to places...');
-    const linkingRows = await queryRows<{ operation: string; count: number }>(
-      `SELECT * FROM trapper.run_all_entity_linking()`
+    await saveProgress('Linking appointments to owners...');
+    const owners = await queryOne<{ appointments_updated: number; persons_created: number; persons_linked: number }>(
+      `SELECT * FROM trapper.link_appointments_to_owners()`
     );
-    results.entity_linking = Object.fromEntries(linkingRows.map(r => [r.operation, r.count]));
-  } catch (err) {
-    console.error('Inline entity linking failed (non-fatal):', err);
-  }
+    if (owners) {
+      linking.appointments_linked_to_owners = owners.appointments_updated;
+      linking.persons_created_for_appointments = owners.persons_created;
+    }
+  } catch (err) { console.error('link_appointments_to_owners failed (non-fatal):', err); }
+
+  try {
+    await saveProgress('Linking cats to places...');
+    const cats = await queryOne<{ cats_linked: number; places_involved: number }>(
+      `SELECT * FROM trapper.run_cat_place_linking()`
+    );
+    if (cats) linking.cats_linked_to_places = cats.cats_linked;
+  } catch (err) { console.error('run_cat_place_linking failed (non-fatal):', err); }
+
+  try {
+    await saveProgress('Linking appointments to trappers...');
+    const trappers = await queryOne<{ run_appointment_trapper_linking: number }>(
+      `SELECT trapper.run_appointment_trapper_linking() as run_appointment_trapper_linking`
+    );
+    if (trappers) linking.appointments_linked_to_trappers = trappers.run_appointment_trapper_linking;
+  } catch (err) { console.error('run_appointment_trapper_linking failed (non-fatal):', err); }
+
+  try {
+    // Link cats to places via appointment person_id (broader than run_cat_place_linking)
+    const personLinks = await query(`
+      WITH additional_links AS (
+        INSERT INTO trapper.cat_place_relationships (
+          cat_id, place_id, relationship_type, confidence, source_system, source_table
+        )
+        SELECT DISTINCT
+          a.cat_id, ppr.place_id, 'appointment_site'::TEXT, 0.85,
+          'clinichq', 'appointment_person_link'
+        FROM trapper.sot_appointments a
+        JOIN trapper.person_place_relationships ppr ON ppr.person_id = a.person_id
+        WHERE a.cat_id IS NOT NULL
+          AND a.person_id IS NOT NULL
+          AND ppr.place_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM trapper.cat_place_relationships cpr
+            WHERE cpr.cat_id = a.cat_id AND cpr.place_id = ppr.place_id
+          )
+        RETURNING cat_id
+      )
+      SELECT COUNT(DISTINCT cat_id) as cnt FROM additional_links
+    `);
+    linking.cats_linked_via_appointment_person = parseInt(personLinks.rows?.[0]?.cnt || '0');
+  } catch (err) { console.error('cat-place via appointment_person failed (non-fatal):', err); }
+
+  results.entity_linking = linking;
 
   // Geocoding: fire-and-forget so new places get coordinates for map
   try {
