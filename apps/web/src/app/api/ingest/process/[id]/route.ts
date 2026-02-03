@@ -8,7 +8,7 @@ import { createHash } from "crypto";
 import { parseStringPromise } from "xml2js";
 import JSZip from "jszip";
 
-export const maxDuration = 120;
+export const maxDuration = 180; // 3 minutes: staging + post-processing + enrichment
 
 interface FileUpload {
   upload_id: string;
@@ -886,6 +886,164 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       SELECT trapper.queue_appointment_extraction(100, 10) as queued
     `);
     results.ai_extraction_queued = aiQueueResult.rows?.[0]?.queued || 0;
+  }
+
+  // ================================================================
+  // Inline Enrichment — runs after ALL ClinicHQ post-processing
+  // so staff see fully linked map data immediately after upload.
+  // Each step is non-fatal (crons are safety net).
+  // ================================================================
+
+  // Entity linking: cats→places, people→places, appointments→trappers
+  try {
+    await saveProgress('Linking entities to places...');
+    const linkingRows = await queryRows<{ operation: string; count: number }>(
+      `SELECT * FROM trapper.run_all_entity_linking()`
+    );
+    results.entity_linking = Object.fromEntries(linkingRows.map(r => [r.operation, r.count]));
+  } catch (err) {
+    console.error('Inline entity linking failed (non-fatal):', err);
+  }
+
+  // Geocoding: fire-and-forget so new places get coordinates for map
+  try {
+    await saveProgress('Triggering geocoding...');
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const cronSecret = process.env.CRON_SECRET;
+    fetch(`${baseUrl}/api/cron/geocode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {}),
+      },
+    }).catch(() => {});
+    results.geocoding_triggered = true;
+  } catch {
+    // non-fatal
+  }
+
+  // Beacon enrichment: birth events from lactating appointments
+  try {
+    await saveProgress('Creating birth events from lactating appointments...');
+    const birthResult = await query(`
+      WITH lactating_mothers AS (
+        SELECT DISTINCT ON (a.cat_id)
+          a.appointment_id,
+          a.appointment_date,
+          a.cat_id,
+          (
+            SELECT cpr.place_id
+            FROM trapper.cat_place_relationships cpr
+            WHERE cpr.cat_id = a.cat_id
+            ORDER BY cpr.created_at DESC
+            LIMIT 1
+          ) as place_id
+        FROM trapper.sot_appointments a
+        JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
+        LEFT JOIN trapper.cat_birth_events be ON be.mother_cat_id = a.cat_id
+        WHERE a.is_lactating = true
+          AND c.sex = 'Female'
+          AND be.birth_event_id IS NULL
+        ORDER BY a.cat_id, a.appointment_date DESC
+        LIMIT 100
+      )
+      INSERT INTO trapper.cat_birth_events (
+        cat_id, mother_cat_id, birth_date, birth_date_precision,
+        birth_year, birth_month, birth_season, place_id,
+        source_system, source_record_id, reported_by, notes
+      )
+      SELECT
+        NULL, cat_id,
+        appointment_date - INTERVAL '42 days',
+        'estimated'::trapper.birth_date_precision,
+        EXTRACT(YEAR FROM appointment_date - INTERVAL '42 days')::INT,
+        EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days')::INT,
+        CASE
+          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (3,4,5) THEN 'spring'
+          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (6,7,8) THEN 'summer'
+          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (9,10,11) THEN 'fall'
+          ELSE 'winter'
+        END,
+        place_id, 'beacon_cron', appointment_id::TEXT, 'System',
+        'Auto-created from lactating appointment on ' || appointment_date::TEXT
+      FROM lactating_mothers
+      ON CONFLICT DO NOTHING
+    `);
+    results.birth_events_created = birthResult.rowCount || 0;
+  } catch (err) {
+    console.error('Inline birth events failed (non-fatal):', err);
+  }
+
+  // Beacon enrichment: mortality events from clinic euthanasia/death notes
+  try {
+    await saveProgress('Creating mortality events from clinic notes...');
+    const mortalityResult = await query(`
+      WITH death_appointments AS (
+        SELECT DISTINCT ON (a.cat_id)
+          a.appointment_id,
+          a.appointment_date,
+          a.cat_id,
+          a.medical_notes,
+          CASE
+            WHEN LOWER(a.medical_notes) LIKE '%humanely euthanized%' THEN 'euthanasia'
+            WHEN LOWER(a.medical_notes) LIKE '%euthanasia%' THEN 'euthanasia'
+            WHEN LOWER(a.medical_notes) LIKE '%hit by car%' OR LOWER(a.medical_notes) LIKE '%hbc%' THEN 'vehicle'
+            WHEN LOWER(a.medical_notes) LIKE '%died%' THEN 'unknown'
+            ELSE 'unknown'
+          END AS death_cause,
+          (
+            SELECT cpr.place_id
+            FROM trapper.cat_place_relationships cpr
+            WHERE cpr.cat_id = a.cat_id
+            ORDER BY cpr.created_at DESC
+            LIMIT 1
+          ) as place_id
+        FROM trapper.sot_appointments a
+        JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
+        LEFT JOIN trapper.cat_mortality_events me ON me.cat_id = a.cat_id
+        WHERE (
+            LOWER(a.medical_notes) LIKE '%euthanized%'
+            OR LOWER(a.medical_notes) LIKE '%euthanasia%'
+            OR LOWER(a.medical_notes) LIKE '%died%'
+            OR LOWER(a.medical_notes) LIKE '%hit by car%'
+            OR LOWER(a.medical_notes) LIKE '%hbc%'
+          )
+          AND me.mortality_event_id IS NULL
+        ORDER BY a.cat_id, a.appointment_date DESC
+        LIMIT 50
+      )
+      INSERT INTO trapper.cat_mortality_events (
+        cat_id, death_date, death_date_precision, death_year, death_month,
+        death_cause, place_id, source_system, source_record_id, reported_by, notes
+      )
+      SELECT
+        cat_id, appointment_date, 'exact',
+        EXTRACT(YEAR FROM appointment_date)::INT,
+        EXTRACT(MONTH FROM appointment_date)::INT,
+        death_cause::trapper.death_cause,
+        place_id, 'beacon_cron', appointment_id::TEXT, 'System',
+        'Auto-created from clinic notes: ' || LEFT(medical_notes, 200)
+      FROM death_appointments
+      ON CONFLICT (cat_id) DO NOTHING
+    `);
+    results.mortality_events_created = mortalityResult.rowCount || 0;
+
+    // Mark cats as deceased
+    if (mortalityResult.rowCount && mortalityResult.rowCount > 0) {
+      const deceasedResult = await query(`
+        UPDATE trapper.sot_cats
+        SET is_deceased = true, deceased_date = me.death_date, updated_at = NOW()
+        FROM trapper.cat_mortality_events me
+        WHERE sot_cats.cat_id = me.cat_id
+          AND (sot_cats.is_deceased IS NULL OR sot_cats.is_deceased = false)
+          AND me.source_system = 'beacon_cron'
+      `);
+      results.cats_marked_deceased = deceasedResult.rowCount || 0;
+    }
+  } catch (err) {
+    console.error('Inline mortality events failed (non-fatal):', err);
   }
 
   return results;
