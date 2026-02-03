@@ -3365,3 +3365,93 @@ Cat detail page had 4 bugs:
 | `apps/web/src/app/api/media/upload/route.ts` | MOD — Added missing `person` to entity type Records |
 | `docs/TIPPY_DATA_QUALITY_REFERENCE.md` | MOD — Session log entry |
 | `docs/TASK_LEDGER.md` | MOD — UI_CAT_001 |
+
+---
+
+## DQ_CLINIC_001: ClinicHQ Post-Ingest Linkage Failures
+
+**Status:** Investigated — Bugs Identified, Fix Pending
+**Reported:** 2026-02-03
+**ACTIVE Impact:** Yes — ALL recent clinic cats are orphaned (no person connections, no request links, no color)
+**Severity:** HIGH — Affects every clinic day since the pipeline gap opened
+
+### Investigation Trigger
+
+User reported cat 981020053830456 (clinic patient 2026-02-02) appeared as orphaned with no people connections. Investigation expanded to 4 cats, all showing identical symptoms.
+
+### Affected Cats (Sample)
+
+| Microchip | Cat ID | Clinic Date | Owner | Person Linked? | Person-Cat Rel? | Color? |
+|-----------|--------|-------------|-------|----------------|-----------------|--------|
+| 981020053830456 | `05cb110b` | 2026-01-28, 02-02 | Alina Kremer | YES (after manual run) | NO | Empty |
+| 981020053821993 | `456662aa` | Recent | Unknown | After manual run | NO | Empty |
+| 981020053842803 | `ffaddb55` | 2026-02-02 | Angela Novak | YES (after manual run) | NO | Empty |
+| 981020053845579 | `9308c297` | 2026-02-02 | Angela Novak | YES (after manual run) | NO | Empty |
+
+### Scale of Problem
+
+```
+Appointment linkage before manual fix:
+  2026-02-02: 38 total, 10 linked (26%), 23 unlinked with email
+  2026-01-29: 39 total, 10 linked (26%), 28 unlinked with email
+  2026-01-28: 48 total,  8 linked (17%), 26 unlinked with email
+
+Global: 3,614 appointments with owner_email but NULL person_id (7.6% of 47,632 total)
+```
+
+After running `process_clinichq_owner_info(NULL, 10)` manually: **3,273 persons linked, 15,168 appointments updated** in one batch.
+
+### Root Causes Identified
+
+#### BUG 1: `process_clinichq_owner_info` Not Running on Schedule
+
+The function works perfectly when called manually but hadn't been running as part of the automatic processing pipeline. The cron endpoint (`/api/ingest/process`) calls `process_next_job()` which processes staged records, but `process_clinichq_owner_info` is a separate post-processing step that must be explicitly invoked after appointment data is ingested.
+
+**Impact:** Thousands of appointments accumulated without person linkage.
+
+#### BUG 2: `person_cat_relationships` Never Created from Appointments
+
+Even after `process_clinichq_owner_info` links `person_id` to appointments, NO step creates `person_cat_relationships` records. The `run_all_entity_linking()` function includes `link_appointments_to_owners` (which returned 0 — redundant with owner_info processing), but has NO step to populate `person_cat_relationships` from appointments where both `person_id` and `cat_id` are set.
+
+The function `link_appointment_to_person_cat(p_appointment_id UUID)` exists but takes a single appointment ID. There is no batch version that runs across all unlinked appointments.
+
+**Impact:** Cats appear as orphaned with no people connections on their profile pages, even though the appointment data has both person and cat IDs.
+
+#### BUG 3: `link_all_appointments_to_partner_orgs` Fails
+
+Inside `run_all_entity_linking()`, the partner org linking step fails with: `column "linked" does not exist`. This may cascade and prevent subsequent linking steps from running.
+
+#### BUG 4: Empty Color on ClinicHQ Cats (`COALESCE` Empty String Bug)
+
+`find_or_create_cat_by_microchip()` uses:
+```sql
+primary_color = COALESCE(primary_color, p_primary_color)
+```
+
+If a cat is first created from appointment processing (which has NO color data), `primary_color` is set to `''` (empty string). When `cat_info` processing later calls the function WITH color data, `COALESCE` sees `''` as non-NULL and keeps it. The color parameter is silently discarded.
+
+**Fix:** Change to `COALESCE(NULLIF(primary_color, ''), p_primary_color)` so empty strings are treated as NULL and get overwritten.
+
+This same pattern likely affects `display_name`, `breed`, and other fields.
+
+#### BUG 5: No Request-Cat Links for Clinic Cats
+
+`link_cats_to_requests_safe` returned 0 during `run_all_entity_linking()`. Clinic cats are not being linked to requests even when the request's requester matches the cat's owner. This linkage is separate from person-cat relationships and drives the Cats & Evidence tab on request pages.
+
+### Proposed Fix Plan
+
+| Task | Description | Priority |
+|------|-------------|----------|
+| DQ_CLINIC_001a | Add `process_clinichq_owner_info` to cron pipeline after appointment processing | HIGH |
+| DQ_CLINIC_001b | Create batch `link_all_appointments_to_person_cat()` function that iterates appointments with both `person_id` and `cat_id` set but no matching `person_cat_relationships` row | HIGH |
+| DQ_CLINIC_001c | Fix `COALESCE` empty-string bug in `find_or_create_cat_by_microchip` — use `NULLIF(field, '')` for all enrichable fields (primary_color, secondary_color, breed, display_name, ownership_type) | HIGH |
+| DQ_CLINIC_001d | Fix `link_all_appointments_to_partner_orgs` column reference error | MEDIUM |
+| DQ_CLINIC_001e | Backfill: Run batch color update from cat_info for all cats with empty primary_color | MEDIUM |
+| DQ_CLINIC_001f | Backfill: Run batch person-cat relationship creation for all linked appointments | HIGH |
+
+### Data Verified
+
+- `is_archived` defaults to FALSE (NOT NULL) — not causing filter issues
+- `altered_status` IS correctly set for all 4 cats (`neutered`/`spayed` + `altered_by_clinic=true`)
+- User's "unknown if altered" report was about `display_name = 'Unknown'`, not altered status
+- After manual `process_clinichq_owner_info` run, all 4 cats' appointments now have person_id linked
