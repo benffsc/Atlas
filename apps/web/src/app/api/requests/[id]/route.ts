@@ -280,7 +280,9 @@ export async function GET(
             'microchip', (SELECT ci.id_value FROM trapper.cat_identifiers ci
                           WHERE ci.cat_id = COALESCE(c.merged_into_cat_id, c.cat_id)
                           AND ci.id_type = 'microchip' LIMIT 1),
-            'altered_status', COALESCE(canonical_cat.altered_status, c.altered_status)
+            'altered_status', COALESCE(canonical_cat.altered_status, c.altered_status),
+            'last_visit_date', (SELECT MAX(a.appointment_date) FROM trapper.sot_appointments a
+                                WHERE a.cat_id = COALESCE(c.merged_into_cat_id, c.cat_id))
         ) ORDER BY rcl.linked_at DESC)
          FROM trapper.request_cat_links rcl
          JOIN trapper.sot_cats c ON c.cat_id = rcl.cat_id

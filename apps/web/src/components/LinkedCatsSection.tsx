@@ -14,6 +14,7 @@ interface LinkedCat {
   link_purpose?: string | null;
   altered_status?: string | null;
   linked_at?: string | null;
+  last_visit_date?: string | null;
   // From people
   data_source?: string | null;
 }
@@ -152,11 +153,18 @@ export function LinkedCatsSection({
               }}
             >
               <div>
-                <span style={{ fontWeight: 500 }}>{cat.cat_name || "Unnamed cat"}</span>
-                {cat.microchip && (
-                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                    ({cat.microchip})
-                  </span>
+                <div>
+                  <span style={{ fontWeight: 500 }}>{cat.cat_name || "Unnamed cat"}</span>
+                  {cat.microchip && (
+                    <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
+                      ({cat.microchip})
+                    </span>
+                  )}
+                </div>
+                {cat.last_visit_date && (
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>
+                    Last visit: {new Date(cat.last_visit_date).toLocaleDateString()}
+                  </div>
                 )}
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>

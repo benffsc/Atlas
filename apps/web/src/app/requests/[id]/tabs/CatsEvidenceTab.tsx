@@ -5,7 +5,7 @@ import { MediaGallery } from "@/components/MediaGallery";
 
 interface CatsEvidenceTabProps {
   requestId: string;
-  cats: { cat_id: string; cat_name: string | null; link_purpose: string; microchip: string | null; altered_status: string | null; linked_at: string }[] | null;
+  cats: { cat_id: string; cat_name: string | null; link_purpose: string; microchip: string | null; altered_status: string | null; linked_at: string; last_visit_date?: string | null }[] | null;
 }
 
 export function CatsEvidenceTab({ requestId, cats }: CatsEvidenceTabProps) {
