@@ -40,6 +40,10 @@ interface PersonSearchResult {
 
 type AssignMode = "official" | "search";
 
+// Module-level cache for the trapper roster — shared across all instances
+let trapperCache: { data: AvailableTrapper[]; fetchedAt: number } | null = null;
+const TRAPPER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const NO_TRAPPER_REASON_LABELS: Record<string, string> = {
   client_trapping: "Client trapping",
   has_community_help: "Has community help",
@@ -96,16 +100,25 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   };
 
   const fetchAvailableTrappers = async () => {
+    const assignedIds = new Set(trappers.map(t => t.trapper_person_id));
+
+    // Use cached roster if fresh
+    if (trapperCache && Date.now() - trapperCache.fetchedAt < TRAPPER_CACHE_TTL) {
+      setAvailableTrappers(
+        trapperCache.data.filter(t => !assignedIds.has(t.person_id))
+      );
+      return;
+    }
+
     setLoadingTrappers(true);
     try {
-      // Fetch all trappers (no active filter - show everyone with a trapper role)
       const response = await fetch("/api/trappers?limit=200&sort=display_name");
       if (response.ok) {
         const data = await response.json();
-        // Filter out already assigned trappers
-        const assignedIds = new Set(trappers.map(t => t.trapper_person_id));
+        const allTrappers: AvailableTrapper[] = data.trappers || [];
+        trapperCache = { data: allTrappers, fetchedAt: Date.now() };
         setAvailableTrappers(
-          (data.trappers || []).filter((t: AvailableTrapper) => !assignedIds.has(t.person_id))
+          allTrappers.filter(t => !assignedIds.has(t.person_id))
         );
       }
     } catch (err) {
