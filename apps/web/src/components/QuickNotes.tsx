@@ -9,15 +9,23 @@ interface QuickNotesProps {
   entityId: string;
   entries: JournalEntry[];
   onNoteAdded: () => void;
-  /** Tab ID for "View all" link. Defaults to "activity". Person page uses "journal". */
-  activityTabId?: string;
 }
+
+type NoteLevel = "info" | "heads_up" | "warning";
+
+const LEVEL_STYLES: Record<NoteLevel, { border: string; bg: string; label: string; btnBg: string }> = {
+  info:     { border: "#0d6efd", bg: "#e7f1ff", label: "Info",     btnBg: "#0d6efd" },
+  heads_up: { border: "#f59e0b", bg: "#fef3c7", label: "Heads-up", btnBg: "#d97706" },
+  warning:  { border: "#dc3545", bg: "#fee2e2", label: "Warning",  btnBg: "#dc3545" },
+};
 
 const ENTITY_KEY_MAP: Record<string, string> = {
   person: "person_id",
   place: "place_id",
   cat: "cat_id",
 };
+
+const MAX_CHARS = 100;
 
 function getInitials(name: string | null): string {
   if (!name) return "??";
@@ -44,23 +52,35 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function getNoteLevel(tags: string[] | undefined): NoteLevel {
+  if (tags?.includes("warning")) return "warning";
+  if (tags?.includes("heads_up")) return "heads_up";
+  return "info";
+}
+
 export default function QuickNotes({
   entityType,
   entityId,
   entries,
   onNoteAdded,
-  activityTabId = "activity",
 }: QuickNotesProps) {
   const { user, isLoading: authLoading } = useCurrentUser();
+  const [isOpen, setIsOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
+  const [level, setLevel] = useState<NoteLevel>("info");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter to notes only, sort pinned first then by date descending
+  // Filter to quick_note tagged entries only
   const notes = entries
-    .filter((e) => e.entry_kind === "note" && !e.is_archived)
+    .filter((e) => e.tags?.includes("quick_note") && !e.is_archived)
     .sort((a, b) => {
+      // Warnings first, then heads-up, then info
+      const levelOrder = { warning: 0, heads_up: 1, info: 2 };
+      const aLevel = getNoteLevel(a.tags);
+      const bLevel = getNoteLevel(b.tags);
       if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+      if (levelOrder[aLevel] !== levelOrder[bLevel]) return levelOrder[aLevel] - levelOrder[bLevel];
       const dateA = new Date(a.occurred_at || a.created_at).getTime();
       const dateB = new Date(b.occurred_at || b.created_at).getTime();
       return dateB - dateA;
@@ -73,9 +93,10 @@ export default function QuickNotes({
     setSubmitting(true);
     setError(null);
     try {
-      const payload: Record<string, string> = {
-        body: newNote.trim(),
+      const payload: Record<string, unknown> = {
+        body: newNote.trim().slice(0, MAX_CHARS),
         entry_kind: "note",
+        tags: ["quick_note", level],
         created_by: user.display_name || "Unknown",
         created_by_staff_id: user.staff_id,
         [ENTITY_KEY_MAP[entityType]]: entityId,
@@ -89,6 +110,8 @@ export default function QuickNotes({
 
       if (response.ok) {
         setNewNote("");
+        setLevel("info");
+        setIsOpen(false);
         onNoteAdded();
       } else {
         const data = await response.json().catch(() => null);
@@ -106,6 +129,11 @@ export default function QuickNotes({
       e.preventDefault();
       handleSubmit();
     }
+    if (e.key === "Escape") {
+      setIsOpen(false);
+      setNewNote("");
+      setError(null);
+    }
   };
 
   return (
@@ -114,67 +142,107 @@ export default function QuickNotes({
       style={{
         padding: "1rem 1.25rem",
         marginBottom: "1.5rem",
-        borderLeft: "3px solid #0d6efd",
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "0.75rem",
-        }}
-      >
+      <div style={{ marginBottom: notes.length > 0 || isOpen ? "0.75rem" : 0 }}>
         <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Staff Notes</div>
-        {entries.some((e) => e.entry_kind === "note") && (
-          <a
-            href={`?tab=${activityTabId}`}
-            style={{
-              fontSize: "0.8rem",
-              color: "#0d6efd",
-              textDecoration: "none",
-            }}
-          >
-            View all &rarr;
-          </a>
-        )}
+        <div style={{ fontSize: "0.7rem", color: "var(--muted, #6c757d)", marginTop: "0.125rem" }}>
+          High-level context only — detailed notes &amp; contact logs go in the Journal below
+        </div>
       </div>
 
-      {/* Input area */}
-      {user?.staff_id && (
+      {/* Add button (collapsed state) */}
+      {!isOpen && user?.staff_id && (
+        <button
+          onClick={() => setIsOpen(true)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            padding: "0.375rem 0.75rem",
+            fontSize: "0.8rem",
+            fontWeight: 500,
+            border: "1px dashed var(--border, #dee2e6)",
+            borderRadius: "6px",
+            background: "transparent",
+            color: "#0d6efd",
+            cursor: "pointer",
+            marginBottom: notes.length > 0 ? "0.75rem" : 0,
+          }}
+        >
+          + Add Quick Note
+        </button>
+      )}
+
+      {/* Expanded input */}
+      {isOpen && user?.staff_id && (
         <div style={{ marginBottom: notes.length > 0 ? "0.75rem" : 0 }}>
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              alignItems: "flex-start",
-            }}
-          >
-            <textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Add a quick note..."
-              rows={1}
-              style={{
-                flex: 1,
-                resize: "none",
-                padding: "0.5rem 0.75rem",
-                fontSize: "0.85rem",
-                borderRadius: "6px",
-                border: "1px solid var(--border, #dee2e6)",
-                background: "var(--card-bg, #fff)",
-                color: "var(--foreground)",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.rows = 2;
-              }}
-              onBlur={(e) => {
-                if (!e.currentTarget.value) e.currentTarget.rows = 1;
-              }}
-              disabled={submitting}
-            />
+          {/* Level picker */}
+          <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem" }}>
+            {(Object.keys(LEVEL_STYLES) as NoteLevel[]).map((lvl) => {
+              const style = LEVEL_STYLES[lvl];
+              const isActive = level === lvl;
+              return (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setLevel(lvl)}
+                  style={{
+                    padding: "0.3rem 0.625rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    border: `1px solid ${style.border}`,
+                    borderLeft: lvl === "info" ? `1px solid ${style.border}` : "none",
+                    borderRadius: lvl === "info" ? "4px 0 0 4px" : lvl === "warning" ? "0 4px 4px 0" : "0",
+                    background: isActive ? style.btnBg : "transparent",
+                    color: isActive ? "#fff" : style.border,
+                    cursor: "pointer",
+                  }}
+                >
+                  {style.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Input row */}
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <input
+                type="text"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value.slice(0, MAX_CHARS))}
+                onKeyDown={handleKeyDown}
+                placeholder="Short context note..."
+                maxLength={MAX_CHARS}
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  paddingRight: "3.5rem",
+                  fontSize: "0.85rem",
+                  borderRadius: "6px",
+                  border: `1px solid ${LEVEL_STYLES[level].border}`,
+                  background: "var(--card-bg, #fff)",
+                  color: "var(--foreground)",
+                  boxSizing: "border-box",
+                }}
+                disabled={submitting}
+              />
+              <span
+                style={{
+                  position: "absolute",
+                  right: "0.5rem",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: "0.65rem",
+                  color: newNote.length >= MAX_CHARS ? "#dc3545" : "var(--muted, #6c757d)",
+                }}
+              >
+                {newNote.length}/{MAX_CHARS}
+              </span>
+            </div>
             <button
               onClick={handleSubmit}
               disabled={submitting || !newNote.trim()}
@@ -184,34 +252,36 @@ export default function QuickNotes({
                 fontWeight: 500,
                 border: "none",
                 borderRadius: "6px",
-                background:
-                  newNote.trim() && !submitting ? "#0d6efd" : "#94a3b8",
+                background: newNote.trim() && !submitting ? LEVEL_STYLES[level].btnBg : "#94a3b8",
                 color: "#fff",
-                cursor:
-                  newNote.trim() && !submitting ? "pointer" : "not-allowed",
+                cursor: newNote.trim() && !submitting ? "pointer" : "not-allowed",
                 whiteSpace: "nowrap",
               }}
             >
               {submitting ? "..." : "Add"}
             </button>
+            <button
+              onClick={() => { setIsOpen(false); setNewNote(""); setError(null); }}
+              style={{
+                padding: "0.5rem 0.5rem",
+                fontSize: "0.8rem",
+                border: "1px solid var(--border, #dee2e6)",
+                borderRadius: "6px",
+                background: "transparent",
+                color: "var(--muted, #6c757d)",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
           </div>
-          <div
-            style={{
-              fontSize: "0.7rem",
-              color: "var(--muted, #6c757d)",
-              marginTop: "0.25rem",
-            }}
-          >
+
+          {/* Attribution + error */}
+          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6c757d)", marginTop: "0.25rem" }}>
             Posting as {user.display_name}
           </div>
           {error && (
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "#dc3545",
-                marginTop: "0.25rem",
-              }}
-            >
+            <div style={{ fontSize: "0.75rem", color: "#dc3545", marginTop: "0.25rem" }}>
               {error}
             </div>
           )}
@@ -219,13 +289,7 @@ export default function QuickNotes({
       )}
 
       {authLoading && !user && (
-        <div
-          style={{
-            fontSize: "0.8rem",
-            color: "var(--muted, #6c757d)",
-            marginBottom: "0.5rem",
-          }}
-        >
+        <div style={{ fontSize: "0.8rem", color: "var(--muted, #6c757d)", marginBottom: "0.5rem" }}>
           Loading...
         </div>
       )}
@@ -234,12 +298,11 @@ export default function QuickNotes({
       {notes.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           {notes.map((note) => {
-            const displayName =
-              note.created_by_staff_name || note.created_by;
+            const displayName = note.created_by_staff_name || note.created_by;
             const initials = getInitials(displayName);
-            const dateStr = formatDate(
-              note.occurred_at || note.created_at
-            );
+            const dateStr = formatDate(note.occurred_at || note.created_at);
+            const noteLevel = getNoteLevel(note.tags);
+            const style = LEVEL_STYLES[noteLevel];
 
             return (
               <div
@@ -248,24 +311,13 @@ export default function QuickNotes({
                   display: "flex",
                   alignItems: "center",
                   gap: "0.5rem",
-                  padding: "0.375rem 0.5rem",
-                  background: note.is_pinned
-                    ? "var(--accent-bg, #e3f2fd)"
-                    : "var(--card-bg, #f8f9fa)",
+                  padding: "0.4rem 0.5rem",
+                  background: style.bg,
+                  borderLeft: `3px solid ${style.border}`,
                   borderRadius: "4px",
                   minWidth: 0,
                 }}
               >
-                {/* Pin indicator */}
-                {note.is_pinned && (
-                  <span
-                    style={{ fontSize: "0.7rem", flexShrink: 0 }}
-                    title="Pinned"
-                  >
-                    pin
-                  </span>
-                )}
-
                 {/* Initials badge */}
                 <span
                   style={{
@@ -275,9 +327,7 @@ export default function QuickNotes({
                     width: "24px",
                     height: "24px",
                     borderRadius: "50%",
-                    background: note.created_by_staff_id
-                      ? "#0d6efd"
-                      : "#6c757d",
+                    background: style.border,
                     color: "#fff",
                     fontSize: "0.6rem",
                     fontWeight: "bold",
@@ -288,7 +338,7 @@ export default function QuickNotes({
                   {initials}
                 </span>
 
-                {/* Note body - truncated */}
+                {/* Note body */}
                 <span
                   style={{
                     flex: 1,
@@ -298,6 +348,7 @@ export default function QuickNotes({
                     whiteSpace: "nowrap",
                     minWidth: 0,
                     color: "var(--foreground)",
+                    fontWeight: noteLevel === "warning" ? 600 : 400,
                   }}
                   title={note.body}
                 >
@@ -320,15 +371,15 @@ export default function QuickNotes({
           })}
         </div>
       ) : (
-        !authLoading && (
+        !authLoading && !isOpen && (
           <div
             style={{
               fontSize: "0.8rem",
               color: "var(--muted, #6c757d)",
-              padding: "0.5rem 0",
+              padding: "0.25rem 0",
             }}
           >
-            No notes yet.{user?.staff_id ? " Add one above." : ""}
+            No quick notes yet.
           </div>
         )
       )}

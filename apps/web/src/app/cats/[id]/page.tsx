@@ -1209,6 +1209,58 @@ export default function CatDetailPage() {
           </div>
         </Section>
       )}
+
+      {/* Journal */}
+      <Section title="Journal">
+        <JournalSection
+          entries={journal}
+          entityType="cat"
+          entityId={id}
+          onEntryAdded={fetchJournal}
+        />
+      </Section>
+
+      {/* Metadata */}
+      <Section title="Metadata">
+        <div className="detail-grid">
+          <div className="detail-item">
+            <span className="detail-label">Data Source</span>
+            <span className="detail-value">
+              {cat.data_source === "clinichq" ? "ClinicHQ" :
+               cat.data_source === "petlink" ? "PetLink (microchip only)" :
+               cat.data_source === "legacy_import" ? "Legacy Import" :
+               cat.data_source || "Unknown"}
+            </span>
+          </div>
+          {cat.first_visit_date && (
+            <div className="detail-item">
+              <span className="detail-label">First ClinicHQ Visit</span>
+              <span className="detail-value">{formatDateLocal(cat.first_visit_date)}</span>
+            </div>
+          )}
+          {cat.total_visits > 0 && (
+            <div className="detail-item">
+              <span className="detail-label">Total ClinicHQ Visits</span>
+              <span className="detail-value">{cat.total_visits}</span>
+            </div>
+          )}
+          <div className="detail-item">
+            <span className="detail-label">Atlas Created</span>
+            <span className="detail-value">{formatDateLocal(cat.created_at)}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Last Updated</span>
+            <span className="detail-value">{formatDateLocal(cat.updated_at)}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Verification</span>
+            <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <VerificationBadge table="cats" recordId={cat.cat_id} verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} onVerify={() => fetchCat()} />
+              {cat.verified_at && <LastVerified verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} />}
+            </span>
+          </div>
+        </div>
+      </Section>
     </>
   );
 
@@ -1514,6 +1566,55 @@ export default function CatDetailPage() {
           <p className="text-muted">No visits recorded for this cat.</p>
         )}
       </Section>
+
+      {/* Clinic History - moved from activity tab */}
+      {((cat.enhanced_clinic_history && cat.enhanced_clinic_history.length > 0) ||
+        (cat.clinic_history && cat.clinic_history.length > 0)) && (
+        <Section title="Clinic History">
+          <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
+            Cat visit records with origin address and source information
+          </p>
+          <div className="table-container">
+            <table>
+              <thead><tr><th>Date</th><th>Contact</th><th>Origin Address</th><th>Source</th></tr></thead>
+              <tbody>
+                {(cat.enhanced_clinic_history || cat.clinic_history || []).map((visit, idx) => (
+                  <tr key={idx}>
+                    <td>{formatDateLocal(visit.visit_date)}</td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{visit.client_name || "—"}</div>
+                      {visit.client_email && <div className="text-muted text-sm">{visit.client_email}</div>}
+                      {visit.client_phone && <div className="text-muted text-sm">{visit.client_phone}</div>}
+                    </td>
+                    <td>
+                      {"origin_address" in visit && visit.origin_address ? (
+                        <span style={{ fontWeight: 500, color: "#198754" }}>{visit.origin_address}</span>
+                      ) : visit.client_address ? (
+                        visit.client_address
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {"partner_org_short" in visit && visit.partner_org_short ? (
+                        <span className="badge" style={{ background: visit.partner_org_short === "SCAS" ? "#0d6efd" : visit.partner_org_short === "FFSC" ? "#198754" : "#6c757d", color: "#fff", fontSize: "0.7rem" }} title={`Cat came from ${visit.partner_org_short}`}>
+                          {visit.partner_org_short}
+                        </span>
+                      ) : visit.ownership_type ? (
+                        <span className="badge" style={{ background: visit.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd", color: "#fff", fontSize: "0.7rem" }}>
+                          {visit.ownership_type}
+                        </span>
+                      ) : (
+                        <span className="text-muted">Direct</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
     </>
   );
 
@@ -1571,109 +1672,6 @@ export default function CatDetailPage() {
     </>
   );
 
-  /* ── Tab: Activity ── */
-  const activityTab = (
-    <>
-      {((cat.enhanced_clinic_history && cat.enhanced_clinic_history.length > 0) ||
-        (cat.clinic_history && cat.clinic_history.length > 0)) && (
-        <Section title="Clinic History">
-          <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
-            Cat visit records with origin address and source information
-          </p>
-          <div className="table-container">
-            <table>
-              <thead><tr><th>Date</th><th>Contact</th><th>Origin Address</th><th>Source</th></tr></thead>
-              <tbody>
-                {(cat.enhanced_clinic_history || cat.clinic_history || []).map((visit, idx) => (
-                  <tr key={idx}>
-                    <td>{formatDateLocal(visit.visit_date)}</td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{visit.client_name || "—"}</div>
-                      {visit.client_email && <div className="text-muted text-sm">{visit.client_email}</div>}
-                      {visit.client_phone && <div className="text-muted text-sm">{visit.client_phone}</div>}
-                    </td>
-                    <td>
-                      {"origin_address" in visit && visit.origin_address ? (
-                        <span style={{ fontWeight: 500, color: "#198754" }}>{visit.origin_address}</span>
-                      ) : visit.client_address ? (
-                        visit.client_address
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {"partner_org_short" in visit && visit.partner_org_short ? (
-                        <span className="badge" style={{ background: visit.partner_org_short === "SCAS" ? "#0d6efd" : visit.partner_org_short === "FFSC" ? "#198754" : "#6c757d", color: "#fff", fontSize: "0.7rem" }} title={`Cat came from ${visit.partner_org_short}`}>
-                          {visit.partner_org_short}
-                        </span>
-                      ) : visit.ownership_type ? (
-                        <span className="badge" style={{ background: visit.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd", color: "#fff", fontSize: "0.7rem" }}>
-                          {visit.ownership_type}
-                        </span>
-                      ) : (
-                        <span className="text-muted">Direct</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      <Section title="Journal">
-        <JournalSection
-          entries={journal}
-          entityType="cat"
-          entityId={id}
-          onEntryAdded={fetchJournal}
-        />
-      </Section>
-
-      <Section title="Metadata">
-        <div className="detail-grid">
-          <div className="detail-item">
-            <span className="detail-label">Data Source</span>
-            <span className="detail-value">
-              {cat.data_source === "clinichq" ? "ClinicHQ" :
-               cat.data_source === "petlink" ? "PetLink (microchip only)" :
-               cat.data_source === "legacy_import" ? "Legacy Import" :
-               cat.data_source || "Unknown"}
-            </span>
-          </div>
-          {cat.first_visit_date && (
-            <div className="detail-item">
-              <span className="detail-label">First ClinicHQ Visit</span>
-              <span className="detail-value">{formatDateLocal(cat.first_visit_date)}</span>
-            </div>
-          )}
-          {cat.total_visits > 0 && (
-            <div className="detail-item">
-              <span className="detail-label">Total ClinicHQ Visits</span>
-              <span className="detail-value">{cat.total_visits}</span>
-            </div>
-          )}
-          <div className="detail-item">
-            <span className="detail-label">Atlas Created</span>
-            <span className="detail-value">{formatDateLocal(cat.created_at)}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Last Updated</span>
-            <span className="detail-value">{formatDateLocal(cat.updated_at)}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Verification</span>
-            <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <VerificationBadge table="cats" recordId={cat.cat_id} verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} onVerify={() => fetchCat()} />
-              {cat.verified_at && <LastVerified verifiedAt={cat.verified_at} verifiedBy={cat.verified_by_name} />}
-            </span>
-          </div>
-        </div>
-      </Section>
-    </>
-  );
-
   return (
     <ProfileLayout
       header={profileHeader}
@@ -1681,7 +1679,6 @@ export default function CatDetailPage() {
         { id: "overview", label: "Overview", content: overviewTab },
         { id: "medical", label: "Medical", content: medicalTab },
         { id: "connections", label: "Connections", content: connectionsTab, badge: (cat.owners?.length || 0) + (cat.places?.length || 0) || undefined },
-        { id: "activity", label: "Activity", content: activityTab, badge: journal.length || undefined },
       ]}
       defaultTab="overview"
     >

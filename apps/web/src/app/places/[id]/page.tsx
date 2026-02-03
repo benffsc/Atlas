@@ -998,6 +998,55 @@ export default function PlaceDetailPage() {
           placeName={place.display_name || place.formatted_address || "This place"}
         />
       </Section>
+
+      {/* Journal */}
+      <Section title="Journal">
+        <JournalSection
+          entries={journal}
+          entityType="place"
+          entityId={id}
+          onEntryAdded={fetchJournal}
+        />
+      </Section>
+
+      {/* Metadata */}
+      <Section title="Metadata">
+        <div className="detail-grid">
+          <div className="detail-item">
+            <span className="detail-label">Source</span>
+            <span className="detail-value">
+              {place.is_address_backed ? "Geocoded (Google)" : "Manual Entry"}
+            </span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Created</span>
+            <span className="detail-value">
+              {formatDateLocal(place.created_at)}
+            </span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Updated</span>
+            <span className="detail-value">
+              {formatDateLocal(place.updated_at)}
+            </span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Verification</span>
+            <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <VerificationBadge
+                table="places"
+                recordId={place.place_id}
+                verifiedAt={place.verified_at}
+                verifiedBy={place.verified_by_name}
+                onVerify={() => fetchPlace()}
+              />
+              {place.verified_at && (
+                <LastVerified verifiedAt={place.verified_at} verifiedBy={place.verified_by_name} />
+              )}
+            </span>
+          </div>
+        </div>
+      </Section>
     </>
   );
 
@@ -1119,58 +1168,6 @@ export default function PlaceDetailPage() {
     </Section>
   );
 
-  /* ── Tab: Activity ── */
-  const activityTab = (
-    <>
-      <Section title="Journal">
-        <JournalSection
-          entries={journal}
-          entityType="place"
-          entityId={id}
-          onEntryAdded={fetchJournal}
-        />
-      </Section>
-
-      <Section title="Metadata">
-        <div className="detail-grid">
-          <div className="detail-item">
-            <span className="detail-label">Source</span>
-            <span className="detail-value">
-              {place.is_address_backed ? "Geocoded (Google)" : "Manual Entry"}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Created</span>
-            <span className="detail-value">
-              {formatDateLocal(place.created_at)}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Updated</span>
-            <span className="detail-value">
-              {formatDateLocal(place.updated_at)}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Verification</span>
-            <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <VerificationBadge
-                table="places"
-                recordId={place.place_id}
-                verifiedAt={place.verified_at}
-                verifiedBy={place.verified_by_name}
-                onVerify={() => fetchPlace()}
-              />
-              {place.verified_at && (
-                <LastVerified verifiedAt={place.verified_at} verifiedBy={place.verified_by_name} />
-              )}
-            </span>
-          </div>
-        </div>
-      </Section>
-    </>
-  );
-
   return (
     <ProfileLayout
       header={profileHeader}
@@ -1179,7 +1176,6 @@ export default function PlaceDetailPage() {
         { id: "requests", label: "Requests", content: requestsTab, badge: requests.length || undefined },
         { id: "ecology", label: "Ecology", content: ecologyTab },
         { id: "media", label: "Media", content: mediaTab },
-        { id: "activity", label: "Activity", content: activityTab, badge: journal.length || undefined },
       ]}
       defaultTab="overview"
     >
