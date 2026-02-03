@@ -32,6 +32,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const {
       redirect_reason,
+      existing_target_request_id,
       new_address,
       new_place_id,
       new_requester_name,
@@ -57,6 +58,63 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // --- Link to existing request path ---
+    if (existing_target_request_id) {
+      // Verify target request exists and is in a valid state
+      const target = await queryOne<{ request_id: string; status: string }>(
+        `SELECT request_id, status::TEXT FROM trapper.sot_requests WHERE request_id = $1`,
+        [existing_target_request_id]
+      );
+      if (!target) {
+        return NextResponse.json({ error: "Target request not found" }, { status: 404 });
+      }
+      if (["cancelled", "redirected", "handed_off"].includes(target.status)) {
+        return NextResponse.json(
+          { error: "Target request is already closed and cannot be linked to" },
+          { status: 400 }
+        );
+      }
+
+      // Close original + link to existing target
+      await queryOne(
+        `UPDATE trapper.sot_requests SET
+          status = 'redirected',
+          redirected_to_request_id = $2,
+          redirect_reason = $3,
+          redirect_at = NOW(),
+          resolved_at = NOW(),
+          transfer_type = 'redirect',
+          resolution_notes = 'Redirected to existing request ' || $2::TEXT
+        WHERE request_id = $1
+          AND status NOT IN ('redirected', 'handed_off')`,
+        [requestId, existing_target_request_id, redirect_reason]
+      );
+
+      // Link target back (only if it doesn't already have a parent)
+      await queryOne(
+        `UPDATE trapper.sot_requests SET
+          redirected_from_request_id = $1
+        WHERE request_id = $2
+          AND redirected_from_request_id IS NULL`,
+        [requestId, existing_target_request_id]
+      );
+
+      // Audit log
+      await queryOne(
+        `INSERT INTO trapper.entity_edits (entity_type, entity_id, field_name, new_value, reason, edited_by)
+         VALUES ('request', $1, 'status', 'redirected', $2, $3)`,
+        [requestId, `Redirected to existing request ${existing_target_request_id}: ${redirect_reason}`, `staff:${session.staff_id}`]
+      );
+
+      return NextResponse.json({
+        success: true,
+        original_request_id: requestId,
+        new_request_id: existing_target_request_id,
+        redirect_url: `/requests/${existing_target_request_id}`,
+      });
+    }
+
+    // --- Create new request path (existing behavior) ---
     if (!new_address && !new_place_id) {
       return NextResponse.json(
         { error: "Either new_address or new_place_id is required" },

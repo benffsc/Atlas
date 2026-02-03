@@ -74,6 +74,14 @@ export function HandoffRequestModal({
   const [kittenAssessmentOutcome, setKittenAssessmentOutcome] = useState("");
   const [kittenNotNeededReason, setKittenNotNeededReason] = useState("");
 
+  // Link to existing request state
+  const [linkToExisting, setLinkToExisting] = useState(false);
+  const [targetRequestId, setTargetRequestId] = useState<string | null>(null);
+  const [targetRequest, setTargetRequest] = useState<{ request_id: string; summary: string | null; place_address: string | null; requester_name: string | null; status: string } | null>(null);
+  const [requestSearchQuery, setRequestSearchQuery] = useState("");
+  const [requestSearchResults, setRequestSearchResults] = useState<{ request_id: string; summary: string | null; place_address: string | null; requester_name: string | null; status: string; created_at: string }[]>([]);
+  const [searchingRequests, setSearchingRequests] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -111,10 +119,36 @@ export function HandoffRequestModal({
       setKittenAssessmentStatus("");
       setKittenAssessmentOutcome("");
       setKittenNotNeededReason("");
+      setLinkToExisting(false);
+      setTargetRequestId(null);
+      setTargetRequest(null);
+      setRequestSearchQuery("");
+      setRequestSearchResults([]);
+      setSearchingRequests(false);
       setError("");
       setSuccess(false);
     }
   }, [isOpen]);
+
+  // Debounced request search for "Link to Existing" mode
+  useEffect(() => {
+    if (!linkToExisting || requestSearchQuery.length < 2) {
+      setRequestSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchingRequests(true);
+      try {
+        const res = await fetch(`/api/requests/search?q=${encodeURIComponent(requestSearchQuery)}&exclude=${requestId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRequestSearchResults(data);
+        }
+      } catch { /* ignore */ }
+      setSearchingRequests(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [requestSearchQuery, linkToExisting, requestId]);
 
   const searchPeople = async (query: string) => {
     if (query.length < 2) {
@@ -186,15 +220,22 @@ export function HandoffRequestModal({
       return;
     }
 
-    if (!resolvedPlace) {
-      setError("Please select the new caretaker's address");
-      return;
-    }
+    if (linkToExisting) {
+      if (!targetRequestId) {
+        setError("Please select an existing request to link to");
+        return;
+      }
+    } else {
+      if (!resolvedPlace) {
+        setError("Please select the new caretaker's address");
+        return;
+      }
 
-    // Need either a selected person or first+last name
-    if (!selectedPerson && (!newRequesterFirstName.trim() || !newRequesterLastName.trim())) {
-      setError("Please search for an existing person or enter their first and last name");
-      return;
+      // Need either a selected person or first+last name
+      if (!selectedPerson && (!newRequesterFirstName.trim() || !newRequesterLastName.trim())) {
+        setError("Please search for an existing person or enter their first and last name");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -208,6 +249,7 @@ export function HandoffRequestModal({
             handoffReason === "other"
               ? customReason
               : HANDOFF_REASONS.find((r) => r.value === handoffReason)?.label,
+          existing_target_request_id: linkToExisting ? targetRequestId : undefined,
           new_address: resolvedPlace?.formatted_address || resolvedPlace?.display_name || "",
           new_place_id: resolvedPlace?.place_id || null,
           // If person selected, pass their ID; otherwise pass name fields
@@ -424,6 +466,36 @@ export function HandoffRequestModal({
 
           <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "20px 0" }} />
 
+          {/* Mode toggle: Create new vs Link to existing */}
+          <div style={{ display: "flex", gap: "8px", margin: "16px 0" }}>
+            <button
+              type="button"
+              onClick={() => { setLinkToExisting(false); setTargetRequestId(null); setTargetRequest(null); setRequestSearchQuery(""); }}
+              style={{
+                flex: 1, padding: "8px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                background: !linkToExisting ? "#0d9488" : "transparent",
+                color: !linkToExisting ? "#fff" : "#0d9488",
+                border: `1px solid #0d9488`,
+              }}
+            >
+              Create New Request
+            </button>
+            <button
+              type="button"
+              onClick={() => setLinkToExisting(true)}
+              style={{
+                flex: 1, padding: "8px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                background: linkToExisting ? "#0d9488" : "transparent",
+                color: linkToExisting ? "#fff" : "#0d9488",
+                border: `1px solid #0d9488`,
+              }}
+            >
+              Link to Existing
+            </button>
+          </div>
+
+          {!linkToExisting && (
+          <>
           <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px", color: "#0d9488" }}>
             New Caretaker Details
           </h3>
@@ -897,6 +969,87 @@ export function HandoffRequestModal({
               }}
             />
           </div>
+          </>
+          )}
+
+          {linkToExisting && (
+            <div>
+              <label style={{ display: "block", fontWeight: 600, fontSize: "13px", marginBottom: "6px" }}>
+                Search for existing request
+              </label>
+              {!targetRequest ? (
+                <>
+                  <input
+                    type="text"
+                    value={requestSearchQuery}
+                    onChange={(e) => setRequestSearchQuery(e.target.value)}
+                    placeholder="Search by address, summary, or requester name..."
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
+                  />
+                  {searchingRequests && <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>Searching...</div>}
+                  {requestSearchResults.length > 0 && (
+                    <div style={{ marginTop: "8px", maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {requestSearchResults.map((r) => (
+                        <button
+                          key={r.request_id}
+                          type="button"
+                          onClick={() => { setTargetRequestId(r.request_id); setTargetRequest(r); setRequestSearchResults([]); }}
+                          style={{
+                            textAlign: "left", padding: "10px 12px", background: "#f9fafb", border: "1px solid #e5e7eb",
+                            borderRadius: "8px", cursor: "pointer", fontSize: "12px",
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: "13px", marginBottom: "2px" }}>{r.summary || "Untitled request"}</div>
+                          {r.place_address && <div style={{ color: "#6b7280" }}>{r.place_address}</div>}
+                          <div style={{ color: "#9ca3af", marginTop: "2px" }}>
+                            {r.requester_name && <span>{r.requester_name} &middot; </span>}
+                            <span style={{
+                              padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 600,
+                              background: r.status === "in_progress" ? "#dbeafe" : r.status === "new" ? "#fef3c7" : "#f3f4f6",
+                              color: r.status === "in_progress" ? "#1d4ed8" : r.status === "new" ? "#92400e" : "#374151",
+                            }}>{r.status}</span>
+                            <span> &middot; {new Date(r.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {requestSearchQuery.length >= 2 && !searchingRequests && requestSearchResults.length === 0 && (
+                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>No matching requests found</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ padding: "12px", background: "#f0fdfa", border: "1px solid #99f6e4", borderRadius: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "13px" }}>{targetRequest.summary || "Untitled request"}</div>
+                      {targetRequest.place_address && <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>{targetRequest.place_address}</div>}
+                      {targetRequest.requester_name && <div style={{ fontSize: "12px", color: "#6b7280" }}>{targetRequest.requester_name}</div>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setTargetRequestId(null); setTargetRequest(null); setRequestSearchQuery(""); }}
+                      style={{ background: "none", border: "none", color: "#0d9488", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
+                    >
+                      Change
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Optional notes */}
+              <div style={{ marginTop: "12px" }}>
+                <label style={{ display: "block", fontWeight: 600, fontSize: "13px", marginBottom: "6px" }}>Notes (optional)</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Any additional context for the handoff..."
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px", resize: "vertical" }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Error/Success Messages */}
           {error && (
@@ -948,7 +1101,7 @@ export function HandoffRequestModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || success}
+              disabled={isSubmitting || success || (linkToExisting && !targetRequestId)}
               style={{
                 padding: "10px 20px",
                 border: "none",
@@ -957,10 +1110,10 @@ export function HandoffRequestModal({
                 color: "#fff",
                 cursor: "pointer",
                 fontSize: "0.9rem",
-                opacity: isSubmitting || success ? 0.7 : 1,
+                opacity: isSubmitting || success || (linkToExisting && !targetRequestId) ? 0.7 : 1,
               }}
             >
-              {isSubmitting ? "Handing Off..." : "Hand Off to New Caretaker"}
+              {isSubmitting ? "Handing Off..." : linkToExisting ? "Link & Hand Off" : "Hand Off to New Caretaker"}
             </button>
           </div>
         </form>
