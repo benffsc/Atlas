@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { MediaUploader, MediaItem } from "./MediaUploader";
 import { MediaLightbox } from "./MediaLightbox";
 import { PhotoGroupingPanel } from "./PhotoGroupingPanel";
@@ -231,8 +232,8 @@ export function MediaGallery({
         </div>
       )}
 
-      {/* Upload modal */}
-      {showUploader && (
+      {/* Upload modal (portaled to body to escape CSS containment) */}
+      {showUploader && createPortal(
         <div
           onClick={() => setShowUploader(false)}
           style={{
@@ -331,7 +332,8 @@ export function MediaGallery({
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Error state */}
