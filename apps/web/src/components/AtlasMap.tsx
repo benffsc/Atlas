@@ -29,6 +29,8 @@ import {
 } from "@/components/map/MapPopup";
 import { PlaceDetailDrawer } from "@/components/map/PlaceDetailDrawer";
 import { AnnotationDetailDrawer } from "@/components/map/AnnotationDetailDrawer";
+import { PersonDetailDrawer } from "@/components/map/PersonDetailDrawer";
+import { CatDetailDrawer } from "@/components/map/CatDetailDrawer";
 import { PlacementPanel } from "@/components/map/PlacementPanel";
 
 function useIsMobile(breakpoint = 768) {
@@ -345,6 +347,10 @@ export default function AtlasMap() {
   const annotationLayerRef = useRef<L.LayerGroup | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
+  // Person and Cat drawer state
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+
   // Street View state
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
   const [streetViewHeading, setStreetViewHeading] = useState(0);
@@ -382,6 +388,20 @@ export default function AtlasMap() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // Listen for atlas:navigate-place events from person/cat drawers
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const placeId = (e as CustomEvent).detail?.placeId;
+      if (placeId) {
+        setSelectedPersonId(null);
+        setSelectedCatId(null);
+        setSelectedPlaceId(placeId);
+      }
+    };
+    window.addEventListener("atlas:navigate-place", handler);
+    return () => window.removeEventListener("atlas:navigate-place", handler);
   }, []);
 
   // Mini map for Street View fullscreen mode
@@ -1602,20 +1622,23 @@ export default function AtlasMap() {
       }
     }
 
+    // Close any existing drawers first
+    setSelectedPlaceId(null);
+    setSelectedPersonId(null);
+    setSelectedCatId(null);
+
     if (mapRef.current && lat && lng) {
       setNavigatedLocation({ lat, lng, address: result.display_name });
       mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
-      // For places, also open the detail drawer
-      if (result.entity_type === "place") {
-        setSelectedPlaceId(result.entity_id);
-      }
-    } else if (result.entity_type === "place") {
-      // Places without coords — open drawer anyway, user stays on map
+    }
+
+    // Open the appropriate drawer based on entity type
+    if (result.entity_type === "place") {
       setSelectedPlaceId(result.entity_id);
-    } else {
-      // People/cats without any coords — navigate in same tab (not new tab)
-      const path = result.entity_type === "person" ? "/people" : "/cats";
-      window.location.href = `${path}/${result.entity_id}`;
+    } else if (result.entity_type === "person") {
+      setSelectedPersonId(result.entity_id);
+    } else if (result.entity_type === "cat") {
+      setSelectedCatId(result.entity_id);
     }
   };
 
@@ -3463,6 +3486,22 @@ export default function AtlasMap() {
                         places.find(p => p.id === selectedPlaceId);
             return pin?.lat && pin?.lng ? { lat: pin.lat, lng: pin.lng } : undefined;
           })()}
+        />
+      )}
+
+      {/* Person Detail Drawer */}
+      {selectedPersonId && (
+        <PersonDetailDrawer
+          personId={selectedPersonId}
+          onClose={() => setSelectedPersonId(null)}
+        />
+      )}
+
+      {/* Cat Detail Drawer */}
+      {selectedCatId && (
+        <CatDetailDrawer
+          catId={selectedCatId}
+          onClose={() => setSelectedCatId(null)}
         />
       )}
     </div>

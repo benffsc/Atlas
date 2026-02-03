@@ -2238,3 +2238,486 @@
     right: 12px;
   }
 }
+
+/* ============================================================
+   Cat Detail Drawer
+   ============================================================ */
+
+.cat-detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  max-width: 100vw;
+  height: 100vh;
+  background: var(--map-control-bg);
+  border-left: 1px solid var(--map-control-border);
+  box-shadow: var(--map-shadow-xl);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide-in 0.3s ease-out;
+}
+
+/* Info badges row */
+.cat-drawer-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.cat-drawer-info-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cat-drawer-breed {
+  font-size: 13px;
+  color: var(--map-popup-secondary);
+  font-weight: 500;
+}
+
+/* Test results */
+.cat-drawer-tests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-drawer-test-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--map-control-hover);
+  border-radius: 6px;
+}
+
+.cat-drawer-test-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--map-control-text);
+  flex: 1;
+}
+
+.cat-drawer-test-result {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.cat-drawer-test-date {
+  font-size: 11px;
+  color: var(--map-popup-secondary);
+  flex-shrink: 0;
+}
+
+/* Clinic visits */
+.cat-drawer-visits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-drawer-visit-row {
+  padding: 8px 10px;
+  background: var(--map-control-hover);
+  border-radius: 6px;
+  border-left: 3px solid var(--map-control-border);
+}
+
+.cat-drawer-visit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.cat-drawer-visit-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--map-control-text);
+}
+
+.cat-drawer-visit-category {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.cat-drawer-visit-services {
+  font-size: 12px;
+  color: var(--map-popup-secondary);
+  line-height: 1.4;
+}
+
+.cat-drawer-show-all {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: transparent;
+  border: 1px dashed var(--map-control-border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6366f1;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--map-transition-fast);
+}
+
+.cat-drawer-show-all:hover {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: #6366f1;
+}
+
+/* Stakeholders */
+.cat-drawer-stakeholders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cat-drawer-stakeholder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--map-control-hover);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--map-transition-fast);
+}
+
+.cat-drawer-stakeholder-row:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.cat-drawer-stakeholder-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6366f1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-drawer-relationship-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
+}
+
+.cat-drawer-rel-owner {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+
+.cat-drawer-rel-adopter {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.cat-drawer-rel-fostering {
+  background: rgba(234, 179, 8, 0.12);
+  color: #a16207;
+}
+
+.cat-drawer-rel-caretaker {
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
+}
+
+.cat-drawer-rel-brought_in_by {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+}
+
+.cat-drawer-stakeholder-date {
+  font-size: 11px;
+  color: var(--map-popup-secondary);
+  flex-shrink: 0;
+}
+
+/* Linked places */
+.cat-drawer-places {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cat-drawer-place-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--map-control-hover);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--map-transition-fast);
+}
+
+.cat-drawer-place-row:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.cat-drawer-place-address {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--map-control-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-drawer-place-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
+  text-transform: capitalize;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .cat-detail-drawer {
+    width: 100vw;
+  }
+
+  .cat-drawer-badges {
+    gap: 6px;
+  }
+
+  .cat-drawer-info-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}
+
+/* ============================================================
+   Person Detail Drawer
+   ============================================================ */
+
+.person-detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  max-width: 100vw;
+  height: 100vh;
+  background: var(--map-control-bg);
+  border-left: 1px solid var(--map-control-border);
+  box-shadow: var(--map-shadow-xl);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide-in 0.3s ease-out;
+}
+
+/* Entity type badge next to person name */
+.person-entity-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  margin-top: 4px;
+}
+
+/* Role badges row */
+.person-role-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.person-drawer-role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* Stats grid - 3 columns for person */
+.person-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* Contact identifiers */
+.person-identifiers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.person-identifier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--map-control-hover);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--map-control-text);
+}
+
+.person-identifier-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.person-identifier-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Linked places list */
+.person-places-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.person-place-card {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--map-transition-fast);
+  font-family: inherit;
+}
+
+.person-place-card:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.person-place-address {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.person-place-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.person-place-kind-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.person-place-source {
+  color: #9ca3af;
+}
+
+/* Cat relationship badge in person drawer */
+.person-cat-rel-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  background: #6366f1;
+}
+
+/* Show all cats button */
+.person-show-all-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: transparent;
+  border: 1px dashed var(--map-control-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6366f1;
+  cursor: pointer;
+  transition: all var(--map-transition-fast);
+  font-family: inherit;
+}
+
+.person-show-all-btn:hover {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: #6366f1;
+}
+
+/* Mobile Person Drawer */
+@media (max-width: 768px) {
+  .person-detail-drawer {
+    width: 100vw;
+  }
+
+  .person-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
