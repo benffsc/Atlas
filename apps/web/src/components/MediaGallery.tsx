@@ -216,7 +216,7 @@ export function MediaGallery({
                   gap: "0.25rem",
                 }}
               >
-                <span>+</span> Add Photo{showGrouping ? "s" : ""}
+                <span>+</span> Add Photos
               </button>
             )}
           </div>
@@ -234,8 +234,7 @@ export function MediaGallery({
             showCatDescription={showCatDescription || entityType === "request"}
             defaultMediaType={defaultMediaType || (entityType === "cat" ? "cat_photo" : "site_photo")}
             allowedMediaTypes={allowedMediaTypes || ["cat_photo", "site_photo", "evidence"]}
-            // New props for batch upload when grouping is enabled
-            allowMultiple={showGrouping}
+            allowMultiple={true}
             showConfidenceSelector={showGrouping && entityType === "request"}
             autoGroupMultiple={showGrouping}
           />
@@ -436,8 +435,8 @@ export function MediaGallery({
                   ★
                 </div>
               )}
-              {/* "+N more" badge on last visible photo */}
-              {hasMore && index === displayMedia.length - 1 && (
+              {/* "+N more" badge on last visible photo (only in multi-photo grids, not single profile photos) */}
+              {hasMore && index === displayMedia.length - 1 && displayMedia.length > 1 && (
                 <div style={{
                   position: "absolute",
                   bottom: "4px",
