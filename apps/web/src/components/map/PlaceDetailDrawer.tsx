@@ -145,6 +145,8 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     setShowStreetView(false);
     setSvHeading(0);
     svPositionRef.current = null;
+    // Hide cone marker when switching places
+    (window as unknown as { atlasMapHideStreetViewCone?: () => void }).atlasMapHideStreetViewCone?.();
     setShowWatchlistForm(false);
     setWatchlistReason("");
 
@@ -513,7 +515,19 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               <div className="street-view-drawer">
                 <button
                   className="street-view-drawer-toggle"
-                  onClick={() => { setShowStreetView(!showStreetView); setSvHeading(0); svPositionRef.current = null; }}
+                  onClick={() => {
+                    const opening = !showStreetView;
+                    setShowStreetView(opening);
+                    setSvHeading(0);
+                    svPositionRef.current = null;
+                    if (opening) {
+                      (window as unknown as { atlasMapShowStreetViewCone?: (lat: number, lng: number) => void })
+                        .atlasMapShowStreetViewCone?.(coordinates.lat, coordinates.lng);
+                    } else {
+                      (window as unknown as { atlasMapHideStreetViewCone?: () => void })
+                        .atlasMapHideStreetViewCone?.();
+                    }
+                  }}
                 >
                   <span>📷 Street View</span>
                   <span style={{ transform: showStreetView ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
@@ -538,6 +552,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         onClick={() => {
                           const pos = svPositionRef.current || coordinates;
                           const addr = place?.address || place?.display_name;
+                          // Transition from cone-only to full panel at same location
                           (window as unknown as { atlasMapOpenStreetView?: (lat: number, lng: number, address?: string) => void })
                             .atlasMapOpenStreetView?.(pos.lat, pos.lng, addr || undefined);
                           setShowStreetView(false);

@@ -359,6 +359,9 @@ export default function AtlasMap() {
   const streetViewIframeRef = useRef<HTMLIFrameElement>(null);
   const streetViewConePosRef = useRef<{ lat: number; lng: number } | null>(null);
   const [streetViewFullscreen, setStreetViewFullscreen] = useState(false);
+  // Cone-only mode: show cone marker on map without the bottom panel (used by drawer street view)
+  const [streetViewConeOnly, setStreetViewConeOnly] = useState(false);
+  const streetViewConeOnlyRef = useRef(false);
   const miniMapRef = useRef<any>(null);
   const miniMapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -497,17 +500,36 @@ export default function AtlasMap() {
     }
   }, [streetViewFullscreen]);
 
-  // Expose setSelectedPlaceId and street view globally for popup buttons
+  // Keep cone-only ref in sync with state
+  useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
+
+  // Expose setSelectedPlaceId and street view globally for popup buttons + drawer
   useEffect(() => {
     (window as unknown as { atlasMapExpandPlace: (id: string) => void }).atlasMapExpandPlace = (id: string) => {
       setSelectedPlaceId(id);
     };
+    // Open full bottom panel + cone
     (window as unknown as { atlasMapOpenStreetView: (lat: number, lng: number, address?: string) => void }).atlasMapOpenStreetView = (lat: number, lng: number, address?: string) => {
       setStreetViewCoords({ lat, lng, address });
+      setStreetViewConeOnly(false);
+    };
+    // Show cone marker only (no bottom panel) — used by drawer street view
+    (window as unknown as { atlasMapShowStreetViewCone: (lat: number, lng: number) => void }).atlasMapShowStreetViewCone = (lat: number, lng: number) => {
+      setStreetViewCoords({ lat, lng });
+      setStreetViewConeOnly(true);
+    };
+    // Hide cone-only mode (doesn't close the full panel if open)
+    (window as unknown as { atlasMapHideStreetViewCone: () => void }).atlasMapHideStreetViewCone = () => {
+      if (streetViewConeOnlyRef.current) {
+        setStreetViewCoords(null);
+        setStreetViewConeOnly(false);
+      }
     };
     return () => {
       delete (window as unknown as { atlasMapExpandPlace?: (id: string) => void }).atlasMapExpandPlace;
       delete (window as unknown as { atlasMapOpenStreetView?: (lat: number, lng: number, address?: string) => void }).atlasMapOpenStreetView;
+      delete (window as unknown as { atlasMapShowStreetViewCone?: (lat: number, lng: number) => void }).atlasMapShowStreetViewCone;
+      delete (window as unknown as { atlasMapHideStreetViewCone?: () => void }).atlasMapHideStreetViewCone;
     };
   }, []);
 
@@ -2166,7 +2188,7 @@ export default function AtlasMap() {
       <div
         ref={mapContainerRef}
         style={{
-          flex: streetViewCoords ? (streetViewFullscreen ? "0 0 0%" : "0 0 55%") : "1 1 100%",
+          flex: (streetViewCoords && !streetViewConeOnly) ? (streetViewFullscreen ? "0 0 0%" : "0 0 55%") : "1 1 100%",
           width: "100%",
           transition: "flex 0.3s ease",
         }}
@@ -3352,8 +3374,8 @@ export default function AtlasMap() {
 
       {/* CSS animations are in atlas-map.css */}
 
-      {/* Street View Panel */}
-      {streetViewCoords && streetViewUrl && (
+      {/* Street View Panel (hidden in cone-only mode — drawer handles the panorama) */}
+      {streetViewCoords && streetViewUrl && !streetViewConeOnly && (
         <div className="street-view-panel">
           <div className="street-view-header">
             <div className="street-view-title">
