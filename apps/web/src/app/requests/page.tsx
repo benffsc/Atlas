@@ -634,31 +634,17 @@ function RequestsPageContent() {
             Enter Call Sheet
           </a>
           <a
-            href="/requests/print"
+            href="/requests/print/full"
             style={{
               padding: "0.5rem 1rem",
               background: "#27ae60",
               color: "#fff",
-              borderRadius: "6px 0 0 6px",
+              borderRadius: "6px",
               textDecoration: "none",
               fontSize: "0.9rem",
             }}
           >
-            Print 1-Page
-          </a>
-          <a
-            href="/requests/print/full"
-            style={{
-              padding: "0.5rem 1rem",
-              background: "#1e8449",
-              color: "#fff",
-              borderRadius: "0 6px 6px 0",
-              textDecoration: "none",
-              fontSize: "0.9rem",
-              borderLeft: "1px solid rgba(255,255,255,0.3)",
-            }}
-          >
-            Full 2-Page
+            Print Call Sheet
           </a>
           <a
             href="/requests/new"

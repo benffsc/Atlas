@@ -14,6 +14,7 @@ export default function TrapperCallSheet() {
           @page { size: letter; margin: 0.4in; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-controls { display: none !important; }
+          .tippy-fab, .tippy-chat-panel { display: none !important; }
           .print-page {
             padding: 0 !important;
             box-shadow: none !important;
@@ -227,6 +228,7 @@ export default function TrapperCallSheet() {
 
         @media screen {
           body { background: #f0f9f4 !important; }
+          .tippy-fab, .tippy-chat-panel { display: none !important; }
           .print-wrapper { padding: 20px; }
           .print-page {
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
