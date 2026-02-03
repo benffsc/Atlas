@@ -14,6 +14,7 @@ export interface MediaItem {
   uploaded_at: string;
   cat_identification_confidence?: string;
   photo_group_id?: string;
+  is_hero?: boolean;
 }
 
 type ConfidenceLevel = "confirmed" | "likely" | "uncertain" | "unidentified";

@@ -115,6 +115,9 @@ export function MediaLightbox({ media, initialIndex, onClose, onSetHero }: Media
         zIndex: 10001,
       }}>
         {currentIndex + 1} / {media.length}
+        {currentMedia.is_hero && (
+          <span style={{ marginLeft: "0.5rem", color: "#ffc107" }}>★ Main Photo</span>
+        )}
       </div>
 
       {/* Previous button */}
@@ -226,23 +229,38 @@ export function MediaLightbox({ media, initialIndex, onClose, onSetHero }: Media
         {/* Actions */}
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", justifyContent: "center" }}>
           {onSetHero && media.length > 1 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetHero(currentMedia.media_id);
-              }}
-              style={{
-                padding: "0.25rem 0.75rem",
-                background: "#0d6efd",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                fontSize: "0.75rem",
-                cursor: "pointer",
-              }}
-            >
-              Set as Main Photo
-            </button>
+            currentMedia.is_hero ? (
+              <span
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "rgba(255, 193, 7, 0.2)",
+                  color: "#ffc107",
+                  border: "1px solid rgba(255, 193, 7, 0.3)",
+                  borderRadius: "4px",
+                  fontSize: "0.75rem",
+                }}
+              >
+                ★ Main Photo
+              </span>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetHero(currentMedia.media_id);
+                }}
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "#0d6efd",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                }}
+              >
+                Set as Main Photo
+              </button>
+            )
           )}
           <a
             href={currentMedia.storage_path}

@@ -50,6 +50,7 @@ export function MediaGallery({
   const [error, setError] = useState<string | null>(null);
   const [showUploader, setShowUploader] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "groups">(
     defaultToGroupView && showGrouping ? "groups" : "grid"
   );
@@ -115,8 +116,10 @@ export function MediaGallery({
   }, [fetchMedia]);
 
   // Determine which media to display
-  const displayMedia = maxDisplay ? media.slice(0, maxDisplay) : media;
-  const hasMore = maxDisplay && media.length > maxDisplay;
+  const effectiveMax = expanded ? undefined : maxDisplay;
+  const displayMedia = effectiveMax ? media.slice(0, effectiveMax) : media;
+  const hasMore = !expanded && maxDisplay && media.length > maxDisplay;
+  const hiddenCount = hasMore ? media.length - (maxDisplay || 0) : 0;
 
   // Get media type label
   const getMediaTypeLabel = (type: string) => {
@@ -417,19 +420,49 @@ export function MediaGallery({
                   {item.cat_description}
                 </div>
               )}
+              {/* Hero badge */}
+              {item.is_hero && !showGrouping && (
+                <div style={{
+                  position: "absolute",
+                  top: "4px",
+                  right: "4px",
+                  background: "rgba(0,0,0,0.6)",
+                  color: "#ffc107",
+                  fontSize: "0.75rem",
+                  padding: "2px 5px",
+                  borderRadius: "4px",
+                  lineHeight: 1,
+                }}>
+                  ★
+                </div>
+              )}
+              {/* "+N more" overlay on last visible photo */}
+              {hasMore && index === displayMedia.length - 1 && (
+                <div style={{
+                  position: "absolute",
+                  inset: "0",
+                  background: "rgba(0,0,0,0.5)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontSize: "1.25rem",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                }}>
+                  +{hiddenCount}
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Show more link */}
+      {/* Show more / show less */}
       {hasMore && viewMode === "grid" && (
         <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
           <button
-            onClick={() => {
-              // Could expand to show all, or navigate to a media page
-              // For now, just show all by removing maxDisplay limit
-            }}
+            onClick={() => setExpanded(true)}
             style={{
               padding: "0.25rem 0.5rem",
               fontSize: "0.75rem",
@@ -441,6 +474,24 @@ export function MediaGallery({
             }}
           >
             View all {media.length} photos
+          </button>
+        </div>
+      )}
+      {expanded && maxDisplay && media.length > maxDisplay && viewMode === "grid" && (
+        <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+          <button
+            onClick={() => setExpanded(false)}
+            style={{
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.75rem",
+              background: "none",
+              border: "1px solid #dee2e6",
+              borderRadius: "4px",
+              color: "#6c757d",
+              cursor: "pointer",
+            }}
+          >
+            Show less
           </button>
         </div>
       )}
