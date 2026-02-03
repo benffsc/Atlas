@@ -13,10 +13,10 @@ interface QuickNotesProps {
 
 type NoteLevel = "info" | "heads_up" | "warning";
 
-const LEVEL_STYLES: Record<NoteLevel, { border: string; bg: string; label: string; btnBg: string }> = {
-  info:     { border: "#0d6efd", bg: "#e7f1ff", label: "Info",     btnBg: "#0d6efd" },
-  heads_up: { border: "#f59e0b", bg: "#fef3c7", label: "Heads-up", btnBg: "#d97706" },
-  warning:  { border: "#dc3545", bg: "#fee2e2", label: "Warning",  btnBg: "#dc3545" },
+const LEVEL_STYLES: Record<NoteLevel, { border: string; bg: string; label: string; btnBg: string; icon: string }> = {
+  info:     { border: "#0d6efd", bg: "rgba(13,110,253,0.09)",  label: "Info",     btnBg: "#0d6efd", icon: "i" },
+  heads_up: { border: "#d97706", bg: "rgba(217,119,6,0.09)",   label: "Heads-up", btnBg: "#d97706", icon: "!" },
+  warning:  { border: "#dc3545", bg: "rgba(220,53,69,0.12)",   label: "Warning",  btnBg: "#dc3545", icon: "!!" },
 };
 
 const ENTITY_KEY_MAP: Record<string, string> = {
@@ -64,18 +64,16 @@ export default function QuickNotes({
   entries,
   onNoteAdded,
 }: QuickNotesProps) {
-  const { user, isLoading: authLoading } = useCurrentUser();
+  const { user } = useCurrentUser();
   const [isOpen, setIsOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [level, setLevel] = useState<NoteLevel>("info");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter to quick_note tagged entries only
   const notes = entries
     .filter((e) => e.tags?.includes("quick_note") && !e.is_archived)
     .sort((a, b) => {
-      // Warnings first, then heads-up, then info
       const levelOrder = { warning: 0, heads_up: 1, info: 2 };
       const aLevel = getNoteLevel(a.tags);
       const bLevel = getNoteLevel(b.tags);
@@ -136,52 +134,139 @@ export default function QuickNotes({
     }
   };
 
-  return (
-    <div
-      className="card"
-      style={{
-        padding: "1rem 1.25rem",
-        marginBottom: "1.5rem",
-      }}
-    >
-      {/* Header */}
-      <div style={{ marginBottom: notes.length > 0 || isOpen ? "0.75rem" : 0 }}>
-        <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Staff Notes</div>
-        <div style={{ fontSize: "0.7rem", color: "var(--muted, #6c757d)", marginTop: "0.125rem" }}>
-          High-level context only — detailed notes &amp; contact logs go in the Journal below
-        </div>
-      </div>
+  if (notes.length === 0 && !user?.staff_id) return null;
 
-      {/* Add button (collapsed state) */}
+  return (
+    <div style={{ marginBottom: "1.25rem" }}>
+      {/* Banners */}
+      {notes.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginBottom: "0.5rem" }}>
+          {notes.map((note) => {
+            const displayName = note.created_by_staff_name || note.created_by;
+            const initials = getInitials(displayName);
+            const dateStr = formatDate(note.occurred_at || note.created_at);
+            const noteLevel = getNoteLevel(note.tags);
+            const s = LEVEL_STYLES[noteLevel];
+
+            return (
+              <div
+                key={note.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.625rem",
+                  padding: "0.5rem 0.75rem",
+                  background: s.bg,
+                  borderLeft: `4px solid ${s.border}`,
+                  borderRadius: "6px",
+                  minWidth: 0,
+                }}
+              >
+                {/* Initials badge */}
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "50%",
+                    background: s.border,
+                    color: "#fff",
+                    fontSize: "0.6rem",
+                    fontWeight: "bold",
+                    flexShrink: 0,
+                  }}
+                  title={displayName || "Unknown"}
+                >
+                  {initials}
+                </span>
+
+                {/* Note body */}
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: "0.85rem",
+                    lineHeight: 1.3,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    minWidth: 0,
+                    color: "var(--foreground)",
+                    fontWeight: noteLevel === "warning" ? 600 : 400,
+                  }}
+                  title={note.body}
+                >
+                  {note.body}
+                </span>
+
+                {/* Date */}
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    color: "var(--muted, #6c757d)",
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {dateStr}
+                </span>
+
+                {/* Level badge */}
+                <span
+                  style={{
+                    fontSize: "0.6rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    color: s.border,
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {s.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add button */}
       {!isOpen && user?.staff_id && (
         <button
           onClick={() => setIsOpen(true)}
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: "0.375rem",
-            padding: "0.375rem 0.75rem",
-            fontSize: "0.8rem",
+            gap: "0.25rem",
+            padding: "0.25rem 0",
+            fontSize: "0.75rem",
             fontWeight: 500,
-            border: "1px dashed var(--border, #dee2e6)",
-            borderRadius: "6px",
+            border: "none",
             background: "transparent",
-            color: "#0d6efd",
+            color: "var(--muted, #6c757d)",
             cursor: "pointer",
-            marginBottom: notes.length > 0 ? "0.75rem" : 0,
           }}
         >
-          + Add Quick Note
+          + Add staff note
         </button>
       )}
 
-      {/* Expanded input */}
+      {/* Add form — visually separate from banners */}
       {isOpen && user?.staff_id && (
-        <div style={{ marginBottom: notes.length > 0 ? "0.75rem" : 0 }}>
+        <div
+          style={{
+            padding: "0.75rem",
+            border: "1px solid var(--border, #dee2e6)",
+            borderRadius: "8px",
+            background: "var(--card-bg, #fff)",
+          }}
+        >
           {/* Level picker */}
           <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem" }}>
             {(Object.keys(LEVEL_STYLES) as NoteLevel[]).map((lvl) => {
-              const style = LEVEL_STYLES[lvl];
+              const s = LEVEL_STYLES[lvl];
               const isActive = level === lvl;
               return (
                 <button
@@ -192,15 +277,15 @@ export default function QuickNotes({
                     padding: "0.3rem 0.625rem",
                     fontSize: "0.75rem",
                     fontWeight: 500,
-                    border: `1px solid ${style.border}`,
-                    borderLeft: lvl === "info" ? `1px solid ${style.border}` : "none",
+                    border: `1px solid ${s.border}`,
+                    borderLeft: lvl === "info" ? `1px solid ${s.border}` : "none",
                     borderRadius: lvl === "info" ? "4px 0 0 4px" : lvl === "warning" ? "0 4px 4px 0" : "0",
-                    background: isActive ? style.btnBg : "transparent",
-                    color: isActive ? "#fff" : style.border,
+                    background: isActive ? s.btnBg : "transparent",
+                    color: isActive ? "#fff" : s.border,
                     cursor: "pointer",
                   }}
                 >
-                  {style.label}
+                  {s.label}
                 </button>
               );
             })}
@@ -277,8 +362,10 @@ export default function QuickNotes({
           </div>
 
           {/* Attribution + error */}
-          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6c757d)", marginTop: "0.25rem" }}>
-            Posting as {user.display_name}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.25rem" }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--muted, #6c757d)" }}>
+              Posting as {user.display_name} — high-level context only
+            </span>
           </div>
           {error && (
             <div style={{ fontSize: "0.75rem", color: "#dc3545", marginTop: "0.25rem" }}>
@@ -286,102 +373,6 @@ export default function QuickNotes({
             </div>
           )}
         </div>
-      )}
-
-      {authLoading && !user && (
-        <div style={{ fontSize: "0.8rem", color: "var(--muted, #6c757d)", marginBottom: "0.5rem" }}>
-          Loading...
-        </div>
-      )}
-
-      {/* Notes list */}
-      {notes.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-          {notes.map((note) => {
-            const displayName = note.created_by_staff_name || note.created_by;
-            const initials = getInitials(displayName);
-            const dateStr = formatDate(note.occurred_at || note.created_at);
-            const noteLevel = getNoteLevel(note.tags);
-            const style = LEVEL_STYLES[noteLevel];
-
-            return (
-              <div
-                key={note.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.4rem 0.5rem",
-                  background: style.bg,
-                  borderLeft: `3px solid ${style.border}`,
-                  borderRadius: "4px",
-                  minWidth: 0,
-                }}
-              >
-                {/* Initials badge */}
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "24px",
-                    height: "24px",
-                    borderRadius: "50%",
-                    background: style.border,
-                    color: "#fff",
-                    fontSize: "0.6rem",
-                    fontWeight: "bold",
-                    flexShrink: 0,
-                  }}
-                  title={displayName || "Unknown"}
-                >
-                  {initials}
-                </span>
-
-                {/* Note body */}
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: "0.8rem",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    minWidth: 0,
-                    color: "var(--foreground)",
-                    fontWeight: noteLevel === "warning" ? 600 : 400,
-                  }}
-                  title={note.body}
-                >
-                  {note.body}
-                </span>
-
-                {/* Date */}
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    color: "var(--muted, #6c757d)",
-                    flexShrink: 0,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {dateStr}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        !authLoading && !isOpen && (
-          <div
-            style={{
-              fontSize: "0.8rem",
-              color: "var(--muted, #6c757d)",
-              padding: "0.25rem 0",
-            }}
-          >
-            No quick notes yet.
-          </div>
-        )
       )}
     </div>
   );
