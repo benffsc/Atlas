@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryRows } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
 
 // Entity Linking Cron Job
 //
 // Runs periodic entity linking operations:
-// 1. Creates places from geocoded intake addresses
-// 2. Links intake requesters to their places
-// 3. Links cats to places via appointment owner contact info
-// 4. Links appointments to trappers via email/phone
+// 1. Catch-up: Process any unprocessed ClinicHQ staged records
+// 2. Entity linking: Link cats/people/places/requests across all sources
+//
+// The catch-up step ensures that even if the job queue missed records,
+// they get processed within 15 minutes (safety net for DQ_CLINIC_001).
 //
 // Run every 15-30 minutes to ensure new submissions get properly linked.
 //
@@ -35,7 +36,29 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Run all entity linking operations
+    // Step 1: Catch-up processing for any unprocessed ClinicHQ records
+    // This is the safety net — ensures data gets processed even if job queue missed it
+    const catchup: Record<string, unknown> = {};
+
+    try {
+      const catInfo = await queryOne(
+        "SELECT * FROM trapper.process_clinichq_cat_info(500)"
+      );
+      catchup.cat_info = catInfo;
+    } catch (e) {
+      catchup.cat_info_error = e instanceof Error ? e.message : "Unknown";
+    }
+
+    try {
+      const ownerInfo = await queryOne(
+        "SELECT * FROM trapper.process_clinichq_owner_info(500)"
+      );
+      catchup.owner_info = ownerInfo;
+    } catch (e) {
+      catchup.owner_info_error = e instanceof Error ? e.message : "Unknown";
+    }
+
+    // Step 2: Run all entity linking operations
     const results = await queryRows<LinkingResult>(
       "SELECT * FROM trapper.run_all_entity_linking()"
     );
@@ -54,6 +77,7 @@ export async function GET(request: NextRequest) {
       message: totalLinked > 0
         ? `Linked ${totalLinked} entities`
         : "No new entities to link",
+      catchup,
       results: summary,
       total_linked: totalLinked,
       duration_ms: Date.now() - startTime,

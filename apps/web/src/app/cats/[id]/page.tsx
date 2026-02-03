@@ -179,6 +179,7 @@ interface CatDetail {
   altered_by_clinic: boolean | null; // TRUE if we performed the spay/neuter
   breed: string | null;
   color: string | null;
+  secondary_color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
   data_source: string | null; // clinichq, petlink, or legacy_import
@@ -994,7 +995,7 @@ export default function CatDetailPage() {
                 <MultiSourceField
                   label="Color"
                   fieldName="primary_color"
-                  primaryValue={cat.color ? `${cat.color}${cat.coat_pattern ? ` (${cat.coat_pattern})` : ""}` : null}
+                  primaryValue={cat.color ? `${cat.color}${cat.secondary_color ? ` / ${cat.secondary_color}` : ""}${cat.coat_pattern ? ` (${cat.coat_pattern})` : ""}` : null}
                   fieldSources={cat.field_sources}
                 />
                 <div>

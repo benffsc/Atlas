@@ -10,6 +10,7 @@ interface CatDetailRow {
   altered_by_clinic: boolean | null; // TRUE if we performed the spay/neuter
   breed: string | null;
   color: string | null;
+  secondary_color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
   data_source: string | null; // clinichq, petlink, or legacy_import
@@ -159,6 +160,7 @@ export async function GET(
         v.altered_by_clinic,
         v.breed,
         v.color,
+        c.secondary_color,
         v.coat_pattern,
         v.microchip,
         v.data_source,
@@ -192,6 +194,7 @@ export async function GET(
         c.altered_by_clinic,
         c.breed,
         c.primary_color AS color,
+        c.secondary_color,
         NULL::TEXT AS coat_pattern,
         (SELECT ci.id_value FROM trapper.cat_identifiers ci
          WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1) AS microchip,

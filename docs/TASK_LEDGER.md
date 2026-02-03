@@ -3370,10 +3370,10 @@ Cat detail page had 4 bugs:
 
 ## DQ_CLINIC_001: ClinicHQ Post-Ingest Linkage Failures
 
-**Status:** Investigated — Bugs Identified, Fix Pending
+**Status:** RESOLVED
 **Reported:** 2026-02-03
-**ACTIVE Impact:** Yes — ALL recent clinic cats are orphaned (no person connections, no request links, no color)
-**Severity:** HIGH — Affects every clinic day since the pipeline gap opened
+**Resolved:** 2026-02-03
+**Severity:** HIGH — Affected every clinic day since the pipeline gap opened
 
 ### Investigation Trigger
 
@@ -3438,20 +3438,49 @@ This same pattern likely affects `display_name`, `breed`, and other fields.
 
 `link_cats_to_requests_safe` returned 0 during `run_all_entity_linking()`. Clinic cats are not being linked to requests even when the request's requester matches the cat's owner. This linkage is separate from person-cat relationships and drives the Cats & Evidence tab on request pages.
 
-### Proposed Fix Plan
+### Resolution
 
-| Task | Description | Priority |
-|------|-------------|----------|
-| DQ_CLINIC_001a | Add `process_clinichq_owner_info` to cron pipeline after appointment processing | HIGH |
-| DQ_CLINIC_001b | Create batch `link_all_appointments_to_person_cat()` function that iterates appointments with both `person_id` and `cat_id` set but no matching `person_cat_relationships` row | HIGH |
-| DQ_CLINIC_001c | Fix `COALESCE` empty-string bug in `find_or_create_cat_by_microchip` — use `NULLIF(field, '')` for all enrichable fields (primary_color, secondary_color, breed, display_name, ownership_type) | HIGH |
-| DQ_CLINIC_001d | Fix `link_all_appointments_to_partner_orgs` column reference error | MEDIUM |
-| DQ_CLINIC_001e | Backfill: Run batch color update from cat_info for all cats with empty primary_color | MEDIUM |
-| DQ_CLINIC_001f | Backfill: Run batch person-cat relationship creation for all linked appointments | HIGH |
+| Task | Fix | Migration/File |
+|------|-----|---------------|
+| DQ_CLINIC_001a | Entity-linking cron now calls `process_clinichq_cat_info` and `process_clinichq_owner_info` as catch-up before entity linking. Safety net ensures records missed by job queue are processed within 15 min. | `entity-linking/route.ts` |
+| DQ_CLINIC_001b | Added Step 7 to `run_all_entity_linking()`: batch-creates `person_cat_relationships` from appointments with both `person_id` + `cat_id` set. | `MIG_862` |
+| DQ_CLINIC_001c | Fixed `update_cat_with_survivorship`: color IF checks now treat empty string `''` as NULL so colors get overwritten. `v_current.primary_color IS NULL` → `(IS NULL OR = '')`. | `MIG_863` |
+| DQ_CLINIC_001d | Fixed column reference in `run_all_entity_linking()` Step 4: `linked` → `appointments_linked` to match `link_all_appointments_to_partner_orgs()` return type. | `MIG_862` |
+| DQ_CLINIC_001e | `process_clinichq_owner_info` had JSONB return type from MIG_574; MIG_808 tried to change to TABLE but Postgres can't change return type with CREATE OR REPLACE. Dropped old JSONB version and recreated with TABLE return type. Also added `should_link_person_to_place()` guard function. | `MIG_864` |
+| DQ_CLINIC_001f | `find_or_create_cat_by_microchip` used `COALESCE(field, p_field)` — empty strings treated as non-NULL, blocking updates. Fixed all fields to use `COALESCE(NULLIF(field, ''), p_field)`. Also fixed display_name check: `'^unknown\s*\('` didn't match plain `'Unknown'`, added `OR display_name = 'Unknown'`. | `MIG_865` |
+| DQ_CLINIC_001g | **Root cause of names/colors**: `process_clinichq_cat_info` read wrong JSON keys (`Patient Name`/`Color`) but ClinicHQ payload uses `Animal Name`/`Primary Color`. All 38,547 records use `Animal Name`. Fixed field mapping. Added backfill steps for primary_color (2a) and display_name (2d). Fixed IS NULL → (IS NULL OR = '') in existing backfill steps. | `MIG_866` |
+
+**Additional fix:** `link_appointments_to_owners` batch LIMIT increased from 500 → 2000 to clear backlogs faster.
+
+### Backfill Results (2026-02-03)
+
+After applying MIG_862-866 and running backfill:
+- **255 cat names** fixed (were "Unknown", now have real names from ClinicHQ)
+- **350 primary colors** filled (were empty string, now have color data)
+- **4 secondary colors** filled
+- **9 person-cat relationships** created from appointment data
+- All 4 originally-reported cats verified: names, colors, person relationships all correct
+
+### Key Lesson for Future Integrations
+
+**Critical Chain for clinic cats to appear fully linked:**
+1. `process_clinichq_cat_info` — creates/updates cats from staged cat_info records
+2. `process_clinichq_owner_info` — creates people, places, links people→appointments
+3. `run_all_entity_linking()` — links cats→places→requests, creates person-cat relationships
+
+The entity-linking cron is the **safety net** that catches anything the job queue missed. All three steps must run in order.
+
+**Postgres Gotcha:** `CREATE OR REPLACE FUNCTION` cannot change return type. If a function signature changes (e.g., JSONB → TABLE), you must `DROP FUNCTION` the old version first, then `CREATE`. Otherwise the old version silently persists.
+
+**Empty String Gotcha:** `COALESCE('', 'value')` returns `''`, not `'value'`. Always use `COALESCE(NULLIF(field, ''), fallback)` when fields might be empty strings instead of NULL.
+
+**Field Name Gotcha:** Always verify payload JSON key names against actual staged data, not assumptions. Use `SELECT jsonb_object_keys(payload) FROM staged_records WHERE ... LIMIT 1` to inspect.
 
 ### Data Verified
 
-- `is_archived` defaults to FALSE (NOT NULL) — not causing filter issues
-- `altered_status` IS correctly set for all 4 cats (`neutered`/`spayed` + `altered_by_clinic=true`)
-- User's "unknown if altered" report was about `display_name = 'Unknown'`, not altered status
-- After manual `process_clinichq_owner_info` run, all 4 cats' appointments now have person_id linked
+- All 4 reported cats now have correct names: Clyde, Sylvia, Beep, Mui Mui
+- All 4 have primary colors: Snowshoe, Grey, Tortoiseshell, Grey Tabby
+- All 4 have person_cat_relationships (person_rels = 1)
+- Sylvia has request_cat_links (request_links = 1)
+- `altered_status` correctly set for all 4 cats (`neutered`/`spayed`)
+- Pipeline verified for ongoing ingests: correct field names, NULLIF handling, catch-up cron

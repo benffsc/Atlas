@@ -192,7 +192,8 @@ All ingested data flows through a unified job queue:
 - `link_appointments_via_safe_phone()` - Links via phone when uniquely identifying
 
 **Endpoints:**
-- `POST /api/ingest/process` - Unified processor (cron)
+- `POST /api/ingest/process` - Unified processor (cron every 10 min)
+- `GET /api/cron/entity-linking` - Entity linking + catch-up processing (cron every 15 min)
 - `GET /api/health/processing` - Monitoring dashboard
 
 **Manual Backfill:**
@@ -213,8 +214,20 @@ After each ClinicHQ data ingest (especially owner_info), the pipeline must compl
 
 1. **Upload** owner_info CSV via Admin UI (`/admin/ingest`)
 2. **Processing** happens automatically via cron (`POST /api/ingest/process` every 10 min)
-3. **Entity linking** runs after each batch via `run_all_entity_linking()` (11 steps)
+3. **Entity linking** runs after each batch via `run_all_entity_linking()` (7 steps)
 4. **Verify** via `GET /api/health/processing` or `SELECT * FROM trapper.v_processing_dashboard`
+
+### Post-Ingest Safety Net (MIG_862)
+
+The entity-linking cron (`/api/cron/entity-linking`) runs a **catch-up step** before entity linking:
+1. Calls `process_clinichq_cat_info(NULL, 500)` — processes any unprocessed cat_info staged records
+2. Calls `process_clinichq_owner_info(NULL, 500)` — processes any unprocessed owner_info staged records
+3. Calls `run_all_entity_linking()` — links all entities including new Step 7 (person-cat relationships)
+
+This ensures any records missed by the job queue are processed within 15 minutes.
+
+**Critical Chain for clinic cats to appear fully linked:**
+`process_clinichq_cat_info` (creates cats) → `process_clinichq_owner_info` (creates people, places, links) → `run_all_entity_linking` (cats→places→requests, person-cat relationships)
 
 **If pipeline stalls (no processing for 24+ hours):**
 ```sql
