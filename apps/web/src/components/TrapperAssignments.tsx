@@ -172,6 +172,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
           body: JSON.stringify({
             request_id: requestId,
             entry_kind: "system",
+            tags: ["trapper_action"],
             body: `Assigned trapper: ${trapperName}${isPrimary ? " (primary)" : ""}`,
           }),
         }).catch(() => {});
@@ -211,6 +212,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
           body: JSON.stringify({
             request_id: requestId,
             entry_kind: "system",
+            tags: ["trapper_action"],
             body: `Set no-trapper reason: ${label}`,
           }),
         }).catch(() => {});
@@ -245,6 +247,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
           body: JSON.stringify({
             request_id: requestId,
             entry_kind: "system",
+            tags: ["trapper_action"],
             body: "Cleared no-trapper reason (trapper needed again)",
           }),
         }).catch(() => {});

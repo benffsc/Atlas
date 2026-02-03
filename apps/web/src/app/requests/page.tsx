@@ -490,6 +490,7 @@ function RequestsPageContent() {
           body: JSON.stringify({
             request_id: requestId,
             entry_kind: "system",
+            tags: ["trapper_action"],
             body: reason === "client_trapping"
               ? "Marked as client trapping (trapper not needed)"
               : reason === "not_needed"

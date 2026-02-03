@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { logFieldEdit } from "@/lib/audit";
 
 interface TrapperAssignment {
   assignment_id: string;
@@ -151,6 +152,17 @@ export async function POST(
       );
     }
 
+    // Log to entity_edits for SOT audit trail
+    await logFieldEdit("request", id, "trapper_assigned", null, {
+      trapper_person_id,
+      is_primary,
+      assignment_id: result.assign_trapper_to_request,
+    }, {
+      editedBy: "web_user",
+      editSource: "web_ui",
+      reason: reason || "manual_assignment",
+    });
+
     return NextResponse.json({
       success: true,
       assignment_id: result.assign_trapper_to_request,
@@ -193,6 +205,15 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Log to entity_edits for SOT audit trail
+    await logFieldEdit("request", id, "trapper_unassigned", {
+      trapper_person_id: trapperPersonId,
+    }, null, {
+      editedBy: "web_user",
+      editSource: "web_ui",
+      reason,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
