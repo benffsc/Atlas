@@ -84,10 +84,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           redirect_at = NOW(),
           resolved_at = NOW(),
           transfer_type = 'redirect',
-          resolution_notes = 'Redirected to existing request ' || $2::TEXT
+          resolution_notes = $4
         WHERE request_id = $1
           AND status NOT IN ('redirected', 'handed_off')`,
-        [requestId, existing_target_request_id, redirect_reason]
+        [requestId, existing_target_request_id, redirect_reason, `Redirected to existing request ${existing_target_request_id}`]
       );
 
       // Link target back (only if it doesn't already have a parent)
