@@ -78,6 +78,48 @@ export function MediaUploader({
   // Generate unique ID for file tracking
   const generateFileId = () => `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+  // Compress an image file to JPEG to stay within upload size limits
+  // Retina screenshots can be 5-10MB as PNG; this brings them to ~200-500KB
+  const compressImage = (file: File, maxDim = 2048, quality = 0.85): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith("image/") || file.type === "image/gif") {
+        resolve(file);
+        return;
+      }
+      // Skip compression for small files (under 2MB)
+      if (file.size < 2 * 1024 * 1024) {
+        resolve(file);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) { resolve(file); return; }
+            const ext = file.name.replace(/\.[^.]+$/, "");
+            resolve(new File([blob], `${ext}.jpg`, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   // Create preview URL for a file
   const createPreviewUrl = (file: File): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -219,7 +261,8 @@ export function MediaUploader({
 
     try {
       // Helper to upload a single file and parse the response
-      const uploadOneFile = async (file: File): Promise<{ success: true; result: { media_id: string; storage_path: string; stored_filename: string; photo_group_id?: string } } | { success: false; error: string }> => {
+      const uploadOneFile = async (originalFile: File): Promise<{ success: true; result: { media_id: string; storage_path: string; stored_filename: string; photo_group_id?: string } } | { success: false; error: string }> => {
+        const file = await compressImage(originalFile);
         const formData = new FormData();
         formData.append("file", file);
         formData.append("entity_type", entityType);
