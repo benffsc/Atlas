@@ -78,6 +78,13 @@ interface DiseaseBadge {
   positive_cat_count: number;
 }
 
+interface CatDisease {
+  disease_key: string;
+  short_code: string;
+  color: string;
+  test_date: string;
+}
+
 interface CatLink {
   cat_id: string;
   display_name: string;
@@ -91,6 +98,7 @@ interface CatLink {
   appointment_count: number;
   latest_appointment_date: string | null;
   latest_service_type: string | null;
+  positive_diseases: CatDisease[];
 }
 
 export async function GET(
@@ -317,7 +325,7 @@ export async function GET(
       diseaseBadges = [];
     }
 
-    // Get cats linked to this place with latest appointment info
+    // Get cats linked to this place with latest appointment info + disease results
     const cats = await queryRows<CatLink>(
       `SELECT
         c.cat_id,
@@ -331,7 +339,8 @@ export async function GET(
         cpr.relationship_type,
         COALESCE(apt.appointment_count, 0) AS appointment_count,
         apt.latest_appointment_date,
-        apt.latest_service_type
+        apt.latest_service_type,
+        COALESCE(dis.positive_diseases, '[]'::jsonb) AS positive_diseases
       FROM trapper.cat_place_relationships cpr
       JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
         AND c.merged_into_cat_id IS NULL
@@ -348,6 +357,20 @@ export async function GET(
         FROM trapper.sot_appointments
         WHERE cat_id = c.cat_id
       ) apt ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(DISTINCT jsonb_build_object(
+          'disease_key', dt.disease_key,
+          'short_code', dt.short_code,
+          'color', dt.color,
+          'test_date', ctr.test_date::TEXT
+        )) AS positive_diseases
+        FROM trapper.cat_test_results ctr
+        JOIN trapper.test_type_disease_mapping m ON m.test_type = ctr.test_type
+          AND (ctr.result::TEXT ILIKE '%' || m.result_pattern || '%'
+               OR ctr.result_detail ILIKE '%' || m.result_pattern || '%')
+        JOIN trapper.disease_types dt ON dt.disease_key = m.disease_key
+        WHERE ctr.cat_id = c.cat_id
+      ) dis ON TRUE
       WHERE cpr.place_id = $1
       ORDER BY apt.latest_appointment_date DESC NULLS LAST, c.display_name`,
       [placeId]

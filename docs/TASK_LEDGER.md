@@ -2918,6 +2918,41 @@ These are **two genuinely separate (non-merged) place records** for the same phy
 
 ---
 
+## MAP_013: Place Linked Cats Revamp — Per-Cat Disease Pills + View All
+
+**Status:** Done
+**ACTIVE Impact:** No (read-only display change)
+**Layer:** L6 (UI)
+
+### Scope
+
+Upgrade "Cats at Location" section in PlaceDetailDrawer:
+- **Per-cat disease pills**: Each cat card shows colored disease badges (FeLV, FIV, ringworm, etc.) from `cat_test_results` via `test_type_disease_mapping` + `disease_types`. Staff can now see exactly which cat at a location tested positive.
+- **10-cat truncation**: Places with >10 cats show only the first 10 (sorted by most recent visit) with a "View all X cats" link.
+- **Count in header**: Section header shows total cat count.
+
+### Touched Surfaces
+
+| Surface | Change |
+|---------|--------|
+| `/api/places/[id]/map-details` (route.ts) | Added `LEFT JOIN LATERAL` on `cat_test_results` + `test_type_disease_mapping` + `disease_types` to return `positive_diseases` per cat |
+| `PlaceDetailDrawer.tsx` | Disease pills in cat badge row, `.slice(0, 10)` truncation, "View all" link |
+| `atlas-map.css` | `.cat-badge-disease`, `.view-all-cats-link` styles |
+
+### Validation
+
+- Open place with FIV+/FeLV+ cats → disease pills visible on specific cats
+- Hover pill → tooltip with disease name + test date
+- Place with >10 cats → truncated with "View all" link
+- Place with <10 cats → no "View all" link
+- No schema changes, no migrations, read-only queries
+
+### Rollback
+
+Revert 3 files. No schema changes.
+
+---
+
 ## DQ_009: ClinicHQ False Resident Roles for Trappers/Staff
 
 **Status:** Done (MIG_856)

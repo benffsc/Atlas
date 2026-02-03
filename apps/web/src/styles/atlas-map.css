@@ -1471,6 +1471,30 @@
   line-height: 1.3;
 }
 
+.cat-badge-disease {
+  /* Inherits .cat-badge base: 20x20 circle, white text, 9px bold */
+  /* Background color set via inline style from disease_types.color */
+}
+
+.view-all-cats-link {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3b82f6;
+  text-decoration: none;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  margin-top: 4px;
+  transition: background var(--map-transition-fast), border-color var(--map-transition-fast);
+}
+
+.view-all-cats-link:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
 /* Notes Section */
 .notes-section {
   margin-top: 20px;

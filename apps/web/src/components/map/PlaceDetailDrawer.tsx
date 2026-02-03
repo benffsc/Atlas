@@ -41,6 +41,13 @@ interface DiseaseBadge {
   positive_cat_count: number;
 }
 
+interface CatDisease {
+  disease_key: string;
+  short_code: string;
+  color: string;
+  test_date: string;
+}
+
 interface CatLink {
   cat_id: string;
   display_name: string;
@@ -54,6 +61,7 @@ interface CatLink {
   appointment_count: number;
   latest_appointment_date: string | null;
   latest_service_type: string | null;
+  positive_diseases: CatDisease[];
 }
 
 interface PlaceDetails {
@@ -803,9 +811,9 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
             {/* Cats Section */}
             {place.cats && place.cats.length > 0 && (
               <div className="section">
-                <h3>Cats at Location</h3>
+                <h3>Cats at Location <span style={{ fontWeight: 400, fontSize: "12px", color: "#6b7280" }}>({place.cats.length})</span></h3>
                 <div className="cats-list">
-                  {place.cats.map((cat) => (
+                  {place.cats.slice(0, 10).map((cat) => (
                     <a
                       key={cat.cat_id}
                       href={`/cats/${cat.cat_id}`}
@@ -823,6 +831,16 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                           )}
                           {cat.sex && <span className="cat-badge cat-badge-sex">{cat.sex === "Male" ? "M" : cat.sex === "Female" ? "F" : cat.sex.charAt(0)}</span>}
                           {cat.is_deceased && <span className="cat-badge cat-badge-deceased">Dec</span>}
+                          {cat.positive_diseases?.map(d => (
+                            <span
+                              key={d.disease_key}
+                              className="cat-badge cat-badge-disease"
+                              style={{ background: d.color }}
+                              title={`${d.disease_key.toUpperCase()} positive (${new Date(d.test_date).toLocaleDateString()})`}
+                            >
+                              {d.short_code}
+                            </span>
+                          ))}
                         </div>
                       </div>
                       <div className="cat-card-details">
@@ -845,6 +863,16 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                       )}
                     </a>
                   ))}
+                  {place.cats.length > 10 && (
+                    <a
+                      href={`/places/${placeId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="view-all-cats-link"
+                    >
+                      View all {place.cats.length} cats
+                    </a>
+                  )}
                 </div>
               </div>
             )}
