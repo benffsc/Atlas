@@ -436,19 +436,19 @@ export function MediaGallery({
                   ★
                 </div>
               )}
-              {/* "+N more" overlay on last visible photo */}
+              {/* "+N more" badge on last visible photo */}
               {hasMore && index === displayMedia.length - 1 && (
                 <div style={{
                   position: "absolute",
-                  inset: "0",
-                  background: "rgba(0,0,0,0.5)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  bottom: "4px",
+                  right: "4px",
+                  background: "rgba(0,0,0,0.7)",
                   color: "white",
-                  fontSize: "1.25rem",
+                  fontSize: "0.75rem",
                   fontWeight: 600,
-                  borderRadius: "8px",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  lineHeight: 1.4,
                 }}>
                   +{hiddenCount}
                 </div>
