@@ -32,7 +32,7 @@ interface UploadProgress {
 }
 
 interface MediaUploaderProps {
-  entityType: "cat" | "place" | "request";
+  entityType: "cat" | "place" | "request" | "person";
   entityId: string;
   onUploadComplete?: (media: MediaItem | MediaItem[]) => void;
   onCancel?: () => void;

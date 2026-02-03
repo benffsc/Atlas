@@ -543,6 +543,7 @@ export default function CatDetailPage() {
     sex: "",
     is_eartipped: false,
     color_pattern: "",
+    breed: "",
     notes: "",
   });
   const [saving, setSaving] = useState(false);
@@ -610,11 +611,18 @@ export default function CatDetailPage() {
 
   const startEditingBasic = () => {
     if (cat) {
+      // Normalize sex to lowercase for dropdown matching
+      const normalizedSex = cat.sex ? cat.sex.toLowerCase() : "";
+      // Handle altered_status: "spayed", "neutered", "Yes" all mean altered
+      const isAltered = cat.altered_status
+        ? ["yes", "spayed", "neutered"].includes(cat.altered_status.toLowerCase())
+        : false;
       setEditForm({
         name: cat.display_name || "",
-        sex: cat.sex || "",
-        is_eartipped: cat.altered_status === "Yes",
-        color_pattern: cat.coat_pattern || "",
+        sex: normalizedSex === "male" || normalizedSex === "female" ? normalizedSex : "",
+        is_eartipped: isAltered,
+        color_pattern: cat.color || "",
+        breed: cat.breed || "",
         notes: cat.notes || "",
       });
       setSaveError(null);
@@ -642,6 +650,7 @@ export default function CatDetailPage() {
           sex: editForm.sex || null,
           is_eartipped: editForm.is_eartipped,
           color_pattern: editForm.color_pattern || null,
+          breed: editForm.breed || null,
           notes: editForm.notes || null,
           change_reason: "manual_edit",
         }),
@@ -736,6 +745,7 @@ export default function CatDetailPage() {
               entityType="cat"
               entityId={cat.cat_id}
               allowUpload={true}
+              includeRelated={true}
               maxDisplay={1}
               defaultMediaType="cat_photo"
               allowedMediaTypes={["cat_photo"]}
@@ -894,6 +904,16 @@ export default function CatDetailPage() {
                       style={{ width: "100%" }}
                     />
                   </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Breed</label>
+                    <input
+                      type="text"
+                      value={editForm.breed}
+                      onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })}
+                      placeholder="e.g., DSH, Siamese"
+                      style={{ width: "100%" }}
+                    />
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", paddingTop: "1.5rem" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
                       <input
@@ -945,9 +965,13 @@ export default function CatDetailPage() {
                 <div>
                   <div className="text-muted text-sm">Altered</div>
                   <div style={{ fontWeight: 500 }}>
-                    {cat.altered_status === "Yes" ? (
-                      <span style={{ color: "#198754" }}>Yes {cat.altered_by_clinic ? "(by clinic)" : ""}</span>
-                    ) : cat.altered_status === "No" ? (
+                    {cat.altered_status && ["yes", "spayed", "neutered"].includes(cat.altered_status.toLowerCase()) ? (
+                      <span style={{ color: "#198754" }}>
+                        Yes {cat.altered_by_clinic ? "(by clinic)" : ""}
+                        {cat.altered_status.toLowerCase() === "spayed" ? " — Spayed" :
+                         cat.altered_status.toLowerCase() === "neutered" ? " — Neutered" : ""}
+                      </span>
+                    ) : cat.altered_status === "No" || cat.altered_status?.toLowerCase() === "intact" ? (
                       <span style={{ color: "#dc3545" }}>No</span>
                     ) : "Unknown"}
                   </div>

@@ -3327,3 +3327,41 @@ The old system had 5 tiers with special cases for legacy vs modern requests. The
 | `apps/web/src/components/AlterationStatsCard.tsx` | MOD — New window type names |
 | `CLAUDE.md` | MOD — Attribution window docs |
 | `docs/TASK_LEDGER.md` | MOD — LINKING_003 |
+
+---
+
+## UI_CAT_001: Cat Card Edit/Display Fixes
+
+**Status:** Done
+**ACTIVE Impact:** Yes — Cat detail page (read + edit mode)
+**Scope:** Fix broken PATCH API column mappings, sex case normalization, altered status logic, add breed field.
+
+### Problem
+
+Cat detail page had 4 bugs:
+1. **PATCH API 500 error** — `SELECT name, is_eartipped, color_pattern` referenced nonexistent columns in `sot_cats`. Correct: `display_name`, `altered_status`, `primary_color`. Also cast to nonexistent `::trapper.cat_sex` enum.
+2. **Sex "Unknown" for known cats** — DB stores "Male"/"Female" (capitalized), dropdown uses "male"/"female" (lowercase). No match → "Unknown".
+3. **Altered status "Unknown" for 95% of records** — Checked `=== "Yes"` but 95% of records have "spayed"/"neutered".
+4. **Color empty in edit form** — Read from `cat.coat_pattern` (NULL in `v_cat_detail`) instead of `cat.color` (mapped from `primary_color`).
+
+### Changes
+
+1. **PATCH API**: Remapped column names, removed enum cast, added breed support, fixed RETURNING clause
+2. **Edit form init**: Normalize sex to lowercase, check altered_status against ["yes","spayed","neutered"], use `cat.color`, add breed
+3. **Read mode**: Altered status shows "Yes — Spayed" / "Yes — Neutered", handles "intact" as "No"
+4. **Edit form UI**: Added breed input field
+
+### Validation
+
+- `tsc --noEmit` passes
+- DB values verified: Male (17,591), Female (15,445), spayed (17,276), neutered (15,538)
+
+### Files
+
+| File | Change |
+|------|--------|
+| `apps/web/src/app/api/cats/[id]/route.ts` | MOD — PATCH column names, removed enum cast, added breed |
+| `apps/web/src/app/cats/[id]/page.tsx` | MOD — Edit form init, sex normalization, altered status, breed field |
+| `apps/web/src/app/api/media/upload/route.ts` | MOD — Added missing `person` to entity type Records |
+| `docs/TIPPY_DATA_QUALITY_REFERENCE.md` | MOD — Session log entry |
+| `docs/TASK_LEDGER.md` | MOD — UI_CAT_001 |

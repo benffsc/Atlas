@@ -23,6 +23,7 @@ export function CatsEvidenceTab({ requestId, cats }: CatsEvidenceTabProps) {
           entityType="request"
           entityId={requestId}
           allowUpload={true}
+          includeRelated={true}
           showCatDescription={true}
           defaultMediaType="cat_photo"
           allowedMediaTypes={["cat_photo", "site_photo", "evidence"]}

@@ -7,7 +7,7 @@ import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
 // Supports uploading to: requests, cats, places
 // Supports single file or batch upload (multiple files)
 
-type EntityType = "request" | "cat" | "place" | "annotation";
+type EntityType = "request" | "cat" | "place" | "person" | "annotation";
 
 type ConfidenceLevel = "confirmed" | "likely" | "uncertain" | "unidentified";
 
@@ -31,6 +31,7 @@ const entityQueries: Record<EntityType, string> = {
   request: "SELECT request_id FROM trapper.sot_requests WHERE request_id = $1",
   cat: "SELECT cat_id FROM trapper.sot_cats WHERE cat_id = $1",
   place: "SELECT place_id FROM trapper.places WHERE place_id = $1",
+  person: "SELECT person_id FROM trapper.sot_people WHERE person_id = $1",
   annotation: "SELECT annotation_id FROM trapper.map_annotations WHERE annotation_id = $1",
 };
 
@@ -39,6 +40,7 @@ const storagePathPrefix: Record<EntityType, string> = {
   request: "requests",
   cat: "cats",
   place: "places",
+  person: "people",
   annotation: "annotations",
 };
 
@@ -175,6 +177,9 @@ async function uploadSingleFile(
     case "place":
       entityColumn = "place_id";
       break;
+    case "person":
+      entityColumn = "person_id";
+      break;
     default:
       entityColumn = "request_id";
   }
@@ -244,9 +249,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!entityType || !["request", "cat", "place", "annotation"].includes(entityType)) {
+    if (!entityType || !["request", "cat", "place", "person", "annotation"].includes(entityType)) {
       return NextResponse.json(
-        { error: "Invalid entity_type. Must be 'request', 'cat', 'place', or 'annotation'" },
+        { error: "Invalid entity_type. Must be 'request', 'cat', 'place', 'person', or 'annotation'" },
         { status: 400 }
       );
     }

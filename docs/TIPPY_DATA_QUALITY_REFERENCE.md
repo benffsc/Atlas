@@ -1635,3 +1635,32 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 **What Tippy should know:**
 > "A bug that caused appointment_info uploads to fail has been fixed. The error 'duplicate key value violates unique constraint staged_records_idempotency_key' no longer occurs. Staff can upload cat_info, owner_info, and appointment_info in any order — they are all independent. If owner_info shows 0 new people, that means all owners already existed in the system (matched by email or phone). This is normal when re-uploading data that overlaps with previous uploads."
+
+### Session: 2026-02-03 — Cat Card Edit/Display Fixes
+
+**Context:** Cat detail page showed "Sex: Unknown" for cats with known sex from ClinicHQ, "Failed to update cat" on any edit, and altered status showed "Unknown" for spayed/neutered cats (95% of records).
+
+**Key Discoveries:**
+1. **PATCH API used wrong column names** — Referenced `name`, `is_eartipped`, `color_pattern` which don't exist in `sot_cats`. Correct columns: `display_name`, `altered_status`, `primary_color`. Also cast to `::trapper.cat_sex` enum that doesn't exist (column is plain text).
+2. **Sex case mismatch** — DB stores "Male"/"Female" (capitalized from ClinicHQ), edit dropdown uses "male"/"female" (lowercase). Dropdown couldn't match → showed "Unknown" even for cats with known sex.
+3. **Altered status logic checked only "Yes"** — DB values: `spayed` (17,276), `neutered` (15,538), `Yes` (1,370), `No` (326), `intact` (259). Old code only matched `=== "Yes"`, missing 95% of altered cats.
+4. **Edit form read wrong field for color** — Used `cat.coat_pattern` (always NULL from `v_cat_detail`) instead of `cat.color` (mapped from `primary_color`).
+
+**Changes Made:**
+- Fixed PATCH API to use correct column names (`display_name`, `altered_status`, `primary_color`)
+- Removed nonexistent `::trapper.cat_sex` enum cast
+- Normalized sex to lowercase on form init so dropdown pre-selects correctly
+- Fixed altered status to recognize "spayed", "neutered", and "Yes" as altered
+- Read mode now shows "Yes — Spayed" / "Yes — Neutered" for specific status
+- Added breed field to edit form and PATCH API
+- Fixed color to read from `cat.color` (maps from `primary_color`)
+
+**Staff Impact:**
+- Cat detail cards now correctly show sex ("Male"/"Female") from clinic data
+- Edit form pre-selects the correct sex value
+- Altered status shows correctly for 95% of cats that were previously showing "Unknown"
+- Editing a cat name or any field now saves successfully
+- Breed and color can be edited from the cat card
+
+**What Tippy should know:**
+> "Cat detail pages now correctly display sex and altered status from clinic data. Previously, cats showed 'Sex: Unknown' due to a case mismatch between the database and the dropdown. If staff see a cat with correct sex/color/breed data, that data comes from ClinicHQ clinic records. The edit form now pre-selects the correct values. Altered status shows 'Yes — Spayed' or 'Yes — Neutered' based on the specific procedure recorded."

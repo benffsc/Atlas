@@ -14,16 +14,18 @@ interface ExtendedMediaItem extends MediaItem {
   cat_identification_confidence?: string;
   photo_group_id?: string;
   linked_cat_id?: string;
+  cross_ref_source?: string | null;
 }
 
 interface MediaGalleryProps {
-  entityType: "cat" | "place" | "request";
+  entityType: "cat" | "place" | "request" | "person";
   entityId: string;
   allowUpload?: boolean;
   maxDisplay?: number;
   showCatDescription?: boolean;
   defaultMediaType?: string;
   allowedMediaTypes?: string[];
+  includeRelated?: boolean;
   // New props for grouping
   showGrouping?: boolean;
   defaultToGroupView?: boolean;
@@ -38,6 +40,7 @@ export function MediaGallery({
   showCatDescription = false,
   defaultMediaType,
   allowedMediaTypes,
+  includeRelated = false,
   showGrouping = false,
   defaultToGroupView = false,
   availableCats = [],
@@ -59,7 +62,17 @@ export function MediaGallery({
     setError(null);
 
     try {
-      const response = await fetch(`/api/${entityType}s/${entityId}/media`);
+      let url: string;
+      if (includeRelated) {
+        // Use unified endpoint with cross-referencing
+        const paramKey = entityType === "person" ? "person_id" : entityType === "cat" ? "cat_id" : entityType === "place" ? "place_id" : "request_id";
+        url = `/api/media?${paramKey}=${entityId}&include_related=true`;
+      } else {
+        // Use entity-specific endpoint (backward compatible)
+        const pathSegment = entityType === "person" ? "people" : `${entityType}s`;
+        url = `/api/${pathSegment}/${entityId}/media`;
+      }
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch media");
       }
@@ -71,7 +84,7 @@ export function MediaGallery({
     } finally {
       setLoading(false);
     }
-  }, [entityType, entityId]);
+  }, [entityType, entityId, includeRelated]);
 
   useEffect(() => {
     fetchMedia();
@@ -310,14 +323,36 @@ export function MediaGallery({
                 position: "absolute",
                 top: "4px",
                 left: "4px",
-                padding: "2px 6px",
-                background: "rgba(0,0,0,0.6)",
-                color: "white",
-                fontSize: "0.625rem",
-                borderRadius: "4px",
-                textTransform: "uppercase",
+                display: "flex",
+                flexDirection: "column",
+                gap: "2px",
               }}>
-                {getMediaTypeLabel(item.media_type)}
+                <span style={{
+                  padding: "2px 6px",
+                  background: "rgba(0,0,0,0.6)",
+                  color: "white",
+                  fontSize: "0.625rem",
+                  borderRadius: "4px",
+                  textTransform: "uppercase",
+                }}>
+                  {getMediaTypeLabel(item.media_type)}
+                </span>
+                {item.cross_ref_source && (
+                  <span
+                    style={{
+                      padding: "2px 5px",
+                      background: "rgba(0,0,0,0.5)",
+                      color: "rgba(255,255,255,0.85)",
+                      fontSize: "0.55rem",
+                      borderRadius: "3px",
+                      fontStyle: "italic",
+                      width: "fit-content",
+                    }}
+                    title={`From linked ${item.cross_ref_source}`}
+                  >
+                    via {item.cross_ref_source}
+                  </span>
+                )}
               </div>
               {/* Confidence indicator (when grouping enabled) */}
               {showGrouping && (

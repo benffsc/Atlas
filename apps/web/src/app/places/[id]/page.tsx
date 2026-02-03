@@ -1162,6 +1162,7 @@ export default function PlaceDetailPage() {
         entityType="place"
         entityId={place.place_id}
         allowUpload={true}
+        includeRelated={true}
         defaultMediaType="site_photo"
         allowedMediaTypes={["site_photo", "evidence"]}
       />

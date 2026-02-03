@@ -667,6 +667,7 @@ interface UpdateCatBody {
   sex?: string;
   is_eartipped?: boolean;
   color_pattern?: string;
+  breed?: string;
   notes?: string;
   // Audit info
   changed_by?: string;
@@ -693,19 +694,17 @@ export async function PATCH(
     const change_reason = body.change_reason || "manual_update";
     const change_notes = body.change_notes || null;
 
-    // Fields that can be updated
-    const editableFields = ["name", "sex", "is_eartipped", "color_pattern", "notes"];
-
     // Get current cat data for audit comparison
     const currentSql = `
-      SELECT name, sex, is_eartipped, color_pattern, notes
+      SELECT display_name, sex, altered_status, primary_color, breed, notes
       FROM trapper.sot_cats WHERE cat_id = $1
     `;
     const current = await queryOne<{
-      name: string | null;
+      display_name: string | null;
       sex: string | null;
-      is_eartipped: boolean | null;
-      color_pattern: string | null;
+      altered_status: string | null;
+      primary_color: string | null;
+      breed: string | null;
       notes: string | null;
     }>(currentSql, [id]);
 
@@ -719,35 +718,50 @@ export async function PATCH(
     const auditChanges: Array<{ field: string; oldVal: string | null; newVal: string | null }> = [];
 
     // Check each field for changes
-    if (body.name !== undefined && body.name !== current.name) {
-      auditChanges.push({ field: "name", oldVal: current.name, newVal: body.name || null });
-      updates.push(`name = $${paramIndex}`);
+    if (body.name !== undefined && body.name !== current.display_name) {
+      auditChanges.push({ field: "display_name", oldVal: current.display_name, newVal: body.name || null });
+      updates.push(`display_name = $${paramIndex}`);
       values.push(body.name);
       paramIndex++;
     }
 
-    if (body.sex !== undefined && body.sex !== current.sex) {
-      auditChanges.push({ field: "sex", oldVal: current.sex, newVal: body.sex });
-      updates.push(`sex = $${paramIndex}::trapper.cat_sex`);
-      values.push(body.sex);
-      paramIndex++;
+    // Sex: normalize to lowercase, no enum cast (column is plain text)
+    if (body.sex !== undefined) {
+      const normalizedSex = body.sex ? body.sex.toLowerCase() : null;
+      const currentNorm = current.sex ? current.sex.toLowerCase() : null;
+      if (normalizedSex !== currentNorm) {
+        auditChanges.push({ field: "sex", oldVal: current.sex, newVal: normalizedSex });
+        updates.push(`sex = $${paramIndex}`);
+        values.push(normalizedSex);
+        paramIndex++;
+      }
     }
 
-    if (body.is_eartipped !== undefined && body.is_eartipped !== current.is_eartipped) {
-      auditChanges.push({
-        field: "is_eartipped",
-        oldVal: current.is_eartipped?.toString() ?? null,
-        newVal: body.is_eartipped?.toString() ?? null
-      });
-      updates.push(`is_eartipped = $${paramIndex}`);
-      values.push(body.is_eartipped);
-      paramIndex++;
+    // is_eartipped (boolean from UI) → altered_status (text in DB)
+    if (body.is_eartipped !== undefined) {
+      const currentIsAltered = current.altered_status
+        ? ["yes", "spayed", "neutered"].includes(current.altered_status.toLowerCase())
+        : false;
+      if (body.is_eartipped !== currentIsAltered) {
+        const newStatus = body.is_eartipped ? "Yes" : "No";
+        auditChanges.push({ field: "altered_status", oldVal: current.altered_status, newVal: newStatus });
+        updates.push(`altered_status = $${paramIndex}`);
+        values.push(newStatus);
+        paramIndex++;
+      }
     }
 
-    if (body.color_pattern !== undefined && body.color_pattern !== current.color_pattern) {
-      auditChanges.push({ field: "color_pattern", oldVal: current.color_pattern, newVal: body.color_pattern || null });
-      updates.push(`color_pattern = $${paramIndex}`);
+    if (body.color_pattern !== undefined && body.color_pattern !== current.primary_color) {
+      auditChanges.push({ field: "primary_color", oldVal: current.primary_color, newVal: body.color_pattern || null });
+      updates.push(`primary_color = $${paramIndex}`);
       values.push(body.color_pattern);
+      paramIndex++;
+    }
+
+    if (body.breed !== undefined && body.breed !== current.breed) {
+      auditChanges.push({ field: "breed", oldVal: current.breed, newVal: body.breed || null });
+      updates.push(`breed = $${paramIndex}`);
+      values.push(body.breed);
       paramIndex++;
     }
 
@@ -787,15 +801,16 @@ export async function PATCH(
       UPDATE trapper.sot_cats
       SET ${updates.join(", ")}
       WHERE cat_id = $${paramIndex}
-      RETURNING cat_id, name, sex, is_eartipped, color_pattern
+      RETURNING cat_id, display_name, sex, altered_status, primary_color, breed
     `;
 
     const result = await queryOne<{
       cat_id: string;
-      name: string;
+      display_name: string;
       sex: string | null;
-      is_eartipped: boolean;
-      color_pattern: string | null;
+      altered_status: string | null;
+      primary_color: string | null;
+      breed: string | null;
     }>(sql, values);
 
     if (!result) {

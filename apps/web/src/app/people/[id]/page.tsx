@@ -21,6 +21,7 @@ import { formatDateLocal } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import { ProfileLayout } from "@/components/ProfileLayout";
+import { MediaGallery } from "@/components/MediaGallery";
 
 interface Cat {
   cat_id: string;
@@ -1256,6 +1257,17 @@ export default function PersonDetailPage() {
             </span>
           </div>
         </div>
+      </Section>
+
+      {/* Photos */}
+      <Section title="Photos">
+        <MediaGallery
+          entityType="person"
+          entityId={id}
+          allowUpload={true}
+          includeRelated={true}
+          defaultMediaType="site_photo"
+        />
       </Section>
 
       {/* Journal & Communications */}
