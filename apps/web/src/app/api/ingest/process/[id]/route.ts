@@ -352,10 +352,15 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       WITH cat_data AS (
         SELECT DISTINCT ON (payload->>'Microchip Number')
           payload->>'Microchip Number' as microchip,
-          NULLIF(TRIM(payload->>'Patient Name'), '') as name,
+          NULLIF(TRIM(payload->>'Animal Name'), '') as name,
           NULLIF(TRIM(payload->>'Sex'), '') as sex,
           NULLIF(TRIM(payload->>'Breed'), '') as breed,
-          NULLIF(TRIM(payload->>'Color'), '') as color
+          NULLIF(TRIM(payload->>'Primary Color'), '') as color,
+          CASE
+            WHEN TRIM(payload->>'Spay Neuter Status') IN ('Yes', 'No') THEN TRIM(payload->>'Spay Neuter Status')
+            ELSE NULL
+          END as altered_status,
+          NULLIF(TRIM(payload->>'Secondary Color'), '') as secondary_color
         FROM trapper.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'cat_info'
@@ -373,9 +378,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             cd.name,
             cd.sex,
             cd.breed,
-            NULL,  -- altered_status
+            cd.altered_status,
             cd.color,
-            NULL,  -- secondary_color
+            cd.secondary_color,
             NULL,  -- ownership_type
             'clinichq'
           ) as cat_id
