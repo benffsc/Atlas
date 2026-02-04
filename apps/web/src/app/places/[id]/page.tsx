@@ -29,6 +29,7 @@ import { PlaceContextEditor } from "@/components/PlaceContextEditor";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import { ProfileLayout } from "@/components/ProfileLayout";
 import DiseaseStatusSection from "@/components/DiseaseStatusSection";
+import ClinicHistorySection from "@/components/ClinicHistorySection";
 
 interface Cat {
   cat_id: string;
@@ -971,6 +972,9 @@ export default function PlaceDetailPage() {
           <p className="text-muted">No cats linked to this place.</p>
         )}
       </Section>
+
+      {/* Clinic History */}
+      <ClinicHistorySection placeId={place.place_id} />
 
       {/* People */}
       <Section title="People">

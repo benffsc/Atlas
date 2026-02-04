@@ -44,7 +44,9 @@ export async function GET(
         v.cat_breed,
         v.cat_color,
         v.cat_secondary_color,
+        v.cat_microchip,
         c.altered_status as cat_altered_status,
+        cat_photo.storage_path as cat_photo_url,
         -- Enriched columns (MIG_870)
         COALESCE(v.cat_weight_lbs, (SELECT cv.weight_lbs
          FROM trapper.cat_vitals cv
@@ -80,6 +82,14 @@ export async function GET(
          LIMIT 1) as raw_payload
       FROM trapper.v_appointment_detail v
       LEFT JOIN trapper.sot_cats c ON c.cat_id = v.cat_id
+      LEFT JOIN LATERAL (
+        SELECT rm.storage_path
+        FROM trapper.request_media rm
+        WHERE rm.direct_cat_id = v.cat_id
+          AND NOT rm.is_archived
+        ORDER BY COALESCE(rm.is_hero, FALSE) DESC, rm.uploaded_at DESC
+        LIMIT 1
+      ) cat_photo ON true
       WHERE v.appointment_id = $1`,
       [id]
     );
@@ -230,7 +240,9 @@ export async function GET(
       cat_breed: appointment.cat_breed,
       cat_color: appointment.cat_color,
       cat_secondary_color: appointment.cat_secondary_color,
+      cat_microchip: appointment.cat_microchip,
       cat_altered_status: appointment.cat_altered_status,
+      cat_photo_url: appointment.cat_photo_url,
       // Client info
       person_id: appointment.person_id,
       client_name: appointment.client_name,

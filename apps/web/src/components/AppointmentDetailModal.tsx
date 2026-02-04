@@ -100,6 +100,8 @@ interface AppointmentDetail {
   cat_id: string | null;
   cat_name: string | null;
   cat_sex: string | null;
+  cat_microchip: string | null;
+  cat_photo_url: string | null;
   person_id: string | null;
   client_name: string | null;
   client_email: string | null;
@@ -293,6 +295,71 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
             &times;
           </button>
         </div>
+
+        {/* Cat card */}
+        {data && data.cat_id && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.5rem 0.75rem',
+            background: 'var(--section-bg, #f8f9fa)',
+            borderRadius: '6px',
+            marginBottom: '1rem',
+          }}>
+            {data.cat_photo_url ? (
+              <img
+                src={data.cat_photo_url}
+                alt=""
+                style={{
+                  width: 40, height: 40,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                  border: '1px solid var(--border, #dee2e6)',
+                }}
+              />
+            ) : (
+              <div style={{
+                width: 40, height: 40,
+                borderRadius: '50%',
+                background: 'var(--card-bg, #e9ecef)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                color: 'var(--muted, #6c757d)',
+                border: '1px solid var(--border, #dee2e6)',
+              }}>
+                {data.cat_name ? data.cat_name.charAt(0).toUpperCase() : '?'}
+              </div>
+            )}
+            <div>
+              <a
+                href={`/cats/${data.cat_id}`}
+                style={{ color: '#0d6efd', textDecoration: 'none', fontWeight: 600, fontSize: '0.9rem' }}
+                onMouseOver={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                onMouseOut={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+              >
+                {data.cat_name || 'Unknown Cat'}
+              </a>
+              {data.cat_microchip && (
+                <div>
+                  <a
+                    href={`/cats/${data.cat_id}`}
+                    style={{ color: 'var(--muted, #6c757d)', textDecoration: 'none', fontSize: '0.75rem', fontFamily: 'monospace' }}
+                    onMouseOver={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+                  >
+                    Chip: {data.cat_microchip}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {loading && (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted, #6c757d)' }}>

@@ -20,6 +20,7 @@ import { QuickActions, usePersonQuickActionState } from "@/components/QuickActio
 import { formatDateLocal } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import ClinicHistorySection from "@/components/ClinicHistorySection";
 import { ProfileLayout } from "@/components/ProfileLayout";
 import { MediaGallery } from "@/components/MediaGallery";
 
@@ -83,6 +84,14 @@ interface AssociatedPlace {
   source_type: "relationship" | "request" | "intake";
 }
 
+interface PersonAlias {
+  alias_id: string;
+  name_raw: string;
+  source_system: string | null;
+  source_table: string | null;
+  created_at: string;
+}
+
 interface PersonDetail {
   person_id: string;
   display_name: string;
@@ -106,6 +115,7 @@ interface PersonDetail {
   verified_by: string | null;
   verified_by_name: string | null;
   associated_places: AssociatedPlace[] | null;
+  aliases: PersonAlias[] | null;
 }
 
 interface RelatedRequest {
@@ -329,9 +339,17 @@ export default function PersonDetailPage() {
   // Name edit state
   const [editingName, setEditingName] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
+
+  // Alias management state
+  const [addingAlias, setAddingAlias] = useState(false);
+  const [newAliasName, setNewAliasName] = useState("");
+  const [aliasError, setAliasError] = useState<string | null>(null);
+  const [savingAlias, setSavingAlias] = useState(false);
 
   // Edit history panel
   const [showHistory, setShowHistory] = useState(false);
@@ -525,8 +543,13 @@ export default function PersonDetailPage() {
 
   const startEditingName = () => {
     if (person) {
-      setEditDisplayName(person.display_name || "");
+      const name = person.display_name || "";
+      const spaceIdx = name.indexOf(" ");
+      setEditFirstName(spaceIdx > 0 ? name.substring(0, spaceIdx) : name);
+      setEditLastName(spaceIdx > 0 ? name.substring(spaceIdx + 1) : "");
+      setEditDisplayName(name);
       setNameError(null);
+      setNameWarning(null);
       setEditingName(true);
     }
   };
@@ -538,23 +561,29 @@ export default function PersonDetailPage() {
   };
 
   const handleSaveName = async () => {
-    const validation = validatePersonName(editDisplayName);
+    const combinedName = `${editFirstName.trim()} ${editLastName.trim()}`.trim();
+    const validation = validatePersonName(combinedName);
     if (!validation.valid) {
       setNameError(validation.error || "Invalid name");
       setNameWarning(null);
       return;
     }
 
+    if (combinedName === person?.display_name) {
+      setEditingName(false);
+      return;
+    }
+
     setSavingName(true);
     setNameError(null);
-    setNameWarning(validation.warning || null);
+    setNameWarning(null);
 
     try {
       const response = await fetch(`/api/people/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          display_name: editDisplayName.trim(),
+          display_name: combinedName,
           change_reason: "name_correction",
         }),
       });
@@ -566,6 +595,7 @@ export default function PersonDetailPage() {
         return;
       }
 
+      setNameWarning(`Previous name "${person?.display_name}" preserved as alias. Staff can still search by the old name.`);
       // Refresh person data
       await fetchPerson();
       setEditingName(false);
@@ -573,6 +603,52 @@ export default function PersonDetailPage() {
       setNameError("Network error while saving");
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const handleAddAlias = async () => {
+    const name = newAliasName.trim();
+    if (!name) return;
+
+    setSavingAlias(true);
+    setAliasError(null);
+
+    try {
+      const response = await fetch(`/api/people/${id}/aliases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        setAliasError(result.error || "Failed to add alias");
+        return;
+      }
+
+      setNewAliasName("");
+      setAddingAlias(false);
+      await fetchPerson();
+    } catch {
+      setAliasError("Network error");
+    } finally {
+      setSavingAlias(false);
+    }
+  };
+
+  const handleDeleteAlias = async (aliasId: string) => {
+    try {
+      const response = await fetch(`/api/people/${id}/aliases`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alias_id: aliasId }),
+      });
+
+      if (response.ok) {
+        await fetchPerson();
+      }
+    } catch {
+      // Silently fail — alias will remain visible
     }
   };
 
@@ -606,58 +682,87 @@ export default function PersonDetailPage() {
       <div className="detail-header" style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           {editingName ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
-              <input
-                type="text"
-                value={editDisplayName}
-                onChange={(e) => setEditDisplayName(e.target.value)}
-                placeholder="Enter name"
-                style={{
-                  fontSize: "1.5rem",
-                  fontWeight: 700,
-                  padding: "0.25rem 0.5rem",
-                  width: "300px",
-                }}
-                autoFocus
-              />
-              <button
-                onClick={handleSaveName}
-                disabled={savingName}
-                style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
-              >
-                {savingName ? "Saving..." : "Save"}
-              </button>
-              <button
-                onClick={cancelEditingName}
-                disabled={savingName}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  fontSize: "0.875rem",
-                  background: "transparent",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                Cancel
-              </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input
+                  type="text"
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  placeholder="First name"
+                  style={{
+                    fontSize: "1.25rem",
+                    fontWeight: 700,
+                    padding: "0.25rem 0.5rem",
+                    width: "160px",
+                  }}
+                  autoFocus
+                />
+                <input
+                  type="text"
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  placeholder="Last name"
+                  style={{
+                    fontSize: "1.25rem",
+                    fontWeight: 700,
+                    padding: "0.25rem 0.5rem",
+                    width: "200px",
+                  }}
+                />
+                <button
+                  onClick={handleSaveName}
+                  disabled={savingName}
+                  style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+                >
+                  {savingName ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={cancelEditingName}
+                  disabled={savingName}
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    fontSize: "0.875rem",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+              {nameError && (
+                <div style={{ color: "#dc3545", fontSize: "0.8rem" }}>{nameError}</div>
+              )}
             </div>
           ) : (
-            <>
-              <h1 style={{ margin: 0 }}>{person.display_name}</h1>
-              <button
-                onClick={startEditingName}
-                style={{
-                  padding: "0.125rem 0.5rem",
-                  fontSize: "0.75rem",
-                  background: "transparent",
-                  border: "1px solid var(--border)",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-                title="Edit name"
-              >
-                Edit
-              </button>
-            </>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <h1 style={{ margin: 0 }}>{person.display_name}</h1>
+                <button
+                  onClick={startEditingName}
+                  style={{
+                    padding: "0.125rem 0.5rem",
+                    fontSize: "0.75rem",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                  title="Edit name"
+                >
+                  Edit
+                </button>
+              </div>
+              {person.aliases && person.aliases.length > 0 && (
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                  Also known as: {person.aliases.map(a => a.name_raw).join(", ")}
+                </div>
+              )}
+              {nameWarning && (
+                <div style={{ fontSize: "0.8rem", color: "#198754", marginTop: "0.25rem" }}>
+                  {nameWarning}
+                </div>
+              )}
+            </div>
           )}
           {!editingName && (
             <>
@@ -1311,6 +1416,9 @@ export default function PersonDetailPage() {
         )}
       </Section>
 
+      {/* Clinic History */}
+      <ClinicHistorySection personId={id} />
+
       {/* Associated Places */}
       <Section title="Associated Places">
         {(() => {
@@ -1440,8 +1548,114 @@ export default function PersonDetailPage() {
     </>
   );
 
+  const aliasSourceLabel = (alias: PersonAlias) => {
+    if (alias.source_table === "name_change") return "Name Change";
+    if (alias.source_table === "manual_alias") return "Manual";
+    if (alias.source_system) return alias.source_system;
+    return "System";
+  };
+
   const dataTab = (
     <>
+      {/* Previous Names / Aliases */}
+      <Section title="Previous Names">
+        {person.aliases && person.aliases.length > 0 ? (
+          <table style={{ width: "100%", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
+                <th style={{ padding: "0.5rem 0" }}>Name</th>
+                <th style={{ padding: "0.5rem 0" }}>Source</th>
+                <th style={{ padding: "0.5rem 0" }}>Date</th>
+                <th style={{ padding: "0.5rem 0", width: "60px" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {person.aliases.map((alias) => (
+                <tr key={alias.alias_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "0.5rem 0" }}>{alias.name_raw}</td>
+                  <td style={{ padding: "0.5rem 0" }}>
+                    <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
+                      {aliasSourceLabel(alias)}
+                    </span>
+                  </td>
+                  <td style={{ padding: "0.5rem 0" }} className="text-muted">
+                    {formatDateLocal(alias.created_at)}
+                  </td>
+                  <td style={{ padding: "0.5rem 0" }}>
+                    <button
+                      onClick={() => handleDeleteAlias(alias.alias_id)}
+                      style={{
+                        padding: "0.125rem 0.375rem",
+                        fontSize: "0.7rem",
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        color: "#dc3545",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-muted text-sm">No previous names recorded.</p>
+        )}
+        <div style={{ marginTop: "0.75rem" }}>
+          {addingAlias ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <input
+                type="text"
+                value={newAliasName}
+                onChange={(e) => setNewAliasName(e.target.value)}
+                placeholder="Enter previous name"
+                style={{ padding: "0.25rem 0.5rem", fontSize: "0.875rem", width: "200px" }}
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleAddAlias()}
+              />
+              <button
+                onClick={handleAddAlias}
+                disabled={savingAlias || !newAliasName.trim()}
+                style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}
+              >
+                {savingAlias ? "Saving..." : "Add"}
+              </button>
+              <button
+                onClick={() => { setAddingAlias(false); setAliasError(null); setNewAliasName(""); }}
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  fontSize: "0.8rem",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                Cancel
+              </button>
+              {aliasError && (
+                <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{aliasError}</span>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingAlias(true)}
+              style={{
+                padding: "0.25rem 0.75rem",
+                fontSize: "0.8rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              + Add Previous Name
+            </button>
+          )}
+        </div>
+      </Section>
+
       {person.identifiers && person.identifiers.length > 0 && (
         <Section title="Data Sources">
           <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
@@ -1486,7 +1700,7 @@ export default function PersonDetailPage() {
         { id: "overview", label: "Overview", content: overviewTab },
         { id: "connections", label: "Connections", content: connectionsTab, badge: connectionCount || undefined },
         { id: "history", label: "History", content: historyTab, badge: requests.length || undefined },
-        { id: "data", label: "Data", content: dataTab, show: !!(person.identifiers && person.identifiers.length > 0) },
+        { id: "data", label: "Data", content: dataTab },
       ]}
     >
       {/* Edit History Panel */}

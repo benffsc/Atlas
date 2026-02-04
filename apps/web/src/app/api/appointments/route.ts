@@ -3,19 +3,23 @@ import { queryRows, query } from "@/lib/db";
 
 interface AppointmentListRow {
   appointment_id: string;
-  scheduled_at: string;
-  scheduled_date: string;
-  status: string;
-  appointment_type: string;
+  appointment_date: string;
+  appointment_number: string;
+  appointment_category: string;
+  service_type: string | null;
+  is_spay: boolean;
+  is_neuter: boolean;
+  vet_name: string | null;
   cat_id: string | null;
   cat_name: string | null;
+  cat_microchip: string | null;
+  cat_photo_url: string | null;
   person_id: string | null;
   person_name: string | null;
   place_id: string | null;
-  place_name: string | null;
-  provider_name: string | null;
-  source_system: string;
-  created_at: string;
+  vaccines: string[];
+  treatments: string[];
+  source_system: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -24,7 +28,6 @@ export async function GET(request: NextRequest) {
   const catId = searchParams.get("cat_id");
   const personId = searchParams.get("person_id");
   const placeId = searchParams.get("place_id");
-  const status = searchParams.get("status");
   const fromDate = searchParams.get("from_date");
   const toDate = searchParams.get("to_date");
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
@@ -35,37 +38,31 @@ export async function GET(request: NextRequest) {
   let paramIndex = 1;
 
   if (catId) {
-    conditions.push(`cat_id = $${paramIndex}`);
+    conditions.push(`v.cat_id = $${paramIndex}`);
     params.push(catId);
     paramIndex++;
   }
 
   if (personId) {
-    conditions.push(`person_id = $${paramIndex}`);
+    conditions.push(`v.person_id = $${paramIndex}`);
     params.push(personId);
     paramIndex++;
   }
 
   if (placeId) {
-    conditions.push(`place_id = $${paramIndex}`);
+    conditions.push(`v.place_id = $${paramIndex}`);
     params.push(placeId);
     paramIndex++;
   }
 
-  if (status) {
-    conditions.push(`status = $${paramIndex}`);
-    params.push(status);
-    paramIndex++;
-  }
-
   if (fromDate) {
-    conditions.push(`scheduled_date >= $${paramIndex}`);
+    conditions.push(`v.appointment_date >= $${paramIndex}::DATE`);
     params.push(fromDate);
     paramIndex++;
   }
 
   if (toDate) {
-    conditions.push(`scheduled_date <= $${paramIndex}`);
+    conditions.push(`v.appointment_date <= $${paramIndex}::DATE`);
     params.push(toDate);
     paramIndex++;
   }
@@ -75,29 +72,58 @@ export async function GET(request: NextRequest) {
   try {
     const sql = `
       SELECT
-        appointment_id,
-        scheduled_at,
-        scheduled_date::TEXT,
-        status,
-        appointment_type,
-        cat_id,
-        cat_name,
-        person_id,
-        person_name,
-        place_id,
-        place_name,
-        provider_name,
-        source_system,
-        created_at
-      FROM trapper.v_appointment_list
+        v.appointment_id,
+        v.appointment_date::TEXT,
+        v.appointment_number,
+        CASE
+          WHEN v.service_type ILIKE '%spay%' OR v.service_type ILIKE '%neuter%' THEN 'Spay/Neuter'
+          WHEN v.service_type ILIKE '%examination%' OR v.service_type ILIKE '%exam%feral%'
+               OR v.service_type ILIKE '%exam fee%' THEN 'Wellness'
+          WHEN v.service_type ILIKE '%recheck%' THEN 'Recheck'
+          WHEN v.service_type ILIKE '%euthanasia%' THEN 'Euthanasia'
+          ELSE 'Other'
+        END as appointment_category,
+        v.service_type,
+        COALESCE(v.is_spay, false) as is_spay,
+        COALESCE(v.is_neuter, false) as is_neuter,
+        v.vet_name,
+        v.cat_id,
+        v.cat_name,
+        v.cat_microchip,
+        v.person_id,
+        v.person_name,
+        v.place_id,
+        ARRAY_REMOVE(ARRAY[
+          CASE WHEN v.service_type ILIKE '%rabies%3%year%' THEN 'Rabies (3yr)' END,
+          CASE WHEN v.service_type ILIKE '%rabies%1%year%' THEN 'Rabies (1yr)' END,
+          CASE WHEN v.service_type ILIKE '%fvrcp%' THEN 'FVRCP' END
+        ], NULL) as vaccines,
+        ARRAY_REMOVE(ARRAY[
+          CASE WHEN v.service_type ILIKE '%revolution%' THEN 'Revolution' END,
+          CASE WHEN v.service_type ILIKE '%advantage%' THEN 'Advantage' END,
+          CASE WHEN v.service_type ILIKE '%activyl%' THEN 'Activyl' END,
+          CASE WHEN v.service_type ILIKE '%convenia%' THEN 'Convenia' END,
+          CASE WHEN v.service_type ILIKE '%praziquantel%' OR v.service_type ILIKE '%droncit%' THEN 'Dewormer' END
+        ], NULL) as treatments,
+        cat_photo.storage_path as cat_photo_url,
+        v.source_system
+      FROM trapper.v_appointment_detail v
+      LEFT JOIN LATERAL (
+        SELECT rm.storage_path
+        FROM trapper.request_media rm
+        WHERE rm.direct_cat_id = v.cat_id
+          AND NOT rm.is_archived
+        ORDER BY COALESCE(rm.is_hero, FALSE) DESC, rm.uploaded_at DESC
+        LIMIT 1
+      ) cat_photo ON true
       ${whereClause}
-      ORDER BY scheduled_date DESC, scheduled_at DESC
+      ORDER BY v.appointment_date DESC, v.appointment_number DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_appointment_list
+      FROM trapper.v_appointment_detail v
       ${whereClause}
     `;
 
