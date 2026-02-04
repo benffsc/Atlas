@@ -120,6 +120,11 @@ SELECT count(*) as remaining FROM trapper.v_map_historical_pins \gset
 
 DROP VIEW IF EXISTS trapper.v_map_atlas_pins;
 
+-- CANONICAL VIEW DEFINITION — Merges features from:
+--   MIG_820: Two-tier pins, apartment_building filter, Google Maps integration
+--   MIG_822: Co-located empty place filter
+--   MIG_857: needs_trapper_count column
+--   DQ_002:  Merged cat filter on cat count subquery (INV-8)
 CREATE VIEW trapper.v_map_atlas_pins AS
 SELECT
   p.place_id as id,
@@ -198,11 +203,14 @@ SELECT
 
   -- Metadata
   p.created_at,
-  p.last_activity_at
+  p.last_activity_at,
+
+  -- MIG_857: Requests needing trapper assignment
+  COALESCE(req.needs_trapper_count, 0) as needs_trapper_count
 
 FROM trapper.places p
 
--- Cat counts (excluding merged cats)
+-- Cat counts (DQ_002: excluding merged cats — INV-8)
 LEFT JOIN (
   SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
   FROM trapper.cat_place_relationships cpr
@@ -267,12 +275,17 @@ LEFT JOIN (
   GROUP BY COALESCE(place_id, linked_place_id)
 ) gme ON gme.place_id = p.place_id
 
--- Request counts
+-- Request counts (MIG_857: includes needs_trapper_count)
 LEFT JOIN (
   SELECT
     place_id,
     COUNT(*) as request_count,
-    COUNT(*) FILTER (WHERE status IN ('new', 'triaged', 'scheduled', 'in_progress')) as active_request_count
+    COUNT(*) FILTER (WHERE status IN ('new', 'triaged', 'scheduled', 'in_progress')) as active_request_count,
+    COUNT(*) FILTER (
+      WHERE status IN ('new', 'triaged', 'scheduled', 'in_progress')
+        AND assignment_status = 'pending'
+        AND no_trapper_reason IS NULL
+    ) as needs_trapper_count
   FROM trapper.sot_requests
   WHERE place_id IS NOT NULL
   GROUP BY place_id
@@ -310,8 +323,6 @@ LEFT JOIN (
 WHERE p.merged_into_place_id IS NULL
   AND p.location IS NOT NULL
   -- MIG_820: Exclude empty apartment_building shell records
-  -- These are parent containers with no data; their child units have the actual data.
-  -- Without this filter, they show as duplicate "Minimal Data" pins overlapping the real pin.
   AND NOT (
     p.place_kind = 'apartment_building'
     AND COALESCE(cc.cat_count, 0) = 0
@@ -319,13 +330,30 @@ WHERE p.merged_into_place_id IS NULL
     AND COALESCE(req.request_count, 0) = 0
     AND COALESCE(gme.entry_count, 0) = 0
     AND COALESCE(intake.intake_count, 0) = 0
+  )
+  -- MIG_822: Exclude empty unclassified co-located places
+  AND NOT (
+    p.parent_place_id IS NULL
+    AND p.place_kind NOT IN ('apartment_building', 'apartment_unit')
+    AND COALESCE(cc.cat_count, 0) = 0
+    AND COALESCE(ppl.person_count, 0) = 0
+    AND COALESCE(req.request_count, 0) = 0
+    AND COALESCE(gme.entry_count, 0) = 0
+    AND COALESCE(intake.intake_count, 0) = 0
+    AND EXISTS (
+      SELECT 1 FROM trapper.places p2
+      WHERE p2.place_id != p.place_id
+        AND p2.merged_into_place_id IS NULL
+        AND p2.location IS NOT NULL
+        AND ST_DWithin(p2.location, p.location, 1)
+    )
   );
 
 COMMENT ON VIEW trapper.v_map_atlas_pins IS
-'MIG_820: Unified map pins — only active and reference tiers.
-Filters out empty apartment_building shells to prevent duplicate pins.
-Pin tier: active (disease, cats, requests, volunteers) vs reference (history only, minimal).
-Historical Google Maps entries now show as reference pins (linked via MIG_820).';
+'Canonical map pins view. Merges: MIG_820 (two-tier pins, apartment filter),
+MIG_822 (co-located empty place filter), MIG_857 (needs_trapper_count),
+DQ_002 (merged cat filter). Pin tier: active vs reference.
+IMPORTANT: This is the single canonical definition — do not recreate from older migrations.';
 
 -- ============================================================================
 -- 5. DWAYNE BENEDICT — ALREADY DEDUPLICATED

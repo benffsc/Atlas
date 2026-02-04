@@ -3677,3 +3677,156 @@ Unified terminology across the entire codebase:
 3. No `visit_category` or `visitCategory` references remain in `apps/web/src`
 4. API returns enriched fields (health screening, vitals, financial, client)
 5. Modal displays structured data from enriched columns with raw fallback for extras
+
+---
+
+## DQ_003: Close Cat-Place Linking Gap
+
+**Status:** In Progress
+**ACTIVE Impact:** No — additive only (creates new cat_place_relationships)
+**Scope:** Cats linked to people (caretaker, foster, etc.) are not linked to those people's places
+**Migration:** `sql/schema/sot/MIG_870__close_cat_place_linking_gap.sql`
+
+### Problem
+
+Cat with microchip `981020053820871` is linked to Toni Price (caretaker) but shows "No places linked to this cat" in the UI. Toni has an address, but the pipeline never propagates person_cat → person_place → cat_place for non-owner relationships.
+
+**Root Causes:**
+
+| # | Cause | Impact |
+|---|-------|--------|
+| 1 | `link_cats_to_places()` (MIG_797) only handles `relationship_type = 'owner'` | Caretaker, foster, adopter, colony_caretaker all ignored |
+| 2 | `link_cats_to_places()` not in the pipeline | `run_all_entity_linking()` never calls it — Step 2 calls `run_cat_place_linking()` (different function) |
+| 3 | Step 7 creates person_cat but no Step 8 propagates | MIG_862 added person_cat creation but no cat_place follow-through |
+
+### What Changed
+
+1. **`link_cat_to_place()`** — Added `'person_relationship'` to allowed evidence types
+2. **`link_cats_to_places()`** — Expanded from owner-only to handle 5 relationship types:
+   - `owner` → `home` (high confidence)
+   - `caretaker` → `residence` (medium confidence)
+   - `foster` → `home` (medium confidence)
+   - `adopter` → `home` (high confidence)
+   - `colony_caretaker` → `colony_member` (medium confidence)
+   - Excluded: `brought_in_by`, `rescuer`, `former_*` (don't imply residence)
+3. **`run_all_entity_linking()`** — Added Step 8: `link_cats_to_places()` runs after Step 7 creates person_cat relationships. This is permanent — runs on every ingestion cycle.
+
+### Touched Surfaces
+
+| Object | Operation | ACTIVE? |
+|--------|-----------|---------|
+| `trapper.link_cat_to_place()` | ALTER (added evidence type) | No |
+| `trapper.link_cats_to_places()` | ALTER (expanded types) | No |
+| `trapper.run_all_entity_linking()` | ALTER (added Step 8) | Yes — pipeline |
+| `trapper.cat_place_relationships` | INSERT (backfill) | No |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Additive only — creates new links, deletes nothing
+- **INV-4 (Provenance):** `evidence_type = 'person_relationship'` with `person_cat_type` in JSONB detail
+- **INV-6 (Active Flows Sacred):** Existing 7 pipeline steps untouched; Step 8 is additive
+- **INV-8 (Merge-Aware):** All queries filter `merged_into_*_id IS NULL`
+- **INV-10 (Centralized Functions):** All writes through `link_cat_to_place()` gatekeeper
+- **INV-12 (No False Residency):** `brought_in_by` and `rescuer` excluded
+
+### Validation
+
+1. MIG_870 ran against production database
+2. Specific cat (981020053820871) confirmed linked to place
+3. Top places by cat count still match MIG_868 post-cleanup baseline (no pollution reintroduced)
+4. Pipeline Step 8 confirmed in `run_all_entity_linking()`
+
+---
+
+## DQ_004: ShelterLuv Phantom Cat + Microchip Validation + Foster Home Visibility
+
+**Date:** 2026-02-03
+**Triggered by:** Investigation of "7 fosters is fishy" during DQ_003 work. Auditing ShelterLuv adopter/foster data revealed massive pollution.
+
+### Problem
+
+Three interrelated data quality issues:
+
+1. **Phantom Cat "Daphne"** — ShelterLuv XLSX import created a cat with junk microchip `981020000000000` (Excel scientific notation `9.8102E+14` converted to all-zeros). This phantom accumulated 2,155 ShelterLuv Animal IDs and polluted:
+   - 1,202 person_cat_relationships (1,161 fake adopter, 25 fake foster, 16 fake owner)
+   - 1,331 cat_place_relationships
+   - **76.9% of all SL adopter links and 86.2% of SL foster links were fake**
+
+2. **Concatenated Microchips** — 23 cats had two microchips stuck together (30-31 chars) from SL XLSX export column corruption. No validation prevented insertion.
+
+3. **Foster Home Invisibility** — 95 active foster parents from VolunteerHub had residential places but 0 tagged as `foster_home` context. Not queryable on map or by Tippy.
+
+4. **v_map_atlas_pins View Fragmentation** — Multiple migrations (MIG_820, MIG_822, MIG_857) each defined the complete view. Refreshing from one overwrote features from others. Lost `needs_trapper_count` column twice.
+
+5. **ShelterLuv Outcomes Not From API** — 6,420 SL outcome records came from XLSX imports (Jan 9 & 19), not the API cron. The API syncs animals/people/events but NOT outcomes. XLSX is the corruption source.
+
+### Root Causes
+
+| Issue | Root Cause | Prevention |
+|-------|-----------|------------|
+| Phantom cat | `find_or_create_cat_by_microchip()` only checks `LENGTH >= 9`, no format validation | INV-14: `validate_microchip()` gatekeeper |
+| Concatenated chips | No max-length check on microchip ingest | INV-14: reject length > 15 |
+| SL ID accumulation | 2,155 SL outcomes matched to phantom via junk microchip, each adding a `shelterluv_id` to `cat_identifiers` | INV-14: phantom can't be created |
+| Foster home gap | `link_vh_volunteer_to_place()` tagged `volunteer_location` but never checked for foster role | MIG_871: role-aware tagging |
+| View fragmentation | No single canonical view definition | INV-15: canonical view rule |
+| XLSX corruption | Excel converts 15-digit microchips to scientific notation, concatenates columns | INV-16: use API, not XLSX |
+
+### What Changed
+
+1. **MIG_872:** Phantom Daphne cleanup
+   - Deleted 1,331 cat_place + 1,202 person_cat + 2,156 cat_identifiers
+   - Merged phantom into real Daphne (`785b8d5f`)
+   - SL data now clean: 349 real adopters, 4 real fosters, 13 real owners
+
+2. **MIG_873:** Microchip validation hardening (PENDING — to be created)
+   - `validate_microchip()` gatekeeper function
+   - Updated `find_or_create_cat_by_microchip()` to use it
+   - Updated SL processing functions
+   - Fixed 23 concatenated microchips
+
+3. **MIG_871:** Foster home place tagging
+   - Backfill: tagged 95 foster parents' residential places as `foster_home`
+   - Updated `link_vh_volunteer_to_place()` to auto-tag foster_home for foster role
+   - Goes forward: VH cron auto-tags new foster parents
+
+4. **MIG_820 update:** Canonical `v_map_atlas_pins` definition
+   - Merged features from MIG_820, MIG_822, MIG_857, DQ_002
+   - Added comment warning against recreating from old migrations
+
+5. **North Star updates:**
+   - **INV-14:** Microchip validation required before storage
+   - **INV-15:** Canonical views must not be recreated from old migrations
+   - **INV-16:** ShelterLuv outcomes require API re-pull, not XLSX
+
+### Touched Surfaces
+
+| Object | Operation | ACTIVE? |
+|--------|-----------|---------|
+| `trapper.sot_cats` (phantom) | MERGE (soft-delete) | No |
+| `trapper.cat_identifiers` (phantom) | DELETE (2,156 junk) | No |
+| `trapper.person_cat_relationships` (phantom) | DELETE (1,202 fake) | No |
+| `trapper.cat_place_relationships` (phantom) | DELETE (1,331 fake) | No |
+| `trapper.cat_identifiers` (concat chips) | UPDATE (split) | No |
+| `trapper.link_vh_volunteer_to_place()` | ALTER (foster tagging) | Yes — VH cron |
+| `trapper.place_contexts` | INSERT (foster_home backfill) | No |
+| `trapper.v_map_atlas_pins` | REPLACE (canonical) | Yes — map |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Phantom merged, not hard-deleted. Junk relationships were incorrect data — removal is corrective, not destructive.
+- **INV-4 (Provenance):** Foster context tagged with `source_system='volunteerhub'`, rejection reasons logged by `validate_microchip()`
+- **INV-6 (Active Flows Sacred):** Processing functions enhanced with validation, not replaced. VH cron gets foster tagging additively.
+- **INV-8 (Merge-Aware):** Phantom merged into real cat. Foster query filters merged entities.
+- **INV-10 (Centralized Functions):** `validate_microchip()` becomes single validation entry point for all microchip paths.
+- **INV-12 (No False Residency):** Foster tagging only uses resident/owner place roles.
+- **INV-14 (NEW):** Microchip validation required before storage.
+- **INV-15 (NEW):** Canonical views must not be recreated from old migrations.
+- **INV-16 (NEW):** ShelterLuv outcomes require API, not XLSX.
+
+### Validation
+
+1. MIG_872 ran: phantom identifiers=0, person_cat=0, cat_place=0, is_merged=TRUE
+2. SL data verified: 349 adopters (71 cats, 327 people), 4 fosters (4 cats, 3 people), 13 owners
+3. No map pollution: top places match MIG_868 baseline
+4. MIG_871 pending: 95 foster parents' 116 places to be tagged
+5. MIG_873 pending: validate_microchip() + concatenated chip fix

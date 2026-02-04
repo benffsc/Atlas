@@ -347,6 +347,50 @@ ORDER BY
 4. Use `saveProgress()` between steps
 5. Parse CSV files via XLSX library (handles RFC 4180 quoted fields), never `line.split(',')`
 
+### INV-14: Microchip Values Must Be Validated Before Storage
+
+All code paths that create or match cats by microchip **MUST** validate format via `validate_microchip()`:
+
+- **Reject all-zeros** (`^0+$`) — the phantom cat pattern. Excel scientific notation `9.8102E+14` converts to `981020000000000` which is junk.
+- **Reject length > 15** — prevents concatenated microchips (two chips stuck together from XLSX export corruption). Valid formats: ISO 15-digit, AVID 9-digit, HomeAgain 10-digit.
+- **Reject all-same-digit** (`^(\d)\1+$`) and known test patterns (`^123456789`, `^999999999`).
+- **Log rejections** (RAISE NOTICE) for debugging — never silently accept junk identifiers.
+- **Never create a cat record from an invalid microchip.** `find_or_create_cat_by_microchip()` must return NULL for invalid input.
+
+**Why this matters (DQ_004):** A phantom cat "Daphne" was created from junk microchip `981020000000000`. It accumulated 2,155 ShelterLuv IDs and polluted 1,202 person_cat_relationships + 1,331 cat_place_relationships. 76.9% of SL adopter links pointed to this phantom. The pollution cascaded through `link_cats_to_places()` (MIG_870 Step 8).
+
+**Applies to:** `find_or_create_cat_by_microchip()`, `process_shelterluv_animal()`, `process_shelterluv_outcomes()`, ClinicHQ appointment processing, any future microchip ingest path.
+
+**Existing asset:** `detect_microchip_format()` (MIG_553) already supports multi-format detection. The new `validate_microchip()` wraps it with rejection logic.
+
+### INV-15: Canonical Views Must Not Be Recreated From Old Migrations
+
+**`v_map_atlas_pins`** is a canonical view defined in MIG_820. It merges features from multiple migrations:
+- MIG_820: Two-tier pins, apartment_building filter, Google Maps integration
+- MIG_822: Co-located empty place filter
+- MIG_857: `needs_trapper_count` column
+- DQ_002: Merged cat filter on cat count subquery (INV-8)
+
+**Rule:** When modifying `v_map_atlas_pins`, ALWAYS edit MIG_820's canonical definition. **NEVER** recreate the view from an older migration — this drops columns and filters added by later migrations.
+
+The view has a `COMMENT ON VIEW` that lists all contributing migrations. Check it before modifying:
+```sql
+COMMENT ON VIEW trapper.v_map_atlas_pins IS
+'Canonical map pins view. Merges: MIG_820 (...), MIG_822 (...), MIG_857 (...), DQ_002 (...).
+IMPORTANT: This is the single canonical definition — do not recreate from older migrations.';
+```
+
+### INV-16: ShelterLuv Outcome Data Requires API Re-pull, Not XLSX Export
+
+ShelterLuv XLSX exports are prone to:
+- **Scientific notation corruption** — Excel converts microchips like `981020053524791` to `9.8102E+14`
+- **Column concatenation** — Two microchip columns merged into one (30-31 char strings)
+- **Stale data** — XLSX exports are point-in-time snapshots with no incremental sync
+
+**Rule:** ShelterLuv outcomes must be pulled via the ShelterLuv API (`shelterluv_api_sync.mjs`), NOT from XLSX file uploads. The API provides clean, structured JSON without Excel corruption.
+
+**Current state:** The API cron syncs `animals`, `people`, and `events` daily, but **does not yet sync `outcomes`**. The 6,420 outcome records currently in `staged_records` are from XLSX imports (Jan 9 & 19, 2026). These need to be replaced with API-sourced data.
+
 ---
 
 ## Data Zones
@@ -512,6 +556,11 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 13. **ClinicHQ false resident links RESOLVED (MIG_856)**: Trappers/staff had hundreds of false `resident` relationships from clinichq appointments. Sandra Nicander: 317 (FFSC org phone reuse), Crystal Furtado: 36 (trapping sites). 347 relationships reclassified to `contact`. FFSC org phone `7075767999` blacklisted. INV-12 added.
 14. **Search bugs RESOLVED (MAP_009)**: Person search 500 (is_primary column DNE), merged place duplicates in search_unified, map search opening new tabs. All fixed.
 15. **Ingest pipeline silent failures RESOLVED (INGEST_001)**: Admin UI uploads failed silently. 6 bugs: missing `maxDuration` (Vercel killed lambda at 10s), CSV parser broke on quoted commas, post-processing queried ALL staged records (not current upload), stuck status on lambda kill, no progress UI, alert() errors. All fixed with upload-scoped processing, fire-and-forget + polling UI, stuck-job auto-recovery in cron. INV-13 added.
+16. **ShelterLuv phantom cat RESOLVED (DQ_004, MIG_872)**: Phantom cat "Daphne" created from junk microchip `981020000000000` (Excel scientific notation artifact). Accumulated 2,155 ShelterLuv IDs, polluted 1,202 person_cat + 1,331 cat_place relationships. 76.9% of SL adopter links were fake. Phantom cleaned, cat merged. INV-14 added. `validate_microchip()` gatekeeper created (MIG_873).
+17. **Concatenated microchips RESOLVED (DQ_004, MIG_873)**: 23 cats had two microchips concatenated (30-31 chars) from ShelterLuv XLSX export corruption. Split into individual records. `validate_microchip()` now rejects chips > 15 chars. INV-14 prevents recurrence.
+18. **ShelterLuv outcomes NOT from API**: The 6,420 SL outcome records are from XLSX imports (Jan 9 & 19), not the API cron. The API cron syncs animals/people/events but NOT outcomes. Outcomes should be re-pulled from the API for clean data. INV-16 added.
+19. **Foster home place context gap RESOLVED (MIG_871)**: 95 active foster parents from VolunteerHub had places but 0 tagged as `foster_home`. `link_vh_volunteer_to_place()` now auto-tags foster homes. Backfill applied.
+20. **v_map_atlas_pins view fragmentation RESOLVED (MIG_820 update)**: Multiple migrations (MIG_820, MIG_822, MIG_857) each defined the complete view with different features. Refreshing from any one overwrote the others. MIG_820 now holds the single canonical definition with all features merged. INV-15 added.
 
 ---
 

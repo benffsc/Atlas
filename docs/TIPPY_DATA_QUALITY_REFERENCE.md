@@ -348,6 +348,53 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-03: DQ_004 — ShelterLuv Phantom Cat + Microchip Validation + Foster Homes (MIG_871, MIG_872, MIG_873)
+
+**Problem:** Auditing ShelterLuv foster/adopter data revealed that **76.9% of SL adopter links** pointed to a phantom cat "Daphne" created from a junk microchip (`981020000000000` — Excel scientific notation artifact). Additionally, 23 cats had concatenated microchips, and 95 VolunteerHub foster parents had no `foster_home` place tags.
+
+**Investigation:**
+- ShelterLuv XLSX export converted microchip `9.8102E+14` to `981020000000000` (all-zeros pattern)
+- `find_or_create_cat_by_microchip()` only checked `LENGTH >= 9` — accepted the junk chip and created a phantom cat
+- Every subsequent SL outcome with the same junk chip matched to the phantom → 2,155 SL IDs accumulated on one cat
+- `process_shelterluv_outcomes()` then created 1,161 fake adopter + 25 fake foster relationships
+- These cascaded through `link_cats_to_places()` (Step 8) into 1,331 fake cat_place links
+- Foster parents from VolunteerHub had places but `link_vh_volunteer_to_place()` never checked for foster role
+
+**Solution:**
+- **MIG_872:** Cleaned phantom Daphne — deleted 2,156 identifiers, 1,202 person_cat, 1,331 cat_place. Merged phantom into real Daphne.
+- **MIG_873 (pending):** `validate_microchip()` gatekeeper — rejects all-zeros, length > 15, all-same-digit, known test patterns. Integrated into `find_or_create_cat_by_microchip()` and SL processing functions.
+- **MIG_871:** Tagged 95 foster parents' residential places as `foster_home`. Updated VH cron function to auto-tag going forward.
+
+**Result:**
+- SL data clean: 349 real adopters, 4 real fosters, 13 real owners (down from 1,510/29/29)
+- Foster parents now queryable via `foster_home` place context
+- Three new North Star invariants: INV-14 (microchip validation), INV-15 (canonical view rule), INV-16 (SL outcomes via API not XLSX)
+
+**Staff Impact:**
+- If staff ask about ShelterLuv foster/adopter numbers being lower than expected: the previous high numbers were inflated by a phantom cat. The current counts reflect real, verified relationships.
+- Foster parent locations are now visible on the map and queryable.
+- The SL outcome data (6,420 records) came from XLSX imports. For accurate data, outcomes should be re-pulled from the ShelterLuv API.
+
+### 2026-02-03: DQ_003 — Cat-Place Linking Gap (MIG_870)
+
+**Problem:** Cats linked to people as caretakers (or foster, adopter, colony_caretaker) were NOT linked to those people's places. Example: cat with microchip 981020053820871 is connected to Toni Price (caretaker) who has an address, but the cat shows "No places linked" in the UI.
+
+**Investigation:**
+- The entity linking pipeline creates `person_cat_relationships` (Step 7, MIG_862) from appointments
+- But `link_cats_to_places()` (MIG_797) only handles `relationship_type = 'owner'`
+- `link_cats_to_places()` was also never called from the pipeline — only the older `run_cat_place_linking()` (staged_records path) was invoked
+- Result: thousands of cats with person links but no place links
+
+**Solution:**
+- **MIG_870:** Expanded `link_cats_to_places()` to handle owner, caretaker, foster, adopter, colony_caretaker
+- Added `'person_relationship'` evidence type to `link_cat_to_place()` gatekeeper
+- Added as **Step 8** in `run_all_entity_linking()` — runs automatically on every ingestion cycle
+- Backfilled all existing data
+
+**Result:** Cats with person_cat relationships now automatically get cat_place links. Pipeline is permanent.
+
+**Staff Impact:** Cat detail pages that previously showed "No places linked" will now show the caretaker/foster/adopter's address. No workflow changes needed — data appears automatically.
+
 ### 2026-02-03: DQ_002 — Inflated Cat Counts on Map + Excessive Cat Identifiers (MIG_868, MIG_869)
 
 **Problem:** Some places on the Beacon map showed 1000+ cats, far exceeding what's physically possible. Separately, some cats had dozens of identifiers.
