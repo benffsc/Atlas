@@ -23,8 +23,8 @@ interface CatDetailRow {
   places: object[];
   created_at: string;
   updated_at: string;
-  first_visit_date: string | null;
-  total_visits: number;
+  first_appointment_date: string | null;
+  total_appointments: number;
   is_deceased: boolean | null;
   deceased_date: string | null;
   verified_at: string | null;
@@ -32,8 +32,8 @@ interface CatDetailRow {
   verified_by_name: string | null;
 }
 
-interface ClinicVisit {
-  visit_date: string;
+interface ClinicAppointment {
+  appointment_date: string;
   appt_number: string;
   client_name: string;
   client_address: string | null;
@@ -81,10 +81,10 @@ interface CatProcedure {
   post_op_notes: string | null;
 }
 
-interface CatVisitSummary {
+interface CatAppointmentSummary {
   appointment_id: string;
-  visit_date: string;
-  visit_category: string; // spay_neuter, wellness, recheck, other
+  appointment_date: string;
+  appointment_category: string; // spay_neuter, wellness, recheck, other
   service_types: string | null;
   is_spay: boolean;
   is_neuter: boolean;
@@ -123,9 +123,9 @@ interface CatFieldSources {
   source_count: number;
 }
 
-interface EnhancedClinicVisit {
+interface EnhancedClinicAppointment {
   appointment_id: string;
-  visit_date: string;
+  appointment_date: string;
   appt_number: string;
   client_name: string | null;
   client_address: string | null;
@@ -245,21 +245,21 @@ export async function GET(
     // Fetch first visit date from sot_appointments (canonical source)
     const visitStatsSql = `
       SELECT
-        MIN(appointment_date)::TEXT as first_visit_date,
-        COUNT(*)::INT as total_visits
+        MIN(appointment_date)::TEXT as first_appointment_date,
+        COUNT(*)::INT as total_appointments
       FROM trapper.sot_appointments
       WHERE cat_id = $1
     `;
-    const visitStats = await queryOne<{ first_visit_date: string | null; total_visits: number }>(visitStatsSql, [id]);
+    const visitStats = await queryOne<{ first_appointment_date: string | null; total_appointments: number }>(visitStatsSql, [id]);
     if (visitStats) {
-      cat.first_visit_date = visitStats.first_visit_date;
-      cat.total_visits = visitStats.total_visits;
+      cat.first_appointment_date = visitStats.first_appointment_date;
+      cat.total_appointments = visitStats.total_appointments;
     }
 
     // Fetch clinic history (who brought this cat to clinic)
     const clinicHistorySql = `
       SELECT
-        visit_date::TEXT,
+        appointment_date::TEXT,
         appt_number,
         client_name,
         client_address,
@@ -268,7 +268,7 @@ export async function GET(
         ownership_type
       FROM trapper.v_cat_clinic_history
       WHERE cat_id = $1
-      ORDER BY visit_date DESC
+      ORDER BY appointment_date DESC
     `;
 
     // Fetch vitals (latest 10)
@@ -331,19 +331,19 @@ export async function GET(
       ORDER BY procedure_date DESC
     `;
 
-    // Fetch consolidated visits with categories
-    const visitsSql = `
+    // Fetch appointments with categories
+    const appointmentsSql = `
       SELECT
         v.appointment_id,
-        v.appointment_date::TEXT as visit_date,
+        v.appointment_date::TEXT as appointment_date,
         CASE
             WHEN v.service_type ILIKE '%spay%' OR v.service_type ILIKE '%neuter%' THEN 'Spay/Neuter'
             WHEN v.service_type ILIKE '%examination%brief%' OR v.service_type ILIKE '%exam%feral%'
                  OR v.service_type ILIKE '%exam fee%' THEN 'Wellness'
             WHEN v.service_type ILIKE '%recheck%' THEN 'Recheck'
             WHEN v.service_type ILIKE '%euthanasia%' THEN 'Euthanasia'
-            ELSE 'Visit'
-        END as visit_category,
+            ELSE 'Other'
+        END as appointment_category,
         v.service_type as service_types,
         COALESCE(v.is_spay, false) as is_spay,
         COALESCE(v.is_neuter, false) as is_neuter,
@@ -362,7 +362,7 @@ export async function GET(
             CASE WHEN v.service_type ILIKE '%convenia%' THEN 'Convenia (antibiotic)' END,
             CASE WHEN v.service_type ILIKE '%praziquantel%' OR v.service_type ILIKE '%droncit%' THEN 'Dewormer' END
         ], NULL) as treatments
-      FROM trapper.v_consolidated_visits v
+      FROM trapper.v_appointment_detail v
       WHERE v.cat_id = $1
       ORDER BY v.appointment_date DESC
     `;
@@ -511,7 +511,7 @@ export async function GET(
     const enhancedClinicHistorySql = `
       SELECT
         a.appointment_id,
-        a.appointment_date::TEXT as visit_date,
+        a.appointment_date::TEXT as appointment_date,
         a.appointment_number as appt_number,
         COALESCE(p.display_name, coa.display_name) as client_name,
         COALESCE(pl.formatted_address, a.owner_address) as client_address,
@@ -553,13 +553,13 @@ export async function GET(
       }
     }
 
-    const [clinicHistory, vitals, conditions, tests, procedures, visits, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, partnerOrgs, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
-      safeQueryRows<ClinicVisit>(clinicHistorySql, [id]),
+    const [clinicHistory, vitals, conditions, tests, procedures, appointments, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, partnerOrgs, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
+      safeQueryRows<ClinicAppointment>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
       safeQueryRows<CatTestResult>(testsSql, [id]),
       safeQueryRows<CatProcedure>(proceduresSql, [id]),
-      safeQueryRows<CatVisitSummary>(visitsSql, [id]),
+      safeQueryRows<CatAppointmentSummary>(appointmentsSql, [id]),
       safeQueryRows<{
         mortality_event_id: string;
         death_date: string | null;
@@ -624,7 +624,7 @@ export async function GET(
       }>(movementsSql, [id]),
       safeQueryRows<OriginPlace>(originPlaceSql, [id]),
       safeQueryRows<PartnerOrg>(partnerOrgsSql, [id]),
-      safeQueryRows<EnhancedClinicVisit>(enhancedClinicHistorySql, [id]),
+      safeQueryRows<EnhancedClinicAppointment>(enhancedClinicHistorySql, [id]),
       safeQueryRows<CatFieldSources>(fieldSourcesSql, [id]),
     ]);
 
@@ -638,7 +638,7 @@ export async function GET(
       conditions,
       tests,
       procedures,
-      visits,
+      appointments,
       mortality_event: mortalityRows[0] || null,
       birth_event: birthRows[0] || null,
       siblings: siblingRows,

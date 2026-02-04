@@ -22,8 +22,8 @@ interface Cat {
   place_kind: string | null;
   has_place: boolean;
   created_at: string;
-  last_visit_date: string | null;
-  visit_count: number;
+  last_appointment_date: string | null;
+  appointment_count: number;
 }
 
 interface CatsResponse {
@@ -146,7 +146,7 @@ function CatsPageContent() {
         </select>
         <select value={filters.sort} onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}>
           <option value="quality">Sort: Data Quality</option>
-          <option value="recent_visit">Sort: Recent Visit</option>
+          <option value="recent_appointment">Sort: Recent Appointment</option>
           <option value="name">Sort: Name</option>
           <option value="created">Sort: Newest First</option>
         </select>
@@ -196,7 +196,7 @@ function CatsPageContent() {
                   </div>
                   <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.25rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
                     {cat.microchip && <span style={{ fontFamily: "monospace" }}>{cat.microchip.slice(0, 10)}...</span>}
-                    {cat.last_visit_date && <span>Last visit: {formatDateLocal(cat.last_visit_date)}</span>}
+                    {cat.last_appointment_date && <span>Last appointment: {formatDateLocal(cat.last_appointment_date)}</span>}
                     {cat.has_place && <span>{cat.place_kind || "Has location"}</span>}
                   </div>
                 </a>
@@ -213,7 +213,7 @@ function CatsPageContent() {
                     <th>Sex</th>
                     <th>Altered</th>
                     <th>Microchip</th>
-                    <th>Last Visit</th>
+                    <th>Last Appointment</th>
                     <th>Location</th>
                   </tr>
                 </thead>
@@ -236,9 +236,9 @@ function CatsPageContent() {
                       <td>{cat.altered_status || "\u2014"}</td>
                       <td className="text-sm">{cat.microchip || "\u2014"}</td>
                       <td className="text-sm">
-                        {cat.last_visit_date ? (
-                          <span title={`${cat.visit_count} visit${cat.visit_count !== 1 ? "s" : ""}`}>
-                            {formatDateLocal(cat.last_visit_date)}
+                        {cat.last_appointment_date ? (
+                          <span title={`${cat.appointment_count} appointment${cat.appointment_count !== 1 ? "s" : ""}`}>
+                            {formatDateLocal(cat.last_appointment_date)}
                           </span>
                         ) : (
                           <span className="text-muted">&mdash;</span>

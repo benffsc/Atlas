@@ -14,10 +14,10 @@ interface CatTestResult {
   result_detail: string | null;
 }
 
-interface CatVisitSummary {
+interface CatAppointmentSummary {
   appointment_id: string;
-  visit_date: string;
-  visit_category: string;
+  appointment_date: string;
+  appointment_category: string;
   service_types: string | null;
   is_spay: boolean;
   is_neuter: boolean;
@@ -73,11 +73,11 @@ interface CatDetails {
   coat_pattern: string | null;
   microchip: string | null;
   is_deceased: boolean | null;
-  total_visits: number;
-  first_visit_date: string | null;
+  total_appointments: number;
+  first_appointment_date: string | null;
 
   tests: CatTestResult[];
-  visits: CatVisitSummary[];
+  appointments: CatAppointmentSummary[];
   stakeholders: CatStakeholder[];
   movements: CatMovement[];
   places: CatPlace[];
@@ -102,7 +102,7 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
   const [cat, setCat] = useState<CatDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAllVisits, setShowAllVisits] = useState(false);
+  const [showAllAppts, setShowAllAppts] = useState(false);
 
   // Fetch cat details when catId changes
   useEffect(() => {
@@ -114,7 +114,7 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
     setCat(null);
     setLoading(true);
     setError(null);
-    setShowAllVisits(false);
+    setShowAllAppts(false);
 
     fetch(`/api/cats/${catId}`)
       .then((res) => {
@@ -137,10 +137,10 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
   const stakeholderCount = cat?.stakeholders?.length ?? 0;
   const placeCount = derivePlaceCount(cat);
 
-  // Determine which visits to show
-  const allVisits = cat?.visits ?? [];
+  // Determine which appointments to show
+  const allAppts = cat?.appointments ?? [];
   const maxCollapsed = 5;
-  const visibleVisits = showAllVisits ? allVisits : allVisits.slice(0, maxCollapsed);
+  const visibleAppts = showAllAppts ? allAppts : allAppts.slice(0, maxCollapsed);
 
   return (
     <div className="cat-detail-drawer">
@@ -201,8 +201,8 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
             {/* Stats grid (3 columns) */}
             <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div className="stat-card">
-                <div className="stat-value">{cat.total_visits ?? 0}</div>
-                <div className="stat-label">Visits</div>
+                <div className="stat-value">{cat.total_appointments ?? 0}</div>
+                <div className="stat-label">Appointments</div>
               </div>
               <div className="stat-card">
                 <div className="stat-value">{stakeholderCount}</div>
@@ -232,19 +232,19 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
               </div>
             )}
 
-            {/* Clinic Visit History */}
-            {allVisits.length > 0 && (
+            {/* Clinic Appointment History */}
+            {allAppts.length > 0 && (
               <div className="section">
-                <h3>Clinic Visits</h3>
+                <h3>Clinic Appointments</h3>
                 <div className="cat-drawer-visits">
-                  {visibleVisits.map((v) => (
+                  {visibleAppts.map((v) => (
                     <div key={v.appointment_id} className="cat-drawer-visit-row">
                       <div className="cat-drawer-visit-header">
                         <span className="cat-drawer-visit-date">
-                          {v.visit_date ? new Date(v.visit_date).toLocaleDateString() : "Unknown"}
+                          {v.appointment_date ? new Date(v.appointment_date).toLocaleDateString() : "Unknown"}
                         </span>
                         <span className="cat-drawer-visit-category">
-                          {v.visit_category}
+                          {v.appointment_category}
                         </span>
                       </div>
                       {v.service_types && (
@@ -255,14 +255,14 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                     </div>
                   ))}
                 </div>
-                {allVisits.length > maxCollapsed && (
+                {allAppts.length > maxCollapsed && (
                   <button
                     className="cat-drawer-show-all"
-                    onClick={() => setShowAllVisits(!showAllVisits)}
+                    onClick={() => setShowAllAppts(!showAllAppts)}
                   >
-                    {showAllVisits
+                    {showAllAppts
                       ? "Show fewer"
-                      : `Show all ${allVisits.length} visits`}
+                      : `Show all ${allAppts.length} appointments`}
                   </button>
                 )}
               </div>

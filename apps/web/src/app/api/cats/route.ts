@@ -18,15 +18,15 @@ interface CatListRow {
   place_kind: string | null;
   has_place: boolean;
   created_at: string;
-  last_visit_date: string | null;
-  visit_count: number;
+  last_appointment_date: string | null;
+  appointment_count: number;
 }
 
 // Valid sort options
 const SORT_OPTIONS = {
   quality: "quality_tier ASC, display_name ASC",
   name: "display_name ASC",
-  recent_visit: "last_visit_date DESC NULLS LAST, display_name ASC",
+  recent_appointment: "last_visit_date DESC NULLS LAST, display_name ASC",
   created: "created_at DESC",
 } as const;
 
@@ -131,8 +131,8 @@ export async function GET(request: NextRequest) {
         place_kind,
         has_place,
         created_at,
-        last_visit_date::TEXT,
-        visit_count
+        last_visit_date::TEXT AS last_appointment_date,
+        visit_count AS appointment_count
       FROM trapper.v_cat_list
       ${whereClause}
       ORDER BY ${orderBy}

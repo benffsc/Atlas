@@ -13,6 +13,7 @@ import { VerificationBadge, LastVerified } from "@/components/VerificationBadge"
 import { formatDateLocal } from "@/lib/formatters";
 import ReportDeceasedModal from "@/components/ReportDeceasedModal";
 import RecordBirthModal from "@/components/RecordBirthModal";
+import AppointmentDetailModal from "@/components/AppointmentDetailModal";
 import { MediaGallery } from "@/components/MediaGallery";
 import { QuickActions, useCatQuickActionState } from "@/components/QuickActions";
 import { ProfileLayout } from "@/components/ProfileLayout";
@@ -36,8 +37,8 @@ interface Identifier {
   source: string | null;
 }
 
-interface ClinicVisit {
-  visit_date: string;
+interface ClinicAppointment {
+  appointment_date: string;
   appt_number: string;
   client_name: string;
   client_address: string | null;
@@ -61,9 +62,9 @@ interface PartnerOrg {
   appointment_count: number;
 }
 
-interface EnhancedClinicVisit {
+interface EnhancedClinicAppointment {
   appointment_id: string;
-  visit_date: string;
+  appointment_date: string;
   appt_number: string;
   client_name: string | null;
   client_address: string | null;
@@ -113,10 +114,10 @@ interface CatProcedure {
   post_op_notes: string | null;
 }
 
-interface CatVisit {
+interface CatAppointment {
   appointment_id: string;
-  visit_date: string;
-  visit_category: string;
+  appointment_date: string;
+  appointment_category: string;
   service_types: string | null;
   is_spay: boolean;
   is_neuter: boolean;
@@ -190,14 +191,14 @@ interface CatDetail {
   identifiers: Identifier[];
   owners: Owner[];
   places: Place[];
-  clinic_history: ClinicVisit[];
+  clinic_history: ClinicAppointment[];
   vitals: CatVital[];
   conditions: CatCondition[];
   tests: CatTestResult[];
   procedures: CatProcedure[];
-  visits: CatVisit[];
-  first_visit_date: string | null;
-  total_visits: number;
+  appointments: CatAppointment[];
+  first_appointment_date: string | null;
+  total_appointments: number;
   photo_url: string | null;
   is_deceased: boolean | null;
   deceased_date: string | null;
@@ -212,7 +213,7 @@ interface CatDetail {
   // Origin and partner org data (MIG_581, MIG_582)
   primary_origin_place: OriginPlace | null;
   partner_orgs: PartnerOrg[];
-  enhanced_clinic_history: EnhancedClinicVisit[];
+  enhanced_clinic_history: EnhancedClinicAppointment[];
   // Multi-source field transparency (MIG_620)
   field_sources: Record<string, FieldSourceValue[]> | null;
   has_field_conflicts: boolean;
@@ -555,6 +556,7 @@ export default function CatDetailPage() {
   const [showTransferWizard, setShowTransferWizard] = useState(false);
   const [showDeceasedModal, setShowDeceasedModal] = useState(false);
   const [showBirthModal, setShowBirthModal] = useState(false);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 
   const fetchCat = useCallback(async () => {
     try {
@@ -1128,7 +1130,7 @@ export default function CatDetailPage() {
           <div>
             <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>Vaccines Received</h3>
             {(() => {
-              const allVaccines = cat.visits?.flatMap(v => v.vaccines || []).filter(Boolean) || [];
+              const allVaccines = cat.appointments?.flatMap(v => v.vaccines || []).filter(Boolean) || [];
               const uniqueVaccines = [...new Set(allVaccines)];
               if (uniqueVaccines.length === 0) return <p className="text-muted">No vaccines recorded</p>;
               return (
@@ -1146,7 +1148,7 @@ export default function CatDetailPage() {
           <div>
             <h3 style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.75rem", textTransform: "uppercase" }}>Treatments Given</h3>
             {(() => {
-              const allTreatments = cat.visits?.flatMap(v => v.treatments || []).filter(Boolean) || [];
+              const allTreatments = cat.appointments?.flatMap(v => v.treatments || []).filter(Boolean) || [];
               const uniqueTreatments = [...new Set(allTreatments)];
               if (uniqueTreatments.length === 0) return <p className="text-muted">No treatments recorded</p>;
               return (
@@ -1266,16 +1268,16 @@ export default function CatDetailPage() {
                cat.data_source || "Unknown"}
             </span>
           </div>
-          {cat.first_visit_date && (
+          {cat.first_appointment_date && (
             <div className="detail-item">
-              <span className="detail-label">First ClinicHQ Visit</span>
-              <span className="detail-value">{formatDateLocal(cat.first_visit_date)}</span>
+              <span className="detail-label">First Appointment</span>
+              <span className="detail-value">{formatDateLocal(cat.first_appointment_date)}</span>
             </div>
           )}
-          {cat.total_visits > 0 && (
+          {cat.total_appointments > 0 && (
             <div className="detail-item">
-              <span className="detail-label">Total ClinicHQ Visits</span>
-              <span className="detail-value">{cat.total_visits}</span>
+              <span className="detail-label">Total Appointments</span>
+              <span className="detail-value">{cat.total_appointments}</span>
             </div>
           )}
           <div className="detail-item">
@@ -1568,36 +1570,42 @@ export default function CatDetailPage() {
         </Section>
       )}
 
-      <Section title="Visit History">
-        {cat.visits && cat.visits.length > 0 ? (
+      <Section title="Appointment History">
+        {cat.appointments && cat.appointments.length > 0 ? (
           <div className="table-container">
             <table>
               <thead><tr><th>Date</th><th>Type</th><th>Services</th><th>Vet</th></tr></thead>
               <tbody>
-                {cat.visits.map((visit) => (
-                  <tr key={visit.appointment_id}>
-                    <td>{formatDateLocal(visit.visit_date)}</td>
+                {cat.appointments.map((appt) => (
+                  <tr
+                    key={appt.appointment_id}
+                    onClick={() => setSelectedAppointmentId(appt.appointment_id)}
+                    style={{ cursor: "pointer" }}
+                    onMouseOver={(e) => (e.currentTarget.style.background = "var(--section-bg, #f8f9fa)")}
+                    onMouseOut={(e) => (e.currentTarget.style.background = "")}
+                  >
+                    <td>{formatDateLocal(appt.appointment_date)}</td>
                     <td>
-                      <span className="badge" style={{ background: visit.visit_category === "Spay/Neuter" ? "#198754" : visit.visit_category === "Wellness" ? "#0d6efd" : visit.visit_category === "Recheck" ? "#6f42c1" : visit.visit_category === "Euthanasia" ? "#dc3545" : "#6c757d", color: "#fff" }}>
-                        {visit.visit_category}
+                      <span className="badge" style={{ background: appt.appointment_category === "Spay/Neuter" ? "#198754" : appt.appointment_category === "Wellness" ? "#0d6efd" : appt.appointment_category === "Recheck" ? "#6f42c1" : appt.appointment_category === "Euthanasia" ? "#dc3545" : "#6c757d", color: "#fff" }}>
+                        {appt.appointment_category}
                       </span>
                     </td>
                     <td>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                        {visit.is_spay && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Spay</span>}
-                        {visit.is_neuter && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Neuter</span>}
-                        {visit.vaccines?.map((v, i) => <span key={i} className="badge" style={{ background: "#d1e7dd", color: "#0f5132", fontSize: "0.7rem" }}>{v}</span>)}
-                        {visit.treatments?.map((t, i) => <span key={i} className="badge" style={{ background: "#cfe2ff", color: "#084298", fontSize: "0.7rem" }}>{t}</span>)}
+                        {appt.is_spay && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Spay</span>}
+                        {appt.is_neuter && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Neuter</span>}
+                        {appt.vaccines?.map((v, i) => <span key={i} className="badge" style={{ background: "#d1e7dd", color: "#0f5132", fontSize: "0.7rem" }}>{v}</span>)}
+                        {appt.treatments?.map((t, i) => <span key={i} className="badge" style={{ background: "#cfe2ff", color: "#084298", fontSize: "0.7rem" }}>{t}</span>)}
                       </div>
                     </td>
-                    <td>{visit.vet_name || "—"}</td>
+                    <td>{appt.vet_name || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="text-muted">No visits recorded for this cat.</p>
+          <p className="text-muted">No appointments recorded for this cat.</p>
         )}
       </Section>
 
@@ -1606,37 +1614,37 @@ export default function CatDetailPage() {
         (cat.clinic_history && cat.clinic_history.length > 0)) && (
         <Section title="Clinic History">
           <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
-            Cat visit records with origin address and source information
+            Cat appointment records with origin address and source information
           </p>
           <div className="table-container">
             <table>
               <thead><tr><th>Date</th><th>Contact</th><th>Origin Address</th><th>Source</th></tr></thead>
               <tbody>
-                {(cat.enhanced_clinic_history || cat.clinic_history || []).map((visit, idx) => (
+                {(cat.enhanced_clinic_history || cat.clinic_history || []).map((appt, idx) => (
                   <tr key={idx}>
-                    <td>{formatDateLocal(visit.visit_date)}</td>
+                    <td>{formatDateLocal(appt.appointment_date)}</td>
                     <td>
-                      <div style={{ fontWeight: 500 }}>{visit.client_name || "—"}</div>
-                      {visit.client_email && <div className="text-muted text-sm">{visit.client_email}</div>}
-                      {visit.client_phone && <div className="text-muted text-sm">{visit.client_phone}</div>}
+                      <div style={{ fontWeight: 500 }}>{appt.client_name || "—"}</div>
+                      {appt.client_email && <div className="text-muted text-sm">{appt.client_email}</div>}
+                      {appt.client_phone && <div className="text-muted text-sm">{appt.client_phone}</div>}
                     </td>
                     <td>
-                      {"origin_address" in visit && visit.origin_address ? (
-                        <span style={{ fontWeight: 500, color: "#198754" }}>{visit.origin_address}</span>
-                      ) : visit.client_address ? (
-                        visit.client_address
+                      {"origin_address" in appt && appt.origin_address ? (
+                        <span style={{ fontWeight: 500, color: "#198754" }}>{appt.origin_address}</span>
+                      ) : appt.client_address ? (
+                        appt.client_address
                       ) : (
                         <span className="text-muted">—</span>
                       )}
                     </td>
                     <td>
-                      {"partner_org_short" in visit && visit.partner_org_short ? (
-                        <span className="badge" style={{ background: visit.partner_org_short === "SCAS" ? "#0d6efd" : visit.partner_org_short === "FFSC" ? "#198754" : "#6c757d", color: "#fff", fontSize: "0.7rem" }} title={`Cat came from ${visit.partner_org_short}`}>
-                          {visit.partner_org_short}
+                      {"partner_org_short" in appt && appt.partner_org_short ? (
+                        <span className="badge" style={{ background: appt.partner_org_short === "SCAS" ? "#0d6efd" : appt.partner_org_short === "FFSC" ? "#198754" : "#6c757d", color: "#fff", fontSize: "0.7rem" }} title={`Cat came from ${appt.partner_org_short}`}>
+                          {appt.partner_org_short}
                         </span>
-                      ) : visit.ownership_type ? (
-                        <span className="badge" style={{ background: visit.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd", color: "#fff", fontSize: "0.7rem" }}>
-                          {visit.ownership_type}
+                      ) : appt.ownership_type ? (
+                        <span className="badge" style={{ background: appt.ownership_type.includes("Feral") ? "#6c757d" : "#0d6efd", color: "#fff", fontSize: "0.7rem" }}>
+                          {appt.ownership_type}
                         </span>
                       ) : (
                         <span className="text-muted">Direct</span>
@@ -1786,6 +1794,11 @@ export default function CatDetailPage() {
         linkedPlaces={cat.places?.map(p => ({ place_id: p.place_id, label: p.label })) || []}
         existingBirthEvent={cat.birth_event}
         onSuccess={() => { fetchCat(); }}
+      />
+
+      <AppointmentDetailModal
+        appointmentId={selectedAppointmentId}
+        onClose={() => setSelectedAppointmentId(null)}
       />
     </ProfileLayout>
   );

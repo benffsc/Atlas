@@ -14,7 +14,7 @@ interface LinkedCat {
   link_purpose?: string | null;
   altered_status?: string | null;
   linked_at?: string | null;
-  last_visit_date?: string | null;
+  last_appointment_date?: string | null;
   // From people
   data_source?: string | null;
 }
@@ -161,9 +161,9 @@ export function LinkedCatsSection({
                     </span>
                   )}
                 </div>
-                {cat.last_visit_date && (
+                {cat.last_appointment_date && (
                   <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>
-                    Last visit: {new Date(cat.last_visit_date).toLocaleDateString()}
+                    Last appt: {new Date(cat.last_appointment_date).toLocaleDateString()}
                   </div>
                 )}
               </div>

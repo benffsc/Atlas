@@ -3531,3 +3531,149 @@ psql $DATABASE_URL -f sql/schema/sot/MIG_869__audit_excessive_cat_identifiers.sq
 ```
 
 Review Phase 1 diagnostic output before proceeding. Phase 2 runs automatically.
+
+---
+
+## FEAT_APPT_DETAIL: Appointment Detail Modal
+
+**Status:** Done
+**Reported:** 2026-02-03
+**Severity:** UI Enhancement
+**ACTIVE Impact:** No (read-only display, no workflow modifications)
+
+### Problem
+
+Staff could see a cat's visit history as a table (date, type, vet), but couldn't click into any appointment to see full details — vitals, health screening, FeLV/FIV results, surgery complications, post-op instructions, parasites, medical notes, or client info.
+
+Many fields from the ClinicHQ raw payload (URI, dental disease, fleas, ear mites, body composition score, no surgery reason, etc.) were stored in `staged_records` but never surfaced in the UI.
+
+### Solution
+
+**Approach:** Join `sot_appointments` with `staged_records` (raw payload) by appointment number + date to display ALL available data without adding new columns.
+
+**Files:**
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `apps/web/src/app/api/appointments/[id]/route.ts` | NEW | Single appointment detail API — joins sot_appointments, cat_procedures, cat_vitals, sot_people, places, and staged_records |
+| `apps/web/src/components/AppointmentDetailModal.tsx` | NEW | Modal with sections: Provider, Vitals, Tests, Health Observations, Parasites, Surgery, Post-Op, Medical Notes, Client Info, Services |
+| `apps/web/src/app/cats/[id]/page.tsx` | MOD | Visit History table rows clickable → opens modal |
+
+**Data sourced from raw payload (not in sot_appointments):**
+- FeLV/FIV SNAP test, FeLV test
+- Body Composition Score, Overweight/Underweight
+- URI, Dental Disease, Ear/Eye/Skin/Mouth Issues
+- Fleas, Ticks, Tapeworms, Ear Mites, Lice, Heartworm
+- Cryptorchid, Pre-Scrotal, Hernia, Pyometra, Staples
+- Bruising/Swelling Expected, Compress instructions, Recheck Needed
+- No Surgery Reason, BMBT Test, Bradycardia Intra-Op
+- Wood's Lamp Ringworm Test, Skin Scrape Test
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Read-only display. No mutations.
+- **INV-6 (Active Flows Sacred):** No workflow tables modified.
+- **INV-4 (Provenance):** Raw payload displayed alongside structured data. Shows "Raw Data Unavailable" gracefully for pre-ingest appointments.
+
+### Validation
+
+1. Build: `next build` passes
+2. API: `GET /api/appointments/{uuid}` returns structured + raw detail
+3. UI: Click any visit row → modal opens with all sections
+4. Graceful fallback: Old appointments without staged_records show structured data only
+
+---
+
+## FEAT_APPT_UNIFY: Enrich sot_appointments as Gold Standard + Visit→Appointment Rename
+
+**Status:** Done
+**ACTIVE Impact:** No (display layer and data enrichment only)
+**Date:** 2026-02-03
+
+### Problem
+
+1. Appointment data (health screening, vitals, client info, financials) was scattered across `staged_records` payload and only assembled at query time via expensive raw payload joins.
+2. The codebase inconsistently used "visit" and "appointment" terminology.
+3. `AppointmentDetailModal` relied entirely on raw payload parsing instead of structured columns.
+
+### Solution
+
+**Part 1: MIG_870 — Enrich sot_appointments (22 new columns)**
+
+Added columns directly to `sot_appointments` as the gold standard for clinic data:
+
+| Category | Columns |
+|----------|---------|
+| Health Screening (11 booleans) | `has_uri`, `has_dental_disease`, `has_ear_issue`, `has_eye_issue`, `has_skin_issue`, `has_mouth_issue`, `has_fleas`, `has_ticks`, `has_tapeworms`, `has_ear_mites`, `has_ringworm` |
+| Tests & Surgery (3 text) | `felv_fiv_result`, `body_composition_score`, `no_surgery_reason` |
+| Vitals at Appointment (3) | `cat_weight_lbs`, `cat_age_years`, `cat_age_months` |
+| Client Snapshot (3 text) | `client_name`, `client_address`, `ownership_type` |
+| Financial (2 numeric) | `total_invoiced`, `subsidy_value` |
+
+Backfill results:
+- 45,992 records from `appointment_info` staged records
+- 40,457 records from `cat_info` staged records
+- 45,992 records from `owner_info` staged records
+
+Created `v_appointment_detail` view replacing `v_consolidated_visits`.
+
+**Part 2: MIG_871 — Ingest Pipeline Update**
+
+- Updated `process_staged_appointment()` to populate all enriched columns on INSERT.
+- Created `backfill_appointment_client_info()` for cross-export client data.
+- Created `backfill_appointment_cat_vitals()` for cross-export weight/age data.
+
+**Part 3: Visit → Appointment Rename (8+ files)**
+
+Unified terminology across the entire codebase:
+
+| File | Changes |
+|------|---------|
+| `/api/cats/[id]/route.ts` | Interfaces, properties, SQL, response keys |
+| `/api/cats/route.ts` | Sort options, column aliases |
+| `/api/appointments/[id]/route.ts` | Uses `v_appointment_detail`, enriched response |
+| `/cats/[id]/page.tsx` | Interfaces, UI text, loop variables |
+| `/cats/page.tsx` | Sort labels, column headers |
+| `CatDetailDrawer.tsx` | Interfaces, state, UI text |
+| `LinkedCatsSection.tsx` | Properties, labels |
+| `cats/[id]/print/page.tsx` | Properties, labels |
+
+**Part 4: AppointmentDetailModal Updated**
+
+- Uses enriched boolean fields for Health Observations and Parasites (instead of raw string parsing).
+- Displays age, body composition from enriched columns.
+- Uses `felv_fiv_result` from enriched table, raw for supplementary tests.
+- Added Financial section (total invoiced, subsidy value).
+- Added ownership type to Client section.
+- Category renamed `'Visit'` → `'Other'`.
+
+### Files
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `sql/schema/sot/MIG_870__enrich_sot_appointments.sql` | NEW | 22 columns + backfill + `v_appointment_detail` view |
+| `sql/schema/sot/MIG_871__ingest_enriched_appointments.sql` | NEW | Ingest pipeline + backfill functions |
+| `apps/web/src/app/api/appointments/[id]/route.ts` | MOD | Enriched response via `v_appointment_detail` |
+| `apps/web/src/components/AppointmentDetailModal.tsx` | MOD | Enriched booleans, age, financial, ownership |
+| `apps/web/src/app/api/cats/[id]/route.ts` | MOD | Visit → Appointment rename |
+| `apps/web/src/app/api/cats/route.ts` | MOD | Visit → Appointment rename |
+| `apps/web/src/app/cats/[id]/page.tsx` | MOD | Visit → Appointment rename |
+| `apps/web/src/app/cats/page.tsx` | MOD | Visit → Appointment rename |
+| `apps/web/src/components/map/CatDetailDrawer.tsx` | MOD | Visit → Appointment rename |
+| `apps/web/src/components/LinkedCatsSection.tsx` | MOD | Visit → Appointment rename |
+| `apps/web/src/app/cats/[id]/print/page.tsx` | MOD | Visit → Appointment rename |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Enriched data is additive. Raw payload still fetched for supplementary details.
+- **INV-2 (Single Source of Truth):** `sot_appointments` is now the gold standard for all clinic data. No more scattered payload parsing.
+- **INV-4 (Provenance):** Enriched columns populated from same payload sources, with `source_system` and `source_record_id` intact.
+- **INV-6 (Active Flows Sacred):** No workflow tables modified. Display + enrichment only.
+
+### Validation
+
+1. MIG_870 and MIG_871 ran successfully against production database
+2. `tsc --noEmit` passes
+3. No `visit_category` or `visitCategory` references remain in `apps/web/src`
+4. API returns enriched fields (health screening, vitals, financial, client)
+5. Modal displays structured data from enriched columns with raw fallback for extras

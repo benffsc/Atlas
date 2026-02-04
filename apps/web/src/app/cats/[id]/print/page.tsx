@@ -39,8 +39,8 @@ interface CatPrint {
     recorded_at: string;
     weight_lbs: number | null;
   }> | null;
-  first_visit_date: string | null;
-  total_visits: number;
+  first_appointment_date: string | null;
+  total_appointments: number;
   created_at: string;
 }
 
@@ -198,12 +198,12 @@ export default function CatPrintPage() {
 
           {/* Clinic History */}
           <Section title="Clinic History">
-            <Row label="First Visit" value={
-              cat.first_visit_date
-                ? new Date(cat.first_visit_date).toLocaleDateString()
-                : "No visits"
+            <Row label="First Appointment" value={
+              cat.first_appointment_date
+                ? new Date(cat.first_appointment_date).toLocaleDateString()
+                : "No appointments"
             } />
-            <Row label="Total Visits" value={cat.total_visits.toString()} />
+            <Row label="Total Appointments" value={cat.total_appointments.toString()} />
             <Row label="Record Created" value={new Date(cat.created_at).toLocaleDateString()} />
           </Section>
         </div>
