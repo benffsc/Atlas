@@ -104,6 +104,34 @@ See `docs/CENTRALIZED_FUNCTIONS.md` for full parameter signatures.
 
 See `docs/INGEST_GUIDELINES.md` for complete ingestion documentation.
 
+### Source System Authority Map (MIG_875)
+
+Each external system is **authoritative** for specific entity types. Code and Tippy must route queries to the correct source.
+
+| System | Authoritative For | NOT Authoritative For |
+|--------|------------------|----------------------|
+| **ClinicHQ** | Clinic clients/owners, TNR procedures, medical records, microchips | Volunteers, program outcomes |
+| **VolunteerHub** | Volunteer PEOPLE (trappers, fosters, clinic vols), user group memberships | Animals, outcomes, clinic data |
+| **ShelterLuv** | Program animals, outcomes (adoption, foster placement, transfer, mortality), intake events | Volunteer people, clinic procedures |
+| **Airtable** | Legacy requests, public intake submissions, Project 75 | Volunteer management, clinic data |
+
+**Semantic Query Rules:**
+
+| User Says | Means | Source |
+|-----------|-------|--------|
+| "Show me fosters" | Foster PEOPLE (volunteers) | VolunteerHub group "Approved Foster Parent" |
+| "Show me foster cats" | Cats currently in foster | ShelterLuv Outcome.Foster events |
+| "Show me trappers" | Trapper PEOPLE (volunteers) | VolunteerHub group "Approved Trappers" |
+| "Show me adopters" | People who adopted cats | ShelterLuv Outcome.Adoption events |
+| "Show me relo spots" | Relocation destination places | ShelterLuv Outcome.Adoption + Subtype=Relocation |
+| "Show me volunteers" | All approved volunteers | VolunteerHub "Approved Volunteer" parent group |
+
+**VolunteerHub Group Hierarchy:**
+- Parent: "Approved Volunteer"
+- Subgroups: "Approved Trappers", "Approved Foster Parent", "Clinic Volunteers"
+
+**Database:** `trapper.source_semantic_queries` table + `trapper.v_source_authority_map` view. `orchestrator_sources.authority_domains` JSONB column.
+
 ### Attribution Windows
 
 A cat is linked to a request if its appointment was within 6 months of request creation OR while the request was still active. **DO NOT** create custom time window logic — always use `v_request_alteration_stats` view. See `docs/architecture/attribution-windows.md`.

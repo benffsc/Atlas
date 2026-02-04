@@ -15,6 +15,7 @@ Understanding the strengths and limitations of each data source is critical for 
 | **Google Maps KMZ** | Variable | 20+ years of notes | Predecessor's notes, inconsistent formatting | Historical context |
 | **Web Intake** | High | New submissions only | Self-reported, may exaggerate | Initial triage |
 | **VolunteerHub** | High | FFSC volunteers only | Volunteer data only, no cat/request data | Volunteer management, role tracking |
+| **ShelterLuv** | High | Program animals | Outcomes/intake only, no clinic/volunteer data | Animal outcomes, foster cats, relo cats, intake |
 | **Sonoma County (Census)** | High | Demographic only | 5-year lag, zip-level granularity | Socioeconomic context |
 
 ---
@@ -146,6 +147,46 @@ Understanding the strengths and limitations of each data source is critical for 
 - `volunteerhub_user_groups` — 47 VH groups with atlas_role mapping
 - `volunteerhub_group_memberships` — temporal join/leave tracking
 - `trusted_person_sources` — registry controlling which sources allow skeleton creation
+
+---
+
+### ShelterLuv (Program Animals & Outcomes)
+
+**What it is:** FFSC's animal management system for tracking program animals and their outcomes. Contains animals (cats in foster/relo/adoption programs), outcome events (adoption, foster placement, transfer, mortality), and intake events (how animals enter FFSC programs). Synced via API every 6 hours.
+
+**Strengths:**
+- Authoritative for program animal outcomes (adoption, foster placement, relocation, transfer, mortality)
+- Authoritative for animal intake (how cats enter FFSC programs)
+- API provides clean data with numeric Internal-IDs and Microchips JSON arrays
+- Covers 11,390+ animals and 8,364+ events going back to July 2022
+
+**Limitations:**
+- NOT authoritative for volunteer PEOPLE — "fosters" = VolunteerHub people, "foster cats" = ShelterLuv outcomes
+- NOT authoritative for clinic data (TNR, medical records, microchip verification)
+- 44% of SL people have no email or phone (skipped by Data Engine)
+- Historical XLSX exports had scientific notation corruption (MIG_874 fixed by switching to API)
+
+**Authoritative For:**
+- Foster CATS (Outcome.Foster events)
+- Adopted CATS (Outcome.Adoption events)
+- Relocated CATS (Outcome.Adoption + Subtype=Relocation)
+- Animal intake (Intake.FeralWildlife, Intake.OwnerSurrender, Intake.Stray, etc.)
+- Animal mortality (Outcome.Euthanasia, Outcome.UnassistedDeathInCustody)
+- Transfers (Outcome.Transfer)
+
+**NOT Authoritative For:**
+- Foster PEOPLE — these come from VolunteerHub
+- Trappers — these come from VolunteerHub
+- Clinic volunteers — these come from VolunteerHub
+- Medical records — these come from ClinicHQ
+
+**What Tippy should know:**
+> "ShelterLuv tracks what happens to program animals. When staff say 'fosters' they mean foster PEOPLE from VolunteerHub. When they say 'foster cats' they mean cats in foster from ShelterLuv. Always check `source_semantic_queries` table to route queries correctly. Intake events show HOW cats entered the program (stray, owner surrender, feral wildlife, etc.)."
+
+**Key Tables:**
+- `cat_intake_events` — When animals entered FFSC programs (MIG_879)
+- `person_cat_relationships` (where source_system='shelterluv') — Adopter, foster, owner relationships
+- `place_contexts` (where assigned_by='shelterluv_events_processor') — Place tags from outcomes
 
 ---
 
@@ -347,6 +388,43 @@ Atlas supports multiple microchip formats:
 ## Data Quality Fix Log
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
+
+### 2026-02-04: Source System Authority Map + ShelterLuv Data Completeness (MIG_875-880)
+
+**Problem:** After fixing ShelterLuv outcomes (MIG_874), several gaps remained: no documentation of which system is authoritative for which data, events sync stale 12+ days, 4,960 SL people had addresses but no place links (wrong field name bug), and 4,179 intake events were unprocessed.
+
+**CRITICAL — Source System Authority:**
+- **VolunteerHub** = authoritative for volunteer PEOPLE (trappers, fosters, clinic volunteers)
+- **ShelterLuv** = authoritative for program ANIMALS and outcomes (foster cats, relo cats, adopted cats, intake)
+- **ClinicHQ** = authoritative for clinic clients/owners, TNR procedures, medical records
+- "Show me fosters" = foster PEOPLE from VolunteerHub, NOT foster cats from ShelterLuv
+- "Show me foster cats" = cats in foster from ShelterLuv Outcome.Foster events
+- VH group hierarchy: "Approved Volunteer" (parent) > "Approved Trappers", "Approved Foster Parent", "Clinic Volunteers"
+
+**Solution:**
+- **MIG_875:** Created `source_semantic_queries` table + `v_source_authority_map` view. Added `authority_domains` JSONB to `orchestrator_sources`. Documents which system owns what.
+- **MIG_876:** Reset events `last_sync_timestamp` to NULL (forces re-sync). Added `last_check_at` column to distinguish "checked but nothing new" from "hasn't run."
+- **MIG_877:** Backfilled ~4,960 SL people addresses into `person_place_relationships` via `find_or_create_place_deduped()`.
+- **MIG_878:** Backfilled place contexts (adopter_residence, foster_home, relocation_destination, colony_site) for outcome relationships that now have places.
+- **MIG_879:** Created `cat_intake_events` table + `process_shelterluv_intake_events()`. Processed 4,179 intake events. Reset intake events that were incorrectly marked processed by outcome processor.
+- **MIG_880:** Registered `v_source_authority_map`, `v_source_semantic_queries`, `v_cat_intake_summary` in Tippy catalog.
+
+**Result:**
+- Source authority documented in code, database, CLAUDE.md, and Tippy
+- Events sync health restored
+- Place context counts increased significantly (foster_home, adopter_residence, relocation_destination)
+- 4,179 intake events processed into `cat_intake_events` table
+- Tippy can now route "show me fosters" to VolunteerHub and "show me foster cats" to ShelterLuv
+
+**What Tippy should know:**
+> "When staff ask about 'fosters', they mean foster PEOPLE (volunteers from VolunteerHub), not foster cats (from ShelterLuv outcomes). Always check `source_semantic_queries` to route queries to the right data source. Intake events (when animals enter FFSC programs) are now tracked in `cat_intake_events`."
+
+**Staff Impact:**
+- Tippy now correctly understands the difference between "fosters" (people) and "foster cats" (animals)
+- Relocation spots, adopter residences, and foster homes now show on the map with full address data
+- Intake history for cats is now queryable (when they entered the program, how, and from whom)
+
+---
 
 ### 2026-02-03: DQ_004 — ShelterLuv Phantom Cat + Microchip Validation + Foster Homes (MIG_871, MIG_872, MIG_873)
 
@@ -971,6 +1049,36 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 ---
 
 ## Development Session Log (continued)
+
+### Session: 2026-02-04 - Source System Authority Map + ShelterLuv Completeness
+
+**Context:** After MIG_874/874b fixed ShelterLuv outcome processing, user clarified the authority model: VolunteerHub owns volunteer PEOPLE, ShelterLuv owns program ANIMALS and outcomes, ClinicHQ owns clinic data. "Show me fosters" means VH people, "show me foster cats" means SL outcomes. Multiple data gaps were identified: stale events sync, missing addresses for 4,960 SL people, low place context counts, and 4,179 unprocessed intake events.
+
+**Key Discoveries:**
+1. VolunteerHub IS already integrated (MIG_350, MIG_809, MIG_810+) but no authority mapping existed
+2. `orchestrator_sources` table existed but lacked authority domain information
+3. Events sync appeared "very_stale" because `last_sync_timestamp` freezes when API returns 0 new records
+4. `process_shelterluv_person()` had used `'Street Address'` instead of `'Street Address 1'` — fixed in 874b but never re-run on 9,123 already-processed people
+5. 4,179 intake events were silently marked "processed" by the outcome processor without action
+6. ShelterLuv intake types include: FeralWildlife (1,858), FosterReturn (1,779), Transfer (208), Stray (82), OwnerSurrender (62+)
+
+**Changes Made:**
+- MIG_875: Source System Authority Map (orchestrator_sources.authority_domains, source_semantic_queries table, v_source_authority_map view)
+- MIG_876: Fix events sync (reset timestamp, add last_check_at for accurate health)
+- MIG_877: Backfill ~4,960 SL people addresses into person_place_relationships
+- MIG_878: Backfill place contexts for outcome relationships (adopter_residence, foster_home, relocation_destination, colony_site)
+- MIG_879: cat_intake_events table + process_shelterluv_intake_events() function, processed 4,179 events
+- MIG_880: Registered 3 new views in Tippy catalog
+- Updated CLAUDE.md with authority map and semantic query rules
+- Updated cron route to process intake events separately from outcomes
+
+**Staff Impact:**
+- Tippy correctly routes "fosters" to VolunteerHub people and "foster cats" to ShelterLuv
+- More places visible on map (adopter residences, foster homes, relo destinations)
+- Cat intake history now queryable
+- Events sync health monitoring more accurate
+
+---
 
 ### Session: 2026-01-28/29 - AI Extraction Engine & Classification Bridge
 

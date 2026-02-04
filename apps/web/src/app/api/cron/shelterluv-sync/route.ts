@@ -388,15 +388,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Process events (adoptions, fosters, TNR, mortality, relocations)
+    // Process outcome events (adoptions, fosters, TNR, mortality, relocations)
     if (!syncType || syncType === "events") {
-      const unprocessedEvents = await queryOne<{ count: number }>(
+      const unprocessedOutcomes = await queryOne<{ count: number }>(
         `SELECT COUNT(*)::int as count FROM trapper.staged_records
          WHERE source_system = 'shelterluv' AND source_table = 'events'
-           AND is_processed IS NOT TRUE`
+           AND is_processed IS NOT TRUE
+           AND payload->>'Type' LIKE 'Outcome.%'`
       );
-      if (unprocessedEvents && unprocessedEvents.count > 0) {
-        console.log(`Processing ${unprocessedEvents.count} events through Data Engine...`);
+      if (unprocessedOutcomes && unprocessedOutcomes.count > 0) {
+        console.log(`Processing ${unprocessedOutcomes.count} outcome events...`);
         const eventsResult = await queryOne<{
           events_processed: number;
           adoptions_created: number;
@@ -411,6 +412,29 @@ export async function GET(request: NextRequest) {
           [500]
         );
         processing.events = eventsResult;
+      }
+
+      // Process intake events (FeralWildlife, OwnerSurrender, Stray, etc.)
+      const unprocessedIntake = await queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int as count FROM trapper.staged_records
+         WHERE source_system = 'shelterluv' AND source_table = 'events'
+           AND is_processed IS NOT TRUE
+           AND payload->>'Type' LIKE 'Intake.%'`
+      );
+      if (unprocessedIntake && unprocessedIntake.count > 0) {
+        console.log(`Processing ${unprocessedIntake.count} intake events...`);
+        const intakeResult = await queryOne<{
+          events_processed: number;
+          intake_created: number;
+          animals_matched: number;
+          animals_unmatched: number;
+          owner_surrenders_linked: number;
+          errors: number;
+        }>(
+          `SELECT * FROM trapper.process_shelterluv_intake_events($1)`,
+          [500]
+        );
+        processing.intake = intakeResult;
       }
     }
 
