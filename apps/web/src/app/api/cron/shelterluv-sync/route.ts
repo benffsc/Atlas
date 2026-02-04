@@ -333,31 +333,34 @@ export async function GET(request: NextRequest) {
     }
 
     // Process staged records through Data Engine processors
+    // Always process unprocessed records (catches backfills + resets)
     const processing: Record<string, unknown> = {};
 
     // Process people first (identity resolution)
-    if (results.people && results.people.inserted > 0) {
-      console.log("Processing people through Data Engine...");
-      const peopleResult = await queryOne<{
-        records_processed: number;
-        people_created: number;
-        people_updated: number;
-        errors: number;
-      }>(
-        `SELECT * FROM trapper.process_shelterluv_people_batch($1)`,
-        [500]
+    if (!syncType || syncType === "people") {
+      const unprocessedPeople = await queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int as count FROM trapper.staged_records
+         WHERE source_system = 'shelterluv' AND source_table = 'people'
+           AND is_processed IS NOT TRUE`
       );
-      processing.people = peopleResult;
+      if (unprocessedPeople && unprocessedPeople.count > 0) {
+        console.log(`Processing ${unprocessedPeople.count} people through Data Engine...`);
+        const peopleResult = await queryOne<{
+          records_processed: number;
+          people_created: number;
+          people_updated: number;
+          errors: number;
+        }>(
+          `SELECT * FROM trapper.process_shelterluv_people_batch($1)`,
+          [500]
+        );
+        processing.people = peopleResult;
+      }
     }
 
     // Process animals (creates cats + detects fosters)
-    if (results.animals && results.animals.inserted > 0) {
-      console.log("Processing animals through Data Engine...");
-      // Process animals one batch at a time
-      let animalsProcessed = 0;
+    if (!syncType || syncType === "animals") {
       const animalBatchSize = 100;
-
-      // Get unprocessed animal records
       const unprocessedAnimals = await queryRows<{ id: string }>(
         `SELECT id::text FROM trapper.staged_records
          WHERE source_system = 'shelterluv'
@@ -367,35 +370,48 @@ export async function GET(request: NextRequest) {
         [animalBatchSize]
       );
 
-      for (const animal of unprocessedAnimals) {
-        try {
-          await execute(
-            `SELECT trapper.process_shelterluv_animal($1::uuid)`,
-            [animal.id]
-          );
-          animalsProcessed++;
-        } catch (err) {
-          console.error("Error processing animal:", animal.id, err);
+      if (unprocessedAnimals.length > 0) {
+        console.log(`Processing ${unprocessedAnimals.length} animals through Data Engine...`);
+        let animalsProcessed = 0;
+        for (const animal of unprocessedAnimals) {
+          try {
+            await execute(
+              `SELECT trapper.process_shelterluv_animal($1::uuid)`,
+              [animal.id]
+            );
+            animalsProcessed++;
+          } catch (err) {
+            console.error("Error processing animal:", animal.id, err);
+          }
         }
+        processing.animals = { processed: animalsProcessed };
       }
-      processing.animals = { processed: animalsProcessed };
     }
 
-    // Process events (adoptions, fosters, TNR, mortality)
-    if (results.events && results.events.inserted > 0) {
-      console.log("Processing events through Data Engine...");
-      const eventsResult = await queryOne<{
-        events_processed: number;
-        adoptions_created: number;
-        fosters_created: number;
-        tnr_releases: number;
-        mortality_events: number;
-        errors: number;
-      }>(
-        `SELECT * FROM trapper.process_shelterluv_events($1)`,
-        [500]
+    // Process events (adoptions, fosters, TNR, mortality, relocations)
+    if (!syncType || syncType === "events") {
+      const unprocessedEvents = await queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int as count FROM trapper.staged_records
+         WHERE source_system = 'shelterluv' AND source_table = 'events'
+           AND is_processed IS NOT TRUE`
       );
-      processing.events = eventsResult;
+      if (unprocessedEvents && unprocessedEvents.count > 0) {
+        console.log(`Processing ${unprocessedEvents.count} events through Data Engine...`);
+        const eventsResult = await queryOne<{
+          events_processed: number;
+          adoptions_created: number;
+          fosters_created: number;
+          tnr_releases: number;
+          mortality_events: number;
+          returns_processed: number;
+          transfers_logged: number;
+          errors: number;
+        }>(
+          `SELECT * FROM trapper.process_shelterluv_events($1)`,
+          [500]
+        );
+        processing.events = eventsResult;
+      }
     }
 
     // Get current sync status
