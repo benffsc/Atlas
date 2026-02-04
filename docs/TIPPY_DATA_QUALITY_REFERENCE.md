@@ -348,6 +348,41 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-03: DQ_002 — Inflated Cat Counts on Map + Excessive Cat Identifiers (MIG_868, MIG_869)
+
+**Problem:** Some places on the Beacon map showed 1000+ cats, far exceeding what's physically possible. Separately, some cats had dozens of identifiers.
+
+**Investigation:**
+- Map cat counts come from `COUNT(DISTINCT cat_id) FROM cat_place_relationships` — this query never excluded merged cats
+- When Cat A is merged into Cat B, `sot_cats.merged_into_cat_id` is set on Cat A, but its `cat_place_relationships` rows remain orphaned
+- Similarly, `cat_identifiers` on merged cats were never transferred to the canonical cat
+- Multiple source_tables could link the same cat to the same place, creating duplicate rows
+- Low-confidence microchip format guesses (truncated, AVID reinterpretations) accumulated alongside real chips
+
+**Root Causes:**
+1. **Merged cats not filtered from map counts** — `v_map_atlas_pins`, places layer, TNR priority layer, clinic activity layer, and summary stats all counted merged cats
+2. **Duplicate cat-place links** — Same cat at same place via `appointment_info` and `entity_linking` source_tables
+3. **Orphaned identifiers on merged cats** — Not transferred to canonical cat on merge
+4. **Low-confidence microchip variants** — Format detection (MIG_553) created separate entries for truncated/AVID/10-digit interpretations even when the cat already had a high-confidence 15-digit ISO chip
+
+**Solution:**
+- **MIG_868:** Audit + remediation for places
+  - Diagnostic queries comparing `cat_place_relationships` against actual appointment evidence
+  - Removes all `cat_place_relationships` for merged cats
+  - Deduplicates same-cat-same-place entries (keeps `appointment_info` source)
+  - Removes residual `appointment_person_link` pollution from pre-MIG_590
+- **MIG_869:** Audit + remediation for cat identifiers
+  - Re-points identifiers from merged cats to their canonical cat (or removes if duplicate)
+  - Removes junk microchip identifiers (too short, all letters, all zeros, test data)
+  - Removes low-confidence format guesses where high-confidence chip exists
+- **map-data/route.ts:** All cat count subqueries now JOIN `sot_cats` with `merged_into_cat_id IS NULL`
+- **v_map_atlas_pins (MIG_820):** Cat count subquery updated to exclude merged cats
+
+**Result:** Run MIG_868 then MIG_869. Map cat counts will reflect only active (non-merged) cats with valid place links.
+
+**What Tippy should know:**
+> "Some places previously showed inflated cat counts on the map because merged cats were still being counted. When two cat records are merged (e.g., same cat entered twice), the old record's place links weren't cleaned up. MIG_868 removes these orphaned links and deduplicates entries. After running, places should show accurate counts. Having 3-5 identifiers per cat is normal (microchip + source system IDs). Cats with 10+ identifiers had accumulated low-confidence format guesses that MIG_869 cleans up."
+
 ### 2026-01-30: Ingestion Pipeline Fix — Four Blocking Bugs (MIG_795)
 
 **Problem:** The ClinicHQ owner_info processing pipeline was completely broken. Every upload attempt failed. Investigation revealed four interconnected bugs:
@@ -1664,3 +1699,23 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 **What Tippy should know:**
 > "Cat detail pages now correctly display sex and altered status from clinic data. Previously, cats showed 'Sex: Unknown' due to a case mismatch between the database and the dropdown. If staff see a cat with correct sex/color/breed data, that data comes from ClinicHQ clinic records. The edit form now pre-selects the correct values. Altered status shows 'Yes — Spayed' or 'Yes — Neutered' based on the specific procedure recorded."
+
+### Session: 2026-02-03 — DQ_002: Map Cat Count Audit + Identifier Cleanup
+
+**Context:** Map showed some places with 1000+ cats. Investigation revealed merged cats were being counted in `cat_place_relationships` queries throughout the map data pipeline. Also discovered cats accumulating 10+ identifiers from format detection guesses and un-transferred merged cat identifiers.
+
+**Key Discoveries:**
+1. **Merged cats inflating map counts** — `v_map_atlas_pins` and all `map-data/route.ts` queries counted `cat_place_relationships` without filtering `merged_into_cat_id IS NULL`. Post-merge, the old cat's place links remained as orphans.
+2. **Duplicate cat-place links** — Same cat at same place appeared via different `source_table` values (e.g., `appointment_info` + `entity_linking`), doubling the count.
+3. **Identifier accumulation** — Multi-format microchip detection (MIG_553) created separate rows for truncated/AVID/10-digit interpretations. Merged cats' identifiers never transferred to canonical cat.
+
+**Changes Made:**
+- MIG_868: Audit + fix for high-count places (removes merged cat links, deduplicates, cleans residual pollution)
+- MIG_869: Audit + fix for excessive identifiers (re-points merged cat IDs, removes junk/low-confidence entries)
+- map-data/route.ts: All 4 cat count subqueries + summary stat now filter merged cats
+- v_map_atlas_pins (MIG_820): Cat count subquery updated
+
+**Staff Impact:**
+- Map place pins will show accurate cat counts after running MIG_868
+- Cats with excessive identifiers will be cleaned after running MIG_869
+- No workflow changes needed — this is purely a display/data accuracy fix

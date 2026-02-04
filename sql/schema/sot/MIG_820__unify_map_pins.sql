@@ -202,11 +202,12 @@ SELECT
 
 FROM trapper.places p
 
--- Cat counts
+-- Cat counts (excluding merged cats)
 LEFT JOIN (
-  SELECT place_id, COUNT(DISTINCT cat_id) as cat_count
-  FROM trapper.cat_place_relationships
-  GROUP BY place_id
+  SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
+  FROM trapper.cat_place_relationships cpr
+  JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+  GROUP BY cpr.place_id
 ) cc ON cc.place_id = p.place_id
 
 -- People with role info

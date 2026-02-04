@@ -352,9 +352,10 @@ export async function GET(req: NextRequest) {
             ) as person_count
           FROM trapper.places p
           LEFT JOIN (
-            SELECT place_id, COUNT(DISTINCT cat_id) as cat_count
-            FROM trapper.cat_place_relationships
-            GROUP BY place_id
+            SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
+            FROM trapper.cat_place_relationships cpr
+            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+            GROUP BY cpr.place_id
           ) cc ON cc.place_id = p.place_id
           WHERE p.merged_into_place_id IS NULL
             AND p.location IS NOT NULL
@@ -452,13 +453,15 @@ export async function GET(req: NextRequest) {
             COALESCE(p.service_zone, 'Unknown') as service_zone
           FROM trapper.places p
           LEFT JOIN (
-            SELECT place_id, COUNT(DISTINCT cat_id) as cat_count
-            FROM trapper.cat_place_relationships
-            GROUP BY place_id
+            SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
+            FROM trapper.cat_place_relationships cpr
+            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+            GROUP BY cpr.place_id
           ) cc ON cc.place_id = p.place_id
           LEFT JOIN (
             SELECT cpr.place_id, COUNT(DISTINCT cp.cat_id) as altered_count
             FROM trapper.cat_place_relationships cpr
+            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
             JOIN trapper.cat_procedures cp ON cp.cat_id = cpr.cat_id
             WHERE cp.is_spay OR cp.is_neuter
             GROUP BY cpr.place_id
@@ -590,6 +593,7 @@ export async function GET(req: NextRequest) {
             COALESCE(p.service_zone, 'Unknown') as service_zone
           FROM trapper.places p
           JOIN trapper.cat_place_relationships cpr ON cpr.place_id = p.place_id
+          JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
           JOIN trapper.sot_appointments a ON a.cat_id = cpr.cat_id
           WHERE p.merged_into_place_id IS NULL
             AND p.location IS NOT NULL
@@ -747,7 +751,7 @@ export async function GET(req: NextRequest) {
     }>(`
       SELECT
         (SELECT COUNT(*) FROM trapper.places WHERE merged_into_place_id IS NULL AND location IS NOT NULL ${zoneFilter.replace('p.', '')}) as total_places,
-        (SELECT COUNT(*) FROM trapper.cat_place_relationships) as total_cats,
+        (SELECT COUNT(DISTINCT cpr.cat_id) FROM trapper.cat_place_relationships cpr JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL) as total_cats,
         (SELECT COUNT(*) FROM trapper.observation_zones WHERE status = 'active') as zones_needing_obs
     `);
     result.summary = summary[0];

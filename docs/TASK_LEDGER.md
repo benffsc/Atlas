@@ -3484,3 +3484,50 @@ The entity-linking cron is the **safety net** that catches anything the job queu
 - Sylvia has request_cat_links (request_links = 1)
 - `altered_status` correctly set for all 4 cats (`neutered`/`spayed`)
 - Pipeline verified for ongoing ingests: correct field names, NULLIF handling, catch-up cron
+
+## DQ_002: Map Cat Count Inflation + Excessive Cat Identifiers
+
+**Status:** READY TO RUN (migrations written, map query fixed)
+**Reported:** 2026-02-03
+**Severity:** MEDIUM — Display-only; no workflow data affected
+
+### Problem
+
+1. **Inflated map cat counts:** Some places showed 1000+ cats on the Beacon map. Real colony sizes rarely exceed 50.
+2. **Excessive cat identifiers:** Some cats had 10+ identifier rows from multi-format microchip detection and un-transferred merged cat data.
+
+### Root Causes
+
+| Cause | Impact | Affected Queries |
+|-------|--------|-----------------|
+| Merged cats counted in `cat_place_relationships` | Orphaned place links inflate per-place counts | `v_map_atlas_pins`, `map-data/route.ts` (4 subqueries + summary) |
+| Duplicate cat-place links (same cat, same place, different `source_table`) | Double/triple counting | All cat count queries |
+| Residual `appointment_person_link` pollution from pre-MIG_590 | Cats linked to unrelated places | Places layer, TNR priority layer |
+| Merged cat identifiers not transferred to canonical cat | Inflated identifier counts + orphaned data | Cat detail pages, identifier lookups |
+| Low-confidence microchip format guesses alongside real chips | Noisy identifier lists | Cat profiles |
+
+### Solution
+
+**Migrations:**
+- `MIG_868__audit_high_cat_count_places.sql` — Phase 1: diagnostic queries comparing cat_place links against appointment evidence. Phase 2: removes merged-cat links, deduplicates same-cat-same-place, cleans residual pollution. Phase 3: verification.
+- `MIG_869__audit_excessive_cat_identifiers.sql` — Phase 1: identifier distribution + top cats + junk detection. Phase 2: re-points merged-cat identifiers to canonical cat, removes junk/low-confidence entries. Phase 3: verification.
+
+**Code fixes (committed):**
+- `apps/web/src/app/api/beacon/map-data/route.ts` — All 4 cat count subqueries + summary stat now `JOIN sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL`
+- `sql/schema/sot/MIG_820__unify_map_pins.sql` — `v_map_atlas_pins` view's cat count subquery updated to exclude merged cats
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Merged-cat place links removed (already orphaned). Merged-cat identifiers re-pointed to canonical cat, not deleted.
+- **INV-6 (Active Flows Sacred):** No active workflow tables modified. Only computed counts and orphaned data cleaned.
+- **INV-8 (Merge-Aware Queries):** This fix IS the enforcement of INV-8 — all map count queries now filter `merged_into_cat_id IS NULL`.
+- **INV-4 (Provenance):** Migration includes diagnostic output for audit trail.
+
+### Run Instructions
+
+```bash
+psql $DATABASE_URL -f sql/schema/sot/MIG_868__audit_high_cat_count_places.sql
+psql $DATABASE_URL -f sql/schema/sot/MIG_869__audit_excessive_cat_identifiers.sql
+```
+
+Review Phase 1 diagnostic output before proceeding. Phase 2 runs automatically.
