@@ -34,7 +34,7 @@ interface ClinicDay {
 
 /**
  * GET /api/admin/clinic-days
- * List clinic days with optional date range filter
+ * List clinic days from actual ClinicHQ appointment data
  */
 export async function GET(request: NextRequest) {
   try {
@@ -49,76 +49,81 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date");
     const limit = parseInt(searchParams.get("limit") || "30");
     const offset = parseInt(searchParams.get("offset") || "0");
-    const includeComparison = searchParams.get("include_comparison") === "true";
 
-    // Build WHERE clause
+    // Build WHERE clause for date filtering
     const conditions: string[] = [];
     const params: (string | number)[] = [];
     let paramIndex = 1;
 
     if (startDate) {
-      conditions.push(`cd.clinic_date >= $${paramIndex++}`);
+      conditions.push(`a.appointment_date >= $${paramIndex++}`);
       params.push(startDate);
     }
     if (endDate) {
-      conditions.push(`cd.clinic_date <= $${paramIndex++}`);
+      conditions.push(`a.appointment_date <= $${paramIndex++}`);
       params.push(endDate);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    let clinicDays: ClinicDay[];
-
-    if (includeComparison) {
-      // Use the comparison view with schedule info
-      clinicDays = await queryRows<ClinicDay>(
-        `
-        SELECT
-          cs.clinic_day_id,
-          cs.clinic_date,
-          cs.clinic_type,
-          cs.clinic_type_label,
-          cs.target_place_id,
-          cs.target_place_name,
-          cs.target_place_address,
-          cs.max_capacity,
-          cs.vet_name,
-          cs.day_of_week,
-          cs.total_cats,
-          cs.total_females,
-          cs.total_males,
-          cs.total_unknown_sex,
-          cs.total_no_shows,
-          cs.total_cancelled,
-          cs.notes,
-          cs.finalized_at,
-          cs.finalized_by,
-          cs.created_at,
-          cmp.clinichq_cats,
-          cmp.clinichq_females,
-          cmp.clinichq_males,
-          cmp.variance
-        FROM trapper.v_clinic_schedule cs
-        LEFT JOIN trapper.v_clinic_day_comparison cmp ON cmp.clinic_day_id = cs.clinic_day_id
-        ${whereClause.replace(/cd\./g, "cs.")}
-        ORDER BY cs.clinic_date DESC
-        LIMIT $${paramIndex++} OFFSET $${paramIndex}
-        `,
-        [...params, limit, offset]
-      );
-    } else {
-      // Use schedule view for type info
-      clinicDays = await queryRows<ClinicDay>(
-        `
-        SELECT *
-        FROM trapper.v_clinic_schedule cs
-        ${whereClause.replace(/cd\./g, "cs.")}
-        ORDER BY cs.clinic_date DESC
-        LIMIT $${paramIndex++} OFFSET $${paramIndex}
-        `,
-        [...params, limit, offset]
-      );
-    }
+    // Get clinic days directly from appointments (actual ClinicHQ data)
+    const clinicDays = await queryRows<ClinicDay>(
+      `
+      SELECT
+        COALESCE(cd.clinic_day_id, gen_random_uuid()) AS clinic_day_id,
+        a.appointment_date AS clinic_date,
+        COALESCE(cd.clinic_type, 'regular') AS clinic_type,
+        CASE COALESCE(cd.clinic_type, 'regular')
+          WHEN 'regular' THEN 'Regular'
+          WHEN 'tame_only' THEN 'Tame Only'
+          WHEN 'mass_trapping' THEN 'Mass Trapping'
+          WHEN 'emergency' THEN 'Emergency'
+          WHEN 'mobile' THEN 'Mobile'
+          ELSE 'Regular'
+        END AS clinic_type_label,
+        cd.target_place_id,
+        tp.display_name AS target_place_name,
+        tp.formatted_address AS target_place_address,
+        cd.max_capacity,
+        cd.vet_name,
+        EXTRACT(DOW FROM a.appointment_date)::INT AS day_of_week,
+        COUNT(*)::INT AS total_cats,
+        COUNT(*) FILTER (WHERE c.sex = 'Female' OR a.is_spay = TRUE)::INT AS total_females,
+        COUNT(*) FILTER (WHERE c.sex = 'Male' OR a.is_neuter = TRUE)::INT AS total_males,
+        COUNT(*) FILTER (WHERE c.sex IS NULL OR c.sex NOT IN ('Female', 'Male'))::INT AS total_unknown_sex,
+        0 AS total_no_shows,
+        0 AS total_cancelled,
+        cd.notes,
+        cd.finalized_at,
+        NULL AS finalized_by,
+        COALESCE(cd.created_at, MIN(a.created_at)) AS created_at,
+        COUNT(*)::INT AS clinichq_cats,
+        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NOT NULL)::INT AS chipped_count,
+        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NULL AND c.needs_microchip = TRUE)::INT AS unchipped_count,
+        COUNT(*) FILTER (WHERE a.cat_id IS NULL)::INT AS unlinked_count
+      FROM trapper.sot_appointments a
+      LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = a.cat_id AND ci.id_type = 'microchip'
+      LEFT JOIN trapper.clinic_days cd ON cd.clinic_date = a.appointment_date
+      LEFT JOIN trapper.places tp ON tp.place_id = cd.target_place_id
+      ${whereClause}
+      GROUP BY
+        a.appointment_date,
+        cd.clinic_day_id,
+        cd.clinic_type,
+        cd.target_place_id,
+        tp.display_name,
+        tp.formatted_address,
+        cd.max_capacity,
+        cd.vet_name,
+        cd.notes,
+        cd.finalized_at,
+        cd.created_at
+      ORDER BY a.appointment_date DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex}
+      `,
+      [...params, limit, offset]
+    );
 
     return NextResponse.json({
       clinic_days: clinicDays,
