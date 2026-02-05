@@ -140,12 +140,10 @@ export async function GET(request: NextRequest) {
       -- Get owner via person-cat relationships
       LEFT JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
         AND pcr.relationship_type IN ('owner', 'caretaker')
-        AND pcr.is_active = TRUE
       LEFT JOIN trapper.sot_people per ON per.person_id = pcr.person_id
         AND per.merged_into_person_id IS NULL
       -- Get place via cat-place relationships
       LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-        AND cpr.is_active = TRUE
       LEFT JOIN trapper.places pl ON pl.place_id = cpr.place_id
         AND pl.merged_into_place_id IS NULL
       -- Get appointment for selected date
