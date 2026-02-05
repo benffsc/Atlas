@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const searchTerm = `%${query.trim()}%`;
 
     // Search cats, prioritizing those from the selected clinic day
+    // Also search staged_records for microchip matches on the clinic day
     const cats = await queryRows<SearchResult>(
       `
       WITH clinic_day_cats AS (
@@ -59,6 +60,17 @@ export async function GET(request: NextRequest) {
         FROM trapper.sot_appointments a
         WHERE a.appointment_date = $2
           AND a.cat_id IS NOT NULL
+      ),
+      -- Also find cats by searching staged appointment records for microchip
+      staged_microchip_matches AS (
+        SELECT DISTINCT a.cat_id
+        FROM trapper.sot_appointments a
+        JOIN trapper.staged_records sr ON sr.source_row_id = a.source_record_id
+          AND sr.source_system = 'clinichq'
+          AND sr.source_table = 'appointments'
+        WHERE a.appointment_date = $2
+          AND a.cat_id IS NOT NULL
+          AND (sr.payload->>'Microchip Number') ILIKE $1
       )
       SELECT
         c.cat_id,
@@ -145,6 +157,8 @@ export async function GET(request: NextRequest) {
           OR ci_mc.id_value ILIKE $1
           OR ci_chq.id_value ILIKE $1
           OR per.display_name ILIKE $1
+          -- Also match cats found via staged record microchip search
+          OR c.cat_id IN (SELECT cat_id FROM staged_microchip_matches)
         )
       ORDER BY
         -- Cats from selected clinic day first
