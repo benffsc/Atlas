@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       JOIN trapper.sot_people p ON p.person_id = pi.person_id
       WHERE pi.id_type = 'email'
         AND pi.id_value_norm = trapper.norm_email($1)
+        AND pi.confidence >= 0.5
         AND p.merged_into_person_id IS NULL
       LIMIT 1`,
       [email]
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
         JOIN trapper.sot_people p ON p.person_id = pi.person_id
         WHERE pi.id_type = 'email'
           AND pi.id_value_norm = trapper.norm_email($1)
+          AND pi.confidence >= 0.5
           AND p.merged_into_person_id IS NULL
         LIMIT 1`,
         [email]

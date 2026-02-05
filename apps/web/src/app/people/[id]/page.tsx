@@ -73,6 +73,7 @@ interface PersonIdentifier {
   id_value: string;
   source_system: string | null;
   source_table: string | null;
+  confidence?: number;
 }
 
 interface AssociatedPlace {
@@ -496,7 +497,8 @@ export default function PersonDetailPage() {
     if (person) {
       // Get current phone/email from identifiers
       const phoneId = person.identifiers?.find(i => i.id_type === "phone");
-      const emailId = person.identifiers?.find(i => i.id_type === "email");
+      const emailId = person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)
+        ?? person.identifiers?.find(i => i.id_type === "email");
       setEditPhone(phoneId?.id_value || "");
       setEditEmail(emailId?.id_value || "");
       setIdentifierError(null);
@@ -1094,7 +1096,12 @@ export default function PersonDetailPage() {
                 <div key={`email-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Email</span>
                   <span style={{ fontSize: "0.9rem" }}>{eid.id_value}</span>
-                  {eid.source_system && (
+                  {eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5 && (
+                    <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#333", padding: "1px 4px", borderRadius: "3px", fontWeight: 500 }}>
+                      Chip Reg.
+                    </span>
+                  )}
+                  {eid.source_system && !(eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5) && (
                     <span className="text-muted" style={{ fontSize: "0.7rem" }}>
                       ({getSourceLabel(eid.source_system)})
                     </span>
@@ -1116,7 +1123,8 @@ export default function PersonDetailPage() {
           entityType="person"
           entityId={person.person_id}
           state={usePersonQuickActionState({
-            email: person.identifiers?.find((i) => i.id_type === "email")?.id_value,
+            email: person.identifiers?.find((i) => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value
+              ?? person.identifiers?.find((i) => i.id_type === "email")?.id_value,
             phone: person.identifiers?.find((i) => i.id_type === "phone")?.id_value,
             is_trapper: !!trapperInfo,
             cat_count: person.cat_count,
@@ -1731,7 +1739,9 @@ export default function PersonDetailPage() {
       <SendEmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        defaultTo={person.identifiers?.find(i => i.id_type === "email")?.id_value || ""}
+        defaultTo={person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value
+          ?? person.identifiers?.find(i => i.id_type === "email")?.id_value
+          ?? ""}
         defaultToName={person.display_name}
         personId={person.person_id}
         placeholders={{

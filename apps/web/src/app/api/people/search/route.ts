@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
           FROM trapper.person_identifiers pi
           WHERE pi.person_id = p.person_id
             AND pi.id_type = 'email'
+            AND pi.confidence >= 0.5
         ) as emails,
         (
           SELECT string_agg(DISTINCT pi.id_value_raw, ', ')
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
         ) as addresses
       FROM trapper.sot_people p
       LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+        AND pi.confidence >= 0.5
       WHERE p.merged_into_person_id IS NULL
         AND p.is_canonical = TRUE
         AND (

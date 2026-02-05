@@ -257,6 +257,7 @@ When cats have data from multiple sources, use `record_cat_field_sources_batch()
 - Don't return 404 for merged entities — Check `merged_into_*_id` and redirect
 - Don't forget `process_clinichq_owner_info()` after ClinicHQ ingest
 - **Don't COALESCE Owner Cell Phone before Owner Phone** — Cell phones are shared in households, causing cross-linking. Always prefer `Owner Phone` for identity matching (MIG_881)
+- **Don't match on PetLink emails without confidence filter** — Staff fabricates emails for PetLink microchip registration (street-address domains like `gordon@lohrmanln.com`). All PetLink emails get confidence ≤ 0.5 in `person_identifiers`. Identity matching queries MUST filter `pi.confidence >= 0.5`. Use `classify_petlink_email()` to detect fabricated vs likely-real (MIG_887)
 
 **Map:**
 - Don't hardcode `type=place` in map search API calls — excludes people

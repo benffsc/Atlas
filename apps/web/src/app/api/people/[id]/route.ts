@@ -94,8 +94,9 @@ export async function GET(
             'id_type', pi.id_type,
             'id_value', pi.id_value_norm,
             'source_system', pi.source_system,
-            'source_table', pi.source_table
-          ) ORDER BY pi.id_type)
+            'source_table', pi.source_table,
+            'confidence', pi.confidence
+          ) ORDER BY pi.id_type, pi.confidence DESC)
           FROM trapper.person_identifiers pi
           WHERE pi.person_id = p.person_id
         ) AS identifiers,
