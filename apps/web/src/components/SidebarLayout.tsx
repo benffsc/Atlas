@@ -228,6 +228,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
       title: "General",
       items: [
         { label: "Dashboard", href: "/admin", icon: "📊" },
+        { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
         { label: "System Stats", href: "/admin/stats", icon: "📈" },
       ],
     },
@@ -303,6 +304,7 @@ export const mainSidebarSections: NavSection[] = [
       { label: "Atlas Map", href: "/map", icon: "🗺️" },
       { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
       { label: "Requests", href: "/requests", icon: "📋" },
+      { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
       { label: "Trappers", href: "/trappers", icon: "🪤" },
     ],
   },
