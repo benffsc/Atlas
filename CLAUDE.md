@@ -197,7 +197,8 @@ Use these TypeScript functions from `@/lib/formatters` for consistent phone disp
 |----------|---------|---------|
 | `formatPhone()` | Display formatting | `7075551234` → `(707) 555-1234` |
 | `isValidPhone()` | Validates 10 or 11 digits | `isValidPhone("707-555-1234")` → `true` |
-| `extractPhone()` | Extract valid phone from garbled input | `"(7073967923) 7073967923"` → `"7073967923"` |
+| `extractPhone()` | Extract single valid phone from garbled input | `"(7073967923) 7073967923"` → `"7073967923"` |
+| `extractPhones()` | Extract ALL valid phones from multi-phone fields | `"707 8782184 home 707 7910139"` → `["7078782184", "7077910139"]` |
 
 **Important distinctions:**
 - **SQL `norm_phone_us()`** — For identity matching/storage (returns 10-digit string)

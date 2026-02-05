@@ -160,6 +160,50 @@ export function extractPhone(phone: string | null | undefined): string | null {
 }
 
 /**
+ * Extract ALL valid phone numbers from a string that may contain multiple.
+ * Useful for fields like "707 8782184 home 707 7910139" or "(484)-744-0640 or 707-575-7194".
+ *
+ * @param phone - Raw phone string (possibly containing multiple numbers)
+ * @returns Array of extracted 10-digit phones (may be empty)
+ *
+ * @example
+ * extractPhones("707 8782184 home 707 7910139") // ["7078782184", "7077910139"]
+ * extractPhones("(484)-744-0640 or 707-575-7194") // ["4847440640", "7075757194"]
+ * extractPhones("7075551234") // ["7075551234"]
+ * extractPhones("invalid") // []
+ */
+export function extractPhones(phone: string | null | undefined): string[] {
+  if (!phone) return [];
+
+  const digits = phone.replace(/\D/g, "");
+
+  // If exactly 10 digits, return as single phone
+  if (digits.length === 10) return [digits];
+
+  // If 11 digits starting with 1, strip country code
+  if (digits.length === 11 && digits.startsWith("1")) return [digits.slice(1)];
+
+  // If exactly 20 digits, likely two 10-digit phones concatenated
+  if (digits.length === 20) {
+    const phone1 = digits.slice(0, 10);
+    const phone2 = digits.slice(10);
+    // Validate both start with valid area code (2-9)
+    if (/^[2-9]/.test(phone1) && /^[2-9]/.test(phone2)) {
+      return [phone1, phone2];
+    }
+  }
+
+  // Try to find all 10-digit sequences with valid area codes
+  const matches = digits.match(/[2-9]\d{9}/g);
+  if (matches && matches.length > 0) {
+    // Deduplicate (in case of repeated numbers like "(7073967923) 7073967923")
+    return [...new Set(matches)];
+  }
+
+  return [];
+}
+
+/**
  * Format a phone number for display.
  *
  * @param phone - Raw phone string

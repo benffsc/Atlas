@@ -17,7 +17,7 @@ import { VerificationBadge, LastVerified } from "@/components/VerificationBadge"
 import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
 import { validatePersonName } from "@/lib/validation";
 import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
-import { formatDateLocal, formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
+import { formatDateLocal, formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
@@ -928,7 +928,7 @@ export default function PersonDetailPage() {
                     <span style={{ color: "#dc3545", marginLeft: "4px", fontWeight: 400 }}>⚠ Invalid</span>
                   )}
                 </label>
-                <div style={{ display: "flex", gap: "4px" }}>
+                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                   <input
                     type="tel"
                     value={editPhone}
@@ -936,28 +936,56 @@ export default function PersonDetailPage() {
                     placeholder="(555) 123-4567"
                     style={{
                       flex: 1,
+                      minWidth: "140px",
                       border: editPhone && !isValidPhone(editPhone) ? "1px solid #dc3545" : undefined,
                     }}
                   />
-                  {editPhone && !isValidPhone(editPhone) && extractPhone(editPhone) && (
-                    <button
-                      type="button"
-                      onClick={() => setEditPhone(extractPhone(editPhone) || "")}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        fontSize: "0.75rem",
-                        background: "#198754",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={`Fix to: ${formatPhone(extractPhone(editPhone))}`}
-                    >
-                      Fix
-                    </button>
-                  )}
+                  {editPhone && !isValidPhone(editPhone) && (() => {
+                    const phones = extractPhones(editPhone);
+                    if (phones.length === 0) return null;
+                    if (phones.length === 1) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setEditPhone(phones[0])}
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            fontSize: "0.75rem",
+                            background: "#198754",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={`Fix to: ${formatPhone(phones[0])}`}
+                        >
+                          Fix
+                        </button>
+                      );
+                    }
+                    // Multiple phones - show options
+                    return phones.map((p, i) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setEditPhone(p)}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.7rem",
+                          background: i === 0 ? "#198754" : "#0d6efd",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={`Use: ${formatPhone(p)}`}
+                      >
+                        {i === 0 ? "Primary" : `Alt ${i}`}: {formatPhone(p)}
+                      </button>
+                    ));
+                  })()}
                 </div>
               </div>
               <div>

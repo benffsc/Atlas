@@ -413,6 +413,11 @@ isValidPhone("555-1234")    // false (only 7 digits)
 extractPhone("(7073967923) 7073967923") // "7073967923"
 extractPhone("(95492) 7077122660")      // "7077122660"
 extractPhone("(707) 858817")            // null (only 9 digits)
+
+// Extract ALL phones from multi-phone fields
+extractPhones("707 8782184 home 707 7910139") // ["7078782184", "7077910139"]
+extractPhones("(484)-744-0640 or 707-575-7194") // ["4847440640", "7075757194"]
+extractPhones("7075551234") // ["7075551234"]
 ```
 
 **When to use which:**

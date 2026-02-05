@@ -6,7 +6,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import CreateRequestWizard from "@/components/CreateRequestWizard";
 import PlaceResolver from "@/components/PlaceResolver";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
+import { formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -1767,29 +1767,48 @@ function IntakeQueueContent() {
                             <span style={{ color: "#dc3545", marginLeft: "4px" }}>⚠ Invalid</span>
                           )}
                         </label>
-                        <div style={{ display: "flex", gap: "4px" }}>
+                        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                           <input
                             type="tel"
                             value={contactEdits.phone}
                             onChange={(e) => setContactEdits({ ...contactEdits, phone: e.target.value })}
                             style={{
                               flex: 1,
+                              minWidth: "140px",
                               padding: "0.375rem",
                               fontSize: "0.9rem",
                               borderRadius: "4px",
                               border: `1px solid ${contactEdits.phone && !isValidPhone(contactEdits.phone) ? "#dc3545" : "var(--border)"}`,
                             }}
                           />
-                          {contactEdits.phone && !isValidPhone(contactEdits.phone) && extractPhone(contactEdits.phone) && (
-                            <button
-                              type="button"
-                              onClick={() => setContactEdits({ ...contactEdits, phone: extractPhone(contactEdits.phone) || "" })}
-                              style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                              title={`Fix to: ${formatPhone(extractPhone(contactEdits.phone))}`}
-                            >
-                              Fix
-                            </button>
-                          )}
+                          {contactEdits.phone && !isValidPhone(contactEdits.phone) && (() => {
+                            const phones = extractPhones(contactEdits.phone);
+                            if (phones.length === 0) return null;
+                            if (phones.length === 1) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setContactEdits({ ...contactEdits, phone: phones[0] })}
+                                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                                  title={`Fix to: ${formatPhone(phones[0])}`}
+                                >
+                                  Fix
+                                </button>
+                              );
+                            }
+                            // Multiple phones found - show options
+                            return phones.map((p, i) => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => setContactEdits({ ...contactEdits, phone: p })}
+                                style={{ padding: "0.25rem 0.5rem", fontSize: "0.7rem", background: i === 0 ? "#198754" : "#0d6efd", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                                title={`Use: ${formatPhone(p)}`}
+                              >
+                                {i === 0 ? "Primary" : `Alt ${i}`}: {formatPhone(p)}
+                              </button>
+                            ));
+                          })()}
                         </div>
                       </div>
                     </div>
