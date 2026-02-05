@@ -749,7 +749,20 @@ export default function ClinicDaysPage() {
   };
 
   const getClinicDayForDate = (date: string) => {
-    return clinicDays.find((cd) => cd.clinic_date === date);
+    return clinicDays.find((cd) => normalizeDate(cd.clinic_date) === date);
+  };
+
+  // Helper to normalize date strings (handles both "2026-02-02" and "2026-02-02T00:00:00.000Z" formats)
+  const normalizeDate = (dateStr: string): string => {
+    if (!dateStr) return "";
+    return dateStr.split("T")[0];
+  };
+
+  // Helper to format date for display
+  const formatDisplayDate = (dateStr: string, options: Intl.DateTimeFormatOptions): string => {
+    if (!dateStr) return "Invalid Date";
+    const normalized = normalizeDate(dateStr);
+    return new Date(normalized + "T12:00:00").toLocaleDateString("en-US", options);
   };
 
   if (loading) {
@@ -916,12 +929,12 @@ export default function ClinicDaysPage() {
                   return (
                     <button
                       key={day.clinic_day_id}
-                      onClick={() => setSelectedDate(day.clinic_date)}
+                      onClick={() => setSelectedDate(normalizeDate(day.clinic_date))}
                       style={{
                         padding: "8px 12px",
                         textAlign: "left",
-                        background: day.clinic_date === selectedDate ? "var(--primary)" : "var(--section-bg)",
-                        color: day.clinic_date === selectedDate ? "var(--primary-foreground)" : "var(--foreground)",
+                        background: normalizeDate(day.clinic_date) === selectedDate ? "var(--primary)" : "var(--section-bg)",
+                        color: normalizeDate(day.clinic_date) === selectedDate ? "var(--primary-foreground)" : "var(--foreground)",
                         border: "1px solid var(--card-border)",
                         borderRadius: "4px",
                         cursor: "pointer",
@@ -931,7 +944,7 @@ export default function ClinicDaysPage() {
                       }}
                     >
                       <div>
-                        <span>{new Date(day.clinic_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                        <span>{formatDisplayDate(day.clinic_date, { weekday: "short", month: "short", day: "numeric" })}</span>
                         {day.clinic_type !== "regular" && (
                           <span
                             style={{
@@ -939,8 +952,8 @@ export default function ClinicDaysPage() {
                               padding: "2px 6px",
                               fontSize: "0.65rem",
                               fontWeight: 600,
-                              background: day.clinic_date === selectedDate ? "rgba(255,255,255,0.2)" : typeConfig.bg,
-                              color: day.clinic_date === selectedDate ? "var(--primary-foreground)" : typeConfig.color,
+                              background: normalizeDate(day.clinic_date) === selectedDate ? "rgba(255,255,255,0.2)" : typeConfig.bg,
+                              color: normalizeDate(day.clinic_date) === selectedDate ? "var(--primary-foreground)" : typeConfig.color,
                               borderRadius: "3px",
                             }}
                           >
@@ -951,7 +964,7 @@ export default function ClinicDaysPage() {
                       <span style={{ fontSize: "0.85rem" }}>
                         {day.total_cats} cats
                         {day.variance !== undefined && day.variance !== 0 && (
-                          <span style={{ color: day.clinic_date === selectedDate ? "var(--primary-foreground)" : day.variance > 0 ? "var(--warning-text)" : "var(--danger-text)", marginLeft: "8px" }}>
+                          <span style={{ color: normalizeDate(day.clinic_date) === selectedDate ? "var(--primary-foreground)" : day.variance > 0 ? "var(--warning-text)" : "var(--danger-text)", marginLeft: "8px" }}>
                             ({day.variance > 0 ? "+" : ""}{day.variance})
                           </span>
                         )}
@@ -971,7 +984,7 @@ export default function ClinicDaysPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
               <div>
                 <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "12px" }}>
-                  {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                  {formatDisplayDate(selectedDate, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                   {selectedDay && selectedDay.clinic_type && (
                     <span
                       style={{
@@ -1728,7 +1741,7 @@ export default function ClinicDaysPage() {
           <div className="card" style={{ width: "480px", maxWidth: "90%" }}>
             <h2 style={{ marginTop: 0 }}>Edit Clinic Day Settings</h2>
             <p style={{ color: "var(--muted)", marginBottom: "16px" }}>
-              {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+              {formatDisplayDate(selectedDate, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -1870,7 +1883,7 @@ export default function ClinicDaysPage() {
             <h2 style={{ marginTop: 0 }}>Import Master List</h2>
             <p style={{ color: "var(--muted)", marginBottom: "16px" }}>
               Import SharePoint master list Excel file for{" "}
-              {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+              {formatDisplayDate(selectedDate, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
