@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
-import { logFieldEdits, detectChanges, type FieldChange } from "@/lib/audit";
+import { queryOne, query } from "@/lib/db";
+import { logFieldEdits, logFieldEdit, detectChanges, type FieldChange } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
 
 interface PartnerOrg {
@@ -38,6 +38,13 @@ interface PersonDetailRow {
   primary_place_id: string | null;
   partner_orgs: PartnerOrg[] | null;
   associated_places: object[] | null;
+  aliases: Array<{
+    alias_id: string;
+    name_raw: string;
+    source_system: string | null;
+    source_table: string | null;
+    created_at: string;
+  }> | null;
 }
 
 export async function GET(
@@ -106,6 +113,17 @@ export async function GET(
           WHERE po.contact_person_id = p.person_id
             AND po.is_active = TRUE
         ) AS partner_orgs,
+        (
+          SELECT jsonb_agg(jsonb_build_object(
+            'alias_id', pa.alias_id,
+            'name_raw', pa.name_raw,
+            'source_system', pa.source_system,
+            'source_table', pa.source_table,
+            'created_at', pa.created_at
+          ) ORDER BY pa.created_at DESC)
+          FROM trapper.person_aliases pa
+          WHERE pa.person_id = p.person_id
+        ) AS aliases,
         (
           SELECT jsonb_agg(ap ORDER BY ap.source_type, ap.display_name)
           FROM (
@@ -303,6 +321,40 @@ export async function PATCH(
     if (body.display_name !== undefined) {
       const newVal = body.display_name.trim();
       if (newVal !== current.display_name) {
+        // Preserve old name as alias (if it's a real name, not garbage)
+        if (current.display_name) {
+          try {
+            const isGarbage = await queryOne<{ is_garbage: boolean }>(
+              `SELECT trapper.is_garbage_name($1) AS is_garbage`,
+              [current.display_name]
+            );
+            if (!isGarbage?.is_garbage) {
+              const nameKey = await queryOne<{ key: string }>(
+                `SELECT trapper.norm_name_key($1) AS key`,
+                [current.display_name]
+              );
+              if (nameKey?.key) {
+                const existing = await queryOne<{ alias_id: string }>(
+                  `SELECT alias_id FROM trapper.person_aliases
+                   WHERE person_id = $1 AND name_key = $2 LIMIT 1`,
+                  [id, nameKey.key]
+                );
+                if (!existing) {
+                  await query(
+                    `INSERT INTO trapper.person_aliases
+                     (person_id, name_raw, name_key, source_system, source_table)
+                     VALUES ($1, $2, $3, 'atlas_ui', 'name_change')`,
+                    [id, current.display_name, nameKey.key]
+                  );
+                }
+              }
+            }
+          } catch (aliasErr) {
+            console.error("Failed to create name alias:", aliasErr);
+            // Don't block the name update if alias creation fails
+          }
+        }
+
         auditChanges.push({
           field: "display_name",
           oldValue: current.display_name,
