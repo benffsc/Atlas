@@ -545,7 +545,7 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 2. **Processing pipeline bugs RESOLVED (MIG_795)**: Four blocking bugs fixed. Pipeline operational. **Backfill needed:** Staff must re-upload owner_info for Jan 19-30 gap via `/admin/ingest`.
 3. **Unprocessed ShelterLuv RESOLVED (MIG_786)**: All 5,058 records triaged. 909 chipless animals marked, 4 people processed.
 4. **People without identifiers PARTIALLY RESOLVED (MIG_773)**: 13 recovered, 973 remaining (no recoverable identifiers).
-5. **Cats without microchips**: 1,608 cats with no dedup key. Same cat can appear as multiple records.
+5. **Cats without microchips RESOLVED (MIG_891)**: Cats euthanized before microchipping (e.g., cancer cases) were silently dropped by ClinicHQ ingest. New `process_clinichq_unchipped_cats()` creates cats using `clinichq_animal_id` via `enrich_cat()`. Marked with `needs_microchip = TRUE`. Visible in Clinic Day Cat Gallery at `/admin/clinic-days`. Re-ingestion safe via cat_identifiers UNIQUE constraint.
 6. **Backup table bloat RESOLVED (MIG_774)**: 10 tables dropped, 149 MB reclaimed.
 7. **Places without geometry**: 93 places invisible to Beacon maps. Geocode cron runs every 30 min.
 8. **INV-10 centralized functions IMPLEMENTED (MIG_797)**: `link_cat_to_place()` and `link_person_to_cat()` created. Remaining callers should be migrated as encountered.

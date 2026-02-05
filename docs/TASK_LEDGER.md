@@ -3830,3 +3830,123 @@ Three interrelated data quality issues:
 3. No map pollution: top places match MIG_868 baseline
 4. MIG_871 pending: 95 foster parents' 116 places to be tagged
 5. MIG_873 pending: validate_microchip() + concatenated chip fix
+
+---
+
+## DQ_005: Unchipped Cat Tracking (MIG_891)
+
+**Date:** 2026-02-05
+**Triggered by:** Cancer cat from 02/02/2026 euthanized without microchip — no Atlas record despite having photos, waiver with clinic day number, and ClinicHQ data. Relates to F5 from TASK_001.
+
+### Problem
+
+When a cat is euthanized at clinic without being microchipped (e.g., cancer cat), the ClinicHQ ingest pipeline silently drops it:
+- `process_clinichq_cat_info()` filters `WHERE microchip IS NOT NULL AND LENGTH >= 9`
+- `find_or_create_cat_by_microchip()` returns NULL for invalid/missing microchips
+- No cat record, no appointment link, no photos — the cat vanishes
+
+**Example:** Kirsten Silverek brought a cancer cat on 02/02/2026, euthanized without microchipping. This cat had no Atlas record despite having photos, a waiver with clinic day number, and ClinicHQ data.
+
+### Root Cause
+
+| Issue | Root Cause | Solution |
+|-------|-----------|----------|
+| Unchipped cats dropped | `process_clinichq_cat_info()` filters for valid microchips only | New function for unchipped cats |
+| No identifier for dedup | Microchip is only identifier checked | Use `clinichq_animal_id` from source_row_id |
+| No visibility | No UI to see unchipped cats by clinic day | Clinic Day Cat Gallery |
+
+### What Changed
+
+1. **MIG_891:** `process_clinichq_unchipped_cats()` function
+   - Processes staged cat_info records WHERE microchip IS NULL OR empty OR < 9 chars
+   - Uses existing `enrich_cat()` with `clinichq_animal_id` as identifier
+   - Sets `needs_microchip = TRUE` on created cats
+   - Links cats to appointments via `appointment_number`
+   - Safe for re-ingestion via `cat_identifiers` UNIQUE constraint
+
+2. **Entity-Linking Cron:** Added third catch-up call
+   - `process_clinichq_unchipped_cats(500)` runs every 15 minutes
+   - Processes any unchipped cats missed by job queue
+
+3. **Cat Gallery API:** `GET /api/admin/clinic-days/[date]/cats`
+   - Returns all cats seen on a clinic day with photos, microchip status
+   - Counts: total_cats, chipped_count, unchipped_count, unlinked_count
+
+4. **Cat Gallery UI:** Added to `/admin/clinic-days` page
+   - Visual roster of all cats for a clinic day with photos
+   - Visual distinction: orange border for unchipped, dashed gray for unlinked
+   - Badges for Chipped/No Chip/Unlinked, Spay/Neuter status
+
+5. **Cat Detail Page:** Shows unchipped status
+   - "NO MICROCHIP" badge in header
+   - Alert banner explaining identification via ClinicHQ Animal ID
+
+### Touched Surfaces
+
+| Object | Operation | ACTIVE? |
+|--------|-----------|---------|
+| `trapper.process_clinichq_unchipped_cats()` | CREATE | No — new function |
+| `trapper.sot_cats` | INSERT (via enrich_cat) | No — adds new cats |
+| `trapper.cat_identifiers` | INSERT | No — adds clinichq_animal_id |
+| `trapper.sot_appointments` | UPDATE (cat_id link) | No — links to existing appointments |
+| `/api/cron/entity-linking` | MODIFY (add catch-up call) | Yes — cron |
+| `/admin/clinic-days` page | MODIFY (add gallery) | Yes — staff UI |
+| `/cats/[id]` page | MODIFY (unchipped banner) | Yes — staff UI |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Unchipped cats now preserved via `clinichq_animal_id`. Zero data loss.
+- **INV-4 (Provenance):** Uses existing `enrich_cat()` which tracks `source_system='clinichq'`.
+- **INV-6 (Active Flows Sacred):** Zero changes to existing `process_clinichq_cat_info()` — purely additive.
+- **INV-8 (Merge-Aware):** `enrich_cat()` handles merged entities correctly.
+- **INV-10 (Centralized Functions):** Uses `enrich_cat()`, not direct INSERTs.
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_891__process_unchipped_cats.sql` | New | Processing function |
+| `apps/web/src/app/api/cron/entity-linking/route.ts` | Modify | Add catch-up call |
+| `apps/web/src/app/api/admin/clinic-days/[date]/cats/route.ts` | New | Cat gallery API |
+| `apps/web/src/app/admin/clinic-days/page.tsx` | Modify | Cat gallery UI |
+| `apps/web/src/app/api/cats/[id]/route.ts` | Modify | Add needs_microchip |
+| `apps/web/src/app/cats/[id]/page.tsx` | Modify | Unchipped banner |
+
+### Validation
+
+1. **Pre-backfill:** Count unchipped staged records
+   ```sql
+   SELECT COUNT(*) FROM trapper.staged_records
+   WHERE source_system = 'clinichq' AND source_table = 'cat_info'
+     AND processed_at IS NULL
+     AND (payload->>'Microchip Number' IS NULL
+          OR TRIM(payload->>'Microchip Number') = ''
+          OR LENGTH(TRIM(payload->>'Microchip Number')) < 9);
+   ```
+
+2. **Run backfill:**
+   ```sql
+   SELECT * FROM trapper.process_clinichq_unchipped_cats(5000);
+   ```
+
+3. **Verify cats created:**
+   ```sql
+   SELECT COUNT(*) FROM trapper.sot_cats WHERE needs_microchip = TRUE;
+   ```
+
+4. **Idempotency test:** Run again, should return `cats_created: 0`
+
+5. **Test UI:** Visit `/admin/clinic-days`, select 02/02/2026, verify cancer cat appears with "Needs Microchip" badge
+
+### Rollback
+
+```sql
+-- Delete cats created by this feature (if needed)
+DELETE FROM trapper.sot_cats WHERE needs_microchip = TRUE;
+-- Function can be dropped safely
+DROP FUNCTION IF EXISTS trapper.process_clinichq_unchipped_cats(INT);
+```
+
+### Stop Point
+
+Unchipped cats now tracked via `clinichq_animal_id`. Clinic Day Cat Gallery shows all cats with microchip status. F5 from TASK_001 resolved.

@@ -13,6 +13,7 @@ interface CatDetailRow {
   secondary_color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
+  needs_microchip: boolean; // TRUE if cat was created without microchip (MIG_891)
   data_source: string | null; // clinichq, petlink, or legacy_import
   ownership_type: string | null; // Community Cat (Feral), Community Cat (Friendly), Owned, Foster
   quality_tier: string | null;
@@ -163,6 +164,7 @@ export async function GET(
         c.secondary_color,
         v.coat_pattern,
         v.microchip,
+        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
         v.data_source,
         v.ownership_type,
         v.quality_tier,
@@ -198,6 +200,7 @@ export async function GET(
         NULL::TEXT AS coat_pattern,
         (SELECT ci.id_value FROM trapper.cat_identifiers ci
          WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1) AS microchip,
+        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
         c.data_source,
         c.ownership_type,
         NULL::TEXT AS quality_tier,

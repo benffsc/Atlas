@@ -53,6 +53,28 @@ interface Place {
   formatted_address: string;
 }
 
+interface ClinicDayCat {
+  appointment_id: string;
+  cat_id: string | null;
+  clinic_day_number: number | null;
+  appointment_number: string | null;
+  cat_name: string | null;
+  cat_sex: string | null;
+  cat_breed: string | null;
+  cat_color: string | null;
+  cat_secondary_color: string | null;
+  microchip: string | null;
+  needs_microchip: boolean;
+  clinichq_animal_id: string | null;
+  photo_url: string | null;
+  service_type: string | null;
+  is_spay: boolean;
+  is_neuter: boolean;
+  owner_name: string | null;
+  trapper_name: string | null;
+  place_address: string | null;
+}
+
 // Clinic type config
 const CLINIC_TYPES = {
   regular: { label: "Regular", color: "var(--primary)", bg: "var(--primary-bg)" },
@@ -61,6 +83,238 @@ const CLINIC_TYPES = {
   emergency: { label: "Emergency", color: "var(--danger-text)", bg: "var(--danger-bg)" },
   mobile: { label: "Mobile", color: "var(--info-text)", bg: "var(--info-bg)" },
 };
+
+// Cat Card Component
+function CatCard({ cat }: { cat: ClinicDayCat }) {
+  const isUnchipped = cat.cat_id && !cat.microchip && cat.needs_microchip;
+  const isUnlinked = !cat.cat_id;
+
+  const getColorGradient = (color: string | null) => {
+    if (!color) return "#9ca3af 0%, #d1d5db 100%";
+    const c = color.toLowerCase();
+    if (c.includes("black")) return "#1f2937 0%, #374151 100%";
+    if (c.includes("orange") || c.includes("ginger")) return "#f59e0b 0%, #d97706 100%";
+    if (c.includes("gray") || c.includes("grey")) return "#6b7280 0%, #9ca3af 100%";
+    if (c.includes("white")) return "#e5e7eb 0%, #f9fafb 100%";
+    if (c.includes("calico") || c.includes("tortie")) return "#92400e 0%, #f59e0b 50%, #374151 100%";
+    if (c.includes("tabby")) return "#78716c 0%, #a8a29e 100%";
+    if (c.includes("cream") || c.includes("buff")) return "#fde68a 0%, #fef3c7 100%";
+    if (c.includes("brown")) return "#78350f 0%, #92400e 100%";
+    if (c.includes("blue")) return "#64748b 0%, #94a3b8 100%";
+    return "#9ca3af 0%, #d1d5db 100%";
+  };
+
+  return (
+    <div
+      onClick={() => cat.cat_id && window.open(`/cats/${cat.cat_id}`, "_blank")}
+      style={{
+        position: "relative",
+        padding: "12px",
+        background: isUnchipped
+          ? "linear-gradient(135deg, var(--warning-bg) 0%, var(--card-bg) 100%)"
+          : isUnlinked
+          ? "var(--section-bg)"
+          : "var(--card-bg)",
+        border: isUnchipped
+          ? "2px solid var(--warning-text)"
+          : isUnlinked
+          ? "2px dashed var(--card-border)"
+          : "1px solid var(--card-border)",
+        borderRadius: "12px",
+        cursor: cat.cat_id ? "pointer" : "default",
+        transition: "all 0.15s ease",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+      }}
+      onMouseEnter={(e) => {
+        if (cat.cat_id) {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 25px rgba(0,0,0,0.15)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "none";
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
+      }}
+    >
+      {/* Clinic Day Number Badge */}
+      {cat.clinic_day_number && (
+        <div
+          style={{
+            position: "absolute",
+            top: "8px",
+            left: "8px",
+            background: "var(--primary)",
+            color: "var(--primary-foreground)",
+            padding: "4px 10px",
+            borderRadius: "6px",
+            fontSize: "0.8rem",
+            fontWeight: 700,
+            zIndex: 1,
+            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+          }}
+        >
+          #{cat.clinic_day_number}
+        </div>
+      )}
+
+      {/* Photo or Placeholder */}
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "4/3",
+          background: cat.photo_url
+            ? `url(${cat.photo_url}) center/cover`
+            : `linear-gradient(145deg, ${getColorGradient(cat.cat_color)})`,
+          borderRadius: "8px",
+          marginBottom: "12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {!cat.photo_url && (
+          <span style={{ fontSize: "3rem", opacity: 0.4 }}>
+            {isUnlinked ? "?" : "🐱"}
+          </span>
+        )}
+        {/* Service Type Badge */}
+        {(cat.is_spay || cat.is_neuter) && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              right: "8px",
+              padding: "4px 10px",
+              background: cat.is_spay ? "var(--danger-text)" : "var(--info-text)",
+              color: "#fff",
+              borderRadius: "4px",
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            {cat.is_spay ? "Spay" : "Neuter"}
+          </div>
+        )}
+      </div>
+
+      {/* Cat Name */}
+      <div style={{
+        fontSize: "1rem",
+        fontWeight: 700,
+        marginBottom: "6px",
+        color: "var(--foreground)",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>
+        {cat.cat_name || (isUnlinked ? "Unlinked Appointment" : "Unknown")}
+      </div>
+
+      {/* Sex and Color */}
+      <div style={{
+        fontSize: "0.85rem",
+        color: "var(--muted)",
+        marginBottom: "8px",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+      }}>
+        {cat.cat_sex && (
+          <span style={{
+            color: cat.cat_sex.toLowerCase() === "female" ? "var(--danger-text)" : "var(--info-text)",
+            fontWeight: 500,
+          }}>
+            {cat.cat_sex}
+          </span>
+        )}
+        {cat.cat_sex && cat.cat_color && <span style={{ color: "var(--card-border)" }}>•</span>}
+        {cat.cat_color && <span>{cat.cat_color}</span>}
+      </div>
+
+      {/* Status Badges */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+        {cat.microchip && (
+          <span
+            style={{
+              padding: "3px 8px",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              background: "var(--success-bg)",
+              color: "var(--success-text)",
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            <span style={{ fontSize: "0.65rem" }}>✓</span> Chipped
+          </span>
+        )}
+        {isUnchipped && (
+          <span
+            style={{
+              padding: "3px 8px",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              background: "var(--warning-bg)",
+              color: "var(--warning-text)",
+              borderRadius: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            <span style={{ fontSize: "0.8rem" }}>!</span> No Chip
+          </span>
+        )}
+        {isUnlinked && (
+          <span
+            style={{
+              padding: "3px 8px",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              background: "var(--section-bg)",
+              color: "var(--muted)",
+              borderRadius: "4px",
+            }}
+          >
+            Unlinked
+          </span>
+        )}
+      </div>
+
+      {/* Address (truncated) */}
+      {cat.place_address && (
+        <div style={{
+          fontSize: "0.75rem",
+          color: "var(--muted)",
+          marginTop: "4px",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}>
+          📍 {cat.place_address}
+        </div>
+      )}
+
+      {/* ClinicHQ ID for unchipped */}
+      {isUnchipped && cat.clinichq_animal_id && (
+        <div style={{
+          fontSize: "0.7rem",
+          color: "var(--warning-text)",
+          marginTop: "6px",
+          fontFamily: "monospace",
+        }}>
+          CHQ: {cat.clinichq_animal_id}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ClinicDaysPage() {
   const [clinicDays, setClinicDays] = useState<ClinicDay[]>([]);
@@ -140,6 +394,21 @@ export default function ClinicDaysPage() {
     notes: "",
   });
 
+  // Cat gallery state
+  const [clinicCats, setClinicCats] = useState<ClinicDayCat[]>([]);
+  const [catGalleryStats, setCatGalleryStats] = useState<{
+    total_cats: number;
+    chipped_count: number;
+    unchipped_count: number;
+    unlinked_count: number;
+  } | null>(null);
+  const [loadingCats, setLoadingCats] = useState(false);
+
+  // Tabbed view state
+  const [activeTab, setActiveTab] = useState<"overview" | "gallery">("overview");
+  const [catFilter, setCatFilter] = useState<"all" | "chipped" | "unchipped" | "unlinked">("all");
+  const [groupByTrapper, setGroupByTrapper] = useState(false);
+
   // Load clinic days list
   useEffect(() => {
     fetch("/api/admin/clinic-days?include_comparison=true&limit=90")
@@ -185,6 +454,25 @@ export default function ClinicDaysPage() {
           setSelectedDay(data.clinic_day);
           setEntries(data.entries || []);
         });
+
+      // Load cat gallery data
+      setLoadingCats(true);
+      fetch(`/api/admin/clinic-days/${selectedDate}/cats`)
+        .then((res) => {
+          if (res.ok) return res.json();
+          return { cats: [], total_cats: 0, chipped_count: 0, unchipped_count: 0, unlinked_count: 0 };
+        })
+        .then((data) => {
+          setClinicCats(data.cats || []);
+          setCatGalleryStats({
+            total_cats: data.total_cats || 0,
+            chipped_count: data.chipped_count || 0,
+            unchipped_count: data.unchipped_count || 0,
+            unlinked_count: data.unlinked_count || 0,
+          });
+          setLoadingCats(false);
+        })
+        .catch(() => setLoadingCats(false));
     }
   }, [selectedDate]);
 
@@ -799,213 +1087,468 @@ export default function ClinicDaysPage() {
             </div>
           )}
 
-          {/* Entries table */}
-          <div className="card">
-            <h3>Entries</h3>
-            <table className="table" style={{ width: "100%", marginBottom: "16px" }}>
-              <thead>
-                <tr>
-                  <th>Source / Trapper</th>
-                  <th style={{ textAlign: "center" }}>Cats</th>
-                  <th style={{ textAlign: "center" }}>F/M</th>
-                  <th>Status</th>
-                  <th>Notes</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.entry_id}>
-                    <td>
-                      {entry.trapper_name && <strong>{entry.trapper_name}</strong>}
-                      {entry.source_description && (
-                        <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{entry.source_description}</div>
-                      )}
-                      {entry.place_address && (
-                        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{entry.place_address}</div>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "center", fontWeight: 600 }}>{entry.cat_count}</td>
-                    <td style={{ textAlign: "center" }}>
-                      <span style={{ color: "var(--danger-text)" }}>{entry.female_count}</span>
-                      {" / "}
-                      <span style={{ color: "var(--info-text)" }}>{entry.male_count}</span>
-                    </td>
-                    <td>
-                      <span
-                        className={`badge badge-${
-                          entry.status === "completed" ? "success" :
-                          entry.status === "no_show" ? "warning" :
-                          entry.status === "cancelled" ? "danger" : "default"
-                        }`}
-                      >
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{entry.notes}</td>
-                    <td>
-                      <button
-                        onClick={() => handleDeleteEntry(entry.entry_id)}
-                        style={{ background: "none", border: "none", color: "var(--danger-text)", cursor: "pointer" }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {entries.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>
-                      No entries yet. Add one below.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          {/* Tab Navigation */}
+          <div style={{
+            display: "flex",
+            gap: "0",
+            marginBottom: "16px",
+            borderBottom: "2px solid var(--card-border)",
+          }}>
+            <button
+              onClick={() => setActiveTab("overview")}
+              style={{
+                padding: "12px 24px",
+                background: "none",
+                border: "none",
+                borderBottom: activeTab === "overview" ? "2px solid var(--primary)" : "2px solid transparent",
+                marginBottom: "-2px",
+                color: activeTab === "overview" ? "var(--primary)" : "var(--muted)",
+                fontWeight: activeTab === "overview" ? 600 : 400,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+              }}
+            >
+              Overview & Entries
+            </button>
+            <button
+              onClick={() => setActiveTab("gallery")}
+              style={{
+                padding: "12px 24px",
+                background: "none",
+                border: "none",
+                borderBottom: activeTab === "gallery" ? "2px solid var(--primary)" : "2px solid transparent",
+                marginBottom: "-2px",
+                color: activeTab === "gallery" ? "var(--primary)" : "var(--muted)",
+                fontWeight: activeTab === "gallery" ? 600 : 400,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              Cat Gallery
+              {catGalleryStats && catGalleryStats.total_cats > 0 && (
+                <span style={{
+                  padding: "2px 8px",
+                  background: activeTab === "gallery" ? "var(--primary)" : "var(--section-bg)",
+                  color: activeTab === "gallery" ? "var(--primary-foreground)" : "var(--muted)",
+                  borderRadius: "12px",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                }}>
+                  {catGalleryStats.total_cats}
+                </span>
+              )}
+            </button>
+          </div>
 
-            {/* Add entry form */}
-            <div style={{ borderTop: "1px solid var(--card-border)", paddingTop: "16px" }}>
-              <h4 style={{ marginBottom: "12px" }}>Quick Add Entry</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px 80px 100px auto", gap: "8px", alignItems: "end" }}>
-                <div>
-                  <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Source Description</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Jean Worthey - Trp Crystal"
-                    value={newEntry.source_description}
-                    onChange={(e) => setNewEntry({ ...newEntry, source_description: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid var(--card-border)",
-                      borderRadius: "4px",
-                      background: "var(--section-bg)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Trapper</label>
-                  <select
-                    value={newEntry.trapper_person_id}
-                    onChange={(e) => setNewEntry({ ...newEntry, trapper_person_id: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid var(--card-border)",
-                      borderRadius: "4px",
-                      background: "var(--section-bg)",
-                      color: "var(--foreground)",
-                    }}
-                  >
-                    <option value="">(optional)</option>
-                    {trappers.map((t) => (
-                      <option key={t.person_id} value={t.person_id}>{t.display_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Status</label>
-                  <select
-                    value={newEntry.status}
-                    onChange={(e) => setNewEntry({ ...newEntry, status: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid var(--card-border)",
-                      borderRadius: "4px",
-                      background: "var(--section-bg)",
-                      color: "var(--foreground)",
-                    }}
-                  >
-                    <option value="completed">Completed</option>
-                    <option value="no_show">No Show</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="partial">Partial</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}># Cats</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={newEntry.cat_count}
-                    onChange={(e) => setNewEntry({ ...newEntry, cat_count: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid var(--card-border)",
-                      borderRadius: "4px",
-                      background: "var(--section-bg)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>F / M</label>
-                  <div style={{ display: "flex", gap: "4px" }}>
+          {/* Overview Tab */}
+          {activeTab === "overview" && (
+            <div className="card">
+              <h3>Entries</h3>
+              <table className="table" style={{ width: "100%", marginBottom: "16px" }}>
+                <thead>
+                  <tr>
+                    <th>Source / Trapper</th>
+                    <th style={{ textAlign: "center" }}>Cats</th>
+                    <th style={{ textAlign: "center" }}>F/M</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => (
+                    <tr key={entry.entry_id}>
+                      <td>
+                        {entry.trapper_name && <strong>{entry.trapper_name}</strong>}
+                        {entry.source_description && (
+                          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{entry.source_description}</div>
+                        )}
+                        {entry.place_address && (
+                          <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{entry.place_address}</div>
+                        )}
+                      </td>
+                      <td style={{ textAlign: "center", fontWeight: 600 }}>{entry.cat_count}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <span style={{ color: "var(--danger-text)" }}>{entry.female_count}</span>
+                        {" / "}
+                        <span style={{ color: "var(--info-text)" }}>{entry.male_count}</span>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge badge-${
+                            entry.status === "completed" ? "success" :
+                            entry.status === "no_show" ? "warning" :
+                            entry.status === "cancelled" ? "danger" : "default"
+                          }`}
+                        >
+                          {entry.status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{entry.notes}</td>
+                      <td>
+                        <button
+                          onClick={() => handleDeleteEntry(entry.entry_id)}
+                          style={{ background: "none", border: "none", color: "var(--danger-text)", cursor: "pointer" }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {entries.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>
+                        No entries yet. Add one below.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Add entry form */}
+              <div style={{ borderTop: "1px solid var(--card-border)", paddingTop: "16px" }}>
+                <h4 style={{ marginBottom: "12px" }}>Quick Add Entry</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 80px 80px 100px auto", gap: "8px", alignItems: "end" }}>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Source Description</label>
                     <input
-                      type="number"
-                      min="0"
-                      placeholder="F"
-                      value={newEntry.female_count}
-                      onChange={(e) => setNewEntry({ ...newEntry, female_count: e.target.value })}
+                      type="text"
+                      placeholder="e.g. Jean Worthey - Trp Crystal"
+                      value={newEntry.source_description}
+                      onChange={(e) => setNewEntry({ ...newEntry, source_description: e.target.value })}
                       style={{
-                        width: "40px",
-                        padding: "8px 4px",
-                        textAlign: "center",
+                        width: "100%",
+                        padding: "8px",
                         border: "1px solid var(--card-border)",
                         borderRadius: "4px",
                         background: "var(--section-bg)",
-                        color: "var(--danger-text)",
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="M"
-                      value={newEntry.male_count}
-                      onChange={(e) => setNewEntry({ ...newEntry, male_count: e.target.value })}
-                      style={{
-                        width: "40px",
-                        padding: "8px 4px",
-                        textAlign: "center",
-                        border: "1px solid var(--card-border)",
-                        borderRadius: "4px",
-                        background: "var(--section-bg)",
-                        color: "var(--info-text)",
+                        color: "var(--foreground)",
                       }}
                     />
                   </div>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Trapper</label>
+                    <select
+                      value={newEntry.trapper_person_id}
+                      onChange={(e) => setNewEntry({ ...newEntry, trapper_person_id: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: "4px",
+                        background: "var(--section-bg)",
+                        color: "var(--foreground)",
+                      }}
+                    >
+                      <option value="">(optional)</option>
+                      {trappers.map((t) => (
+                        <option key={t.person_id} value={t.person_id}>{t.display_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Status</label>
+                    <select
+                      value={newEntry.status}
+                      onChange={(e) => setNewEntry({ ...newEntry, status: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: "4px",
+                        background: "var(--section-bg)",
+                        color: "var(--foreground)",
+                      }}
+                    >
+                      <option value="completed">Completed</option>
+                      <option value="no_show">No Show</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="partial">Partial</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}># Cats</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={newEntry.cat_count}
+                      onChange={(e) => setNewEntry({ ...newEntry, cat_count: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: "4px",
+                        background: "var(--section-bg)",
+                        color: "var(--foreground)",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>F / M</label>
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="F"
+                        value={newEntry.female_count}
+                        onChange={(e) => setNewEntry({ ...newEntry, female_count: e.target.value })}
+                        style={{
+                          width: "40px",
+                          padding: "8px 4px",
+                          textAlign: "center",
+                          border: "1px solid var(--card-border)",
+                          borderRadius: "4px",
+                          background: "var(--section-bg)",
+                          color: "var(--danger-text)",
+                        }}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="M"
+                        value={newEntry.male_count}
+                        onChange={(e) => setNewEntry({ ...newEntry, male_count: e.target.value })}
+                        style={{
+                          width: "40px",
+                          padding: "8px 4px",
+                          textAlign: "center",
+                          border: "1px solid var(--card-border)",
+                          borderRadius: "4px",
+                          background: "var(--section-bg)",
+                          color: "var(--info-text)",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Notes..."
+                      value={newEntry.notes}
+                      onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: "4px",
+                        background: "var(--section-bg)",
+                        color: "var(--foreground)",
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddEntry}
+                    className="btn btn-primary"
+                    style={{ alignSelf: "end" }}
+                  >
+                    + Add
+                  </button>
                 </div>
-                <div>
-                  <label style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Notes</label>
-                  <input
-                    type="text"
-                    placeholder="Notes..."
-                    value={newEntry.notes}
-                    onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      border: "1px solid var(--card-border)",
-                      borderRadius: "4px",
-                      background: "var(--section-bg)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleAddEntry}
-                  className="btn btn-primary"
-                  style={{ alignSelf: "end" }}
-                >
-                  + Add
-                </button>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Cat Gallery Tab */}
+          {activeTab === "gallery" && (
+            <div className="card">
+              {/* Stats Bar */}
+              {catGalleryStats && (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: "12px",
+                  marginBottom: "20px",
+                  padding: "16px",
+                  background: "var(--section-bg)",
+                  borderRadius: "8px",
+                }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--foreground)" }}>
+                      {catGalleryStats.total_cats}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 500 }}>Total Cats</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--success-text)" }}>
+                      {catGalleryStats.chipped_count}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 500 }}>Microchipped</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--warning-text)" }}>
+                      {catGalleryStats.unchipped_count}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 500 }}>No Microchip</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--muted)" }}>
+                      {catGalleryStats.unlinked_count}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 500 }}>Unlinked</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Filter Bar */}
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+                flexWrap: "wrap",
+                gap: "12px",
+              }}>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {(["all", "chipped", "unchipped", "unlinked"] as const).map((filter) => {
+                    const count = filter === "all"
+                      ? catGalleryStats?.total_cats || 0
+                      : filter === "chipped"
+                      ? catGalleryStats?.chipped_count || 0
+                      : filter === "unchipped"
+                      ? catGalleryStats?.unchipped_count || 0
+                      : catGalleryStats?.unlinked_count || 0;
+
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setCatFilter(filter)}
+                        style={{
+                          padding: "8px 16px",
+                          background: catFilter === filter ? "var(--primary)" : "var(--section-bg)",
+                          color: catFilter === filter ? "var(--primary-foreground)" : "var(--foreground)",
+                          border: catFilter === filter ? "none" : "1px solid var(--card-border)",
+                          borderRadius: "20px",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                          fontWeight: catFilter === filter ? 600 : 400,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        {filter === "all" ? "All" :
+                         filter === "chipped" ? "Chipped" :
+                         filter === "unchipped" ? "No Chip" : "Unlinked"}
+                        <span style={{
+                          padding: "2px 6px",
+                          background: catFilter === filter ? "rgba(255,255,255,0.2)" : "var(--card-bg)",
+                          borderRadius: "10px",
+                          fontSize: "0.75rem",
+                        }}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={groupByTrapper}
+                    onChange={(e) => setGroupByTrapper(e.target.checked)}
+                    style={{ width: "16px", height: "16px" }}
+                  />
+                  <span style={{ fontSize: "0.85rem", color: "var(--foreground)" }}>Group by Trapper</span>
+                </label>
+              </div>
+
+              {loadingCats ? (
+                <div style={{ textAlign: "center", padding: "48px", color: "var(--muted)" }}>
+                  <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>Loading cats...</div>
+                </div>
+              ) : (
+                <>
+                  {(() => {
+                    // Filter cats
+                    const filteredCats = clinicCats.filter((cat) => {
+                      if (catFilter === "all") return true;
+                      if (catFilter === "chipped") return cat.microchip !== null;
+                      if (catFilter === "unchipped") return cat.cat_id && !cat.microchip && cat.needs_microchip;
+                      if (catFilter === "unlinked") return !cat.cat_id;
+                      return true;
+                    });
+
+                    // Group by trapper if enabled
+                    if (groupByTrapper) {
+                      const grouped = filteredCats.reduce((acc, cat) => {
+                        const key = cat.trapper_name || "Unknown Trapper";
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(cat);
+                        return acc;
+                      }, {} as Record<string, ClinicDayCat[]>);
+
+                      const sortedGroups = Object.entries(grouped).sort(([a], [b]) => {
+                        if (a === "Unknown Trapper") return 1;
+                        if (b === "Unknown Trapper") return -1;
+                        return a.localeCompare(b);
+                      });
+
+                      return (
+                        <div>
+                          {sortedGroups.map(([trapperName, cats]) => (
+                            <div key={trapperName} style={{ marginBottom: "24px" }}>
+                              <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "12px",
+                                marginBottom: "12px",
+                                paddingBottom: "8px",
+                                borderBottom: "1px solid var(--card-border)",
+                              }}>
+                                <h4 style={{ margin: 0, fontWeight: 600 }}>{trapperName}</h4>
+                                <span style={{
+                                  padding: "2px 10px",
+                                  background: "var(--section-bg)",
+                                  borderRadius: "12px",
+                                  fontSize: "0.8rem",
+                                  color: "var(--muted)",
+                                }}>
+                                  {cats.length} cat{cats.length !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+                              <div style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                                gap: "16px",
+                              }}>
+                                {cats.map((cat) => (
+                                  <CatCard key={cat.appointment_id} cat={cat} />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                        gap: "16px",
+                      }}>
+                        {filteredCats.map((cat) => (
+                          <CatCard key={cat.appointment_id} cat={cat} />
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {clinicCats.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "48px", color: "var(--muted)" }}>
+                      <div style={{ fontSize: "3rem", marginBottom: "12px", opacity: 0.5 }}>🐱</div>
+                      <div>No appointments found for this date in ClinicHQ data.</div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

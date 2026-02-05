@@ -58,6 +58,17 @@ export async function GET(request: NextRequest) {
       catchup.owner_info_error = e instanceof Error ? e.message : "Unknown";
     }
 
+    // Step 1c: Process unchipped cats (MIG_891)
+    // Creates cat records for cats without microchips using clinichq_animal_id
+    try {
+      const unchippedCats = await queryOne(
+        "SELECT * FROM trapper.process_clinichq_unchipped_cats(500)"
+      );
+      catchup.unchipped_cats = unchippedCats;
+    } catch (e) {
+      catchup.unchipped_cats_error = e instanceof Error ? e.message : "Unknown";
+    }
+
     // Step 2: Run all entity linking operations
     const results = await queryRows<LinkingResult>(
       "SELECT * FROM trapper.run_all_entity_linking()"
