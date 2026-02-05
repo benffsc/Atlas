@@ -223,6 +223,7 @@ export default function DataQualityPage() {
           target="0"
           status={summary.invalid_people === 0 ? "good" : summary.invalid_people < 100 ? "warning" : "critical"}
           detail="Garbage names in database"
+          href="/admin/data-quality/review?quality=garbage"
         />
         <MetricCard
           title="Orgs as People"

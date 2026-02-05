@@ -389,6 +389,37 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-05: DQ_006 — Data Quality Filtering for Map, Search & Shared Phone Monitoring (MIG_882, MIG_883)
+
+**Problem:** People with `data_quality='garbage'` or `'needs_review'` appeared in map pin popups, search results, and the volunteers layer. 717 bad-quality records (133 garbage + 584 needs_review) were polluting user-facing surfaces.
+
+**Solution:**
+- **MIG_882:** Added `data_quality NOT IN ('garbage', 'needs_review')` filter to:
+  - `v_map_atlas_pins` people CTE (map pin popups)
+  - `search_unified()` PEOPLE section (global search)
+  - Volunteers layer query in `/api/beacon/map-data` route
+- **MIG_883:** Created `v_shared_phone_candidates` monitoring view that detects phone numbers shared between active trappers and non-trapper people. Seeds `data_engine_soft_blacklist` with any unprotected shared phones (reason: `trapper_colony_phone_sharing`).
+
+**Result:** Search for "Gordon" now returns only canonical Gordon Maxwell (26 cats) — no phantom first-name-only records. Map pins no longer show garbage/needs_review people in popups.
+
+**Ingest pipeline verified safe:** `search_unified()` and `v_map_atlas_pins` are read-only display surfaces. Zero ingest or entity-linking functions depend on them. ClinicHQ upload → staging → processing → entity linking pipeline is completely independent.
+
+**Known Data Pattern: Trapper-Colony Phone Sharing**
+
+> Legacy FFSC trappers often gave their cell phone as the contact number for elderly or less capable colony owners they managed. This is a common operational pattern, especially from the early days of FFSC operations. When both a trapper and a colony owner share a phone number, identity matching can incorrectly link the colony owner's appointments to the trapper (or vice versa).
+>
+> **How Atlas handles this:**
+> 1. `process_clinichq_owner_info()` now prefers Owner Phone over Owner Cell Phone (MIG_881)
+> 2. Shared trapper phones are added to `data_engine_soft_blacklist` (MIG_883)
+> 3. `v_shared_phone_candidates` monitors for new cases (query via Tippy)
+>
+> **If staff see a trapper with unexpectedly many cats**, check if they share a phone with a colony owner. The soft blacklist requires name similarity (0.6+) for phone matches, preventing automatic cross-linking.
+
+**What Tippy should know:**
+> "If asked about shared phones between trappers and colony owners, query `v_shared_phone_candidates`. This is a known legacy pattern — trappers gave their cell phone as contact for elderly colony owners. The system now monitors for this and adds shared phones to the soft blacklist."
+
+---
+
 ### 2026-02-04: DQ_005 — Phone COALESCE Cross-Linking Fix (MIG_881)
 
 **Problem:** `process_clinichq_owner_info(integer)` (MIG_573) used `COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')` — preferring cell phone over landline for identity matching. When two phones resolve to different people (household phone sharing), appointments got linked to the wrong person.
@@ -803,6 +834,51 @@ Shows which data needs refreshing:
 ## Development Session Log
 
 Brief summaries of development sessions for context on system evolution.
+
+### Session: 2026-02-05 - Data Quality Filtering + Beacon Readiness Audit
+
+**Context:** After MIG_881 phone COALESCE fix, staff wanted map, search, and data cleaned for Beacon. User confirmed trapper-phone-sharing is a known legacy pattern (trappers gave cell phones for elderly colony owners).
+
+**Key Discoveries:**
+1. `v_map_atlas_pins`, `search_unified()`, and volunteers layer had NO data_quality filter — 717 garbage/needs_review people appeared on map and in search
+2. Ingest pipeline is completely independent of display surfaces (confirmed safe)
+3. Beacon readiness audit showed solid foundation: 91.7% cat-place coverage, 97.9% appointment-person linking, 91.3% geocoding, 98 euthanasia events tracked, 2,178 test results, 93 places with disease flags
+
+**Beacon Readiness Snapshot (2026-02-05):**
+| Metric | Value | Target | Status |
+|--------|-------|--------|--------|
+| Cat-place coverage | 91.7% | 95%+ | Warning |
+| Appointment-person linking | 97.9% | 95%+ | Good |
+| Geocoding coverage | 91.3% | 95%+ | Warning |
+| Disease-flagged places | 93 | N/A | Baseline |
+| Mortality events | 138 (98 euthanasia) | N/A | Baseline |
+| Test results | 2,178 | N/A | Baseline |
+| Colony sites | 1,676 | N/A | Baseline |
+| Colony estimates | 2,995 places | N/A | Baseline |
+| Intake events | 3,707 | N/A | Baseline |
+| Map pin distribution | 8,380 active, 2,218 minimal, 1,877 historical | N/A | Healthy |
+
+**Changes Made:**
+- MIG_882: Added data_quality filter to `v_map_atlas_pins`, `search_unified()`, volunteers layer
+- MIG_883: Created `v_shared_phone_candidates` monitoring view, seeded soft blacklist
+- Created `/admin/data-quality/review` page for staff to resolve flagged records
+- Documented trapper-phone-sharing as known data pattern
+
+**Critical Gaps Identified for Beacon:**
+- **Cat-place coverage at 91.7%** (target 95%+) — ~1,200 cats lack place links, likely cats without owner addresses or unlinked clinic appointments
+- **Geocoding at 91.3%** (target 95%+) — ~560 places need geocoding, may be malformed addresses or API failures
+- **Trapper-appointment linking at 3.2%** (target 50%+) — Most appointments lack `trapper_person_id`. The `link_appointments_to_trappers()` function may need improvements or more source data
+- **Mortality events limited to 138** — Only AI-extracted from clinic notes. ClinicHQ euthanasia uploads and ShelterLuv death outcomes could add more. Disease/euthanasia pattern analysis for Beacon will need richer data.
+
+**What Tippy should know:**
+> "Beacon readiness is solid on person-linking (97.9%) and disease tracking (2,178 tests, 93 flagged places). The main gaps are cat-place coverage and geocoding — both around 91%. Trapper-appointment linking is very low (3.2%) because most clinic appointments don't have trapper info in the data. Mortality/euthanasia tracking exists but is limited to 138 events from AI extraction of clinic notes."
+
+**Staff Impact:**
+- Search now only shows real people (no garbage/phantom records)
+- Map pins no longer show bad-quality people in popups
+- Staff can review and resolve flagged records at `/admin/data-quality/review`
+
+---
 
 ### Session: 2026-02-04 - Phone COALESCE Cross-Linking Investigation & Fix
 

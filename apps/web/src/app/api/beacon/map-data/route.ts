@@ -555,6 +555,7 @@ export async function GET(req: NextRequest) {
           AND pl.location IS NOT NULL
           AND pl.merged_into_place_id IS NULL
           AND p.merged_into_person_id IS NULL
+          AND COALESCE(p.data_quality, 'normal') NOT IN ('garbage', 'needs_review')
           ${zone ? `AND pl.service_zone = '${zone}'` : ""}
         ORDER BY p.person_id,
           CASE pr.role

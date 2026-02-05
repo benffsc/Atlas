@@ -18,8 +18,20 @@ These apply to ALL changes across ALL layers:
 10. **Ingest Must Be Serverless-Resilient** — Export `maxDuration`, scope processing to current upload, save intermediate progress, auto-reset stuck uploads, UI fire-and-forget + polling.
 11. **ClinicHQ Relationships Must Not Assume Residency** — Trappers/staff have false resident links from trapping sites. For people with >3 clinichq resident links + active trapper/staff role, keep only highest-confidence as resident.
 12. **Phone COALESCE Must Prefer Owner Phone Over Cell Phone** — In identity matching, always `COALESCE(NULLIF(payload->>'Owner Phone', ''), payload->>'Owner Cell Phone')`. Cell phones are shared within households (spouses, family) and cause cross-linking when used as primary identity signal. See MIG_881.
+13. **Display Surfaces Must Filter data_quality** — `v_map_atlas_pins`, `search_unified()`, and any volunteer/person-facing queries MUST exclude `data_quality IN ('garbage', 'needs_review')`. Ingest pipelines are independent and unaffected. See MIG_882.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
+
+## Beacon Readiness — Critical Gaps (as of 2026-02-05)
+
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| Cat-place coverage | 91.7% | 95%+ | ~1,200 cats need place links |
+| Geocoding coverage | 91.3% | 95%+ | ~560 places need geocoding |
+| Trapper-appointment linking | 3.2% | 50%+ | Most appointments lack trapper_person_id |
+| Mortality events | 138 | More | Only AI-extracted from clinic notes so far |
+
+**What's solid:** Appointment-person linking (97.9%), disease tracking (2,178 test results, 93 flagged places), colony estimates (2,995 places), intake events (3,707).
 
 ## Core Mission: Every Entity is Real and Distinct
 
