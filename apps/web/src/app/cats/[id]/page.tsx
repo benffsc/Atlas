@@ -1647,7 +1647,7 @@ export default function CatDetailPage() {
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : appt.clinic_day_number != null ? (
-                        <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--text, #212529)" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--accent, #0d6efd)" }}>
                           {appt.clinic_day_number}
                         </span>
                       ) : (
