@@ -26,6 +26,12 @@ interface ClinicDayCat {
   owner_name: string | null;
   trapper_name: string | null;
   place_address: string | null;
+  // Deceased and health status fields
+  is_deceased: boolean;
+  deceased_date: string | null;
+  death_cause: string | null;
+  felv_status: string | null;
+  fiv_status: string | null;
 }
 
 interface CatGalleryResponse {
@@ -87,7 +93,45 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ) AS photo_url,
         per.display_name AS owner_name,
         pl.formatted_address AS place_address,
-        trp.display_name AS trapper_name
+        trp.display_name AS trapper_name,
+        -- Deceased status from sot_cats (MIG_290)
+        COALESCE(c.is_deceased, FALSE) AS is_deceased,
+        c.deceased_date,
+        -- Death cause from cat_mortality_events (subquery to avoid duplicates)
+        (
+          SELECT cme.death_cause::TEXT
+          FROM trapper.cat_mortality_events cme
+          WHERE cme.cat_id = c.cat_id
+          LIMIT 1
+        ) AS death_cause,
+        -- FeLV status from cat_test_results (felv_fiv_status is NOT on sot_cats)
+        (
+          SELECT
+            CASE
+              WHEN tr.result_detail ILIKE 'FeLV+%' OR tr.result_detail ILIKE '%FeLV+%' THEN 'positive'
+              WHEN tr.result_detail ILIKE 'FeLV-%' OR tr.result_detail ILIKE '%FeLV-%' THEN 'negative'
+              WHEN tr.result::TEXT = 'positive' THEN 'positive'
+              WHEN tr.result::TEXT = 'negative' THEN 'negative'
+              ELSE NULL
+            END
+          FROM trapper.cat_test_results tr
+          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
+          ORDER BY tr.test_date DESC
+          LIMIT 1
+        ) AS felv_status,
+        -- FIV status from cat_test_results
+        (
+          SELECT
+            CASE
+              WHEN tr.result_detail ILIKE '%/FIV+' OR tr.result_detail ILIKE '%FIV+%' THEN 'positive'
+              WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
+              ELSE NULL
+            END
+          FROM trapper.cat_test_results tr
+          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
+          ORDER BY tr.test_date DESC
+          LIMIT 1
+        ) AS fiv_status
       FROM trapper.sot_appointments a
       LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'

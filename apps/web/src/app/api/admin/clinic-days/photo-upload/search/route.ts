@@ -14,6 +14,11 @@ interface SearchResult {
   photo_url: string | null;
   appointment_date: string | null;
   clinic_day_number: number | null;
+  is_deceased: boolean;
+  deceased_date: string | null;
+  death_cause: string | null;
+  felv_status: string | null;
+  fiv_status: string | null;
   needs_microchip: boolean;
   is_from_clinic_day: boolean;
 }
@@ -60,7 +65,44 @@ export async function GET(request: NextRequest) {
         c.display_name,
         c.sex,
         c.primary_color,
+        COALESCE(c.is_deceased, FALSE) AS is_deceased,
+        c.deceased_date,
+        -- Death cause from cat_mortality_events (subquery to avoid duplicates)
+        (
+          SELECT cme.death_cause::TEXT
+          FROM trapper.cat_mortality_events cme
+          WHERE cme.cat_id = c.cat_id
+          LIMIT 1
+        ) AS death_cause,
         COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+        -- FeLV status from cat_test_results (felv_fiv_status is NOT on sot_cats)
+        (
+          SELECT
+            CASE
+              WHEN tr.result_detail ILIKE 'FeLV+%' OR tr.result_detail ILIKE '%FeLV+%' THEN 'positive'
+              WHEN tr.result_detail ILIKE 'FeLV-%' OR tr.result_detail ILIKE '%FeLV-%' THEN 'negative'
+              WHEN tr.result::TEXT = 'positive' THEN 'positive'
+              WHEN tr.result::TEXT = 'negative' THEN 'negative'
+              ELSE NULL
+            END
+          FROM trapper.cat_test_results tr
+          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
+          ORDER BY tr.test_date DESC
+          LIMIT 1
+        ) AS felv_status,
+        -- FIV status from cat_test_results
+        (
+          SELECT
+            CASE
+              WHEN tr.result_detail ILIKE '%/FIV+' OR tr.result_detail ILIKE '%FIV+%' THEN 'positive'
+              WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
+              ELSE NULL
+            END
+          FROM trapper.cat_test_results tr
+          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
+          ORDER BY tr.test_date DESC
+          LIMIT 1
+        ) AS fiv_status,
         ci_mc.id_value AS microchip,
         ci_chq.id_value AS clinichq_animal_id,
         per.display_name AS owner_name,
