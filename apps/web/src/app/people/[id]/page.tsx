@@ -17,7 +17,7 @@ import { VerificationBadge, LastVerified } from "@/components/VerificationBadge"
 import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
 import { validatePersonName } from "@/lib/validation";
 import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
-import { formatDateLocal, formatPhone } from "@/lib/formatters";
+import { formatDateLocal, formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
@@ -922,14 +922,43 @@ export default function PersonDetailPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Phone</label>
-                <input
-                  type="tel"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="(555) 123-4567"
-                  style={{ width: "100%" }}
-                />
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                  Phone
+                  {editPhone && !isValidPhone(editPhone) && (
+                    <span style={{ color: "#dc3545", marginLeft: "4px", fontWeight: 400 }}>⚠ Invalid</span>
+                  )}
+                </label>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    placeholder="(555) 123-4567"
+                    style={{
+                      flex: 1,
+                      border: editPhone && !isValidPhone(editPhone) ? "1px solid #dc3545" : undefined,
+                    }}
+                  />
+                  {editPhone && !isValidPhone(editPhone) && extractPhone(editPhone) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditPhone(extractPhone(editPhone) || "")}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        background: "#198754",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={`Fix to: ${formatPhone(extractPhone(editPhone))}`}
+                    >
+                      Fix
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Email</label>
