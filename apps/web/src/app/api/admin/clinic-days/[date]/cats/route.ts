@@ -26,6 +26,12 @@ interface ClinicDayCat {
   owner_name: string | null;
   trapper_name: string | null;
   place_address: string | null;
+  // Deceased and health status fields
+  is_deceased: boolean;
+  deceased_date: string | null;
+  death_cause: string | null;
+  felv_status: string | null;
+  fiv_status: string | null;
 }
 
 interface CatGalleryResponse {
@@ -87,7 +93,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ) AS photo_url,
         per.display_name AS owner_name,
         pl.formatted_address AS place_address,
-        trp.display_name AS trapper_name
+        trp.display_name AS trapper_name,
+        -- Deceased and health status fields
+        COALESCE(c.is_deceased, FALSE) AS is_deceased,
+        c.deceased_date,
+        cme.death_cause,
+        -- Parse FeLV/FIV status from combined field
+        CASE
+          WHEN c.felv_fiv_status LIKE 'positive/%' THEN 'positive'
+          WHEN c.felv_fiv_status LIKE 'negative/%' THEN 'negative'
+          ELSE NULL
+        END AS felv_status,
+        CASE
+          WHEN c.felv_fiv_status LIKE '%/positive' THEN 'positive'
+          WHEN c.felv_fiv_status LIKE '%/negative' THEN 'negative'
+          ELSE NULL
+        END AS fiv_status
       FROM trapper.sot_appointments a
       LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
@@ -95,6 +116,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       LEFT JOIN trapper.sot_people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
       LEFT JOIN trapper.places pl ON pl.place_id = a.place_id AND pl.merged_into_place_id IS NULL
       LEFT JOIN trapper.sot_people trp ON trp.person_id = a.trapper_person_id AND trp.merged_into_person_id IS NULL
+      LEFT JOIN trapper.cat_mortality_events cme ON cme.cat_id = c.cat_id
       WHERE a.appointment_date = $1
       ORDER BY a.clinic_day_number NULLS LAST, c.display_name NULLS LAST, a.appointment_number
       `,

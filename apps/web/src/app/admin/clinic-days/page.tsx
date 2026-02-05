@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { CatCard, CatCardData } from "@/components/CatCard";
+import { MediaUploader } from "@/components/MediaUploader";
 
 interface ClinicDay {
   clinic_day_id: string;
@@ -73,6 +75,34 @@ interface ClinicDayCat {
   owner_name: string | null;
   trapper_name: string | null;
   place_address: string | null;
+  // Deceased and health status fields
+  is_deceased: boolean;
+  deceased_date: string | null;
+  death_cause: string | null;
+  felv_status: string | null;
+  fiv_status: string | null;
+}
+
+// Search result for photo upload
+interface CatSearchResult {
+  cat_id: string;
+  display_name: string | null;
+  microchip: string | null;
+  clinichq_animal_id: string | null;
+  owner_name: string | null;
+  place_address: string | null;
+  sex: string | null;
+  primary_color: string | null;
+  photo_url: string | null;
+  appointment_date: string | null;
+  clinic_day_number: number | null;
+  is_deceased: boolean;
+  deceased_date: string | null;
+  death_cause: string | null;
+  felv_status: string | null;
+  fiv_status: string | null;
+  needs_microchip: boolean;
+  is_from_clinic_day: boolean;
 }
 
 // Clinic type config
@@ -84,236 +114,29 @@ const CLINIC_TYPES = {
   mobile: { label: "Mobile", color: "var(--info-text)", bg: "var(--info-bg)" },
 };
 
-// Cat Card Component
-function CatCard({ cat }: { cat: ClinicDayCat }) {
-  const isUnchipped = cat.cat_id && !cat.microchip && cat.needs_microchip;
-  const isUnlinked = !cat.cat_id;
-
-  const getColorGradient = (color: string | null) => {
-    if (!color) return "#9ca3af 0%, #d1d5db 100%";
-    const c = color.toLowerCase();
-    if (c.includes("black")) return "#1f2937 0%, #374151 100%";
-    if (c.includes("orange") || c.includes("ginger")) return "#f59e0b 0%, #d97706 100%";
-    if (c.includes("gray") || c.includes("grey")) return "#6b7280 0%, #9ca3af 100%";
-    if (c.includes("white")) return "#e5e7eb 0%, #f9fafb 100%";
-    if (c.includes("calico") || c.includes("tortie")) return "#92400e 0%, #f59e0b 50%, #374151 100%";
-    if (c.includes("tabby")) return "#78716c 0%, #a8a29e 100%";
-    if (c.includes("cream") || c.includes("buff")) return "#fde68a 0%, #fef3c7 100%";
-    if (c.includes("brown")) return "#78350f 0%, #92400e 100%";
-    if (c.includes("blue")) return "#64748b 0%, #94a3b8 100%";
-    return "#9ca3af 0%, #d1d5db 100%";
+// Helper to convert ClinicDayCat to CatCardData
+function toCatCardData(cat: ClinicDayCat): CatCardData {
+  return {
+    cat_id: cat.cat_id,
+    cat_name: cat.cat_name,
+    cat_sex: cat.cat_sex,
+    cat_color: cat.cat_color,
+    photo_url: cat.photo_url,
+    microchip: cat.microchip,
+    needs_microchip: cat.needs_microchip,
+    is_spay: cat.is_spay,
+    is_neuter: cat.is_neuter,
+    is_deceased: cat.is_deceased,
+    deceased_date: cat.deceased_date,
+    death_cause: cat.death_cause,
+    felv_status: cat.felv_status,
+    fiv_status: cat.fiv_status,
+    clinic_day_number: cat.clinic_day_number,
+    clinichq_animal_id: cat.clinichq_animal_id,
+    place_address: cat.place_address,
+    owner_name: cat.owner_name,
+    trapper_name: cat.trapper_name,
   };
-
-  return (
-    <div
-      onClick={() => cat.cat_id && window.open(`/cats/${cat.cat_id}`, "_blank")}
-      style={{
-        position: "relative",
-        padding: "12px",
-        background: isUnchipped
-          ? "linear-gradient(135deg, var(--warning-bg) 0%, var(--card-bg) 100%)"
-          : isUnlinked
-          ? "var(--section-bg)"
-          : "var(--card-bg)",
-        border: isUnchipped
-          ? "2px solid var(--warning-text)"
-          : isUnlinked
-          ? "2px dashed var(--card-border)"
-          : "1px solid var(--card-border)",
-        borderRadius: "12px",
-        cursor: cat.cat_id ? "pointer" : "default",
-        transition: "all 0.15s ease",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-      }}
-      onMouseEnter={(e) => {
-        if (cat.cat_id) {
-          e.currentTarget.style.transform = "translateY(-4px)";
-          e.currentTarget.style.boxShadow = "0 8px 25px rgba(0,0,0,0.15)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
-      }}
-    >
-      {/* Clinic Day Number Badge */}
-      {cat.clinic_day_number && (
-        <div
-          style={{
-            position: "absolute",
-            top: "8px",
-            left: "8px",
-            background: "var(--primary)",
-            color: "var(--primary-foreground)",
-            padding: "4px 10px",
-            borderRadius: "6px",
-            fontSize: "0.8rem",
-            fontWeight: 700,
-            zIndex: 1,
-            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-          }}
-        >
-          #{cat.clinic_day_number}
-        </div>
-      )}
-
-      {/* Photo or Placeholder */}
-      <div
-        style={{
-          width: "100%",
-          aspectRatio: "4/3",
-          background: cat.photo_url
-            ? `url(${cat.photo_url}) center/cover`
-            : `linear-gradient(145deg, ${getColorGradient(cat.cat_color)})`,
-          borderRadius: "8px",
-          marginBottom: "12px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {!cat.photo_url && (
-          <span style={{ fontSize: "3rem", opacity: 0.4 }}>
-            {isUnlinked ? "?" : "🐱"}
-          </span>
-        )}
-        {/* Service Type Badge */}
-        {(cat.is_spay || cat.is_neuter) && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "8px",
-              right: "8px",
-              padding: "4px 10px",
-              background: cat.is_spay ? "var(--danger-text)" : "var(--info-text)",
-              color: "#fff",
-              borderRadius: "4px",
-              fontSize: "0.7rem",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            {cat.is_spay ? "Spay" : "Neuter"}
-          </div>
-        )}
-      </div>
-
-      {/* Cat Name */}
-      <div style={{
-        fontSize: "1rem",
-        fontWeight: 700,
-        marginBottom: "6px",
-        color: "var(--foreground)",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-      }}>
-        {cat.cat_name || (isUnlinked ? "Unlinked Appointment" : "Unknown")}
-      </div>
-
-      {/* Sex and Color */}
-      <div style={{
-        fontSize: "0.85rem",
-        color: "var(--muted)",
-        marginBottom: "8px",
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-      }}>
-        {cat.cat_sex && (
-          <span style={{
-            color: cat.cat_sex.toLowerCase() === "female" ? "var(--danger-text)" : "var(--info-text)",
-            fontWeight: 500,
-          }}>
-            {cat.cat_sex}
-          </span>
-        )}
-        {cat.cat_sex && cat.cat_color && <span style={{ color: "var(--card-border)" }}>•</span>}
-        {cat.cat_color && <span>{cat.cat_color}</span>}
-      </div>
-
-      {/* Status Badges */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
-        {cat.microchip && (
-          <span
-            style={{
-              padding: "3px 8px",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              background: "var(--success-bg)",
-              color: "var(--success-text)",
-              borderRadius: "4px",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
-            <span style={{ fontSize: "0.65rem" }}>✓</span> Chipped
-          </span>
-        )}
-        {isUnchipped && (
-          <span
-            style={{
-              padding: "3px 8px",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              background: "var(--warning-bg)",
-              color: "var(--warning-text)",
-              borderRadius: "4px",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
-            <span style={{ fontSize: "0.8rem" }}>!</span> No Chip
-          </span>
-        )}
-        {isUnlinked && (
-          <span
-            style={{
-              padding: "3px 8px",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              background: "var(--section-bg)",
-              color: "var(--muted)",
-              borderRadius: "4px",
-            }}
-          >
-            Unlinked
-          </span>
-        )}
-      </div>
-
-      {/* Address (truncated) */}
-      {cat.place_address && (
-        <div style={{
-          fontSize: "0.75rem",
-          color: "var(--muted)",
-          marginTop: "4px",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}>
-          📍 {cat.place_address}
-        </div>
-      )}
-
-      {/* ClinicHQ ID for unchipped */}
-      {isUnchipped && cat.clinichq_animal_id && (
-        <div style={{
-          fontSize: "0.7rem",
-          color: "var(--warning-text)",
-          marginTop: "6px",
-          fontFamily: "monospace",
-        }}>
-          CHQ: {cat.clinichq_animal_id}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export default function ClinicDaysPage() {
@@ -405,9 +228,16 @@ export default function ClinicDaysPage() {
   const [loadingCats, setLoadingCats] = useState(false);
 
   // Tabbed view state
-  const [activeTab, setActiveTab] = useState<"overview" | "gallery">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "gallery" | "upload">("overview");
   const [catFilter, setCatFilter] = useState<"all" | "chipped" | "unchipped" | "unlinked">("all");
   const [groupByTrapper, setGroupByTrapper] = useState(false);
+
+  // Photo upload tab state
+  const [uploadSearchQuery, setUploadSearchQuery] = useState("");
+  const [uploadSearchResults, setUploadSearchResults] = useState<CatSearchResult[]>([]);
+  const [uploadSearching, setUploadSearching] = useState(false);
+  const [selectedCatForUpload, setSelectedCatForUpload] = useState<CatSearchResult | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   // Load clinic days list
   useEffect(() => {
@@ -750,6 +580,54 @@ export default function ClinicDaysPage() {
 
   const getClinicDayForDate = (date: string) => {
     return clinicDays.find((cd) => normalizeDate(cd.clinic_date) === date);
+  };
+
+  // Search for cats in the upload tab
+  const handleUploadSearch = async (query: string) => {
+    setUploadSearchQuery(query);
+    if (query.trim().length < 2) {
+      setUploadSearchResults([]);
+      return;
+    }
+
+    setUploadSearching(true);
+    try {
+      const res = await fetch(
+        `/api/admin/clinic-days/photo-upload/search?q=${encodeURIComponent(query)}&date=${selectedDate}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setUploadSearchResults(data.cats || []);
+      }
+    } catch (err) {
+      console.error("Search error:", err);
+    } finally {
+      setUploadSearching(false);
+    }
+  };
+
+  // Handle successful upload
+  const handleUploadComplete = () => {
+    setUploadSuccess(true);
+    // Reload cat gallery data
+    fetch(`/api/admin/clinic-days/${selectedDate}/cats`)
+      .then((res) => res.ok ? res.json() : { cats: [] })
+      .then((data) => {
+        setClinicCats(data.cats || []);
+        setCatGalleryStats({
+          total_cats: data.total_cats || 0,
+          chipped_count: data.chipped_count || 0,
+          unchipped_count: data.unchipped_count || 0,
+          unlinked_count: data.unlinked_count || 0,
+        });
+      });
+    // Reset after a moment
+    setTimeout(() => {
+      setSelectedCatForUpload(null);
+      setUploadSuccess(false);
+      setUploadSearchQuery("");
+      setUploadSearchResults([]);
+    }, 2000);
   };
 
   // Helper to normalize date strings (handles both "2026-02-02" and "2026-02-02T00:00:00.000Z" formats)
@@ -1154,6 +1032,22 @@ export default function ClinicDaysPage() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab("upload")}
+              style={{
+                padding: "12px 24px",
+                background: "none",
+                border: "none",
+                borderBottom: activeTab === "upload" ? "2px solid var(--primary)" : "2px solid transparent",
+                marginBottom: "-2px",
+                color: activeTab === "upload" ? "var(--primary)" : "var(--muted)",
+                fontWeight: activeTab === "upload" ? 600 : 400,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+              }}
+            >
+              Upload Photos
+            </button>
           </div>
 
           {/* Overview Tab */}
@@ -1530,7 +1424,7 @@ export default function ClinicDaysPage() {
                                 gap: "16px",
                               }}>
                                 {cats.map((cat) => (
-                                  <CatCard key={cat.appointment_id} cat={cat} />
+                                  <CatCard key={cat.appointment_id} cat={toCatCardData(cat)} />
                                 ))}
                               </div>
                             </div>
@@ -1546,7 +1440,7 @@ export default function ClinicDaysPage() {
                         gap: "16px",
                       }}>
                         {filteredCats.map((cat) => (
-                          <CatCard key={cat.appointment_id} cat={cat} />
+                          <CatCard key={cat.appointment_id} cat={toCatCardData(cat)} />
                         ))}
                       </div>
                     );
@@ -1559,6 +1453,335 @@ export default function ClinicDaysPage() {
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          )}
+
+          {/* Upload Photos Tab */}
+          {activeTab === "upload" && (
+            <div className="card">
+              <h3 style={{ marginTop: 0, marginBottom: "16px" }}>Upload Cat Photos</h3>
+              <p style={{ color: "var(--muted)", marginBottom: "20px" }}>
+                Search for a cat by name, microchip, ClinicHQ ID, or owner name, then upload photos.
+              </p>
+
+              {/* Success message */}
+              {uploadSuccess && (
+                <div style={{
+                  padding: "16px",
+                  marginBottom: "20px",
+                  background: "var(--success-bg)",
+                  border: "1px solid var(--success-text)",
+                  borderRadius: "8px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>✓</div>
+                  <div style={{ fontWeight: 600, color: "var(--success-text)" }}>Photo uploaded successfully!</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "4px" }}>
+                    Ready for next cat...
+                  </div>
+                </div>
+              )}
+
+              {/* Search box */}
+              {!selectedCatForUpload && !uploadSuccess && (
+                <div style={{ marginBottom: "20px" }}>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      value={uploadSearchQuery}
+                      onChange={(e) => handleUploadSearch(e.target.value)}
+                      placeholder="Search by cat name, microchip, CHQ ID, or owner name..."
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px",
+                        paddingLeft: "40px",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: "8px",
+                        background: "var(--section-bg)",
+                        color: "var(--foreground)",
+                        fontSize: "1rem",
+                      }}
+                    />
+                    <span style={{
+                      position: "absolute",
+                      left: "14px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "var(--muted)",
+                      fontSize: "1rem",
+                    }}>
+                      🔍
+                    </span>
+                    {uploadSearching && (
+                      <span style={{
+                        position: "absolute",
+                        right: "14px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "var(--muted)",
+                        fontSize: "0.85rem",
+                      }}>
+                        Searching...
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Search results */}
+              {!selectedCatForUpload && !uploadSuccess && uploadSearchResults.length > 0 && (
+                <div style={{
+                  border: "1px solid var(--card-border)",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                }}>
+                  {uploadSearchResults.map((cat, idx) => (
+                    <div
+                      key={cat.cat_id}
+                      onClick={() => setSelectedCatForUpload(cat)}
+                      style={{
+                        padding: "12px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "16px",
+                        cursor: "pointer",
+                        background: cat.is_from_clinic_day ? "var(--primary-bg)" : "var(--card-bg)",
+                        borderTop: idx > 0 ? "1px solid var(--card-border)" : "none",
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "var(--section-bg)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = cat.is_from_clinic_day ? "var(--primary-bg)" : "var(--card-bg)";
+                      }}
+                    >
+                      {/* Photo thumbnail */}
+                      <div style={{
+                        width: "56px",
+                        height: "56px",
+                        borderRadius: "8px",
+                        background: cat.photo_url
+                          ? `url(${cat.photo_url}) center/cover`
+                          : "var(--section-bg)",
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--muted)",
+                        fontSize: "1.5rem",
+                      }}>
+                        {!cat.photo_url && (cat.is_deceased ? "🪦" : "🐱")}
+                      </div>
+
+                      {/* Cat info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: 600,
+                          marginBottom: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}>
+                          <span style={{
+                            textDecoration: cat.is_deceased ? "line-through" : "none",
+                            color: cat.is_deceased ? "var(--muted)" : "var(--foreground)",
+                          }}>
+                            {cat.display_name || "Unknown"}
+                          </span>
+                          {cat.is_from_clinic_day && (
+                            <span style={{
+                              padding: "2px 6px",
+                              background: "var(--primary)",
+                              color: "var(--primary-foreground)",
+                              borderRadius: "4px",
+                              fontSize: "0.65rem",
+                              fontWeight: 700,
+                            }}>
+                              Today
+                            </span>
+                          )}
+                          {cat.is_deceased && (
+                            <span style={{
+                              padding: "2px 6px",
+                              background: "#374151",
+                              color: "#fff",
+                              borderRadius: "4px",
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                            }}>
+                              {cat.death_cause === "euthanasia" ? "Euthanized" : "Deceased"}
+                            </span>
+                          )}
+                          {cat.felv_status === "positive" && (
+                            <span style={{
+                              padding: "2px 6px",
+                              background: "#dc2626",
+                              color: "#fff",
+                              borderRadius: "4px",
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                            }}>
+                              FeLV+
+                            </span>
+                          )}
+                          {cat.fiv_status === "positive" && (
+                            <span style={{
+                              padding: "2px 6px",
+                              background: "#ea580c",
+                              color: "#fff",
+                              borderRadius: "4px",
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                            }}>
+                              FIV+
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                          {cat.microchip ? (
+                            <span style={{ fontFamily: "monospace" }}>{cat.microchip}</span>
+                          ) : cat.clinichq_animal_id ? (
+                            <span>CHQ: {cat.clinichq_animal_id}</span>
+                          ) : (
+                            <span style={{ color: "var(--warning-text)" }}>No microchip</span>
+                          )}
+                          {cat.owner_name && <span> • {cat.owner_name}</span>}
+                        </div>
+                        {cat.place_address && (
+                          <div style={{
+                            fontSize: "0.75rem",
+                            color: "var(--muted)",
+                            marginTop: "2px",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}>
+                            📍 {cat.place_address}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Select button */}
+                      <button
+                        style={{
+                          padding: "8px 16px",
+                          background: "var(--primary)",
+                          color: "var(--primary-foreground)",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: "0.85rem",
+                          flexShrink: 0,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCatForUpload(cat);
+                        }}
+                      >
+                        Select
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* No results */}
+              {!selectedCatForUpload && !uploadSuccess && uploadSearchQuery.length >= 2 && !uploadSearching && uploadSearchResults.length === 0 && (
+                <div style={{
+                  padding: "24px",
+                  textAlign: "center",
+                  color: "var(--muted)",
+                  background: "var(--section-bg)",
+                  borderRadius: "8px",
+                }}>
+                  No cats found matching &ldquo;{uploadSearchQuery}&rdquo;
+                </div>
+              )}
+
+              {/* Selected cat - show uploader */}
+              {selectedCatForUpload && !uploadSuccess && (
+                <div>
+                  {/* Selected cat header */}
+                  <div style={{
+                    padding: "16px",
+                    marginBottom: "16px",
+                    background: "var(--section-bg)",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{
+                        width: "48px",
+                        height: "48px",
+                        borderRadius: "8px",
+                        background: selectedCatForUpload.photo_url
+                          ? `url(${selectedCatForUpload.photo_url}) center/cover`
+                          : "var(--card-bg)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--muted)",
+                        fontSize: "1.25rem",
+                      }}>
+                        {!selectedCatForUpload.photo_url && "🐱"}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{selectedCatForUpload.display_name || "Unknown"}</div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                          {selectedCatForUpload.microchip || selectedCatForUpload.clinichq_animal_id || "No ID"}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCatForUpload(null)}
+                      style={{
+                        padding: "6px 12px",
+                        background: "none",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        color: "var(--muted)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      Change Cat
+                    </button>
+                  </div>
+
+                  {/* MediaUploader */}
+                  <MediaUploader
+                    entityType="cat"
+                    entityId={selectedCatForUpload.cat_id}
+                    defaultMediaType="cat_photo"
+                    allowedMediaTypes={["cat_photo"]}
+                    allowMultiple={true}
+                    onUploadComplete={handleUploadComplete}
+                    onCancel={() => setSelectedCatForUpload(null)}
+                  />
+                </div>
+              )}
+
+              {/* Hint when empty */}
+              {!uploadSearchQuery && !selectedCatForUpload && !uploadSuccess && (
+                <div style={{
+                  padding: "48px 24px",
+                  textAlign: "center",
+                  color: "var(--muted)",
+                  background: "var(--section-bg)",
+                  borderRadius: "8px",
+                }}>
+                  <div style={{ fontSize: "3rem", marginBottom: "12px", opacity: 0.5 }}>📷</div>
+                  <div style={{ marginBottom: "8px" }}>Start typing to search for a cat</div>
+                  <div style={{ fontSize: "0.85rem" }}>
+                    Cats from today&apos;s clinic ({formatDisplayDate(selectedDate, { month: "short", day: "numeric" })}) will appear first
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -1888,10 +2111,10 @@ export default function ClinicDaysPage() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 500 }}>Excel File (.xlsx)</label>
+                <label style={{ fontSize: "0.85rem", fontWeight: 500 }}>Excel or CSV File</label>
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                   style={{
                     width: "100%",

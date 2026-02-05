@@ -1,0 +1,146 @@
+import { NextRequest, NextResponse } from "next/server";
+import { queryRows } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+
+interface SearchResult {
+  cat_id: string;
+  display_name: string | null;
+  microchip: string | null;
+  clinichq_animal_id: string | null;
+  owner_name: string | null;
+  place_address: string | null;
+  sex: string | null;
+  primary_color: string | null;
+  photo_url: string | null;
+  appointment_date: string | null;
+  clinic_day_number: number | null;
+  is_deceased: boolean;
+  deceased_date: string | null;
+  death_cause: string | null;
+  felv_status: string | null;
+  fiv_status: string | null;
+  needs_microchip: boolean;
+  is_from_clinic_day: boolean;
+}
+
+/**
+ * GET /api/admin/clinic-days/photo-upload/search
+ * Search for cats by name, microchip, or owner name
+ * Prioritizes cats from the selected clinic day
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Require auth
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const query = searchParams.get("q");
+    const date = searchParams.get("date");
+
+    if (!query || query.trim().length < 2) {
+      return NextResponse.json({ cats: [] });
+    }
+
+    // Validate date format if provided
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
+    }
+
+    const searchTerm = `%${query.trim()}%`;
+
+    // Search cats, prioritizing those from the selected clinic day
+    const cats = await queryRows<SearchResult>(
+      `
+      WITH clinic_day_cats AS (
+        SELECT DISTINCT a.cat_id
+        FROM trapper.sot_appointments a
+        WHERE a.appointment_date = $2
+          AND a.cat_id IS NOT NULL
+      )
+      SELECT
+        c.cat_id,
+        c.display_name,
+        c.sex,
+        c.primary_color,
+        COALESCE(c.is_deceased, FALSE) AS is_deceased,
+        c.deceased_date,
+        cme.death_cause,
+        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+        -- Parse FeLV/FIV status
+        CASE
+          WHEN c.felv_fiv_status LIKE 'positive/%' THEN 'positive'
+          WHEN c.felv_fiv_status LIKE 'negative/%' THEN 'negative'
+          ELSE NULL
+        END AS felv_status,
+        CASE
+          WHEN c.felv_fiv_status LIKE '%/positive' THEN 'positive'
+          WHEN c.felv_fiv_status LIKE '%/negative' THEN 'negative'
+          ELSE NULL
+        END AS fiv_status,
+        ci_mc.id_value AS microchip,
+        ci_chq.id_value AS clinichq_animal_id,
+        per.display_name AS owner_name,
+        pl.formatted_address AS place_address,
+        -- Get most recent cat photo
+        (
+          SELECT rm.storage_path
+          FROM trapper.request_media rm
+          WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
+            AND rm.is_archived = FALSE
+            AND rm.media_type = 'cat_photo'
+          ORDER BY rm.uploaded_at DESC
+          LIMIT 1
+        ) AS photo_url,
+        -- Check if from selected clinic day
+        (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
+        -- Get appointment info for selected date
+        a_day.appointment_date,
+        a_day.clinic_day_number
+      FROM trapper.sot_cats c
+      LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
+      LEFT JOIN trapper.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+      LEFT JOIN trapper.cat_mortality_events cme ON cme.cat_id = c.cat_id
+      -- Get owner via person-cat relationships
+      LEFT JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
+        AND pcr.relationship_type IN ('owner', 'caretaker')
+        AND pcr.is_active = TRUE
+      LEFT JOIN trapper.sot_people per ON per.person_id = pcr.person_id
+        AND per.merged_into_person_id IS NULL
+      -- Get place via cat-place relationships
+      LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
+        AND cpr.is_active = TRUE
+      LEFT JOIN trapper.places pl ON pl.place_id = cpr.place_id
+        AND pl.merged_into_place_id IS NULL
+      -- Get appointment for selected date
+      LEFT JOIN trapper.sot_appointments a_day ON a_day.cat_id = c.cat_id
+        AND a_day.appointment_date = $2
+      WHERE c.merged_into_cat_id IS NULL
+        AND (
+          c.display_name ILIKE $1
+          OR ci_mc.id_value ILIKE $1
+          OR ci_chq.id_value ILIKE $1
+          OR per.display_name ILIKE $1
+        )
+      ORDER BY
+        -- Cats from selected clinic day first
+        (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) DESC,
+        -- Then by name match quality
+        CASE WHEN c.display_name ILIKE $1 THEN 0 ELSE 1 END,
+        c.display_name NULLS LAST
+      LIMIT 20
+      `,
+      [searchTerm, date || "1900-01-01"]
+    );
+
+    return NextResponse.json({ cats });
+  } catch (error) {
+    console.error("Photo upload search error:", error);
+    return NextResponse.json(
+      { error: "Failed to search cats" },
+      { status: 500 }
+    );
+  }
+}

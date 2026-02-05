@@ -9,9 +9,9 @@ interface RouteParams {
 
 /**
  * POST /api/admin/clinic-days/[date]/import
- * Import master list Excel file for a clinic day
+ * Import master list Excel or CSV file for a clinic day
  *
- * Accepts multipart form data with 'file' field containing Excel file
+ * Accepts multipart form data with 'file' field containing Excel (.xlsx) or CSV (.csv) file
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -31,7 +31,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Read file as buffer
+    // Validate file type
+    const fileName = file.name.toLowerCase();
+    const isCSV = fileName.endsWith(".csv");
+    const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
+
+    if (!isCSV && !isExcel) {
+      return NextResponse.json(
+        { error: "Invalid file type. Please upload an Excel (.xlsx) or CSV (.csv) file." },
+        { status: 400 }
+      );
+    }
+
+    // Read file as buffer and parse with xlsx library (handles both Excel and CSV)
     const buffer = await file.arrayBuffer();
     const workbook = xlsx.read(buffer, { type: "buffer" });
 
