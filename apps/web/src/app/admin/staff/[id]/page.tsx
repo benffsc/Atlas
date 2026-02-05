@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { BackButton } from "@/components/BackButton";
+import { formatPhone } from "@/lib/formatters";
 
 interface Staff {
   staff_id: string;
@@ -331,7 +332,7 @@ export default function StaffProfilePage() {
                   }}
                 />
               ) : (
-                <p style={{ marginTop: "0.25rem" }}>{staff.phone || "—"}</p>
+                <p style={{ marginTop: "0.25rem" }}>{staff.phone ? formatPhone(staff.phone) : "—"}</p>
               )}
             </div>
             <div>

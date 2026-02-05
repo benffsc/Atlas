@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { formatPhone } from "@/lib/formatters";
 import {
   URGENT_SITUATION_EXAMPLES,
   getOwnershipLabel as getOwnershipLabelFromLib,
@@ -537,7 +538,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             <div style={{ fontSize: "9pt", marginTop: "4px" }}>
               {submission.third_party_relationship && <span>Relationship: {submission.third_party_relationship}</span>}
               {submission.property_owner_name && <span> • Property Owner: {submission.property_owner_name}</span>}
-              {submission.property_owner_phone && <span> • Contact: {submission.property_owner_phone}</span>}
+              {submission.property_owner_phone && <span> • Contact: {formatPhone(submission.property_owner_phone)}</span>}
             </div>
           </div>
         )}
@@ -551,7 +552,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             </div>
             <div className="info-item">
               <span className="info-label">Phone</span>
-              <span className="info-value">{submission.phone || "—"}</span>
+              <span className="info-value">{submission.phone ? formatPhone(submission.phone) : "—"}</span>
             </div>
             <div className="info-item">
               <span className="info-label">Email</span>

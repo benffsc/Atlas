@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { formatPhone } from "@/lib/formatters";
 
 interface PersonPrint {
   person_id: string;
@@ -116,7 +117,7 @@ export default function PersonPrintPage() {
           <Section title="Contact Information">
             {phones.length > 0 ? (
               phones.map((phone, idx) => (
-                <Row key={idx} label="Phone" value={phone.id_value} />
+                <Row key={idx} label="Phone" value={formatPhone(phone.id_value)} />
               ))
             ) : (
               <Row label="Phone" value={null} />

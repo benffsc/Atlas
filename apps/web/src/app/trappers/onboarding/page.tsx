@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface OnboardingCandidate {
   onboarding_id: string;
@@ -377,7 +378,7 @@ export default function TrapperOnboardingPage() {
             <h2 style={{ margin: "0 0 0.5rem" }}>{selectedCandidate.display_name}</h2>
             <p style={{ color: "var(--muted)", margin: "0 0 1rem", fontSize: "0.9rem" }}>
               {selectedCandidate.primary_email || "No email"}
-              {selectedCandidate.primary_phone && ` • ${selectedCandidate.primary_phone}`}
+              {selectedCandidate.primary_phone && ` • ${formatPhone(selectedCandidate.primary_phone)}`}
             </p>
 
             <div style={{

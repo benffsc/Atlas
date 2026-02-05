@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/BackButton";
+import { formatPhone } from "@/lib/formatters";
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
@@ -564,7 +565,7 @@ export default function NewIntakeEntryPage() {
                     <div style={{ fontSize: "0.8rem", color: "#666" }}>
                       {person.emails && <span>{person.emails}</span>}
                       {person.emails && person.phones && <span> · </span>}
-                      {person.phones && <span>{person.phones}</span>}
+                      {person.phones && <span>{formatPhone(person.phones)}</span>}
                       {person.cat_count > 0 && <span style={{ marginLeft: "0.5rem", color: "#0d6efd" }}>({person.cat_count} cats)</span>}
                     </div>
                   </div>

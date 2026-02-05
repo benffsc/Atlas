@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { formatPhone } from "@/lib/formatters";
 
 // Form state type
 interface PhoneIntakeForm {
@@ -1143,7 +1144,7 @@ export default function PhoneIntakePage() {
               <h3 style={{ margin: "0 0 12px 0", fontSize: 14, fontWeight: 600 }}>Summary</h3>
               <div style={{ fontSize: 13, lineHeight: 1.6 }}>
                 <div><strong>Caller:</strong> {form.first_name} {form.last_name}</div>
-                <div><strong>Contact:</strong> {form.phone || form.email}</div>
+                <div><strong>Contact:</strong> {form.phone ? formatPhone(form.phone) : form.email}</div>
                 <div><strong>Location:</strong> {form.cats_address || "Not entered"}</div>
                 <div><strong>Cats:</strong> {form.cat_count_estimate || "?"} ({form.ownership_status || "?"})</div>
                 <div><strong>Fixed Status:</strong> {form.fixed_status}</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface Staff {
   staff_id: string;
@@ -291,7 +292,7 @@ export default function StaffManagementPage() {
                       )}
                       {s.phone && (
                         <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {s.phone}
+                          {formatPhone(s.phone)}
                           {s.work_extension && ` ext. ${s.work_extension}`}
                         </div>
                       )}

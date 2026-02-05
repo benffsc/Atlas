@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { formatPhone } from "@/lib/formatters";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
   HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
@@ -1210,7 +1211,7 @@ function IntakeForm() {
                     <div style={{ fontSize: "0.8rem", color: "#666" }}>
                       {person.emails && <span>{person.emails}</span>}
                       {person.emails && person.phones && <span> · </span>}
-                      {person.phones && <span>{person.phones}</span>}
+                      {person.phones && <span>{formatPhone(person.phones)}</span>}
                       {person.cat_count > 0 && <span style={{ marginLeft: "0.5rem", color: "#0d6efd" }}>({person.cat_count} cats)</span>}
                     </div>
                   </div>
@@ -2082,7 +2083,7 @@ function IntakeForm() {
               <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>CONTACT</h4>
               <p style={{ margin: 0 }}><strong>{formData.first_name} {formData.last_name}</strong></p>
               {formData.email && <p style={{ margin: 0 }}>{formData.email}</p>}
-              {formData.phone && <p style={{ margin: 0 }}>{formData.phone}</p>}
+              {formData.phone && <p style={{ margin: 0 }}>{formatPhone(formData.phone)}</p>}
             </div>
 
             <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>

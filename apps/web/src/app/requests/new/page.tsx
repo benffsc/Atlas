@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/BackButton";
 import PlaceResolver from "@/components/PlaceResolver";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { formatPhone } from "@/lib/formatters";
 
 interface SearchResult {
   entity_type: string;
@@ -941,7 +942,7 @@ function NewRequestForm() {
                   <div>
                     <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Phone</div>
                     <div style={{ fontWeight: 500 }}>
-                      {selectedPerson.phone || <span className="text-muted">Not on file</span>}
+                      {selectedPerson.phone ? formatPhone(selectedPerson.phone) : <span className="text-muted">Not on file</span>}
                     </div>
                   </div>
                   <div>

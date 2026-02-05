@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface TippyDraft {
   draft_id: string;
@@ -392,7 +393,7 @@ export default function TippyDraftsPage() {
                 <div style={{ fontSize: "1rem", fontWeight: 500 }}>{draft.raw_address}</div>
                 <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "4px" }}>
                   {draft.requester_name && <span>{draft.requester_name}</span>}
-                  {draft.requester_phone && <span> • {draft.requester_phone}</span>}
+                  {draft.requester_phone && <span> • {formatPhone(draft.requester_phone)}</span>}
                   {draft.estimated_cat_count && <span> • ~{draft.estimated_cat_count} cats</span>}
                 </div>
               </div>
@@ -539,7 +540,7 @@ export default function TippyDraftsPage() {
               </div>
               <div style={{ fontSize: "0.9rem" }}>
                 {selectedDraft.requester_name || "No name provided"}
-                {selectedDraft.requester_phone && ` • ${selectedDraft.requester_phone}`}
+                {selectedDraft.requester_phone && ` • ${formatPhone(selectedDraft.requester_phone)}`}
                 {selectedDraft.requester_email && ` • ${selectedDraft.requester_email}`}
               </div>
             </div>

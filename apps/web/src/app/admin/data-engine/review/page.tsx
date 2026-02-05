@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface PendingReview {
   decision_id: string;
@@ -264,7 +265,7 @@ function ReviewCard({
           )}
           {review.incoming_phone && (
             <div style={{ marginBottom: "0.25rem" }}>
-              <span className="text-muted">Phone:</span> {review.incoming_phone}
+              <span className="text-muted">Phone:</span> {formatPhone(review.incoming_phone)}
             </div>
           )}
           {review.incoming_address && (

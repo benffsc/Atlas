@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface PendingTrapperLink {
   pending_id: string;
@@ -287,7 +288,7 @@ function TrapperLinkCard({
           )}
           {pending.phone && (
             <div className="text-sm">
-              <span className="text-muted">Phone:</span> {pending.phone}
+              <span className="text-muted">Phone:</span> {formatPhone(pending.phone)}
             </div>
           )}
           {pending.address && (
@@ -423,7 +424,7 @@ function TrapperLinkCard({
                       <div style={{ fontWeight: 500 }}>{person.display_name}</div>
                       <div className="text-muted text-sm">
                         {person.emails && <span style={{ marginRight: "1rem" }}>{person.emails}</span>}
-                        {person.phones && <span>{person.phones}</span>}
+                        {person.phones && <span>{formatPhone(person.phones)}</span>}
                       </div>
                     </div>
                   ))}
@@ -450,7 +451,7 @@ function TrapperLinkCard({
               </div>
               <div className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
                 {selectedPerson.emails && <span style={{ marginRight: "1rem" }}>{selectedPerson.emails}</span>}
-                {selectedPerson.phones && <span>{selectedPerson.phones}</span>}
+                {selectedPerson.phones && <span>{formatPhone(selectedPerson.phones)}</span>}
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button

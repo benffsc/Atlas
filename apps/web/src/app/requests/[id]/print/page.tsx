@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { formatPhone } from "@/lib/formatters";
 
 interface RequestPrint {
   request_id: string;
@@ -503,7 +504,7 @@ export default function RequestPrintPage() {
                 </div>
                 <div className="info-item">
                   <span className="info-label">Phone</span>
-                  <span className="info-value">{request.requester_phone || "—"}</span>
+                  <span className="info-value">{request.requester_phone ? formatPhone(request.requester_phone) : "—"}</span>
                 </div>
                 <div className="info-item" style={{ gridColumn: "span 2" }}>
                   <span className="info-label">Email</span>

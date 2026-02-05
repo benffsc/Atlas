@@ -6,6 +6,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import CreateRequestWizard from "@/components/CreateRequestWizard";
 import PlaceResolver from "@/components/PlaceResolver";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -1484,7 +1485,19 @@ function IntakeQueueContent() {
                       {normalizeName(sub.submitter_name)}
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.email}</div>
-                    {sub.phone && <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.phone}</div>}
+                    {sub.phone && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        {formatPhone(sub.phone)}
+                        {!isValidPhone(sub.phone) && (
+                          <span
+                            style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px", cursor: "help" }}
+                            title={extractPhone(sub.phone) ? `Likely: ${formatPhone(extractPhone(sub.phone))}` : "Invalid phone format"}
+                          >
+                            ⚠
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {sub.is_third_party_report && (
                       <span style={{ fontSize: "0.65rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px" }}>
                         3RD PARTY
@@ -1748,13 +1761,36 @@ function IntakeQueueContent() {
                         />
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>Phone</label>
-                        <input
-                          type="tel"
-                          value={contactEdits.phone}
-                          onChange={(e) => setContactEdits({ ...contactEdits, phone: e.target.value })}
-                          style={{ width: "100%", padding: "0.375rem", fontSize: "0.9rem", borderRadius: "4px", border: "1px solid var(--border)" }}
-                        />
+                        <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>
+                          Phone
+                          {contactEdits.phone && !isValidPhone(contactEdits.phone) && (
+                            <span style={{ color: "#dc3545", marginLeft: "4px" }}>⚠ Invalid</span>
+                          )}
+                        </label>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <input
+                            type="tel"
+                            value={contactEdits.phone}
+                            onChange={(e) => setContactEdits({ ...contactEdits, phone: e.target.value })}
+                            style={{
+                              flex: 1,
+                              padding: "0.375rem",
+                              fontSize: "0.9rem",
+                              borderRadius: "4px",
+                              border: `1px solid ${contactEdits.phone && !isValidPhone(contactEdits.phone) ? "#dc3545" : "var(--border)"}`,
+                            }}
+                          />
+                          {contactEdits.phone && !isValidPhone(contactEdits.phone) && extractPhone(contactEdits.phone) && (
+                            <button
+                              type="button"
+                              onClick={() => setContactEdits({ ...contactEdits, phone: extractPhone(contactEdits.phone) || "" })}
+                              style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                              title={`Fix to: ${formatPhone(extractPhone(contactEdits.phone))}`}
+                            >
+                              Fix
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.25rem" }}>
@@ -1831,7 +1867,19 @@ function IntakeQueueContent() {
                     </div>
                     <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
                       {selectedSubmission.email}
-                      {selectedSubmission.phone && ` | ${selectedSubmission.phone}`}
+                      {selectedSubmission.phone && (
+                        <>
+                          {` | ${formatPhone(selectedSubmission.phone)}`}
+                          {!isValidPhone(selectedSubmission.phone) && (
+                            <span
+                              style={{ fontSize: "0.7rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px", marginLeft: "4px", cursor: "help" }}
+                              title={extractPhone(selectedSubmission.phone) ? `Click Edit to fix. Likely: ${formatPhone(extractPhone(selectedSubmission.phone))}` : "Invalid phone - click Edit to correct"}
+                            >
+                              ⚠ Invalid
+                            </span>
+                          )}
+                        </>
+                      )}
                     </p>
                   </>
                 )}
@@ -2453,7 +2501,7 @@ function IntakeQueueContent() {
                   <p style={{ margin: "0.25rem 0 0" }}>Property owner: {selectedSubmission.property_owner_name}</p>
                 )}
                 {selectedSubmission.property_owner_phone && (
-                  <p style={{ margin: "0.25rem 0 0" }}>Owner phone: {selectedSubmission.property_owner_phone}</p>
+                  <p style={{ margin: "0.25rem 0 0" }}>Owner phone: {formatPhone(selectedSubmission.property_owner_phone)}</p>
                 )}
               </div>
             )}
@@ -3060,7 +3108,7 @@ function IntakeQueueContent() {
               <h2 style={{ margin: 0 }}>Log Contact / Journal</h2>
               <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
                 {normalizeName(contactModalSubmission.submitter_name)} - {contactModalSubmission.email}
-                {contactModalSubmission.phone && ` | ${contactModalSubmission.phone}`}
+                {contactModalSubmission.phone && ` | ${formatPhone(contactModalSubmission.phone)}`}
               </p>
               <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.8rem" }}>
                 {contactModalSubmission.geo_formatted_address || contactModalSubmission.cats_address}

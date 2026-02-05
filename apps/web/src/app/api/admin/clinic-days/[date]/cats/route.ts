@@ -81,7 +81,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           FROM trapper.request_media rm
           WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
             AND rm.is_archived = FALSE
-            AND rm.media_type IN ('cat_photo', 'photo')
+            AND rm.media_type = 'cat_photo'
           ORDER BY rm.uploaded_at DESC
           LIMIT 1
         ) AS photo_url,

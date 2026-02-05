@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import EntityPreview from "@/components/EntityPreview";
 import { GroupedSearchResult } from "@/components/GroupedSearchResult";
+import { formatPhone } from "@/lib/formatters";
 
 interface SearchResult {
   entity_type: string;
@@ -396,7 +397,7 @@ function SearchContent() {
                             {record.address && <div>{record.address}</div>}
                             {(record.phone || record.email) && (
                               <div style={{ marginTop: "0.25rem" }}>
-                                {record.phone && <span>{record.phone}</span>}
+                                {record.phone && <span>{formatPhone(record.phone)}</span>}
                                 {record.phone && record.email && <span> &bull; </span>}
                                 {record.email && <span>{record.email}</span>}
                               </div>
@@ -439,7 +440,7 @@ function SearchContent() {
                             {sub.cats_address && <div>{sub.cats_address}{sub.cats_city ? `, ${sub.cats_city}` : ""}</div>}
                             {(sub.phone || sub.email) && (
                               <div style={{ marginTop: "0.25rem" }}>
-                                {sub.phone && <span>{sub.phone}</span>}
+                                {sub.phone && <span>{formatPhone(sub.phone)}</span>}
                                 {sub.phone && sub.email && <span> &bull; </span>}
                                 {sub.email && <span>{sub.email}</span>}
                               </div>

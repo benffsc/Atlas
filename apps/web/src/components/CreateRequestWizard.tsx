@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -214,7 +215,7 @@ export default function CreateRequestWizard({
               <div>
                 <strong>{submission.submitter_name}</strong>
                 <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-                  {submission.phone || submission.email}
+                  {submission.phone ? formatPhone(submission.phone) : submission.email}
                 </div>
               </div>
               <div style={{ flex: 1 }}>

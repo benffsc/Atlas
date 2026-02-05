@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/BackButton";
+import { formatPhone } from "@/lib/formatters";
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
@@ -519,7 +520,7 @@ export default function CallSheetEntryPage() {
                         onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
                       >
                         <strong>{p.display_name}</strong>
-                        {p.phones && <span style={{ color: "#6b7280", marginLeft: "8px" }}>{p.phones}</span>}
+                        {p.phones && <span style={{ color: "#6b7280", marginLeft: "8px" }}>{formatPhone(p.phones)}</span>}
                         {p.emails && <span style={{ color: "#6b7280", marginLeft: "8px" }}>{p.emails}</span>}
                       </div>
                     ))}

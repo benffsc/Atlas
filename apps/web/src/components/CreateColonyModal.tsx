@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface CreateColonyModalProps {
   isOpen: boolean;
@@ -662,7 +663,7 @@ export function CreateColonyModal({
                             </div>
 
                             <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-                              {person.primary_phone && <span>{person.primary_phone}</span>}
+                              {person.primary_phone && <span>{formatPhone(person.primary_phone)}</span>}
                               {person.primary_phone && person.primary_email && " • "}
                               {person.primary_email && <span>{person.primary_email}</span>}
                             </div>

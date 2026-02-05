@@ -109,6 +109,57 @@ export function formatRelativeDate(
 }
 
 /**
+ * Check if a phone number is valid (10 digits, or 11 starting with 1).
+ *
+ * @param phone - Raw phone string
+ * @returns true if valid US phone number, false otherwise
+ *
+ * @example
+ * isValidPhone("7075551234") // true
+ * isValidPhone("+17075551234") // true
+ * isValidPhone("555-1234") // false (only 7 digits)
+ * isValidPhone("(7073967923) 7073967923") // false (malformed)
+ */
+export function isValidPhone(phone: string | null | undefined): boolean {
+  if (!phone) return false;
+
+  // Extract digits only
+  const digits = phone.replace(/\D/g, "");
+
+  // Valid: exactly 10 digits, or 11 starting with 1
+  return digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
+}
+
+/**
+ * Extract a valid phone number from potentially malformed input.
+ * Tries to find a 10-digit sequence that looks like a phone number.
+ *
+ * @param phone - Raw phone string (possibly malformed)
+ * @returns Extracted 10-digit phone or null if extraction fails
+ *
+ * @example
+ * extractPhone("(7073967923) 7073967923") // "7073967923"
+ * extractPhone("(95492) 7077122660") // "7077122660"
+ * extractPhone("(707) 858817") // null (only 9 digits)
+ */
+export function extractPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+
+  const digits = phone.replace(/\D/g, "");
+
+  // If already valid, return the 10 digits
+  if (digits.length === 10) return digits;
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+
+  // Try to find a 10-digit sequence that starts with a valid area code (2-9)
+  // This handles cases like "(7073967923) 7073967923" -> find the repeated 10 digits
+  const tenDigitMatch = digits.match(/([2-9]\d{9})/);
+  if (tenDigitMatch) return tenDigitMatch[1];
+
+  return null;
+}
+
+/**
  * Format a phone number for display.
  *
  * @param phone - Raw phone string
