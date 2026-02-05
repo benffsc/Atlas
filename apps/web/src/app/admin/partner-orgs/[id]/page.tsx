@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatDateLocal } from "@/lib/formatters";
+import { formatDateLocal, formatPhone } from "@/lib/formatters";
 import { BackButton } from "@/components/BackButton";
 import { useParams } from "next/navigation";
 
@@ -153,7 +153,7 @@ export default function PartnerOrgDetailPage() {
               <div><strong>Email:</strong> <a href={`mailto:${org.contact_email}`}>{org.contact_email}</a></div>
             )}
             {org.contact_phone && (
-              <div><strong>Phone:</strong> {org.contact_phone}</div>
+              <div><strong>Phone:</strong> {formatPhone(org.contact_phone)}</div>
             )}
             {org.website && (
               <div><strong>Website:</strong> <a href={org.website} target="_blank" rel="noopener noreferrer">{org.website}</a></div>

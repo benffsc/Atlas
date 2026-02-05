@@ -18,7 +18,7 @@ import { EntityLink } from "@/components/EntityLink";
 import { PlaceLinksSection } from "@/components/PlaceLinksSection";
 import { SiteStatsCard } from "@/components/SiteStatsCard";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
-import { formatDateLocal } from "@/lib/formatters";
+import { formatDateLocal, formatPhone } from "@/lib/formatters";
 import { MediaGallery } from "@/components/MediaGallery";
 import { HeroGallery } from "@/components/HeroGallery";
 import { MediaItem } from "@/components/MediaUploader";
@@ -646,7 +646,7 @@ export default function PlaceDetailPage() {
               {place.partner_org.contact_phone && (
                 <div>
                   <a href={`tel:${place.partner_org.contact_phone}`} style={{ color: "var(--primary)" }}>
-                    {place.partner_org.contact_phone}
+                    {formatPhone(place.partner_org.contact_phone)}
                   </a>
                 </div>
               )}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SnoozePicker } from "./SnoozePicker";
+import { formatPhone } from "@/lib/formatters";
 
 interface ContactInfo {
   name?: string;
@@ -199,7 +200,7 @@ export function ReminderCard({
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
                 <span style={{ color: "var(--text-secondary)" }}>Phone:</span>
                 <a href={`tel:${reminder.contact_info.phone}`} style={{ color: "#0d6efd" }}>
-                  {reminder.contact_info.phone}
+                  {formatPhone(reminder.contact_info.phone)}
                 </a>
               </div>
             )}
@@ -279,7 +280,7 @@ export function ReminderCard({
                   <div>
                     <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>Phone: </span>
                     <a href={`tel:${reminder.contact_info.phone}`} style={{ color: "#0d6efd" }}>
-                      {reminder.contact_info.phone}
+                      {formatPhone(reminder.contact_info.phone)}
                     </a>
                   </div>
                 )}

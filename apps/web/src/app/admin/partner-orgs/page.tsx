@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { BackButton } from "@/components/BackButton";
+import { formatPhone } from "@/lib/formatters";
 
 interface PartnerOrg {
   org_id: string;
@@ -497,7 +498,7 @@ export default function PartnerOrgsPage() {
                     )}
                     {org.contact_phone && (
                       <div className="text-xs text-gray-500">
-                        {org.contact_phone}
+                        {formatPhone(org.contact_phone)}
                       </div>
                     )}
                   </td>

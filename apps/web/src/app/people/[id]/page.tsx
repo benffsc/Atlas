@@ -17,7 +17,7 @@ import { VerificationBadge, LastVerified } from "@/components/VerificationBadge"
 import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
 import { validatePersonName } from "@/lib/validation";
 import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
-import { formatDateLocal } from "@/lib/formatters";
+import { formatDateLocal, formatPhone } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
@@ -497,8 +497,7 @@ export default function PersonDetailPage() {
     if (person) {
       // Get current phone/email from identifiers
       const phoneId = person.identifiers?.find(i => i.id_type === "phone");
-      const emailId = person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)
-        ?? person.identifiers?.find(i => i.id_type === "email");
+      const emailId = person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5);
       setEditPhone(phoneId?.id_value || "");
       setEditEmail(emailId?.id_value || "");
       setIdentifierError(null);
@@ -785,7 +784,7 @@ export default function PersonDetailPage() {
             </>
           )}
           <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
-            {person.identifiers?.some(i => i.id_type === "email") && (
+            {person.identifiers?.some(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5) && (
               <button
                 onClick={() => setShowEmailModal(true)}
                 style={{
@@ -1071,7 +1070,7 @@ export default function PersonDetailPage() {
               return phones.map((pid, idx) => (
                 <div key={`phone-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Phone</span>
-                  <span style={{ fontSize: "0.9rem" }}>{pid.id_value}</span>
+                  <span style={{ fontSize: "0.9rem" }}>{formatPhone(pid.id_value)}</span>
                   {pid.source_system && (
                     <span className="text-muted" style={{ fontSize: "0.7rem" }}>
                       ({getSourceLabel(pid.source_system)})
@@ -1092,10 +1091,12 @@ export default function PersonDetailPage() {
                   </div>
                 );
               }
-              return emails.map((eid, idx) => (
-                <div key={`email-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              return emails.map((eid, idx) => {
+                const isFabricated = eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5;
+                return (
+                <div key={`email-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: isFabricated ? 0.5 : 1 }}>
                   <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Email</span>
-                  <span style={{ fontSize: "0.9rem" }}>{eid.id_value}</span>
+                  <span style={{ fontSize: "0.9rem", textDecoration: isFabricated ? "line-through" : "none" }}>{eid.id_value}</span>
                   {eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5 && (
                     <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#333", padding: "1px 4px", borderRadius: "3px", fontWeight: 500 }}>
                       Chip Reg.
@@ -1107,7 +1108,8 @@ export default function PersonDetailPage() {
                     </span>
                   )}
                 </div>
-              ));
+                );
+              });
             })()}
           </div>
         )}
@@ -1123,8 +1125,7 @@ export default function PersonDetailPage() {
           entityType="person"
           entityId={person.person_id}
           state={usePersonQuickActionState({
-            email: person.identifiers?.find((i) => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value
-              ?? person.identifiers?.find((i) => i.id_type === "email")?.id_value,
+            email: person.identifiers?.find((i) => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value,
             phone: person.identifiers?.find((i) => i.id_type === "phone")?.id_value,
             is_trapper: !!trapperInfo,
             cat_count: person.cat_count,
@@ -1685,7 +1686,7 @@ export default function PersonDetailPage() {
                       {pid.id_type}
                     </span>
                   </td>
-                  <td style={{ padding: "0.5rem 0" }}>{pid.id_value}</td>
+                  <td style={{ padding: "0.5rem 0" }}>{pid.id_type === "phone" ? formatPhone(pid.id_value) : pid.id_value}</td>
                   <td style={{ padding: "0.5rem 0" }} className="text-muted">
                     {pid.source_system ? `${pid.source_system}${pid.source_table ? `.${pid.source_table}` : ""}` : "Unknown"}
                   </td>
@@ -1740,7 +1741,6 @@ export default function PersonDetailPage() {
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
         defaultTo={person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value
-          ?? person.identifiers?.find(i => i.id_type === "email")?.id_value
           ?? ""}
         defaultToName={person.display_name}
         personId={person.person_id}

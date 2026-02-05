@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface PersonIdentifier {
   id_type: string;
@@ -250,7 +251,7 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
                   {phones.map((id, i) => (
                     <div key={`phone-${i}`} className="person-identifier-row">
                       <span className="person-identifier-icon">#</span>
-                      <span className="person-identifier-value">{id.id_value}</span>
+                      <span className="person-identifier-value">{formatPhone(id.id_value)}</span>
                     </div>
                   ))}
                 </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatPhone } from '@/lib/formatters';
 
 interface RawDetails {
   felv_fiv_snap: string | null;
@@ -540,7 +541,7 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
                 <FieldRow label="Name" value={data.client_name} />
                 <FieldRow label="Ownership" value={data.ownership_type} />
                 <FieldRow label="Email" value={data.client_email} />
-                <FieldRow label="Phone" value={data.client_phone} />
+                <FieldRow label="Phone" value={formatPhone(data.client_phone)} />
                 <FieldRow label="Address" value={data.client_address} />
               </div>
             )}

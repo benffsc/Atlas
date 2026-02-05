@@ -10,7 +10,7 @@ import { OwnershipTransferWizard } from "@/components/OwnershipTransferWizard";
 import { CatMovementSection } from "@/components/CatMovementSection";
 import { EntityLink } from "@/components/EntityLink";
 import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
-import { formatDateLocal } from "@/lib/formatters";
+import { formatDateLocal, formatPhone } from "@/lib/formatters";
 import ReportDeceasedModal from "@/components/ReportDeceasedModal";
 import RecordBirthModal from "@/components/RecordBirthModal";
 import AppointmentDetailModal from "@/components/AppointmentDetailModal";
@@ -184,6 +184,7 @@ interface CatDetail {
   secondary_color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
+  needs_microchip: boolean; // TRUE if cat was created without microchip (MIG_891)
   data_source: string | null; // clinichq, petlink, or legacy_import
   ownership_type: string | null; // Community Cat (Feral), Owned, etc.
   quality_tier: string | null;
@@ -825,6 +826,15 @@ export default function CatDetailPage() {
                   DECEASED
                 </span>
               )}
+              {cat.needs_microchip && (
+                <span
+                  className="badge"
+                  style={{ background: "#f59e0b", color: "#fff", fontSize: "0.6em" }}
+                  title="This cat does not have a microchip on record. Identified via ClinicHQ Animal ID."
+                >
+                  NO MICROCHIP
+                </span>
+              )}
               <DataSourceBadge dataSource={cat.data_source} />
               <OwnershipTypeBadge ownershipType={cat.ownership_type} />
               {cat.has_field_conflicts && (
@@ -923,6 +933,29 @@ export default function CatDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Unchipped Cat Alert Banner */}
+            {cat.needs_microchip && !editingBasic && (
+              <div
+                style={{
+                  marginTop: "0.75rem",
+                  padding: "0.75rem 1rem",
+                  background: "#fef3c7",
+                  border: "1px solid #f59e0b",
+                  borderRadius: "6px",
+                  fontSize: "0.875rem",
+                  color: "#92400e",
+                }}
+              >
+                <strong>No Microchip:</strong> This cat does not have a microchip on record. It was identified via ClinicHQ Animal ID
+                {cat.identifiers?.find(id => id.type === "clinichq_animal_id")?.value && (
+                  <span style={{ fontFamily: "monospace", marginLeft: "0.25rem" }}>
+                    ({cat.identifiers.find(id => id.type === "clinichq_animal_id")?.value})
+                  </span>
+                )}.
+                This typically means the cat was euthanized before microchipping or the microchip was not recorded.
+              </div>
+            )}
 
             {editingBasic ? (
               <div style={{ marginTop: "1rem" }}>
@@ -1716,7 +1749,7 @@ export default function CatDetailPage() {
                     <td>
                       <div style={{ fontWeight: 500 }}>{appt.client_name || "—"}</div>
                       {appt.client_email && <div className="text-muted text-sm">{appt.client_email}</div>}
-                      {appt.client_phone && <div className="text-muted text-sm">{appt.client_phone}</div>}
+                      {appt.client_phone && <div className="text-muted text-sm">{formatPhone(appt.client_phone)}</div>}
                     </td>
                     <td>
                       {"origin_address" in appt && appt.origin_address ? (

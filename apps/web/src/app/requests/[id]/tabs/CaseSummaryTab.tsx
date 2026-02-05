@@ -3,6 +3,7 @@
 import { TrapperAssignments } from "@/components/TrapperAssignments";
 import { ColonyEstimates } from "@/components/ColonyEstimates";
 import { ClassificationSuggestionBanner } from "@/components/ClassificationSuggestionBanner";
+import { formatPhone } from "@/lib/formatters";
 import type { RequestDetail } from "../types";
 
 interface CaseSummaryTabProps {
@@ -356,7 +357,7 @@ export function CaseSummaryTab({
               <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                 {request.requester_phone && (
                   <a href={`tel:${request.requester_phone}`} className="text-sm" style={{ color: "var(--foreground)" }}>
-                    {request.requester_phone}
+                    {formatPhone(request.requester_phone)}
                   </a>
                 )}
                 {request.requester_email && (

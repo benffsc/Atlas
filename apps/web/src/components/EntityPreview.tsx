@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { formatPhone } from "@/lib/formatters";
 
 interface EntityPreviewProps {
   entityType: "cat" | "person" | "place";
@@ -136,7 +137,7 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
             {person.identifiers.find((i) => i.id_type === "phone") && (
               <div className="preview-row">
                 <span className="preview-label">Phone:</span>{" "}
-                {person.identifiers.find((i) => i.id_type === "phone")?.id_value}
+                {formatPhone(person.identifiers.find((i) => i.id_type === "phone")?.id_value)}
               </div>
             )}
           </>
