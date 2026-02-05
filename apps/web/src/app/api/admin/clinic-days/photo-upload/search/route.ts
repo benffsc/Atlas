@@ -14,11 +14,6 @@ interface SearchResult {
   photo_url: string | null;
   appointment_date: string | null;
   clinic_day_number: number | null;
-  is_deceased: boolean;
-  deceased_date: string | null;
-  death_cause: string | null;
-  felv_status: string | null;
-  fiv_status: string | null;
   needs_microchip: boolean;
   is_from_clinic_day: boolean;
 }
@@ -65,28 +60,7 @@ export async function GET(request: NextRequest) {
         c.display_name,
         c.sex,
         c.primary_color,
-        COALESCE(c.is_deceased, FALSE) AS is_deceased,
-        c.deceased_date,
-        -- Get death cause from mortality events (using subquery to avoid duplicates)
-        (
-          SELECT cme.death_cause::TEXT
-          FROM trapper.cat_mortality_events cme
-          WHERE cme.cat_id = c.cat_id
-          ORDER BY cme.event_date DESC NULLS LAST
-          LIMIT 1
-        ) AS death_cause,
         COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
-        -- Parse FeLV/FIV status
-        CASE
-          WHEN c.felv_fiv_status LIKE 'positive/%' THEN 'positive'
-          WHEN c.felv_fiv_status LIKE 'negative/%' THEN 'negative'
-          ELSE NULL
-        END AS felv_status,
-        CASE
-          WHEN c.felv_fiv_status LIKE '%/positive' THEN 'positive'
-          WHEN c.felv_fiv_status LIKE '%/negative' THEN 'negative'
-          ELSE NULL
-        END AS fiv_status,
         ci_mc.id_value AS microchip,
         ci_chq.id_value AS clinichq_animal_id,
         per.display_name AS owner_name,

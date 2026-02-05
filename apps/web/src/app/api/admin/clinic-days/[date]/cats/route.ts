@@ -26,12 +26,6 @@ interface ClinicDayCat {
   owner_name: string | null;
   trapper_name: string | null;
   place_address: string | null;
-  // Deceased and health status fields
-  is_deceased: boolean;
-  deceased_date: string | null;
-  death_cause: string | null;
-  felv_status: string | null;
-  fiv_status: string | null;
 }
 
 interface CatGalleryResponse {
@@ -93,29 +87,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ) AS photo_url,
         per.display_name AS owner_name,
         pl.formatted_address AS place_address,
-        trp.display_name AS trapper_name,
-        -- Deceased and health status fields
-        COALESCE(c.is_deceased, FALSE) AS is_deceased,
-        c.deceased_date,
-        -- Get death cause from mortality events (using subquery to avoid duplicates)
-        (
-          SELECT cme.death_cause::TEXT
-          FROM trapper.cat_mortality_events cme
-          WHERE cme.cat_id = c.cat_id
-          ORDER BY cme.event_date DESC NULLS LAST
-          LIMIT 1
-        ) AS death_cause,
-        -- Parse FeLV/FIV status from combined field
-        CASE
-          WHEN c.felv_fiv_status LIKE 'positive/%' THEN 'positive'
-          WHEN c.felv_fiv_status LIKE 'negative/%' THEN 'negative'
-          ELSE NULL
-        END AS felv_status,
-        CASE
-          WHEN c.felv_fiv_status LIKE '%/positive' THEN 'positive'
-          WHEN c.felv_fiv_status LIKE '%/negative' THEN 'negative'
-          ELSE NULL
-        END AS fiv_status
+        trp.display_name AS trapper_name
       FROM trapper.sot_appointments a
       LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
