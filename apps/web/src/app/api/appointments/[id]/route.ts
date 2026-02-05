@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne, queryRows, query } from "@/lib/db";
 
 interface ProcedureRow {
   procedure_id: string;
@@ -27,6 +27,7 @@ export async function GET(
         v.appointment_id,
         v.appointment_date::TEXT,
         v.appointment_number,
+        v.clinic_day_number,
         v.service_type,
         COALESCE(v.is_spay, FALSE) as is_spay,
         COALESCE(v.is_neuter, FALSE) as is_neuter,
@@ -198,6 +199,7 @@ export async function GET(
       appointment_id: appointment.appointment_id,
       appointment_date: appointment.appointment_date,
       appointment_number: appointment.appointment_number,
+      clinic_day_number: appointment.clinic_day_number,
       appointment_category: appointmentCategory,
       service_type: appointment.service_type,
       vet_name: appointment.vet_name,
@@ -259,6 +261,62 @@ export async function GET(
     console.error("Error fetching appointment detail:", error);
     return NextResponse.json(
       { error: "Failed to fetch appointment details" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  if (!id) {
+    return NextResponse.json({ error: "Appointment ID required" }, { status: 400 });
+  }
+
+  try {
+    const body = await request.json();
+
+    // Currently only clinic_day_number is editable
+    if (body.clinic_day_number === undefined) {
+      return NextResponse.json(
+        { error: "No valid fields to update" },
+        { status: 400 }
+      );
+    }
+
+    const clinicDayNumber = body.clinic_day_number;
+
+    // Allow null (to clear) or a positive integer
+    if (clinicDayNumber !== null) {
+      const num = parseInt(clinicDayNumber, 10);
+      if (isNaN(num) || num < 1 || num > 999) {
+        return NextResponse.json(
+          { error: "clinic_day_number must be between 1 and 999" },
+          { status: 400 }
+        );
+      }
+    }
+
+    const result = await queryOne<{ appointment_id: string; clinic_day_number: number | null }>(
+      `UPDATE trapper.sot_appointments
+       SET clinic_day_number = $1, updated_at = NOW()
+       WHERE appointment_id = $2
+       RETURNING appointment_id, clinic_day_number`,
+      [clinicDayNumber, id]
+    );
+
+    if (!result) {
+      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, ...result });
+  } catch (error) {
+    console.error("Error updating appointment:", error);
+    return NextResponse.json(
+      { error: "Failed to update appointment" },
       { status: 500 }
     );
   }

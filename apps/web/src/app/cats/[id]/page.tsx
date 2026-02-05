@@ -117,6 +117,7 @@ interface CatProcedure {
 interface CatAppointment {
   appointment_id: string;
   appointment_date: string;
+  clinic_day_number: number | null;
   appointment_category: string;
   service_types: string | null;
   is_spay: boolean;
@@ -557,6 +558,35 @@ export default function CatDetailPage() {
   const [showDeceasedModal, setShowDeceasedModal] = useState(false);
   const [showBirthModal, setShowBirthModal] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [editingClinicNum, setEditingClinicNum] = useState<string | null>(null);
+  const [clinicNumValue, setClinicNumValue] = useState("");
+
+  const handleSaveClinicNum = async (appointmentId: string) => {
+    const val = clinicNumValue.trim();
+    const numVal = val === "" ? null : parseInt(val, 10);
+    if (val !== "" && (isNaN(numVal!) || numVal! < 1 || numVal! > 999)) return;
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinic_day_number: numVal }),
+      });
+      if (res.ok) {
+        // Update local state
+        if (cat) {
+          const updated = cat.appointments?.map((a) =>
+            a.appointment_id === appointmentId
+              ? { ...a, clinic_day_number: numVal }
+              : a
+          );
+          setCat({ ...cat, appointments: updated || null });
+        }
+      }
+    } catch {
+      // silent fail
+    }
+    setEditingClinicNum(null);
+  };
 
   const fetchCat = useCallback(async () => {
     try {
@@ -1574,7 +1604,7 @@ export default function CatDetailPage() {
         {cat.appointments && cat.appointments.length > 0 ? (
           <div className="table-container">
             <table>
-              <thead><tr><th>Date</th><th>Type</th><th>Services</th><th>Vet</th></tr></thead>
+              <thead><tr><th style={{ width: "2.5rem", textAlign: "center" }}>#</th><th>Date</th><th>Type</th><th>Services</th><th>Vet</th></tr></thead>
               <tbody>
                 {cat.appointments.map((appt) => (
                   <tr
@@ -1584,6 +1614,48 @@ export default function CatDetailPage() {
                     onMouseOver={(e) => (e.currentTarget.style.background = "var(--section-bg, #f8f9fa)")}
                     onMouseOut={(e) => (e.currentTarget.style.background = "")}
                   >
+                    <td
+                      style={{ textAlign: "center", width: "2.5rem", padding: "0.25rem" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingClinicNum(appt.appointment_id);
+                        setClinicNumValue(appt.clinic_day_number != null ? String(appt.clinic_day_number) : "");
+                      }}
+                    >
+                      {editingClinicNum === appt.appointment_id ? (
+                        <input
+                          type="number"
+                          min={1}
+                          max={999}
+                          value={clinicNumValue}
+                          onChange={(e) => setClinicNumValue(e.target.value)}
+                          onBlur={() => handleSaveClinicNum(appt.appointment_id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveClinicNum(appt.appointment_id);
+                            if (e.key === "Escape") setEditingClinicNum(null);
+                          }}
+                          autoFocus
+                          style={{
+                            width: "2.5rem",
+                            textAlign: "center",
+                            border: "1px solid var(--border, #dee2e6)",
+                            borderRadius: "3px",
+                            fontSize: "0.8rem",
+                            padding: "0.1rem",
+                            background: "var(--bg-secondary, #fff)",
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : appt.clinic_day_number != null ? (
+                        <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--text, #212529)" }}>
+                          {appt.clinic_day_number}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.75rem", color: "var(--muted, #adb5bd)", cursor: "pointer" }} title="Set clinic day number">
+                          +
+                        </span>
+                      )}
+                    </td>
                     <td>{formatDateLocal(appt.appointment_date)}</td>
                     <td>
                       <span className="badge" style={{ background: appt.appointment_category === "Spay/Neuter" ? "#198754" : appt.appointment_category === "Wellness" ? "#0d6efd" : appt.appointment_category === "Recheck" ? "#6f42c1" : appt.appointment_category === "Euthanasia" ? "#dc3545" : "#6c757d", color: "#fff" }}>

@@ -62,6 +62,7 @@ interface AppointmentDetail {
   appointment_id: string;
   appointment_date: string;
   appointment_number: string;
+  clinic_day_number: number | null;
   appointment_category: string;
   service_type: string | null;
   vet_name: string | null;
@@ -276,7 +277,7 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
             <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Appointment Detail</h3>
             {data && (
               <div style={{ color: 'var(--muted, #6c757d)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                {formatDate(data.appointment_date)} &middot; #{data.appointment_number}
+                {formatDate(data.appointment_date)} &middot; #{data.appointment_number}{data.clinic_day_number != null && <> &middot; Cat #{data.clinic_day_number}</>}
               </div>
             )}
           </div>

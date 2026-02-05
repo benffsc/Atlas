@@ -336,6 +336,7 @@ export async function GET(
       SELECT
         v.appointment_id,
         v.appointment_date::TEXT as appointment_date,
+        v.clinic_day_number,
         CASE
             WHEN v.service_type ILIKE '%spay%' OR v.service_type ILIKE '%neuter%' THEN 'Spay/Neuter'
             WHEN v.service_type ILIKE '%examination%brief%' OR v.service_type ILIKE '%exam%feral%'
@@ -439,7 +440,7 @@ export async function GET(
         pcr.created_at::TEXT
       FROM trapper.person_cat_relationships pcr
       JOIN trapper.sot_people p ON p.person_id = pcr.person_id
-      LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email'
+      LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email' AND pi.confidence >= 0.5
       LEFT JOIN trapper.sot_appointments a ON a.appointment_id = pcr.appointment_id
       WHERE pcr.cat_id = $1
       ORDER BY
