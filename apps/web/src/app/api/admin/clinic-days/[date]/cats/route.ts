@@ -97,7 +97,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- Deceased and health status fields
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
         c.deceased_date,
-        cme.death_cause,
+        cme.death_cause::TEXT AS death_cause,
         -- Parse FeLV/FIV status from combined field
         CASE
           WHEN c.felv_fiv_status LIKE 'positive/%' THEN 'positive'
