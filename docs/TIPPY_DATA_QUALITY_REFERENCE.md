@@ -389,6 +389,44 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-04: DQ_005 — Phone COALESCE Cross-Linking Fix (MIG_881)
+
+**Problem:** `process_clinichq_owner_info(integer)` (MIG_573) used `COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')` — preferring cell phone over landline for identity matching. When two phones resolve to different people (household phone sharing), appointments got linked to the wrong person.
+
+**Discovery:** Staff reported Gordon Maxwell (20+ cats in ClinicHQ) showing 0 cats in Atlas, while 8 phantom "Gordon" (first-name-only) records appeared in map search. Investigation revealed Gordon Maxwell shares cell phone 707-543-6499 with Susan Simons. Because COALESCE preferred cell phone, all of Gordon's appointments were linked to Susan.
+
+**Scope of bug:** 30+ affected clients across 1,386 cross-linked appointments, including Henry Dalley (57 appts), Comstock Middle School (46), Cal Eggs (37), Alina Kremer (36), Gordon Maxwell (34), Anytime Fitness (28), Michael Proctor (28), Pam Stevens (26).
+
+**Root cause:** MIG_152 introduced cell-phone-first priority for observation extraction (to avoid grouping by FFSC's shared landline 707-576-7999). This was correct for observations but MIG_573 copied the pattern into identity matching where it causes household cross-linking.
+
+**Solution (MIG_881):**
+- **Phase 1:** Reversed COALESCE in `process_clinichq_owner_info(integer)` to prefer Owner Phone over Owner Cell Phone
+- **Phase 2a:** Re-linked 1,386 cross-linked appointments to correct people (143 people affected)
+- **Phase 2b:** Removed 7,616 orphaned person_cat_relationships
+- **Phase 2c:** Created 880 correct person_cat_relationships
+- **Phase 3:** Merged 8 phantom "Gordon" first-name-only records into canonical Gordon Maxwell
+- **Phase 4:** Removed 176 `@petlink.tmp` fabricated emails from person_identifiers
+- **Phase 5:** Marked 575 first-name-only web_app records as `data_quality='needs_review'`
+
+**Result:**
+- Gordon Maxwell: 0 → 44 appointments, 0 → 26 cats, 0 → 26 PCR
+- Susan Simons: 82 → 38 appointments, 47 → 21 cats (kept only her own)
+- Both function overloads (`integer` and `uuid, integer`) now use correct phone priority
+
+**What Tippy should know:**
+> "In February 2026 we discovered that household phone sharing caused ~1,386 appointments to be linked to the wrong person. The bug was in how we prioritized cell phones vs landlines — cell phones are often shared between household members (spouses, family), so using them for identity matching caused cross-linking. The fix prefers the 'Owner Phone' (typically a personal/landline) over 'Owner Cell Phone'. If a staff member notices a person with unexpectedly many or few cats, check if they share a phone number with another person in the household."
+
+**Additional cleanup:**
+- `@petlink.tmp` emails were fabricated from phone numbers during an older PetLink processing script — not found in current codebase, likely a one-off migration. All 176 removed.
+- 575 first-name-only records from `web_app` marked `needs_review` — these may be partial intake submissions or data entry errors.
+
+**Staff Impact:**
+- People who appeared to have someone else's cats now show only their own
+- People who appeared to have no cats now correctly show their animals
+- ~143 people affected across the database
+
+---
+
 ### 2026-02-04: Source System Authority Map + ShelterLuv Data Completeness (MIG_875-880)
 
 **Problem:** After fixing ShelterLuv outcomes (MIG_874), several gaps remained: no documentation of which system is authoritative for which data, events sync stale 12+ days, 4,960 SL people had addresses but no place links (wrong field name bug), and 4,179 intake events were unprocessed.
@@ -765,6 +803,31 @@ Shows which data needs refreshing:
 ## Development Session Log
 
 Brief summaries of development sessions for context on system evolution.
+
+### Session: 2026-02-04 - Phone COALESCE Cross-Linking Investigation & Fix
+
+**Context:** Staff reported Gordon Maxwell (20+ cats in ClinicHQ) showing 0 cats in Atlas, with 8 phantom "Gordon" first-name-only records appearing in map search.
+
+**Key Discoveries:**
+1. `process_clinichq_owner_info(integer)` (MIG_573) preferred Owner Cell Phone over Owner Phone via COALESCE — cell phones are shared in households, causing identity cross-linking
+2. 30+ affected clients across 1,386 appointments linked to wrong person
+3. The `(uuid, integer)` overload (unified pipeline) already used correct logic — only the legacy `(integer)` overload had the bug
+4. 177 `@petlink.tmp` fabricated emails existed in person_identifiers from an older migration
+5. 579 first-name-only web_app people records with `data_quality='normal'` needed flagging
+6. MIG_152's cell-phone-first priority was correct for observation extraction but wrong for identity matching — the pattern leaked into MIG_573
+
+**Changes Made:**
+- MIG_881: Fixed COALESCE phone order, re-linked 1,386 appointments, cleaned 7,616 orphaned PCR, created 880 correct PCR, merged 8 phantom Gordons, removed 176 @petlink.tmp emails, flagged 575 needs_review records
+- CLAUDE.md: Added System Invariant #12 (phone COALESCE order) and Don't Do rule
+- New North Star invariant: "Phone COALESCE Must Prefer Owner Phone Over Cell Phone"
+
+**Staff Impact:**
+- ~143 people now show correct cat ownership
+- Gordon Maxwell restored: 44 appointments, 26 cats
+- Susan Simons corrected: 82 → 38 appointments (only her own)
+- Map search no longer shows phantom first-name-only entries for Gordon
+
+---
 
 ### Session: 2026-01-25 (Part 2) - AI Data Capture System
 

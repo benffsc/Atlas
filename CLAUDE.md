@@ -17,6 +17,7 @@ These apply to ALL changes across ALL layers:
 9. **Pipeline Functions Must Reference Actual Schema** — Functions that reference columns must use actual column names. Verify columns exist with `information_schema.columns` in migrations.
 10. **Ingest Must Be Serverless-Resilient** — Export `maxDuration`, scope processing to current upload, save intermediate progress, auto-reset stuck uploads, UI fire-and-forget + polling.
 11. **ClinicHQ Relationships Must Not Assume Residency** — Trappers/staff have false resident links from trapping sites. For people with >3 clinichq resident links + active trapper/staff role, keep only highest-confidence as resident.
+12. **Phone COALESCE Must Prefer Owner Phone Over Cell Phone** — In identity matching, always `COALESCE(NULLIF(payload->>'Owner Phone', ''), payload->>'Owner Cell Phone')`. Cell phones are shared within households (spouses, family) and cause cross-linking when used as primary identity signal. See MIG_881.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
 
@@ -217,6 +218,7 @@ When cats have data from multiple sources, use `record_cat_field_sources_batch()
 - Don't confuse colony size (estimate) with cats caught (verified clinic data)
 - Don't return 404 for merged entities — Check `merged_into_*_id` and redirect
 - Don't forget `process_clinichq_owner_info()` after ClinicHQ ingest
+- **Don't COALESCE Owner Cell Phone before Owner Phone** — Cell phones are shared in households, causing cross-linking. Always prefer `Owner Phone` for identity matching (MIG_881)
 
 **Map:**
 - Don't hardcode `type=place` in map search API calls — excludes people
