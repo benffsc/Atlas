@@ -107,14 +107,14 @@ export async function GET(request: NextRequest) {
         ci_chq.id_value AS clinichq_animal_id,
         per.display_name AS owner_name,
         pl.formatted_address AS place_address,
-        -- Get most recent cat photo
+        -- Get hero photo first, then most recent cat photo
         (
           SELECT rm.storage_path
           FROM trapper.request_media rm
           WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
             AND rm.is_archived = FALSE
             AND rm.media_type = 'cat_photo'
-          ORDER BY rm.uploaded_at DESC
+          ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
           LIMIT 1
         ) AS photo_url,
         -- Check if from selected clinic day
