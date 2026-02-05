@@ -45,6 +45,7 @@ interface MediaUploaderProps {
   showConfidenceSelector?: boolean;
   autoGroupMultiple?: boolean;
   defaultConfidence?: ConfidenceLevel;
+  onClinicDayNumber?: (num: number) => void;
 }
 
 export function MediaUploader({
@@ -59,6 +60,7 @@ export function MediaUploader({
   showConfidenceSelector = false,
   autoGroupMultiple = false,
   defaultConfidence = "unidentified",
+  onClinicDayNumber,
 }: MediaUploaderProps) {
   const isMobile = useIsMobile();
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
@@ -72,6 +74,7 @@ export function MediaUploader({
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [clinicDayNum, setClinicDayNum] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -342,9 +345,16 @@ export function MediaUploader({
         setError(`${uploadedItems.length} uploaded, ${failedCount} failed`);
       }
 
+      // Save clinic day number if entered
+      const parsedClinicNum = parseInt(clinicDayNum, 10);
+      if (onClinicDayNumber && !isNaN(parsedClinicNum) && parsedClinicNum >= 1) {
+        onClinicDayNumber(parsedClinicNum);
+      }
+
       clearAllFiles();
       setCaption("");
       setCatDescription("");
+      setClinicDayNum("");
       setGroupName("");
       onUploadComplete?.(uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems);
     } catch (err) {
@@ -680,6 +690,33 @@ export function MediaUploader({
           />
           <div style={{ fontSize: "0.75rem", color: "#6c757d", marginTop: "0.25rem" }}>
             Helps identify the cat later when microchip is known
+          </div>
+        </div>
+      )}
+
+      {/* Clinic day number (cat photos only) */}
+      {onClinicDayNumber && mediaType === "cat_photo" && (
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
+            Clinic Day # (optional)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={999}
+            value={clinicDayNum}
+            onChange={(e) => setClinicDayNum(e.target.value)}
+            placeholder="e.g., 9"
+            style={{
+              width: "5rem",
+              padding: "0.5rem",
+              border: "1px solid #dee2e6",
+              borderRadius: "4px",
+              fontSize: "0.875rem",
+            }}
+          />
+          <div style={{ fontSize: "0.75rem", color: "#6c757d", marginTop: "0.25rem" }}>
+            Number from the waiver / master list for this clinic day
           </div>
         </div>
       )}

@@ -38,6 +38,7 @@ interface MediaGalleryProps {
   showGrouping?: boolean;
   defaultToGroupView?: boolean;
   availableCats?: Cat[];
+  onClinicDayNumber?: (num: number) => void;
 }
 
 export function MediaGallery({
@@ -53,6 +54,7 @@ export function MediaGallery({
   showGrouping = false,
   defaultToGroupView = false,
   availableCats = [],
+  onClinicDayNumber,
 }: MediaGalleryProps) {
   const [media, setMedia] = useState<ExtendedMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -329,6 +331,7 @@ export function MediaGallery({
                 allowMultiple={true}
                 showConfidenceSelector={showGrouping && entityType === "request"}
                 autoGroupMultiple={showGrouping}
+                onClinicDayNumber={onClinicDayNumber}
               />
             </div>
           </div>
