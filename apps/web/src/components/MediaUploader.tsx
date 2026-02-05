@@ -45,7 +45,8 @@ interface MediaUploaderProps {
   showConfidenceSelector?: boolean;
   autoGroupMultiple?: boolean;
   defaultConfidence?: ConfidenceLevel;
-  onClinicDayNumber?: (num: number) => void;
+  onClinicDayNumber?: (appointmentId: string, num: number) => void;
+  appointmentOptions?: Array<{ appointment_id: string; appointment_date: string }>;
 }
 
 export function MediaUploader({
@@ -61,6 +62,7 @@ export function MediaUploader({
   autoGroupMultiple = false,
   defaultConfidence = "unidentified",
   onClinicDayNumber,
+  appointmentOptions = [],
 }: MediaUploaderProps) {
   const isMobile = useIsMobile();
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
@@ -76,6 +78,7 @@ export function MediaUploader({
   const [isDragging, setIsDragging] = useState(false);
   const [clinicDayNum, setClinicDayNum] = useState("");
   const [uploadedMedia, setUploadedMedia] = useState<MediaItem[] | null>(null);
+  const [selectedApptId, setSelectedApptId] = useState(appointmentOptions[0]?.appointment_id || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -384,13 +387,20 @@ export function MediaUploader({
   if (uploadedMedia) {
     const handleFinish = () => {
       const parsedNum = parseInt(clinicDayNum, 10);
-      if (onClinicDayNumber && !isNaN(parsedNum) && parsedNum >= 1) {
-        onClinicDayNumber(parsedNum);
+      if (onClinicDayNumber && selectedApptId && !isNaN(parsedNum) && parsedNum >= 1) {
+        onClinicDayNumber(selectedApptId, parsedNum);
       }
       const items = uploadedMedia;
       setUploadedMedia(null);
       setClinicDayNum("");
       onUploadComplete?.(items.length === 1 ? items[0] : items);
+    };
+
+    const formatApptDate = (dateStr: string) => {
+      try {
+        const d = new Date(dateStr + "T12:00:00");
+        return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+      } catch { return dateStr; }
     };
 
     return (
@@ -424,7 +434,7 @@ export function MediaUploader({
           ))}
         </div>
 
-        {/* Clinic day number input */}
+        {/* Clinic day number + appointment picker */}
         <div style={{
           background: "var(--bg-secondary, #fff)",
           border: "1px solid #dee2e6",
@@ -432,9 +442,43 @@ export function MediaUploader({
           padding: "0.75rem",
           marginBottom: "1rem",
         }}>
-          <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
+          <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 500 }}>
             Clinic Day # (optional)
           </label>
+
+          {/* Appointment date selector */}
+          {appointmentOptions.length > 1 && (
+            <div style={{ marginBottom: "0.5rem" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.75rem", color: "#6c757d" }}>
+                Appointment date
+              </label>
+              <select
+                value={selectedApptId}
+                onChange={(e) => setSelectedApptId(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.375rem 0.5rem",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                  background: "var(--bg-secondary, #fff)",
+                  color: "var(--text, #212529)",
+                }}
+              >
+                {appointmentOptions.map((appt) => (
+                  <option key={appt.appointment_id} value={appt.appointment_id}>
+                    {formatApptDate(appt.appointment_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {appointmentOptions.length === 1 && (
+            <div style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "#6c757d" }}>
+              {formatApptDate(appointmentOptions[0].appointment_date)}
+            </div>
+          )}
+
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <input
               type="number"

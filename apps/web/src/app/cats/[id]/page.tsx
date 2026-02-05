@@ -791,8 +791,7 @@ export default function CatDetailPage() {
                   cat.microchip ? `Chip: ${cat.microchip}` : undefined,
                 ].filter(Boolean) as string[],
               }}
-              onClinicDayNumber={cat.appointments?.[0] ? (num) => {
-                const apptId = cat.appointments![0].appointment_id;
+              onClinicDayNumber={cat.appointments?.length ? (apptId, num) => {
                 fetch(`/api/appointments/${apptId}`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
@@ -806,6 +805,10 @@ export default function CatDetailPage() {
                   }
                 }).catch(() => {});
               } : undefined}
+              appointmentOptions={cat.appointments?.map((a) => ({
+                appointment_id: a.appointment_id,
+                appointment_date: a.appointment_date,
+              }))}
             />
           </div>
 
