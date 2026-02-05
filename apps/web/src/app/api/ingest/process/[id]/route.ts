@@ -293,8 +293,9 @@ export async function POST(
            post_processing_results = $8
        WHERE upload_id = $1`,
       [uploadId, rows.length, inserted, updated, skipped,
-       dataDateMin?.toISOString().split('T')[0] || null,
-       dataDateMax?.toISOString().split('T')[0] || null,
+       // Format dates in local timezone (avoid UTC shift from toISOString)
+       dataDateMin ? `${dataDateMin.getFullYear()}-${String(dataDateMin.getMonth() + 1).padStart(2, '0')}-${String(dataDateMin.getDate()).padStart(2, '0')}` : null,
+       dataDateMax ? `${dataDateMax.getFullYear()}-${String(dataDateMax.getMonth() + 1).padStart(2, '0')}-${String(dataDateMax.getDate()).padStart(2, '0')}` : null,
        postProcessingResults ? JSON.stringify(postProcessingResults) : null]
     );
 
