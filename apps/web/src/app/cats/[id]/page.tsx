@@ -1604,7 +1604,7 @@ export default function CatDetailPage() {
         {cat.appointments && cat.appointments.length > 0 ? (
           <div className="table-container">
             <table>
-              <thead><tr><th style={{ width: "2.5rem", textAlign: "center" }}>#</th><th>Date</th><th>Type</th><th>Services</th><th>Vet</th></tr></thead>
+              <thead><tr><th style={{ width: "2.5rem", textAlign: "center" }} title="Clinic day number (from waiver)">Day #</th><th>Date</th><th>Type</th><th>Services</th><th>Vet</th></tr></thead>
               <tbody>
                 {cat.appointments.map((appt) => (
                   <tr
