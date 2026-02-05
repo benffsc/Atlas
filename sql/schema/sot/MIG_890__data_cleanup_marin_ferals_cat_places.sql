@@ -20,9 +20,10 @@
 \echo ''
 \echo 'Phase 1: Merging Carlos Lopez duplicates...'
 
+-- Note: merge_people(source, target) - source gets merged INTO target
 DO $$
 DECLARE
-    v_canonical UUID := '2a6d16a6-6ed6-49f7-a94b-fea96eed1793';
+    v_canonical UUID := '0e2505db-8222-40fb-912d-eb480449251a';  -- Updated canonical after manual fix
     v_dup UUID;
     v_count INT := 0;
 BEGIN
@@ -32,7 +33,7 @@ BEGIN
           AND merged_into_person_id IS NULL
           AND person_id != v_canonical
     LOOP
-        PERFORM trapper.merge_people(v_canonical, v_dup);
+        PERFORM trapper.merge_people(v_dup, v_canonical);  -- source INTO target
         v_count := v_count + 1;
     END LOOP;
     RAISE NOTICE 'Merged % Carlos Lopez duplicates into canonical %', v_count, v_canonical;
@@ -45,6 +46,7 @@ END $$;
 \echo ''
 \echo 'Phase 2: Merging Jeanie Garcia duplicates...'
 
+-- Note: merge_people(source, target) - source gets merged INTO target
 DO $$
 DECLARE
     v_canonical UUID := '656b3dd9-1e09-4cb6-aa0c-f6f31f5a4473';
@@ -57,7 +59,7 @@ BEGIN
           AND merged_into_person_id IS NULL
           AND person_id != v_canonical
     LOOP
-        PERFORM trapper.merge_people(v_canonical, v_dup);
+        PERFORM trapper.merge_people(v_dup, v_canonical);  -- source INTO target
         v_count := v_count + 1;
     END LOOP;
     RAISE NOTICE 'Merged % Jeanie Garcia duplicates into canonical %', v_count, v_canonical;
@@ -74,13 +76,13 @@ END $$;
 \echo 'Phase 3: Seeding Carlos Lopez phone identifier...'
 
 INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system)
-VALUES ('2a6d16a6-6ed6-49f7-a94b-fea96eed1793', 'phone', '7074799459', '7074799459', 0.5, 'clinichq')
+VALUES ('0e2505db-8222-40fb-912d-eb480449251a', 'phone', '7074799459', '7074799459', 0.5, 'clinichq')
 ON CONFLICT DO NOTHING;
 
 -- Audit trail
 INSERT INTO trapper.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
 VALUES (
-    'person', '2a6d16a6-6ed6-49f7-a94b-fea96eed1793',
+    'person', '0e2505db-8222-40fb-912d-eb480449251a',
     'field_update', 'person_identifiers',
     '"phone:7074799459 (confidence 0.5)"'::jsonb,
     'Bootstrap seed: Carlos Lopez had zero identifiers due to shared email orphan pattern. Phone from ClinicHQ export. Confidence 0.5 (shared org phone, soft-blacklisted).',
@@ -97,13 +99,13 @@ VALUES (
 
 -- Update person_cat_relationships
 UPDATE trapper.person_cat_relationships
-SET person_id = '2a6d16a6-6ed6-49f7-a94b-fea96eed1793'
+SET person_id = '0e2505db-8222-40fb-912d-eb480449251a'
 WHERE cat_id = '59f6c186-2b36-497e-9cf0-a4019b2883ee'
   AND person_id = '656b3dd9-1e09-4cb6-aa0c-f6f31f5a4473';
 
 -- Update appointment 26-483
 UPDATE trapper.sot_appointments
-SET person_id = '2a6d16a6-6ed6-49f7-a94b-fea96eed1793'
+SET person_id = '0e2505db-8222-40fb-912d-eb480449251a'
 WHERE appointment_number = '26-483';
 
 -- Audit trail
@@ -112,7 +114,7 @@ VALUES (
     'cat', '59f6c186-2b36-497e-9cf0-a4019b2883ee',
     'field_update', 'caretaker_person_id',
     '"656b3dd9-1e09-4cb6-aa0c-f6f31f5a4473"'::jsonb,
-    '"2a6d16a6-6ed6-49f7-a94b-fea96eed1793"'::jsonb,
+    '"0e2505db-8222-40fb-912d-eb480449251a"'::jsonb,
     'Cat 981020053817972 was linked to Jeanie Garcia via shared org email marinferals@yahoo.com. Actual caretaker is Carlos Lopez per ClinicHQ appointment 26-483.',
     'staff:mig_890'
 );
