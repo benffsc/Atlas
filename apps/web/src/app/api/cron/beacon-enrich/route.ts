@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
             )
             AND me.mortality_event_id IS NULL
           ORDER BY a.cat_id, a.appointment_date DESC
-          LIMIT 50
+          LIMIT 200
         )
         INSERT INTO trapper.cat_mortality_events (
           cat_id,

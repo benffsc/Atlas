@@ -389,6 +389,32 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-05: DQ_007 — Beacon Readiness Gap Closure (MIG_884, MIG_885, MIG_886)
+
+**Problem:** Beacon readiness audit found 4 gaps: cat-place coverage 91.7%, geocoding 92.2%, trapper-appointment linking 3.2%, mortality cron limit 50.
+
+**Investigation:**
+- Cat-place gap root cause: 2,569 cats have no `person_cat_relationships` at all (hard ceiling). 438 adopter+resident cats were linkable but `link_cats_to_places()` hadn't been re-run after MIG_877 backfill. 105 ClinicHQ people had addresses in staged_records but no `person_place_relationships`.
+- Geocoding: 91 places permanently failed after 5 attempts. Cron IS running (*/30 in vercel.json).
+- Trapper-appointment: Current function matches via owner email/phone = trapper, which is fundamentally wrong (owner ≠ trapper). Real path is appointment → cat → place → request → trapper.
+- Mortality: ShelterLuv mortality already handled by MIG_874 (`process_shelterluv_events`).
+
+**Solution:**
+- **MIG_884:** Backfilled 105 ClinicHQ owner addresses into `person_place_relationships`. Expanded `link_cats_to_places()` to include `requester` role (unlocked 1,951 additional cat-place edges). Re-running the function alone created 4,542 edges from MIG_877 backlog.
+- **MIG_885:** Re-queued 86 permanently failed geocoding places. Increased `record_geocoding_result()` max_attempts from 5 to 10. 1,167 places now in geocoding queue.
+- **MIG_886:** Added `request_id` column to `sot_appointments`. Created `link_appointments_to_requests()` using place + attribution window (MIG_860 rules). Updated `link_appointments_to_trappers()` with two-pass: request chain first, email/phone fallback. 1,348 appointments linked to requests, 972 got trappers.
+- Mortality cron limit increased from 50 to 200 per run.
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Cat-place coverage | 91.7% | 92.9% |
+| Geocoding | 92.2% | 92.2% (1,167 queued, processing) |
+| Trapper-appointment | 3.2% | 5.3% |
+| Mortality cron | 50/run | 200/run |
+
+**Remaining gaps:** Cat-place ceiling is 2,569 cats with no person association. Trapper-appointment limited by only 289 requests (grows as staff creates requests). Geocoding will improve to ~95%+ as cron processes the queue.
+
 ### 2026-02-05: DQ_006 — Data Quality Filtering for Map, Search & Shared Phone Monitoring (MIG_882, MIG_883)
 
 **Problem:** People with `data_quality='garbage'` or `'needs_review'` appeared in map pin popups, search results, and the volunteers layer. 717 bad-quality records (133 garbage + 584 needs_review) were polluting user-facing surfaces.
@@ -835,6 +861,33 @@ Shows which data needs refreshing:
 
 Brief summaries of development sessions for context on system evolution.
 
+### Session: 2026-02-05 (Part 2) - Beacon Gap Closure (MIG_884-886)
+
+**Context:** After Beacon readiness audit identified 4 gaps, systematic investigation revealed root causes and realistic improvement paths.
+
+**Key Discoveries:**
+1. Cat-place gap was mostly caused by `link_cats_to_places()` not being re-run after MIG_877 ShelterLuv address backfill — 4,542 edges were sitting unlinked
+2. 2,569 cats have NO `person_cat_relationships` at all — this is the hard ceiling for person→place→cat linking
+3. Trapper-appointment linking was fundamentally broken: owner_email ≠ trapper. The correct chain is appointment → place → request → trapper_assignments
+4. Only 289 requests exist with 187 having trapper assignments, limiting the request chain approach
+5. ShelterLuv mortality (Euthanasia + UnassistedDeathInCustody) was already handled by MIG_874 — not a real gap
+6. Geocoding cron IS running (verified in vercel.json), the gap was from permanently failed places not being retried
+
+**Changes Made:**
+- MIG_884: ClinicHQ owner address backfill (105 person_place links) + requester role expansion in `link_cats_to_places()` (1,951 edges) + re-run (4,542 edges from backlog)
+- MIG_885: Re-queued 86 failed geocoding places, increased max_attempts 5→10, 1,167 places now in queue
+- MIG_886: Added `request_id` to `sot_appointments`, created `link_appointments_to_requests()`, updated `link_appointments_to_trappers()` with two-pass (request chain + email/phone), 1,348 appointments linked to requests, 972 got trappers
+- Mortality cron limit 50→200
+- Person aliases API committed (from other session)
+
+**Staff Impact:**
+- Cat-place coverage 91.7% → 92.9% — more cats visible at their correct locations
+- Trapper credit now flows from request assignments to clinic appointments (5.3% linked)
+- Geocoding queue will process 1,167 places over next hours
+- Person aliases: GET returns aliases, name changes auto-create aliases, CRUD endpoint available
+
+---
+
 ### Session: 2026-02-05 - Data Quality Filtering + Beacon Readiness Audit
 
 **Context:** After MIG_881 phone COALESCE fix, staff wanted map, search, and data cleaned for Beacon. User confirmed trapper-phone-sharing is a known legacy pattern (trappers gave cell phones for elderly colony owners).
@@ -864,19 +917,20 @@ Brief summaries of development sessions for context on system evolution.
 - Created `/admin/data-quality/review` page for staff to resolve flagged records
 - Documented trapper-phone-sharing as known data pattern
 
-**Critical Gaps Identified for Beacon:**
-- **Cat-place coverage at 91.7%** (target 95%+) — ~1,200 cats lack place links, likely cats without owner addresses or unlinked clinic appointments
-- **Geocoding at 91.3%** (target 95%+) — ~560 places need geocoding, may be malformed addresses or API failures
-- **Trapper-appointment linking at 3.2%** (target 50%+) — Most appointments lack `trapper_person_id`. The `link_appointments_to_trappers()` function may need improvements or more source data
-- **Mortality events limited to 138** — Only AI-extracted from clinic notes. ClinicHQ euthanasia uploads and ShelterLuv death outcomes could add more. Disease/euthanasia pattern analysis for Beacon will need richer data.
+**Critical Gaps — Updated after MIG_884-886:**
+- **Cat-place coverage at 92.9%** (was 91.7%) — Improved by re-running `link_cats_to_places()` (4,542 edges from MIG_877 backlog), ClinicHQ address backfill (105 links), requester role expansion (1,951 edges). Remaining 2,569 cats have no person association at all — hard ceiling for person→place linking.
+- **Geocoding at 92.2% + 1,167 in queue** — Re-queued 86 failed places, max_attempts 5→10. Cron processes ~50/run. Will reach ~95% over several hours.
+- **Trapper-appointment linking at 5.3%** (was 3.2%) — MIG_886 adds `request_id` to appointments and links via place+window+trapper_assignments. Only 289 requests exist with 187 having trappers. Will improve as staff creates more requests.
+- **Mortality cron now processes 200/run** (was 50). ShelterLuv mortality already handled by MIG_874.
 
 **What Tippy should know:**
-> "Beacon readiness is solid on person-linking (97.9%) and disease tracking (2,178 tests, 93 flagged places). The main gaps are cat-place coverage and geocoding — both around 91%. Trapper-appointment linking is very low (3.2%) because most clinic appointments don't have trapper info in the data. Mortality/euthanasia tracking exists but is limited to 138 events from AI extraction of clinic notes."
+> "Beacon readiness improved: cat-place coverage at 92.9% (2,569 cats have no person link — this is the ceiling). Geocoding at 92.2% with 1,167 places in queue being processed. Trapper-appointment linking improved to 5.3% — limited by only 289 requests in the system. Mortality tracking is comprehensive with clinic + ShelterLuv sources. Person-linking (97.9%) and disease tracking (2,178 tests, 93 places) remain solid."
 
 **Staff Impact:**
 - Search now only shows real people (no garbage/phantom records)
 - Map pins no longer show bad-quality people in popups
 - Staff can review and resolve flagged records at `/admin/data-quality/review`
+- Trapper credit now flows through request assignments to clinic appointments
 
 ---
 

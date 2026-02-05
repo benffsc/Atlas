@@ -22,16 +22,16 @@ These apply to ALL changes across ALL layers:
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
 
-## Beacon Readiness — Critical Gaps (as of 2026-02-05)
+## Beacon Readiness — Gap Status (updated 2026-02-05)
 
-| Metric | Current | Target | Gap |
-|--------|---------|--------|-----|
-| Cat-place coverage | 91.7% | 95%+ | ~1,200 cats need place links |
-| Geocoding coverage | 91.3% | 95%+ | ~560 places need geocoding |
-| Trapper-appointment linking | 3.2% | 50%+ | Most appointments lack trapper_person_id |
-| Mortality events | 138 | More | Only AI-extracted from clinic notes so far |
+| Metric | Before | After | Fix | Remaining |
+|--------|--------|-------|-----|-----------|
+| Cat-place coverage | 91.7% | 92.9% | MIG_884 backfill + requester role | 2,569 cats have no person link (ceiling) |
+| Geocoding | 92.2% | 92.2%+queue | MIG_885 re-queued 86 failed, max 5→10 | 1,167 in queue, cron processing |
+| Trapper-appointment | 3.2% | 5.3% | MIG_886 request chain (972 new) | Only 289 requests — grows with usage |
+| Mortality | 138 | 138 | Cron limit 50→200; ShelterLuv done (MIG_874) | Comprehensive |
 
-**What's solid:** Appointment-person linking (97.9%), disease tracking (2,178 test results, 93 flagged places), colony estimates (2,995 places), intake events (3,707).
+**What's solid:** Appointment-person (97.9%), disease tracking (2,178 tests, 93 places), colony estimates (2,995), intake events (3,707).
 
 ## Core Mission: Every Entity is Real and Distinct
 
