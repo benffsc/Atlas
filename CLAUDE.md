@@ -19,19 +19,45 @@ These apply to ALL changes across ALL layers:
 11. **ClinicHQ Relationships Must Not Assume Residency** — Trappers/staff have false resident links from trapping sites. For people with >3 clinichq resident links + active trapper/staff role, keep only highest-confidence as resident.
 12. **Phone COALESCE Must Prefer Owner Phone Over Cell Phone** — In identity matching, always `COALESCE(NULLIF(payload->>'Owner Phone', ''), payload->>'Owner Cell Phone')`. Cell phones are shared within households (spouses, family) and cause cross-linking when used as primary identity signal. See MIG_881.
 13. **Display Surfaces Must Filter data_quality** — `v_map_atlas_pins`, `search_unified()`, and any volunteer/person-facing queries MUST exclude `data_quality IN ('garbage', 'needs_review')`. Ingest pipelines are independent and unaffected. See MIG_882.
+14. **Entity Linking Must Re-run After Backfills** — After any backfill that creates `person_place_relationships` or `person_cat_relationships`, ALWAYS re-run `trapper.link_cats_to_places()` and/or `trapper.run_all_entity_linking()`. Backfills create the edges but downstream propagation only happens when the linking pipeline runs. MIG_884 demonstrated this: 4,542 edges were waiting because `link_cats_to_places()` hadn't been re-run after MIG_877.
+15. **Owner Linking Must Support Phone-Only** — `link_appointments_to_owners()` currently requires `owner_email IS NOT NULL` (skips 106+ cats with phone-only contact). Any future version must handle `(owner_email IS NOT NULL OR owner_phone IS NOT NULL)` and call `find_or_create_person()` with phone when email is absent.
+16. **ShelterLuv Outcomes Must Be Fully Processed** — 3,348 ShelterLuv adoption/foster events exist. `process_shelterluv_outcomes()` must process all of them to create `person_cat_relationships` for 1,461+ ShelterLuv-only cats. Run periodically until all events processed.
+17. **Trapper-Appointment Linking Depends on Request Volume** — MIG_886 links appointments→requests→trappers. Only 289 requests exist (187 with trappers). Coverage (5.3%) grows organically as more requests are created via Atlas UI. Not a bug — structural ceiling from historical data sparsity.
+18. **PetLink Cats Are External Registry Data** — 956 cats from PetLink bulk import have microchips but no FFSC appointments. These are expected unlinked cats — they exist in microchip registry but were never seen at FFSC clinic or ShelterLuv. Do not treat as a gap.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
 
-## Beacon Readiness — Gap Status (updated 2026-02-05)
+## Beacon Readiness — Gap Status (updated 2026-02-04)
 
 | Metric | Before | After | Fix | Remaining |
 |--------|--------|-------|-----|-----------|
-| Cat-place coverage | 91.7% | 92.9% | MIG_884 backfill + requester role | 2,569 cats have no person link (ceiling) |
-| Geocoding | 92.2% | 92.2%+queue | MIG_885 re-queued 86 failed, max 5→10 | 1,167 in queue, cron processing |
+| Cat-place coverage | 91.7% | 92.9% | MIG_884 backfill + requester role | 3,536 cats have no person link (ceiling) |
+| Geocoding | 92.2% | 92.9% | MIG_885 re-queued 86 failed, max 5→10 | ~1,100 in queue, cron processing |
 | Trapper-appointment | 3.2% | 5.3% | MIG_886 request chain (972 new) | Only 289 requests — grows with usage |
 | Mortality | 138 | 138 | Cron limit 50→200; ShelterLuv done (MIG_874) | Comprehensive |
 
 **What's solid:** Appointment-person (97.9%), disease tracking (2,178 tests, 93 places), colony estimates (2,995), intake events (3,707).
+
+### Unlinked Cats Deep Dive (3,536 cats with no person_cat_relationships)
+
+| Category | Count | Root Cause | Fix |
+|----------|-------|------------|-----|
+| ShelterLuv-only (no appointments) | 1,461 | SL adoption/foster events (3,348 total) not fully processed | Run `process_shelterluv_outcomes()` |
+| ClinicHQ appointments, no contact info | 351 | Appointments have no owner_email or owner_phone | Cannot auto-link — no identifiers |
+| ClinicHQ appointments, phone only | 106 | `link_appointments_to_owners()` requires `owner_email IS NOT NULL`, skips phone-only | **Future MIG: extend to phone-only** |
+| ClinicHQ appointments, email exists | 205 | `link_appointments_to_owners()` LIMIT 2000 batch — may need multiple runs | Re-run entity linking pipeline |
+| ClinicHQ, no appointments | 439 | Cat created from ClinicHQ but appointment has no cat_id link | Microchip matching or manual |
+| PetLink-only (microchip registry) | 956 | Bulk PetLink import (2026-01-11) — registry cats never seen at FFSC | Expected — external registry data |
+| Both ClinicHQ+ShelterLuv | 48 | Various | Mixed |
+| No identifiers at all | 10 | ClinicHQ cats with no identifiers | Manual review |
+
+### Trapper Assignment Gap (102 of 289 requests unassigned)
+
+| Category | Count | Root Cause |
+|----------|-------|------------|
+| Airtable, never assigned | 69 | Genuinely no trapper recorded in Airtable |
+| Airtable, "Client Trapping" | 24 | Pseudo-trapper (requester trapped themselves) — no real person_id |
+| Atlas UI / Web Intake (new) | 9 | Not yet assigned — expected for new requests |
 
 ## Core Mission: Every Entity is Real and Distinct
 
