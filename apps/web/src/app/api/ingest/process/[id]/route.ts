@@ -465,8 +465,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   }
 
   if (sourceTable === 'owner_info') {
-    // Step 1: Create people using find_or_create_person SQL function (consistent with other ingests)
-    // This finds existing people by email/phone OR creates new ones
+    // Step 1: Create REAL PEOPLE using find_or_create_person SQL function
+    // MIG_888/INV-22: Mirrors SQL processor (MIG_573) — only process records
+    // where should_be_person() returns TRUE (has contact info + person-like name)
     await saveProgress('Creating people from owner records...');
     const peopleCreated = await query(`
       WITH owner_data AS (
@@ -487,6 +488,12 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             OR (payload->>'Owner Cell Phone' IS NOT NULL AND TRIM(payload->>'Owner Cell Phone') != '')
           )
           AND (payload->>'Owner First Name' IS NOT NULL AND TRIM(payload->>'Owner First Name') != '')
+          AND trapper.should_be_person(
+            payload->>'Owner First Name',
+            payload->>'Owner Last Name',
+            NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''),
+            trapper.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
+          )
         ORDER BY COALESCE(NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''), trapper.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone'))),
                  (payload->>'Date')::date DESC NULLS LAST
       ),
@@ -512,6 +519,38 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       SELECT COUNT(*) as cnt FROM created_people WHERE created_person_id IS NOT NULL
     `, [uploadId]);
     results.people_created_or_matched = parseInt(peopleCreated.rows?.[0]?.cnt || '0');
+
+    // Step 1b: Route pseudo-profiles to clinic_owner_accounts
+    // INV-25: ClinicHQ pseudo-profiles (addresses, orgs, apartments) are NOT people
+    await saveProgress('Routing pseudo-profiles to clinic accounts...');
+    const accountsCreated = await query(`
+      WITH pseudo_profiles AS (
+        SELECT DISTINCT ON (TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')))
+          TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')) as display_name
+        FROM trapper.staged_records
+        WHERE source_system = 'clinichq'
+          AND source_table = 'owner_info'
+          AND file_upload_id = $1
+          AND NOT trapper.should_be_person(
+            payload->>'Owner First Name',
+            payload->>'Owner Last Name',
+            NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''),
+            trapper.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
+          )
+          AND (payload->>'Owner First Name' IS NOT NULL AND TRIM(payload->>'Owner First Name') != '')
+        ORDER BY TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')),
+                 (payload->>'Date')::date DESC NULLS LAST
+      ),
+      created_accounts AS (
+        SELECT
+          pp.*,
+          trapper.find_or_create_clinic_account(pp.display_name, NULL, NULL, 'clinichq') as account_id
+        FROM pseudo_profiles pp
+        WHERE pp.display_name IS NOT NULL AND pp.display_name != ''
+      )
+      SELECT COUNT(*) as cnt FROM created_accounts WHERE account_id IS NOT NULL
+    `, [uploadId]);
+    results.clinic_accounts_created = parseInt(accountsCreated.rows?.[0]?.cnt || '0');
 
     // Step 2: Create places from owner addresses using find_or_create_place_deduped
     // This auto-queues for geocoding
@@ -578,15 +617,29 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.person_place_links = personPlaceLinks.rowCount || 0;
 
-    // Step 4: Link people to appointments via email/phone match through person_identifiers
+    // Step 4: Link REAL people to appointments via email/phone match
+    // MIG_888/INV-26: Respects data_engine_soft_blacklist — soft-blacklisted
+    // identifiers are skipped to prevent shared org identifiers from matching wrong person
     await saveProgress('Linking appointments to people...');
     const personLinks = await query(`
       UPDATE trapper.sot_appointments a
       SET person_id = pi.person_id
       FROM trapper.staged_records sr
       JOIN trapper.person_identifiers pi ON (
-        (pi.id_type = 'email' AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
-        OR (pi.id_type = 'phone' AND pi.id_value_norm = trapper.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
+        (pi.id_type = 'email'
+         AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
+         AND NOT EXISTS (
+           SELECT 1 FROM trapper.data_engine_soft_blacklist sbl
+           WHERE sbl.identifier_norm = pi.id_value_norm AND sbl.identifier_type = 'email'
+         )
+        )
+        OR (pi.id_type = 'phone'
+         AND pi.id_value_norm = trapper.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+         AND NOT EXISTS (
+           SELECT 1 FROM trapper.data_engine_soft_blacklist sbl
+           WHERE sbl.identifier_norm = pi.id_value_norm AND sbl.identifier_type = 'phone'
+         )
+        )
       )
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
@@ -595,6 +648,28 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         AND a.person_id IS NULL
     `, [uploadId]);
     results.appointments_linked_to_people = personLinks.rowCount || 0;
+
+    // Step 4b: Link pseudo-profiles to appointments via owner_account_id
+    // INV-22: Mirrors SQL processor Step 7 — appointments with no person_id
+    // get linked to clinic_owner_accounts instead
+    await saveProgress('Linking pseudo-profile appointments...');
+    const accountLinks = await query(`
+      UPDATE trapper.sot_appointments a
+      SET owner_account_id = coa.account_id
+      FROM trapper.staged_records sr
+      JOIN trapper.clinic_owner_accounts coa ON (
+        LOWER(coa.display_name) = LOWER(TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')))
+        OR LOWER(TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')))
+          = ANY(SELECT LOWER(unnest(coa.source_display_names)))
+      )
+      WHERE sr.source_system = 'clinichq'
+        AND sr.source_table = 'owner_info'
+        AND sr.file_upload_id = $1
+        AND a.appointment_number = sr.payload->>'Number'
+        AND a.person_id IS NULL
+        AND a.owner_account_id IS NULL
+    `, [uploadId]);
+    results.appointments_linked_to_accounts = accountLinks.rowCount || 0;
 
     // Step 5: Link cats to people via appointments
     await saveProgress('Linking cats to people...');
@@ -930,30 +1005,28 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   } catch (err) { console.error('run_appointment_trapper_linking failed (non-fatal):', err); }
 
   try {
-    // Link cats to places via appointment person_id (broader than run_cat_place_linking)
-    const personLinks = await query(`
-      WITH additional_links AS (
-        INSERT INTO trapper.cat_place_relationships (
-          cat_id, place_id, relationship_type, confidence, source_system, source_table
-        )
-        SELECT DISTINCT
-          a.cat_id, ppr.place_id, 'appointment_site'::TEXT, 0.85,
-          'clinichq', 'appointment_person_link'
-        FROM trapper.sot_appointments a
-        JOIN trapper.person_place_relationships ppr ON ppr.person_id = a.person_id
-        WHERE a.cat_id IS NOT NULL
-          AND a.person_id IS NOT NULL
-          AND ppr.place_id IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM trapper.cat_place_relationships cpr
-            WHERE cpr.cat_id = a.cat_id AND cpr.place_id = ppr.place_id
-          )
-        RETURNING cat_id
-      )
-      SELECT COUNT(DISTINCT cat_id) as cnt FROM additional_links
-    `);
-    linking.cats_linked_via_appointment_person = parseInt(personLinks.rows?.[0]?.cnt || '0');
-  } catch (err) { console.error('cat-place via appointment_person failed (non-fatal):', err); }
+    // MIG_889: Infer appointment places from booking address + person places
+    // Must run BEFORE link_cats_to_appointment_places() so inferred_place_id is populated.
+    // Step 0 (booking_address) is highest priority — uses the actual ClinicHQ booking address
+    // (colony site) instead of person's home address.
+    await saveProgress('Inferring appointment places...');
+    const inferred = await query(`SELECT * FROM trapper.infer_appointment_places()`);
+    if (inferred.rows) {
+      for (const row of inferred.rows) {
+        linking[`inferred_place_${row.source}`] = row.appointments_linked;
+      }
+    }
+  } catch (err) { console.error('infer_appointment_places failed (non-fatal):', err); }
+
+  try {
+    // MIG_889: Link cats to places via appointment inferred_place_id
+    // Replaces direct INSERT (which bypassed INV-10 gatekeeper and linked to ALL person places)
+    await saveProgress('Linking cats to appointment places...');
+    const appointmentPlaces = await queryOne<{ cats_linked: number }>(
+      `SELECT * FROM trapper.link_cats_to_appointment_places()`
+    );
+    if (appointmentPlaces) linking.cats_linked_via_appointment_places = appointmentPlaces.cats_linked;
+  } catch (err) { console.error('link_cats_to_appointment_places failed (non-fatal):', err); }
 
   results.entity_linking = linking;
 

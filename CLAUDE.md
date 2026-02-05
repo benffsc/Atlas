@@ -24,6 +24,14 @@ These apply to ALL changes across ALL layers:
 16. **ShelterLuv Outcomes Must Be Fully Processed** — 3,348 ShelterLuv adoption/foster events exist. `process_shelterluv_outcomes()` must process all of them to create `person_cat_relationships` for 1,461+ ShelterLuv-only cats. Run periodically until all events processed.
 17. **Trapper-Appointment Linking Depends on Request Volume** — MIG_886 links appointments→requests→trappers. Only 289 requests exist (187 with trappers). Coverage (5.3%) grows organically as more requests are created via Atlas UI. Not a bug — structural ceiling from historical data sparsity.
 18. **PetLink Cats Are External Registry Data** — 956 cats from PetLink bulk import have microchips but no FFSC appointments. These are expected unlinked cats — they exist in microchip registry but were never seen at FFSC clinic or ShelterLuv. Do not treat as a gap.
+19. **PetLink Emails Are Fabricated — Confidence Filter Required** — FFSC staff fabricates emails for PetLink microchip registration (e.g., `gordon@lohrmanln.com`). MIG_887 classified 1,252 PetLink emails and lowered their confidence (0.1-0.2). ALL queries on `person_identifiers` for display or matching MUST include `AND pi.confidence >= 0.5`. person_identifiers.confidence has `NOT NULL DEFAULT 1.0` so non-PetLink records are unaffected. Never fall back to low-confidence emails in UI pre-fill or compose modals.
+20. **ClinicHQ "Owner" Fields May Contain Site Names** — ClinicHQ appointment bookings sometimes use `Owner First Name` to store the trapping **site name** (e.g., "Silveira Ranch") and `Owner Last Name` to store the actual person's full name (e.g., "Toni Price"). `Owner Address` in these cases is the trapping site address (e.g., "San Antonio Rd"), not the person's home. This is a historical FFSC booking practice. When owner_info has no house number in the address, the place created may be street-only (e.g., "San Antonio Rd, Petaluma, CA 94952"). These are real trapping sites, not data bugs.
+21. **Confidence >= 0.5 Filter Must Be Consistent Across All APIs** — Every API endpoint that reads `person_identifiers` for email/phone display must filter `AND confidence >= 0.5`. Endpoints already fixed: people/search, people/check-email, people/[id] (UI filter), requests/[id], cats/[id], requests/[id]/handoff, requests (PATCH). SQL function `data_engine_score_candidates()` also filters. Exception: `link_appointments_to_trappers()` (DB function, theoretical risk only since trappers don't have PetLink emails).
+22. **TS Upload Route Must Mirror SQL Processor** — The TypeScript upload route (`/api/ingest/process/[id]/route.ts`) and SQL processor functions (MIG_573) must implement identical logic. SQL processor is source of truth. Key parity points: `should_be_person()` guard, `clinic_owner_accounts` routing, appointment linking, soft blacklist respect. See MIG_888.
+23. **Organization Emails Must Be Soft-Blacklisted** — Org emails (`marinferals@yahoo.com`, etc.) must go in `data_engine_soft_blacklist` with `identifier_type = 'email'`. Shared emails auto-match to whoever registered first, creating phantom caretaker links for the wrong person and orphan duplicates for the actual person. MIG_888 added email soft blacklist check to `data_engine_score_candidates()`.
+24. **Shared Identifiers Create Orphan Duplicates** — When `find_or_create_person()` encounters a taken identifier (email/phone already in `person_identifiers`), the new person gets NO identifiers (INSERT conflicts silently). Pattern: 10+ duplicates with zero identifiers = shared identifier collision. Fix: merge duplicates, soft-blacklist the shared identifier, seed a unique identifier on the canonical record.
+25. **ClinicHQ Pseudo-Profiles Are NOT People** — "Owner First Name" in ClinicHQ stores site names/addresses/orgs (e.g., "5403 San Antonio Road Petaluma", "Silveira Ranch"). `classify_owner_name()` detects these. BOTH SQL processor AND TS upload route must use `should_be_person()` to filter. Pseudo-profiles go to `clinic_owner_accounts`, not `sot_people`. See MIG_573.
+26. **Appointment Linking Must Respect Soft Blacklist** — Steps that link appointments to people via `person_identifiers` must filter out soft-blacklisted identifiers (`NOT EXISTS ... data_engine_soft_blacklist`), or they bypass the Data Engine's scoring. Applies to both SQL processor Step 6 and TS upload route Step 4. See MIG_888.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
 
@@ -230,13 +238,38 @@ When cats have data from multiple sources, use `record_cat_field_sources_batch()
 - **Multi-unit places NEVER auto-link** to Google Maps entries — flagged with `requires_unit_selection = TRUE`
 - **GM notes**: Always query both `place_id` and `linked_place_id` against full `get_place_family()` result
 
+## Import Stability Guarantees
+
+Manual edits made through the Atlas UI are **protected from being overwritten** by automated data imports. The system implements a "fill-only-if-empty" pattern:
+
+| Protection | Mechanism | Evidence |
+|-----------|-----------|----------|
+| `primary_address_id` | Trigger `auto_set_primary_address()` only fires when `primary_address_id IS NULL` | MIG_557:63-80 |
+| `person_place_relationships` | All imports use `ON CONFLICT DO NOTHING` | MIG_313:271 |
+| `find_or_create_person()` | Never touches `primary_address_id`; only returns person_id | MIG_315:700-723 |
+| `process_clinichq_owner_info()` | Creates relationships only, never modifies person fields | MIG_313:246-275 |
+| Manual address changes | Audited via `entity_edits` table through `relink_person_primary_address()` | MIG_794 |
+| Relationship deletion | Only `source_system = 'atlas_ui'` relationships can be deleted via API | API enforcement |
+
+**Safe to do manually:**
+- Change a person's primary address (old address remains as relationship)
+- Add/remove person-place relationships via UI
+- Edit person names (old name preserved as alias)
+- Change entity_type, trapping_skill fields
+
+**What imports CAN do:**
+- Add NEW person_place_relationships (never overwrite existing)
+- Set primary_address_id ONLY if currently NULL
+- Create new entities via `find_or_create_*` functions
+
 ## Don't Do
 
 **Entity Creation:**
 - **Don't INSERT directly into `sot_people`** — Use `find_or_create_person()`
 - **Don't INSERT directly into `places`** — Use `find_or_create_place_deduped()`
-- **Don't INSERT directly into `sot_cats`** — Use `find_or_create_cat_by_microchip()`
+- **Don't INSERT directly into `sot_cats`** — Use `find_or_create_cat_by_microchip()` for chipped cats, or `enrich_cat()` for unchipped cats with `clinichq_animal_id`
 - **Don't INSERT directly into `sot_requests`** — Use `find_or_create_request()`
+- **Don't create cats without at least one identifier** — `enrich_cat()` requires microchip, clinichq_animal_id, or airtable_id
 - **Don't INSERT directly into `cat_place_relationships`** — Use `link_cat_to_place()` with evidence validation
 - **Don't INSERT directly into `person_cat_relationships`** — Use `link_person_to_cat()` with evidence validation
 - Don't INSERT directly into `place_contexts` — Use `assign_place_context()`
@@ -258,6 +291,10 @@ When cats have data from multiple sources, use `record_cat_field_sources_batch()
 - Don't forget `process_clinichq_owner_info()` after ClinicHQ ingest
 - **Don't COALESCE Owner Cell Phone before Owner Phone** — Cell phones are shared in households, causing cross-linking. Always prefer `Owner Phone` for identity matching (MIG_881)
 - **Don't match on PetLink emails without confidence filter** — Staff fabricates emails for PetLink microchip registration (street-address domains like `gordon@lohrmanln.com`). All PetLink emails get confidence ≤ 0.5 in `person_identifiers`. Identity matching queries MUST filter `pi.confidence >= 0.5`. Use `classify_petlink_email()` to detect fabricated vs likely-real (MIG_887)
+- **Don't modify TS upload route without checking MIG_573 SQL processor for parity** — INV-22. Both paths must implement identical logic: `should_be_person()`, `clinic_owner_accounts`, soft blacklist filters
+- **Don't assign org emails as personal identifiers without soft-blacklisting** — INV-23. Add shared org emails to `data_engine_soft_blacklist` with `identifier_type = 'email'`
+- **Don't assume `find_or_create_person()` handles shared identifiers** — INV-24. It creates orphan duplicates with zero identifiers when email/phone conflicts. Merge + soft-blacklist + seed identifier
+- **Don't link cats to ALL person_place_relationships** — INV-26. Use `link_cats_to_appointment_places()` (MIG_889) which uses `inferred_place_id` from most recent appointment. `link_cats_to_places()` now uses LIMIT 1 per person
 
 **Map:**
 - Don't hardcode `type=place` in map search API calls — excludes people

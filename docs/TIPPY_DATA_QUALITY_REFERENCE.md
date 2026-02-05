@@ -1363,6 +1363,33 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 
 ---
 
+### Session: 2026-02-05 - ClinicHQ Pipeline Parity, Org Identity Resolution, Cat-Place Fix
+
+**Context:** Investigation into wrong caretaker assignments and cat-place pollution. Cat 981020053817972 showed Jeanie Garcia as caretaker but should be Carlos Lopez. Cat 981020053837292 linked to 4 wrong places. Silveira Ranch address missing house number "5403". User reported cats at Old Stony Point Rd showing at Silver Spur instead.
+
+**Key Discoveries:**
+1. **TS Upload Route Diverged from SQL Processor** — The TypeScript UI upload route (`/api/ingest/process/[id]/route.ts`) never got the `should_be_person()` guard from MIG_573. Pseudo-profiles like "5403 San Antonio Road Petaluma" were being created as people via `find_or_create_person()` instead of routed to `clinic_owner_accounts`.
+2. **Email Soft Blacklist Never Checked** — `data_engine_score_candidates()` checked `data_engine_soft_blacklist` for phones (reducing score to 0.5) but NOT for emails. Org email `marinferals@yahoo.com` (Marin Friends of Ferals) auto-matched at full score, causing Carlos Lopez's cats to be linked to Jeanie Garcia.
+3. **Shared Identifier Orphan Pattern** — Carlos Lopez had 13 duplicate records with ZERO `person_identifiers` entries. When `find_or_create_person()` encounters a taken email/phone, the new person silently gets no identifiers (INSERT conflicts). This makes them invisible to future dedup.
+4. **`link_cats_to_places()` Linked to ALL Person Places** — Created cat-place edges to every historical address a person had. 92.3% of appointments have `inferred_place_id` but it wasn't used.
+5. **ClinicHQ XLSX Stores Address in Name Field** — For Silveira Ranch, "5403 San Antonio Road Petaluma" was in `Owner First Name`, not `Owner Address`. The `Owner Address` field only had "San Antonio Rd, Petaluma, CA 94952" without house number.
+6. **Marin Friends of Ferals** — An outside TNR organization. Email `marinferals@yahoo.com` and phone `7074799459` are shared org identifiers used by both Jeanie Garcia and Carlos Lopez.
+
+**Changes Made:**
+- MIG_888: Added email soft blacklist check to `data_engine_score_candidates()` (parity with phone). Updated `process_clinichq_owner_info()` Step 6 with soft blacklist filter. Added `marinferals@yahoo.com` to soft blacklist. Added Marin Friends of Ferals to `known_organizations`.
+- MIG_889: New `link_cats_to_appointment_places()` function using `inferred_place_id`. Updated `link_cats_to_places()` with LIMIT 1 per person (best confidence/recency).
+- MIG_890: Merged Carlos Lopez (13→1) and Jeanie Garcia (4→1) duplicates. Fixed cat 981020053817972 caretaker. Fixed cat 981020053837292 place links. Merged duplicate 6930 Commerce Blvd places. Fixed Silveira Ranch address to 5403 San Antonio Rd.
+- TS upload route: Added `should_be_person()` guard, clinic_owner_accounts routing, soft blacklist filter in appointment linking, pseudo-profile account linking.
+- CLAUDE.md: Added INV-22 through INV-26 covering pipeline parity, org emails, orphan duplicates, pseudo-profiles, soft blacklist respect.
+
+**Staff Impact:**
+- Cat caretaker assignments now reflect actual owners (Carlos Lopez, not Jeanie Garcia)
+- Cats show correct colony sites (e.g., 6930 Commerce Blvd, not random addresses)
+- Re-uploading ClinicHQ exports properly handles pseudo-profiles and shared org emails
+- Silveira Ranch place now shows correct address with house number
+
+---
+
 ### Session: 2026-01-28/29 - AI Extraction Engine & Classification Bridge
 
 **Context:** Connecting the AI extraction pipeline end-to-end: triggers → queue → extraction → classification.
