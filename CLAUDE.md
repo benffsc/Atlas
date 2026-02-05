@@ -189,6 +189,22 @@ A cat is linked to a request if its appointment was within 6 months of request c
 - **Phone**: Use `trapper.norm_phone_us()` for normalization
 - **Never match by name alone**
 
+### Phone Display & Validation (UI Layer)
+
+Use these TypeScript functions from `@/lib/formatters` for consistent phone display across all UI:
+
+| Function | Purpose | Example |
+|----------|---------|---------|
+| `formatPhone()` | Display formatting | `7075551234` → `(707) 555-1234` |
+| `isValidPhone()` | Validates 10 or 11 digits | `isValidPhone("707-555-1234")` → `true` |
+| `extractPhone()` | Extract valid phone from garbled input | `"(7073967923) 7073967923"` → `"7073967923"` |
+
+**Important distinctions:**
+- **SQL `norm_phone_us()`** — For identity matching/storage (returns 10-digit string)
+- **TS `formatPhone()`** — For UI display only (returns formatted string)
+
+**Known gap (INV-15):** `link_appointments_to_owners()` currently requires `owner_email IS NOT NULL`, skipping 106+ cats with phone-only contact info. Future migration should extend to handle `(owner_email IS NOT NULL OR owner_phone IS NOT NULL)`.
+
 ### Trapper Types
 
 | Type | Is FFSC? | Description |

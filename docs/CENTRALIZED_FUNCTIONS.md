@@ -391,6 +391,43 @@ ORDER BY created_at DESC;
 
 ---
 
+## TypeScript UI Utilities
+
+These functions are in `apps/web/src/lib/formatters.ts` and are used for **display only** — they do not modify stored data.
+
+### Phone Formatting
+
+```typescript
+import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
+
+// Format phone for display
+formatPhone("7075551234")  // "(707) 555-1234"
+formatPhone("+17075551234") // "(707) 555-1234"
+formatPhone("555-1234")     // "555-1234" (unchanged if not 10 digits)
+
+// Validate phone format (10 digits, or 11 starting with 1)
+isValidPhone("7075551234")  // true
+isValidPhone("555-1234")    // false (only 7 digits)
+
+// Extract valid phone from malformed input
+extractPhone("(7073967923) 7073967923") // "7073967923"
+extractPhone("(95492) 7077122660")      // "7077122660"
+extractPhone("(707) 858817")            // null (only 9 digits)
+```
+
+**When to use which:**
+
+| Layer | Function | Purpose |
+|-------|----------|---------|
+| SQL (L2 Identity) | `norm_phone_us()` | Normalize for identity matching, storage |
+| TypeScript (L6 UI) | `formatPhone()` | Display formatting only |
+| TypeScript (L6 UI) | `isValidPhone()` | Show warning badges on invalid phones |
+| TypeScript (L6 UI) | `extractPhone()` | Suggest corrections for malformed input |
+
+**Important:** These functions do NOT modify database values. They are display-layer utilities. The SQL function `norm_phone_us()` remains the authoritative normalizer for identity resolution.
+
+---
+
 ## Related Documentation
 
 - [DATA_FLOW_ARCHITECTURE.md](./DATA_FLOW_ARCHITECTURE.md) - Overall data flow
