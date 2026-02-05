@@ -75,6 +75,7 @@ export function MediaUploader({
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [clinicDayNum, setClinicDayNum] = useState("");
+  const [uploadedMedia, setUploadedMedia] = useState<MediaItem[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -345,18 +346,17 @@ export function MediaUploader({
         setError(`${uploadedItems.length} uploaded, ${failedCount} failed`);
       }
 
-      // Save clinic day number if entered
-      const parsedClinicNum = parseInt(clinicDayNum, 10);
-      if (onClinicDayNumber && !isNaN(parsedClinicNum) && parsedClinicNum >= 1) {
-        onClinicDayNumber(parsedClinicNum);
-      }
-
       clearAllFiles();
       setCaption("");
       setCatDescription("");
-      setClinicDayNum("");
       setGroupName("");
-      onUploadComplete?.(uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems);
+
+      // If clinic day number callback is available, show post-upload step
+      if (onClinicDayNumber) {
+        setUploadedMedia(uploadedItems);
+      } else {
+        onUploadComplete?.(uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -379,6 +379,126 @@ export function MediaUploader({
     uncertain: { label: "Uncertain", color: "#ffc107" },
     unidentified: { label: "Unidentified", color: "#6c757d" },
   };
+
+  // Post-upload success state with optional clinic day number
+  if (uploadedMedia) {
+    const handleFinish = () => {
+      const parsedNum = parseInt(clinicDayNum, 10);
+      if (onClinicDayNumber && !isNaN(parsedNum) && parsedNum >= 1) {
+        onClinicDayNumber(parsedNum);
+      }
+      const items = uploadedMedia;
+      setUploadedMedia(null);
+      setClinicDayNum("");
+      onUploadComplete?.(items.length === 1 ? items[0] : items);
+    };
+
+    return (
+      <div style={{
+        background: "#f8f9fa",
+        borderRadius: "8px",
+        padding: "1rem",
+        border: "1px solid #dee2e6",
+      }}>
+        <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+          <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "#198754", marginBottom: "0.25rem" }}>
+            {uploadedMedia.length === 1 ? "Photo uploaded" : `${uploadedMedia.length} photos uploaded`}
+          </div>
+        </div>
+
+        {/* Thumbnails of uploaded photos */}
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", marginBottom: "1rem" }}>
+          {uploadedMedia.map((m) => (
+            <img
+              key={m.media_id}
+              src={m.storage_path}
+              alt=""
+              style={{
+                width: 64,
+                height: 64,
+                objectFit: "cover",
+                borderRadius: "6px",
+                border: "1px solid #dee2e6",
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Clinic day number input */}
+        <div style={{
+          background: "var(--bg-secondary, #fff)",
+          border: "1px solid #dee2e6",
+          borderRadius: "6px",
+          padding: "0.75rem",
+          marginBottom: "1rem",
+        }}>
+          <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
+            Clinic Day # (optional)
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input
+              type="number"
+              min={1}
+              max={999}
+              value={clinicDayNum}
+              onChange={(e) => setClinicDayNum(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleFinish(); }}
+              placeholder="e.g., 9"
+              autoFocus
+              style={{
+                width: "5rem",
+                padding: "0.375rem 0.5rem",
+                border: "1px solid #dee2e6",
+                borderRadius: "4px",
+                fontSize: "0.875rem",
+                textAlign: "center",
+              }}
+            />
+            <span style={{ fontSize: "0.75rem", color: "#6c757d" }}>
+              From the waiver for this clinic day
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => {
+              // Skip without saving number
+              const items = uploadedMedia;
+              setUploadedMedia(null);
+              setClinicDayNum("");
+              onUploadComplete?.(items.length === 1 ? items[0] : items);
+            }}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "none",
+              color: "#6c757d",
+              border: "1px solid #dee2e6",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            Skip
+          </button>
+          <button
+            onClick={handleFinish}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#0d6efd",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            {clinicDayNum.trim() ? "Save & Done" : "Done"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -690,33 +810,6 @@ export function MediaUploader({
           />
           <div style={{ fontSize: "0.75rem", color: "#6c757d", marginTop: "0.25rem" }}>
             Helps identify the cat later when microchip is known
-          </div>
-        </div>
-      )}
-
-      {/* Clinic day number (cat photos only) */}
-      {onClinicDayNumber && mediaType === "cat_photo" && (
-        <div style={{ marginBottom: "1rem" }}>
-          <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
-            Clinic Day # (optional)
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={999}
-            value={clinicDayNum}
-            onChange={(e) => setClinicDayNum(e.target.value)}
-            placeholder="e.g., 9"
-            style={{
-              width: "5rem",
-              padding: "0.5rem",
-              border: "1px solid #dee2e6",
-              borderRadius: "4px",
-              fontSize: "0.875rem",
-            }}
-          />
-          <div style={{ fontSize: "0.75rem", color: "#6c757d", marginTop: "0.25rem" }}>
-            Number from the waiver / master list for this clinic day
           </div>
         </div>
       )}
