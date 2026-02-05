@@ -1128,6 +1128,11 @@
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;
+  transition: right 0.3s ease;
+}
+
+.place-detail-drawer.shifted {
+  right: 380px;
 }
 
 @keyframes drawer-slide-in {
@@ -1364,7 +1369,59 @@
   color: #6b7280;
 }
 
+.person-role-trapper {
+  background: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+}
+
+.person-role-staff {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.person-role-volunteer {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
 /* Cats Section */
+.cat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 4px 0;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.cat-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.cat-legend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 8px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.cat-legend-badge-wide {
+  width: auto;
+  padding: 0 4px;
+  border-radius: 7px;
+}
+
 .cats-list {
   display: flex;
   flex-direction: column;
@@ -2318,7 +2375,7 @@
   background: var(--map-control-bg);
   border-left: 1px solid var(--map-control-border);
   box-shadow: var(--map-shadow-xl);
-  z-index: 1100;
+  z-index: 1200;
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;
@@ -2603,7 +2660,7 @@
   background: var(--map-control-bg);
   border-left: 1px solid var(--map-control-border);
   box-shadow: var(--map-shadow-xl);
-  z-index: 1100;
+  z-index: 1200;
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;

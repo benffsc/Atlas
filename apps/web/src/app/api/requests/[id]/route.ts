@@ -267,9 +267,11 @@ export async function GET(
         per.display_name AS requester_name,
         (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM trapper.person_identifiers pi
          WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'email'
+           AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_email,
         (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM trapper.person_identifiers pi
          WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'phone'
+           AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_phone,
         -- Linked cats (from request_cat_links table, following merge chains)
         (SELECT jsonb_agg(jsonb_build_object(

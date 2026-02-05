@@ -67,7 +67,14 @@ export async function GET(request: NextRequest) {
         c.primary_color,
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
         c.deceased_date,
-        cme.death_cause,
+        -- Get death cause from mortality events (using subquery to avoid duplicates)
+        (
+          SELECT cme.death_cause::TEXT
+          FROM trapper.cat_mortality_events cme
+          WHERE cme.cat_id = c.cat_id
+          ORDER BY cme.event_date DESC NULLS LAST
+          LIMIT 1
+        ) AS death_cause,
         COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
         -- Parse FeLV/FIV status
         CASE
@@ -102,7 +109,6 @@ export async function GET(request: NextRequest) {
       FROM trapper.sot_cats c
       LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
       LEFT JOIN trapper.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
-      LEFT JOIN trapper.cat_mortality_events cme ON cme.cat_id = c.cat_id
       -- Get owner via person-cat relationships
       LEFT JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
         AND pcr.relationship_type IN ('owner', 'caretaker')

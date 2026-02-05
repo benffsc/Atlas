@@ -87,7 +87,7 @@ interface PlaceDetails {
   total_altered: number;
 
   // People
-  people: Array<{ person_id: string; display_name: string; role?: string; is_home?: boolean; is_manual?: boolean }>;
+  people: Array<{ person_id: string; display_name: string; role?: string; is_home?: boolean; is_manual?: boolean; staff_roles?: Array<{ role: string; trapper_type?: string | null }> | null }>;
 
   // Cats
   cats: CatLink[];
@@ -107,11 +107,12 @@ interface PlaceDetailDrawerProps {
   onWatchlistChange?: () => void;
   coordinates?: { lat: number; lng: number };
   showQuickActions?: boolean;
+  shifted?: boolean;
 }
 
 type NotesTab = "original" | "ai" | "journal";
 
-export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions }: PlaceDetailDrawerProps) {
+export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted }: PlaceDetailDrawerProps) {
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -350,7 +351,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   if (!placeId) return null;
 
   return (
-    <div className="place-detail-drawer">
+    <div className={`place-detail-drawer${shifted ? " shifted" : ""}`}>
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">
@@ -775,6 +776,20 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                              person.role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
                           </span>
                         )}
+                        {person.staff_roles?.map((sr, idx) => (
+                          <span
+                            key={idx}
+                            className={`person-role-badge ${
+                              sr.role === "trapper" ? "person-role-trapper" :
+                              sr.role === "staff" ? "person-role-staff" :
+                              "person-role-volunteer"
+                            }`}
+                          >
+                            {sr.trapper_type
+                              ? sr.trapper_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+                              : sr.role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                          </span>
+                        ))}
                       </a>
                       {person.is_manual && (
                         <button
@@ -812,6 +827,25 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
             {place.cats && place.cats.length > 0 && (
               <div className="section">
                 <h3>Cats at Location <span style={{ fontWeight: 400, fontSize: "12px", color: "#6b7280" }}>({place.cats.length})</span></h3>
+                <div className="cat-legend">
+                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-altered">S</span> Spayed</div>
+                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-altered">N</span> Neutered</div>
+                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-intact">?</span> Intact</div>
+                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-sex">M</span> Male</div>
+                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-sex">F</span> Female</div>
+                  <div className="cat-legend-item"><span className="cat-legend-badge cat-legend-badge-wide cat-badge-deceased">Dec</span> Deceased</div>
+                  {(() => {
+                    const diseaseMap = new Map<string, { short_code: string; color: string; disease_key: string }>();
+                    place.cats.forEach(c => c.positive_diseases?.forEach(d => {
+                      if (!diseaseMap.has(d.disease_key)) diseaseMap.set(d.disease_key, d);
+                    }));
+                    return Array.from(diseaseMap.values()).map(d => (
+                      <div key={d.disease_key} className="cat-legend-item">
+                        <span className="cat-legend-badge cat-badge-disease" style={{ background: d.color }}>{d.short_code}</span> {d.disease_key.toUpperCase()}
+                      </div>
+                    ));
+                  })()}
+                </div>
                 <div className="cats-list">
                   {place.cats.slice(0, 10).map((cat) => (
                     <a

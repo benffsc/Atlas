@@ -97,7 +97,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- Deceased and health status fields
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
         c.deceased_date,
-        cme.death_cause::TEXT AS death_cause,
+        -- Get death cause from mortality events (using subquery to avoid duplicates)
+        (
+          SELECT cme.death_cause::TEXT
+          FROM trapper.cat_mortality_events cme
+          WHERE cme.cat_id = c.cat_id
+          ORDER BY cme.event_date DESC NULLS LAST
+          LIMIT 1
+        ) AS death_cause,
         -- Parse FeLV/FIV status from combined field
         CASE
           WHEN c.felv_fiv_status LIKE 'positive/%' THEN 'positive'
@@ -116,7 +123,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       LEFT JOIN trapper.sot_people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
       LEFT JOIN trapper.places pl ON pl.place_id = a.place_id AND pl.merged_into_place_id IS NULL
       LEFT JOIN trapper.sot_people trp ON trp.person_id = a.trapper_person_id AND trp.merged_into_person_id IS NULL
-      LEFT JOIN trapper.cat_mortality_events cme ON cme.cat_id = c.cat_id
       WHERE a.appointment_date = $1
       ORDER BY a.clinic_day_number NULLS LAST, c.display_name NULLS LAST, a.appointment_number
       `,

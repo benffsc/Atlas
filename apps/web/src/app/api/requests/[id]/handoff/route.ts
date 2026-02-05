@@ -145,9 +145,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const existingPerson = await queryOne<ExistingPerson>(
         `SELECT first_name, last_name,
           (SELECT id_value FROM trapper.person_identifiers
-           WHERE person_id = $1 AND id_type = 'email' LIMIT 1) as email,
+           WHERE person_id = $1 AND id_type = 'email' AND confidence >= 0.5
+           ORDER BY confidence DESC NULLS LAST LIMIT 1) as email,
           (SELECT id_value FROM trapper.person_identifiers
-           WHERE person_id = $1 AND id_type = 'phone' LIMIT 1) as phone
+           WHERE person_id = $1 AND id_type = 'phone' AND confidence >= 0.5
+           ORDER BY confidence DESC NULLS LAST LIMIT 1) as phone
          FROM trapper.sot_people WHERE person_id = $1`,
         [existing_person_id]
       );

@@ -37,6 +37,7 @@ interface PersonLink {
   role: string;
   is_home: boolean;
   is_manual: boolean;
+  staff_roles: Array<{ role: string; trapper_type: string | null }> | null;
 }
 
 interface GoogleNote {
@@ -197,7 +198,14 @@ export async function GET(
           END
         ))[1] AS role,
         BOOL_OR(ppr.role IN ('resident', 'owner')) AS is_home,
-        BOOL_OR(ppr.source_system = 'atlas_ui') AS is_manual
+        BOOL_OR(ppr.source_system = 'atlas_ui') AS is_manual,
+        (SELECT jsonb_agg(jsonb_build_object(
+          'role', pr.role, 'trapper_type', pr.trapper_type
+        ))
+        FROM trapper.person_roles pr
+        WHERE pr.person_id = per.person_id
+          AND pr.role_status = 'active'
+        ) AS staff_roles
       FROM trapper.person_place_relationships ppr
       JOIN trapper.sot_people per ON per.person_id = ppr.person_id
       WHERE ppr.place_id = $1

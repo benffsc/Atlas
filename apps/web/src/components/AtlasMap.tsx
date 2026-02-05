@@ -1618,6 +1618,7 @@ export default function AtlasMap() {
   };
 
   // Handle Atlas fuzzy search result selection — always try to pan on map
+  // For person/cat results, opens Place drawer first then overlays entity drawer (Place→Entity pattern)
   const handleAtlasSearchSelect = async (result: AtlasSearchResult) => {
     setSearchQuery("");
     setShowSearchResults(false);
@@ -1625,6 +1626,7 @@ export default function AtlasMap() {
     // 1. Check API-enriched metadata first
     let lat = result.metadata?.lat;
     let lng = result.metadata?.lng;
+    let linkedPlaceId: string | null = null;
 
     // 2. For places, also check the already-loaded atlas pins
     if ((!lat || !lng) && result.entity_type === "place") {
@@ -1635,8 +1637,8 @@ export default function AtlasMap() {
       }
     }
 
-    // 3. If still no coords, fetch the entity's linked place coordinates
-    if (!lat || !lng) {
+    // 3. For person/cat: always fetch to resolve linked place. For places: fetch only if no coords.
+    if (result.entity_type !== "place" || (!lat && !lng)) {
       try {
         const apiPath = result.entity_type === "cat" ? "cats"
           : result.entity_type === "person" ? "people"
@@ -1644,18 +1646,25 @@ export default function AtlasMap() {
         const res = await fetch(`/api/${apiPath}/${result.entity_id}`);
         if (res.ok) {
           const data = await res.json();
-          // Places API returns { coordinates: { lat, lng } }
-          // Cat/people APIs may return place relationships with place_id
-          if (data.coordinates?.lat) {
+          if (data.coordinates?.lat && (!lat || !lng)) {
             lat = data.coordinates.lat;
             lng = data.coordinates.lng;
-          } else if (data.place_relationships?.[0]) {
-            // Cat or person with a linked place — look up in loaded pins
-            const placeId = data.place_relationships[0].place_id;
-            const pin = atlasPinsRef.current.find((p) => p.id === placeId);
-            if (pin?.lat && pin?.lng) {
-              lat = pin.lat;
-              lng = pin.lng;
+          }
+
+          // Resolve linked place for person/cat (Place→Entity stacking)
+          if (result.entity_type !== "place") {
+            const plId = data.associated_places?.[0]?.place_id
+              || data.places?.[0]?.place_id
+              || null;
+            if (plId) {
+              linkedPlaceId = plId;
+              if (!lat || !lng) {
+                const pin = atlasPinsRef.current.find((p) => p.id === plId);
+                if (pin?.lat && pin?.lng) {
+                  lat = pin.lat;
+                  lng = pin.lng;
+                }
+              }
             }
           }
         }
@@ -1674,12 +1683,14 @@ export default function AtlasMap() {
       mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
     }
 
-    // Open the appropriate drawer based on entity type
+    // Open drawers — for person/cat, stack entity drawer on top of place drawer
     if (result.entity_type === "place") {
       setSelectedPlaceId(result.entity_id);
     } else if (result.entity_type === "person") {
+      if (linkedPlaceId) setSelectedPlaceId(linkedPlaceId);
       setSelectedPersonId(result.entity_id);
     } else if (result.entity_type === "cat") {
+      if (linkedPlaceId) setSelectedPlaceId(linkedPlaceId);
       setSelectedCatId(result.entity_id);
     }
   };
@@ -3520,9 +3531,10 @@ export default function AtlasMap() {
       {selectedPlaceId && (
         <PlaceDetailDrawer
           placeId={selectedPlaceId}
-          onClose={() => { setSelectedPlaceId(null); setDrawerFromAddPoint(false); }}
+          onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
           onWatchlistChange={fetchMapData}
           showQuickActions={drawerFromAddPoint}
+          shifted={!!(selectedPersonId || selectedCatId)}
           coordinates={(() => {
             const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
                         places.find(p => p.id === selectedPlaceId);
