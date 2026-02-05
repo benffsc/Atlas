@@ -69,6 +69,17 @@ export async function GET(request: NextRequest) {
       catchup.unchipped_cats_error = e instanceof Error ? e.message : "Unknown";
     }
 
+    // Step 1d: Process euthanasia appointments (MIG_892)
+    // Marks cats as deceased and creates mortality events
+    try {
+      const euthanasia = await queryOne(
+        "SELECT * FROM trapper.process_clinic_euthanasia(500)"
+      );
+      catchup.euthanasia = euthanasia;
+    } catch (e) {
+      catchup.euthanasia_error = e instanceof Error ? e.message : "Unknown";
+    }
+
     // Step 2: Run all entity linking operations
     const results = await queryRows<LinkingResult>(
       "SELECT * FROM trapper.run_all_entity_linking()"
