@@ -67,10 +67,10 @@ export async function GET(request: NextRequest) {
         FROM trapper.sot_appointments a
         JOIN trapper.staged_records sr ON sr.source_row_id = a.source_record_id
           AND sr.source_system = 'clinichq'
-          AND sr.source_table = 'appointments'
+          AND sr.source_table = 'appointment_info'
         WHERE a.appointment_date = $2
           AND a.cat_id IS NOT NULL
-          AND (sr.payload->>'Microchip Number') ILIKE $1
+          AND (sr.payload->>'Microchip') ILIKE $1
       )
       SELECT
         c.cat_id,

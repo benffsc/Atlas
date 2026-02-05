@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { formatDateLocal } from "@/lib/formatters";
 
 export interface CatCardData {
   cat_id: string | null;
@@ -69,7 +70,8 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
     if (onClick) {
       onClick();
     } else if (cat.cat_id) {
-      window.open(`/cats/${cat.cat_id}`, "_blank");
+      // Use same tab navigation so browser back button works
+      window.location.href = `/cats/${cat.cat_id}`;
     }
   };
 
@@ -362,7 +364,7 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
           color: "var(--muted)",
           marginTop: "4px",
         }}>
-          Last seen: {new Date(cat.last_seen).toLocaleDateString()}
+          Last seen: {formatDateLocal(cat.last_seen)}
         </div>
       )}
 
@@ -373,7 +375,7 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
           color: "#6b7280",
           marginTop: "4px",
         }}>
-          {cat.death_cause === "euthanasia" ? "Euthanized" : "Deceased"}: {new Date(cat.deceased_date).toLocaleDateString()}
+          {cat.death_cause === "euthanasia" ? "Euthanized" : "Deceased"}: {formatDateLocal(cat.deceased_date)}
         </div>
       )}
 
