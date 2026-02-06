@@ -390,6 +390,65 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-06: DQ_010 — Address in Owner Name Field (MIG_909)
+
+**Problem:** Cats 900263005064321 and 981020053841041 had no place link despite address being available in ClinicHQ data.
+
+**Investigation:**
+ClinicHQ staff entered address "5403 San Antonio Road Petaluma" in Owner Name fields (no actual owner for community cats). ClinicHQ's autocorrect then corrupted the Owner Address field to "San Antonio Rd Silviera Ranch, Petaluma, CA 94952, Marin".
+
+The `classify_owner_name()` function correctly returned `'address'`, but `find_or_create_clinic_account()` never extracted a place from it. Appointments were linked to corrupted address via `booking_address` source before `clinic_owner_accounts` source could run.
+
+**Solution:**
+- **MIG_909:** Updated `find_or_create_clinic_account()` to extract places when `classify_owner_name()` returns `'address'`. Sets `linked_place_id` on the account.
+- Backfilled existing `clinic_owner_accounts` where `display_name` is classified as address.
+- Manual fix for target cats: merged duplicate place, updated `inferred_place_source = 'owner_account_address'`.
+- Fixed pre-existing bug in `process_clinichq_owner_info()`: `start_date` → `effective_date` column name.
+
+**Result:**
+| Cat Microchip | Before | After |
+|---------------|--------|-------|
+| 900263005064321 | No place link | 5403 San Antonio Rd ✓ |
+| 981020053841041 | No place link | 5403 San Antonio Rd ✓ |
+
+**What Tippy should know:**
+> "When staff enters an address in the Owner Name field (common for community cats with no owner), Atlas now extracts a place from that address. If you see `inferred_place_source = 'owner_account_address'`, the place came from the clinic account's display name, not the corrupted Owner Address field. This handles ClinicHQ's autocorrect corruption issue."
+
+**Key Learning:** ClinicHQ autocorrect corrupts addresses. Always prefer address extracted from owner name fields (if classified as address) over the Owner Address field.
+
+### 2026-02-06: DQ_009 — Boolean Field Standardization + Phone-Only Linking (MIG_899, MIG_900, MIG_901, MIG_902, MIG_903)
+
+**Problem:** Boolean field extraction was inconsistent across the codebase:
+- MIG_870 health flags used `IN ('Yes', 'TRUE', 'true')` — missing 'Y', 'Checked'
+- TypeScript ingest route used `= 'Yes'` — only catching one variant
+- UI `isPositiveValue()` function handles all variants correctly
+- Result: Health conditions underreported if ClinicHQ used 'Y' or 'Checked'
+
+**Investigation:**
+- `v_clinichq_boolean_values` view revealed inconsistent raw values
+- 106 appointments had phone-only contact info (INV-15) — not linked to persons
+- 4,331 appointments have no microchip in ClinicHQ source — unresolvable
+
+**Solution:**
+- **MIG_899:** Added enriched columns for misc flags (polydactyl, bradycardia, etc.) with proper boolean checking
+- **MIG_900:** Created canonical `trapper.is_positive_value()` function that handles: Yes, TRUE, Y, Checked, Positive, 1, Left, Right, Bilateral (case-insensitive). Updated `process_staged_appointment()` to use it.
+- **MIG_901:** Created 4 data quality monitoring views (`v_appointment_data_quality`, `v_clinichq_boolean_values`, `v_appointment_linking_gaps`, `v_data_quality_health`)
+- **MIG_902:** Added phone-only appointment linking — 37 appointments linked, 1,183 person-cat relationships created
+- **MIG_903:** Created views to track unresolvable appointments (ClinicHQ data entry issue, not Atlas bug)
+- **TypeScript fix:** Updated `/api/ingest/process/[id]/route.ts` to use `trapper.is_positive_value()` instead of `= 'Yes'`
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Health flag detection | Partial (missing 'Y', 'Checked') | Complete |
+| Person link % | 97.9% | 98.0% |
+| Phone-only appointments linked | 0 | 37 |
+| Enriched misc flags | 0 columns | 6 columns |
+
+**North Star Alignment:** All fixes verified against CLAUDE.md rules. No violations except the TypeScript route which was fixed.
+
+**Key Learning:** Always use `trapper.is_positive_value()` for boolean extraction. Never hardcode `= 'Yes'`.
+
 ### 2026-02-04: DQ_008 — Unlinked Cats Deep Investigation + Gap Prevention
 
 **Problem:** After MIG_884-886, 3,536 cats still have no `person_cat_relationships`. Needed root cause analysis per category and preventive invariants.
