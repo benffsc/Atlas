@@ -162,7 +162,8 @@ const categoryColors: Record<string, string> = {
 };
 
 function YesFlag({ label, value }: { label: string; value: string | null }) {
-  if (!value || value === '' || value === 'No' || value === 'FALSE' || value === 'false') return null;
+  // Use strict positive value check - don't show for notes or random text
+  if (!isPositiveValue(value)) return null;
   return (
     <span style={{
       display: 'inline-block',
