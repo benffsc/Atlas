@@ -86,7 +86,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
            archive_reason = 'User requested removal'
        WHERE media_id = $1
        RETURNING media_id`,
-      [id, session.staff_id || session.user_id || "system"]
+      [id, session.staff_id || "system"]
     );
 
     if (!result) {
