@@ -410,6 +410,28 @@ export default function CallSheetEntryPage() {
     }));
   };
 
+  // Map simplified awareness_duration values to database enum values
+  const mapAwarenessDuration = (value: string): string | null => {
+    const mapping: Record<string, string> = {
+      days: "under_1_week",
+      weeks: "under_1_month",
+      months: "1_to_6_months",
+      years: "over_1_year",
+    };
+    return mapping[value] || null;
+  };
+
+  // Strip phone formatting to get raw digits for database
+  const normalizePhone = (phone: string): string | null => {
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, "");
+    // Handle country code
+    if (digits.length === 11 && digits.startsWith("1")) {
+      return digits.slice(1);
+    }
+    return digits.length === 10 ? digits : null;
+  };
+
   // ─── Submit ─────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -446,7 +468,7 @@ export default function CallSheetEntryPage() {
           // Contact
           first_name: form.first_name,
           last_name: form.last_name,
-          phone: form.phone || null,
+          phone: normalizePhone(form.phone),
           email: form.email || null,
           // Third-party
           is_third_party_report: form.is_third_party_report,
@@ -473,7 +495,7 @@ export default function CallSheetEntryPage() {
           medical_description: form.medical_description || null,
           is_emergency: form.is_emergency,
           // Awareness
-          awareness_duration: form.awareness_duration || null,
+          awareness_duration: mapAwarenessDuration(form.awareness_duration),
           referral_source: form.referral_source || null,
           // Feeding
           feeds_cat: form.feeder_info ? true : null,
