@@ -4738,3 +4738,88 @@ Updated `run_all_entity_linking()` pipeline:
 
 Pipeline updated. Phone linking integrated. Colony detection active. Macy corrected to show only at 2001 Piner Rd Apt 186.
 
+---
+
+## DATA_GAP_008: Buddy Walker Rd Shared Phone Fix (MIG_913)
+
+**Date:** 2026-02-06
+**Triggered by:** Cat "Buddy" (981020053734908) counted twice at 1170 and 1054 Walker Rd, wrong person (Spaletta vs Tresch) shown.
+
+### Problem
+
+Cat **Buddy** appeared at wrong locations and linked to wrong person:
+- Counted at **1170 Walker Rd** (correct), **1054 Walker Rd** (wrong), AND **949 Chileno Valley Rd** (wrong)
+- **Samantha Spaletta** shown as contact instead of **Samantha Tresch** (actual owner)
+- Both families share phone `7072178913`
+
+### Root Cause
+
+**Shared Phone Number Between Two Real People**
+
+| Person | Address | Phone | Created |
+|--------|---------|-------|---------|
+| Samantha Spaletta | 949 Chileno Valley Rd | 7072178913 | 2018 (ClinicHQ) |
+| Samantha Tresch | 1170 Walker Rd | 7072178913 | 2025 (Airtable, no identifiers) |
+
+**What happened:**
+1. Spaletta record created in 2018 with phone `7072178913`
+2. Buddy's 2025 appointment had owner "Samantha Tresch" at "1170 Walker Rd" with same phone
+3. Identity resolution matched on phone → linked to Spaletta (wrong person)
+4. A `data_fix` migration incorrectly linked Buddy to 1054 Walker Rd
+5. Tresch record (from Airtable) had **zero identifiers** - couldn't claim appointments
+
+### Solution (MIG_913)
+
+**1. Remove erroneous cat-place relationships:**
+```sql
+DELETE FROM trapper.cat_place_relationships
+WHERE cat_id = [Buddy] AND place_id IN (1054 Walker, 949 Chileno Valley);
+```
+
+**2. Update person-cat relationship:** Spaletta → Tresch
+
+**3. Add phone to soft blacklist:**
+```sql
+INSERT INTO trapper.data_engine_soft_blacklist (
+    identifier_norm, identifier_type, reason, sample_names
+) VALUES ('7072178913', 'phone', 'Shared family phone', ARRAY['Samantha Spaletta', 'Samantha Tresch']);
+```
+
+**4. Add identifier to Samantha Tresch:** So future records match correctly
+
+**5. Create person-place relationship:** Tresch → 1170 Walker Rd
+
+### Buddy Specific Fixes
+
+| Fix | Details |
+|-----|---------|
+| Removed 1054 Walker Rd link | Erroneous `data_fix` auto-link |
+| Removed 949 Chileno Valley link | Via Spaletta (wrong person) |
+| Updated owner | Spaletta → Tresch |
+| Soft blacklisted phone | Prevents future auto-match |
+| Added Tresch identifier | Phone 7072178913 |
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_913__buddy_walker_rd_data_fix.sql` | New | All data fixes |
+
+### Systemic Note
+
+The soft blacklist mechanism (`data_engine_soft_blacklist`) already exists to handle shared identifiers. The problem was:
+1. Phone 7072178913 wasn't flagged as shared
+2. Samantha Tresch record lacked any identifiers
+
+This is a **data quality issue**, not a pipeline bug. The soft blacklist now prevents future auto-matching on this phone - any matches require 70% name similarity verification.
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Buddy now shows at correct location.
+- **INV-3 (One Person = One Record):** Both Spaletta and Tresch remain distinct records.
+- **INV-7 (Real Contacts):** Tresch correctly identified as Buddy's owner.
+
+### Stop Point
+
+Buddy corrected to show only at 1170 Walker Rd. Phone soft-blacklisted. Tresch has identifier for future matching.
+

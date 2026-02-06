@@ -390,6 +390,38 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-06: DQ_012 — Buddy Walker Rd Shared Phone Fix (MIG_913)
+
+**Problem:** Cat "Buddy" (981020053734908) counted twice at 1170 and 1054 Walker Rd, linked to wrong person (Samantha Spaletta instead of Samantha Tresch).
+
+**Investigation:**
+Two different people share phone `7072178913`:
+- **Samantha Spaletta** — 949 Chileno Valley Rd (2018 ClinicHQ record)
+- **Samantha Tresch** — 1170 Walker Rd (2025 Airtable/ClinicHQ, Buddy's actual owner)
+
+When Buddy's appointment came in with phone `7072178913`, identity resolution matched the existing Spaletta record. Additionally, Tresch's record (from Airtable) had **zero identifiers**, so it couldn't claim the appointment.
+
+A `data_fix` migration also incorrectly linked Buddy to 1054 Walker Rd (another Tresch property).
+
+**Solution:**
+- **MIG_913:** Removed erroneous cat-place links (1054 Walker, 949 Chileno Valley)
+- Updated person-cat relationship from Spaletta → Tresch
+- Added phone `7072178913` to `data_engine_soft_blacklist` (requires 70% name similarity to match)
+- Added phone identifier to Samantha Tresch record
+- Created person-place relationship: Tresch → 1170 Walker Rd
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Buddy place links | 3 (including wrong 1054 Walker, Chileno Valley) | 1 (correct: 1170 Walker Rd) |
+| Buddy owner | Samantha Spaletta (wrong) | Samantha Tresch (correct) |
+| Phone 7072178913 | Auto-matches any person | Soft-blacklisted, requires name verification |
+
+**What Tippy should know:**
+> "Phone `7072178913` is shared between two families (Spaletta at Chileno Valley, Tresch at Walker Rd). It's soft-blacklisted, meaning appointments with this phone won't auto-match - they require name similarity verification. If staff asks about Buddy at Walker Rd, confirm it's Samantha Tresch, not Spaletta."
+
+**Key Learning:** Shared family/business phones cause identity resolution errors. Use `data_engine_soft_blacklist` to flag these.
+
 ### 2026-02-06: DQ_011 — Cat-Place Linking Pipeline Improvements (MIG_912)
 
 **Problem:** Cat "Macy" (981020039875779) had 4 place links including wrong address (3537 Coffey Meadow) where owner moved TO, not where cat lives (2001 Piner Rd).
