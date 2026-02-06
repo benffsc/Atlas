@@ -5,7 +5,30 @@ import { useRouter } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/BackButton";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+
+/**
+ * Parse city and zip from a formatted address string.
+ */
+function parseAddressComponents(formattedAddress: string | null): { city: string; zip: string } {
+  if (!formattedAddress) return { city: "", zip: "" };
+  const parts = formattedAddress.split(",").map(p => p.trim());
+  let city = "";
+  let zip = "";
+  const zipMatch = formattedAddress.match(/\b(\d{5})(?:-\d{4})?\b/);
+  if (zipMatch) zip = zipMatch[1];
+  if (parts.length >= 3) {
+    const stateZipPart = parts[parts.length - 2] || parts[parts.length - 1];
+    if (/\b[A-Z]{2}\s+\d{5}\b/.test(stateZipPart)) {
+      city = parts[parts.length - 3] || "";
+    } else {
+      city = parts[1] || "";
+    }
+  } else if (parts.length === 2) {
+    city = parts[0] || "";
+  }
+  return { city, zip };
+}
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
@@ -295,13 +318,15 @@ export default function CallSheetEntryPage() {
   }, []);
 
   const handleContactChange = (field: keyof CallSheetForm, value: string) => {
-    updateForm({ [field]: value });
+    // Auto-format phone as user types
+    const processedValue = field === "phone" ? formatPhoneAsYouType(value) : value;
+    updateForm({ [field]: processedValue });
     setSelectedPersonId(null);
     if (field === "first_name" || field === "last_name" || field === "email" || field === "phone") {
       if (personSearchTimeout.current) clearTimeout(personSearchTimeout.current);
       const searchQuery = field === "email" || field === "phone"
-        ? value
-        : `${form.first_name} ${form.last_name}`.trim() || value;
+        ? processedValue
+        : `${form.first_name} ${form.last_name}`.trim() || processedValue;
       personSearchTimeout.current = setTimeout(() => searchPeople(searchQuery), 300);
     }
   };
@@ -324,7 +349,12 @@ export default function CallSheetEntryPage() {
     setResolvedPlace(place);
     setSelectedPlaceId(place?.place_id || null);
     if (place) {
-      updateForm({ cats_address: place.formatted_address || place.display_name || "" });
+      const { city, zip } = parseAddressComponents(place.formatted_address);
+      updateForm({
+        cats_address: place.formatted_address || place.display_name || "",
+        cats_city: city,
+        cats_zip: zip,
+      });
     }
   };
 
