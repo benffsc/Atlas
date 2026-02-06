@@ -25,6 +25,8 @@ const PLACE_KIND_OPTIONS = [
 interface PlaceResolverProps {
   value: ResolvedPlace | null;
   onChange: (place: ResolvedPlace | null) => void;
+  /** Called immediately when a Google address is selected (before place type modal) */
+  onAddressPreview?: (address: string) => void;
   placeholder?: string;
   disabled?: boolean;
   showDescribeLocation?: boolean;
@@ -38,6 +40,7 @@ interface PlaceResolverProps {
 export default function PlaceResolver({
   value,
   onChange,
+  onAddressPreview,
   placeholder = "Search for an address...",
   disabled = false,
   showDescribeLocation = false,
@@ -90,6 +93,13 @@ export default function PlaceResolver({
       setShowPlaceTypeModal(true);
     }
   }, [resolver.pendingGoogle, resolver.duplicateCheck, resolver.checkingDuplicate]);
+
+  // Call onAddressPreview when a Google address is selected (before place type modal)
+  useEffect(() => {
+    if (resolver.pendingGoogle?.description && onAddressPreview) {
+      onAddressPreview(resolver.pendingGoogle.description);
+    }
+  }, [resolver.pendingGoogle, onAddressPreview]);
 
   // Close dropdown on outside click
   useEffect(() => {

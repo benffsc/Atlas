@@ -689,6 +689,11 @@ export default function PhoneIntakePage() {
                     selected_place_id: place?.place_id || null,
                   });
                 }}
+                onAddressPreview={(address) => {
+                  // Extract city/zip immediately when Google address is selected (before place type modal)
+                  const { city, zip } = parseAddressComponents(address);
+                  updateForm({ cats_city: city, cats_zip: zip });
+                }}
                 placeholder="Start typing the address..."
               />
               {form.selected_place_id && (

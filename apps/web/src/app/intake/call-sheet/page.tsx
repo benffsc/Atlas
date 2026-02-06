@@ -589,7 +589,16 @@ export default function CallSheetEntryPage() {
             <div style={sectionTitle}>Cat Location</div>
             <div style={{ marginBottom: "10px" }}>
               <label style={fieldLabel}>Address (where cats are) *</label>
-              <PlaceResolver value={resolvedPlace} onChange={handlePlaceResolved} placeholder="Start typing address..." />
+              <PlaceResolver
+                value={resolvedPlace}
+                onChange={handlePlaceResolved}
+                onAddressPreview={(address) => {
+                  // Extract city/zip immediately when Google address is selected
+                  const { city, zip } = parseAddressComponents(address);
+                  updateForm({ cats_city: city, cats_zip: zip });
+                }}
+                placeholder="Start typing address..."
+              />
             </div>
             <div style={grid3}>
               <div>
