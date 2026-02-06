@@ -80,7 +80,21 @@ export async function GET(request: NextRequest) {
       catchup.euthanasia_error = e instanceof Error ? e.message : "Unknown";
     }
 
-    // Step 1e: Retry unmatched master list entries (MIG_900)
+    // Step 1e: Process embedded microchips in Animal Name (MIG_911)
+    // Safely extracts chips from "CatName - A439019 - 981020039875779" patterns
+    try {
+      const embeddedChips = await queryRows<LinkingResult>(
+        "SELECT * FROM trapper.process_embedded_microchips_in_animal_names()"
+      );
+      const chipsLinked = embeddedChips.reduce((sum, r) => sum + r.count, 0);
+      if (chipsLinked > 0) {
+        catchup.embedded_chips = embeddedChips;
+      }
+    } catch (e) {
+      catchup.embedded_chips_error = e instanceof Error ? e.message : "Unknown";
+    }
+
+    // Step 1f: Retry unmatched master list entries (MIG_900)
     // Matches shelter/foster entries when ShelterLuv/VolunteerHub data arrives late
     try {
       const retryMatches = await queryRows<{
