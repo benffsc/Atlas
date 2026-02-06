@@ -61,6 +61,13 @@ export async function GET(
         v.has_skin_issue, v.has_mouth_issue, v.has_fleas, v.has_ticks,
         v.has_tapeworms, v.has_ear_mites, v.has_ringworm,
         v.felv_fiv_result, v.body_composition_score, v.no_surgery_reason,
+        -- Enriched misc flags (MIG_899)
+        COALESCE(v.has_polydactyl, FALSE) as has_polydactyl,
+        COALESCE(v.has_bradycardia, FALSE) as has_bradycardia,
+        COALESCE(v.has_too_young_for_rabies, FALSE) as has_too_young_for_rabies,
+        COALESCE(v.has_cryptorchid, FALSE) as has_cryptorchid,
+        COALESCE(v.has_hernia, FALSE) as has_hernia,
+        COALESCE(v.has_pyometra, FALSE) as has_pyometra,
         v.total_invoiced, v.subsidy_value,
         v.client_name AS enriched_client_name,
         v.client_address AS enriched_client_address,
@@ -230,6 +237,13 @@ export async function GET(
       has_ringworm: appointment.has_ringworm,
       felv_fiv_result: appointment.felv_fiv_result,
       no_surgery_reason: appointment.no_surgery_reason,
+      // Enriched misc flags (MIG_899)
+      has_polydactyl: appointment.has_polydactyl,
+      has_bradycardia: appointment.has_bradycardia,
+      has_too_young_for_rabies: appointment.has_too_young_for_rabies,
+      has_cryptorchid: appointment.has_cryptorchid,
+      has_hernia: appointment.has_hernia,
+      has_pyometra: appointment.has_pyometra,
       // Financial
       total_invoiced: appointment.total_invoiced,
       subsidy_value: appointment.subsidy_value,

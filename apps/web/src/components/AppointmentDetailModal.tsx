@@ -122,6 +122,13 @@ interface AppointmentDetail {
   has_ringworm: boolean;
   felv_fiv_result: string | null;
   no_surgery_reason: string | null;
+  // Enriched misc flags (MIG_899)
+  has_polydactyl: boolean;
+  has_bradycardia: boolean;
+  has_too_young_for_rabies: boolean;
+  has_cryptorchid: boolean;
+  has_hernia: boolean;
+  has_pyometra: boolean;
   // Financial
   total_invoiced: number | null;
   subsidy_value: number | null;
@@ -255,18 +262,18 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
   }
 
   const surgeryFlags: Array<{ label: string; value: string }> = [];
-  if (raw) {
-    // Use getPositiveValueOrNull which accepts descriptive values like 'Left', 'Right', 'Bilateral'
-    const cryptorchid = getPositiveValueOrNull(raw.cryptorchid);
-    const preScrotal = getPositiveValueOrNull(raw.pre_scrotal);
-    const hernia = getPositiveValueOrNull(raw.hernia);
-    const pyometra = getPositiveValueOrNull(raw.pyometra);
-    const staples = getPositiveValueOrNull(raw.staples);
-    if (cryptorchid) surgeryFlags.push({ label: 'Cryptorchid', value: cryptorchid });
-    if (preScrotal) surgeryFlags.push({ label: 'Pre-Scrotal', value: preScrotal });
-    if (hernia) surgeryFlags.push({ label: 'Hernia', value: hernia });
-    if (pyometra) surgeryFlags.push({ label: 'Pyometra', value: pyometra });
-    if (staples) surgeryFlags.push({ label: 'Staples', value: staples });
+  if (data) {
+    // Use enriched columns for main surgery flags (strict boolean checking from MIG_899)
+    if (data.has_cryptorchid) surgeryFlags.push({ label: 'Cryptorchid', value: 'Yes' });
+    if (data.has_hernia) surgeryFlags.push({ label: 'Hernia', value: 'Yes' });
+    if (data.has_pyometra) surgeryFlags.push({ label: 'Pyometra', value: 'Yes' });
+    // Pre-scrotal and staples still from raw (no enriched column)
+    if (raw) {
+      const preScrotal = getPositiveValueOrNull(raw.pre_scrotal);
+      const staples = getPositiveValueOrNull(raw.staples);
+      if (preScrotal) surgeryFlags.push({ label: 'Pre-Scrotal', value: preScrotal });
+      if (staples) surgeryFlags.push({ label: 'Staples', value: staples });
+    }
   }
 
   const postOpFlags: Array<{ label: string; value: string }> = [];
@@ -603,13 +610,25 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
               </div>
             )}
 
-            {/* Misc flags */}
-            {raw && (raw.too_young_for_rabies || raw.polydactyl || raw.death_type || raw.bradycardia) && (
+            {/* Misc flags - using enriched columns (MIG_899) */}
+            {(data.has_too_young_for_rabies || data.has_polydactyl || data.has_bradycardia || raw?.death_type) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                <YesFlag label="Too Young for Rabies" value={raw.too_young_for_rabies} />
-                <YesFlag label="Polydactyl" value={raw.polydactyl} />
-                <YesFlag label="Bradycardia Intra-Op" value={raw.bradycardia} />
-                {raw.death_type && <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500, background: '#f8d7da', color: '#842029' }}>Death: {raw.death_type}</span>}
+                {data.has_too_young_for_rabies && (
+                  <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500, background: '#fff3cd', color: '#664d03', border: '1px solid #ffecb5' }}>
+                    Too Young for Rabies
+                  </span>
+                )}
+                {data.has_polydactyl && (
+                  <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500, background: '#fff3cd', color: '#664d03', border: '1px solid #ffecb5' }}>
+                    Polydactyl
+                  </span>
+                )}
+                {data.has_bradycardia && (
+                  <span style={{ display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500, background: '#fff3cd', color: '#664d03', border: '1px solid #ffecb5' }}>
+                    Bradycardia Intra-Op
+                  </span>
+                )}
+                {raw?.death_type && <span style={{ padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500, background: '#f8d7da', color: '#842029' }}>Death: {raw.death_type}</span>}
               </div>
             )}
 
