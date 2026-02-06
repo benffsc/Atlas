@@ -270,8 +270,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Intake submission error:", err);
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
-      { error: "Invalid request" },
+      { error: `Submission failed: ${errorMessage}` },
       { status: 400 }
     );
   }
