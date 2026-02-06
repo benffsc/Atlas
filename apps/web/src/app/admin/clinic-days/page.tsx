@@ -94,6 +94,7 @@ interface CatSearchResult {
   sex: string | null;
   primary_color: string | null;
   photo_url: string | null;
+  appointment_id: string | null;
   appointment_date: string | null;
   clinic_day_number: number | null;
   is_deceased: boolean;
@@ -1753,6 +1754,60 @@ export default function ClinicDaysPage() {
                       Change Cat
                     </button>
                   </div>
+
+                  {/* Clinic Day Number Input */}
+                  {selectedCatForUpload.appointment_id && (
+                    <div style={{
+                      padding: "12px 16px",
+                      marginBottom: "16px",
+                      background: "var(--section-bg)",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 500, whiteSpace: "nowrap" }}>
+                        Clinic Day #:
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="999"
+                        placeholder="e.g. 15"
+                        defaultValue={selectedCatForUpload.clinic_day_number || ""}
+                        onChange={async (e) => {
+                          const value = e.target.value ? parseInt(e.target.value, 10) : null;
+                          if (value !== null && (value < 1 || value > 999)) return;
+                          try {
+                            await fetch(`/api/appointments/${selectedCatForUpload.appointment_id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ clinic_day_number: value }),
+                            });
+                            // Update local state so CatCard reflects new number
+                            setSelectedCatForUpload({
+                              ...selectedCatForUpload,
+                              clinic_day_number: value,
+                            });
+                          } catch (err) {
+                            console.error("Failed to update clinic day number:", err);
+                          }
+                        }}
+                        style={{
+                          width: "80px",
+                          padding: "6px 10px",
+                          border: "1px solid var(--card-border)",
+                          borderRadius: "4px",
+                          background: "var(--card-bg)",
+                          color: "var(--foreground)",
+                          fontSize: "0.9rem",
+                        }}
+                      />
+                      <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                        (1-999, from clinic waiver)
+                      </span>
+                    </div>
+                  )}
 
                   {/* MediaUploader */}
                   <MediaUploader

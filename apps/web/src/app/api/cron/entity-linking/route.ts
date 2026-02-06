@@ -80,6 +80,21 @@ export async function GET(request: NextRequest) {
       catchup.euthanasia_error = e instanceof Error ? e.message : "Unknown";
     }
 
+    // Step 1e: Retry unmatched master list entries (MIG_900)
+    // Matches shelter/foster entries when ShelterLuv/VolunteerHub data arrives late
+    try {
+      const retryMatches = await queryRows<{
+        clinic_date: string;
+        entries_matched: number;
+        match_method: string;
+      }>("SELECT * FROM trapper.retry_unmatched_master_list_entries()");
+      if (retryMatches.length > 0) {
+        catchup.master_list_retry = retryMatches;
+      }
+    } catch (e) {
+      catchup.master_list_retry_error = e instanceof Error ? e.message : "Unknown";
+    }
+
     // Step 2: Run all entity linking operations
     const results = await queryRows<LinkingResult>(
       "SELECT * FROM trapper.run_all_entity_linking()"

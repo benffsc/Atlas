@@ -3950,3 +3950,415 @@ DROP FUNCTION IF EXISTS trapper.process_clinichq_unchipped_cats(INT);
 ### Stop Point
 
 Unchipped cats now tracked via `clinichq_animal_id`. Clinic Day Cat Gallery shows all cats with microchip status. F5 from TASK_001 resolved.
+
+
+---
+
+## DATA_GAP_001: Master List Entity Linking System (MIG_900)
+
+**Date:** 2026-02-06
+**Triggered by:** 26/44 master list entries (60%) failed to auto-match on 02/04/2026 clinic day.
+
+### Problem
+
+Master list client names contain complex patterns that the trigram-only matching (`match_master_list_to_appointments()`) cannot handle:
+
+| Entry Format | Example | Why It Fails |
+|--------------|---------|--------------|
+| Shelter entries | "SCAS A439019" | No owner name, just shelter ID |
+| Foster entries | "Foster 'Asher' (Chiaroni)" | Real owner in parentheses, gets stripped |
+| Address-based | "5403 San Antonio Red - Trp Toni" | Address parsed as owner name |
+| Org + Cat + Phone | "Cat Rescue of Cloverdale 'Sylvester' - call 707-280-4556" | Complex multi-signal |
+| Phone in name | "Kathleen Frey - call Rose 707-331-0812" | Alt contact interferes |
+
+### Key Insight
+
+**Master list is ground truth for clinic attendance.** On a single clinic day, the matching space is constrained — if there's only ONE potential match for an entry, it's almost certainly correct.
+
+This creates opportunities for robust entity linking:
+- Cat → Appointment (ClinicHQ)
+- Shelter → Cat (ShelterLuv ID like A439019)
+- Foster → Cat (VolunteerHub role + name matching)
+- Trapper → Appointment (trapper_aliases)
+
+### Root Cause Analysis
+
+Current `match_master_list_to_appointments()` only uses **trigram similarity on owner names**. This fails for:
+1. Shelter entries with animal IDs instead of names
+2. Foster entries where the real parent is in parentheses
+3. Address entries where the address is parsed as a name
+4. Entries with phone numbers that interfere with parsing
+
+### Solution (MIG_900)
+
+**Part A: Enhanced Client Name Parser**
+
+Added comprehensive signal extraction in `apps/web/src/app/api/admin/clinic-days/[date]/import/route.ts`:
+
+```typescript
+interface ExtendedParsedName {
+  owner_name: string | null;
+  cat_name: string | null;
+  trapper_alias: string | null;
+  is_foster: boolean;
+  foster_parent: string | null;
+  is_shelter: boolean;
+  org_code: string | null;       // "SCAS"
+  shelter_id: string | null;     // "A439019"
+  org_name: string | null;
+  is_address: boolean;
+  address: string | null;
+  cat_color: string | null;
+  contact_phone: string | null;
+  alt_contact_name: string | null;
+  alt_phone: string | null;
+}
+```
+
+**Parsing Patterns (priority order):**
+1. Foster: `/^Foster\s+['"]([^'"]+)['"]\s*\(([^)]+)\)/i`
+2. Shelter ID: `/^(SCAS|RPAS|HSOS|SHS|MCAS)\s+([A-Z]?\d{5,})/i`
+3. Org + Cat + Phone: `/^(.+?)\s+['"]([^'"]+)['"]\s*-\s*call.+?([\d-]{10,})/i`
+4. Address + Color: `/^(\d+\s+[A-Za-z\s]+?)\s+(Black|White|Orange|Gray|...)/i`
+5. Owner + Alt Contact: `/^(.+?)\s*-\s*call\s+([A-Za-z]+)\s+([\d-]{10,})/i`
+
+**Part B: Multi-Strategy Matching Pipeline**
+
+Added 4 SQL matching functions that run in sequence:
+
+| Pass | Function | Strategy | Confidence |
+|------|----------|----------|------------|
+| 1 | `match_master_list_to_appointments()` | Owner name trigram similarity | high/medium |
+| 2 | `match_master_list_by_cat_name()` | Unique cat name on day | high |
+| 3 | `match_master_list_by_sex()` | Only one M/F entry and one M/F appt remain | medium |
+| 4 | `match_master_list_by_cardinality()` | Same count remains (≤3), best-fit pairing | medium |
+
+**Part C: Delayed Matching for External Data**
+
+ShelterLuv data may arrive 1+ days after clinic. `retry_unmatched_master_list_entries()`:
+1. Runs via entity-linking cron (every 15 minutes)
+2. Matches shelter entries when ShelterLuv animal records appear
+3. Matches foster entries when VolunteerHub foster parent roles are synced
+4. Creates `person_cat_relationships` for successful matches
+
+**Part D: Entity Relationship Creation**
+
+`create_master_list_relationships()`:
+- Creates `relo_source` relationships for shelter entries
+- Links trappers to appointments via `trapper_person_id`
+
+### Data Delay Consideration
+
+External data sources have latency:
+- **ShelterLuv:** 1-3 days after clinic for animal records
+- **VolunteerHub:** 6+ hours (syncs every 6 hours)
+
+**Strategy:**
+1. Store all parsed signals immediately (shelter_id, foster_parent, etc.)
+2. Match what we can now (ClinicHQ appointments via owner name)
+3. Re-match later via cron when SL/VH data arrives
+
+### Schema Changes (clinic_day_entries)
+
+```sql
+-- Foster detection
+is_foster BOOLEAN DEFAULT FALSE
+foster_parent_name TEXT
+
+-- Shelter/Org detection
+is_shelter BOOLEAN DEFAULT FALSE
+org_code TEXT           -- "SCAS"
+shelter_animal_id TEXT  -- "A439019"
+org_name TEXT
+
+-- Address detection
+is_address BOOLEAN DEFAULT FALSE
+parsed_address TEXT
+parsed_cat_color TEXT
+
+-- Contact extraction
+contact_phone TEXT
+alt_contact_name TEXT
+alt_contact_phone TEXT
+
+-- Match tracking
+match_reason TEXT       -- 'owner_name', 'cat_name', 'sex', 'cardinality', etc.
+matched_cat_id UUID     -- May differ from appointment's cat_id
+```
+
+### Touched Surfaces
+
+| Object | Operation | ACTIVE? |
+|--------|-----------|---------|
+| `trapper.clinic_day_entries` | ALTER (add 12 columns) | No — internal tracking |
+| `trapper.match_master_list_by_cat_name()` | CREATE | No — new function |
+| `trapper.match_master_list_by_sex()` | CREATE | No — new function |
+| `trapper.match_master_list_by_cardinality()` | CREATE | No — new function |
+| `trapper.apply_smart_master_list_matches()` | CREATE | No — orchestrator |
+| `trapper.retry_unmatched_master_list_entries()` | CREATE | No — cron helper |
+| `trapper.create_master_list_relationships()` | CREATE | No — relationship creator |
+| `/api/admin/clinic-days/[date]/import/route.ts` | MODIFY | Yes — import flow |
+| `/api/cron/entity-linking/route.ts` | MODIFY | Yes — cron |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** All parsed signals stored even if not immediately matched. Delayed matching retries.
+- **INV-4 (Provenance):** `match_reason` tracks which strategy succeeded. `source_system='master_list'` for relationships.
+- **INV-6 (Active Flows Sacred):** Existing `match_master_list_to_appointments()` unchanged — new functions are additive.
+- **INV-8 (Merge-Aware):** All matching functions filter `merged_into_*_id IS NULL`.
+- **INV-10 (Centralized Functions):** Relationships created via `person_cat_relationships` table directly (no wrapper needed for master list context).
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_900__smart_master_list_matching.sql` | New | Schema + all functions |
+| `apps/web/src/app/api/admin/clinic-days/[date]/import/route.ts` | Modify | Enhanced parser, smart matching call |
+| `apps/web/src/app/api/cron/entity-linking/route.ts` | Modify | Add retry_unmatched call |
+
+### Validation
+
+1. Re-import 02/04/2026 master list
+2. Verify unmatched count drops from 26 to < 10
+3. Check `clinic_day_entries` for correct parsing:
+   ```sql
+   SELECT raw_client_name, is_foster, foster_parent_name, is_shelter, org_code, shelter_animal_id
+   FROM trapper.clinic_day_entries
+   WHERE clinic_day_id IN (SELECT clinic_day_id FROM trapper.clinic_days WHERE clinic_date = '2026-02-04');
+   ```
+4. Run delayed matching after ShelterLuv sync, verify remaining matches
+
+### Future Work
+
+- **Historical Backfill:** Re-import historical master lists to enrich past appointments with entity linkages
+- **ShelterLuv ID Appointment Linking:** Add ShelterLuv ID as secondary matching strategy in `process_clinichq_appointment_info()`
+- **Recapture Flow:** When SCAS/shelter cats return, link new appointment to existing cat via shelter ID
+
+---
+
+## DATA_GAP_002: Foster Cat Data Flow (MIG_900 Investigation)
+
+**Date:** 2026-02-06
+**Triggered by:** Foster cat (microchip 981020053885044) from 02/04/2026 clinic — need to understand foster data patterns.
+
+### Problem
+
+Foster cats flow through a **three-source system** with different levels of explicit labeling:
+
+| Source | Foster Detection | Relationship Created |
+|--------|-----------------|---------------------|
+| ClinicHQ | None (implicit via owner contact) | `caretaker` (not `fosterer`) |
+| ShelterLuv | Explicit (status/hold_for fields) | `fosterer` with medium confidence |
+| VolunteerHub | Foster parent registry only | No cat-level linkage |
+
+**Key Gap:** ClinicHQ data alone does NOT indicate foster vs. owner. The system treats everyone bringing a cat as a "caretaker."
+
+### Data Flow Patterns
+
+**Pattern A: ClinicHQ Only (Common)**
+```
+ClinicHQ appointment → owner_email/phone → find_or_create_person()
+    → person_cat_relationships(type='caretaker', source='clinichq')
+```
+- Cat appears in Atlas but relationship is generic "caretaker"
+- No `fosterer` label, no `foster_home` place context
+
+**Pattern B: ClinicHQ + ShelterLuv (Enhanced)**
+```
+ShelterLuv animal record → status ILIKE '%foster%'
+    → person_cat_relationships(type='fosterer', source='shelterluv')
+    → person_roles(role='foster')
+```
+- Cat has explicit `fosterer` relationship
+- Foster parent has role assignment
+
+**Pattern C: VolunteerHub Foster Registry**
+```
+VolunteerHub 'Approved Foster Parent' group membership
+    → person_roles(role='foster')
+    → place_contexts(context_type='foster_home') via MIG_871
+```
+- Place is tagged as foster home
+- But no link to specific cats being fostered
+
+### How to Verify Foster Status
+
+A cat is reliably "foster" when ANY of these signals align:
+1. `person_cat_relationships.relationship_type = 'fosterer'`
+2. `person_roles.role = 'foster'` for the linked person
+3. `place_contexts.context_type = 'foster_home'` for the person's place
+
+**Query:**
+```sql
+SELECT c.display_name, ci.id_value as microchip,
+       pcr.relationship_type,
+       pr.role_name IS NOT NULL as is_vh_foster,
+       pc.context_type IS NOT NULL as is_foster_home
+FROM trapper.sot_cats c
+JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
+JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+LEFT JOIN trapper.person_roles pr ON pr.person_id = p.person_id AND pr.role_name = 'foster'
+LEFT JOIN trapper.person_place_relationships ppr ON ppr.person_id = p.person_id
+LEFT JOIN trapper.place_contexts pc ON pc.place_id = ppr.place_id AND pc.context_type = 'foster_home'
+WHERE ci.id_value = '981020053885044';
+```
+
+### Opportunities
+
+1. **Master List Foster Detection:** Parse "Foster 'CatName' (ParentName)" format → create `fosterer` relationships
+2. **Cross-Reference VH Approved Fosters:** If person bringing cat is in VH foster list, upgrade `caretaker` to `fosterer`
+3. **Place Context Propagation:** When cat linked to VH foster parent, tag their place as `foster_home`
+
+### Files Reference
+
+| Migration | Purpose |
+|-----------|---------|
+| MIG_313 | ClinicHQ processing (creates `caretaker` relationships) |
+| MIG_469 | ShelterLuv foster detection (creates `fosterer` relationships) |
+| MIG_809 | VolunteerHub group → role mapping |
+| MIG_871 | Foster home place tagging from VH |
+| MIG_900 | Master list foster parsing + delayed matching |
+
+### Stop Point
+
+Data patterns documented. Foster detection now captured via MIG_900 enhanced parsing. Cross-system matching via delayed retry function.
+
+---
+
+## DATA_GAP_003: Foster Matching via Staged Records (MIG_901)
+
+**Date:** 2026-02-06
+**Triggered by:** Foster entries "Foster 'Asher' (Chiaroni)" and "Foster 'Silas' (Chiaroni)" failed to match despite cats existing.
+
+### Problem
+
+Foster entries parsed correctly with `foster_parent_name='Chiaroni'` and `parsed_cat_name='Asher'/'Silas'`, but failed to match because:
+
+| Source | Cat Name | Why Matching Failed |
+|--------|----------|---------------------|
+| `sot_cats.display_name` | "DMH Brn Tabby 3750" | Generic breed/color + microchip suffix |
+| `sot_cats.display_name` | "DLH Orange + White 7285" | Generic breed/color + microchip suffix |
+| ClinicHQ Animal Name | "Asher (Chiaroni)" | Actual cat name + foster parent |
+| ClinicHQ Animal Name | "Silas (Chiaroni)" | Actual cat name + foster parent |
+
+**Root Cause:** `sot_cats.display_name` is set from the FIRST record processed. For these cats, PetLink microchip registration arrived before ClinicHQ, so the cat name is the generic format.
+
+### Key Insight
+
+**The real cat name exists only in ClinicHQ `staged_records.payload->>'Animal Name'`** using the pattern `"CatName (FosterLastName)"`.
+
+This pattern is reliable:
+- Harry (Cappa) ✓
+- Mick (Cappa) ✓
+- Tom (Cappa) ✓
+- Asher (Chiaroni) ✓
+- Silas (Chiaroni) ✓
+
+### Data Sources Available
+
+| Source | Data | Use For |
+|--------|------|---------|
+| Master List | `foster_parent_name`, `parsed_cat_name` | Entry to match |
+| ClinicHQ `staged_records` | Animal Name = "CatName (FosterName)" | Pattern matching |
+| VolunteerHub | Person in "Approved Foster Parent" group | Foster parent lookup |
+| `sot_appointments` | Links staged record → appointment | Target to match to |
+
+### Solution (MIG_901)
+
+**Part A: `match_master_list_fosters_via_staged()`**
+
+Matches unmatched foster entries via staged record Animal Name pattern:
+
+```sql
+-- Master list entry: foster_parent_name='Chiaroni', parsed_cat_name='Asher'
+-- ClinicHQ staged: Animal Name = 'Asher (Chiaroni)'
+-- Regex: ^([^(]+)\s*\(([^)]+)\)$
+
+SELECT entry_id, appointment_id, 'high', 'foster_staged_animal_name'
+FROM foster_entries fe
+JOIN clinichq_foster_appts ca
+  ON LOWER(ca.hq_cat_name) = LOWER(fe.parsed_cat_name)
+  AND LOWER(ca.hq_foster_name) = LOWER(fe.foster_parent_name)
+  AND ca.appointment_date = fe.clinic_date;
+```
+
+**Part B: `link_foster_parent_to_cat()`**
+
+Creates `person_cat_relationships` linking foster parent to cat:
+
+1. Find person via VolunteerHub "Approved Foster Parent" group membership
+2. Fallback to `sot_people.display_name` matching
+3. Create relationship with `type='foster'`, `source_system='master_list'`
+
+**Part C: `apply_foster_matches_and_links()`**
+
+Orchestrates matching and relationship creation:
+1. Match foster entries via staged records
+2. Update `clinic_day_entries.matched_appointment_id`
+3. Create `person_cat_relationships` for matched fosters
+
+### Results on 02/04/2026
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total entries | 45 | 45 |
+| Matched | 39 (87%) | 41 (91%) |
+| Unmatched | 6 (13%) | 4 (9%) |
+| Chiaroni matched | 0 | 2 |
+| Foster relationships created | 5 | 7 |
+
+**Kelly Chiaroni now has foster relationships to both cats:**
+```
+| person_name    | cat_name                | relationship_type |
+|----------------|-------------------------|-------------------|
+| Kelly Chiaroni | DLH Orange + White 7285 | foster            |
+| Kelly Chiaroni | DMH Brn Tabby 3750      | foster            |
+```
+
+### Future Queries Enabled
+
+With proper foster linkage, we can now answer:
+- "Who has Kelly Chiaroni fostered?"
+- "How many cats has this foster parent helped?"
+- "Which fosters have experience with kittens?"
+
+Eventually with origin tracking:
+- "Where did these kittens come from?"
+- "Which colonies produce the most foster-age kittens?"
+
+### Schema Impact
+
+No schema changes — uses existing tables:
+- `clinic_day_entries` (already has foster columns from MIG_900)
+- `staged_records` (read-only)
+- `person_cat_relationships` (creates foster links)
+- `volunteerhub_*` (read-only lookups)
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Even if `sot_cats.display_name` is wrong, the real name is preserved in staged_records.
+- **INV-4 (Provenance):** `match_reason='foster_staged_animal_name'`, `source_system='master_list'` for relationships.
+- **INV-6 (Active Flows Sacred):** Purely additive functions, no changes to existing processing.
+- **INV-8 (Merge-Aware):** All lookups filter `merged_into_*_id IS NULL`.
+- **INV-10 (Centralized Functions):** Uses `person_cat_relationships` insert pattern with all required fields.
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_901__foster_matching_via_staged_records.sql` | New | Matching functions |
+
+### Remaining Unmatched (02/04/2026)
+
+| Entry | Reason | Future Solution |
+|-------|--------|-----------------|
+| 5403 San Antonio Red - Trp Toni Price | Address-based, no cat name | Address→Place matching |
+| Marisol Contreras | Just a name, no sex/cat info | Manual match or wait for more data |
+| La Crema Winery | Organization/business | Org-to-org mapping |
+| Adan Alvarado - Trp Cassie | Owner + trapper, no unique signal | Need sex or cat name |
+
+### Stop Point
+
+Foster matching via staged records complete. 91% matching achieved on 02/04/2026 clinic day. Foster parent relationships created and linked to VolunteerHub.
+

@@ -131,8 +131,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           notes,
           status,
           source_system,
-          entered_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+          entered_by,
+          -- Extended parsing columns (MIG_900)
+          is_foster,
+          foster_parent_name,
+          is_shelter,
+          org_code,
+          shelter_animal_id,
+          org_name,
+          is_address,
+          parsed_address,
+          parsed_cat_color,
+          contact_phone,
+          alt_contact_name,
+          alt_contact_phone
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)`,
         [
           clinicDay.clinic_day_id,
           entry.line_number,
@@ -153,19 +166,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           "completed",
           "master_list",
           session.staff_id,
+          // Extended fields
+          entry.is_foster,
+          entry.foster_parent_name,
+          entry.is_shelter,
+          entry.org_code,
+          entry.shelter_animal_id,
+          entry.org_name,
+          entry.is_address,
+          entry.parsed_address,
+          entry.parsed_cat_color,
+          entry.contact_phone,
+          entry.alt_contact_name,
+          entry.alt_contact_phone,
         ]
       );
       inserted++;
     }
 
-    // Run matching
-    const matchResult = await queryOne<{
+    // Run smart matching (MIG_900)
+    // Apply all strategies: owner_name → cat_name → sex → cardinality
+    const matchPasses = await queryRows<{
+      pass: string;
       entries_matched: number;
-      high_confidence: number;
-      medium_confidence: number;
-      low_confidence: number;
     }>(
-      `SELECT * FROM trapper.apply_master_list_matches($1, 'medium')`,
+      `SELECT * FROM trapper.apply_smart_master_list_matches($1)`,
+      [date]
+    );
+
+    // Sum up results from all passes
+    const matchResult = {
+      entries_matched: matchPasses.reduce((sum, p) => sum + (p.entries_matched || 0), 0),
+      by_pass: Object.fromEntries(matchPasses.map(p => [p.pass, p.entries_matched || 0])),
+    };
+
+    // Create entity relationships from successful matches
+    await queryRows(
+      `SELECT * FROM trapper.create_master_list_relationships($1)`,
       [date]
     );
 
@@ -179,6 +216,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       with_cat_name: entries.filter((e) => e.parsed_cat_name).length,
     };
 
+    // Count extended parsing results
+    const extendedSummary = {
+      foster_entries: entries.filter((e) => e.is_foster).length,
+      shelter_entries: entries.filter((e) => e.is_shelter).length,
+      address_entries: entries.filter((e) => e.is_address).length,
+      with_phone: entries.filter((e) => e.contact_phone).length,
+    };
+
     return NextResponse.json({
       success: true,
       clinic_day_id: clinicDay.clinic_day_id,
@@ -186,12 +231,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       trappers_resolved: trappersResolved,
       trappers_total: summary.with_trapper,
       matched: matchResult?.entries_matched || 0,
-      match_details: {
-        high_confidence: matchResult?.high_confidence || 0,
-        medium_confidence: matchResult?.medium_confidence || 0,
-        low_confidence: matchResult?.low_confidence || 0,
+      match_details: matchResult?.by_pass || {},
+      summary: {
+        ...summary,
+        ...extendedSummary,
       },
-      summary,
       extracted_date: extractedDate,
     });
   } catch (error) {
@@ -273,6 +317,19 @@ interface ParsedEntry {
   parsed_owner_name: string | null;
   parsed_trapper_alias: string | null;
   parsed_cat_name: string | null;
+  // Extended parsing (MIG_900)
+  is_foster: boolean;
+  foster_parent_name: string | null;
+  is_shelter: boolean;
+  org_code: string | null;
+  shelter_animal_id: string | null;
+  org_name: string | null;
+  is_address: boolean;
+  parsed_address: string | null;
+  parsed_cat_color: string | null;
+  contact_phone: string | null;
+  alt_contact_name: string | null;
+  alt_contact_phone: string | null;
 }
 
 function parseMasterList(workbook: xlsx.WorkBook): {
@@ -378,6 +435,9 @@ function parseMasterList(workbook: xlsx.WorkBook): {
     const mValue = String(row[colIndex.M] || "").trim();
     const awValue = String(row[colIndex.AW] || "").trim();
 
+    // Parse extended signals from client name
+    const extendedParsed = parseClientNameExtended(clientName);
+
     const entry: ParsedEntry = {
       line_number: parseInt(String(lineNum)),
       raw_client_name: clientName,
@@ -395,9 +455,23 @@ function parseMasterList(workbook: xlsx.WorkBook): {
       status: String(row[colIndex.status] || "").trim() || null,
       test_requested: String(row[colIndex.test] || "").trim() || null,
       test_result: String(row[colIndex.result] || "").trim() || null,
-      parsed_owner_name: extractOwnerName(clientName),
-      parsed_trapper_alias: extractTrapperName(clientName),
-      parsed_cat_name: extractCatName(clientName),
+      // Use enhanced parsing (falls back to legacy)
+      parsed_owner_name: extendedParsed.owner_name ?? extractOwnerName(clientName),
+      parsed_trapper_alias: extendedParsed.trapper_alias ?? extractTrapperName(clientName),
+      parsed_cat_name: extendedParsed.cat_name ?? extractCatName(clientName),
+      // Extended fields (MIG_900)
+      is_foster: extendedParsed.is_foster,
+      foster_parent_name: extendedParsed.foster_parent,
+      is_shelter: extendedParsed.is_shelter,
+      org_code: extendedParsed.org_code,
+      shelter_animal_id: extendedParsed.shelter_id,
+      org_name: extendedParsed.org_name,
+      is_address: extendedParsed.is_address,
+      parsed_address: extendedParsed.address,
+      parsed_cat_color: extendedParsed.cat_color,
+      contact_phone: extendedParsed.contact_phone,
+      alt_contact_name: extendedParsed.alt_contact_name,
+      alt_contact_phone: extendedParsed.alt_phone,
     };
 
     entries.push(entry);
@@ -441,4 +515,166 @@ function extractCatName(clientName: string | null): string | null {
     return match[1].trim();
   }
   return null;
+}
+
+/**
+ * Extended client name parser (MIG_900)
+ * Extracts all signals from complex client name formats:
+ * - Foster: "Foster 'Asher' (Chiaroni)"
+ * - Shelter: "SCAS A439019" or "RPAS 12345"
+ * - Org: "Cat Rescue of Cloverdale 'Sylvester' - call 707-280-4556"
+ * - Address: "5403 San Antonio Red - Trp Toni"
+ * - Alt Contact: "Kathleen Frey - call Rose 707-331-0812"
+ */
+interface ExtendedParsedName {
+  owner_name: string | null;
+  cat_name: string | null;
+  trapper_alias: string | null;
+  is_foster: boolean;
+  foster_parent: string | null;
+  is_shelter: boolean;
+  org_code: string | null;
+  shelter_id: string | null;
+  org_name: string | null;
+  is_address: boolean;
+  address: string | null;
+  cat_color: string | null;
+  contact_phone: string | null;
+  alt_contact_name: string | null;
+  alt_phone: string | null;
+}
+
+function parseClientNameExtended(clientName: string | null): ExtendedParsedName {
+  const result: ExtendedParsedName = {
+    owner_name: null,
+    cat_name: null,
+    trapper_alias: null,
+    is_foster: false,
+    foster_parent: null,
+    is_shelter: false,
+    org_code: null,
+    shelter_id: null,
+    org_name: null,
+    is_address: false,
+    address: null,
+    cat_color: null,
+    contact_phone: null,
+    alt_contact_name: null,
+    alt_phone: null,
+  };
+
+  if (!clientName) return result;
+
+  const original = clientName.trim();
+
+  // Pattern 1: Foster entry - "Foster 'CatName' (FosterParent)"
+  const fosterMatch = original.match(/^Foster\s+['"]([^'"]+)['"]\s*\(([^)]+)\)/i);
+  if (fosterMatch) {
+    result.is_foster = true;
+    result.cat_name = fosterMatch[1].trim();
+    result.foster_parent = fosterMatch[2].trim();
+    // Extract trapper if present after foster info
+    const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
+    if (trapperMatch) result.trapper_alias = trapperMatch[1].trim();
+    return result;
+  }
+
+  // Pattern 2: Shelter ID - "SCAS A439019" or "RPAS 12345" (known shelter codes)
+  // Common codes: SCAS (Sonoma County Animal Services), RPAS (Rohnert Park Animal Shelter)
+  const shelterMatch = original.match(/^(SCAS|RPAS|HSOS|SHS|MCAS)\s+([A-Z]?\d{5,})/i);
+  if (shelterMatch) {
+    result.is_shelter = true;
+    result.org_code = shelterMatch[1].toUpperCase();
+    result.shelter_id = shelterMatch[2];
+    // Extract cat name if present in quotes
+    const catMatch = original.match(/['"]([^'"]+)['"]/);
+    if (catMatch) result.cat_name = catMatch[1].trim();
+    // Extract trapper if present
+    const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
+    if (trapperMatch) result.trapper_alias = trapperMatch[1].trim();
+    return result;
+  }
+
+  // Pattern 3: Organization with cat name and phone
+  // "Cat Rescue of Cloverdale 'Sylvester' - call 707-280-4556"
+  const orgCatPhoneMatch = original.match(/^(.+?)\s+['"]([^'"]+)['"]\s*-\s*call.+?([\d-]{10,})/i);
+  if (orgCatPhoneMatch && !orgCatPhoneMatch[1].match(/^\d/)) {
+    result.org_name = orgCatPhoneMatch[1].trim();
+    result.cat_name = orgCatPhoneMatch[2].trim();
+    result.contact_phone = normalizePhone(orgCatPhoneMatch[3]);
+    // Try to identify if this is a known shelter
+    if (result.org_name.match(/animal\s+(services?|shelter|control)/i)) {
+      result.is_shelter = true;
+    }
+    return result;
+  }
+
+  // Pattern 4: Address + Cat Color - "5403 San Antonio Red - Trp Toni"
+  // Starts with house number, includes color word before trapper
+  const addressColorMatch = original.match(
+    /^(\d+\s+[A-Za-z\s]+?)\s+(Black|White|Orange|Gray|Grey|Tabby|Red|Calico|Tortie|Brown|Buff|Cream|Blue)\s*-/i
+  );
+  if (addressColorMatch) {
+    result.is_address = true;
+    result.address = addressColorMatch[1].trim();
+    result.cat_color = addressColorMatch[2].trim();
+    // Extract trapper
+    const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
+    if (trapperMatch) result.trapper_alias = trapperMatch[1].trim();
+    // Extract cat name if present
+    const catMatch = original.match(/['"]([^'"]+)['"]/);
+    if (catMatch) result.cat_name = catMatch[1].trim();
+    return result;
+  }
+
+  // Pattern 5: Owner + Alt Contact - "Kathleen Frey - call Rose 707-331-0812"
+  const altContactMatch = original.match(/^(.+?)\s*-\s*call\s+([A-Za-z]+)\s+([\d-]{10,})/i);
+  if (altContactMatch && !altContactMatch[1].match(/^Foster|^SCAS|^RPAS|^\d/i)) {
+    result.owner_name = altContactMatch[1].trim();
+    result.alt_contact_name = altContactMatch[2].trim();
+    result.alt_phone = normalizePhone(altContactMatch[3]);
+    // Extract cat name if in quotes
+    const catMatch = original.match(/['"]([^'"]+)['"]/);
+    if (catMatch) result.cat_name = catMatch[1].trim();
+    // Extract trapper if also present
+    const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
+    if (trapperMatch) result.trapper_alias = trapperMatch[1].trim();
+    return result;
+  }
+
+  // Pattern 6: Standard format with phone - extract phone from anywhere
+  const phoneMatch = original.match(/(\d{3}[-.]?\d{3}[-.]?\d{4})/);
+  if (phoneMatch) {
+    result.contact_phone = normalizePhone(phoneMatch[1]);
+  }
+
+  // Extract cat name from quotes (common across all formats)
+  const catMatch = original.match(/['"]([^'"]+)['"]/);
+  if (catMatch) {
+    result.cat_name = catMatch[1].trim();
+  }
+
+  // Extract trapper
+  const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
+  if (trapperMatch) {
+    result.trapper_alias = trapperMatch[1].trim();
+  }
+
+  // Default: Try to extract owner name (what's left after removing cat name and trapper)
+  if (!result.owner_name && !result.is_foster && !result.is_shelter && !result.is_address) {
+    let ownerName = original
+      .replace(/\s*-\s*Trp\s+.+$/i, "")
+      .replace(/['"][^'"]+['"]/g, "")
+      .replace(/\s*\([^)]+\)/g, "")
+      .replace(/\s*-\s*call.+$/i, "")
+      .trim();
+    if (ownerName) result.owner_name = ownerName;
+  }
+
+  return result;
+}
+
+function normalizePhone(phone: string): string {
+  // Remove all non-digits
+  return phone.replace(/\D/g, "");
 }

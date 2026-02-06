@@ -13,6 +13,7 @@ interface SearchResult {
   primary_color: string | null;
   photo_url: string | null;
   appointment_date: string | null;
+  appointment_id: string | null;
   clinic_day_number: number | null;
   is_deceased: boolean;
   deceased_date: string | null;
@@ -132,6 +133,7 @@ export async function GET(request: NextRequest) {
         -- Check if from selected clinic day
         (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
         -- Get appointment info for selected date
+        a_day.appointment_id,
         a_day.appointment_date,
         a_day.clinic_day_number
       FROM trapper.sot_cats c
