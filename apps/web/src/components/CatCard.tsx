@@ -3,6 +3,13 @@
 import React from "react";
 import { formatDateLocal } from "@/lib/formatters";
 
+export interface CatDisease {
+  disease_key: string;
+  short_code: string;
+  color: string;
+  test_date?: string | null;
+}
+
 export interface CatCardData {
   cat_id: string | null;
   cat_name?: string | null;
@@ -23,6 +30,7 @@ export interface CatCardData {
   death_cause?: string | null;
   felv_status?: string | null;
   fiv_status?: string | null;
+  positive_diseases?: CatDisease[];
   clinic_day_number?: number | null;
   clinichq_animal_id?: string | null;
   place_address?: string | null;
@@ -186,39 +194,48 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
             </span>
           )}
 
-          {/* FeLV/FIV Badges */}
-          {(cat.felv_status === "positive" || cat.fiv_status === "positive") && (
-            <div style={{ display: "flex", gap: "4px" }}>
-              {cat.felv_status === "positive" && (
-                <span
-                  style={{
-                    padding: compact ? "2px 6px" : "4px 8px",
-                    background: "#dc2626",
-                    color: "#fff",
-                    borderRadius: "4px",
-                    fontSize: compact ? "0.55rem" : "0.65rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  FeLV+
-                </span>
-              )}
-              {cat.fiv_status === "positive" && (
-                <span
-                  style={{
-                    padding: compact ? "2px 6px" : "4px 8px",
-                    background: "#ea580c",
-                    color: "#fff",
-                    borderRadius: "4px",
-                    fontSize: compact ? "0.55rem" : "0.65rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  FIV+
-                </span>
-              )}
-            </div>
-          )}
+          {/* Disease Badges (FeLV, FIV, Ringworm, etc.) */}
+          {(() => {
+            // Build list of diseases to show
+            const diseases: { code: string; color: string }[] = [];
+
+            // Use positive_diseases array if available (preferred)
+            if (cat.positive_diseases && cat.positive_diseases.length > 0) {
+              cat.positive_diseases.forEach(d => {
+                diseases.push({ code: d.short_code + "+", color: d.color });
+              });
+            } else {
+              // Fallback to legacy felv_status/fiv_status fields
+              if (cat.felv_status === "positive") {
+                diseases.push({ code: "FeLV+", color: "#dc2626" });
+              }
+              if (cat.fiv_status === "positive") {
+                diseases.push({ code: "FIV+", color: "#ea580c" });
+              }
+            }
+
+            if (diseases.length === 0) return null;
+
+            return (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxWidth: compact ? "80px" : "120px" }}>
+                {diseases.map((d, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      padding: compact ? "2px 6px" : "4px 8px",
+                      background: d.color,
+                      color: "#fff",
+                      borderRadius: "4px",
+                      fontSize: compact ? "0.55rem" : "0.65rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {d.code}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Service Type Badge (Spay/Neuter) */}
           {(isSpay || isNeuter) && !cat.is_deceased && (

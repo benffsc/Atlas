@@ -3,6 +3,34 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatPhone } from '@/lib/formatters';
 
+/**
+ * Check if a raw ClinicHQ field value indicates a positive/true condition.
+ * ClinicHQ uses various formats: 'Yes', 'TRUE', 'true', 'Positive', 'Y', etc.
+ * This prevents false positives from notes, status text, or other non-boolean values.
+ */
+function isPositiveValue(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return ['yes', 'true', 'y', 'positive', '1', 'checked'].includes(normalized);
+}
+
+/**
+ * Check if a raw value indicates presence (for surgical/condition flags that may have descriptive values).
+ * Returns the original value if it's a meaningful positive indicator, null otherwise.
+ */
+function getPositiveValueOrNull(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  // Skip explicit negatives
+  if (['no', 'none', 'n', 'false', '0', 'n/a', 'na', ''].includes(normalized)) return null;
+  // Accept explicit positives
+  if (['yes', 'true', 'y', 'positive', '1', 'checked'].includes(normalized)) return value;
+  // For surgical conditions, also accept descriptive values like 'Left', 'Right', 'Bilateral'
+  if (['left', 'right', 'bilateral', 'both', 'mild', 'moderate', 'severe'].includes(normalized)) return value;
+  // Reject anything else (notes, questions, etc.)
+  return null;
+}
+
 interface RawDetails {
   felv_fiv_snap: string | null;
   felv_test: string | null;
@@ -207,10 +235,10 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
     if (data.has_eye_issue) healthObs.push({ label: 'Eye Issue' });
     if (data.has_skin_issue) healthObs.push({ label: 'Skin Issue' });
     if (data.has_mouth_issue) healthObs.push({ label: 'Mouth Issue' });
-    // Extra from raw (not on enriched table)
-    if (raw?.diarrhea && raw.diarrhea !== 'No') healthObs.push({ label: 'Diarrhea' });
-    if (raw?.nauseous && raw.nauseous !== 'No') healthObs.push({ label: 'Nauseous' });
-    if (raw?.mats && raw.mats !== 'No') healthObs.push({ label: 'Mats' });
+    // Extra from raw (not on enriched table) - use strict positive check
+    if (isPositiveValue(raw?.diarrhea)) healthObs.push({ label: 'Diarrhea' });
+    if (isPositiveValue(raw?.nauseous)) healthObs.push({ label: 'Nauseous' });
+    if (isPositiveValue(raw?.mats)) healthObs.push({ label: 'Mats' });
   }
 
   const parasites: Array<{ label: string }> = [];
@@ -220,29 +248,36 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
     if (data.has_tapeworms) parasites.push({ label: 'Tapeworms' });
     if (data.has_ear_mites) parasites.push({ label: 'Ear Mites' });
     if (data.has_ringworm) parasites.push({ label: 'Ringworm' });
-    // Extra from raw (not on enriched table)
-    if (raw?.lice && raw.lice !== 'No') parasites.push({ label: 'Lice' });
-    if (raw?.heartworm_positive && raw.heartworm_positive !== 'No') parasites.push({ label: 'Heartworm+' });
+    // Extra from raw (not on enriched table) - use strict positive check
+    if (isPositiveValue(raw?.lice)) parasites.push({ label: 'Lice' });
+    if (isPositiveValue(raw?.heartworm_positive)) parasites.push({ label: 'Heartworm+' });
   }
 
   const surgeryFlags: Array<{ label: string; value: string }> = [];
   if (raw) {
-    if (raw.cryptorchid && raw.cryptorchid !== 'No') surgeryFlags.push({ label: 'Cryptorchid', value: raw.cryptorchid });
-    if (raw.pre_scrotal && raw.pre_scrotal !== 'No') surgeryFlags.push({ label: 'Pre-Scrotal', value: raw.pre_scrotal });
-    if (raw.hernia && raw.hernia !== 'No') surgeryFlags.push({ label: 'Hernia', value: raw.hernia });
-    if (raw.pyometra && raw.pyometra !== 'No') surgeryFlags.push({ label: 'Pyometra', value: raw.pyometra });
-    if (raw.staples && raw.staples !== 'No') surgeryFlags.push({ label: 'Staples', value: raw.staples });
+    // Use getPositiveValueOrNull which accepts descriptive values like 'Left', 'Right', 'Bilateral'
+    const cryptorchid = getPositiveValueOrNull(raw.cryptorchid);
+    const preScrotal = getPositiveValueOrNull(raw.pre_scrotal);
+    const hernia = getPositiveValueOrNull(raw.hernia);
+    const pyometra = getPositiveValueOrNull(raw.pyometra);
+    const staples = getPositiveValueOrNull(raw.staples);
+    if (cryptorchid) surgeryFlags.push({ label: 'Cryptorchid', value: cryptorchid });
+    if (preScrotal) surgeryFlags.push({ label: 'Pre-Scrotal', value: preScrotal });
+    if (hernia) surgeryFlags.push({ label: 'Hernia', value: hernia });
+    if (pyometra) surgeryFlags.push({ label: 'Pyometra', value: pyometra });
+    if (staples) surgeryFlags.push({ label: 'Staples', value: staples });
   }
 
   const postOpFlags: Array<{ label: string; value: string }> = [];
   if (raw) {
-    if (raw.bruising_expected && raw.bruising_expected !== 'No') postOpFlags.push({ label: 'Bruising Expected', value: raw.bruising_expected });
-    if (raw.swelling_expected && raw.swelling_expected !== 'No') postOpFlags.push({ label: 'Swelling Expected', value: raw.swelling_expected });
-    if (raw.cold_compress && raw.cold_compress !== 'No') postOpFlags.push({ label: 'Cold Compress', value: raw.cold_compress });
-    if (raw.warm_compress_dry && raw.warm_compress_dry !== 'No') postOpFlags.push({ label: 'Warm Compress (dry)', value: raw.warm_compress_dry });
-    if (raw.warm_compress_wet && raw.warm_compress_wet !== 'No') postOpFlags.push({ label: 'Warm Compress (wet)', value: raw.warm_compress_wet });
-    if (raw.clipper_abrasion && raw.clipper_abrasion !== 'No') postOpFlags.push({ label: 'Clipper Abrasion', value: raw.clipper_abrasion });
-    if (raw.recheck_needed && raw.recheck_needed !== 'No') postOpFlags.push({ label: 'Recheck Needed', value: raw.recheck_needed });
+    // Post-op instructions are boolean flags - use strict positive check
+    if (isPositiveValue(raw.bruising_expected)) postOpFlags.push({ label: 'Bruising Expected', value: 'Yes' });
+    if (isPositiveValue(raw.swelling_expected)) postOpFlags.push({ label: 'Swelling Expected', value: 'Yes' });
+    if (isPositiveValue(raw.cold_compress)) postOpFlags.push({ label: 'Cold Compress', value: 'Yes' });
+    if (isPositiveValue(raw.warm_compress_dry)) postOpFlags.push({ label: 'Warm Compress (dry)', value: 'Yes' });
+    if (isPositiveValue(raw.warm_compress_wet)) postOpFlags.push({ label: 'Warm Compress (wet)', value: 'Yes' });
+    if (isPositiveValue(raw.clipper_abrasion)) postOpFlags.push({ label: 'Clipper Abrasion', value: 'Yes' });
+    if (isPositiveValue(raw.recheck_needed)) postOpFlags.push({ label: 'Recheck Needed', value: 'Yes' });
   }
 
   return (
