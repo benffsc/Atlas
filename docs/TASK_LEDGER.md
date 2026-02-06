@@ -4623,3 +4623,118 @@ Going forward, `detect_microchip_format()` will:
 
 Duplicate cat merged. Function updated to prevent future concatenation issues. Only one cat affected (already fixed).
 
+---
+
+## DATA_GAP_007: Cat-Place Linking Pipeline Improvements (MIG_912)
+
+**Date:** 2026-02-06
+**Triggered by:** Cat "Macy" had 4 place links, including wrong address where owner moved TO (not where cat lives).
+
+### Problem
+
+Investigation of Macy (981020039875779) revealed three systemic issues in the cat-place linking pipeline:
+
+| Issue | Example | Impact |
+|-------|---------|--------|
+| **Person moved, cat didn't** | Macy linked to 3537 Coffey Meadow (Jennifer's NEW address) instead of 2001 Piner Rd (where cat lives) | Cats show at wrong locations |
+| **Phone-only appointments unlinked** | Appointment 26-495 with phone 7075767999 not linked to Sandra Nicander | Missing person-cat relationships |
+| **Colony site pollution** | 31 cats linked to Apt #256 through one caretaker | Apartment unit shows as having 31 cats |
+
+### Root Cause
+
+**Issue 1: Temporal Awareness Missing**
+
+`link_cats_to_places()` uses `ORDER BY created_at DESC` to pick addresses:
+```sql
+-- BEFORE: Picks NEWEST address (where person moved TO)
+ORDER BY ppr.confidence DESC, ppr.created_at DESC
+```
+
+This picks the address person **moved TO**, not where cat **actually lives**.
+
+**Issue 2: Phone Linking Not Deployed**
+
+MIG_902 exists but was never committed. `link_appointments_to_owners()` requires email, so phone-only appointments (~106) were silently skipped.
+
+**Issue 3: No Colony Detection**
+
+No threshold for "too many cats at one address." 31 cats linked to one caretaker's address (Apt #256) polluted the view.
+
+### Solution (MIG_912)
+
+**1. Temporal Awareness Fix:**
+```sql
+-- AFTER: Prefer OLDER addresses (where cat was first seen)
+ORDER BY
+  -- Prefer addresses still valid (no end date)
+  CASE WHEN ppr.valid_to IS NULL THEN 0 ELSE 1 END,
+  ppr.confidence DESC,
+  -- Prefer OLDER addresses (created_at ASC, not DESC)
+  ppr.created_at ASC
+```
+
+Also checks `valid_to` against cat's first appointment date.
+
+**2. Phone Linking Integration:**
+
+Added MIG_902's `link_appointments_via_phone()` as Step 10 in `run_all_entity_linking()`.
+
+**3. Colony Caretaker Detection:**
+
+New function `detect_colony_caretakers()` identifies person-place combinations with 15+ cats and auto-tags places as `colony_site`.
+
+**4. Caretaker Role Exclusion:**
+
+Added `'caretaker'` to `person_place_role` enum. `link_cats_to_places()` excludes caretaker and contact roles (like staff filter).
+
+### Macy Specific Fixes
+
+| Fix | Details |
+|-----|---------|
+| Removed Coffey Meadow link | Jennifer moved; cat stayed at Piner Rd |
+| Removed Apt #256 link | Colony site pollution |
+| Linked 2026 appointment | Via Sandra Nicander's phone |
+| Created Sandra-Macy relationship | `caretaker` type |
+
+### Pipeline Changes
+
+Updated `run_all_entity_linking()` pipeline:
+```
+1. link_appointments_to_owners (email-based)
+2. create_places_from_intake
+3. link_intake_requesters_to_places
+4. run_cat_place_linking (MIG_912: temporal awareness)
+5. run_appointment_trapper_linking
+6. link_cats_to_requests
+7. link_appointments_to_partner_orgs
+8. infer_appointment_places
+9. fix_address_account_place_overrides (MIG_909)
+10. NEW: link_appointments_via_phone (MIG_902)
+11. NEW: detect_colony_caretakers (MIG_912)
+12. link_google_entries_incremental
+13. flag_multi_unit_candidates
+```
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_902__phone_only_appointment_linking.sql` | Committed | Phone-only appointment linking |
+| `sql/schema/sot/MIG_912__cat_place_linking_improvements.sql` | New | Temporal awareness, colony detection, pipeline update |
+
+### Compatibility
+
+- **MIG_910/MIG_911:** Works alongside safe microchip extraction. Entity-linking cron already has Step 1e for embedded microchips.
+- **MIG_909:** Pipeline step 9 for address account place overrides preserved.
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Prevents wrong place associations.
+- **INV-6 (Preserve Individuality):** Colony detection prevents place pollution.
+- **INV-10 (Centralized Functions):** All fixes in central `run_all_entity_linking()`.
+- **Beacon:** Geospatial integrity improved (cats link to where they actually live).
+
+### Stop Point
+
+Pipeline updated. Phone linking integrated. Colony detection active. Macy corrected to show only at 2001 Piner Rd Apt 186.
+

@@ -390,6 +390,39 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-06: DQ_011 — Cat-Place Linking Pipeline Improvements (MIG_912)
+
+**Problem:** Cat "Macy" (981020039875779) had 4 place links including wrong address (3537 Coffey Meadow) where owner moved TO, not where cat lives (2001 Piner Rd).
+
+**Investigation:**
+Three systemic issues found in cat-place linking pipeline:
+
+1. **Temporal awareness missing:** `link_cats_to_places()` used `ORDER BY created_at DESC`, picking NEWEST address. When person moves, cats got linked to new address instead of old one where cat lives.
+
+2. **Phone-only appointments unlinked:** MIG_902 existed but was never integrated into `run_all_entity_linking()`. 106 phone-only appointments (like Macy's 2026 appointment via Sandra Nicander's phone) were never linked.
+
+3. **Colony site pollution:** 31 cats linked to one caretaker at Apt #256 made that apartment unit look like a colony. No detection/flagging for high cat counts per person-place.
+
+**Solution:**
+- **MIG_912:** Updated `link_cats_to_places()` to use `created_at ASC` (prefer OLDER addresses where cat was first seen)
+- Added `valid_to` check against cat's first appointment date
+- Added `'caretaker'` to `person_place_role` enum, excluded from cat-place linking
+- Created `detect_colony_caretakers()` function (flags 15+ cats per person-place as `colony_site`)
+- Integrated phone linking (MIG_902) as Step 10 in `run_all_entity_linking()`
+- Colony detection as Step 11 in pipeline
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Macy place links | 4 (including wrong Coffey Meadow) | 2 (correct: Piner Rd Apt 186, Piner Rd parent) |
+| Phone-only linking | Not in pipeline | Step 10 |
+| Colony detection | None | Auto-tags 15+ cats |
+
+**What Tippy should know:**
+> "Cats are now linked to addresses where they were FIRST seen, not where owner later moved. If a cat shows at an unexpected address, check `person_place_relationships.created_at` against the cat's first appointment date. Places with 15+ cats from one person are auto-tagged as `colony_site` in `place_contexts`."
+
+**Key Learning:** Address ordering must consider temporal context. Person moves ≠ cat moves.
+
 ### 2026-02-06: DQ_010 — Address in Owner Name Field (MIG_909)
 
 **Problem:** Cats 900263005064321 and 981020053841041 had no place link despite address being available in ClinicHQ data.
