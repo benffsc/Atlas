@@ -390,6 +390,96 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-06: DQ_015 — Linda Price / Location-as-Person Cleanup (MIG_917)
+
+**Problem:** Linda Price (a real volunteer/community trapper) was merged INTO "The Villages" — a location name that became a person record. Additionally, "Golden Gate Transit SR" and "So. Co. Bus Transit Yard" were also location-as-person records with complex merge chains.
+
+**Investigation:**
+ClinicHQ staff entered trapping site names in the Owner First Name field:
+- "Golden Gate Transit SR" → became a person record
+- "The Villages" → became a person record (with 16 merged records, including 2 Linda Price records!)
+- "So. Co. Bus Transit Yard" → became a person record (with many duplicates)
+
+28 total location-as-person records were discovered with complex FK chains.
+
+**Solution:**
+- **MIG_917:**
+  - Unmerged Linda Price records from The Villages
+  - Consolidated to canonical Linda Price with correct identifiers (forestlvr@sbcglobal.net, 707-490-2735)
+  - Cleaned up ALL 28 location-as-person records with comprehensive FK cleanup
+  - Created correct person-place relationships for Linda:
+    - 100 Winchester Drive (resident - home)
+    - 3225 Industrial Drive (contact - Golden Gate Transit trapping site)
+    - 2980 Bay Village Circle (contact - The Villages trapping site)
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Location-as-person records | 28 | 0 |
+| Linda Price identifiers | None | email + phone |
+| Linda Price place relationships | Merged into fake person | 3 correct (1 resident, 2 contact) |
+
+**What Tippy should know:**
+> "Linda Price is a volunteer/community trapper who lives at 100 Winchester Drive in Santa Rosa. She traps cats at Golden Gate Transit (3225 Industrial Drive) and The Villages Apts (2980 Bay Village Circle). If staff asks about 'Golden Gate Transit SR' or 'The Villages' as a person, explain those were location names incorrectly entered as people and have been cleaned up. Linda's cats should be linked to her actual locations."
+
+**New Invariant:** INV-18 — Location names must not create person records
+
+### 2026-02-06: DQ_014 — FFSC Organizational Email Pollution Fix (MIG_915, MIG_916)
+
+**Problem:** Sandra Brady had 1,253 cats and Sandra Nicander had 1,171 cats linked as `caretaker` relationships. These were ALL erroneous — created when ClinicHQ appointments used FFSC organizational emails like `info@forgottenfelines.com`.
+
+**Investigation:**
+`should_be_person()` only checked NAME patterns, not EMAIL patterns. ClinicHQ processing called `find_or_create_person()` directly, bypassing Data Engine's email rejection logic. Every appointment with `info@forgottenfelines.com` (3,167 total!) linked cats to Sandra Brady's person record.
+
+**Solution:**
+- **MIG_915:** Updated `should_be_person()` to reject organizational emails at the routing gate:
+  - `@forgottenfelines.com/org` domains → reject
+  - Generic prefixes (`info@`, `office@`, `contact@`, `admin@`) → reject
+  - High-threshold soft-blacklisted emails → reject
+  - Added 10 FFSC organizational emails to `data_engine_soft_blacklist`
+
+- **MIG_916:** Deleted erroneous `caretaker` relationships while preserving legitimate `owner` relationships:
+  - Sandra Brady: 1,253 → 1 cat
+  - Sandra Nicander: 1,171 → 242 cats
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Sandra Brady cats | 1,253 | 1 |
+| Sandra Nicander cats | 1,171 | 242 |
+| should_be_person('info@forgottenfelines.com') | TRUE (bug!) | FALSE |
+| FFSC emails in soft blacklist | 0 | 10 |
+
+**What Tippy should know:**
+> "Sandra Brady and Sandra Nicander are FFSC staff members. Previously, the system incorrectly linked thousands of community cats to them because clinic appointments used organizational emails like info@forgottenfelines.com. This has been fixed. Sandra Brady now has 1 legitimate cat, and Sandra Nicander has 242 remaining cats (mix of legitimate and possibly some historical). If staff asks why Sandra used to have thousands of cats, explain this was a data pollution issue that has been corrected."
+
+**New Invariant:** INV-17 — Organizational emails must not create person records
+
+### 2026-02-06: DQ_013 — Spaletta Cat-Place Pollution Cleanup (MIG_914)
+
+**Problem:** Spaletta's 71 cats were linked to ALL THREE addresses (949 Chileno Valley, 1054 Walker, 1170 Walker). Each cat counted 3x on the map, violating INV-6 (Place Individuality).
+
+**Investigation:**
+`link_cats_to_places()` creates links via `person_place → person_cat` chain. Spaletta had `resident` role at all 3 addresses. When linking ran, all 71 cats propagated to all 3 of Spaletta's "resident" addresses.
+
+**Solution:**
+- **MIG_914:** Removed Spaletta cats from Walker Rd addresses (142 links deleted = 71 cats × 2 wrong addresses)
+- Kept Buddy at 1170 Walker Rd (owned by Tresch, not Spaletta)
+- Reclassified Spaletta's Walker Rd roles from `resident` → `contact`
+- Deployed MIG_912's `detect_colony_caretakers()` to tag Chileno Valley as `colony_site`
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Spaletta cat locations | 3 addresses (213 total links) | 1 address: 949 Chileno Valley (71 links) |
+| Spaletta Walker Rd role | resident (2 addresses) | contact (prevents cat linking) |
+| Chileno Valley context | None | colony_site |
+
+**What Tippy should know:**
+> "Spaletta is a colony caretaker at 949 Chileno Valley Road with 71 cats. She's listed as 'contact' at 1054 and 1170 Walker Rd (Tresch family ranches) but doesn't live there. The 'contact' role prevents cat-place pollution. If staff asks about cats at Walker Rd, only Buddy (owned by Tresch) should appear there."
+
+**Key Learning:** Large cat counts from one person should trigger colony detection. Person-place roles must distinguish residence from contact.
+
 ### 2026-02-06: DQ_012 — Buddy Walker Rd Shared Phone Fix (MIG_913)
 
 **Problem:** Cat "Buddy" (981020053734908) counted twice at 1170 and 1054 Walker Rd, linked to wrong person (Samantha Spaletta instead of Samantha Tresch).

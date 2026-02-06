@@ -4823,3 +4823,423 @@ This is a **data quality issue**, not a pipeline bug. The soft blacklist now pre
 
 Buddy corrected to show only at 1170 Walker Rd. Phone soft-blacklisted. Tresch has identifier for future matching.
 
+---
+
+## DATA_GAP_008b: Spaletta Cat-Place Pollution Cleanup (MIG_914)
+
+**Date:** 2026-02-06
+**Related:** DATA_GAP_008 (Buddy Walker Rd), DATA_GAP_007 (Cat-Place Linking Pipeline)
+
+### Problem
+
+Spaletta's **71 cats** were linked to **ALL THREE** addresses:
+- 949 Chileno Valley Road (correct - where recent appointments happen)
+- 1054 Walker Rd (wrong - via person-place chain)
+- 1170 Walker Rd (wrong - via person-place chain)
+
+Each cat was counted **3x on the map**, violating **INV-6 (Place Individuality)**.
+
+### Root Cause
+
+**Person-Place Pollution Through Caretaker Chain**
+
+`link_cats_to_places()` creates links via `person_place → person_cat` chain. Spaletta had `resident` role at all 3 addresses (INV-12 violation).
+
+| Address | Spaletta Role | Should Be |
+|---------|---------------|-----------|
+| 949 Chileno Valley Rd | resident | resident (correct - colony site) |
+| 1054 Walker Rd | resident | contact |
+| 1170 Walker Rd | resident | contact |
+
+**The Walker Rd properties are family ranches** where Spaletta may visit but doesn't live. Her 71 cats are at the Chileno Valley colony site.
+
+### Investigation
+
+```sql
+-- Discovered the pollution scope
+SELECT pl.formatted_address, COUNT(DISTINCT cpr.cat_id) as cat_count
+FROM trapper.cat_place_relationships cpr
+JOIN trapper.places pl ON pl.place_id = cpr.place_id
+JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = cpr.cat_id
+WHERE pcr.person_id = '2cf52aff-492e-4ad2-9912-1de2269836b2'  -- Spaletta
+GROUP BY pl.formatted_address;
+
+-- Result: 71 cats × 3 addresses = 213 total links (should be 71)
+```
+
+### Solution (MIG_914)
+
+**1. Remove Spaletta cats from Walker Rd addresses (except Buddy):**
+```sql
+WITH spaletta_cats AS (
+    SELECT DISTINCT pcr.cat_id
+    FROM trapper.person_cat_relationships pcr
+    WHERE pcr.person_id = '2cf52aff-492e-4ad2-9912-1de2269836b2'
+),
+walker_places AS (
+    SELECT place_id FROM trapper.places
+    WHERE formatted_address ILIKE '%Walker%'
+    AND merged_into_place_id IS NULL
+),
+buddy_cat AS (
+    SELECT cat_id FROM trapper.cat_identifiers
+    WHERE id_value = '981020053734908' AND id_type = 'microchip'
+)
+DELETE FROM trapper.cat_place_relationships cpr
+WHERE cpr.cat_id IN (SELECT cat_id FROM spaletta_cats)
+AND cpr.cat_id NOT IN (SELECT cat_id FROM buddy_cat)
+AND cpr.place_id IN (SELECT place_id FROM walker_places);
+-- Result: 142 links deleted (71 cats × 2 wrong addresses)
+```
+
+**2. Reclassify Spaletta's Walker Rd roles:**
+```sql
+UPDATE trapper.person_place_relationships
+SET role = 'contact'
+WHERE person_id = '2cf52aff-492e-4ad2-9912-1de2269836b2'
+AND place_id IN (
+    SELECT place_id FROM trapper.places
+    WHERE formatted_address ILIKE '%Walker%'
+)
+AND role = 'resident';
+-- Result: 2 roles updated
+```
+
+**3. Tag Chileno Valley as colony_site via detect_colony_caretakers():**
+```sql
+SELECT * FROM trapper.detect_colony_caretakers();
+-- Flags places with 15+ cats as colony_site
+```
+
+### Also Deployed: MIG_912 (Pipeline Improvements)
+
+MIG_912 prevents future pollution with:
+
+1. **`caretaker` role added** - Separate from `resident` to avoid address pollution
+2. **Temporal awareness in `link_cats_to_places()`:**
+   - Uses `created_at ASC` to prefer OLDER addresses (where cat was first seen)
+   - Checks `valid_to` against cat's first appointment date
+   - Excludes `caretaker` and `contact` roles
+3. **`detect_colony_caretakers()` function** - Auto-tags places with 15+ cats as `colony_site`
+4. **Updated `run_all_entity_linking()` pipeline:**
+   - Step 10: Phone linking (`link_appointments_via_phone()`)
+   - Step 11: Colony detection (`detect_colony_caretakers()`)
+
+### Verification
+
+```sql
+-- 1. Spaletta cats only at Chileno Valley (not Walker)
+SELECT pl.formatted_address, COUNT(DISTINCT cpr.cat_id) as cat_count
+FROM trapper.cat_place_relationships cpr
+JOIN trapper.places pl ON pl.place_id = cpr.place_id
+JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = cpr.cat_id
+WHERE pcr.person_id = '2cf52aff-492e-4ad2-9912-1de2269836b2'
+GROUP BY pl.formatted_address;
+-- Result: 949 Chileno Valley Road → 71 cats (correct!)
+
+-- 2. Buddy only at 1170 Walker (not Chileno Valley)
+SELECT pl.formatted_address
+FROM trapper.cat_place_relationships cpr
+JOIN trapper.places pl ON pl.place_id = cpr.place_id
+JOIN trapper.cat_identifiers ci ON ci.cat_id = cpr.cat_id
+WHERE ci.id_value = '981020053734908';
+-- Result: 1170 Walker Rd (correct!)
+
+-- 3. Spaletta is contact (not resident) at Walker Rd
+SELECT pl.formatted_address, ppr.role
+FROM trapper.person_place_relationships ppr
+JOIN trapper.places pl ON pl.place_id = ppr.place_id
+WHERE ppr.person_id = '2cf52aff-492e-4ad2-9912-1de2269836b2'
+AND pl.formatted_address ILIKE '%Walker%';
+-- Result: role = 'contact' (correct!)
+```
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_912__cat_place_linking_improvements.sql` | Deployed | Temporal awareness, colony detection |
+| `sql/schema/sot/MIG_914__spaletta_cat_place_cleanup.sql` | New | Spaletta cleanup |
+
+### North Star Alignment
+
+| Invariant | How Fixed |
+|-----------|-----------|
+| **INV-1** (No Data Disappears) | Cats preserved, wrong LINKS removed |
+| **INV-6** (Place Individuality) | Each address now shows only its own cats |
+| **INV-12** (ClinicHQ False Residency) | Spaletta's Walker Rd roles → 'contact' |
+
+**The Fundamental Promise:** When you search 949 Chileno Valley, you see 71 cats. When you search 1170 Walker Rd, you see only Buddy.
+
+### Stop Point
+
+Spaletta's 71 cats correctly linked to 949 Chileno Valley only. Buddy at 1170 Walker Rd only. Colony detection deployed. Pipeline improved with temporal awareness.
+
+
+---
+
+## DATA_GAP_009: FFSC Organizational Email Pollution (MIG_915, MIG_916)
+
+**Date:** 2026-02-06
+**Related:** DATA_GAP_010 (Linda Price / Location-as-Person)
+
+### Problem
+
+Sandra Brady has **1,253 cats** and Sandra Nicander has **1,171 cats** linked as `caretaker` relationships. These are all erroneous — created when ClinicHQ appointments used FFSC organizational emails (e.g., `info@forgottenfelines.com`).
+
+### Root Cause
+
+**Identity Resolution Bypass**
+
+```
+ClinicHQ Processing Flow (BEFORE FIX):
+
+process_clinichq_owner_info()
+    ↓
+should_be_person() ← ROUTING GATE (checked NAMES only, not emails!)
+    ├─ TRUE  → find_or_create_person() ← Created person record
+    │         ↓
+    │         data_engine_resolve_identity() ← Had org email rejection, but...
+    │         └─ Too late! Person already created.
+    │
+    └─ FALSE → clinic_owner_accounts (pseudo-profiles)
+```
+
+The Data Engine has email rejection logic for `@forgottenfelines.com`, but ClinicHQ processing called `find_or_create_person()` BEFORE Data Engine could reject the email.
+
+**Result:** Every appointment with `info@forgottenfelines.com` (3,167 appointments) linked cats to whoever had that email in `person_identifiers` — Sandra Brady.
+
+### Investigation
+
+```sql
+-- Find the scope of pollution
+SELECT p.display_name, COUNT(DISTINCT pcr.cat_id) as cat_count
+FROM trapper.person_cat_relationships pcr
+JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+WHERE p.display_name IN ('Sandra Brady', 'Sandra Nicander')
+GROUP BY p.display_name;
+
+-- Result:
+-- Sandra Brady    | 1,253
+-- Sandra Nicander | 1,171
+```
+
+### Solution
+
+**MIG_915: Fix the Bypass**
+
+Updated `should_be_person()` to check email patterns at the routing gate:
+
+```sql
+-- Added to should_be_person():
+IF v_email_norm LIKE '%@forgottenfelines.com'
+   OR v_email_norm LIKE '%@forgottenfelines.org'
+   OR v_email_norm LIKE 'info@%'
+   OR v_email_norm LIKE 'office@%'
+   OR v_email_norm LIKE 'contact@%'
+   OR v_email_norm LIKE 'admin@%'
+   OR EXISTS (
+     SELECT 1 FROM trapper.data_engine_soft_blacklist
+     WHERE identifier_norm = v_email_norm
+       AND identifier_type = 'email'
+       AND require_name_similarity >= 0.9
+   )
+THEN
+  RETURN FALSE;  -- Route to clinic_owner_accounts, NOT sot_people
+END IF;
+```
+
+Also added 10 FFSC organizational emails to `data_engine_soft_blacklist` with 0.99 threshold.
+
+**MIG_916: Clean Up Sandra's Relationships**
+
+Deleted all erroneous `caretaker` relationships, preserving any legitimate `owner` relationships:
+
+```sql
+DELETE FROM trapper.person_cat_relationships pcr
+USING trapper.sot_people p
+WHERE p.person_id = pcr.person_id
+  AND p.display_name IN ('Sandra Brady', 'Sandra Nicander')
+  AND pcr.relationship_type = 'caretaker';
+-- Result: Deleted 2,212 relationships (Sandra Brady: 1,253, Sandra Nicander: 959)
+```
+
+### Verification
+
+```sql
+SELECT p.display_name, COUNT(DISTINCT pcr.cat_id) as cat_count
+FROM trapper.person_cat_relationships pcr
+JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+WHERE p.display_name IN ('Sandra Brady', 'Sandra Nicander')
+GROUP BY p.display_name;
+
+-- Result:
+-- Sandra Brady    | 1   (legitimate owner relationship)
+-- Sandra Nicander | 242 (remaining legitimate relationships)
+
+-- should_be_person now rejects org emails:
+SELECT trapper.should_be_person('Test', 'Person', 'info@forgottenfelines.com', NULL);
+-- Result: FALSE (correct!)
+```
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_915__should_be_person_email_check.sql` | Deployed | Email check at routing gate |
+| `sql/schema/sot/MIG_916__sandra_cat_cleanup.sql` | Deployed | Deleted erroneous relationships |
+
+### North Star Alignment
+
+| Invariant | How Fixed |
+|-----------|-----------|
+| **INV-17** (Org Emails) | NEW - `should_be_person()` now rejects org emails at gate |
+| **INV-5** (Identity by Identifier) | Org emails no longer create false identity matches |
+
+### Stop Point
+
+Sandra Brady now has 1 cat (legitimate). Sandra Nicander has 242 (remaining legitimate). Org emails blocked at routing gate. Soft blacklist entries prevent future pollution.
+
+---
+
+## DATA_GAP_010: Linda Price / Location-as-Person Cleanup (MIG_917)
+
+**Date:** 2026-02-06
+**Related:** DATA_GAP_009 (FFSC Email Pollution)
+
+### Problem
+
+Linda Price is a **real volunteer/community trapper** who was:
+1. **Merged INTO "The Villages"** — a location name that became a person record
+2. Her cats were linked to **"Golden Gate Transit SR"** — another location-as-person record with her phone/email
+
+**Linda's correct info (from VolunteerHub):**
+- Email: forestlvr@sbcglobal.net
+- Phone: 707-490-2735
+- Home: 100 Winchester Drive, Santa Rosa, CA 95401
+- Traps at: Golden Gate Transit (3225 Industrial Drive), The Villages Apts (2980 Bay Village Circle)
+
+### Root Cause
+
+**Location Names in ClinicHQ Owner Field**
+
+ClinicHQ staff entered trapping site names in the Owner First Name field:
+- "Golden Gate Transit SR" → became a person record
+- "The Villages" → became a person record
+- "So. Co. Bus Transit Yard" → became a person record (with duplicates)
+
+`classify_owner_name()` should have caught these, but some patterns slipped through.
+
+**Merge Chain Disaster**
+
+"The Villages" absorbed 16 other records including 2 Linda Price records via `email_match_dedup`. Linda Price was merged INTO the location name (wrong direction!).
+
+### Investigation
+
+```sql
+-- Found location-as-person records
+SELECT person_id, display_name, merged_into_person_id
+FROM trapper.sot_people
+WHERE display_name IN ('Golden Gate Transit SR', 'The Villages', 'So. Co. Bus Transit Yard');
+
+-- Found 28 total location-as-person records!
+-- Including duplicates like "So. Co. Bus Transit Yard So. Co. Bus Transit Yard"
+```
+
+### Solution (MIG_917)
+
+**1. Unmerge Linda Price records from The Villages:**
+```sql
+UPDATE trapper.sot_people
+SET merged_into_person_id = NULL, merged_at = NULL, merge_reason = NULL
+WHERE person_id IN ('3e8c952c-4c12-49ca-ac22-1c95f23b6f7d', 'dde71ef2-89aa-4bee-a555-ad5bd387ad86');
+```
+
+**2. Consolidate to canonical Linda Price with correct identifiers:**
+```sql
+-- Merge duplicate Linda Price records
+UPDATE trapper.sot_people 
+SET merged_into_person_id = '3e8c952c-4c12-49ca-ac22-1c95f23b6f7d', ...
+WHERE person_id = 'dde71ef2-89aa-4bee-a555-ad5bd387ad86';
+
+-- Add correct identifiers
+INSERT INTO trapper.person_identifiers (person_id, id_type, id_value_norm, ...)
+VALUES
+  ('3e8c952c-4c12-49ca-ac22-1c95f23b6f7d', 'email', 'forestlvr@sbcglobal.net', ...),
+  ('3e8c952c-4c12-49ca-ac22-1c95f23b6f7d', 'phone', '7074902735', ...);
+```
+
+**3. Delete 28 location-as-person records** (after comprehensive FK cleanup):
+```sql
+DELETE FROM trapper.sot_people
+WHERE display_name IN (
+  'Golden Gate Transit SR',
+  'The Villages', 
+  'So. Co. Bus Transit Yard',
+  'So. Co. Bus Transit Yard So. Co. Bus Transit Yard',
+  'So. Co. Bus Transit Yard Kitty'
+)
+AND merged_into_person_id IS NULL;
+-- Result: Deleted 28 records
+```
+
+**4. Create correct person-place relationships for Linda:**
+```sql
+INSERT INTO trapper.person_place_relationships (person_id, place_id, role, ...)
+VALUES
+  (..., '3bd46121-43b4-40ea-9a5f-f478a4372629', 'resident', ...),  -- 100 Winchester (home)
+  (..., '2d42e96f-1ca3-4e06-a48a-3ba9acaec132', 'contact', ...),   -- 3225 Industrial (trapping site)
+  (..., '3ec1ae6f-e49a-4595-babd-98b994048f49', 'contact', ...);   -- 2980 Bay Village (trapping site)
+```
+
+### Verification
+
+```sql
+-- Linda Price has correct identifiers
+SELECT p.display_name, pi.id_type, pi.id_value_norm
+FROM trapper.sot_people p
+JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+WHERE p.display_name = 'Linda Price' AND p.merged_into_person_id IS NULL;
+-- Result:
+-- Linda Price | email | forestlvr@sbcglobal.net
+-- Linda Price | phone | 7074902735
+
+-- Linda Price has correct place relationships
+SELECT pl.formatted_address, ppr.role
+FROM trapper.person_place_relationships ppr
+JOIN trapper.places pl ON pl.place_id = ppr.place_id
+JOIN trapper.sot_people p ON p.person_id = ppr.person_id
+WHERE p.display_name = 'Linda Price' AND p.merged_into_person_id IS NULL;
+-- Result:
+-- 100 Winchester Dr., —, Santa Rosa, CA, 95401  | resident
+-- 3225 Industrial Drive, Santa Rosa, CA 95403   | contact
+-- 2980 Bay Village Circle, Santa Rosa, CA 95403 | contact
+
+-- No location-as-person records remain
+SELECT person_id, display_name FROM trapper.sot_people
+WHERE display_name IN ('Golden Gate Transit SR', 'The Villages', 'So. Co. Bus Transit Yard');
+-- Result: 0 rows (correct!)
+```
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_917__linda_price_cleanup.sql` | Created | Linda Price cleanup template |
+
+Note: MIG_917 required manual execution with additional cleanup due to complex FK chains. The SQL file serves as a reference for the cleanup steps.
+
+### North Star Alignment
+
+| Invariant | How Fixed |
+|-----------|-----------|
+| **INV-18** (Location Names) | NEW - Location-as-person records deleted |
+| **INV-1** (No Data Disappears) | Records logged to entity_edits before deletion |
+| **INV-5** (Identity by Identifier) | Linda now has correct email/phone identifiers |
+| **INV-3** (SoT Stable Handles) | Linda Price has canonical person_id |
+
+**The Fundamental Promise:** Linda Price is a real person with real identifiers and correct place relationships. "Golden Gate Transit SR" and "The Villages" are places, not people.
+
+### Stop Point
+
+Linda Price restored with correct identifiers. 28 location-as-person records deleted. Person-place relationships correctly show Linda as resident at home, contact at trapping sites. INV-17 and INV-18 added to NORTH_STAR.

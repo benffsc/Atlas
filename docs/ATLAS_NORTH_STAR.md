@@ -391,6 +391,52 @@ ShelterLuv XLSX exports are prone to:
 
 **Current state:** The API cron syncs `animals`, `people`, and `events` daily, but **does not yet sync `outcomes`**. The 6,420 outcome records currently in `staged_records` are from XLSX imports (Jan 9 & 19, 2026). These need to be replaced with API-sourced data.
 
+### INV-17: Organizational Emails Must Not Create Person Records
+
+**Core problem:** Organizational emails (e.g., `info@forgottenfelines.com`) match to whoever registered first, creating phantom caretaker links between people and thousands of cats.
+
+**Root cause:** ClinicHQ staff enters org email for community cats. `should_be_person()` only checked name patterns, not email patterns. Data Engine has email rejection logic, but ClinicHQ processing called `find_or_create_person()` directly, bypassing those checks.
+
+**Impact detected (DATA_GAP_009):**
+- Sandra Brady: 1,253 cats linked via `info@forgottenfelines.com`
+- Sandra Nicander: 1,171 cats linked via org email matching
+
+**Solution (MIG_915, MIG_916):**
+- `should_be_person()` now checks email patterns BEFORE routing
+- FFSC emails added to `data_engine_soft_blacklist` with 0.99 threshold
+- Erroneous caretaker relationships removed
+
+**When designing new features:**
+1. Check `data_engine_soft_blacklist` for organizational emails before person matching
+2. Reject `@forgottenfelines.com` and similar org domains at the routing gate
+3. Generic emails (`info@`, `office@`, `contact@`, `admin@`) require manual review
+
+**Applies to:** `should_be_person()`, `find_or_create_person()`, `process_clinichq_owner_info()`
+
+### INV-18: Location Names Must Not Create Person Records
+
+**Core problem:** ClinicHQ owner fields contain site names ("Golden Gate Transit SR", "The Villages", "So. Co. Bus Transit Yard"), creating fake person records.
+
+**Root cause:** ClinicHQ staff enters trapping site name in Owner First Name field.
+
+**Impact detected (DATA_GAP_010):**
+- Linda Price merged INTO "The Villages" (wrong direction!)
+- "Golden Gate Transit SR" had Linda's phone/email but was a location name
+- 28 location-as-person records accumulated with complex merge chains
+
+**Solution (MIG_573, MIG_917):**
+- `classify_owner_name()` detects location patterns
+- `should_be_person()` routes pseudo-profiles to `clinic_owner_accounts`, not `sot_people`
+- Location-as-person records cleaned up, Linda Price restored with correct identifiers
+
+**When designing new features:**
+1. Call `should_be_person()` before any person creation
+2. Names containing address patterns → route to clinic_owner_accounts
+3. Names matching known_organizations → route to org system
+4. Never create person records without at least email OR phone
+
+**Applies to:** `should_be_person()`, `classify_owner_name()`, all ClinicHQ processing
+
 ---
 
 ## Data Zones
