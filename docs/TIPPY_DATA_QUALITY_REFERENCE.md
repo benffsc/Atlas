@@ -32,13 +32,14 @@ Understanding the strengths and limitations of each data source is critical for 
 
 **Limitations:**
 - ⚠️ **No API for client long notes** - Rich context locked in system (future enhancement)
-- ⚠️ **Historical data quality issues** - Pre-2020 records have inconsistent entry
-- ⚠️ **Owner info often missing/incorrect** - Many community cats have placeholder owners
+- ⚠️ **Historical data quality issues** - Pre-2024 records have informal/inconsistent entry practices
+- ⚠️ **Owner info often missing/incorrect** - Many community cats have placeholder owners or org contact info
 - ⚠️ **4% of TNR appointments have no microchip** - Data entry gaps
 - ⚠️ **Animal Name field misuse** - Sometimes contains microchip, weight, or notes instead of name
+- ⚠️ **Org Contact Proxy pattern** - Staff used partner org emails (e.g., marinferals@yahoo.com) for resident bookings until 2024
 
 **What Tippy should know:**
-> "ClinicHQ is our ground truth for alterations but has historical data quality issues. If a record seems incomplete, check if the appointment predates 2020 when data entry practices were less standardized."
+> "ClinicHQ is our ground truth for alterations but has historical data quality issues. Data entry practices were informal until 2024 when Atlas was implemented. If a record seems to have wrong contact info or cats linked to the wrong person, check if it predates 2024 — staff often used partner org emails instead of actual resident contact info."
 
 **Keep Separate:** Workflows (Atlas) vs Clinic Operations (ClinicHQ) - don't overwrite clinical records
 
@@ -2184,3 +2185,131 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 - Map place pins will show accurate cat counts after running MIG_868
 - Cats with excessive identifiers will be cleaned after running MIG_869
 - No workflow changes needed — this is purely a display/data accuracy fix
+
+### Session: 2026-02-05 — DQ_003: Legacy Person/Place Data Cleanup
+
+**Context:** Audit revealed significant data quality issues in people and places tables: organizations stored as people (37 "Cast Kay Tee Inc" duplicates), addresses stored as people ("890 Rockwell Rd." with 51 cat links), first-name-only duplicates (14 "Maria" records), and place display_names that are person names.
+
+**Key Discoveries:**
+1. **All duplicates created before Jan 25, 2026** — The Data Engine (MIG_314-317) was implemented correctly but these records predate it. No new duplicates have been created since.
+2. **`should_be_person()` works but wasn't used historically** — Tests confirmed the function correctly classifies "Cast Kay Tee Inc Cast Kay Tee Inc" as organization, "Sonoma County Landfill Petaluma" as address. But older ingest paths didn't call it.
+3. **Zero-identifier duplicates = orphan pattern from INV-24** — All 37 "Cast Kay Tee Inc" records have zero person_identifiers. ClinicHQ sends owner data with no email/phone, creating new person each appointment.
+4. **Current pipeline is correct** — TS upload route (Step 1) uses `should_be_person()`. Data Engine rejects no-identifier cases. `clinic_owner_accounts` receives pseudo-profiles.
+5. **Place display_names from file_upload/legacy_import** — Person names ("Samantha Tresch", "Karen Brisebois") stored as place display_name. ShelterLuv "X residence" pattern is intentional.
+6. **Doubled place names** — "Comstock Middle School Comstock Middle School" from data entry errors in file_upload.
+
+**Changes Made:**
+- MIG_895: Comprehensive cleanup migration
+  - Phase 1: Merge duplicate people with same name + no identifiers
+  - Phase 2: Mark organizations as `is_organization = true`
+  - Phase 3: Route pseudo-profiles to `clinic_owner_accounts`
+  - Phase 4: Merge "Unknown" and "SCAS" duplicates
+  - Phase 5: Clear person-name display_names from places
+  - Phase 6: Fix doubled place names
+- CLAUDE.md: Added INV-29 (Data Engine rejects no-identifier), INV-30 (legacy cleanup required), INV-31 (OK if cats have no person link)
+- Don't Do section: Added guidance on single-word names, forcing cat-person matches
+
+**Staff Impact:**
+- Fewer duplicate people in search results
+- Organizations properly marked as `is_organization = true`
+- Place searches return cleaner results (no person names as place names)
+- No action needed — the current ingest pipeline is working correctly
+
+**What Tippy should know:**
+> "A data audit found legacy issues from before January 2026: organizations and addresses were sometimes stored as people, and duplicate records existed for entities with no email/phone. MIG_895 cleaned up these historical issues. The current ingest pipeline is working correctly — it uses `should_be_person()` to filter pseudo-profiles and the Data Engine to prevent identifier-less duplicates. If you see duplicate people with the same name but no contact info, they're likely legacy records that can be safely merged."
+
+### Session: 2026-02-05 — DQ_004: Historical Org-Contact Data Pattern (Marin Friends of Ferals)
+
+**Context:** Investigation of Carlos Lopez search showing confusing results: "Carlos Lopez Dental" ShelterLuv records, only 1 cat linked despite many at Hicks Valley address, cats linked to Jeanie Garcia instead.
+
+**Key Pattern Discovered: "Org Contact Proxy"**
+
+Until 2024, FFSC data practices were informal. When ClinicHQ was the primary data source, staff would:
+1. Book appointments under the **resident's name** (e.g., "Jeanie Garcia")
+2. Use **partner org contact info** for pickup calls (e.g., marinferals@yahoo.com, 415-246-9162)
+3. This created false identity links: resident name → org phone/email
+
+This pattern was common throughout FFSC operations until Atlas was implemented in late 2024/early 2025.
+
+**Specific Case: Marin Friends of Ferals**
+- **Janet Williams** is the actual org contact (415-246-9162, marinferals@yahoo.com)
+- **Jeanie Garcia** is a Hicks Valley resident who called for TNR
+- All Jeanie's appointments used Janet's org email → 20+ cats linked to Jeanie via the org email
+- **Carlos Lopez** lives at same address (1052 Hicks Valley Rd), has NO identifiers in system
+- Carlos's cats are linked to Jeanie Garcia because of the shared org email
+
+**ShelterLuv Medical Holds Pattern**
+- When FFSC holds a cat for medical reasons, they create ShelterLuv records
+- "Carlos Lopez Dental" = Jupiter the cat held for dental work, owner is Carlos
+- These create "owner" records in ShelterLuv that look like business names
+
+**Data Issues Found:**
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| Carlos Lopez has 0 identifiers | ShelterLuv record had no contact info | Seed with actual phone |
+| 20+ cats linked to Jeanie Garcia | marinferals@yahoo.com used for her in 2020 | Already soft-blacklisted, but cats remain linked |
+| 6 Jupiter cat records | ShelterLuv + ClinicHQ duplicates | Merge to canonical |
+| 3 Hicks Valley places | Variant addresses from different sources | Merge to 1052 Hicks Valley Rd |
+
+**Invariant Discovered:**
+> **INV-32: Pre-2024 Person-Cat Links Are Suspect.** ClinicHQ data before 2024 often used partner org emails (marinferals@yahoo.com, etc.) instead of actual resident contact info. The `person_cat_relationships` from this era may link cats to the wrong person. Org emails must be in `data_engine_soft_blacklist`. For accurate cat counts, use **place views** rather than person-cat links. Historical relationships won't be retroactively fixed — the place is the source of truth for "cats at this location".
+
+**What Tippy should know:**
+> "Jeanie Garcia shows 20+ cats because of a historical data pattern. Until 2024, FFSC used partner organization contact info (Marin Friends of Ferals: marinferals@yahoo.com) for appointment bookings even when the actual resident was different. The cats at 1052 Hicks Valley Rd are actually Carlos Lopez's, but they're linked to Jeanie Garcia because her appointments used the org email. This pattern is now prevented by the soft-blacklist system, but historical links remain. Staff should use the place view (Hicks Valley Rd) to see all cats at the location rather than relying on person-cat links."
+
+**Related Contacts:**
+- Janet Williams: Marin Friends of Ferals, 415-246-9162, marinferals@yahoo.com (TNR partner org)
+- Jeanie Garcia: Resident at 14485 Valley Ford Rd, Valley Ford (called for TNR, used org email)
+- Carlos Lopez: Resident at 1052 Hicks Valley Rd, Petaluma (actual cat owner)
+
+---
+
+### Session: 2026-02-05 — DQ_005: Email Coverage Audit Correction
+
+**Context:** While planning the address+name candidate finding feature, the initial audit showed "100% email coverage" on ClinicHQ data 2013-2025. This was suspicious and required deeper investigation.
+
+**Finding: The "100% Coverage" Was FALSE**
+
+The audit counted `owner_email IS NOT NULL` as "has email". But ClinicHQ exports store empty values as empty strings (`''`), not NULL. Deep audit revealed:
+
+| Email Type | Count | Percentage |
+|------------|-------|------------|
+| Valid email (has @) | 36,189 | **75.8%** |
+| Empty string (`''`) | 11,314 | 23.7% |
+| Literal 'none' | 100 | 0.2% |
+| NULL | 22 | 0.04% |
+| Invalid format | 51 | 0.1% |
+
+**Corrected Coverage by Era:**
+| Era | Real Email | Phone | Notes |
+|-----|------------|-------|-------|
+| 2013-2015 | 71-73% | 86-90% | 27-29% empty strings |
+| 2016-2020 | 70-77% | 72-85% | Phone coverage dipped |
+| 2021-2024 | 76-83% | 69-77% | Improving |
+| 2025+ | **79%** | **81%** | Best coverage era |
+
+**Top Shared/Suspicious Emails Found:**
+| Email | Appointments | Notes |
+|-------|--------------|-------|
+| info@forgottenfelines.com | 3,167 (6.6%) | FFSC staff email - expected, not an error |
+| marinferals@yahoo.com | ~100 | Soft-blacklisted org email |
+| petestablish.com variants | 49 | Possible ClinicHQ default? |
+| juliettest.a@gmail.com | 9 | Test data leak in 2024-2025 |
+
+**Key Insight:** The `info@forgottenfelines.com` email on 3,167 appointments (6.6% of all clinic data) is **NOT an error**. This is the FFSC organizational email used appropriately for:
+- Staff-processed appointments
+- Fire cat rescue operations
+- Foster cats in FFSC care
+- Intake records without owner contact
+
+**System Impact:**
+- **880 people (6.5%)** have no identifiers in `person_identifiers`
+- **11,314 appointments (23.7%)** have empty email strings - these can't link to people via email
+- The address+name candidate finding (MIG_896) targets this 6.5% + 23.7%
+
+**What Tippy should know:**
+> "Email coverage on ClinicHQ appointments is 76%, not 100%. About 24% of appointments have empty or placeholder email values from the ClinicHQ export. The info@forgottenfelines.com email on 6.6% of appointments is FFSC staff entries, not errors. Phone coverage varies from 70-90% depending on era. When searching for a person who has no identifiers, we now use address+name similarity as a fallback (MIG_896)."
+
+**Migrations:**
+- MIG_896: Added address+name candidate finding to Data Engine
+- MIG_897: Hicks Valley data cleanup (Carlos Lopez, Jeanie Garcia, Janet Williams)
