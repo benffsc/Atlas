@@ -203,6 +203,7 @@ Use these TypeScript functions from `@/lib/formatters` for consistent phone disp
 | Function | Purpose | Example |
 |----------|---------|---------|
 | `formatPhone()` | Display formatting | `7075551234` → `(707) 555-1234` |
+| `formatPhoneAsYouType()` | Auto-format as user types (for inputs) | `"7075551"` → `"(707) 555-1"` |
 | `isValidPhone()` | Validates 10 or 11 digits | `isValidPhone("707-555-1234")` → `true` |
 | `extractPhone()` | Extract single valid phone from garbled input | `"(7073967923) 7073967923"` → `"7073967923"` |
 | `extractPhones()` | Extract ALL valid phones from multi-phone fields | `"707 8782184 home 707 7910139"` → `["7078782184", "7077910139"]` |
@@ -310,6 +311,7 @@ Manual edits made through the Atlas UI are **protected from being overwritten** 
 - Don't create fixed time windows — Use `v_request_alteration_stats` view
 - Don't skip `entity_edits` logging for important changes
 - Don't hardcode phone/email patterns — Use normalization functions
+- **Don't hardcode boolean value checks** — Use `trapper.is_positive_value()` function (MIG_900). Never use `= 'Yes'` or `IN ('Yes', 'TRUE', 'true')`. The function handles case-insensitive: Yes, TRUE, Y, Checked, Positive, 1, Left, Right, Bilateral
 - Don't confuse colony size (estimate) with cats caught (verified clinic data)
 - Don't return 404 for merged entities — Check `merged_into_*_id` and redirect
 - Don't forget `process_clinichq_owner_info()` after ClinicHQ ingest

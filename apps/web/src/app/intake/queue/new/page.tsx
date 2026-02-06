@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/BackButton";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
@@ -216,7 +216,9 @@ export default function NewIntakeEntryPage() {
 
   // Handle contact field changes with person search
   const handleContactChange = (field: keyof IntakeFormData, value: string) => {
-    updateForm({ [field]: value });
+    // Auto-format phone as user types
+    const processedValue = field === "phone" ? formatPhoneAsYouType(value) : value;
+    updateForm({ [field]: processedValue });
     setSelectedPersonId(null);
 
     if (field === "first_name" || field === "last_name" || field === "email" || field === "phone") {
@@ -224,8 +226,8 @@ export default function NewIntakeEntryPage() {
         clearTimeout(personSearchTimeout.current);
       }
       const searchQuery = field === "email" || field === "phone"
-        ? value
-        : `${form.first_name} ${form.last_name}`.trim() || value;
+        ? processedValue
+        : `${form.first_name} ${form.last_name}`.trim() || processedValue;
 
       personSearchTimeout.current = setTimeout(() => {
         searchPeople(searchQuery);

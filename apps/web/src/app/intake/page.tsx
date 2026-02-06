@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
   HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
@@ -335,7 +335,9 @@ function IntakeForm() {
 
   // Handle name/email/phone input with person search
   const handleContactFieldChange = (field: keyof FormData, value: string) => {
-    updateField(field, value);
+    // Auto-format phone as user types
+    const processedValue = field === "phone" ? formatPhoneAsYouType(value) : value;
+    updateField(field, processedValue);
     setSelectedPersonId(null); // Clear selection when typing
 
     // Trigger person search on name, email, or phone
@@ -345,8 +347,8 @@ function IntakeForm() {
       }
       // Search by the combination of first + last name or by email/phone
       const searchQuery = field === "email" || field === "phone"
-        ? value
-        : `${formData.first_name} ${formData.last_name}`.trim() || value;
+        ? processedValue
+        : `${formData.first_name} ${formData.last_name}`.trim() || processedValue;
 
       personSearchTimeout.current = setTimeout(() => {
         searchPeople(searchQuery);
@@ -1118,7 +1120,7 @@ function IntakeForm() {
                   <input
                     type="tel"
                     value={formData.property_owner_phone}
-                    onChange={(e) => updateField("property_owner_phone", e.target.value)}
+                    onChange={(e) => updateField("property_owner_phone", formatPhoneAsYouType(e.target.value))}
                     placeholder="Owner's phone"
                   />
                 </div>

@@ -204,6 +204,34 @@ export function extractPhones(phone: string | null | undefined): string[] {
 }
 
 /**
+ * Auto-format phone number as user types (for input fields).
+ * Formats progressively: 7 → 70 → 707 → (707) → (707) 5 → (707) 55 → (707) 555 → (707) 555-1 → etc.
+ *
+ * @param phone - Raw phone input (may be partial)
+ * @returns Progressively formatted phone string
+ *
+ * @example
+ * formatPhoneAsYouType("707") // "(707) "
+ * formatPhoneAsYouType("7075551") // "(707) 555-1"
+ * formatPhoneAsYouType("7075551234") // "(707) 555-1234"
+ */
+export function formatPhoneAsYouType(phone: string | null | undefined): string {
+  if (!phone) return "";
+
+  // Extract digits only
+  const digits = phone.replace(/\D/g, "");
+
+  // Strip leading 1 if present (country code)
+  const normalized = digits.startsWith("1") && digits.length > 10 ? digits.slice(1) : digits;
+
+  // Build formatted string progressively
+  if (normalized.length === 0) return "";
+  if (normalized.length <= 3) return `(${normalized}`;
+  if (normalized.length <= 6) return `(${normalized.slice(0, 3)}) ${normalized.slice(3)}`;
+  return `(${normalized.slice(0, 3)}) ${normalized.slice(3, 6)}-${normalized.slice(6, 10)}`;
+}
+
+/**
  * Format a phone number for display.
  *
  * @param phone - Raw phone string

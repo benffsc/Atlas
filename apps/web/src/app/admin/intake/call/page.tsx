@@ -4,7 +4,46 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+
+/**
+ * Parse city and zip from a formatted address string.
+ * Handles formats like "123 Main St, Santa Rosa, CA 95401, USA"
+ */
+function parseAddressComponents(formattedAddress: string | null): { city: string; zip: string } {
+  if (!formattedAddress) return { city: "", zip: "" };
+
+  // Split by comma and clean up
+  const parts = formattedAddress.split(",").map(p => p.trim());
+
+  let city = "";
+  let zip = "";
+
+  // Look for ZIP code pattern (5 digits, optionally with -4 extension)
+  const zipMatch = formattedAddress.match(/\b(\d{5})(?:-\d{4})?\b/);
+  if (zipMatch) {
+    zip = zipMatch[1];
+  }
+
+  // City is typically the second-to-last part before "State ZIP"
+  // Format: "Street, City, State ZIP, Country" or "Street, City, State ZIP"
+  if (parts.length >= 3) {
+    // Check if second-to-last contains state abbreviation + zip
+    const stateZipPart = parts[parts.length - 2] || parts[parts.length - 1];
+    if (/\b[A-Z]{2}\s+\d{5}\b/.test(stateZipPart)) {
+      // City is the part before "State ZIP"
+      city = parts[parts.length - 3] || "";
+    } else {
+      // City might be second part
+      city = parts[1] || "";
+    }
+  } else if (parts.length === 2) {
+    // Might be "City, State ZIP"
+    city = parts[0] || "";
+  }
+
+  return { city, zip };
+}
 
 // Form state type
 interface PhoneIntakeForm {
@@ -535,7 +574,11 @@ export default function PhoneIntakePage() {
               <input
                 type="tel"
                 value={form.phone}
-                onChange={(e) => updateForm({ phone: e.target.value })}
+                onChange={(e) => {
+                  // Auto-format as user types
+                  const formatted = formatPhoneAsYouType(e.target.value);
+                  updateForm({ phone: formatted });
+                }}
                 placeholder="(707) 555-1234"
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
               />
@@ -637,8 +680,12 @@ export default function PhoneIntakePage() {
                 value={resolvedPlace}
                 onChange={(place) => {
                   setResolvedPlace(place);
+                  // Extract city and zip from formatted address
+                  const { city, zip } = parseAddressComponents(place?.formatted_address || null);
                   updateForm({
                     cats_address: place?.formatted_address || place?.display_name || "",
+                    cats_city: city,
+                    cats_zip: zip,
                     selected_place_id: place?.place_id || null,
                   });
                 }}
