@@ -268,6 +268,7 @@ export default function AtlasMap() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const labelsLayerRef = useRef<L.TileLayer | null>(null);
 
   // State
   const [loading, setLoading] = useState(true);
@@ -741,20 +742,43 @@ export default function AtlasMap() {
   // Toggle satellite / street tile layer
   useEffect(() => {
     if (!mapRef.current || !tileLayerRef.current) return;
+
+    // Remove existing layers
     mapRef.current.removeLayer(tileLayerRef.current);
-    const newTiles = isSatellite
-      ? L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-          attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
-          maxZoom: 19,
-        })
-      : L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          maxZoom: 19,
-        });
-    newTiles.addTo(mapRef.current);
-    // Keep tiles behind all markers
-    newTiles.setZIndex(0);
-    tileLayerRef.current = newTiles;
+    if (labelsLayerRef.current) {
+      mapRef.current.removeLayer(labelsLayerRef.current);
+      labelsLayerRef.current = null;
+    }
+
+    if (isSatellite) {
+      // Satellite imagery base layer
+      const satelliteTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
+        maxZoom: 19,
+      });
+      satelliteTiles.addTo(mapRef.current);
+      satelliteTiles.setZIndex(0);
+      tileLayerRef.current = satelliteTiles;
+
+      // Add labels overlay on top of satellite
+      const labelsTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        maxZoom: 19,
+        pane: "overlayPane", // Ensure labels are above satellite but below markers
+      });
+      labelsTiles.addTo(mapRef.current);
+      labelsTiles.setZIndex(1);
+      labelsLayerRef.current = labelsTiles;
+    } else {
+      // Street view (includes labels)
+      const streetTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        maxZoom: 19,
+      });
+      streetTiles.addTo(mapRef.current);
+      streetTiles.setZIndex(0);
+      tileLayerRef.current = streetTiles;
+    }
   }, [isSatellite]);
 
   // Fetch data on mount and when filters change (debounced to avoid rapid re-fetches)
