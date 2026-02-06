@@ -4362,3 +4362,88 @@ No schema changes — uses existing tables:
 
 Foster matching via staged records complete. 91% matching achieved on 02/04/2026 clinic day. Foster parent relationships created and linked to VolunteerHub.
 
+---
+
+## DATA_GAP_004: Embedded Microchips in Animal Name (MIG_908)
+
+**Date:** 2026-02-06
+**Triggered by:** 4,331 appointments missing cat_id. Investigation revealed microchips embedded in Animal Name field.
+
+### Problem
+
+ClinicHQ data had microchips embedded in the Animal Name field instead of the dedicated Microchip Number field:
+
+| Animal Name | Extracted Microchip |
+|-------------|---------------------|
+| "Simon 981020027430416" | 981020027430416 |
+| "Inaba (Nipper) 981020003362905" | 981020003362905 |
+| "Jazzy 105544796" | 105544796 |
+| "Jackie 982000361929523" | 982000361929523 |
+
+The standard appointment linking only checked the Microchip Number field, missing these 766 appointments.
+
+### Solution (MIG_908)
+
+**Phase 1: Extract microchips**
+```sql
+-- Extract 9-15 digit numbers from Animal Name
+(regexp_match(payload->>'Animal Name', '(\d{9,15})'))[1]
+```
+
+**Phase 2: Link to existing cats**
+```sql
+-- 646 appointments linked to cats already in system
+UPDATE sot_appointments a
+SET cat_id = ci.cat_id,
+    cat_linking_status = 'linked_via_embedded_microchip'
+FROM cat_identifiers ci
+WHERE ci.id_value = extracted_chip;
+```
+
+**Phase 3: Create cats for new microchips**
+```sql
+-- 90 new cats created for chips not in system
+SELECT find_or_create_cat_by_microchip(
+  p_microchip := extracted_chip,
+  p_name := cat_name_from_animal_name,
+  p_sex := sex_from_staged_record
+);
+-- Then linked 120 additional appointments
+```
+
+### Results
+
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Appointments with cat_id | 43,345 | 44,111 | +766 |
+| Appointments missing cat_id | 4,331 (9.1%) | 3,565 (7.5%) | -766 |
+| Total cats | 36,736 | 36,826 | +90 |
+| Linked via embedded microchip | 0 | 766 | +766 |
+
+### New Tracking Field
+
+Added `cat_linking_status = 'linked_via_embedded_microchip'` to identify appointments linked via this method.
+
+### Remaining Gap (3,565 appointments)
+
+These appointments truly lack microchip data:
+- Exam-only appointments (no surgery = no microchip)
+- Pre-microchip appointments (before clinic started chipping)
+- External vet records without chip data
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Microchip data preserved even when in wrong field.
+- **INV-4 (Provenance):** `cat_linking_status` tracks how appointments were linked.
+- **INV-10 (Centralized Functions):** Uses `find_or_create_cat_by_microchip()` for new cats.
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_908__extract_embedded_microchips.sql` | New | Extraction and linking functions |
+
+### Stop Point
+
+766 appointments linked via embedded microchips. 90 new cats created. Gap reduced from 9.1% to 7.5%.
+
