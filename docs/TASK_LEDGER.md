@@ -4447,3 +4447,179 @@ These appointments truly lack microchip data:
 
 766 appointments linked via embedded microchips. 90 new cats created. Gap reduced from 9.1% to 7.5%.
 
+---
+
+## DATA_GAP_005: Address in Owner Name Field (MIG_909)
+
+**Date:** 2026-02-06
+**Triggered by:** Cats 900263005064321 and 981020053841041 not linked to 5403 San Antonio Rd despite address being available.
+
+### Problem
+
+ClinicHQ staff sometimes enter addresses in the Owner Name fields when there's no actual owner (community cats):
+
+| Field | Value | Issue |
+|-------|-------|-------|
+| Owner First Name | "5403 San Antonio Road Petaluma" | THE REAL ADDRESS |
+| Owner Last Name | "5403 San Antonio Road Petaluma" | THE REAL ADDRESS |
+| Owner Address | "San Antonio Rd Silviera Ranch, Petaluma, CA 94952" | CORRUPTED by HQ autocorrect |
+
+The `classify_owner_name()` function correctly returned `'address'`, but `find_or_create_clinic_account()` never extracted a place from it. The appointment was linked to a corrupted place via `booking_address` source before the clinic_owner_account source could run.
+
+### Root Cause
+
+1. `classify_owner_name("5403 San Antonio Road Petaluma")` → returns `'address'` ✓
+2. `should_be_person()` → returns FALSE (correctly) ✓
+3. Record routed to `clinic_owner_accounts` ✓
+4. `display_name` = "5403 San Antonio Road Petaluma" stored ✓
+5. **GAP:** `linked_place_id` NOT set - no place extraction from name field
+6. `infer_appointment_places()` runs `booking_address` FIRST, links to corrupted address
+
+### Solution (MIG_909)
+
+**Phase 1: Update find_or_create_clinic_account()**
+```sql
+-- Extract place when classified as address
+IF v_classified_type = 'address' THEN
+  SELECT trapper.find_or_create_place_deduped(
+    p_formatted_address := v_stripped_name,  -- Use name as address
+    p_display_name := NULL,
+    p_lat := NULL,
+    p_lng := NULL,
+    p_source_system := 'clinichq'
+  ) INTO v_place_id;
+END IF;
+
+-- Set linked_place_id on new/existing accounts
+```
+
+**Phase 2: Backfill existing accounts**
+```sql
+-- Update existing address-classified accounts
+UPDATE trapper.clinic_owner_accounts coa
+SET linked_place_id = find_or_create_place_deduped(coa.display_name, ...)
+WHERE coa.linked_place_id IS NULL
+  AND classify_owner_name(coa.display_name) = 'address';
+```
+
+**Phase 3: Manual fix for affected cats**
+```sql
+-- Merge duplicate place into canonical
+UPDATE trapper.places
+SET merged_into_place_id = '29715880-...'
+WHERE formatted_address ILIKE '%5403 San Antonio Road Petaluma%';
+
+-- Update appointments to correct place
+UPDATE trapper.sot_appointments
+SET inferred_place_id = '29715880-...',
+    inferred_place_source = 'owner_account_address'
+WHERE appointment_number IN ('26-533', '26-498');
+```
+
+### Additional Fix: process_clinichq_owner_info()
+
+Found pre-existing bug during processing:
+- Column `start_date` doesn't exist on `person_cat_relationships` - should be `effective_date`
+- Fixed in Step 8 of the function
+
+### Results
+
+| Cat Microchip | Appointment | Before | After |
+|---------------|-------------|--------|-------|
+| 900263005064321 | 26-533 | No place link | 5403 San Antonio Rd ✓ |
+| 981020053841041 | 26-498 | No place link | 5403 San Antonio Rd ✓ |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Address data in name field is now captured.
+- **INV-4 (Provenance):** `inferred_place_source = 'owner_account_address'` tracks origin.
+- **INV-10 (Centralized Functions):** Uses `find_or_create_place_deduped()` for places.
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_909__extract_places_from_owner_names.sql` | New | Place extraction from owner names |
+
+### Stop Point
+
+Both target cats correctly linked to 5403 San Antonio Rd, Petaluma, CA 94952. Function updated to prevent future occurrences.
+
+---
+
+## DATA_GAP_006: ShelterLuv ID + Microchip Concatenation (MIG_910)
+
+**Date:** 2026-02-06
+**Triggered by:** Cat "Macy" had duplicate record with malformed microchip `439019981020039875779` (21 digits).
+
+### Problem
+
+ClinicHQ Animal Name field contains both ShelterLuv ID and microchip for SCAS recaptures:
+
+| Animal Name | SL ID | Microchip | Resulting Concatenation |
+|-------------|-------|-----------|-------------------------|
+| `Macy - A439019 - 981020039875779` | A439019 | 981020039875779 | 439019981020039875779 |
+| `A426581    900085001797139` | A426581 | 900085001797139 | 426581900085001797139 |
+
+### Root Cause
+
+`detect_microchip_format()` (MIG_553) strips ALL non-alphanumeric characters before analysis:
+1. `Macy - A439019 - 981020039875779` → `MACYA439019981020039875779`
+2. Extract digits only → `439019981020039875779` (21 digits)
+3. Function accepts this as "low confidence" microchip despite being invalid
+4. `find_or_create_cat_by_microchip()` creates cat with malformed identifier
+5. Real cat (with correct microchip) already exists → duplicate created
+
+### Solution (MIG_910)
+
+Updated `detect_microchip_format()` to:
+1. **Detect concatenated values** (> 15 digits)
+2. **Extract valid chip** using specific prefixes: `981`, `900`, `985`, `941`
+3. **Reject ambiguous values** that don't contain a recognizable chip pattern
+
+```sql
+-- When > 15 digits, search for known chip prefixes
+IF v_len > 15 THEN
+  -- Priority 1: 981 prefix (most common ISO)
+  v_possible_chip := (REGEXP_MATCH(v_digits_only, '(981[0-9]{12})'))[1];
+  IF v_possible_chip IS NOT NULL THEN
+    RETURN QUERY SELECT v_possible_chip, 'microchip'::TEXT, 'medium'::TEXT, ...;
+    RETURN;
+  END IF;
+  -- ... check 900, 985, 941 prefixes ...
+
+  -- If no valid chip found, reject
+  RETURN QUERY SELECT NULL::TEXT, NULL::TEXT, 'reject'::TEXT, ...;
+END IF;
+```
+
+### Affected Records Fixed
+
+| Cat | Display Name | Before | After |
+|-----|--------------|--------|-------|
+| 48968325 | Macy - A439019 - | Malformed chip `439019981020039875779` | Merged into 246825e4 |
+| 246825e4 | Macy | Correct chip `981020039875779` | Now has both appointments |
+
+### Prevention
+
+Going forward, `detect_microchip_format()` will:
+- Extract the correct 15-digit chip from concatenated values
+- Reject values where no valid chip pattern is found
+- Return `'medium'` confidence for extracted chips (not `'high'`)
+
+### Files Changed
+
+| File | Type | What |
+|------|------|------|
+| `sql/schema/sot/MIG_910__fix_detect_microchip_format.sql` | New | Fixed microchip detection for concatenated values |
+
+### North Star Alignment
+
+- **INV-1 (No Data Disappears):** Prevents duplicate creation from malformed identifiers.
+- **INV-10 (Centralized Functions):** Fix is in the central `detect_microchip_format()` function.
+- **Beacon:** Geospatial data integrity preserved (cats link to correct trap addresses).
+
+### Stop Point
+
+Duplicate cat merged. Function updated to prevent future concatenation issues. Only one cat affected (already fixed).
+
