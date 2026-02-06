@@ -7,39 +7,55 @@ import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 
 /**
- * Parse city and zip from a formatted address string.
- * Handles formats like "123 Main St, Santa Rosa, CA 95401, USA"
+ * Parse city and zip from a Google formatted address string.
+ * Handles formats like:
+ * - "1152 Dutton Ave, Santa Rosa, CA 95401, USA"
+ * - "1152 Dutton Ave, Santa Rosa, CA, USA"
+ * - "Santa Rosa, CA 95401, USA"
  */
 function parseAddressComponents(formattedAddress: string | null): { city: string; zip: string } {
   if (!formattedAddress) return { city: "", zip: "" };
 
-  // Split by comma and clean up
-  const parts = formattedAddress.split(",").map(p => p.trim());
-
   let city = "";
   let zip = "";
 
-  // Look for ZIP code pattern (5 digits, optionally with -4 extension)
+  // Extract ZIP code (5 digits, optionally followed by -4 digits)
   const zipMatch = formattedAddress.match(/\b(\d{5})(?:-\d{4})?\b/);
-  if (zipMatch) {
-    zip = zipMatch[1];
+  if (zipMatch) zip = zipMatch[1];
+
+  // Split by comma and clean up
+  const parts = formattedAddress.split(",").map(p => p.trim());
+
+  // Find the city: it's the part right before "CA" or state abbreviation
+  // Typical formats: "Street, City, CA ZIP, USA" or "Street, City, CA, USA"
+  for (let i = 0; i < parts.length; i++) {
+    // Check if this part contains a state abbreviation (2 uppercase letters)
+    if (/\b[A-Z]{2}\b/.test(parts[i]) && parts[i].length < 15) {
+      // City is the previous part (if it exists and doesn't look like a street)
+      if (i > 0) {
+        const prevPart = parts[i - 1];
+        // Skip if it looks like a street address (has numbers at the start)
+        if (!/^\d+\s/.test(prevPart)) {
+          city = prevPart;
+          break;
+        }
+        // If prev part is a street, check the one before that
+        if (i > 1) {
+          city = parts[i - 2];
+          break;
+        }
+      }
+    }
   }
 
-  // City is typically the second-to-last part before "State ZIP"
-  // Format: "Street, City, State ZIP, Country" or "Street, City, State ZIP"
-  if (parts.length >= 3) {
-    // Check if second-to-last contains state abbreviation + zip
-    const stateZipPart = parts[parts.length - 2] || parts[parts.length - 1];
-    if (/\b[A-Z]{2}\s+\d{5}\b/.test(stateZipPart)) {
-      // City is the part before "State ZIP"
-      city = parts[parts.length - 3] || "";
-    } else {
-      // City might be second part
-      city = parts[1] || "";
+  // Fallback: if we have 4+ parts, city is usually parts[1]
+  // Format: "Street, City, State, Country"
+  if (!city && parts.length >= 4) {
+    const candidate = parts[1];
+    // Only use if it doesn't look like a street (no leading numbers)
+    if (!/^\d+\s/.test(candidate)) {
+      city = candidate;
     }
-  } else if (parts.length === 2) {
-    // Might be "City, State ZIP"
-    city = parts[0] || "";
   }
 
   return { city, zip };
