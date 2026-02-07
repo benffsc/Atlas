@@ -730,17 +730,17 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'),
         sr.payload->>'Number',
         COALESCE(sr.payload->>'All Services', sr.payload->>'Service / Subsidy'),
-        sr.payload->>'Spay' = 'Yes',
-        sr.payload->>'Neuter' = 'Yes',
+        trapper.is_positive_value(sr.payload->>'Spay'),
+        trapper.is_positive_value(sr.payload->>'Neuter'),
         sr.payload->>'Vet Name',
         sr.payload->>'Technician',
         CASE WHEN sr.payload->>'Temperature' ~ '^[0-9]+\.?[0-9]*$'
              THEN (sr.payload->>'Temperature')::NUMERIC(4,1)
              ELSE NULL END,
         sr.payload->>'Internal Medical Notes',
-        sr.payload->>'Lactating' = 'Yes' OR sr.payload->>'Lactating_2' = 'Yes',
-        sr.payload->>'Pregnant' = 'Yes',
-        sr.payload->>'In Heat' = 'Yes',
+        trapper.is_positive_value(sr.payload->>'Lactating') OR trapper.is_positive_value(sr.payload->>'Lactating_2'),
+        trapper.is_positive_value(sr.payload->>'Pregnant'),
+        trapper.is_positive_value(sr.payload->>'In Heat'),
         'clinichq', 'clinichq', sr.source_row_id, sr.row_hash
       FROM trapper.staged_records sr
       LEFT JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'

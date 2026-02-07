@@ -70,7 +70,7 @@ External Sources → L1 (RAW) → L2 (IDENTITY) → L3 (ENRICHMENT) → L4 (CLAS
 
 ---
 
-## Atlas Orchestrator (Planned)
+## Atlas Orchestrator (IMPLEMENTED - MIG_923)
 
 ### The Problem
 
@@ -79,6 +79,11 @@ Today, each data source (Airtable, ClinicHQ, ShelterLuv, web intake, Google Maps
 ### The Solution: Registry-Driven Orchestration
 
 The **Atlas Orchestrator** is a central spine that ensures every data source flows through the same L1→L7 pipeline with configuration-driven routing instead of bespoke glue.
+
+**Implementation Status (2026-02-06):**
+- MIG_923: `run_full_orchestrator()` function with phase configuration
+- API: `/api/cron/orchestrator-run` for Vercel cron or manual triggering
+- Processing: `/api/ingest/process` fixed to handle Vercel cron GET requests
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -121,6 +126,79 @@ The **Atlas Orchestrator** is a central spine that ensures every data source flo
 2. **Debuggable** - every routing decision is logged with reason (routed/skipped/merged/rejected).
 3. **Staff overrides intact** - Manual > AI at every layer. Orchestrator never overwrites verified data.
 4. **Provenance preserved** - every published surface traces back to raw source via (source_system, source_record_id, job_id).
+
+---
+
+## Cross-Source Conflict Detection (IMPLEMENTED - MIG_620, MIG_922, MIG_924)
+
+### Field-Level Source Tracking
+
+Atlas tracks which source provided each field value for cats and people, enabling conflict detection when sources disagree.
+
+**Key Tables:**
+- `cat_field_sources` (MIG_620) - Tracks cat field values by source
+- `person_field_sources` (MIG_922) - Tracks person field values by source
+- `survivorship_priority` (MIG_924) - Defines which source wins for each field type
+
+**Key Views:**
+- `v_cat_field_conflicts` - Cats with conflicting field values across sources
+- `v_person_field_conflicts` - People with conflicting field values
+- `v_all_field_conflicts` - Combined dashboard view
+
+### Source Authority Map (Confirmed 2026-02-06)
+
+| Data Type | Primary Authority | Notes |
+|-----------|------------------|-------|
+| Cat medical data | ClinicHQ | Spay/neuter, procedures, vaccines |
+| Cat identity | ClinicHQ (microchip) | Microchip is gold standard |
+| Cat origin location | ClinicHQ | Appointment address = where cat came from |
+| Cat current location | ShelterLuv | Outcome address = where cat is now |
+| Cat outcomes | ShelterLuv | Adoption, foster, death, transfer |
+| People (volunteers) | VolunteerHub | Roles, groups, hours, status |
+| People (fosters) | VolunteerHub | "Approved Foster Parent" group is authority |
+| People (adopters) | ShelterLuv | From adoption outcome events |
+| People (clinic clients) | ClinicHQ | From appointment owner info |
+| Trapper roles | VolunteerHub | Except community trappers from Airtable |
+| Foster relationships | ShelterLuv | Cat→foster links; person must be VH approved |
+
+### Survivorship Rules
+
+When conflicts occur, `survivorship_priority` determines the winner:
+- Lower array index = higher priority
+- ClinicHQ wins for cat identity/medical fields
+- ShelterLuv wins for outcomes/current location
+- VolunteerHub wins for volunteer/foster person data
+
+---
+
+## Data Quality Investigation Findings (2026-02-06)
+
+### Appointment-Cat Linking Status
+
+**Spay/Neuter Appointments:**
+- 94.1% (27,167 of 28,871) have cat links ✅
+- 5.9% (1,704) unlinked — NOT data quality issues
+
+**Root Cause of Unlinked:**
+- 85.9% (1,463) are from "Forgotten Felines Foster" account
+- These have internal Foster IDs (#6795 format)
+- Foster parent names in parentheses: "(Canepa)"
+- SCAS cats with A439019-style IDs
+
+### FFSC Foster & SCAS Cat Matching Opportunity (DATA_GAP_023)
+
+The 1,463 foster account cats CAN potentially be matched via:
+1. **Foster parent name extraction** - Parse "(LastName)" from cat name
+2. **SCAS ID matching** - Match A439019 format to ShelterLuv records
+3. **VolunteerHub cross-reference** - Link foster parent to approved fosters
+
+**Current Status:** Documented as enhancement opportunity, not blocking issue.
+
+### Why This Matters
+
+- 94%+ cat linking rate means the system IS working correctly
+- Unlinked cats are legitimate edge cases (foster program workflow)
+- No junk data — these are real cats with medical records
 
 ---
 

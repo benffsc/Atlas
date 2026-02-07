@@ -46,12 +46,21 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronHeader = request.headers.get("x-vercel-cron");
 
-  if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  const isFromCron = !!cronHeader;
+  const hasValidAuth = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
+
+  if (!isFromCron && !hasValidAuth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // If called from Vercel Cron, actually process jobs (not just return status)
+  // Vercel crons send GET requests, so we need to process here too
+  if (isFromCron) {
+    return processJobs(request);
+  }
+
+  // For manual GET requests with auth, return status
   try {
-    // Get current queue status
     const dashboard = await queryRows<DashboardRow>(
       "SELECT * FROM trapper.v_processing_dashboard ORDER BY queued DESC"
     );
@@ -64,7 +73,7 @@ export async function GET(request: NextRequest) {
         total_queued: totalQueued,
         by_source: dashboard,
       },
-      message: "Use POST to process jobs",
+      message: "Use POST to process jobs, or call from Vercel Cron",
     });
   } catch (error) {
     console.error("Error fetching processing status:", error);
@@ -75,15 +84,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  // Verify this is from Vercel Cron or has valid secret
-  const authHeader = request.headers.get("authorization");
-  const cronHeader = request.headers.get("x-vercel-cron");
-
-  if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+/**
+ * Shared processing logic for both GET (cron) and POST (manual) requests
+ */
+async function processJobs(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   const MAX_DURATION = 55000; // 55 seconds (leave 5s buffer before 60s timeout)
   const BATCH_SIZE = 500;
@@ -150,4 +154,16 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function POST(request: NextRequest) {
+  // Verify this is from Vercel Cron or has valid secret
+  const authHeader = request.headers.get("authorization");
+  const cronHeader = request.headers.get("x-vercel-cron");
+
+  if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return processJobs(request);
 }

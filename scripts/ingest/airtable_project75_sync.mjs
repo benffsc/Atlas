@@ -30,6 +30,7 @@
 
 import pg from 'pg';
 import fs from 'fs';
+import { validatePersonCreation, logValidationFailure } from '../lib/identity-validation.mjs';
 
 const { Client } = pg;
 
@@ -321,10 +322,22 @@ async function main() {
       const lastName = f['Last Name'];
 
       if (email || phone) {
-        const personResult = await client.query(`
-          SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
-        `, [email, phone, firstName, lastName, SOURCE_SYSTEM]);
-        personId = personResult.rows[0]?.person_id;
+        // Pre-validate before sending to SQL (belt-and-suspenders with MIG_919)
+        const validation = validatePersonCreation(email, phone, firstName, lastName);
+        if (!validation.valid) {
+          if (options.verbose) {
+            logValidationFailure('airtable_project75_sync', {
+              email, phone, firstName, lastName
+            }, validation.reason);
+          }
+          // Skip person creation but continue with colony estimate
+          // personId stays null, which is fine for surveys
+        } else {
+          const personResult = await client.query(`
+            SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
+          `, [email, phone, firstName, lastName, SOURCE_SYSTEM]);
+          personId = personResult.rows[0]?.person_id;
+        }
       }
 
       // Extract ecology fields (these may be added to Airtable form later)

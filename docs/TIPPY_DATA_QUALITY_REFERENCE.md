@@ -390,6 +390,38 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-07: DQ_016 — SCAS Organization Consolidation & Foster Hub Tagging (MIG_936)
+
+**Problem:** 19 duplicate "Scas" person records existed from ClinicHQ imports, plus 5 address-based SCAS records like "1500 Block Of Dutch Ln Penngrove Scas". Additionally, 1814 Empire Industrial Court (a major foster hub with 1,289 cats) lacked appropriate context tagging.
+
+**Investigation:**
+Phase 1 queries revealed:
+- No orphaned cat-place links (0 rows) - good
+- No places wrongly tagged as `clinic` (0 rows) - good
+- Top places by cat count were legitimate foster hubs and colony sites
+- "Scas" alone wasn't detected as an organization by `is_organization_or_address_name()`
+- 1814 Empire Industrial Court has 1,289 cats with 1,232 linked appointments - confirmed major foster hub
+
+**Solution:**
+- **MIG_936:**
+  - Updated `is_organization_or_address_name()` to catch SCAS, LMFM, FFSC as organization patterns
+  - Merged 18 duplicate "Scas" person records into one canonical record
+  - Merged 5 address-based SCAS records into the canonical SCAS record
+  - Tagged 1814 Empire Industrial Court (Suite F) with `foster_home` context
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Unmerged "Scas" person records | 19 | 1 (canonical) |
+| Address-based SCAS records | 5 unmerged | 5 merged |
+| `is_organization_or_address_name('Scas')` | FALSE | TRUE |
+| 1814 Empire Industrial Court contexts | `colony_site` | `colony_site` + `foster_home` |
+
+**What Tippy should know:**
+> "SCAS (Sonoma County Animal Services) is a partner organization, not a person. We have one canonical 'Scas' person record in the system that represents the organization. Future ClinicHQ imports with 'Scas' as the owner will be rejected by `should_be_person()`. 1814 Empire Industrial Court is a major foster hub (Sandra Nicander's contact location) with over 1,200 cats having passed through."
+
+**Key Learning:** Organization abbreviations (SCAS, LMFM, FFSC) need explicit detection patterns. High-volume locations should be tagged with appropriate contexts (foster_home, colony_site).
+
 ### 2026-02-06: DQ_015 — Linda Price / Location-as-Person Cleanup (MIG_917)
 
 **Problem:** Linda Price (a real volunteer/community trapper) was merged INTO "The Villages" — a location name that became a person record. Additionally, "Golden Gate Transit SR" and "So. Co. Bus Transit Yard" were also location-as-person records with complex merge chains.

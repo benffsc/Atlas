@@ -150,25 +150,38 @@ export async function POST(request: NextRequest) {
     }
 
     // If email provided, create/link person
+    // Note: FFSC organizational emails (@forgottenfelines.com) will be rejected
+    // by the Data Engine consolidated gate (MIG_919, INV-17). This is correct
+    // behavior - FFSC staff are internal accounts, not external contacts in sot_people.
     if (email) {
-      const personResult = await queryOne<{ person_id: string }>(`
-        SELECT trapper.find_or_create_person(
-          $1, $2, $3, $4, NULL, 'web_app'
-        ) AS person_id
-      `, [email, phone?.replace(/\D/g, '') || null, first_name, last_name || null]);
+      // Check if this is an org email that will be rejected
+      const emailNorm = email.toLowerCase().trim();
+      const isOrgEmail = emailNorm.endsWith('@forgottenfelines.com') ||
+                         emailNorm.endsWith('@forgottenfelines.org') ||
+                         /^(info|office|contact|admin|support|help)@/i.test(emailNorm);
 
-      if (personResult?.person_id) {
-        await execute(`
-          UPDATE trapper.staff SET person_id = $1 WHERE staff_id = $2
-        `, [personResult.person_id, result.staff_id]);
+      if (!isOrgEmail) {
+        // Only attempt person creation for non-org emails
+        const personResult = await queryOne<{ person_id: string }>(`
+          SELECT trapper.find_or_create_person(
+            $1, $2, $3, $4, NULL, 'web_app'
+          ) AS person_id
+        `, [email, phone?.replace(/\D/g, '') || null, first_name, last_name || null]);
 
-        // Add staff role
-        await execute(`
-          INSERT INTO trapper.person_roles (person_id, role, role_status, source_system, notes)
-          VALUES ($1, 'staff', 'active', 'web_app', $2)
-          ON CONFLICT (person_id, role) DO UPDATE SET role_status = 'active', updated_at = NOW()
-        `, [personResult.person_id, role]);
+        if (personResult?.person_id) {
+          await execute(`
+            UPDATE trapper.staff SET person_id = $1 WHERE staff_id = $2
+          `, [personResult.person_id, result.staff_id]);
+
+          // Add staff role
+          await execute(`
+            INSERT INTO trapper.person_roles (person_id, role, role_status, source_system, notes)
+            VALUES ($1, 'staff', 'active', 'web_app', $2)
+            ON CONFLICT (person_id, role) DO UPDATE SET role_status = 'active', updated_at = NOW()
+          `, [personResult.person_id, role]);
+        }
       }
+      // For org emails: staff record created successfully, no person linking needed
     }
 
     return NextResponse.json({

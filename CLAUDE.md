@@ -39,8 +39,33 @@ These apply to ALL changes across ALL layers:
 31. **It's OK If Cats Have No Person Link** — Not every cat needs a person_cat_relationship. ClinicHQ appointments may have no contact info, ShelterLuv cats may have external adopters, PetLink cats are registry-only. Don't force bad matches — it's better to have an unlinked cat than a wrongly-linked cat. See INV-24.
 32. **Pre-2024 Person-Cat Links Are Suspect** — Until 2024, FFSC data practices were informal. Staff often used partner org emails (marinferals@yahoo.com, etc.) instead of actual resident contact info. `person_cat_relationships` from this era may link cats to the wrong person. For accurate cat counts at a location, use **place views** (cat_place_relationships) rather than person-cat links. Org emails must be in `data_engine_soft_blacklist`. Historical relationships won't be retroactively fixed — the place is the source of truth. **However:** if a historical person calls back with real contact info, the Data Engine should match them by name + address and add the new identifiers to their existing record (not create a duplicate). The soft-blacklisted org email remains but the person now also has their real email/phone.
 33. **ShelterLuv Medical Holds Create Pseudo-Owner Records** — When FFSC holds a cat for medical reasons (dental, injury, etc.), ShelterLuv records use owner name + reason (e.g., "Carlos Lopez Dental", "Jupiter (dental)"). These are NOT business names — they're medical hold descriptions. Don't mark as organizations. The cat name is usually in quotes or parentheses.
+34. **All Data Quality Issues Must Be Tracked in DATA_GAPS.md** — When discovering data quality issues (wrong links, duplicates, classification errors, missing data), ALWAYS document in `docs/DATA_GAPS.md` with: unique ID (DATA_GAP_XXX), status, problem description, evidence (SQL), root cause, and proposed fix. This is the single source of truth for data issues. Create corresponding migration files in `sql/schema/sot/MIG_XXX__description.sql`. Update status to FIXED after verification.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
+
+## Atlas Data Cleaning Pipeline
+
+The **Atlas Data Cleaning Pipeline** is the unified system for all data quality operations.
+
+**Key Files:**
+- `scripts/pipeline/README.md` - Full documentation
+- `scripts/pipeline/run_audit.sh` - Check for data quality issues
+- `scripts/pipeline/run_entity_linking.sh` - Run entity linking
+- `scripts/pipeline/run_full_reprocess.sh` - Nuclear option (all fixes + linking + audit)
+- `docs/DATA_GAPS.md` - Active data gaps tracker
+
+**Key Functions (SQL):**
+- `should_be_person()` - Gate: rejects org emails (INV-17) and location names (INV-18)
+- `classify_owner_name()` - Classifies names as person/org/address/garbage
+- `data_engine_resolve_identity()` - Single fortress for all identity resolution
+- `find_or_create_person()` - Standard entry point (calls Data Engine)
+
+**Adding a New Data Gap Fix:**
+1. Document in `docs/DATA_GAPS.md`
+2. Create migration: `sql/schema/sot/MIG_XXX__description.sql`
+3. Add to `scripts/pipeline/apply_data_gap_fixes.sh`
+4. Test and apply
+5. Update DATA_GAPS.md status
 
 ## Beacon Readiness — Gap Status (updated 2026-02-04)
 

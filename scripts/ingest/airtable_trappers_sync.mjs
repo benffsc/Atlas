@@ -27,6 +27,7 @@
 
 import pg from 'pg';
 import crypto from 'crypto';
+import { validatePersonCreation, logValidationFailure } from '../lib/identity-validation.mjs';
 
 const { Client } = pg;
 
@@ -315,6 +316,29 @@ async function main() {
             info.trapperType
           ]);
           if (options.verbose) console.log(`  ⏳ ${info.displayName}: Queued for manual linking (no email/phone)`);
+          skipped++;
+          continue;
+        }
+
+        // Pre-validate before sending to SQL (belt-and-suspenders with MIG_919)
+        const validation = validatePersonCreation(info.email, info.phone, info.firstName, info.lastName);
+        if (!validation.valid) {
+          logValidationFailure('airtable_trappers_sync', {
+            email: info.email, phone: info.phone, firstName: info.firstName, lastName: info.lastName
+          }, validation.reason);
+          // Queue for manual linking instead of auto-linking
+          await client.query(`
+            SELECT trapper.queue_pending_trapper_link(
+              $1, $2, $3, $4, $5, $6, 'validation_failed'
+            )
+          `, [
+            airtableRecordId,
+            info.displayName,
+            info.email || null,
+            info.phone || null,
+            info.address || null,
+            info.trapperType
+          ]);
           skipped++;
           continue;
         }

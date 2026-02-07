@@ -18,6 +18,7 @@
  */
 
 import pg from 'pg';
+import { validatePersonCreation, logValidationFailure } from '../lib/identity-validation.mjs';
 
 const { Client } = pg;
 
@@ -208,6 +209,20 @@ async function main() {
 
       // Create/find person and link to staff record
       if (info.email || info.phone) {
+        // Pre-validate before sending to SQL (belt-and-suspenders with MIG_919)
+        // Note: Staff with @forgottenfelines.com emails are intentionally blocked
+        // from sot_people - they're internal accounts, not external contacts
+        const validation = validatePersonCreation(info.email, info.phone, info.firstName, info.lastName);
+        if (!validation.valid) {
+          if (options.verbose) {
+            logValidationFailure('airtable_staff_sync', {
+              email: info.email, phone: info.phone, firstName: info.firstName, lastName: info.lastName
+            }, validation.reason);
+          }
+          // Skip person creation for org emails - staff record already created above
+          continue;
+        }
+
         // Use find_or_create_person for proper identity linking
         const personResult = await client.query(`
           SELECT trapper.find_or_create_person(
