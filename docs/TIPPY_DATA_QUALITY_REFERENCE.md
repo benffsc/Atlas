@@ -390,6 +390,55 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-07: DQ_017 — Entity Resolution Architecture Upgrade (MIG_939, MIG_940, MIG_941)
+
+**Problem:** Duplicate person records appearing in Atlas UI. Example: Cristina Campbell appeared twice at 990 Borden Villa Dr with different phone numbers. Investigation revealed 310 duplicate name groups affecting 699 person records, plus 20+ same-name-same-address pairs that were not being merged.
+
+**Investigation:**
+- Tier 4 detection (same name + same address) existed in `v_person_dedup_candidates` but was NOT wired to the prevention path in `data_engine_resolve_identity()`
+- When Cristina Campbell came in with a different phone number, the system created a new person instead of flagging for review
+- 47 organization names (fitness centers, auto body shops, spas) were slipping through detection as person records
+- Missing industry-specific patterns: "Anytime Fitness Sr", "Downtown Auto Body", "Sonoma Oasis", "Happy Paws Grooming"
+
+**Solution:**
+- **MIG_939:** Enhanced `is_organization_or_address_name()` with 7 new industry patterns (fitness, auto, spa, pet, retail, restaurant, real estate). Created cleanup functions for existing duplicates. Merged 47 org-name duplicate pairs.
+- **MIG_940:** Wired Tier 4 detection to the production pipeline. New data with same-name-same-address now triggers `review_pending` instead of creating duplicates.
+- **MIG_941:** Created comprehensive audit views for staff visibility:
+  - `v_merge_audit_log` - Complete merge history with reasoning
+  - `v_tier4_pending_review` - Staff dashboard for Tier 4 matches
+  - `v_duplicate_prevention_stats` - Daily prevention effectiveness
+  - `v_identity_decision_trace` - Full trace for any person
+  - `query_person_merge_history()` function for ad-hoc queries
+- **API endpoints:** `/api/admin/merge-review` for listing and resolving pending reviews
+- **UI:** `/admin/merge-review` page for staff to review and action merge candidates
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Org-name duplicate pairs | 47 | 0 (merged) |
+| Same-name-same-address pairs queued | 0 | 77 (in review queue) |
+| Tier 4 prevention active | No | Yes |
+| New industry patterns | 0 | 7 (fitness, auto, spa, pet, retail, restaurant, real estate) |
+| Cristina Campbell records | 2 | 1 (merged) |
+| Audit trail views | 0 | 4 new views |
+
+**What Tippy should know:**
+> "We've upgraded our identity resolution system with full Tier 4 prevention. When someone appears at the same address with the same name but different contact info, they now get queued for staff review instead of creating a duplicate. Staff can review these at /admin/merge-review. All merge decisions are logged with reasoning in `v_merge_audit_log`. To see why a person was merged, query `v_identity_decision_trace` or use `query_person_merge_history()`. Organization names like fitness centers, auto body shops, and spas are now properly detected and rejected from person creation."
+
+**Staff Guidance:**
+- **Merge Review Queue:** Staff should check `/admin/merge-review` weekly to process pending Tier 4 matches
+- **Same person, different phone:** Usually safe to merge — person got a new phone
+- **Different people, same address:** Keep separate — could be household members or multi-unit building
+- **Explaining to requesters:** "We found an existing record for you at this address. Your new contact info has been added to your profile."
+
+**Stability Guarantees:**
+1. Merged entities stay merged — `merged_into_person_id` is permanent
+2. New data flows through the same pipeline — Tier 4 prevention catches future duplicates
+3. All decisions are logged — staff can always explain why something was merged
+4. Identifiers accumulate — when same person reappears with new phone, it's added to their record
+
+**Key Learning:** Detection-only views (like `v_person_dedup_candidates`) are useful for auditing but don't prevent duplicates. Prevention must be wired into the creation path (`data_engine_resolve_identity()`).
+
 ### 2026-02-07: DQ_016 — SCAS Organization Consolidation & Foster Hub Tagging (MIG_936)
 
 **Problem:** 19 duplicate "Scas" person records existed from ClinicHQ imports, plus 5 address-based SCAS records like "1500 Block Of Dutch Ln Penngrove Scas". Additionally, 1814 Empire Industrial Court (a major foster hub with 1,289 cats) lacked appropriate context tagging.
