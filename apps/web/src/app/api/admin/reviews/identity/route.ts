@@ -74,6 +74,8 @@ export async function GET(request: NextRequest) {
     else if (filter === "tier5") tierFilter = "AND match_tier = 5";
 
     // 1. Fetch from person_dedup_candidates (excludes tier 4 which we get from tier4 view)
+    // Note: v_person_dedup_candidates is a VIEW that already filters for unmerged people
+    // It doesn't have a status column - all rows are implicitly pending
     if (fetchDedup) {
       const dedupRows = await queryRows<{
         canonical_person_id: string;
@@ -86,15 +88,6 @@ export async function GET(request: NextRequest) {
         name_similarity: number;
         canonical_created_at: string;
         duplicate_created_at: string;
-        canonical_identifiers: number;
-        canonical_places: number;
-        canonical_cats: number;
-        canonical_requests: number;
-        duplicate_identifiers: number;
-        duplicate_places: number;
-        duplicate_cats: number;
-        duplicate_requests: number;
-        created_at: string;
       }>(`
         SELECT
           canonical_person_id::text,
@@ -106,21 +99,11 @@ export async function GET(request: NextRequest) {
           duplicate_name,
           name_similarity,
           canonical_created_at::text,
-          duplicate_created_at::text,
-          canonical_identifiers,
-          canonical_places,
-          canonical_cats,
-          canonical_requests,
-          duplicate_identifiers,
-          duplicate_places,
-          duplicate_cats,
-          duplicate_requests,
-          created_at::text
+          duplicate_created_at::text
         FROM trapper.v_person_dedup_candidates
-        WHERE (status = 'pending' OR status IS NULL)
-          AND match_tier != 4  -- We get tier 4 from the dedicated view
+        WHERE match_tier != 4  -- We get tier 4 from the dedicated view
           ${tierFilter}
-        ORDER BY created_at ASC
+        ORDER BY canonical_created_at ASC
         LIMIT ${limit} OFFSET ${offset}
       `, []);
 
@@ -139,7 +122,7 @@ export async function GET(request: NextRequest) {
             : row.shared_phone
               ? `Phone: ${row.shared_phone}`
               : "Name similarity",
-          queueHours: (Date.now() - new Date(row.created_at).getTime()) / (1000 * 60 * 60),
+          queueHours: (Date.now() - new Date(row.canonical_created_at).getTime()) / (1000 * 60 * 60),
           left: {
             id: row.canonical_person_id,
             name: row.canonical_name,
@@ -147,10 +130,10 @@ export async function GET(request: NextRequest) {
             phones: row.shared_phone ? [row.shared_phone] : null,
             address: null,
             createdAt: row.canonical_created_at,
-            cats: row.canonical_cats,
-            requests: row.canonical_requests,
+            cats: 0,
+            requests: 0,
             appointments: 0,
-            places: row.canonical_places,
+            places: 0,
           },
           right: {
             id: row.duplicate_person_id,
@@ -324,6 +307,8 @@ export async function GET(request: NextRequest) {
     items.sort((a, b) => b.queueHours - a.queueHours);
 
     // Get stats
+    // Note: v_person_dedup_candidates is a VIEW that already filters for unmerged people
+    // It doesn't have a status column - all rows are implicitly pending
     const stats = await queryOne<{
       total: number;
       tier1: number;
@@ -335,15 +320,15 @@ export async function GET(request: NextRequest) {
     }>(`
       SELECT
         (
-          (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE status = 'pending' OR status IS NULL) +
+          (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates) +
           (SELECT COUNT(*) FROM trapper.v_tier4_pending_review) +
           (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)
         )::int as total,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 1)::int as tier1,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 2)::int as tier2,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 3)::int as tier3,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 1)::int as tier1,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 2)::int as tier2,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 3)::int as tier3,
         (SELECT COUNT(*) FROM trapper.v_tier4_pending_review)::int as tier4,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 5)::int as tier5,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 5)::int as tier5,
         (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)::int as uncertain
     `, []);
 

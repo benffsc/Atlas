@@ -45,6 +45,8 @@ interface QueueSummary {
 export async function GET() {
   try {
     // Get identity review counts from multiple sources
+    // Note: v_person_dedup_candidates is a VIEW that already filters for unmerged people
+    // It does not have a status column - all rows are implicitly pending
     const personDedupStats = await queryOne<{
       total: number;
       tier1: number;
@@ -61,7 +63,6 @@ export async function GET() {
         COUNT(*) FILTER (WHERE match_tier = 4)::int as tier4,
         COUNT(*) FILTER (WHERE match_tier = 5)::int as tier5
       FROM trapper.v_person_dedup_candidates
-      WHERE status = 'pending' OR status IS NULL
     `, []);
 
     // Get Tier 4 prevention queue (from merge-review)
@@ -79,6 +80,7 @@ export async function GET() {
     `, []);
 
     // Get place dedup counts
+    // Note: place_dedup_candidates is a TABLE (not a view) with a status column
     const placeStats = await queryOne<{
       total: number;
       close_similar: number;
@@ -88,8 +90,8 @@ export async function GET() {
         COUNT(*)::int as total,
         COUNT(*) FILTER (WHERE match_tier = 1)::int as close_similar,
         COUNT(*) FILTER (WHERE match_tier = 2)::int as close_different
-      FROM trapper.v_place_dedup_candidates
-      WHERE status = 'pending' OR status IS NULL
+      FROM trapper.place_dedup_candidates
+      WHERE status = 'pending'
     `, []);
 
     // Get data quality review counts
@@ -155,6 +157,7 @@ export async function GET() {
         UNION ALL
 
         -- Person dedup candidates
+        -- Note: v_person_dedup_candidates has canonical_created_at, not created_at
         SELECT
           canonical_person_id::text || '|' || duplicate_person_id::text as id,
           'dedup_tier' || match_tier::text as type,
@@ -166,21 +169,20 @@ export async function GET() {
             WHEN 4 THEN 'Name + place match'
             WHEN 5 THEN 'Name only match'
           END as subtitle,
-          EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 as age_hours
+          EXTRACT(EPOCH FROM (NOW() - canonical_created_at)) / 3600 as age_hours
         FROM trapper.v_person_dedup_candidates
-        WHERE status = 'pending' OR status IS NULL
 
         UNION ALL
 
-        -- Place dedup candidates
+        -- Place dedup candidates (table, not view)
         SELECT
           canonical_place_id::text || '|' || duplicate_place_id::text as id,
           'place' as type,
           canonical_address as title,
           distance_meters::int || 'm apart, ' || (address_similarity * 100)::int || '% similar' as subtitle,
           EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 as age_hours
-        FROM trapper.v_place_dedup_candidates
-        WHERE status = 'pending' OR status IS NULL
+        FROM trapper.place_dedup_candidates
+        WHERE status = 'pending'
       )
       SELECT id, type, title, subtitle, age_hours
       FROM all_items
