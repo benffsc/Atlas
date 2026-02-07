@@ -103,6 +103,7 @@ export async function GET() {
     `, []);
 
     // Get AI-parsed items needing verification
+    // Note: These tables use verified_at (not reviewed_at) and source_type = 'ai_parsed' (not confidence)
     const aiStats = await queryOne<{
       total: number;
       colony_estimates: number;
@@ -111,27 +112,27 @@ export async function GET() {
     }>(`
       SELECT
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.place_colony_estimates WHERE confidence < 0.7 AND reviewed_at IS NULL),
+          (SELECT COUNT(*) FROM trapper.place_colony_estimates WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int +
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_birth_events WHERE confidence < 0.7 AND reviewed_at IS NULL),
+          (SELECT COUNT(*) FROM trapper.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int +
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_mortality_events WHERE confidence < 0.7 AND reviewed_at IS NULL),
+          (SELECT COUNT(*) FROM trapper.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as total,
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.place_colony_estimates WHERE confidence < 0.7 AND reviewed_at IS NULL),
+          (SELECT COUNT(*) FROM trapper.place_colony_estimates WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as colony_estimates,
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_birth_events WHERE confidence < 0.7 AND reviewed_at IS NULL),
+          (SELECT COUNT(*) FROM trapper.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as reproduction,
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_mortality_events WHERE confidence < 0.7 AND reviewed_at IS NULL),
+          (SELECT COUNT(*) FROM trapper.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as mortality
     `, []);
