@@ -1,0 +1,448 @@
+import { NextRequest, NextResponse } from "next/server";
+import { queryRows, queryOne } from "@/lib/db";
+
+/**
+ * Unified Identity Review API
+ *
+ * Consolidates data from:
+ * - v_person_dedup_candidates (person-dedup)
+ * - v_tier4_pending_review (merge-review)
+ * - data_engine_match_decisions (data-engine/review)
+ *
+ * Returns a unified format for the identity review page.
+ */
+
+export interface UnifiedReviewItem {
+  id: string;
+  source: "dedup" | "tier4" | "data_engine";
+  tier: number;
+  tierLabel: string;
+  tierColor: string;
+  similarity: number;
+  matchReason: string;
+  queueHours: number;
+  left: {
+    id: string;
+    name: string;
+    emails: string[] | null;
+    phones: string[] | null;
+    address: string | null;
+    createdAt: string | null;
+    cats: number;
+    requests: number;
+    appointments: number;
+    places: number;
+  };
+  right: {
+    id: string | null;
+    name: string;
+    emails: string[] | null;
+    phones: string[] | null;
+    address: string | null;
+    source: string | null;
+  };
+}
+
+const TIER_CONFIG: Record<number, { label: string; color: string }> = {
+  1: { label: "Email Match", color: "#198754" },
+  2: { label: "Phone + Name", color: "#0d6efd" },
+  3: { label: "Phone Only", color: "#fd7e14" },
+  4: { label: "Name + Address", color: "#6f42c1" },
+  5: { label: "Name Only", color: "#dc3545" },
+  6: { label: "Uncertain", color: "#6c757d" },
+};
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+  const offset = parseInt(searchParams.get("offset") || "0");
+  const filter = searchParams.get("filter") || null; // tier1, tier2, tier3, tier4, tier5, uncertain, all
+
+  try {
+    const items: UnifiedReviewItem[] = [];
+
+    // Determine which tiers to fetch based on filter
+    const fetchDedup = !filter || filter === "all" || ["tier1", "tier2", "tier3", "tier5"].includes(filter);
+    const fetchTier4 = !filter || filter === "all" || filter === "tier4";
+    const fetchDataEngine = !filter || filter === "all" || filter === "uncertain";
+
+    // Get tier filter for dedup query
+    let tierFilter = "";
+    if (filter === "tier1") tierFilter = "AND match_tier = 1";
+    else if (filter === "tier2") tierFilter = "AND match_tier = 2";
+    else if (filter === "tier3") tierFilter = "AND match_tier = 3";
+    else if (filter === "tier5") tierFilter = "AND match_tier = 5";
+
+    // 1. Fetch from person_dedup_candidates (excludes tier 4 which we get from tier4 view)
+    if (fetchDedup) {
+      const dedupRows = await queryRows<{
+        canonical_person_id: string;
+        duplicate_person_id: string;
+        match_tier: number;
+        shared_email: string | null;
+        shared_phone: string | null;
+        canonical_name: string;
+        duplicate_name: string;
+        name_similarity: number;
+        canonical_created_at: string;
+        duplicate_created_at: string;
+        canonical_identifiers: number;
+        canonical_places: number;
+        canonical_cats: number;
+        canonical_requests: number;
+        duplicate_identifiers: number;
+        duplicate_places: number;
+        duplicate_cats: number;
+        duplicate_requests: number;
+        created_at: string;
+      }>(`
+        SELECT
+          canonical_person_id::text,
+          duplicate_person_id::text,
+          match_tier,
+          shared_email,
+          shared_phone,
+          canonical_name,
+          duplicate_name,
+          name_similarity,
+          canonical_created_at::text,
+          duplicate_created_at::text,
+          canonical_identifiers,
+          canonical_places,
+          canonical_cats,
+          canonical_requests,
+          duplicate_identifiers,
+          duplicate_places,
+          duplicate_cats,
+          duplicate_requests,
+          created_at::text
+        FROM trapper.v_person_dedup_candidates
+        WHERE (status = 'pending' OR status IS NULL)
+          AND match_tier != 4  -- We get tier 4 from the dedicated view
+          ${tierFilter}
+        ORDER BY created_at ASC
+        LIMIT ${limit} OFFSET ${offset}
+      `, []);
+
+      for (const row of dedupRows) {
+        const tier = row.match_tier;
+        const config = TIER_CONFIG[tier] || TIER_CONFIG[5];
+        items.push({
+          id: `dedup:${row.canonical_person_id}:${row.duplicate_person_id}`,
+          source: "dedup",
+          tier,
+          tierLabel: config.label,
+          tierColor: config.color,
+          similarity: row.name_similarity,
+          matchReason: row.shared_email
+            ? `Email: ${row.shared_email}`
+            : row.shared_phone
+              ? `Phone: ${row.shared_phone}`
+              : "Name similarity",
+          queueHours: (Date.now() - new Date(row.created_at).getTime()) / (1000 * 60 * 60),
+          left: {
+            id: row.canonical_person_id,
+            name: row.canonical_name,
+            emails: row.shared_email ? [row.shared_email] : null,
+            phones: row.shared_phone ? [row.shared_phone] : null,
+            address: null,
+            createdAt: row.canonical_created_at,
+            cats: row.canonical_cats,
+            requests: row.canonical_requests,
+            appointments: 0,
+            places: row.canonical_places,
+          },
+          right: {
+            id: row.duplicate_person_id,
+            name: row.duplicate_name,
+            emails: null,
+            phones: null,
+            address: null,
+            source: null,
+          },
+        });
+      }
+    }
+
+    // 2. Fetch from tier4_pending_review
+    if (fetchTier4) {
+      const tier4Rows = await queryRows<{
+        duplicate_id: string;
+        existing_person_id: string;
+        potential_match_id: string;
+        name_similarity: number;
+        detected_at: string;
+        existing_name: string;
+        existing_created_at: string;
+        existing_emails: string[] | null;
+        existing_phones: string[] | null;
+        new_name: string;
+        new_source: string | null;
+        shared_address: string | null;
+        existing_cat_count: number;
+        existing_request_count: number;
+        existing_appointment_count: number;
+        incoming_email: string | null;
+        incoming_phone: string | null;
+        incoming_address: string | null;
+        hours_in_queue: number;
+        decision_reason: string | null;
+      }>(`
+        SELECT
+          duplicate_id::text,
+          existing_person_id::text,
+          potential_match_id::text,
+          COALESCE(name_similarity, 0)::float as name_similarity,
+          detected_at::text,
+          existing_name,
+          existing_created_at::text,
+          existing_emails,
+          existing_phones,
+          new_name,
+          new_source,
+          shared_address,
+          COALESCE(existing_cat_count, 0)::int as existing_cat_count,
+          COALESCE(existing_request_count, 0)::int as existing_request_count,
+          COALESCE(existing_appointment_count, 0)::int as existing_appointment_count,
+          incoming_email,
+          incoming_phone,
+          incoming_address,
+          COALESCE(hours_in_queue, 0)::float as hours_in_queue,
+          decision_reason
+        FROM trapper.v_tier4_pending_review
+        ORDER BY hours_in_queue DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `, []);
+
+      for (const row of tier4Rows) {
+        const config = TIER_CONFIG[4];
+        items.push({
+          id: `tier4:${row.duplicate_id}`,
+          source: "tier4",
+          tier: 4,
+          tierLabel: config.label,
+          tierColor: config.color,
+          similarity: row.name_similarity,
+          matchReason: row.shared_address
+            ? `Same address: ${row.shared_address}`
+            : row.decision_reason || "Same name + address",
+          queueHours: row.hours_in_queue,
+          left: {
+            id: row.existing_person_id,
+            name: row.existing_name,
+            emails: row.existing_emails,
+            phones: row.existing_phones,
+            address: row.shared_address,
+            createdAt: row.existing_created_at,
+            cats: row.existing_cat_count,
+            requests: row.existing_request_count,
+            appointments: row.existing_appointment_count,
+            places: 0,
+          },
+          right: {
+            id: row.potential_match_id,
+            name: row.new_name,
+            emails: row.incoming_email ? [row.incoming_email] : null,
+            phones: row.incoming_phone ? [row.incoming_phone] : null,
+            address: row.incoming_address,
+            source: row.new_source,
+          },
+        });
+      }
+    }
+
+    // 3. Fetch from data_engine_match_decisions (uncertain matches)
+    if (fetchDataEngine) {
+      const engineRows = await queryRows<{
+        decision_id: string;
+        source_system: string;
+        incoming_email: string | null;
+        incoming_phone: string | null;
+        incoming_name: string | null;
+        incoming_address: string | null;
+        top_candidate_person_id: string | null;
+        top_candidate_name: string | null;
+        top_candidate_score: number | null;
+        decision_reason: string | null;
+        processed_at: string;
+      }>(`
+        SELECT
+          decision_id::text,
+          source_system,
+          input_email as incoming_email,
+          input_phone as incoming_phone,
+          input_name as incoming_name,
+          input_address as incoming_address,
+          matched_person_id::text as top_candidate_person_id,
+          (SELECT display_name FROM trapper.sot_people WHERE person_id = demd.matched_person_id) as top_candidate_name,
+          confidence_score as top_candidate_score,
+          reason as decision_reason,
+          created_at::text as processed_at
+        FROM trapper.data_engine_match_decisions demd
+        WHERE decision_type = 'review_pending'
+          AND reviewed_at IS NULL
+        ORDER BY created_at ASC
+        LIMIT ${limit} OFFSET ${offset}
+      `, []);
+
+      for (const row of engineRows) {
+        const config = TIER_CONFIG[6];
+        items.push({
+          id: `engine:${row.decision_id}`,
+          source: "data_engine",
+          tier: 6,
+          tierLabel: config.label,
+          tierColor: config.color,
+          similarity: row.top_candidate_score || 0,
+          matchReason: row.decision_reason || "Uncertain match",
+          queueHours: (Date.now() - new Date(row.processed_at).getTime()) / (1000 * 60 * 60),
+          left: {
+            id: row.top_candidate_person_id || "",
+            name: row.top_candidate_name || "(no match found)",
+            emails: null,
+            phones: null,
+            address: null,
+            createdAt: null,
+            cats: 0,
+            requests: 0,
+            appointments: 0,
+            places: 0,
+          },
+          right: {
+            id: null,
+            name: row.incoming_name || "(no name)",
+            emails: row.incoming_email ? [row.incoming_email] : null,
+            phones: row.incoming_phone ? [row.incoming_phone] : null,
+            address: row.incoming_address,
+            source: row.source_system,
+          },
+        });
+      }
+    }
+
+    // Sort by queue hours descending (oldest first)
+    items.sort((a, b) => b.queueHours - a.queueHours);
+
+    // Get stats
+    const stats = await queryOne<{
+      total: number;
+      tier1: number;
+      tier2: number;
+      tier3: number;
+      tier4: number;
+      tier5: number;
+      uncertain: number;
+    }>(`
+      SELECT
+        (
+          (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE status = 'pending' OR status IS NULL) +
+          (SELECT COUNT(*) FROM trapper.v_tier4_pending_review) +
+          (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)
+        )::int as total,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 1)::int as tier1,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 2)::int as tier2,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 3)::int as tier3,
+        (SELECT COUNT(*) FROM trapper.v_tier4_pending_review)::int as tier4,
+        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE (status = 'pending' OR status IS NULL) AND match_tier = 5)::int as tier5,
+        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)::int as uncertain
+    `, []);
+
+    return NextResponse.json({
+      items: items.slice(0, limit),
+      stats: stats || { total: 0, tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, uncertain: 0 },
+      pagination: {
+        limit,
+        offset,
+        hasMore: items.length > limit,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching identity reviews:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST: Resolve a review item
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, action, notes } = body;
+
+    if (!id || !action) {
+      return NextResponse.json(
+        { error: "id and action are required" },
+        { status: 400 }
+      );
+    }
+
+    const validActions = ["merge", "keep_separate", "dismiss"];
+    if (!validActions.includes(action)) {
+      return NextResponse.json(
+        { error: `Invalid action. Must be one of: ${validActions.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // Parse the composite ID: source:id1:id2 or source:id
+    const [source, ...idParts] = id.split(":");
+
+    if (source === "dedup") {
+      // Call person-dedup resolution
+      const [canonicalId, duplicateId] = idParts;
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/admin/person-dedup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            canonical_person_id: canonicalId,
+            duplicate_person_id: duplicateId,
+            action,
+          }),
+        }
+      );
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    } else if (source === "tier4") {
+      // Call merge-review resolution
+      const duplicateId = idParts[0];
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/admin/merge-review/${duplicateId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, notes, resolved_by: "unified_review" }),
+        }
+      );
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    } else if (source === "engine") {
+      // Call data-engine review resolution
+      const decisionId = idParts[0];
+      const engineAction = action === "merge" ? "merge" : action === "keep_separate" ? "approve" : "reject";
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/admin/data-engine/review/${decisionId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: engineAction }),
+        }
+      );
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+
+    return NextResponse.json({ error: "Unknown source type" }, { status: 400 });
+  } catch (error) {
+    console.error("Error resolving review:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}

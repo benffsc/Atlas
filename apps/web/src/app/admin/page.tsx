@@ -197,6 +197,13 @@ export default function AdminPage() {
               <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "var(--text-muted)" }}>Data Management</h2>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
                 <AdminCard
+                  href="/admin/reviews"
+                  title="Data Review Hub"
+                  description="Unified review dashboard"
+                  icon="📋"
+                  accent="#f0fdf4"
+                />
+                <AdminCard
                   href="/admin/ingest"
                   title="Data Ingest"
                   description="Sync and import status"
@@ -210,9 +217,9 @@ export default function AdminPage() {
                   accent="#eff6ff"
                 />
                 <AdminCard
-                  href="/admin/data-engine/review"
-                  title="Match Review"
-                  description="Review uncertain matches"
+                  href="/admin/reviews/identity"
+                  title="Identity Review"
+                  description="Person duplicates & matches"
                   icon="🔍"
                   accent="#fef3c7"
                 />
