@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ReviewComparisonCard,
@@ -78,6 +78,14 @@ function formatQueueTime(hours: number): string {
 }
 
 export default function IdentityReviewPage() {
+  return (
+    <Suspense fallback={<div className="loading">Loading reviews...</div>}>
+      <IdentityReviewContent />
+    </Suspense>
+  );
+}
+
+function IdentityReviewContent() {
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get("filter") || "all";
 
