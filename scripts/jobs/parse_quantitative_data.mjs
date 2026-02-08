@@ -214,7 +214,9 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
     } else {
       try {
         // Insert colony estimate if we have total cats
+        // Auto-verify high-confidence results (MIG_942 decision)
         if (data.total_cats) {
+          const isHighConfidence = data.confidence === 'high';
           await pool.query(`
             INSERT INTO trapper.place_colony_estimates (
               place_id,
@@ -227,14 +229,16 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
               observation_date,
               source_system,
               source_record_id,
-              notes
+              notes,
+              verified_at
             ) VALUES (
               $1, $2, $3, $4, $5, $6,
               'ai_parsed',
               COALESCE($7::date, CURRENT_DATE),
               'google_maps_kml',
               $8,
-              $9
+              $9,
+              $10
             )
             ON CONFLICT DO NOTHING
           `, [
@@ -246,9 +250,11 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
             data.cats_eartipped,
             data.observation_date,
             row.entry_id,
-            `AI-parsed from Google Maps entry. Confidence: ${data.confidence}`
+            `AI-parsed from Google Maps entry. Confidence: ${data.confidence}`,
+            isHighConfidence ? new Date() : null  // Auto-verify high confidence
           ]);
           stats.colonyEstimates++;
+          if (isHighConfidence) stats.autoVerified = (stats.autoVerified || 0) + 1;
         }
 
         // Mark as processed
@@ -313,7 +319,9 @@ async function processRequests(pool, anthropic, options, stats) {
       console.log(`${green}found${reset} ${JSON.stringify(data)}`);
     } else {
       try {
+        // Auto-verify high-confidence results (MIG_942 decision)
         if (data.total_cats) {
+          const isHighConfidence = data.confidence === 'high';
           await pool.query(`
             INSERT INTO trapper.place_colony_estimates (
               place_id,
@@ -326,14 +334,16 @@ async function processRequests(pool, anthropic, options, stats) {
               observation_date,
               source_system,
               source_record_id,
-              notes
+              notes,
+              verified_at
             ) VALUES (
               $1, $2, $3, $4, $5, $6,
               'ai_parsed',
               COALESCE($7::date, $8::date, CURRENT_DATE),
               'requests',
               $9,
-              $10
+              $10,
+              $11
             )
             ON CONFLICT DO NOTHING
           `, [
@@ -346,9 +356,11 @@ async function processRequests(pool, anthropic, options, stats) {
             data.observation_date,
             row.source_created_at,
             row.request_id,
-            `AI-parsed from request notes. Confidence: ${data.confidence}`
+            `AI-parsed from request notes. Confidence: ${data.confidence}`,
+            isHighConfidence ? new Date() : null  // Auto-verify high confidence
           ]);
           stats.colonyEstimates++;
+          if (isHighConfidence) stats.autoVerified = (stats.autoVerified || 0) + 1;
         }
 
         console.log(`${green}saved${reset} cats:${data.total_cats || '?'}`);
