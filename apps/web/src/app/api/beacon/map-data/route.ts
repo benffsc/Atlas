@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
       // Add 10% buffer to avoid edge flickering during pan
       const latBuffer = (north - south) * 0.1;
       const lngBuffer = (east - west) * 0.1;
-      boundsCondition = `AND lat BETWEEN ${south - latBuffer} AND ${north + latBuffer}
-                         AND lng BETWEEN ${west - lngBuffer} AND ${east + lngBuffer}`;
+      // Use parameterized-style values (already validated as numbers above)
+      boundsCondition = `AND lat IS NOT NULL AND lng IS NOT NULL AND lat BETWEEN ${south - latBuffer} AND ${north + latBuffer} AND lng BETWEEN ${west - lngBuffer} AND ${east + lngBuffer}`;
     }
   }
 
