@@ -5769,3 +5769,142 @@ Sandra search no longer shows 1,000+ cats - staff pollution is fixed.
 
 Staff pollution is permanently fixed. UI is cohesive and functional.
 
+
+---
+
+## TASK_017: Entity Resolution Architecture Upgrade - Research & Planning
+
+**Status:** Planning Complete
+**Date:** 2026-02-07
+**ACTIVE Impact:** No (research and planning only)
+**Scope:** Industry research on entity resolution best practices; architecture proposal for Atlas
+
+### Context
+
+User reported duplicate person (Cristina Campbell) appearing twice at same address in Atlas map. Investigation revealed:
+- 310 duplicate name groups affecting 699 records
+- 20+ same-name-same-address pairs not merged
+- Business names slipping through org detection (Sonoma Oasis, Anytime Fitness, etc.)
+
+Root causes identified:
+1. **Tier 4 detection not wired to prevention** - `v_person_dedup_candidates` detects same-name-same-address but `data_engine_resolve_identity()` doesn't check during creation
+2. **Missing industry patterns** - Fitness, auto body, spa, pet services not in org detection
+3. **Binary matching** - Current system uses yes/no tiers instead of probabilistic weights
+
+### Industry Research
+
+Studied industry best practices for entity resolution:
+
+**Fellegi-Sunter Framework** (used by CDC, Australian Bureau of Statistics, European Medicines Agency):
+- Calculate m-probability: P(match|truly same person)
+- Calculate u-probability: P(match|truly different people)
+- Match weight = log₂(m/u)
+- Higher weight = more distinctive field
+
+**Entity Resolution Pipeline:**
+```
+Raw Data → Preprocessing → Blocking → Comparison → Matching → Clustering → Golden Record → Identity Graph
+```
+
+**Key Tools Evaluated:**
+- Splink (UK Ministry of Justice) - Python probabilistic linkage
+- Dedupe.io - Active learning deduplication
+- company_designator - Business suffix patterns
+- OpenCorporates - Company database (paid, not needed)
+
+### Codebase Audit Findings
+
+**Current System Strengths:**
+- 5 layers of org detection (defense-in-depth)
+- 150+ ILIKE patterns in known_organizations
+- Centralized functions for entity creation
+- Full audit trail in staged_records and data_engine_match_decisions
+
+**Current System Gaps:**
+- Tier 4 (name+place) only in audit view, not prevention path
+- Missing industry patterns (fitness, auto, spa)
+- Binary tiers instead of probabilistic weights
+- Missing data treated as penalty, not neutral
+- No blocking optimization (O(n²) comparisons)
+- No identity graph for transitive resolution
+
+### Architecture Proposal
+
+**Phase 1: Immediate Fixes (MIG_939)**
+- Add 5 industry regex patterns to `is_organization_or_address_name()`
+- Wire Tier 4 check into `data_engine_resolve_identity()`
+- Create cleanup functions for existing duplicates
+- Merge Cristina Campbell and 20+ others
+
+**Phase 2: Probabilistic Scoring (Future)**
+- New table: `entity_match_weights` with Fellegi-Sunter m/u probabilities
+- New function: `calculate_match_weight()` with configurable weights
+- Handle missing data as neutral (weight = 0)
+- Convert weights to probabilities for decisions
+
+**Phase 3: Blocking Optimization (Future)**
+- New table: `person_blocking_keys` with soundex, metaphone, address prefix
+- Reduce O(n²) comparisons by 90%+
+- Maintain same precision
+
+**Phase 4: Identity Graph (Future)**
+- New tables: `identity_edges`, `identity_clusters`, `identity_cluster_members`
+- Enable transitive resolution (A→B, B→C implies A→C)
+- Prepare for ClinicHQ notes matching when available
+
+### Data Source Authority Map (Confirmed)
+
+| Entity | Primary Source | Secondary | Notes |
+|--------|---------------|-----------|-------|
+| Cat identity | ClinicHQ | ShelterLuv | Microchip is gold standard |
+| Cat outcomes | ShelterLuv | - | Adoption, foster, death |
+| Volunteer roles | VolunteerHub | - | Group membership |
+| Trapper status | VolunteerHub | Airtable (legacy) | Approved Trappers group |
+| Foster status | VolunteerHub | ShelterLuv | VH is primary, SL reinforces |
+| Owner relationships | ClinicHQ | - | Appointment owner info |
+| Request data | Atlas UI | Airtable | Web intake is emerging |
+
+### Expected Data Quality Improvement
+
+| Metric | Current | After Phase 1 | After Phase 4 |
+|--------|---------|---------------|---------------|
+| Duplicate person groups | 310 | ~50 | Near-zero |
+| Same-name-same-address | 20+ | 0 | 0 |
+| Org names as people | 329 | ~0 | ~0 |
+| People quality score | 92.6% | 93%+ | 95%+ |
+
+### Files Created/Modified
+
+| File | Change |
+|------|--------|
+| `/Users/benmisdiaz/.claude/plans/abstract-napping-stardust.md` | Complete architecture proposal |
+
+### Architectural Principles (Solidified)
+
+1. **Use Fellegi-Sunter probabilistic framework** for identity matching
+2. **Defense-in-depth** data validation (5+ layers)
+3. **Progressive quality improvement** - data gets better over time
+4. **Source authority hierarchy** - clear winner for each field type
+5. **Immutable audit trail** - every decision logged
+6. **Configurable, not hardcoded** - rules in database
+
+### Testing Plan
+
+Each phase has:
+- Unit tests for new functions
+- Integration tests for data flow
+- E2E tests for prevention/detection
+- Rollback procedures documented
+
+### Next Steps
+
+1. ✅ Research complete (this task)
+2. 🔲 User approval of plan
+3. 🔲 Implement Phase 1 (MIG_939)
+4. 🔲 Verify Cristina Campbell merged
+5. 🔲 Plan Phase 2-4 timeline
+
+### Stop Point
+
+Research and planning complete. Plan documented in `/Users/benmisdiaz/.claude/plans/abstract-napping-stardust.md`. Awaiting user approval to implement Phase 1 (MIG_939).
+
