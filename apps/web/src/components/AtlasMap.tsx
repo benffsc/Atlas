@@ -647,11 +647,9 @@ export default function AtlasMap() {
         }
       }
 
-      // Add viewport bounds for efficient loading (only load visible pins)
-      if (mapRef.current) {
-        const bounds = mapRef.current.getBounds();
-        params.set("bounds", `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`);
-      }
+      // NOTE: We load all pins at once rather than viewport-based loading.
+      // This gives a slightly longer initial load but instant pan/zoom navigation.
+      // MarkerCluster handles the rendering performance for 12k+ pins efficiently.
 
       const response = await fetch(`/api/beacon/map-data?${params}`);
       if (!response.ok) throw new Error("Failed to fetch map data");
@@ -797,24 +795,9 @@ export default function AtlasMap() {
     return () => clearTimeout(timer);
   }, [fetchMapData]);
 
-  // Refetch data when viewport changes (pan/zoom) - debounced to avoid excessive requests
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    let timer: NodeJS.Timeout;
-    const handleMoveEnd = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        fetchMapData();
-      }, 300); // 300ms debounce for viewport changes
-    };
-
-    mapRef.current.on('moveend', handleMoveEnd);
-    return () => {
-      clearTimeout(timer);
-      mapRef.current?.off('moveend', handleMoveEnd);
-    };
-  }, [fetchMapData]);
+  // NOTE: We intentionally do NOT refetch on pan/zoom. Loading all data once
+  // and letting markercluster handle rendering provides much smoother navigation.
+  // Viewport-based loading caused 20+ second reloads on every pan which was jarring.
 
   // Update places layer
   useEffect(() => {
