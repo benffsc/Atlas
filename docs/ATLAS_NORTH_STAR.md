@@ -515,6 +515,81 @@ ShelterLuv XLSX exports are prone to:
 
 **Applies to:** `should_be_person()`, `classify_owner_name()`, all ClinicHQ processing
 
+### INV-19: Fellegi-Sunter Probabilistic Scoring (Phase 3 - 2026-02-08)
+
+**Core problem:** Fixed-weight identity matching (40% email, 25% phone, etc.) penalizes records with missing data and lacks mathematical foundation for decision thresholds.
+
+**Solution (MIG_947, MIG_948, MIG_949):**
+- Log-odds scoring: `score = Σ log2(M/U)` for agreements, negative weights for disagreements
+- Missing data is neutral (weight = 0), not penalizing
+- Thresholds stored in `fellegi_sunter_thresholds` table (configurable)
+- M/U probabilities stored in `fellegi_sunter_parameters` table (tunable)
+- Match decisions include `fs_composite_score`, `fs_match_probability`, `fs_field_scores`, `comparison_vector`
+
+**When designing new features:**
+1. Use `data_engine_score_candidates_fs()` for identity matching, not legacy function
+2. Decision thresholds come from database, not hardcoded values
+3. Match probability (0-1) is derived from log-odds: `P = 1/(1+2^(-score))`
+4. Display probability percentages to staff, not tier numbers
+5. Field comparison shows agree/disagree/missing, not just match/no-match
+
+**Key Tables:** `fellegi_sunter_parameters`, `fellegi_sunter_thresholds`, `data_engine_match_decisions` (extended columns)
+
+### INV-20: Identity Graph Tracking (Phase 4 - 2026-02-08)
+
+**Core problem:** Merge relationships were tracked only via `merged_into_*_id` columns with no graph structure, making it hard to audit merge history or find transitive relationships.
+
+**Solution (MIG_951, MIG_952):**
+- `identity_edges` table tracks all merge relationships as directed graph
+- Backfilled from existing `merged_into_person_id` and `merged_into_place_id`
+- Triggers automatically record new merges
+- `get_identity_cluster()` enables graph traversal
+- `get_canonical_entity()` resolves to final canonical entity
+- `get_merged_aliases()` finds all entities merged into a canonical
+
+**Edge types:**
+- `merged_into` - Entity A was merged into Entity B (soft delete)
+- `same_as` - Equivalence relationship (not used yet, future)
+- `household_member` - People at same address (related but distinct)
+
+**When designing new features:**
+1. After any merge operation, an edge is automatically recorded via trigger
+2. To find all records related to an entity, use `get_identity_cluster()`
+3. To find the current canonical entity, use `get_canonical_entity()`
+4. Never delete from `identity_edges` - it's an audit trail
+
+**Key Tables:** `identity_edges`
+**Key Views:** `v_identity_graph_stats`, `v_merge_chains`, `v_person_identity_summary`, `v_place_identity_summary`
+
+### INV-21: Stale Reference Prevention (2026-02-08)
+
+**Core problem:** After merging entities, records in relationship tables may still point to the merged (soft-deleted) entity instead of the canonical entity.
+
+**Root cause discovered (MIG_950):** During the identity resolution overhaul, we found:
+- 7,295 cat_place_relationships pointing to merged places
+- 1,258 person_place_relationships pointing to merged entities
+- 592 appointments pointing to merged people
+- Records get stale when merges happen but downstream tables aren't updated
+
+**Solution (MIG_950):**
+- Ran one-time fix to update/delete all stale references
+- For relationship tables: deleted stale records (canonical relationship already existed)
+- For core tables (appointments): updated to point to canonical entity
+
+**When designing new features:**
+1. After merging, check if downstream tables need updating
+2. Use merge-aware queries: `WHERE merged_into_*_id IS NULL`
+3. Consider adding a post-merge hook to update common relationship tables
+4. The `identity_edges` table now provides audit trail for what was merged into what
+
+**Verification queries:**
+```sql
+-- Check for stale references (should all return 0)
+SELECT COUNT(*) FROM trapper.cat_place_relationships cpr
+JOIN trapper.places p ON p.place_id = cpr.place_id
+WHERE p.merged_into_place_id IS NOT NULL;
+```
+
 ---
 
 ## Data Zones
@@ -685,6 +760,17 @@ Ranked by impact (see TASK_LEDGER.md for remediation):
 18. **ShelterLuv outcomes NOT from API**: The 6,420 SL outcome records are from XLSX imports (Jan 9 & 19), not the API cron. The API cron syncs animals/people/events but NOT outcomes. Outcomes should be re-pulled from the API for clean data. INV-16 added.
 19. **Foster home place context gap RESOLVED (MIG_871)**: 95 active foster parents from VolunteerHub had places but 0 tagged as `foster_home`. `link_vh_volunteer_to_place()` now auto-tags foster homes. Backfill applied.
 20. **v_map_atlas_pins view fragmentation RESOLVED (MIG_820 update)**: Multiple migrations (MIG_820, MIG_822, MIG_857) each defined the complete view with different features. Refreshing from any one overwrote the others. MIG_820 now holds the single canonical definition with all features merged. INV-15 added.
+21. **IDENTITY RESOLUTION OVERHAUL COMPLETE (Phase 2-4, 2026-02-08)**:
+    - **Phase 2 (Unified Review Hub)**: Consolidated 6 review pages into `/admin/reviews`. Shared components: ReviewComparisonCard, BatchActionBar, ReviewStatsBar.
+    - **Phase 2.5 (Data Quality)**: Fixed geocoding normalization bug (MIG_946 - root cause of ShelterLuv duplicates), removed Tier 5 name-only matches (MIG_943), auto-verified high-confidence AI estimates (MIG_945).
+    - **Phase 3 (Fellegi-Sunter)**: Implemented probabilistic matching (MIG_947/948/949). Log-odds scoring replaces fixed weights. Missing data is neutral. Staff see probability percentages. INV-19 added.
+    - **Phase 4 (Identity Graph)**: Created `identity_edges` table (MIG_951), transitive closure functions (MIG_952), legacy cleanup (MIG_953). INV-20 added.
+    - **Data Quality Audit**: Verified NO data loss. Fixed 9,000+ stale references (MIG_950). All FK constraints intact. INV-21 added.
+    - **Final counts**: 14,211 active people (92 merged), 13,998 active places (1,918 merged), 36,828 cats, 47,676 appointments.
+    - **Verification (2026-02-08)**: `verify_ingest_routing.mjs` passes 17/17 (1 warning - no recent F-S decisions yet). `data_integrity_edge_cases.mjs` passes 21/21. E2E tests added: `identity-review-workflow.spec.ts`, `tippy-identity-resolution.spec.ts`.
+22. **Geocoding duplicate root cause RESOLVED (MIG_946)**: `save_geocoding_result()` was setting `normalized_address = p_google_address` (raw) instead of `normalize_address(p_google_address)`. This caused case-sensitive mismatches creating duplicates on ShelterLuv imports. Function patched, 679 duplicates merged.
+23. **Stale merged references RESOLVED (MIG_950)**: After soft-delete cleanup, 9,528 records still pointed to merged entities. All updated/deleted to point to canonical entities. Zero stale references remain.
+24. **Identifier backfill RESOLVED (MIG_466 re-run)**: 88% identifier coverage (up from 86%). Remaining gaps are email conflicts (same email linked to different person - expected behavior).
 
 ---
 
@@ -739,3 +825,41 @@ Full task cards in `TASK_LEDGER.md`.
 | `DATA_INGESTION_RULES.md` | Ingest script conventions |
 | `UI_REDESIGN_SPEC.md` | UI redesign spec: nav, profiles, mobile, address mgmt, classification, export |
 | `TIPPY_DATA_QUALITY_REFERENCE.md` | Staff-facing data quality explanations, session logs for Tippy AI |
+
+---
+
+## Data Gap Backlog (For Future Implementation)
+
+### DATA_GAP_024: Reference Pin Source Traceability
+
+**Date Identified:** 2026-02-08
+**Priority:** Medium
+**Impact:** Staff confusion about where people/pins came from
+
+**Problem:**
+Reference pins correctly hold people who reached out but didn't become active (no cats, not volunteer, not adopter, etc.) and legacy Google Maps pins. However, there's no visibility into the SOURCE of these records.
+
+Example: "Jaime Calvillo" at "38 N East St, Cloverdale" shows as "Requester" but staff can't tell:
+- Was this a legacy appointment request?
+- Did they call in?
+- Web intake submission?
+- ClinicHQ record?
+
+**Current State:**
+- `sot_people.data_source` stores the source system
+- `sot_people.source_record_id` stores the original record ID
+- But this isn't exposed in the UI
+
+**Proposed Solution:**
+1. Add source badge to person cards: "via ClinicHQ", "via Web Intake", "via Airtable"
+2. Make source clickable to show original staged_record data
+3. Create `v_person_source_trace` view joining to staged_records
+4. Add "Source History" section to person detail page
+
+**Affected Views:**
+- Person cards in place detail
+- Person detail page
+- Reference pin popups
+
+**Not Blocking:** This is a UX improvement, not data integrity issue.
+

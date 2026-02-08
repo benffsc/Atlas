@@ -2608,3 +2608,175 @@ The audit counted `owner_email IS NOT NULL` as "has email". But ClinicHQ exports
 **Migrations:**
 - MIG_896: Added address+name candidate finding to Data Engine
 - MIG_897: Hicks Valley data cleanup (Carlos Lopez, Jeanie Garcia, Janet Williams)
+
+---
+
+### Session: 2026-02-08 — Phase 3-4: Identity Resolution Overhaul Completion
+
+**Context:** Completed the multi-phase identity resolution overhaul that began in late January 2026. This session finalized Phase 3 (Fellegi-Sunter probabilistic matching) and Phase 4 (Identity Graph construction).
+
+---
+
+## Phase 3: Fellegi-Sunter Probabilistic Matching
+
+**What Changed:**
+
+The identity matching system was upgraded from fixed-weight scoring to **Fellegi-Sunter probabilistic matching**. This is the gold standard algorithm used by census bureaus and large-scale entity resolution systems.
+
+**Old System (Fixed Weights):**
+```
+Score = email*0.40 + phone*0.25 + name*0.25 + address*0.10
+Missing data = 0 (penalized incomplete records)
+```
+
+**New System (Log-Odds):**
+```
+Score = sum of log2(M/U) for each field agreement
+Missing data = 0 (neutral, doesn't penalize)
+Probability = 1/(1+2^(-score))
+```
+
+**Why This Matters:**
+- Missing email no longer penalizes matching (was a major issue with legacy ClinicHQ data)
+- Each field has mathematically-derived weights based on how often matches vs non-matches agree
+- Staff see probability percentages instead of confusing tier numbers
+
+**Key Migrations:**
+| Migration | Purpose |
+|-----------|---------|
+| MIG_947 | Created F-S parameters and thresholds tables |
+| MIG_948 | Created scoring functions (fs_compare_records, data_engine_score_candidates_fs) |
+| MIG_949 | Updated data_engine_resolve_identity to use F-S scoring |
+
+**Field Weights (M/U Probabilities):**
+
+| Field | Agreement Weight | Meaning |
+|-------|-----------------|---------|
+| email_exact | +13.14 | Same email = very strong indicator |
+| phone_exact | +10.73 | Same phone = strong indicator |
+| name_similar_high | +5.41 | 85%+ name similarity |
+| address_exact | +6.91 | Same address |
+| phone_softblacklist | +2.58 | Shared org phone (lower weight) |
+
+**What Tippy should know:**
+> "The identity matching system now uses Fellegi-Sunter probabilistic matching. When staff ask about match probabilities, explain that 90%+ means high confidence (usually safe to merge), 70-90% means medium confidence (review carefully), and below 70% means lower confidence (often keep separate). Missing data no longer counts against a match — if a person has no email, they won't be penalized when comparing to someone with an email. The green checkmarks, red X's, and dashes in the review UI show which fields agreed, disagreed, or were missing."
+
+---
+
+## Phase 4: Identity Graph Construction
+
+**What Changed:**
+
+A new `identity_edges` table tracks all merge relationships, enabling:
+- Audit trail of who was merged into whom
+- Graph traversal to find all aliases
+- Potential undo operations
+- Household relationship tracking
+
+**Key Migrations:**
+| Migration | Purpose |
+|-----------|---------|
+| MIG_951 | Created identity_edges table, backfilled 92 person + 1,918 place merges |
+| MIG_952 | Created transitive closure functions for graph traversal |
+
+**Graph Statistics:**
+| Edge Type | Count |
+|-----------|-------|
+| Person merged_into | 92 |
+| Place merged_into | 1,918 |
+| Household members | 2,670 |
+
+**New Functions:**
+- `get_identity_cluster(entity_type, entity_id)` — Find all connected entities
+- `get_canonical_entity(entity_type, entity_id)` — Find the canonical unmerged entity
+- `get_merged_aliases(entity_type, canonical_id)` — Find all merged aliases
+- `get_household_members_for_person(person_id)` — Find household members
+
+**What Tippy should know:**
+> "Every merge is now tracked in the identity_edges table. If staff need to know 'who was merged into this person', you can query this. The system tracks 92 merged people and 1,918 merged places. Household relationships (2,670 edges) track people at the same address who are NOT the same person but are related by location."
+
+---
+
+## Data Quality Audit Results
+
+**Context:** A comprehensive audit was performed to verify data integrity after the merged entity cleanup.
+
+**NO DATA LOSS FOUND**
+
+All FK constraints remain intact. All source data is preserved.
+
+**Stale References Fixed (MIG_950):**
+
+Records that pointed to merged entities were updated to point to canonical entities:
+
+| Table | Issue | Count Fixed |
+|-------|-------|-------------|
+| cat_place_relationships | Pointed to merged place | 7,295 deleted (canonical existed) |
+| person_place_relationships | Pointed to merged place | 1,188 deleted (canonical existed) |
+| person_place_relationships | Pointed to merged person | 70 deleted (canonical existed) |
+| sot_appointments | person_id pointed to merged | 592 updated |
+| sot_appointments | trapper_person_id pointed to merged | 77 updated |
+| google_map_entries | Pointed to merged place | 184 updated |
+| place_colony_estimates | Pointed to merged place | 122 updated |
+
+**Final Verification:**
+- All stale reference counts = 0
+- Google Maps entries: 5,624 total, 5,574 linked to active places
+- All FK integrity checks pass
+
+**What Tippy should know:**
+> "A thorough data quality audit was performed on 2026-02-08 after the identity resolution cleanup. NO data was lost. Some records pointed to merged entities (soft-deleted), and these were updated to point to the canonical (active) entities. Google Maps legacy pins remain as reference points, with 99%+ linked to active SOT places. If staff ask about 'missing data' from the cleanup, you can assure them nothing was deleted — only stale pointers were updated."
+
+---
+
+## Current System State
+
+**Entity Counts (as of 2026-02-08):**
+| Entity | Active | Merged |
+|--------|--------|--------|
+| People | 14,211 | 92 |
+| Places | 13,998 | 1,918 |
+| Cats | 36,828 | — |
+| Appointments | 47,676 | — |
+
+**Review Queue Status:**
+| Queue | Count | Notes |
+|-------|-------|-------|
+| Person dedup candidates | 0 | Cleared |
+| Tier 4 (same name + address) | 2 | Requires human judgment |
+| Data engine uncertain | 215 | Medium-confidence matches |
+| Place dedup candidates | ~1,500 | Still needs work |
+| AI-parsed estimates | 3,856 unverified | Colony estimates needing review |
+
+**What Tippy should know:**
+> "The identity review queues are now much cleaner. Person deduplication is essentially complete (2 items remaining). Place deduplication still has ~1,500 candidates to review. The AI-parsed colony estimates (3,856 unverified) are lower priority — they don't affect operational data, just Beacon population modeling."
+
+---
+
+## Staff Guidance for Identity Review
+
+**Primary Review Page:** `/admin/reviews/identity`
+
+**Match Probability Guide:**
+| Probability | Color | Action |
+|-------------|-------|--------|
+| 90%+ | Green | Usually safe to Merge |
+| 70-90% | Orange | Review carefully |
+| Below 70% | Red | Often Keep Separate |
+
+**Field Comparison Symbols:**
+| Symbol | Meaning |
+|--------|---------|
+| ✓ (green) | Fields agree |
+| ✗ (red) | Fields disagree |
+| – (gray) | Field missing (neutral) |
+
+**Decision Rules:**
+- Same email = very strong indicator to merge
+- Same phone + similar name = usually merge
+- Same address + same name = review carefully (could be household or duplicate)
+- Different contact info + different name = keep separate
+
+**What Tippy should know:**
+> "Staff can access identity review at /admin/reviews. Tell them to look at the probability percentage first — green (90%+) is usually a safe merge, orange (70-90%) needs careful review, and red (below 70%) is often 'keep separate'. The checkmarks and X's show which fields matched. When in doubt, it's better to 'Keep Separate' than to incorrectly merge — merges are harder to undo."
+

@@ -18,6 +18,11 @@ interface UnifiedReviewItem {
   similarity: number;
   matchReason: string;
   queueHours: number;
+  // Fellegi-Sunter fields (MIG_949)
+  matchProbability: number | null;
+  compositeScore: number | null;
+  fieldScores: Record<string, number> | null;
+  comparisonVector: Record<string, string> | null;
   left: {
     id: string;
     name: string;
@@ -282,20 +287,20 @@ function IdentityReviewContent() {
         }}
       >
         <div style={{ fontWeight: 600, marginBottom: "0.5rem", fontSize: "0.875rem" }}>
-          Review Guide:
+          Review Guide (Fellegi-Sunter Probabilistic Matching):
         </div>
         <ul style={{ margin: 0, paddingLeft: "1.25rem", fontSize: "0.8125rem", color: "#334155" }}>
           <li>
-            <strong>Same name, different phone/email:</strong> Usually same person with new contact info. <strong>Merge</strong>.
+            <strong style={{ color: "#198754" }}>90%+ probability:</strong> High confidence match. Email/phone agreement strongly indicates same person. <strong>Merge</strong>.
           </li>
           <li>
-            <strong>Different names, shared identifier:</strong> Likely household members or organization. <strong>Keep Separate</strong>.
+            <strong style={{ color: "#fd7e14" }}>70-90% probability:</strong> Medium confidence. Review field comparison for agree/disagree/missing. <strong>Merge</strong> if fields make sense.
           </li>
           <li>
-            <strong>Name + Address match:</strong> High confidence same person. <strong>Merge</strong> unless different contacts suggest otherwise.
+            <strong style={{ color: "#dc3545" }}>Below 70%:</strong> Lower confidence. Check if different names at same address (household) or similar names different people. <strong>Keep Separate</strong> if unsure.
           </li>
           <li>
-            <strong>Uncertain (50-80%):</strong> Review carefully. Business names or similar names at different locations.
+            <strong>Field weights:</strong> Green check = agreement (positive weight), Red X = disagreement (negative weight), Dash = missing (neutral, weight = 0).
           </li>
         </ul>
       </div>
@@ -355,6 +360,10 @@ function IdentityReviewContent() {
             matchTypeColor={item.tierColor}
             similarity={item.similarity}
             similarityLabel="name match"
+            matchProbability={item.matchProbability}
+            compositeScore={item.compositeScore}
+            fieldScores={item.fieldScores}
+            comparisonVector={item.comparisonVector}
             leftEntity={{
               id: item.left.id,
               name: item.left.name,

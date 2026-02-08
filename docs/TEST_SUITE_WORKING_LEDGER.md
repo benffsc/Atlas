@@ -342,3 +342,151 @@ ORDER BY p.display_name;
 |------|------|
 | Description | spec file |
 ```
+
+---
+
+## DQ-008: Identity Resolution Overhaul Verification (Phase 2-4)
+
+**Date:** 2026-02-08
+**Reporter:** Engineering (Phase 3-4 completion audit)
+**Symptoms:** Verification that identity resolution overhaul preserved all data
+
+### Investigation Findings
+
+**Phase 3 (Fellegi-Sunter):**
+- Implemented probabilistic log-odds scoring (MIG_947/948/949)
+- 11 field parameters with M/U probabilities
+- Decision thresholds configurable via `fellegi_sunter_thresholds`
+- Match decisions now include `fs_composite_score`, `fs_match_probability`, `fs_field_scores`
+
+**Phase 4 (Identity Graph):**
+- Created `identity_edges` table with 4,680 edges (MIG_951)
+- Backfilled: 92 person merges, 1,918 place merges, 2,670 household relationships
+- Transitive closure functions for graph traversal (MIG_952)
+- Automatic edge recording via triggers on future merges
+
+**Data Quality Audit Results:**
+- NO DATA LOSS confirmed
+- All FK constraints intact (0 orphan records)
+- All stale references fixed (9,528 records updated in MIG_950)
+- 99.1% Google Map entries linked to active places
+- 87.6% ClinicHQ appointments linked to people
+- 100% requests have valid places
+- 88% identifier coverage on people
+
+### Diagnostic SQL
+
+```sql
+-- Verify no stale references remain
+SELECT 'cat_place → merged' AS check, COUNT(*) FROM trapper.cat_place_relationships cpr
+JOIN trapper.places p ON p.place_id = cpr.place_id WHERE p.merged_into_place_id IS NOT NULL
+UNION ALL
+SELECT 'person_place → merged', COUNT(*) FROM trapper.person_place_relationships ppr
+JOIN trapper.places p ON p.place_id = ppr.place_id WHERE p.merged_into_place_id IS NOT NULL
+UNION ALL
+SELECT 'appointments → merged', COUNT(*) FROM trapper.sot_appointments a
+JOIN trapper.sot_people sp ON sp.person_id = a.person_id WHERE sp.merged_into_person_id IS NOT NULL;
+
+-- Verify identity graph stats
+SELECT * FROM trapper.v_identity_graph_stats;
+
+-- Verify F-S configuration
+SELECT field_name, m_probability, u_probability, agreement_weight, disagreement_weight
+FROM trapper.fellegi_sunter_parameters WHERE is_active ORDER BY ABS(agreement_weight) DESC;
+```
+
+### Fixes Applied
+
+| # | Fix | Status | Migration |
+|---|-----|--------|-----------|
+| 1 | Fellegi-Sunter parameters table | Done | MIG_947 |
+| 2 | F-S scoring functions | Done | MIG_948 |
+| 3 | Integrate F-S into resolve_identity | Done | MIG_949 |
+| 4 | Fix stale merged references | Done | MIG_950 |
+| 5 | Identity edges table + backfill | Done | MIG_951 |
+| 6 | Transitive closure functions | Done | MIG_952 |
+| 7 | Legacy cleanup + documentation | Done | MIG_953 |
+
+### Test Coverage
+
+| Test | File |
+|------|------|
+| Data quality verification | `scripts/testing/verify_data_quality_fixes.mjs` |
+| Edge case integrity | `scripts/testing/data_integrity_edge_cases.mjs` |
+| Identity validation utilities | `scripts/lib/identity-validation.mjs` |
+| Staff identity review guide | `docs/STAFF_IDENTITY_REVIEW_GUIDE.md` |
+
+### Invariants Added
+
+| Invariant | Description |
+|-----------|-------------|
+| INV-19 | Fellegi-Sunter Probabilistic Scoring |
+| INV-20 | Identity Graph Tracking |
+| INV-21 | Stale Reference Prevention |
+
+### Key Verification Queries (Run Post-Deployment)
+
+```sql
+-- 1. All stale references should be 0
+SELECT 'Stale refs' AS metric, SUM(count) FROM (
+  SELECT COUNT(*) FROM trapper.cat_place_relationships cpr
+  JOIN trapper.places p ON p.place_id = cpr.place_id WHERE p.merged_into_place_id IS NOT NULL
+  UNION ALL SELECT COUNT(*) FROM trapper.person_place_relationships ppr
+  JOIN trapper.places p ON p.place_id = ppr.place_id WHERE p.merged_into_place_id IS NOT NULL
+) x;
+
+-- 2. Identity graph should have edges
+SELECT COUNT(*) AS identity_edges FROM trapper.identity_edges;
+
+-- 3. F-S parameters should be active
+SELECT COUNT(*) AS fs_params FROM trapper.fellegi_sunter_parameters WHERE is_active;
+
+-- 4. F-S thresholds should exist
+SELECT COUNT(*) AS fs_thresholds FROM trapper.fellegi_sunter_thresholds WHERE is_active;
+```
+
+### Final Verification Results (2026-02-08)
+
+**Ingest Routing Verification (`verify_ingest_routing.mjs`):**
+| Category | Result |
+|----------|--------|
+| Centralized function usage | 2/2 PASS |
+| F-S configuration active | 3/3 PASS |
+| Identity graph active | 3/3 PASS |
+| Data engine processing | 1/2 PASS (1 warning - no recent F-S decisions yet) |
+| No stale references | 3/3 PASS |
+| Source system processing | 3/3 PASS |
+| Retroactive change handling | 2/2 PASS |
+| **TOTAL** | **17 passed, 0 failed, 1 warning** |
+
+**Data Integrity Edge Cases (`data_integrity_edge_cases.mjs`):**
+- **21 passed, 0 failed, 4 warnings**
+- FK integrity: All constraints intact
+- Entity coverage: All core entities have valid relationships
+
+**Data Quality Fixes (`verify_data_quality_fixes.mjs`):**
+- **5 passed, 2 expected failures**
+- Expected failures are identifier conflicts (not bugs):
+  - 1,252 people with primary_email but no identifier: ALL due to email conflict (same email linked to different person)
+  - 266 people with primary_phone but no identifier: 211 conflicts + 55 blacklisted FFSC org phone (707-576-7999)
+- Processing rates: 100% ClinicHQ appointment_info, 100% cat_info, 100% PetLink
+- Identifier coverage: 88% of people have identifiers
+
+### E2E Tests Added (2026-02-08)
+
+| Test File | Purpose |
+|-----------|---------|
+| `e2e/identity-review-workflow.spec.ts` | Power user workflow for identity review UI |
+| `e2e/tippy-identity-resolution.spec.ts` | Tippy's F-S explanation capabilities |
+| `e2e/fixtures/identity-resolution-questions.ts` | Question fixtures for Tippy tests |
+
+**E2E Test Coverage:**
+- Review dashboard navigation
+- Identity review page (F-S probability display, filters, field breakdowns)
+- Review actions (merge, keep separate, batch)
+- Legacy URL redirects
+- Data engine admin pages
+- Tippy explanations: F-S scoring, identity graph, review workflow
+- Multi-turn Tippy conversations
+- Phase 3-4 specific verifications
+

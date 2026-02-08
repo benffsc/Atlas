@@ -38,11 +38,90 @@ export interface ReviewComparisonCardProps {
   decisionReason?: string;
   isSelected?: boolean;
   isResolving?: boolean;
+  // Fellegi-Sunter fields (MIG_949)
+  matchProbability?: number | null;
+  compositeScore?: number | null;
+  fieldScores?: Record<string, number> | null;
+  comparisonVector?: Record<string, string> | null;
   onSelect?: (id: string) => void;
   onMerge?: (id: string) => void;
   onKeepSeparate?: (id: string) => void;
   onDismiss?: (id: string) => void;
   children?: ReactNode;
+}
+
+function FieldComparisonVector({
+  fieldScores,
+  comparisonVector,
+}: {
+  fieldScores?: Record<string, number> | null;
+  comparisonVector?: Record<string, string> | null;
+}) {
+  if (!comparisonVector && !fieldScores) return null;
+
+  const fields = comparisonVector
+    ? Object.entries(comparisonVector)
+    : fieldScores
+      ? Object.entries(fieldScores).map(([k, v]) => [k, v > 0 ? "agree" : v < 0 ? "disagree" : "missing"])
+      : [];
+
+  if (fields.length === 0) return null;
+
+  const fieldLabels: Record<string, string> = {
+    email_exact: "Email",
+    phone_exact: "Phone",
+    phone_softblacklist: "Phone (shared)",
+    name_exact: "Name (exact)",
+    name_similar_high: "Name",
+    name_similar_med: "Name (partial)",
+    address_exact: "Address",
+    address_proximity: "Address (nearby)",
+  };
+
+  const statusIcons: Record<string, { icon: string; color: string }> = {
+    agree: { icon: "✓", color: "#198754" },
+    disagree: { icon: "✗", color: "#dc3545" },
+    missing: { icon: "–", color: "#6c757d" },
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "0.5rem",
+        flexWrap: "wrap",
+        marginTop: "0.5rem",
+        fontSize: "0.75rem",
+      }}
+    >
+      {fields.map(([field, status]) => {
+        const label = fieldLabels[field] || field.replace(/_/g, " ");
+        const { icon, color } = statusIcons[status as string] || statusIcons.missing;
+        const weight = fieldScores?.[field];
+        return (
+          <span
+            key={field}
+            title={weight ? `Weight: ${weight > 0 ? "+" : ""}${weight.toFixed(2)}` : undefined}
+            style={{
+              padding: "0.15rem 0.4rem",
+              background: `${color}15`,
+              border: `1px solid ${color}40`,
+              borderRadius: "4px",
+              color,
+              fontWeight: 500,
+            }}
+          >
+            {icon} {label}
+            {weight !== undefined && weight !== 0 && (
+              <span style={{ opacity: 0.7, marginLeft: "0.25rem" }}>
+                ({weight > 0 ? "+" : ""}{weight.toFixed(1)})
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 function EntityStatPills({ stats }: { stats: EntitySide["stats"] }) {
@@ -161,18 +240,24 @@ export function ReviewComparisonCard({
   decisionReason,
   isSelected = false,
   isResolving = false,
+  matchProbability,
+  compositeScore,
+  fieldScores,
+  comparisonVector,
   onSelect,
   onMerge,
   onKeepSeparate,
   onDismiss,
   children,
 }: ReviewComparisonCardProps) {
-  const similarityColor =
-    similarity >= 0.85
-      ? "#198754"
-      : similarity >= 0.5
-        ? "#fd7e14"
-        : "#dc3545";
+  // Use matchProbability if available (F-S), otherwise fall back to similarity
+  const displayProbability = matchProbability ?? similarity;
+  const probabilityColor =
+    displayProbability >= 0.9
+      ? "#198754"  // Green for high confidence
+      : displayProbability >= 0.7
+        ? "#fd7e14"  // Orange for medium
+        : "#dc3545"; // Red for low
 
   return (
     <div
@@ -243,28 +328,33 @@ export function ReviewComparisonCard({
           borderColor="rgba(25, 135, 84, 0.2)"
         />
 
-        {/* Similarity Indicator */}
+        {/* Probability Indicator */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            minWidth: "60px",
+            minWidth: "80px",
           }}
         >
           <div
             style={{
               fontSize: "1.4rem",
               fontWeight: 700,
-              color: similarityColor,
+              color: probabilityColor,
             }}
           >
-            {Math.round(similarity * 100)}%
+            {Math.round(displayProbability * 100)}%
           </div>
           <div className="text-muted" style={{ fontSize: "0.7rem" }}>
-            {similarityLabel}
+            {matchProbability !== null && matchProbability !== undefined ? "probability" : similarityLabel}
           </div>
+          {compositeScore !== null && compositeScore !== undefined && (
+            <div className="text-muted" style={{ fontSize: "0.65rem", marginTop: "0.25rem" }}>
+              score: {compositeScore > 0 ? "+" : ""}{compositeScore.toFixed(1)}
+            </div>
+          )}
         </div>
 
         <EntityCard
@@ -288,6 +378,26 @@ export function ReviewComparisonCard({
           }}
         >
           <strong>Detection:</strong> {decisionReason}
+        </div>
+      )}
+
+      {/* Field Comparison Vector (F-S) */}
+      {(fieldScores || comparisonVector) && (
+        <div
+          style={{
+            marginTop: "0.5rem",
+            padding: "0.5rem 0.75rem",
+            background: "var(--bg-muted)",
+            borderRadius: "4px",
+          }}
+        >
+          <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>
+            <strong>Field Comparison:</strong>
+          </div>
+          <FieldComparisonVector
+            fieldScores={fieldScores}
+            comparisonVector={comparisonVector}
+          />
         </div>
       )}
 

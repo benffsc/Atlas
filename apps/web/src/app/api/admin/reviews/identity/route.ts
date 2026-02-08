@@ -21,6 +21,11 @@ export interface UnifiedReviewItem {
   similarity: number;
   matchReason: string;
   queueHours: number;
+  // Fellegi-Sunter fields (MIG_949)
+  matchProbability: number | null;
+  compositeScore: number | null;
+  fieldScores: Record<string, number> | null;
+  comparisonVector: Record<string, string> | null;
   left: {
     id: string;
     name: string;
@@ -110,6 +115,9 @@ export async function GET(request: NextRequest) {
       for (const row of dedupRows) {
         const tier = row.match_tier;
         const config = TIER_CONFIG[tier] || TIER_CONFIG[5];
+        // Dedup items don't have F-S scores yet (they use legacy matching)
+        // We estimate probability based on tier for display consistency
+        const estimatedProbability = tier === 1 ? 0.99 : tier === 2 ? 0.90 : tier === 3 ? 0.75 : 0.60;
         items.push({
           id: `dedup:${row.canonical_person_id}:${row.duplicate_person_id}`,
           source: "dedup",
@@ -123,6 +131,10 @@ export async function GET(request: NextRequest) {
               ? `Phone: ${row.shared_phone}`
               : "Name similarity",
           queueHours: (Date.now() - new Date(row.canonical_created_at).getTime()) / (1000 * 60 * 60),
+          matchProbability: estimatedProbability,
+          compositeScore: null,
+          fieldScores: null,
+          comparisonVector: null,
           left: {
             id: row.canonical_person_id,
             name: row.canonical_name,
@@ -199,6 +211,7 @@ export async function GET(request: NextRequest) {
 
       for (const row of tier4Rows) {
         const config = TIER_CONFIG[4];
+        // Tier 4 has name+address agreement - estimate probability ~85%
         items.push({
           id: `tier4:${row.duplicate_id}`,
           source: "tier4",
@@ -210,6 +223,10 @@ export async function GET(request: NextRequest) {
             ? `Same address: ${row.shared_address}`
             : row.decision_reason || "Same name + address",
           queueHours: row.hours_in_queue,
+          matchProbability: 0.85,
+          compositeScore: null,
+          fieldScores: null,
+          comparisonVector: { name_similar_high: "agree", address_exact: "agree" },
           left: {
             id: row.existing_person_id,
             name: row.existing_name,
@@ -248,28 +265,39 @@ export async function GET(request: NextRequest) {
         top_candidate_score: number | null;
         decision_reason: string | null;
         processed_at: string;
+        // F-S fields (MIG_949)
+        fs_composite_score: number | null;
+        fs_match_probability: number | null;
+        fs_field_scores: Record<string, number> | null;
+        comparison_vector: Record<string, string> | null;
       }>(`
         SELECT
           decision_id::text,
           source_system,
-          input_email as incoming_email,
-          input_phone as incoming_phone,
-          input_name as incoming_name,
-          input_address as incoming_address,
-          matched_person_id::text as top_candidate_person_id,
-          (SELECT display_name FROM trapper.sot_people WHERE person_id = demd.matched_person_id) as top_candidate_name,
-          confidence_score as top_candidate_score,
-          reason as decision_reason,
-          created_at::text as processed_at
+          incoming_email,
+          incoming_phone,
+          incoming_name,
+          incoming_address,
+          top_candidate_person_id::text,
+          (SELECT display_name FROM trapper.sot_people WHERE person_id = demd.top_candidate_person_id) as top_candidate_name,
+          top_candidate_score,
+          decision_reason,
+          created_at::text as processed_at,
+          fs_composite_score::numeric,
+          fs_match_probability::numeric,
+          fs_field_scores,
+          comparison_vector
         FROM trapper.data_engine_match_decisions demd
         WHERE decision_type = 'review_pending'
-          AND reviewed_at IS NULL
+          AND review_status = 'needs_review'
         ORDER BY created_at ASC
         LIMIT ${limit} OFFSET ${offset}
       `, []);
 
       for (const row of engineRows) {
         const config = TIER_CONFIG[6];
+        // Use F-S probability if available, otherwise fall back to legacy score
+        const probability = row.fs_match_probability ?? row.top_candidate_score ?? 0;
         items.push({
           id: `engine:${row.decision_id}`,
           source: "data_engine",
@@ -279,6 +307,10 @@ export async function GET(request: NextRequest) {
           similarity: row.top_candidate_score || 0,
           matchReason: row.decision_reason || "Uncertain match",
           queueHours: (Date.now() - new Date(row.processed_at).getTime()) / (1000 * 60 * 60),
+          matchProbability: probability,
+          compositeScore: row.fs_composite_score,
+          fieldScores: row.fs_field_scores,
+          comparisonVector: row.comparison_vector,
           left: {
             id: row.top_candidate_person_id || "",
             name: row.top_candidate_name || "(no match found)",
