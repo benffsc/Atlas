@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
 
@@ -1045,9 +1045,6 @@ export async function PATCH(
         }
       }
     }
-
-    // Invalidate map cache so changes appear immediately
-    revalidateTag("map-data");
 
     // Revalidate cached pages that show request data
     revalidatePath("/"); // Dashboard
