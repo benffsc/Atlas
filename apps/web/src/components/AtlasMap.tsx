@@ -647,6 +647,12 @@ export default function AtlasMap() {
         }
       }
 
+      // Add viewport bounds for efficient loading (only load visible pins)
+      if (mapRef.current) {
+        const bounds = mapRef.current.getBounds();
+        params.set("bounds", `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`);
+      }
+
       const response = await fetch(`/api/beacon/map-data?${params}`);
       if (!response.ok) throw new Error("Failed to fetch map data");
 
@@ -683,6 +689,8 @@ export default function AtlasMap() {
 
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
+      // Use Canvas instead of SVG for 2-3x faster marker rendering
+      preferCanvas: true,
       // Smooth trackpad/scroll zoom
       scrollWheelZoom: true,
       wheelDebounceTime: 80,
@@ -787,6 +795,25 @@ export default function AtlasMap() {
       fetchMapData();
     }, 150);
     return () => clearTimeout(timer);
+  }, [fetchMapData]);
+
+  // Refetch data when viewport changes (pan/zoom) - debounced to avoid excessive requests
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    let timer: NodeJS.Timeout;
+    const handleMoveEnd = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        fetchMapData();
+      }, 300); // 300ms debounce for viewport changes
+    };
+
+    mapRef.current.on('moveend', handleMoveEnd);
+    return () => {
+      clearTimeout(timer);
+      mapRef.current?.off('moveend', handleMoveEnd);
+    };
   }, [fetchMapData]);
 
   // Update places layer

@@ -34,6 +34,19 @@ export async function GET(req: NextRequest) {
   const diseaseFilterParam = searchParams.get("disease_filter") || "";
   const diseaseFilterKeys = diseaseFilterParam ? diseaseFilterParam.split(",").map(k => k.trim()).filter(Boolean) : [];
 
+  // Parse bounds for viewport-based loading (format: south,west,north,east)
+  let boundsCondition = "";
+  if (bounds) {
+    const [south, west, north, east] = bounds.split(",").map(Number);
+    if (!isNaN(south) && !isNaN(west) && !isNaN(north) && !isNaN(east)) {
+      // Add 10% buffer to avoid edge flickering during pan
+      const latBuffer = (north - south) * 0.1;
+      const lngBuffer = (east - west) * 0.1;
+      boundsCondition = `AND lat BETWEEN ${south - latBuffer} AND ${north + latBuffer}
+                         AND lng BETWEEN ${west - lngBuffer} AND ${east + lngBuffer}`;
+    }
+  }
+
   const result: {
     // NEW consolidated layers
     atlas_pins?: Array<{
@@ -279,6 +292,7 @@ export async function GET(req: NextRequest) {
         FROM trapper.v_map_atlas_pins
         WHERE 1=1
           ${zone ? `AND service_zone = '${zone}'` : ""}
+          ${boundsCondition}
           ${riskCondition}
           ${dataCondition}
           ${diseaseCondition}
@@ -757,7 +771,12 @@ export async function GET(req: NextRequest) {
     `);
     result.summary = summary[0];
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        // Map data cached for 2 minutes, serve stale for 5 more while revalidating
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Error fetching map data:", error);
     return NextResponse.json(

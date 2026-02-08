@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits, logFieldEdit, detectChanges, type FieldChange } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
@@ -451,6 +452,9 @@ export async function PATCH(
         { status: 404 }
       );
     }
+
+    // Invalidate map cache so changes appear immediately
+    revalidateTag("map-data");
 
     return NextResponse.json({
       success: true,
