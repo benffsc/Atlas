@@ -2463,23 +2463,7 @@ export default function AtlasMap() {
         <button
           onClick={() => setShowLayerPanel(!showLayerPanel)}
           title="Toggle layers (L)"
-          style={{
-            background: "white",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 14px",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            fontSize: 14,
-            fontWeight: 500,
-            transition: "background 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+          className="map-control-btn"
         >
           <span style={{ fontSize: 18 }}>☰</span>
           {!isMobile && "Layers"}
@@ -2498,64 +2482,22 @@ export default function AtlasMap() {
               }
             }}
             title="Add point to map (A)"
-            style={{
-              background: addPointMode ? "#2563eb" : "white",
-              border: "none",
-              borderRadius: 8,
-              padding: "10px 14px",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-              fontSize: 14,
-              fontWeight: 500,
-              color: addPointMode ? "white" : "#374151",
-              transition: "background 0.2s, color 0.2s",
-            }}
-            onMouseEnter={(e) => { if (!addPointMode) e.currentTarget.style.background = "#f9fafb"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = addPointMode ? "#2563eb" : "white"; }}
+            className={`map-control-btn ${addPointMode ? 'map-control-btn--active' : ''}`}
           >
             <span style={{ fontSize: 18 }}>{addPointMode ? "✕" : "+"}</span>
             {!isMobile && (addPointMode ? "Cancel" : "Add Point")}
           </button>
           {showAddPointMenu && !addPointMode && (
-            <div style={{
-              position: "absolute",
-              top: "100%",
-              right: 0,
-              marginTop: 4,
-              background: "white",
-              borderRadius: 8,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              overflow: "hidden",
-              minWidth: 160,
-              zIndex: 1001,
-            }}>
+            <div className="map-add-point-menu">
               <button
                 onClick={() => { setAddPointMode('place'); setShowAddPointMenu(false); }}
-                style={{
-                  display: "block", width: "100%", padding: "10px 14px", border: "none",
-                  background: "white", textAlign: "left", cursor: "pointer",
-                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                  fontSize: 13, fontWeight: 500, color: "#374151",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#f3f4f6"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "white"}
+                className="map-add-point-menu__item"
               >
                 📍 Add Place
               </button>
               <button
                 onClick={() => { setAddPointMode('annotation'); setShowAddPointMenu(false); }}
-                style={{
-                  display: "block", width: "100%", padding: "10px 14px", border: "none",
-                  background: "white", textAlign: "left", cursor: "pointer", borderTop: "1px solid #f3f4f6",
-                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                  fontSize: 13, fontWeight: 500, color: "#374151",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#f3f4f6"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "white"}
+                className="map-add-point-menu__item"
               >
                 📝 Add Note
               </button>
@@ -2568,25 +2510,8 @@ export default function AtlasMap() {
           onClick={handleMyLocation}
           disabled={locatingUser}
           title="My location (M)"
-          style={{
-            background: "white",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 14px",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-            cursor: locatingUser ? "wait" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            fontSize: 14,
-            fontWeight: 500,
-            opacity: locatingUser ? 0.7 : 1,
-            transition: "background 0.2s, opacity 0.2s",
-          }}
-          onMouseEnter={(e) => !locatingUser && (e.currentTarget.style.background = "#f9fafb")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+          className="map-control-btn"
+          style={{ opacity: locatingUser ? 0.7 : 1, cursor: locatingUser ? "wait" : "pointer" }}
         >
           <span style={{ fontSize: 18 }}>{locatingUser ? "⏳" : "📍"}</span>
           {!isMobile && (locatingUser ? "Locating..." : "My Location")}
@@ -2596,73 +2521,23 @@ export default function AtlasMap() {
         <button
           onClick={() => setIsSatellite(!isSatellite)}
           title={isSatellite ? "Street view" : "Satellite view"}
-          style={{
-            background: isSatellite ? "#1d4ed8" : "white",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 14px",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            fontSize: 14,
-            fontWeight: 500,
-            color: isSatellite ? "white" : "#374151",
-            transition: "background 0.2s, color 0.2s",
-          }}
-          onMouseEnter={(e) => { if (!isSatellite) e.currentTarget.style.background = "#f9fafb"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = isSatellite ? "#1d4ed8" : "white"; }}
+          className={`map-control-btn ${isSatellite ? 'map-control-btn--active' : ''}`}
         >
           <span style={{ fontSize: 18 }}>{isSatellite ? "🗺️" : "🛰️"}</span>
           {!isMobile && (isSatellite ? "Street" : "Satellite")}
         </button>
 
         {/* Zoom controls */}
-        <div style={{
-          background: "white",
-          borderRadius: 8,
-          boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-          overflow: "hidden",
-        }}>
+        <div className="map-zoom-controls">
           <button
             onClick={() => mapRef.current?.zoomIn()}
             title="Zoom in (+)"
-            style={{
-              background: "white",
-              border: "none",
-              borderBottom: "1px solid #e5e7eb",
-              padding: "8px 14px",
-              cursor: "pointer",
-              display: "block",
-              width: "100%",
-              fontSize: 20,
-              fontWeight: 500,
-              transition: "background 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
           >
             +
           </button>
           <button
             onClick={() => mapRef.current?.zoomOut()}
             title="Zoom out (-)"
-            style={{
-              background: "white",
-              border: "none",
-              padding: "8px 14px",
-              cursor: "pointer",
-              display: "block",
-              width: "100%",
-              fontSize: 20,
-              fontWeight: 500,
-              transition: "background 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
           >
             −
           </button>

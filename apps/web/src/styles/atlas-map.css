@@ -677,6 +677,44 @@
   background: var(--map-control-hover);
 }
 
+/* Add Point Menu */
+.map-add-point-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--map-control-bg);
+  border: 1px solid var(--map-control-border);
+  border-radius: 8px;
+  box-shadow: var(--map-shadow-md);
+  overflow: hidden;
+  min-width: 160px;
+  z-index: 1001;
+}
+
+.map-add-point-menu__item {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--map-control-text);
+  transition: background var(--map-transition-fast);
+}
+
+.map-add-point-menu__item:hover {
+  background: var(--map-control-hover);
+}
+
+.map-add-point-menu__item:not(:last-child) {
+  border-bottom: 1px solid var(--map-control-border);
+}
+
 .map-zoom-controls button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
