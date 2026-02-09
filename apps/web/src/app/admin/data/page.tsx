@@ -542,9 +542,10 @@ function DataHubContent() {
       fetch("/api/admin/data-engine/stats").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ])
       .then(([queue, processing, health, stats]) => {
-        setQueueData(queue);
-        setProcessingData(processing);
-        setHealthData(health);
+        // Only set data if it has the expected structure (not an error response)
+        setQueueData(queue?.identity ? queue : null);
+        setProcessingData(processing?.ingest ? processing : null);
+        setHealthData(health?.health ? health : null);
         setRulesData(stats?.rule_effectiveness || []);
       })
       .catch((err) => setError(err.message))
