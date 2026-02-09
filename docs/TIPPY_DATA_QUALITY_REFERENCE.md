@@ -390,6 +390,32 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-08: DQ_018 — Booking Address Priority Fix for Cat-Place Linking (MIG_956, MIG_957, MIG_958)
+
+**Problem:** Cats at colony sites (like Tresch Dairies at Walker Rd) were not showing on the Atlas map despite having correct booking addresses in ClinicHQ. Investigation revealed ~4,900 appointments were linked to the wrong place — the caretaker's home address instead of the colony site where cats were actually trapped.
+
+**Root Causes:**
+1. **Execution Order Bug:** `run_all_entity_linking()` ran `link_cats_to_appointment_places()` BEFORE `infer_appointment_places()`. By the time place inference ran, cats were already linked to the wrong place via person_place chain.
+2. **Stale Inference:** The inference function only updates appointments with `inferred_place_id IS NULL`. Once set to the wrong place, it never got corrected.
+3. **Source Priority Gap:** Appointments linked via `org_mapping`, `owner_account`, etc. were not being overridden by the correct booking_address.
+
+**Solution:**
+- **MIG_956:** One-time fix — cleared mis-inferred appointments (4,628 with `person_place` source) and re-ran linking. Result: 4,632 now correctly linked via booking_address.
+- **MIG_957:** Permanent fix — reordered `run_all_entity_linking()` to run `infer_appointment_places()` FIRST, then `link_cats_to_appointment_places()`. All future cron jobs will maintain correct order.
+- **MIG_958:** Comprehensive fix — cleared remaining 230 mis-inferred appointments from other sources (org_mapping, owner_account, etc.) and re-ran. Result: 0 remaining mis-inferred.
+
+**Result:**
+- 8,547 appointments now linked via booking_address (was ~4,000)
+- Walker Rd places now show correct cat counts (1170 Walker Rd: 38 cats, 1054 Walker Rd: 10 cats)
+- All future ingests will maintain correct linking via the fixed pipeline order
+
+**Staff Impact:**
+- Colony sites now display accurate cat counts on the map
+- When searching an address, you see cats actually trapped there, not cats from caretakers who live elsewhere
+- The "booking address" from ClinicHQ appointments is now the primary source for cat-place linking
+
+---
+
 ### 2026-02-07: DQ_017 — Entity Resolution Architecture Upgrade (MIG_939, MIG_940, MIG_941)
 
 **Problem:** Duplicate person records appearing in Atlas UI. Example: Cristina Campbell appeared twice at 990 Borden Villa Dr with different phone numbers. Investigation revealed 310 duplicate name groups affecting 699 person records, plus 20+ same-name-same-address pairs that were not being merged.

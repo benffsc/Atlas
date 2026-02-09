@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "@/styles/atlas-map.css";
+import { useMapData } from "@/hooks/useMapData";
 import {
   createPinMarker,
   createCircleMarker,
@@ -54,7 +55,7 @@ interface Place {
   priority: string;
   has_observation: boolean;
   service_zone: string;
-  primary_person_name?: string;
+  primary_person_name?: string | null;
   person_count?: number;
 }
 
@@ -608,16 +609,43 @@ export default function AtlasMap() {
     };
   }, [selectedPlaceId, atlasPins, places, navigatedLocation]);
 
-  // Fetch map data
-  const fetchMapData = useCallback(async () => {
-    const layers = Object.entries(enabledLayers)
-      .filter(([, enabled]) => enabled)
-      .map(([id]) => id);
+  // Fetch map data using SWR for caching and deduplication
+  const layers = Object.entries(enabledLayers)
+    .filter(([, enabled]) => enabled)
+    .map(([id]) => id);
 
-    if (layers.length === 0) {
-      // Clear new layers
+  const {
+    data: mapData,
+    error: mapError,
+    isLoading: mapIsLoading,
+    mutate: refreshMapData,
+  } = useMapData({
+    layers,
+    zone: selectedZone,
+    riskFilter,
+    dataFilter,
+    diseaseFilter,
+    enabled: layers.length > 0,
+  });
+
+  // Sync SWR data to component state (for compatibility with existing code)
+  useEffect(() => {
+    if (mapData) {
+      setAtlasPins(mapData.atlas_pins || []);
+      setPlaces(mapData.places || []);
+      setGooglePins(mapData.google_pins || []);
+      // Legacy layers: hook types don't match component types exactly
+      // Cast through unknown since we know the API returns the correct shapes
+      setTnrPriority((mapData.tnr_priority || []) as unknown as TnrPriorityPlace[]);
+      setZones((mapData.zones || []) as unknown as Zone[]);
+      setVolunteers((mapData.volunteers || []) as unknown as Volunteer[]);
+      setClinicClients((mapData.clinic_clients || []) as unknown as ClinicClient[]);
+      setHistoricalSources((mapData.historical_sources || []) as unknown as HistoricalSource[]);
+      setDataCoverage((mapData.data_coverage || []) as unknown as DataCoverageZone[]);
+      setSummary(mapData.summary || null);
+    } else if (layers.length === 0) {
+      // Clear all layers when no layers enabled
       setAtlasPins([]);
-      // Clear legacy layers
       setPlaces([]);
       setGooglePins([]);
       setTnrPriority([]);
@@ -626,53 +654,14 @@ export default function AtlasMap() {
       setClinicClients([]);
       setHistoricalSources([]);
       setDataCoverage([]);
-      setLoading(false);
-      return;
     }
+  }, [mapData, layers.length]);
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({ layers: layers.join(",") });
-      if (selectedZone !== "All Zones") {
-        params.set("zone", selectedZone);
-      }
-      // Add filter params for atlas_pins layer
-      if (layers.includes("atlas_pins")) {
-        params.set("risk_filter", riskFilter);
-        params.set("data_filter", dataFilter);
-        if (diseaseFilter.length > 0) {
-          params.set("disease_filter", diseaseFilter.join(","));
-        }
-      }
-
-      // NOTE: We load all pins at once rather than viewport-based loading.
-      // This gives a slightly longer initial load but instant pan/zoom navigation.
-      // MarkerCluster handles the rendering performance for 12k+ pins efficiently.
-
-      const response = await fetch(`/api/beacon/map-data?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch map data");
-
-      const data = await response.json();
-      // New layers
-      setAtlasPins(data.atlas_pins || []);
-      // Legacy layers
-      setPlaces(data.places || []);
-      setGooglePins(data.google_pins || []);
-      setTnrPriority(data.tnr_priority || []);
-      setZones(data.zones || []);
-      setVolunteers(data.volunteers || []);
-      setClinicClients(data.clinic_clients || []);
-      setHistoricalSources(data.historical_sources || []);
-      setDataCoverage(data.data_coverage || []);
-      setSummary(data.summary || null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, [enabledLayers, selectedZone, riskFilter, dataFilter, diseaseFilter]);
+  // Sync loading and error state from SWR
+  useEffect(() => {
+    setLoading(mapIsLoading);
+    setError(mapError ? (mapError instanceof Error ? mapError.message : "Failed to load") : null);
+  }, [mapIsLoading, mapError]);
 
   // Initialize map
   useEffect(() => {
@@ -787,15 +776,8 @@ export default function AtlasMap() {
     }
   }, [isSatellite]);
 
-  // Fetch data on mount and when filters change (debounced to avoid rapid re-fetches)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchMapData();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [fetchMapData]);
-
-  // NOTE: We intentionally do NOT refetch on pan/zoom. Loading all data once
+  // NOTE: SWR automatically handles fetching on mount and when dependencies change.
+  // We intentionally do NOT refetch on pan/zoom. Loading all data once
   // and letting markercluster handle rendering provides much smoother navigation.
   // Viewport-based loading caused 20+ second reloads on every pan which was jarring.
 
@@ -3566,7 +3548,7 @@ export default function AtlasMap() {
         <PlaceDetailDrawer
           placeId={selectedPlaceId}
           onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
-          onWatchlistChange={fetchMapData}
+          onWatchlistChange={refreshMapData}
           showQuickActions={drawerFromAddPoint}
           shifted={!!(selectedPersonId || selectedCatId)}
           coordinates={(() => {

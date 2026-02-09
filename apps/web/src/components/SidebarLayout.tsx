@@ -221,24 +221,30 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
   );
 }
 
-// Pre-configured sidebar for Admin pages
+// Pre-configured sidebar for Admin pages - Simplified for new Data Hub architecture
 export function AdminSidebar({ children }: { children: React.ReactNode }) {
   const sections: NavSection[] = [
     {
-      title: "General",
+      title: "Dashboard",
       items: [
-        { label: "Dashboard", href: "/admin", icon: "📊" },
+        { label: "Overview", href: "/admin", icon: "📊" },
         { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
-        { label: "System Stats", href: "/admin/stats", icon: "📈" },
       ],
     },
     {
-      title: "Beacon Data",
+      title: "Data",
+      items: [
+        { label: "Data Hub", href: "/admin/data", icon: "🔗" },
+        { label: "Review Queue", href: "/admin/data?tab=review", icon: "📋" },
+        { label: "Processing", href: "/admin/data?tab=processing", icon: "⚙️" },
+        { label: "Ingest Status", href: "/admin/ingest", icon: "🔄" },
+      ],
+    },
+    {
+      title: "Beacon",
       items: [
         { label: "Atlas Map", href: "/map", icon: "🗺️" },
         { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "🐱" },
-        { label: "Reproduction", href: "/admin/beacon/reproduction", icon: "🍼" },
-        { label: "Mortality", href: "/admin/beacon/mortality", icon: "📋" },
         { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
         { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
       ],
@@ -248,42 +254,25 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
       items: [
         { label: "Email Hub", href: "/admin/email", icon: "📧" },
         { label: "Templates", href: "/admin/email-templates", icon: "📝" },
-        { label: "Job Queue", href: "/admin/email-jobs", icon: "📤" },
         { label: "Batches", href: "/admin/email-batches", icon: "📨" },
-        { label: "Audit Log", href: "/admin/email/audit", icon: "🔍" },
-        { label: "Settings", href: "/admin/email-settings", icon: "⚙️" },
       ],
     },
     {
-      title: "Configuration",
+      title: "Settings",
       items: [
-        { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
-        { label: "Training Materials", href: "/admin/education-materials", icon: "📚" },
-        { label: "Automations", href: "/admin/automations", icon: "⚡" },
         { label: "Staff", href: "/admin/staff", icon: "👥" },
-        { label: "Trappers", href: "/trappers", icon: "🪤" },
+        { label: "Organizations", href: "/admin/organizations", icon: "🏢" },
+        { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
+        { label: "Ecology Config", href: "/admin/ecology", icon: "🌿" },
+        { label: "AI Access", href: "/admin/ai-access", icon: "🔐" },
       ],
     },
     {
-      title: "Data Management",
+      title: "Developer",
       items: [
-        { label: "Trapper Reports", href: "/admin/trapper-reports", icon: "📧" },
-        { label: "Google Maps Sync", href: "/admin/beacon-data/google-maps-sync", icon: "📍" },
-        { label: "Duplicates", href: "/admin/duplicates", icon: "🔍" },
-        { label: "Orphan Places", href: "/admin/orphan-places", icon: "🏚️" },
-        { label: "Import/Export", href: "/admin/import", icon: "📦" },
-        { label: "Needs Review", href: "/admin/needs-review", icon: "⚠️" },
-        { label: "Role Audit", href: "/admin/role-audit", icon: "🛡️" },
-      ],
-    },
-    {
-      title: "Tippy",
-      items: [
-        { label: "Signals", href: "/admin/tippy-signals", icon: "📡" },
-        { label: "Feedback", href: "/admin/tippy-feedback", icon: "💬" },
-        { label: "Corrections", href: "/admin/tippy-corrections", icon: "✏️" },
-        { label: "Gaps", href: "/admin/tippy-gaps", icon: "❓" },
-        { label: "Drafts", href: "/admin/tippy-drafts", icon: "📝" },
+        { label: "Claude Code", href: "/admin/claude-code", icon: "🤖" },
+        { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "📚" },
+        { label: "Tippy Corrections", href: "/admin/tippy-corrections", icon: "✏️" },
       ],
     },
   ];
