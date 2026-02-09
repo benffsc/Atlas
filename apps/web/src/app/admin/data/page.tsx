@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -500,7 +500,16 @@ type TabId = "review" | "processing" | "config" | "health";
 
 const validTabs: TabId[] = ["review", "processing", "config", "health"];
 
+// Wrapper component to handle Suspense boundary for useSearchParams
 export default function DataHubPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "2rem" }}>Loading Data Hub...</div>}>
+      <DataHubContent />
+    </Suspense>
+  );
+}
+
+function DataHubContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const initialTab: TabId = tabParam && validTabs.includes(tabParam as TabId)
