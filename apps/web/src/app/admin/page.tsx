@@ -79,7 +79,7 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* CONFIGURATION Section (3 cards) */}
+            {/* CONFIGURATION Section (4 cards) */}
             <section>
               <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "var(--text-muted)" }}>Configuration</h2>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
@@ -98,8 +98,14 @@ export default function AdminPage() {
                 <AdminCard
                   href="/admin/organizations"
                   title="Organizations"
-                  description="Partner orgs and programs"
+                  description="Shelters, rescues, clinics, partners"
                   icon="🏢"
+                />
+                <AdminCard
+                  href="/admin/departments"
+                  title="FFSC Departments"
+                  description="Internal teams & structure"
+                  icon="🐾"
                 />
               </div>
             </section>
