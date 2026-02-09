@@ -397,6 +397,7 @@ function DeptDetailModal({
       <div
         style={{
           background: "var(--background)",
+          color: "var(--foreground)",
           borderRadius: "12px",
           padding: "1.5rem",
           maxWidth: "500px",
@@ -472,6 +473,7 @@ function DeptDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                 }}
               >
                 Cancel
@@ -506,6 +508,7 @@ function DeptDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                 }}
               >
                 Edit
@@ -518,6 +521,7 @@ function DeptDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                   marginLeft: "auto",
                 }}
               >
@@ -596,6 +600,7 @@ function CreateDeptModal({
       <div
         style={{
           background: "var(--background)",
+          color: "var(--foreground)",
           borderRadius: "12px",
           padding: "1.5rem",
           maxWidth: "500px",
@@ -612,7 +617,7 @@ function CreateDeptModal({
               <select
                 value={form.org_type}
                 onChange={(e) => setForm({ ...form, org_type: e.target.value as "department" | "team" })}
-                style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px", background: "var(--background)" }}
+                style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px", background: "var(--background)", color: "var(--foreground)" }}
               >
                 <option value="department">Department</option>
                 <option value="team">Team</option>
@@ -645,7 +650,7 @@ function CreateDeptModal({
               <select
                 value={form.parent_org_id}
                 onChange={(e) => setForm({ ...form, parent_org_id: e.target.value })}
-                style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px", background: "var(--background)" }}
+                style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px", background: "var(--background)", color: "var(--foreground)" }}
               >
                 <option value="">Select parent...</option>
                 {departments.map((d) => (
@@ -692,6 +697,7 @@ function CreateDeptModal({
                 borderRadius: "6px",
                 cursor: "pointer",
                 background: "var(--background)",
+                color: "var(--foreground)",
               }}
             >
               Cancel

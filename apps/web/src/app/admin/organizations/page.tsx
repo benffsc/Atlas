@@ -156,6 +156,7 @@ export default function OrganizationsPage() {
             border: "1px solid var(--border)",
             borderRadius: "6px",
             background: "var(--background)",
+            color: "var(--foreground)",
             fontSize: "0.875rem",
           }}
         >
@@ -388,6 +389,7 @@ function OrgDetailModal({
       <div
         style={{
           background: "var(--background)",
+          color: "var(--foreground)",
           borderRadius: "12px",
           padding: "1.5rem",
           maxWidth: "600px",
@@ -516,6 +518,7 @@ function OrgDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                 }}
               >
                 Cancel
@@ -600,6 +603,7 @@ function OrgDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                 }}
               >
                 Edit
@@ -612,6 +616,7 @@ function OrgDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                 }}
               >
                 {org.is_active ? "Deactivate" : "Activate"}
@@ -624,6 +629,7 @@ function OrgDetailModal({
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: "var(--background)",
+                  color: "var(--foreground)",
                   marginLeft: "auto",
                 }}
               >
@@ -697,6 +703,7 @@ function CreateOrgModal({
       <div
         style={{
           background: "var(--background)",
+          color: "var(--foreground)",
           borderRadius: "12px",
           padding: "1.5rem",
           maxWidth: "500px",
@@ -732,7 +739,7 @@ function CreateOrgModal({
               <select
                 value={form.org_type}
                 onChange={(e) => setForm({ ...form, org_type: e.target.value })}
-                style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px", background: "var(--background)" }}
+                style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px", background: "var(--background)", color: "var(--foreground)" }}
               >
                 {orgTypes.map((t) => (
                   <option key={t.type_code} value={t.type_code}>
@@ -815,6 +822,7 @@ function CreateOrgModal({
                 borderRadius: "6px",
                 cursor: "pointer",
                 background: "var(--background)",
+                color: "var(--foreground)",
               }}
             >
               Cancel
