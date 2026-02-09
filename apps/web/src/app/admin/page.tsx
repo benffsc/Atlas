@@ -62,7 +62,6 @@ export default function AdminPage() {
                   title="Data Hub"
                   description="Review queues, processing, health"
                   icon="📊"
-                  accent="#eff6ff"
                   badge="New"
                 />
                 <AdminCard
@@ -70,14 +69,12 @@ export default function AdminPage() {
                   title="Email Hub"
                   description="Send, templates, and history"
                   icon="📧"
-                  accent="#fef3c7"
                 />
                 <AdminCard
                   href="/admin/staff"
                   title="Staff & Trappers"
                   description="Manage FFSC personnel"
                   icon="👥"
-                  accent="#fdf4ff"
                 />
               </div>
             </section>
@@ -91,21 +88,18 @@ export default function AdminPage() {
                   title="Ecology & Beacon"
                   description="Colony parameters & modeling"
                   icon="🌿"
-                  accent="#ecfdf5"
                 />
                 <AdminCard
                   href="/admin/intake-fields"
                   title="Intake Fields"
                   description="Custom questions + Airtable"
                   icon="📝"
-                  accent="#f0fdf4"
                 />
                 <AdminCard
                   href="/admin/organizations"
                   title="Organizations"
                   description="Partner orgs and programs"
                   icon="🏢"
-                  accent="#f0f9ff"
                 />
               </div>
             </section>
@@ -119,14 +113,12 @@ export default function AdminPage() {
                   title="Claude Code"
                   description="AI development assistant"
                   icon="🤖"
-                  accent="#f0fdf4"
                 />
                 <AdminCard
                   href="/admin/knowledge-base"
                   title="Knowledge Base"
                   description="Manage Tippy's knowledge"
                   icon="📚"
-                  accent="#eff6ff"
                 />
               </div>
             </section>
@@ -217,26 +209,24 @@ export default function AdminPage() {
   );
 }
 
-// Admin card component
+// Admin card component - uses CSS variables for dark mode support
 function AdminCard({
   href,
   title,
   description,
   icon,
-  accent,
   badge,
 }: {
   href: string;
   title: string;
   description: string;
   icon: string;
-  accent?: string;
   badge?: string;
 }) {
   return (
     <a
       href={href}
-      className="card"
+      className="card admin-card"
       style={{
         padding: "1rem",
         display: "flex",
@@ -244,13 +234,12 @@ function AdminCard({
         alignItems: "flex-start",
         textDecoration: "none",
         color: "inherit",
-        background: accent || undefined,
         transition: "transform 0.15s, box-shadow 0.15s",
         position: "relative",
       }}
       onMouseOver={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
       }}
       onMouseOut={(e) => {
         e.currentTarget.style.transform = "none";
@@ -265,8 +254,8 @@ function AdminCard({
           padding: "0.15rem 0.4rem",
           fontSize: "0.65rem",
           fontWeight: 600,
-          background: "#3b82f6",
-          color: "white",
+          background: "var(--primary)",
+          color: "var(--primary-foreground)",
           borderRadius: "4px",
         }}>
           {badge}
@@ -274,32 +263,36 @@ function AdminCard({
       )}
       <span style={{ fontSize: "1.5rem" }}>{icon}</span>
       <div>
-        <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>{title}</h3>
+        <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--foreground)" }}>{title}</h3>
         <p className="text-muted" style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem" }}>{description}</p>
       </div>
     </a>
   );
 }
 
-// Quick link component for secondary navigation
+// Quick link component for secondary navigation - uses CSS variables for dark mode
 function QuickLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
+      className="quick-link"
       style={{
         padding: "0.5rem 0.75rem",
         fontSize: "0.875rem",
-        color: "var(--text)",
+        color: "var(--foreground)",
         textDecoration: "none",
         borderRadius: "6px",
-        background: "var(--card-border)",
-        transition: "background 0.15s",
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        transition: "background 0.15s, border-color 0.15s",
       }}
       onMouseOver={(e) => {
-        e.currentTarget.style.background = "#e5e7eb";
+        e.currentTarget.style.background = "var(--card-border)";
+        e.currentTarget.style.borderColor = "var(--border-light)";
       }}
       onMouseOut={(e) => {
-        e.currentTarget.style.background = "var(--card-border)";
+        e.currentTarget.style.background = "var(--bg-secondary)";
+        e.currentTarget.style.borderColor = "var(--border)";
       }}
     >
       {label} →

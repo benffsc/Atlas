@@ -1273,15 +1273,15 @@ export default function AtlasMap() {
           ? `<div style="color:#374151;font-size:11px;margin-top:4px;">${pin.people.slice(0, 3).map((p: any) => p.name).join(", ")}${pin.people.length > 3 ? ` +${pin.people.length - 3}` : ""}</div>`
           : "";
 
-        const refPopup = `<div style="min-width:220px;font-family:system-ui;font-size:12px;">
-          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${pin.display_name || pin.address}</div>
-          ${pin.display_name && pin.address ? `<div style="color:#6b7280;font-size:11px;margin-bottom:6px;">${pin.address}</div>` : ""}
-          <div style="color:#64748b;font-size:11px;margin-bottom:4px;">${dataSummary}</div>
+        const refPopup = `<div class="map-popup" style="min-width:220px;padding:12px;">
+          <div class="map-popup__title" style="font-size:13px;margin-bottom:4px;">${pin.display_name || pin.address}</div>
+          ${pin.display_name && pin.address ? `<div class="map-popup__meta" style="font-size:11px;margin-bottom:6px;">${pin.address}</div>` : ""}
+          <div class="map-popup__meta" style="font-size:11px;margin-bottom:4px;">${dataSummary}</div>
           ${peopleNames}
           ${gmSnippet}
-          <div style="margin-top:8px;display:flex;gap:8px;">
-            <button onclick="window.atlasMapExpandPlace('${pin.id}')" style="background:#3b82f6;color:white;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Details</button>
-            <button onclick="window.open('https://www.google.com/maps/@${pin.lat},${pin.lng},3a,75y,90t/data=!3m6!1e1!3m4!1s!2e0!7i16384!8i8192','_blank')" style="background:#f1f5f9;color:#475569;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Street View</button>
+          <div class="map-popup__actions" style="margin-top:8px;">
+            <button onclick="window.atlasMapExpandPlace('${pin.id}')" class="map-popup__btn map-popup__btn--primary" style="padding:4px 10px;font-size:11px;">Details</button>
+            <button onclick="window.open('https://www.google.com/maps/@${pin.lat},${pin.lng},3a,75y,90t/data=!3m6!1e1!3m4!1s!2e0!7i16384!8i8192','_blank')" class="map-popup__btn map-popup__btn--street-view" style="padding:4px 10px;font-size:11px;">Street View</button>
           </div>
         </div>`;
         marker.bindPopup(refPopup, { maxWidth: 320 });
@@ -1504,17 +1504,14 @@ export default function AtlasMap() {
             </div>
           ` : ""}
 
-          <div style="display: flex; gap: 6px; margin-top: 12px;">
-            <button onclick="window.atlasMapExpandPlace('${pin.id}')"
-                    style="flex: 1; padding: 8px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+          <div class="map-popup__actions" style="margin-top: 12px;">
+            <button onclick="window.atlasMapExpandPlace('${pin.id}')" class="map-popup__btn map-popup__btn--secondary" style="padding: 8px; font-size: 12px;">
               Details
             </button>
-            <button onclick="window.atlasMapOpenStreetView(${pin.lat}, ${pin.lng}, '${escapeHtml(pin.address).replace(/'/g, "\\'")}')"
-                    style="flex: 1; padding: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+            <button onclick="window.atlasMapOpenStreetView(${pin.lat}, ${pin.lng}, '${escapeHtml(pin.address).replace(/'/g, "\\'")}')" class="map-popup__btn map-popup__btn--street-view" style="padding: 8px; font-size: 12px;">
               Street View
             </button>
-            <a href="/places/${pin.id}" target="_blank"
-               style="flex: 1; padding: 8px; background: #3b82f6; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 500;">
+            <a href="/places/${pin.id}" target="_blank" class="map-popup__btn map-popup__btn--primary" style="padding: 8px; font-size: 12px;">
               Open Page
             </a>
           </div>
@@ -1836,104 +1833,30 @@ export default function AtlasMap() {
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${navigatedLocation.address}</div>
         ${existsInAtlas
           ? `<div style="color: #059669; font-size: 12px; margin-bottom: 8px;">This location has Atlas data</div>
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
-              <button onclick="window.atlasMapExpandPlace('${matchingPin!.id}')"
-                      style="
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 4px;
-                        padding: 6px 12px;
-                        background: #059669;
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        font-size: 12px;
-                        font-weight: 500;
-                        cursor: pointer;
-                      ">
+            <div class="map-popup__actions" style="margin-top: 12px; flex-wrap: wrap;">
+              <button onclick="window.atlasMapExpandPlace('${matchingPin!.id}')" class="map-popup__btn map-popup__btn--success" style="padding: 6px 12px; font-size: 12px;">
                 View Details
               </button>
-              <a href="/places/${matchingPin!.id}" target="_blank"
-                 style="
-                   display: inline-flex;
-                   align-items: center;
-                   gap: 4px;
-                   padding: 6px 12px;
-                   background: #f3f4f6;
-                   color: #374151;
-                   text-decoration: none;
-                   border: 1px solid #d1d5db;
-                   border-radius: 6px;
-                   font-size: 12px;
-                   font-weight: 500;
-                 ">
+              <a href="/places/${matchingPin!.id}" target="_blank" class="map-popup__btn map-popup__btn--secondary" style="padding: 6px 12px; font-size: 12px;">
                 Open Page
               </a>
-              <button onclick="window.atlasMapOpenStreetView(${navigatedLocation.lat}, ${navigatedLocation.lng}, '${navigatedLocation.address.replace(/'/g, "\\'")}')"
-                      style="
-                        padding: 6px 12px;
-                        background: #fef3c7;
-                        color: #92400e;
-                        border: 1px solid #fcd34d;
-                        border-radius: 6px;
-                        font-size: 12px;
-                        font-weight: 500;
-                        cursor: pointer;
-                      ">
+              <button onclick="window.atlasMapOpenStreetView(${navigatedLocation.lat}, ${navigatedLocation.lng}, '${navigatedLocation.address.replace(/'/g, "\\'")}')" class="map-popup__btn map-popup__btn--street-view" style="padding: 6px 12px; font-size: 12px;">
                 Street View
               </button>
-              <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
-                      style="
-                        padding: 6px 12px;
-                        background: #f3f4f6;
-                        border: 1px solid #d1d5db;
-                        border-radius: 6px;
-                        font-size: 12px;
-                        cursor: pointer;
-                      ">
+              <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))" class="map-popup__btn map-popup__btn--tertiary" style="padding: 6px 12px; font-size: 12px;">
                 Clear
               </button>
             </div>
             ${nearbyHtml}`
-          : `<div style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
-              <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}"
-                 style="
-                   display: inline-flex;
-                   align-items: center;
-                   gap: 4px;
-                   padding: 6px 12px;
-                   background: #3b82f6;
-                   color: white;
-                   text-decoration: none;
-                   border-radius: 6px;
-                   font-size: 12px;
-                   font-weight: 500;
-                 ">
+          : `<div class="map-popup__meta" style="font-size: 12px; margin-bottom: 8px;">No Atlas data at this location yet</div>
+            <div class="map-popup__actions" style="margin-top: 12px; flex-wrap: wrap;">
+              <a href="/intake/new?address=${encodeURIComponent(navigatedLocation.address)}" class="map-popup__btn map-popup__btn--primary" style="padding: 6px 12px; font-size: 12px;">
                 + Create Request
               </a>
-              <button onclick="window.atlasMapOpenStreetView(${navigatedLocation.lat}, ${navigatedLocation.lng}, '${navigatedLocation.address.replace(/'/g, "\\'")}')"
-                      style="
-                        padding: 6px 12px;
-                        background: #fef3c7;
-                        color: #92400e;
-                        border: 1px solid #fcd34d;
-                        border-radius: 6px;
-                        font-size: 12px;
-                        font-weight: 500;
-                        cursor: pointer;
-                      ">
+              <button onclick="window.atlasMapOpenStreetView(${navigatedLocation.lat}, ${navigatedLocation.lng}, '${navigatedLocation.address.replace(/'/g, "\\'")}')" class="map-popup__btn map-popup__btn--street-view" style="padding: 6px 12px; font-size: 12px;">
                 Street View
               </button>
-              <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))"
-                      style="
-                        padding: 6px 12px;
-                        background: #f3f4f6;
-                        border: 1px solid #d1d5db;
-                        border-radius: 6px;
-                        font-size: 12px;
-                        cursor: pointer;
-                      ">
+              <button onclick="window.dispatchEvent(new CustomEvent('clear-navigated-location'))" class="map-popup__btn map-popup__btn--tertiary" style="padding: 6px 12px; font-size: 12px;">
                 Clear
               </button>
             </div>
@@ -2113,15 +2036,15 @@ export default function AtlasMap() {
       const photoHtml = ann.photo_url ? `<img src="${ann.photo_url}" style="width:100%;max-height:120px;object-fit:cover;border-radius:4px;margin-top:6px;" />` : '';
       const typeLabel = ann.annotation_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       marker.bindPopup(`
-        <div style="min-width:200px;max-width:280px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${escapeHtml(ann.label)}</div>
-          <div style="display:inline-block;padding:2px 6px;border-radius:3px;background:#f3f4f6;font-size:10px;color:#6b7280;margin-bottom:6px;">${typeLabel}</div>
-          ${ann.note ? `<div style="font-size:12px;color:#374151;margin-top:4px;">${escapeHtml(ann.note)}</div>` : ''}
+        <div class="map-popup" style="min-width:200px;max-width:280px;padding:12px;">
+          <div class="map-popup__title" style="font-size:14px;margin-bottom:4px;">${escapeHtml(ann.label)}</div>
+          <div class="map-popup__badge map-popup__badge--low" style="font-size:10px;margin-bottom:6px;">${typeLabel}</div>
+          ${ann.note ? `<div class="map-popup__meta" style="font-size:12px;margin-top:4px;">${escapeHtml(ann.note)}</div>` : ''}
           ${photoHtml}
           ${expiryText}
-          <div style="margin-top:8px;display:flex;gap:6px;">
-            <button onclick="window.__openAnnotationDrawer__&&window.__openAnnotationDrawer__('${ann.annotation_id}')" style="background:#eff6ff;color:#3b82f6;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">Details</button>
-            <button onclick="fetch('/api/annotations/${ann.annotation_id}',{method:'DELETE'}).then(()=>window.location.reload())" style="background:#fef2f2;color:#dc2626;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;">Delete</button>
+          <div class="map-popup__actions" style="margin-top:8px;">
+            <button onclick="window.__openAnnotationDrawer__&&window.__openAnnotationDrawer__('${ann.annotation_id}')" class="map-popup__btn map-popup__btn--secondary" style="padding:4px 8px;font-size:11px;">Details</button>
+            <button onclick="fetch('/api/annotations/${ann.annotation_id}',{method:'DELETE'}).then(()=>window.location.reload())" class="map-popup__btn map-popup__btn--danger" style="padding:4px 8px;font-size:11px;">Delete</button>
           </div>
         </div>
       `, { maxWidth: 300 });

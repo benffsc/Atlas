@@ -362,6 +362,19 @@
   text-align: center;
 }
 
+.map-popup__stat-box {
+  background: rgba(156, 163, 175, 0.1);
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-popup__stat-box {
+    background: rgba(156, 163, 175, 0.2);
+  }
+}
+
 .map-popup__stat-value {
   font-size: 20px;
   font-weight: 700;
@@ -441,6 +454,65 @@
 
 .map-popup__btn--secondary:hover {
   background: rgba(37, 99, 235, 0.05);
+}
+
+.map-popup__btn--danger {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.map-popup__btn--danger:hover {
+  background: rgba(220, 38, 38, 0.15);
+}
+
+.map-popup__btn--success {
+  background: #059669;
+  color: white;
+}
+
+.map-popup__btn--success:hover {
+  filter: brightness(1.1);
+}
+
+.map-popup__btn--tertiary {
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--map-popup-secondary);
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+.map-popup__btn--tertiary:hover {
+  background: rgba(156, 163, 175, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-popup__btn--secondary {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+
+  .map-popup__btn--secondary:hover {
+    background: rgba(99, 102, 241, 0.2);
+  }
+
+  .map-popup__btn--danger {
+    background: rgba(220, 38, 38, 0.15);
+    color: #f87171;
+    border-color: rgba(220, 38, 38, 0.4);
+  }
+
+  .map-popup__btn--danger:hover {
+    background: rgba(220, 38, 38, 0.25);
+  }
+
+  .map-popup__btn--tertiary {
+    background: rgba(156, 163, 175, 0.2);
+    border-color: rgba(156, 163, 175, 0.4);
+  }
+
+  .map-popup__btn--tertiary:hover {
+    background: rgba(156, 163, 175, 0.3);
+  }
 }
 
 /* Alert Box in Popup */
