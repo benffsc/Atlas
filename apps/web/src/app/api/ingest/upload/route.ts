@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { writeFile, mkdir } from "fs/promises";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import path from "path";
 
 // Supported source systems and their expected tables
@@ -63,13 +63,22 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
     const sourceSystem = formData.get("source_system") as string | null;
     const sourceTable = formData.get("source_table") as string | null;
+    let batchId = formData.get("batch_id") as string | null;
 
     console.log("[UPLOAD] Got:", {
       fileName: file?.name,
       fileSize: file?.size,
       sourceSystem,
-      sourceTable
+      sourceTable,
+      batchId
     });
+
+    // MIG_971: For ClinicHQ uploads, auto-generate batch_id if not provided
+    // This groups the 3 files (cat_info, owner_info, appointment_info) together
+    if (sourceSystem === "clinichq" && !batchId) {
+      batchId = randomUUID();
+      console.log("[UPLOAD] Generated batch_id for ClinicHQ:", batchId);
+    }
 
     // Validation
     if (!file) {
@@ -147,6 +156,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Record in database (store file content for serverless environments)
+    // MIG_971: Include batch_id for ClinicHQ batch tracking
     console.log("[UPLOAD] Inserting into database...");
     let result;
     try {
@@ -159,8 +169,9 @@ export async function POST(request: NextRequest) {
           source_system,
           source_table,
           status,
-          file_content
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+          file_content,
+          batch_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8)
         RETURNING upload_id`,
         [
           file.name,
@@ -170,6 +181,7 @@ export async function POST(request: NextRequest) {
           sourceSystem,
           sourceTable,
           buffer,
+          batchId,
         ]
       );
     } catch (dbError) {
@@ -187,7 +199,11 @@ export async function POST(request: NextRequest) {
       original_filename: file.name,
       stored_filename: storedFilename,
       file_size: buffer.length,
-      message: "File uploaded successfully. Ready for processing.",
+      // MIG_971: Return batch_id for ClinicHQ batch tracking
+      batch_id: batchId,
+      message: batchId
+        ? "File uploaded successfully. Part of batch - upload remaining files before processing."
+        : "File uploaded successfully. Ready for processing.",
     });
   } catch (error) {
     console.error("Upload error:", error);

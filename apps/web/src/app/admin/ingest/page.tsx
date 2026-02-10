@@ -108,6 +108,20 @@ export default function IngestPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // MIG_971: ClinicHQ batch upload state
+  const [clinichqBatchId, setClinichqBatchId] = useState<string | null>(null);
+  const [batchStatus, setBatchStatus] = useState<{
+    status: string;
+    files_uploaded: number;
+    has_cat_info: boolean;
+    has_owner_info: boolean;
+    has_appointment_info: boolean;
+    is_complete: boolean;
+    missing_files: string[];
+  } | null>(null);
+  const [batchProcessing, setBatchProcessing] = useState(false);
+  const [batchResult, setBatchResult] = useState<Record<string, unknown> | null>(null);
+
   // Fetch sources and uploads
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -346,12 +360,68 @@ export default function IngestPage() {
     return Date.now() - startedAt > 5 * 60 * 1000; // 5 minutes
   };
 
+  // MIG_971: Fetch batch status
+  const fetchBatchStatus = useCallback(async (batchId: string) => {
+    try {
+      const res = await fetch(`/api/ingest/batch/${batchId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBatchStatus(data);
+      }
+    } catch (err) {
+      console.error("Error fetching batch status:", err);
+    }
+  }, []);
+
+  // MIG_971: Handle batch processing
+  const handleProcessBatch = async () => {
+    if (!clinichqBatchId || !batchStatus?.is_complete) return;
+
+    setBatchProcessing(true);
+    setBatchResult(null);
+    setUploadError(null);
+
+    try {
+      const res = await fetch(`/api/ingest/batch/${clinichqBatchId}/process`, {
+        method: "POST",
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        setUploadError(result.error || "Batch processing failed");
+      } else {
+        setBatchResult(result);
+        setUploadSuccess(
+          result.success
+            ? "All 3 ClinicHQ files processed successfully!"
+            : "Batch processing completed with some errors"
+        );
+        // Refresh uploads list
+        fetchData();
+        // Refresh batch status
+        fetchBatchStatus(clinichqBatchId);
+      }
+    } catch (err) {
+      setUploadError("Network error during batch processing");
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  // MIG_971: Start new batch
+  const handleStartNewBatch = () => {
+    setClinichqBatchId(null);
+    setBatchStatus(null);
+    setBatchResult(null);
+  };
+
   // Filter uploads by status
   const filteredUploads = statusFilter === "all"
     ? uploads
     : uploads.filter((u) => u.status === statusFilter);
 
   // Auto-process after successful upload
+  // MIG_971: For ClinicHQ, track batch_id and don't auto-process
   const handleUploadAndProcess = async (e: React.FormEvent) => {
     e.preventDefault();
     setUploadError(null);
@@ -372,6 +442,11 @@ export default function IngestPage() {
       formData.append("source_system", selectedSource);
       formData.append("source_table", selectedTable);
 
+      // MIG_971: Include batch_id for ClinicHQ uploads
+      if (selectedSource === "clinichq" && clinichqBatchId) {
+        formData.append("batch_id", clinichqBatchId);
+      }
+
       const uploadResponse = await fetch("/api/ingest/upload", {
         method: "POST",
         body: formData,
@@ -389,7 +464,19 @@ export default function IngestPage() {
       const fileInput = document.getElementById("file-input") as HTMLInputElement;
       if (fileInput) fileInput.value = "";
 
-      // Fire-and-forget: kick off processing
+      // MIG_971: For ClinicHQ, track batch and don't auto-process
+      if (selectedSource === "clinichq" && uploadResult.batch_id) {
+        setClinichqBatchId(uploadResult.batch_id);
+        fetchBatchStatus(uploadResult.batch_id);
+        setUploadSuccess(
+          `Uploaded: ${uploadResult.original_filename}. ` +
+          `Check the ClinicHQ Batch Upload section below to process.`
+        );
+        fetchData();
+        return;
+      }
+
+      // For non-ClinicHQ: Fire-and-forget, kick off processing
       fetch(`/api/ingest/process/${uploadResult.upload_id}`, { method: "POST" }).catch(() => {});
 
       // Start polling for progress
@@ -822,27 +909,155 @@ export default function IngestPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: "2rem", padding: "1rem" }}>
-        <h3 style={{ marginBottom: "0.5rem", fontSize: "1rem" }}>ClinicHQ Processing</h3>
-        <p className="text-muted text-sm">
-          When you upload ClinicHQ files, the system automatically processes them:
-        </p>
-        <div style={{ marginTop: "0.75rem" }}>
-          <strong style={{ fontSize: "0.875rem" }}>Recommended upload order:</strong>
-          <ol style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem" }}>
-            <li><strong>cat_info.xlsx</strong> - Updates cat sex data (required for correct procedure types)</li>
-            <li><strong>owner_info.xlsx</strong> - Links people to appointments, creates cat-person relationships</li>
-            <li><strong>appointment_info.xlsx</strong> - Creates procedures, links cats to places</li>
-          </ol>
+      {/* MIG_971: ClinicHQ Batch Upload Section */}
+      <div className="card" style={{ marginTop: "2rem", padding: "1.25rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>ClinicHQ Batch Upload</h3>
+          {clinichqBatchId && batchStatus?.status === "completed" && (
+            <button
+              onClick={handleStartNewBatch}
+              style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem" }}
+            >
+              Start New Batch
+            </button>
+          )}
         </div>
-        <div style={{ marginTop: "0.75rem" }}>
-          <strong style={{ fontSize: "0.875rem" }}>What happens automatically:</strong>
-          <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0, fontSize: "0.875rem" }}>
-            <li>Spay/neuter procedures created based on <strong>service type</strong></li>
-            <li>Procedures fixed based on cat sex (males → neuter, females → spay)</li>
-            <li>Cats linked to places via person relationships</li>
-            <li>Cat altered_status updated</li>
-          </ul>
+
+        {!clinichqBatchId ? (
+          <div>
+            <p className="text-muted" style={{ fontSize: "0.875rem", marginBottom: "0.75rem" }}>
+              Upload ClinicHQ files above with source &quot;ClinicHQ&quot;. A batch will be created automatically.
+            </p>
+            <p style={{ fontSize: "0.875rem" }}>
+              <strong>Required files:</strong> cat_info, owner_info, appointment_info
+            </p>
+          </div>
+        ) : (
+          <div>
+            {/* Batch Status Display */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "0.75rem",
+              marginBottom: "1rem"
+            }}>
+              {[
+                { key: "cat_info", label: "cat_info", done: batchStatus?.has_cat_info },
+                { key: "owner_info", label: "owner_info", done: batchStatus?.has_owner_info },
+                { key: "appointment_info", label: "appointment_info", done: batchStatus?.has_appointment_info },
+              ].map((file) => (
+                <div
+                  key={file.key}
+                  style={{
+                    padding: "0.75rem",
+                    borderRadius: "8px",
+                    textAlign: "center",
+                    background: file.done
+                      ? "rgba(40, 167, 69, 0.1)"
+                      : "var(--bg-secondary, #f8f9fa)",
+                    border: file.done
+                      ? "1px solid #28a745"
+                      : "1px solid var(--border-default, #e5e7eb)",
+                  }}
+                >
+                  <div style={{ fontSize: "1.25rem", marginBottom: "0.25rem" }}>
+                    {file.done ? "\u2713" : "\u25CB"}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>{file.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Status Message */}
+            <div style={{ marginBottom: "1rem" }}>
+              {batchStatus?.is_complete ? (
+                <div style={{
+                  padding: "0.5rem 0.75rem",
+                  background: "rgba(40, 167, 69, 0.1)",
+                  borderRadius: "6px",
+                  fontSize: "0.875rem",
+                  color: "#28a745",
+                }}>
+                  All 3 files uploaded! Ready to process.
+                </div>
+              ) : (
+                <div style={{
+                  padding: "0.5rem 0.75rem",
+                  background: "rgba(255, 193, 7, 0.1)",
+                  borderRadius: "6px",
+                  fontSize: "0.875rem",
+                  color: "#856404",
+                }}>
+                  {batchStatus?.files_uploaded || 0}/3 files uploaded.
+                  {batchStatus?.missing_files && batchStatus.missing_files.length > 0 && (
+                    <> Missing: {batchStatus.missing_files.join(", ")}</>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Process Button */}
+            {batchStatus?.is_complete && batchStatus?.status !== "completed" && (
+              <button
+                onClick={handleProcessBatch}
+                disabled={batchProcessing}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  background: batchProcessing ? "#6c757d" : "#28a745",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: batchProcessing ? "not-allowed" : "pointer",
+                }}
+              >
+                {batchProcessing ? "Processing All 3 Files..." : "Process All 3 Files"}
+              </button>
+            )}
+
+            {/* Batch Results */}
+            {batchResult && (
+              <div style={{
+                marginTop: "1rem",
+                padding: "0.75rem",
+                background: batchResult.success
+                  ? "rgba(40, 167, 69, 0.1)"
+                  : "rgba(220, 53, 69, 0.1)",
+                borderRadius: "6px",
+                fontSize: "0.875rem",
+              }}>
+                <strong>{String(batchResult.message || "")}</strong>
+                {Array.isArray(batchResult.results) && batchResult.results.length > 0 && (
+                  <div style={{ marginTop: "0.5rem" }}>
+                    {batchResult.results.map((r: { source_table: string; success: boolean; error?: string }) => (
+                      <div key={r.source_table} style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                        {r.success ? "\u2713" : "\u2717"} {r.source_table}
+                        {r.error && <span style={{ color: "#dc3545" }}> - {r.error}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Batch ID for reference */}
+            <div style={{ marginTop: "0.75rem", fontSize: "0.7rem" }} className="text-muted">
+              Batch ID: {clinichqBatchId}
+            </div>
+          </div>
+        )}
+
+        {/* Instructions */}
+        <div style={{
+          marginTop: "1rem",
+          paddingTop: "1rem",
+          borderTop: "1px solid var(--border-default, #e5e7eb)",
+          fontSize: "0.8rem",
+        }} className="text-muted">
+          <strong>Processing order:</strong> cat_info → owner_info → appointment_info.
+          Entity linking runs once after all 3 files are processed.
         </div>
       </div>
 

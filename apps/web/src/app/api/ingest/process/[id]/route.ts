@@ -975,9 +975,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   // Each step is non-fatal (crons are safety net).
   // ================================================================
 
-  // Entity linking: call individual functions (run_all_entity_linking has a
-  // broken reference to link_appointments_to_partner_orgs, so we call directly)
+  // Entity linking: call individual functions
+  // MIG_970: Added error tracking so failures are visible in UI response
   const linking: Record<string, number> = {};
+  const linkingErrors: Array<{ step: string; error: string }> = [];
+
   try {
     await saveProgress('Linking appointments to owners...');
     const owners = await queryOne<{ appointments_updated: number; persons_created: number; persons_linked: number }>(
@@ -987,7 +989,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       linking.appointments_linked_to_owners = owners.appointments_updated;
       linking.persons_created_for_appointments = owners.persons_created;
     }
-  } catch (err) { console.error('link_appointments_to_owners failed (non-fatal):', err); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    linkingErrors.push({ step: 'link_appointments_to_owners', error: msg });
+    console.error('link_appointments_to_owners failed (non-fatal):', err);
+  }
 
   try {
     await saveProgress('Linking cats to places...');
@@ -995,7 +1001,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       `SELECT * FROM trapper.run_cat_place_linking()`
     );
     if (cats) linking.cats_linked_to_places = cats.cats_linked;
-  } catch (err) { console.error('run_cat_place_linking failed (non-fatal):', err); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    linkingErrors.push({ step: 'run_cat_place_linking', error: msg });
+    console.error('run_cat_place_linking failed (non-fatal):', err);
+  }
 
   try {
     await saveProgress('Linking appointments to trappers...');
@@ -1003,10 +1013,14 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       `SELECT trapper.run_appointment_trapper_linking() as run_appointment_trapper_linking`
     );
     if (trappers) linking.appointments_linked_to_trappers = trappers.run_appointment_trapper_linking;
-  } catch (err) { console.error('run_appointment_trapper_linking failed (non-fatal):', err); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    linkingErrors.push({ step: 'run_appointment_trapper_linking', error: msg });
+    console.error('run_appointment_trapper_linking failed (non-fatal):', err);
+  }
 
   try {
-    // MIG_889: Infer appointment places from booking address + person places
+    // MIG_889/MIG_970: Infer appointment places from booking address + person places
     // Must run BEFORE link_cats_to_appointment_places() so inferred_place_id is populated.
     // Step 0 (booking_address) is highest priority — uses the actual ClinicHQ booking address
     // (colony site) instead of person's home address.
@@ -1017,7 +1031,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         linking[`inferred_place_${row.source}`] = row.appointments_linked;
       }
     }
-  } catch (err) { console.error('infer_appointment_places failed (non-fatal):', err); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    linkingErrors.push({ step: 'infer_appointment_places', error: msg });
+    console.error('infer_appointment_places failed (non-fatal):', err);
+  }
 
   try {
     // MIG_889: Link cats to places via appointment inferred_place_id
@@ -1027,9 +1045,16 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       `SELECT * FROM trapper.link_cats_to_appointment_places()`
     );
     if (appointmentPlaces) linking.cats_linked_via_appointment_places = appointmentPlaces.cats_linked;
-  } catch (err) { console.error('link_cats_to_appointment_places failed (non-fatal):', err); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    linkingErrors.push({ step: 'link_cats_to_appointment_places', error: msg });
+    console.error('link_cats_to_appointment_places failed (non-fatal):', err);
+  }
 
   results.entity_linking = linking;
+  if (linkingErrors.length > 0) {
+    results.entity_linking_errors = linkingErrors;
+  }
 
   // Cat-to-request linking (second pass): now that entity linking has created
   // fresh cat→place relationships, link newly-placed cats to active requests.
@@ -1044,6 +1069,12 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       results.cats_linked_to_requests_post = postLinkResult.linked;
     }
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!results.entity_linking_errors) results.entity_linking_errors = [];
+    (results.entity_linking_errors as Array<{ step: string; error: string }>).push({
+      step: 'link_cats_to_requests_safe',
+      error: msg,
+    });
     console.error('Post-linking cats to requests failed (non-fatal):', err);
   }
 

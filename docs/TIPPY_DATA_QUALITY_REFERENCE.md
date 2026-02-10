@@ -390,6 +390,57 @@ Atlas supports multiple microchip formats:
 
 This is a running log of data quality fixes and improvements. Add new entries at the top.
 
+### 2026-02-09: DQ_019 — Cat-Place Link Pollution Cleanup (MIG_966, MIG_967)
+
+**Problem:** Cats were appearing at wrong addresses on the map. Example: "Blackie" (microchip 981020027552405) at Victory Outreach Church (4042 Sebastopol Rd) was incorrectly showing at 1945 Piner Rd and 8032 Cliffrose St. Another example: "Mario Vidrio orange tabby/white" was linked to 203 different adopter addresses instead of just one.
+
+**Investigation:**
+Two separate sources of pollution were discovered:
+
+| Issue | Bad Links | Source | Created On |
+|-------|-----------|--------|------------|
+| data_fix pollution | 780 | `auto_link` / `data_fix` | 2026-01-14 |
+| ShelterLuv multi-address | 405 | `shelterluv` (empty evidence) | 2026-02-01 |
+
+**Root Cause 1 (data_fix):** Unknown process created `owner_relationship` links from cats to ALL of a contact person's addresses instead of just the appointment site. Lorri Bogdanski (Victory Outreach contact) has 3 places: the church, her current home, and an old home. All 780 links were to personal addresses of contact people.
+
+**Root Cause 2 (ShelterLuv):** MIG_555 (`link_adopted_cats_to_places.sql`) has a design flaw — it joins `person_place_relationships` without filtering, creating `adopter_residence` links to ALL of an adopter's addresses. 40 out of 541 adopters have multiple places (up to 8), causing 405 bad links.
+
+```sql
+-- The problematic pattern in MIG_555:
+INSERT INTO cat_place_relationships (cat_id, place_id, ...)
+SELECT pcr.cat_id, ppr.place_id, ...  -- ALL places, not filtered!
+FROM person_cat_relationships pcr
+JOIN person_place_relationships ppr ON ppr.person_id = pcr.person_id
+WHERE pcr.relationship_type = 'adopter'
+```
+
+**Solution:**
+- **MIG_966:** Deleted 780 incorrect `owner_relationship` links where `source_system = 'auto_link'` and `source_table = 'data_fix'`
+- **MIG_967:** Deleted 405 ShelterLuv `adopter_residence` links with empty evidence, but KEPT 5 that had valid adopter relationships (cat actually has that adopter at that place)
+
+**Result:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Blackie place links | 3 (1 correct, 2 wrong) | 1 (4042 Sebastopol Rd only) |
+| Mario Vidrio place links | 203 | 1-2 (actual adopter addresses) |
+| data_fix links | 780 | 0 |
+| ShelterLuv empty-evidence links | 410 | 5 (valid ones kept) |
+
+**Staff Impact:**
+- Colony sites now show only cats actually at that location
+- Cats no longer appear at contact people's personal residences
+- Search results and map view are now accurate
+
+**Prevention:**
+- MIG_555 needs redesign to link to ONE address per adoption (the most recent or primary)
+- Future link-creation processes should filter `person_place_relationships` rather than joining all
+
+**What Tippy should know:**
+> "In early February 2026, we discovered and fixed two sources of incorrect cat-place links. About 1,185 total bad links were deleted. Cats were incorrectly appearing at addresses they weren't actually at — because some processes linked cats to ALL of a person's addresses instead of just the relevant one. The Victory Outreach Church case (Blackie) and Mario Vidrio case (203 wrong links) are now fixed. If staff asks about cats appearing at unexpected addresses from before 2026-02-09, explain that we cleaned up pollution from automated linking. The cat should now only appear at locations where it was actually seen or where its actual adopter lives."
+
+---
+
 ### 2026-02-08: DQ_018 — Booking Address Priority Fix for Cat-Place Linking (MIG_956, MIG_957, MIG_958)
 
 **Problem:** Cats at colony sites (like Tresch Dairies at Walker Rd) were not showing on the Atlas map despite having correct booking addresses in ClinicHQ. Investigation revealed ~4,900 appointments were linked to the wrong place — the caretaker's home address instead of the colony site where cats were actually trapped.
