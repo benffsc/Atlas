@@ -590,6 +590,128 @@ JOIN trapper.places p ON p.place_id = cpr.place_id
 WHERE p.merged_into_place_id IS NOT NULL;
 ```
 
+### INV-22: TS Upload Route Must Mirror SQL Processor (2026-02-08)
+
+**Core problem:** The TypeScript ingest route (`/api/ingest/process/[id]/route.ts`) and SQL processor functions (MIG_573) can drift apart, creating inconsistent behavior between real-time uploads and batch processing.
+
+**Solution:** Both paths must implement identical logic:
+- `should_be_person()` guard before person creation
+- `clinic_owner_accounts` routing for pseudo-profiles
+- Soft blacklist filtering for appointment linking
+- Owner field population (client_name, owner_email, owner_phone)
+
+**When designing new features:**
+1. Changes to SQL processor must be mirrored in TS upload route
+2. Changes to TS upload route must be mirrored in SQL processor
+3. Test both paths with the same input data
+
+**Related:** MIG_888, CLAUDE.md rule #22
+
+### INV-23: Organization Emails Must Be Soft-Blacklisted (2026-02-08)
+
+**Core problem:** Shared organizational emails (marinferals@yahoo.com, info@forgottenfelines.com) auto-match to whoever registered first, creating phantom caretaker links and orphan duplicates.
+
+**Solution:** Add org emails to `data_engine_soft_blacklist` with `identifier_type = 'email'`. Blacklisted emails are:
+- Excluded from identity matching in `data_engine_score_candidates()`
+- Filtered out in appointment linking queries
+- Still stored for provenance but not used for matching
+
+**When designing new features:**
+1. Check if email patterns suggest organizational use (info@, office@, contact@, admin@)
+2. Add to soft blacklist BEFORE bulk processing
+3. Existing person_identifiers with soft-blacklisted emails remain (provenance) but won't match
+
+**Related:** MIG_888, INV-17, DATA_GAP_009
+
+### INV-24: Shared Identifiers Create Orphan Duplicates (2026-02-08)
+
+**Core problem:** When `find_or_create_person()` encounters a taken identifier (email/phone already in `person_identifiers`), the new person gets NO identifiers (INSERT conflicts silently). Pattern: 10+ duplicates with zero identifiers = shared identifier collision.
+
+**Solution:** When detecting this pattern:
+1. Merge duplicates to canonical record
+2. Soft-blacklist the shared identifier
+3. Seed a unique identifier on the canonical record
+
+**When designing new features:**
+1. Monitor for people with zero identifiers
+2. Check if they share a name with someone who HAS that identifier
+3. Merge if same person, blacklist if org/shared identifier
+
+**Related:** MIG_895, CLAUDE.md rule #24
+
+### INV-25: ClinicHQ Pseudo-Profiles Are NOT People (2026-02-08)
+
+**Core problem:** ClinicHQ "Owner First Name" field stores site names/addresses/orgs (e.g., "5403 San Antonio Road Petaluma", "Silveira Ranch"). These create fake person records.
+
+**Solution:**
+- `classify_owner_name()` detects location/org patterns
+- `should_be_person()` gates all person creation, returns FALSE for pseudo-profiles
+- Pseudo-profiles route to `clinic_owner_accounts`, not `sot_people`
+
+**Detection patterns:**
+- Street numbers at start: `^\d+\s+`
+- Known org patterns: "Ranch", "Transit", "Rescue", "County"
+- All caps names: `^[A-Z\s]+$`
+
+**Related:** MIG_573, MIG_917, INV-18, CLAUDE.md rule #25
+
+### INV-26: Cat-Place Linking Uses Appointment Ground Truth (2026-02-10)
+
+**Core problem:** Early linking code joined cats to ALL person_place_relationships, causing pollution (1000+ cats at staff addresses). Later versions used person-based inference which could link cats to a person's work address.
+
+**The ground truth rule: Cats are where they're booked.**
+
+**Solution (MIG_889, MIG_892):**
+1. `link_cats_to_appointment_places()` runs FIRST - uses `inferred_place_id` from appointments (99.8% coverage)
+2. `link_cats_to_places()` runs SECOND - person-based fallback with:
+   - LIMIT 1 per person (not ALL addresses)
+   - Staff/trapper exclusion (INV-12)
+   - Place-type filter (INV-28)
+3. `run_cat_place_linking()` orchestrates both in correct order
+
+**When designing new features:**
+1. Never INSERT directly into `cat_place_relationships`
+2. Always use the centralized linking functions
+3. Appointment address is ground truth; person-based is fallback only
+
+**Related:** MIG_889, MIG_892, CLAUDE.md rule #28, RISK_005
+
+### INV-27: Appointment Owner Fields Must Be Populated During Ingest (2026-02-10)
+
+**Core problem:** ClinicHQ appointments were created without `client_name`, `owner_email`, and `owner_phone` fields. These are display fields needed for appointment detail modals. Without them, staff sees "No person linked" even when owner data exists.
+
+**Solution (ingest route Step 4c):**
+After linking appointments to people, backfill owner fields from `owner_info` staged records:
+```sql
+SET
+  client_name = NULLIF(TRIM(Owner First Name || ' ' || Owner Last Name), ''),
+  owner_email = NULLIF(LOWER(TRIM(Owner Email)), ''),
+  owner_phone = norm_phone_us(COALESCE(Owner Phone, Owner Cell Phone))
+```
+
+**When designing new features:**
+1. Appointment INSERT statements must include owner fields OR
+2. Post-processing must backfill from owner_info
+
+**Related:** MIG_974, DATA_GAP_028
+
+### INV-28: Place-Type Aware Cat Linking (2026-02-10)
+
+**Core problem:** Person-based cat linking (`link_cats_to_places()`) could link cats to a person's work address with 'home' relationship type. Example: Hector Sorrano's cats from 1311 Corby Ave (home) appeared at 3276 Dutton Ave (work) because he had person_place_relationships to both.
+
+**Solution (MIG_975):**
+When creating 'home' cat_place_relationships via person-based fallback, filter by `place_kind`:
+- **Allowed:** `residential_house`, `apartment_unit`, `apartment_building`, `unknown`
+- **Excluded:** `business`, `clinic`, `outdoor_site`, `neighborhood`
+
+**Important context:**
+- This filter only affects the 0.2% of cats without appointment-based links
+- Ground truth is appointment address (INV-26)
+- 95% of places are `place_kind = 'unknown'`, so filter has limited effect
+- Consider better place_kind inference in future (Google Places data)
+
+**Related:** MIG_972 (one-time fix), MIG_975 (prevention), RISK_005
+
 ---
 
 ## Data Zones
