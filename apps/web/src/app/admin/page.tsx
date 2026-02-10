@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ClinicHQUploadModal from "@/components/ClinicHQUploadModal";
 
 interface QueueStats {
   total: number;
@@ -29,6 +30,7 @@ const geoConfidenceColors: Record<string, string> = {
 export default function AdminPage() {
   const [stats, setStats] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showClinicHQModal, setShowClinicHQModal] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -53,7 +55,7 @@ export default function AdminPage() {
         <div>
           <div style={{ display: "grid", gap: "1.5rem" }}>
 
-            {/* OPERATIONS Section (3 cards) */}
+            {/* OPERATIONS Section (4 cards) */}
             <section>
               <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "var(--text-muted)" }}>Operations</h2>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
@@ -63,6 +65,12 @@ export default function AdminPage() {
                   description="Review queues, processing, health"
                   icon="📊"
                   badge="New"
+                />
+                <ActionCard
+                  onClick={() => setShowClinicHQModal(true)}
+                  title="ClinicHQ Upload"
+                  description="Upload 3-file batch from clinic"
+                  icon="🏥"
                 />
                 <AdminCard
                   href="/admin/email"
@@ -211,6 +219,12 @@ export default function AdminPage() {
           </div>
         </aside>
       </div>
+
+      {/* ClinicHQ Upload Modal */}
+      <ClinicHQUploadModal
+        isOpen={showClinicHQModal}
+        onClose={() => setShowClinicHQModal(false)}
+      />
     </div>
   );
 }
@@ -303,5 +317,69 @@ function QuickLink({ href, label }: { href: string; label: string }) {
     >
       {label} →
     </a>
+  );
+}
+
+// Action card component - button-based for modal triggers
+function ActionCard({
+  onClick,
+  title,
+  description,
+  icon,
+  badge,
+}: {
+  onClick: () => void;
+  title: string;
+  description: string;
+  icon: string;
+  badge?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="card admin-card"
+      style={{
+        padding: "1rem",
+        display: "flex",
+        gap: "0.75rem",
+        alignItems: "flex-start",
+        textAlign: "left",
+        cursor: "pointer",
+        border: "1px solid var(--border)",
+        background: "var(--card-bg)",
+        transition: "transform 0.15s, box-shadow 0.15s",
+        position: "relative",
+        width: "100%",
+      }}
+      onMouseOver={(e) => {
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      }}
+      onMouseOut={(e) => {
+        e.currentTarget.style.transform = "none";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      {badge && (
+        <span style={{
+          position: "absolute",
+          top: "0.5rem",
+          right: "0.5rem",
+          padding: "0.15rem 0.4rem",
+          fontSize: "0.65rem",
+          fontWeight: 600,
+          background: "var(--primary)",
+          color: "var(--primary-foreground)",
+          borderRadius: "4px",
+        }}>
+          {badge}
+        </span>
+      )}
+      <span style={{ fontSize: "1.5rem" }}>{icon}</span>
+      <div>
+        <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--foreground)" }}>{title}</h3>
+        <p className="text-muted" style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem" }}>{description}</p>
+      </div>
+    </button>
   );
 }

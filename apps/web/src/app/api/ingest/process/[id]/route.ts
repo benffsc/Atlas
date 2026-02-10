@@ -650,6 +650,41 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.appointments_linked_to_people = personLinks.rowCount || 0;
 
+    // Step 4c: Backfill client_name, owner_email, owner_phone from owner_info
+    // This was previously missing (DATA_GAP) — appointments were created from
+    // appointment_info but owner contact fields were never populated from owner_info
+    await saveProgress('Backfilling appointment owner fields...');
+    const ownerFieldsBackfill = await query(`
+      UPDATE trapper.sot_appointments a
+      SET
+        client_name = NULLIF(TRIM(
+          COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), '') || ' ' ||
+          COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), '')
+        ), ''),
+        owner_email = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
+        owner_phone = trapper.norm_phone_us(
+          COALESCE(NULLIF(sr.payload->>'Owner Phone', ''), sr.payload->>'Owner Cell Phone')
+        )
+      FROM trapper.staged_records sr
+      WHERE sr.source_system = 'clinichq'
+        AND sr.source_table = 'owner_info'
+        AND sr.file_upload_id = $1
+        AND sr.payload->>'Number' = a.appointment_number
+        AND (
+          a.client_name IS NULL
+          OR a.owner_email IS NULL
+          OR a.owner_phone IS NULL
+        )
+        AND (
+          sr.payload->>'Owner First Name' IS NOT NULL
+          OR sr.payload->>'Owner Last Name' IS NOT NULL
+          OR sr.payload->>'Owner Email' IS NOT NULL
+          OR sr.payload->>'Owner Phone' IS NOT NULL
+          OR sr.payload->>'Owner Cell Phone' IS NOT NULL
+        )
+    `, [uploadId]);
+    results.owner_fields_backfilled = ownerFieldsBackfill.rowCount || 0;
+
     // Step 4b: Link pseudo-profiles to appointments via owner_account_id
     // INV-22: Mirrors SQL processor Step 7 — appointments with no person_id
     // get linked to clinic_owner_accounts instead

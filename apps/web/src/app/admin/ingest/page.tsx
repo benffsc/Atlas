@@ -57,13 +57,13 @@ function formatBytes(bytes: number): string {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { bg: string; color: string }> = {
-    pending: { bg: "#ffc107", color: "#000" },
-    processing: { bg: "#17a2b8", color: "#fff" },
-    completed: { bg: "#28a745", color: "#fff" },
-    failed: { bg: "#dc3545", color: "#fff" },
-    expired: { bg: "#adb5bd", color: "#495057" },
+    pending: { bg: "var(--warning-bg, #ffc107)", color: "var(--foreground, #000)" },
+    processing: { bg: "var(--info-bg, #17a2b8)", color: "#fff" },
+    completed: { bg: "var(--success-text, #28a745)", color: "#fff" },
+    failed: { bg: "var(--danger-text, #dc3545)", color: "#fff" },
+    expired: { bg: "var(--muted, #adb5bd)", color: "var(--foreground, #495057)" },
   };
-  const style = colors[status] || { bg: "#6c757d", color: "#fff" };
+  const style = colors[status] || { bg: "var(--muted, #6c757d)", color: "#fff" };
 
   return (
     <span
@@ -569,11 +569,11 @@ export default function IngestPage() {
         </form>
 
         {uploadError && (
-          <div style={{ color: "#dc3545", marginTop: "1rem" }}>{uploadError}</div>
+          <div style={{ color: "var(--danger-text, #dc3545)", marginTop: "1rem" }}>{uploadError}</div>
         )}
 
         {uploadSuccess && (
-          <div style={{ color: "#28a745", marginTop: "1rem" }}>{uploadSuccess}</div>
+          <div style={{ color: "var(--success-text, #28a745)", marginTop: "1rem" }}>{uploadSuccess}</div>
         )}
 
         {processResult?.post_processing && Object.keys(processResult.post_processing).length > 0 && (
@@ -686,7 +686,7 @@ export default function IngestPage() {
                       <td>
                         <StatusBadge status={upload.status} />
                         {isStuck(upload) && (
-                          <span style={{ fontSize: "0.65rem", color: "#dc3545", marginLeft: "0.25rem" }}>stuck</span>
+                          <span style={{ fontSize: "0.65rem", color: "var(--danger-text, #dc3545)", marginLeft: "0.25rem" }}>stuck</span>
                         )}
                       </td>
                       <td className="text-sm">
@@ -740,8 +740,8 @@ export default function IngestPage() {
                               style={{
                                 padding: "0.25rem 0.5rem",
                                 fontSize: "0.75rem",
-                                background: "#ffc107",
-                                color: "#000",
+                                background: "var(--warning-bg, #ffc107)",
+                                color: "var(--foreground, #000)",
                               }}
                             >
                               Retry
@@ -754,7 +754,7 @@ export default function IngestPage() {
                               style={{
                                 padding: "0.25rem 0.5rem",
                                 fontSize: "0.75rem",
-                                background: "#fd7e14",
+                                background: "var(--warning-text, #fd7e14)",
                                 color: "#fff",
                                 border: "none",
                                 borderRadius: "4px",
@@ -772,8 +772,8 @@ export default function IngestPage() {
                                 padding: "0.25rem 0.5rem",
                                 fontSize: "0.75rem",
                                 background: "transparent",
-                                color: "#dc3545",
-                                border: "1px solid #dc3545",
+                                color: "var(--danger-text, #dc3545)",
+                                border: "1px solid var(--danger-text, #dc3545)",
                                 borderRadius: "4px",
                                 cursor: "pointer",
                               }}
@@ -802,12 +802,12 @@ export default function IngestPage() {
                           )}
                           {upload.status === "failed" && upload.error_message && (
                             <div>
-                              <strong style={{ fontSize: "0.8rem", color: "#dc3545" }}>Error:</strong>
+                              <strong style={{ fontSize: "0.8rem", color: "var(--danger-text, #dc3545)" }}>Error:</strong>
                               <pre style={{
                                 margin: "0.5rem 0 0",
                                 fontSize: "0.75rem",
                                 whiteSpace: "pre-wrap",
-                                color: "#dc3545",
+                                color: "var(--danger-text, #dc3545)",
                                 background: "var(--card-bg, #fff)",
                                 padding: "0.5rem",
                                 borderRadius: "4px",
@@ -841,7 +841,7 @@ export default function IngestPage() {
         </div>
 
         {syncError && (
-          <div style={{ color: "#dc3545", marginBottom: "0.75rem", fontSize: "0.875rem" }}>
+          <div style={{ color: "var(--danger-text, #dc3545)", marginBottom: "0.75rem", fontSize: "0.875rem" }}>
             {syncError}
           </div>
         )}
@@ -870,7 +870,7 @@ export default function IngestPage() {
                     <td>{status.last_batch_size ?? "—"}</td>
                     <td>
                       {status.pending_processing > 0 ? (
-                        <span style={{ color: "#ffc107" }}>{status.pending_processing}</span>
+                        <span style={{ color: "var(--warning-text, #ffc107)" }}>{status.pending_processing}</span>
                       ) : (
                         <span className="text-muted">0</span>
                       )}
@@ -881,13 +881,13 @@ export default function IngestPage() {
                         style={{
                           background:
                             status.sync_health === "recent"
-                              ? "#28a745"
+                              ? "var(--success-text, #28a745)"
                               : status.sync_health === "stale"
-                              ? "#ffc107"
+                              ? "var(--warning-bg, #ffc107)"
                               : status.sync_health === "never"
-                              ? "#6c757d"
-                              : "#dc3545",
-                          color: status.sync_health === "stale" ? "#000" : "#fff",
+                              ? "var(--muted, #6c757d)"
+                              : "var(--danger-text, #dc3545)",
+                          color: status.sync_health === "stale" ? "var(--foreground, #000)" : "#fff",
                         }}
                       >
                         {status.sync_health}
@@ -953,10 +953,10 @@ export default function IngestPage() {
                     borderRadius: "8px",
                     textAlign: "center",
                     background: file.done
-                      ? "rgba(40, 167, 69, 0.1)"
+                      ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
                       : "var(--bg-secondary, #f8f9fa)",
                     border: file.done
-                      ? "1px solid #28a745"
+                      ? "1px solid var(--success-text, #28a745)"
                       : "1px solid var(--border-default, #e5e7eb)",
                   }}
                 >
@@ -973,20 +973,20 @@ export default function IngestPage() {
               {batchStatus?.is_complete ? (
                 <div style={{
                   padding: "0.5rem 0.75rem",
-                  background: "rgba(40, 167, 69, 0.1)",
+                  background: "var(--success-bg, rgba(40, 167, 69, 0.1))",
                   borderRadius: "6px",
                   fontSize: "0.875rem",
-                  color: "#28a745",
+                  color: "var(--success-text, #28a745)",
                 }}>
                   All 3 files uploaded! Ready to process.
                 </div>
               ) : (
                 <div style={{
                   padding: "0.5rem 0.75rem",
-                  background: "rgba(255, 193, 7, 0.1)",
+                  background: "var(--warning-bg, rgba(255, 193, 7, 0.1))",
                   borderRadius: "6px",
                   fontSize: "0.875rem",
-                  color: "#856404",
+                  color: "var(--warning-text, #856404)",
                 }}>
                   {batchStatus?.files_uploaded || 0}/3 files uploaded.
                   {batchStatus?.missing_files && batchStatus.missing_files.length > 0 && (
@@ -1006,7 +1006,7 @@ export default function IngestPage() {
                   padding: "0.75rem",
                   fontSize: "1rem",
                   fontWeight: 600,
-                  background: batchProcessing ? "#6c757d" : "#28a745",
+                  background: batchProcessing ? "var(--muted, #6c757d)" : "var(--success-text, #28a745)",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
@@ -1023,8 +1023,8 @@ export default function IngestPage() {
                 marginTop: "1rem",
                 padding: "0.75rem",
                 background: batchResult.success
-                  ? "rgba(40, 167, 69, 0.1)"
-                  : "rgba(220, 53, 69, 0.1)",
+                  ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
+                  : "var(--danger-bg, rgba(220, 53, 69, 0.1))",
                 borderRadius: "6px",
                 fontSize: "0.875rem",
               }}>
@@ -1034,7 +1034,7 @@ export default function IngestPage() {
                     {batchResult.results.map((r: { source_table: string; success: boolean; error?: string }) => (
                       <div key={r.source_table} style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
                         {r.success ? "\u2713" : "\u2717"} {r.source_table}
-                        {r.error && <span style={{ color: "#dc3545" }}> - {r.error}</span>}
+                        {r.error && <span style={{ color: "var(--danger-text, #dc3545)" }}> - {r.error}</span>}
                       </div>
                     ))}
                   </div>

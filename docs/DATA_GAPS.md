@@ -626,6 +626,63 @@ WHERE cv.client_first_name = UPPER(cv.client_first_name)
 
 ---
 
+## DATA_GAP_028: Appointment Owner Fields Not Populated During Ingest
+
+**Status:** FIXED (MIG_974, ingest route update)
+
+**Problem:** ClinicHQ appointments were created without `client_name`, `owner_email`, and `owner_phone` fields populated. This caused appointment detail modals to show "No person linked" even when owner data existed in staged_records.
+
+**Evidence:**
+```sql
+-- 1,722 appointments had NULL client_name despite owner_info existing
+SELECT COUNT(*) FROM trapper.sot_appointments
+WHERE client_name IS NULL AND appointment_number IN (
+  SELECT payload->>'Number' FROM trapper.staged_records
+  WHERE source_table = 'owner_info'
+);
+```
+
+**Root Cause:**
+1. The appointment INSERT statement in `/apps/web/src/app/api/ingest/process/[id]/route.ts` didn't include `client_name`, `owner_email`, or `owner_phone`
+2. `owner_info` processing linked appointments to people (Step 4) but never backfilled these display fields
+
+**Fix:**
+- MIG_974: One-time backfill of client_name for 1,722 appointments
+- Ingest route: Added Step 4c to backfill `client_name`, `owner_email`, `owner_phone` from owner_info during every upload
+
+**Related:**
+- RISK_005 (work address pollution - same investigation)
+- INV-22 (TS upload route must mirror SQL processor)
+
+---
+
+## DATA_GAP_029: Real Person Appointments Unlinked (Org Email Quota Issue)
+
+**Status:** FIXED (MIG_974)
+
+**Problem:** `link_appointments_to_owners()` uses `LIMIT 2000` per batch. Org emails (info@forgottenfelines.com) get processed first because of appointment_id ordering. These are correctly rejected by `should_be_person()`, but they consume the LIMIT quota before real person appointments get processed.
+
+**Evidence:**
+```sql
+-- 30+ appointments with real person emails were unlinked
+-- while org email appointments were processed (and rejected) first
+SELECT owner_email, COUNT(*) FROM trapper.sot_appointments
+WHERE person_id IS NULL AND owner_email IS NOT NULL
+  AND owner_email NOT LIKE '%forgottenfelines%'
+GROUP BY owner_email;
+```
+
+**Root Cause:** Processing order (by appointment_id) plus LIMIT meant older appointments with org emails consumed the quota before newer real person appointments.
+
+**Fix:**
+- MIG_974: Process appointments that DON'T have org emails first
+- Filter: `AND a.owner_email NOT LIKE '%forgottenfelines%'`
+- Result: 180+ appointments linked, 86+ person-cat relationships created
+
+---
+
+---
+
 ## E2E Test Coverage Added (2026-02-07)
 
 New test files created for program statistics and data quality:

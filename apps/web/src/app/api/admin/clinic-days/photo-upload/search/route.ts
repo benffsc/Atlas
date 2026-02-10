@@ -73,100 +73,147 @@ export async function GET(request: NextRequest) {
           AND a.cat_id IS NOT NULL
           AND (sr.payload->>'Microchip') ILIKE $1
       )
+      -- Deduplicated cat results with proper sorting
+      cat_results AS (
+        SELECT
+          c.cat_id,
+          c.display_name,
+          c.sex,
+          c.primary_color,
+          COALESCE(c.is_deceased, FALSE) AS is_deceased,
+          c.deceased_date,
+          -- Death cause from cat_mortality_events (subquery to avoid duplicates)
+          (
+            SELECT cme.death_cause::TEXT
+            FROM trapper.cat_mortality_events cme
+            WHERE cme.cat_id = c.cat_id
+            LIMIT 1
+          ) AS death_cause,
+          COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+          -- FeLV status from cat_test_results
+          (
+            SELECT
+              CASE
+                WHEN tr.result_detail ILIKE 'FeLV+%' OR tr.result_detail ILIKE '%FeLV+%' THEN 'positive'
+                WHEN tr.result_detail ILIKE 'FeLV-%' OR tr.result_detail ILIKE '%FeLV-%' THEN 'negative'
+                WHEN tr.result::TEXT = 'positive' THEN 'positive'
+                WHEN tr.result::TEXT = 'negative' THEN 'negative'
+                ELSE NULL
+              END
+            FROM trapper.cat_test_results tr
+            WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
+            ORDER BY tr.test_date DESC
+            LIMIT 1
+          ) AS felv_status,
+          -- FIV status from cat_test_results
+          (
+            SELECT
+              CASE
+                WHEN tr.result_detail ILIKE '%/FIV+' OR tr.result_detail ILIKE '%FIV+%' THEN 'positive'
+                WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
+                ELSE NULL
+              END
+            FROM trapper.cat_test_results tr
+            WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
+            ORDER BY tr.test_date DESC
+            LIMIT 1
+          ) AS fiv_status,
+          ci_mc.id_value AS microchip,
+          ci_chq.id_value AS clinichq_animal_id,
+          -- Owner name via subquery to avoid cartesian product (one row per cat)
+          (
+            SELECT per.display_name
+            FROM trapper.person_cat_relationships pcr
+            JOIN trapper.sot_people per ON per.person_id = pcr.person_id
+              AND per.merged_into_person_id IS NULL
+            WHERE pcr.cat_id = c.cat_id
+              AND pcr.relationship_type IN ('owner', 'caretaker')
+            ORDER BY pcr.confidence DESC NULLS LAST, pcr.created_at DESC
+            LIMIT 1
+          ) AS owner_name,
+          -- Place address via subquery to avoid cartesian product (one row per cat)
+          (
+            SELECT pl.formatted_address
+            FROM trapper.cat_place_relationships cpr
+            JOIN trapper.places pl ON pl.place_id = cpr.place_id
+              AND pl.merged_into_place_id IS NULL
+            WHERE cpr.cat_id = c.cat_id
+            ORDER BY cpr.confidence DESC NULLS LAST, cpr.created_at DESC
+            LIMIT 1
+          ) AS place_address,
+          -- Get hero photo first, then most recent cat photo
+          (
+            SELECT rm.storage_path
+            FROM trapper.request_media rm
+            WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
+              AND rm.is_archived = FALSE
+              AND rm.media_type = 'cat_photo'
+            ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
+            LIMIT 1
+          ) AS photo_url,
+          -- Check if from selected clinic day
+          (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
+          -- Get appointment info for selected date
+          a_day.appointment_id,
+          a_day.appointment_date,
+          a_day.clinic_day_number,
+          -- Sorting fields
+          CASE WHEN ci_mc.id_value = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
+          CASE WHEN c.display_name ILIKE $1 THEN 0 ELSE 1 END AS name_match
+        FROM trapper.sot_cats c
+        LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
+        LEFT JOIN trapper.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+        -- Get appointment for selected date
+        LEFT JOIN trapper.sot_appointments a_day ON a_day.cat_id = c.cat_id
+          AND a_day.appointment_date = $2
+        WHERE c.merged_into_cat_id IS NULL
+          AND (
+            c.display_name ILIKE $1
+            OR ci_mc.id_value ILIKE $1
+            OR ci_chq.id_value ILIKE $1
+            -- Search owner names via EXISTS to avoid join duplicates
+            OR EXISTS (
+              SELECT 1 FROM trapper.person_cat_relationships pcr
+              JOIN trapper.sot_people per ON per.person_id = pcr.person_id
+              WHERE pcr.cat_id = c.cat_id
+                AND pcr.relationship_type IN ('owner', 'caretaker')
+                AND per.merged_into_person_id IS NULL
+                AND per.display_name ILIKE $1
+            )
+            -- Also match cats found via staged record microchip search
+            OR c.cat_id IN (SELECT cat_id FROM staged_microchip_matches)
+          )
+      )
       SELECT
-        c.cat_id,
-        c.display_name,
-        c.sex,
-        c.primary_color,
-        COALESCE(c.is_deceased, FALSE) AS is_deceased,
-        c.deceased_date,
-        -- Death cause from cat_mortality_events (subquery to avoid duplicates)
-        (
-          SELECT cme.death_cause::TEXT
-          FROM trapper.cat_mortality_events cme
-          WHERE cme.cat_id = c.cat_id
-          LIMIT 1
-        ) AS death_cause,
-        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
-        -- FeLV status from cat_test_results (felv_fiv_status is NOT on sot_cats)
-        (
-          SELECT
-            CASE
-              WHEN tr.result_detail ILIKE 'FeLV+%' OR tr.result_detail ILIKE '%FeLV+%' THEN 'positive'
-              WHEN tr.result_detail ILIKE 'FeLV-%' OR tr.result_detail ILIKE '%FeLV-%' THEN 'negative'
-              WHEN tr.result::TEXT = 'positive' THEN 'positive'
-              WHEN tr.result::TEXT = 'negative' THEN 'negative'
-              ELSE NULL
-            END
-          FROM trapper.cat_test_results tr
-          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
-          ORDER BY tr.test_date DESC
-          LIMIT 1
-        ) AS felv_status,
-        -- FIV status from cat_test_results
-        (
-          SELECT
-            CASE
-              WHEN tr.result_detail ILIKE '%/FIV+' OR tr.result_detail ILIKE '%FIV+%' THEN 'positive'
-              WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
-              ELSE NULL
-            END
-          FROM trapper.cat_test_results tr
-          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
-          ORDER BY tr.test_date DESC
-          LIMIT 1
-        ) AS fiv_status,
-        ci_mc.id_value AS microchip,
-        ci_chq.id_value AS clinichq_animal_id,
-        per.display_name AS owner_name,
-        pl.formatted_address AS place_address,
-        -- Get hero photo first, then most recent cat photo
-        (
-          SELECT rm.storage_path
-          FROM trapper.request_media rm
-          WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
-            AND rm.is_archived = FALSE
-            AND rm.media_type = 'cat_photo'
-          ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
-          LIMIT 1
-        ) AS photo_url,
-        -- Check if from selected clinic day
-        (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
-        -- Get appointment info for selected date
-        a_day.appointment_id,
-        a_day.appointment_date,
-        a_day.clinic_day_number
-      FROM trapper.sot_cats c
-      LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
-      LEFT JOIN trapper.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
-      -- Get owner via person-cat relationships
-      LEFT JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
-        AND pcr.relationship_type IN ('owner', 'caretaker')
-      LEFT JOIN trapper.sot_people per ON per.person_id = pcr.person_id
-        AND per.merged_into_person_id IS NULL
-      -- Get place via cat-place relationships
-      LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-      LEFT JOIN trapper.places pl ON pl.place_id = cpr.place_id
-        AND pl.merged_into_place_id IS NULL
-      -- Get appointment for selected date
-      LEFT JOIN trapper.sot_appointments a_day ON a_day.cat_id = c.cat_id
-        AND a_day.appointment_date = $2
-      WHERE c.merged_into_cat_id IS NULL
-        AND (
-          c.display_name ILIKE $1
-          OR ci_mc.id_value ILIKE $1
-          OR ci_chq.id_value ILIKE $1
-          OR per.display_name ILIKE $1
-          -- Also match cats found via staged record microchip search
-          OR c.cat_id IN (SELECT cat_id FROM staged_microchip_matches)
-        )
+        cat_id,
+        display_name,
+        sex,
+        primary_color,
+        is_deceased,
+        deceased_date,
+        death_cause,
+        needs_microchip,
+        felv_status,
+        fiv_status,
+        microchip,
+        clinichq_animal_id,
+        owner_name,
+        place_address,
+        photo_url,
+        is_from_clinic_day,
+        appointment_id,
+        appointment_date,
+        clinic_day_number
+      FROM cat_results
       ORDER BY
         -- Cats from selected clinic day first
-        (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) DESC,
+        is_from_clinic_day DESC,
+        -- Exact microchip match takes priority
+        microchip_exact_match,
         -- Then by name match quality
-        CASE WHEN c.display_name ILIKE $1 THEN 0 ELSE 1 END,
-        c.display_name NULLS LAST
-      LIMIT 20
+        name_match,
+        display_name NULLS LAST
+      LIMIT 50
       `,
       [searchTerm, date || "1900-01-01"]
     );

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import ClinicHQUploadModal from "@/components/ClinicHQUploadModal";
 
 // ============================================================================
 // Types
@@ -261,13 +262,35 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
   );
 }
 
-function ProcessingTab({ data }: { data: ProcessingStats | null }) {
+function ProcessingTab({ data, onOpenClinicHQ }: { data: ProcessingStats | null; onOpenClinicHQ?: () => void }) {
   if (!data) {
     return <p className="text-muted">Loading processing status...</p>;
   }
 
   return (
     <div>
+      {/* Quick Actions */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <button
+          onClick={onOpenClinicHQ}
+          style={{
+            padding: "0.75rem 1.25rem",
+            background: "var(--primary, #2563eb)",
+            color: "var(--primary-foreground, #fff)",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "0.9rem",
+            fontWeight: 500,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span>🏥</span> Upload ClinicHQ Batch
+        </button>
+      </div>
+
       {/* Ingest Status */}
       <h3 style={{ marginBottom: "1rem" }}>Data Ingest</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
@@ -519,6 +542,7 @@ function DataHubContent() {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showClinicHQModal, setShowClinicHQModal] = useState(false);
 
   // Data for each tab
   const [queueData, setQueueData] = useState<QueueSummary | null>(null);
@@ -618,18 +642,24 @@ function DataHubContent() {
       </div>
 
       {/* Tab Content */}
-      <div style={{ background: "#f9fafb", padding: "1.5rem", borderRadius: "8px", minHeight: "400px" }}>
+      <div style={{ background: "var(--bg-secondary, #f9fafb)", padding: "1.5rem", borderRadius: "8px", minHeight: "400px" }}>
         {loading ? (
           <p className="text-muted">Loading...</p>
         ) : (
           <>
             {activeTab === "review" && <ReviewQueueTab data={queueData} />}
-            {activeTab === "processing" && <ProcessingTab data={processingData} />}
+            {activeTab === "processing" && <ProcessingTab data={processingData} onOpenClinicHQ={() => setShowClinicHQModal(true)} />}
             {activeTab === "config" && <ConfigurationTab rules={rulesData} />}
             {activeTab === "health" && <HealthTab health={healthData} />}
           </>
         )}
       </div>
+
+      {/* ClinicHQ Upload Modal */}
+      <ClinicHQUploadModal
+        isOpen={showClinicHQModal}
+        onClose={() => setShowClinicHQModal(false)}
+      />
     </div>
   );
 }

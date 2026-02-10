@@ -40,6 +40,7 @@ These apply to ALL changes across ALL layers:
 32. **Pre-2024 Person-Cat Links Are Suspect** — Until 2024, FFSC data practices were informal. Staff often used partner org emails (marinferals@yahoo.com, etc.) instead of actual resident contact info. `person_cat_relationships` from this era may link cats to the wrong person. For accurate cat counts at a location, use **place views** (cat_place_relationships) rather than person-cat links. Org emails must be in `data_engine_soft_blacklist`. Historical relationships won't be retroactively fixed — the place is the source of truth. **However:** if a historical person calls back with real contact info, the Data Engine should match them by name + address and add the new identifiers to their existing record (not create a duplicate). The soft-blacklisted org email remains but the person now also has their real email/phone.
 33. **ShelterLuv Medical Holds Create Pseudo-Owner Records** — When FFSC holds a cat for medical reasons (dental, injury, etc.), ShelterLuv records use owner name + reason (e.g., "Carlos Lopez Dental", "Jupiter (dental)"). These are NOT business names — they're medical hold descriptions. Don't mark as organizations. The cat name is usually in quotes or parentheses.
 34. **All Data Quality Issues Must Be Tracked in DATA_GAPS.md** — When discovering data quality issues (wrong links, duplicates, classification errors, missing data), ALWAYS document in `docs/DATA_GAPS.md` with: unique ID (DATA_GAP_XXX), status, problem description, evidence (SQL), root cause, and proposed fix. This is the single source of truth for data issues. Create corresponding migration files in `sql/schema/sot/MIG_XXX__description.sql`. Update status to FIXED after verification.
+35. **Real-World Edge Cases Go in DATA_GAP_RISKS.md** — When users report unusual booking scenarios (deceased owner properties, trappers booking for colony sites, shared household phones, etc.), document in `docs/DATA_GAP_RISKS.md` with: RISK_XXX ID, scenario description, data pattern, risks, and handling guidance. This tracks edge cases that aren't bugs but need special handling. Check this file when encountering unexpected data patterns.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
 
@@ -276,6 +277,35 @@ When setting `completed` or `cancelled`, also set `resolved_at = NOW()`.
 
 Always use **"Cats Needing TNR"** in UI labels (not "Estimated Cats" or "Cat Count"). Add helper text: "Still unfixed (not total)".
 
+## Cat-Place Linking (MIG_968)
+
+Cats are linked to places via TWO methods in the entity linking pipeline:
+
+| Method | Function | Priority | Use Case |
+|--------|----------|----------|----------|
+| **Appointment-based** | `link_cats_to_appointment_places()` | Highest | Uses `inferred_place_id` from appointments (where cat was actually seen/treated) |
+| **Person-based** | `link_cats_to_places()` | Secondary | Uses person_cat → person_place chain for adopter/foster/caretaker/owner relationships |
+
+### Critical Invariants
+
+1. **LIMIT 1 per person**: `link_cats_to_places()` uses `LIMIT 1` with ordering by `confidence DESC, created_at DESC` to pick only the BEST place per person. Never link to ALL historical addresses.
+
+2. **Pollution threshold**: A cat should have at most 2-3 links of the same `relationship_type`. More than that indicates pollution. Use `v_cat_place_pollution_check` view to monitor.
+
+3. **Alert trigger**: The `trg_cat_place_pollution_check` trigger logs to `data_quality_alerts` when a cat exceeds 5 links of the same type.
+
+4. **Staff exclusion (INV-12)**: `link_cats_to_places()` excludes staff/trappers to prevent their cats from polluting residential data.
+
+### Relationship Type Mapping
+
+| person_cat type | cat_place type | Confidence |
+|-----------------|----------------|------------|
+| `owner` | `home` | high |
+| `adopter` | `home` | high |
+| `foster` | `home` | medium |
+| `caretaker` | `residence` | medium |
+| `colony_caretaker` | `colony_member` | medium |
+
 ## Multi-Source Data Transparency
 
 When cats have data from multiple sources, use `record_cat_field_sources_batch()` in all ingest pipelines. Survivorship priority: `ClinicHQ > ShelterLuv > PetLink > Airtable > Legacy`. See `docs/CLAUDE_REFERENCE.md#multi-source-data-transparency` for details.
@@ -321,6 +351,8 @@ Manual edits made through the Atlas UI are **protected from being overwritten** 
 - **Don't INSERT directly into `sot_requests`** — Use `find_or_create_request()`
 - **Don't create cats without at least one identifier** — `enrich_cat()` requires microchip, clinichq_animal_id, or airtable_id
 - **Don't INSERT directly into `cat_place_relationships`** — Use `link_cat_to_place()` with evidence validation
+- **Don't create cat_place_relationships by joining ALL person_place_relationships** — Always use `LIMIT 1` with proper ordering (MIG_889 fix). A cat should link to ONE place per person, not ALL historical addresses.
+- **Don't bypass `link_cats_to_places()` for person_cat → cat_place linking** — This function has the proper LIMIT 1 + staff exclusion logic
 - **Don't INSERT directly into `person_cat_relationships`** — Use `link_person_to_cat()` with evidence validation
 - Don't INSERT directly into `place_contexts` — Use `assign_place_context()`
 - **Don't use custom `source_system` values** — Use the exact values listed above
@@ -396,6 +428,7 @@ Tippy uses this to explain data discrepancies to staff and provide context on sy
 | `docs/ARCHITECTURE_ENTITY_RESOLUTION.md` | Data Engine scoring, household modeling, review queue |
 | `docs/CLINIC_DATA_STRUCTURE.md` | ClinicHQ data flow rules |
 | `docs/ACTIVE_FLOW_SAFETY_GATE.md` | Safety checklist for changes to active workflows |
+| `docs/DATA_GAP_RISKS.md` | **Edge cases & unusual scenarios** — check when encountering data anomalies |
 | `docs/architecture/attribution-windows.md` | Attribution window rules and matching logic |
 | `docs/architecture/colony-estimation.md` | Colony size estimation methodology |
 | `docs/PLACE_CONTEXTS.md` | Place context tagging system |
