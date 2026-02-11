@@ -48,17 +48,22 @@ interface QueueSummary {
   };
 }
 
+interface SourceStatus {
+  last_sync: string | null;
+  records_24h: number;
+  total_records: number;
+  status: "active" | "ok" | "warning" | "stale" | "never";
+  sync_type: "file_upload" | "api_cron" | "api_manual";
+  description: string;
+}
+
 interface ProcessingStats {
-  ingest: {
-    clinichq: { last_sync: string; records_24h: number; status: string };
-    airtable: { last_sync: string; records_24h: number; status: string };
-    web_intake: { last_sync: string; records_24h: number; status: string };
-  };
+  sources: Record<string, SourceStatus>;
   entity_linking: {
     appointments_linked: number;
     cats_linked: number;
     places_inferred: number;
-    last_run: string;
+    last_run: string | null;
   };
   jobs: {
     pending: number;
@@ -262,144 +267,127 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
   );
 }
 
-function ProcessingTab({ data, onOpenClinicHQ }: { data: ProcessingStats | null; onOpenClinicHQ?: () => void }) {
+function ProcessingTab({ data, onOpenClinicHQ, onRefresh }: { data: ProcessingStats | null; onOpenClinicHQ?: () => void; onRefresh?: () => void }) {
+  const [runningJobs, setRunningJobs] = useState(false);
+
   if (!data) {
     return <p className="text-muted">Loading processing status...</p>;
   }
+
+  const handleRunJobs = async () => {
+    setRunningJobs(true);
+    try {
+      const res = await fetch("/api/admin/data/processing", { method: "POST" });
+      const result = await res.json();
+      if (result.success) {
+        alert(result.message);
+        onRefresh?.();
+      } else {
+        alert(result.error || "Failed to start jobs");
+      }
+    } catch (err) {
+      alert("Failed to start jobs");
+    } finally {
+      setRunningJobs(false);
+    }
+  };
+
+  // Source display config
+  const sourceConfig: Record<string, { color: string; label: string; syncLabel: string }> = {
+    clinichq: { color: "#2563eb", label: "ClinicHQ", syncLabel: "File Upload" },
+    shelterluv: { color: "#10b981", label: "ShelterLuv", syncLabel: "API Cron" },
+    airtable: { color: "#f59e0b", label: "Airtable", syncLabel: "Legacy" },
+    volunteerhub: { color: "#8b5cf6", label: "VolunteerHub", syncLabel: "API Cron" },
+    petlink: { color: "#ec4899", label: "PetLink", syncLabel: "File Upload" },
+  };
 
   return (
     <div>
       {/* Data Sources Overview */}
       <h3 style={{ marginBottom: "1rem" }}>Data Sources</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        {/* ClinicHQ - File Upload */}
-        <div
-          style={{
-            padding: "1.25rem",
-            background: "var(--card-bg, white)",
-            borderRadius: "8px",
-            border: "1px solid var(--border, #e5e7eb)",
-            borderLeft: "4px solid #2563eb",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <div>
-              <strong style={{ fontSize: "1rem" }}>ClinicHQ</strong>
-              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                File Upload (CSV/XLSX)
-              </div>
-            </div>
-            <StatusBadge status={data.ingest.clinichq?.status || "ok"} />
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
-            <div>Last upload: {data.ingest.clinichq?.last_sync ? new Date(data.ingest.clinichq.last_sync).toLocaleDateString() : "Never"}</div>
-            <div>Records (24h): {data.ingest.clinichq?.records_24h || 0}</div>
-          </div>
-          <button
-            onClick={onOpenClinicHQ}
-            style={{
-              width: "100%",
-              padding: "0.6rem 1rem",
-              background: "var(--primary, #2563eb)",
-              color: "var(--primary-foreground, #fff)",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-            }}
-          >
-            Upload Batch
-          </button>
-        </div>
+        {Object.entries(data.sources || {}).map(([key, source]) => {
+          const config = sourceConfig[key] || { color: "#6b7280", label: key, syncLabel: "Unknown" };
+          const isFileUpload = source.sync_type === "file_upload";
 
-        {/* ShelterLuv - API */}
-        <div
-          style={{
-            padding: "1.25rem",
-            background: "var(--card-bg, white)",
-            borderRadius: "8px",
-            border: "1px solid var(--border, #e5e7eb)",
-            borderLeft: "4px solid #10b981",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <div>
-              <strong style={{ fontSize: "1rem" }}>ShelterLuv</strong>
-              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                API Sync (Automatic)
+          return (
+            <div
+              key={key}
+              style={{
+                padding: "1.25rem",
+                background: "var(--card-bg, white)",
+                borderRadius: "8px",
+                border: "1px solid var(--border, #e5e7eb)",
+                borderLeft: `4px solid ${config.color}`,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                <div>
+                  <strong style={{ fontSize: "1rem" }}>{config.label}</strong>
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
+                    {config.syncLabel}
+                  </div>
+                </div>
+                <StatusBadge status={source.status} />
               </div>
-            </div>
-            <StatusBadge status="active" />
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
-            <div>Syncs daily at 6 AM UTC</div>
-            <div>Cats, outcomes, medical records</div>
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", padding: "0.4rem 0.6rem", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", textAlign: "center" }}>
-            Automatic - No action needed
-          </div>
-        </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
+                <div>Last sync: {source.last_sync ? new Date(source.last_sync).toLocaleDateString() : "Never"}</div>
+                <div>{source.description}</div>
+                {source.total_records > 0 && (
+                  <div style={{ marginTop: "0.25rem" }}>Total: {source.total_records.toLocaleString()} records</div>
+                )}
+              </div>
 
-        {/* Airtable - API */}
-        <div
-          style={{
-            padding: "1.25rem",
-            background: "var(--card-bg, white)",
-            borderRadius: "8px",
-            border: "1px solid var(--border, #e5e7eb)",
-            borderLeft: "4px solid #f59e0b",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <div>
-              <strong style={{ fontSize: "1rem" }}>Airtable</strong>
-              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                API Sync (Legacy)
-              </div>
-            </div>
-            <StatusBadge status={data.ingest.airtable?.status || "ok"} />
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
-            <div>Last sync: {data.ingest.airtable?.last_sync ? new Date(data.ingest.airtable.last_sync).toLocaleDateString() : "Never"}</div>
-            <div>Legacy requests & Project 75</div>
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", padding: "0.4rem 0.6rem", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", textAlign: "center" }}>
-            Automatic - No action needed
-          </div>
-        </div>
+              {/* PetLink warning */}
+              {key === "petlink" && (
+                <div style={{
+                  fontSize: "0.7rem",
+                  padding: "0.4rem 0.6rem",
+                  background: "#fef3c7",
+                  borderRadius: "4px",
+                  marginBottom: "0.5rem",
+                  color: "#92400e",
+                }}>
+                  ⚠️ Contains fabricated emails - filtered in matching
+                </div>
+              )}
 
-        {/* VolunteerHub - API */}
-        <div
-          style={{
-            padding: "1.25rem",
-            background: "var(--card-bg, white)",
-            borderRadius: "8px",
-            border: "1px solid var(--border, #e5e7eb)",
-            borderLeft: "4px solid #8b5cf6",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <div>
-              <strong style={{ fontSize: "1rem" }}>VolunteerHub</strong>
-              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                API Sync (Automatic)
-              </div>
+              {/* Action button for file uploads */}
+              {isFileUpload && key === "clinichq" && (
+                <button
+                  onClick={onOpenClinicHQ}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 1rem",
+                    background: config.color,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Upload Batch
+                </button>
+              )}
+
+              {/* API cron status indicator */}
+              {source.sync_type === "api_cron" && (
+                <div style={{
+                  fontSize: "0.7rem",
+                  color: "var(--muted, #6b7280)",
+                  padding: "0.4rem 0.6rem",
+                  background: "var(--bg-secondary, #f3f4f6)",
+                  borderRadius: "4px",
+                  textAlign: "center",
+                }}>
+                  Automatic - No action needed
+                </div>
+              )}
             </div>
-            <StatusBadge status="active" />
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
-            <div>Syncs daily</div>
-            <div>Volunteers, trappers, fosters</div>
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", padding: "0.4rem 0.6rem", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", textAlign: "center" }}>
-            Automatic - No action needed
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {/* Entity Linking */}
@@ -411,7 +399,27 @@ function ProcessingTab({ data, onOpenClinicHQ }: { data: ProcessingStats | null;
       </div>
 
       {/* Job Queue */}
-      <h3 style={{ marginBottom: "1rem" }}>Background Jobs</h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h3 style={{ margin: 0 }}>Background Jobs</h3>
+        {data.jobs.pending > 0 && (
+          <button
+            onClick={handleRunJobs}
+            disabled={runningJobs}
+            style={{
+              padding: "0.5rem 1rem",
+              background: runningJobs ? "var(--muted, #9ca3af)" : "#f59e0b",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: runningJobs ? "not-allowed" : "pointer",
+            }}
+          >
+            {runningJobs ? "Starting..." : `Run ${data.jobs.pending} Pending Jobs`}
+          </button>
+        )}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
         <StatCard label="Pending" value={data.jobs.pending} color="#f59e0b" />
         <StatCard label="Running" value={data.jobs.running} color="#3b82f6" />
@@ -573,7 +581,9 @@ function StatusBadge({ status }: { status: string }) {
     active: { bg: "#dcfce7", color: "#166534" },
     ok: { bg: "#dcfce7", color: "#166534" },
     warning: { bg: "#fef3c7", color: "#92400e" },
+    stale: { bg: "#fef3c7", color: "#92400e" },
     inactive: { bg: "#f3f4f6", color: "#6b7280" },
+    never: { bg: "#f3f4f6", color: "#6b7280" },
     error: { bg: "#fee2e2", color: "#dc2626" },
   };
   const { bg, color } = config[status.toLowerCase()] || config.inactive;
@@ -637,23 +647,29 @@ function DataHubContent() {
     }
   }, [tabParam]);
 
-  useEffect(() => {
+  const fetchData = async () => {
     setLoading(true);
-    Promise.all([
-      fetch("/api/admin/reviews/summary").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("/api/admin/data/processing").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("/api/health/data-engine").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch("/api/admin/data-engine/stats").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ])
-      .then(([queue, processing, health, stats]) => {
-        // Only set data if it has the expected structure (not an error response)
-        setQueueData(queue?.identity ? queue : null);
-        setProcessingData(processing?.ingest ? processing : null);
-        setHealthData(health?.health ? health : null);
-        setRulesData(stats?.rule_effectiveness || []);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    try {
+      const [queue, processing, health, stats] = await Promise.all([
+        fetch("/api/admin/reviews/summary").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch("/api/admin/data/processing").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch("/api/health/data-engine").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetch("/api/admin/data-engine/stats").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      // Only set data if it has the expected structure (not an error response)
+      setQueueData(queue?.identity ? queue : null);
+      setProcessingData(processing?.sources ? processing : null);
+      setHealthData(health?.health ? health : null);
+      setRulesData(stats?.rule_effectiveness || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   const tabs = [
@@ -728,7 +744,7 @@ function DataHubContent() {
         ) : (
           <>
             {activeTab === "review" && <ReviewQueueTab data={queueData} />}
-            {activeTab === "processing" && <ProcessingTab data={processingData} onOpenClinicHQ={() => setShowClinicHQModal(true)} />}
+            {activeTab === "processing" && <ProcessingTab data={processingData} onOpenClinicHQ={() => setShowClinicHQModal(true)} onRefresh={fetchData} />}
             {activeTab === "config" && <ConfigurationTab rules={rulesData} />}
             {activeTab === "health" && <HealthTab health={healthData} />}
           </>
