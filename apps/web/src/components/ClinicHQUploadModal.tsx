@@ -33,7 +33,16 @@ interface ProcessResult {
     source_table: string;
     success: boolean;
     error?: string;
+    rows_total?: number;
+    rows_inserted?: number;
+    post_processing?: Record<string, unknown>;
   }>;
+}
+
+interface ProcessingProgress {
+  _current_step?: string;
+  _file_progress?: string;
+  [key: string]: unknown;
 }
 
 const FILE_TYPES = [
@@ -61,6 +70,13 @@ export default function ClinicHQUploadModal({
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<FileTypeKey | null>(null);
 
+  // Progress polling state
+  const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   const fileInputRefs = useRef<Record<FileTypeKey, HTMLInputElement | null>>({
     cat_info: null,
     owner_info: null,
@@ -76,8 +92,19 @@ export default function ClinicHQUploadModal({
       setProcessing(false);
       setProcessResult(null);
       setError(null);
+      setProcessingProgress(null);
+      setElapsedSeconds(0);
+      setCurrentFileIndex(0);
     }
   }, [isOpen]);
+
+  // Cleanup polling and timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const filesUploaded = Object.values(uploadedFiles).filter(Boolean).length;
   const isComplete = filesUploaded === 3;
@@ -150,6 +177,104 @@ export default function ClinicHQUploadModal({
     e.target.value = "";
   }, [handleFileUpload]);
 
+  // Poll for processing progress
+  const startProgressPolling = useCallback((batchIdToPoll: string) => {
+    // Clear any existing polling
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setElapsedSeconds(0);
+    setProcessingProgress({ _current_step: "Starting batch processing..." });
+    setCurrentFileIndex(0);
+
+    // Start elapsed time counter
+    timerRef.current = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+
+    // Poll for progress
+    pollingRef.current = setInterval(async () => {
+      try {
+        // Check batch status for completion
+        const batchRes = await fetch(`/api/ingest/batch/${batchIdToPoll}`);
+        if (!batchRes.ok) return;
+        const batchData = await batchRes.json();
+
+        // Also get individual upload statuses for more detail
+        const uploadsRes = await fetch("/api/ingest/uploads");
+        if (uploadsRes.ok) {
+          const uploadsData = await uploadsRes.json();
+          const batchUploads = uploadsData.uploads?.filter(
+            (u: { batch_id?: string }) => u.batch_id === batchIdToPoll
+          ) || [];
+
+          // Find which file is currently processing
+          const processingFile = batchUploads.find(
+            (u: { status: string }) => u.status === "processing"
+          );
+          const completedCount = batchUploads.filter(
+            (u: { status: string }) => u.status === "completed"
+          ).length;
+
+          if (processingFile) {
+            setCurrentFileIndex(completedCount);
+            setProcessingProgress({
+              _current_step: `Processing ${processingFile.source_table}...`,
+              _file_progress: `File ${completedCount + 1} of 3`,
+              ...((processingFile.post_processing_results as Record<string, unknown>) || {}),
+            });
+          } else if (completedCount === 3) {
+            setProcessingProgress({
+              _current_step: "Running entity linking...",
+              _file_progress: "All files processed",
+            });
+          }
+        }
+
+        // Check if batch is done
+        if (batchData.status === "completed" || batchData.status === "failed") {
+          // Stop polling
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+
+          // Fetch final results
+          const resultRes = await fetch(`/api/ingest/batch/${batchIdToPoll}`);
+          const finalResult = await resultRes.json();
+
+          setProcessing(false);
+          setProcessingProgress(null);
+
+          if (batchData.status === "completed") {
+            setProcessResult({
+              success: true,
+              message: "All 3 files processed successfully!",
+              files_processed: 3,
+              files_failed: 0,
+              results: finalResult.file_results || [],
+            });
+            onSuccess?.();
+          } else {
+            setProcessResult({
+              success: false,
+              message: finalResult.error || "Processing failed",
+              files_processed: 0,
+              files_failed: 3,
+              results: finalResult.file_results || [],
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    }, 1500);
+  }, [onSuccess]);
+
   const handleProcess = async () => {
     if (!batchId || !isComplete) return;
 
@@ -157,7 +282,11 @@ export default function ClinicHQUploadModal({
     setError(null);
     setProcessResult(null);
 
+    // Start polling for progress
+    startProgressPolling(batchId);
+
     try {
+      // Fire-and-forget: kick off processing
       const res = await fetch(`/api/ingest/batch/${batchId}/process`, {
         method: "POST",
       });
@@ -165,20 +294,57 @@ export default function ClinicHQUploadModal({
       const result = await res.json();
 
       if (!res.ok) {
+        // Stop polling on immediate error
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        setProcessing(false);
+        setProcessingProgress(null);
         throw new Error(result.error || "Processing failed");
       }
 
-      setProcessResult(result);
-      onSuccess?.();
+      // If we got an immediate response (non-async), use it
+      if (result.success !== undefined) {
+        // Stop polling
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        setProcessing(false);
+        setProcessingProgress(null);
+        setProcessResult(result);
+        if (result.success) {
+          onSuccess?.();
+        }
+      }
+      // Otherwise let polling handle it
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
-    } finally {
       setProcessing(false);
+      setProcessingProgress(null);
     }
   };
 
   const handleClose = () => {
     if (!uploading && !processing) {
+      // Cleanup polling
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
       onClose();
     }
   };
@@ -188,9 +354,18 @@ export default function ClinicHQUploadModal({
     setUploadedFiles({ cat_info: null, owner_info: null, appointment_info: null });
     setProcessResult(null);
     setError(null);
+    setProcessingProgress(null);
+    setElapsedSeconds(0);
+    setCurrentFileIndex(0);
   };
 
   if (!isOpen) return null;
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, "0")}`;
+  };
 
   return (
     <div
@@ -211,7 +386,7 @@ export default function ClinicHQUploadModal({
           background: "var(--card-bg, #fff)",
           borderRadius: "12px",
           width: "100%",
-          maxWidth: "600px",
+          maxWidth: "640px",
           maxHeight: "90vh",
           overflow: "auto",
           boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
@@ -274,12 +449,12 @@ export default function ClinicHQUploadModal({
                   onDrop={(e) => handleDrop(fileType.key, e)}
                   onDragOver={(e) => handleDragOver(fileType.key, e)}
                   onDragLeave={handleDragLeave}
-                  onClick={() => !uploaded && !isUploading && fileInputRefs.current[fileType.key]?.click()}
+                  onClick={() => !uploaded && !isUploading && !processing && fileInputRefs.current[fileType.key]?.click()}
                   style={{
                     padding: "16px 12px",
                     borderRadius: "8px",
                     textAlign: "center",
-                    cursor: uploaded || isUploading ? "default" : "pointer",
+                    cursor: uploaded || isUploading || processing ? "default" : "pointer",
                     transition: "all 0.15s ease",
                     background: uploaded
                       ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
@@ -291,6 +466,7 @@ export default function ClinicHQUploadModal({
                       : isDraggedOver
                       ? "2px dashed var(--primary, #2563eb)"
                       : "2px dashed var(--border, #e5e7eb)",
+                    opacity: processing ? 0.7 : 1,
                   }}
                 >
                   <input
@@ -299,6 +475,7 @@ export default function ClinicHQUploadModal({
                     ref={(el) => { fileInputRefs.current[fileType.key] = el; }}
                     onChange={(e) => handleFileInputChange(fileType.key, e)}
                     style={{ display: "none" }}
+                    disabled={processing}
                   />
 
                   {/* Status Icon */}
@@ -333,33 +510,148 @@ export default function ClinicHQUploadModal({
           </div>
 
           {/* Status Message */}
-          <div
-            style={{
-              padding: "12px 16px",
-              borderRadius: "8px",
-              marginBottom: "16px",
-              background: isComplete
-                ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
-                : "var(--warning-bg, rgba(255, 193, 7, 0.1))",
-              border: isComplete
-                ? "1px solid var(--success-text, #28a745)"
-                : "1px solid var(--warning-text, #d4a106)",
-            }}
-          >
+          {!processing && !processResult && (
             <div
               style={{
-                fontSize: "0.9rem",
-                fontWeight: 500,
-                color: isComplete
-                  ? "var(--success-text, #28a745)"
-                  : "var(--warning-text, #856404)",
+                padding: "12px 16px",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                background: isComplete
+                  ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
+                  : "var(--warning-bg, rgba(255, 193, 7, 0.1))",
+                border: isComplete
+                  ? "1px solid var(--success-text, #28a745)"
+                  : "1px solid var(--warning-text, #d4a106)",
               }}
             >
-              {isComplete
-                ? "All 3 files uploaded! Ready to process."
-                : `${filesUploaded}/3 files uploaded. Missing: ${missingFiles.join(", ")}`}
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 500,
+                  color: isComplete
+                    ? "var(--success-text, #28a745)"
+                    : "var(--warning-text, #856404)",
+                }}
+              >
+                {isComplete
+                  ? "All 3 files uploaded! Ready to process."
+                  : `${filesUploaded}/3 files uploaded. Missing: ${missingFiles.join(", ")}`}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Processing Progress */}
+          {processing && processingProgress && (
+            <div
+              style={{
+                padding: "16px",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                background: "var(--primary-bg, rgba(37, 99, 235, 0.08))",
+                border: "1px solid var(--primary, rgba(37, 99, 235, 0.3))",
+              }}
+            >
+              {/* Header with timer */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                  Processing...
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "var(--muted, #737373)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatTime(elapsedSeconds)}
+                </div>
+              </div>
+
+              {/* Current step */}
+              {processingProgress._current_step && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 12px",
+                    background: "var(--card-bg, #fff)",
+                    borderRadius: "6px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div
+                    className="spinner"
+                    style={{
+                      width: "14px",
+                      height: "14px",
+                      borderWidth: "2px",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.85rem" }}>
+                    {processingProgress._current_step}
+                  </span>
+                </div>
+              )}
+
+              {/* File progress indicator */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  marginBottom: "12px",
+                }}
+              >
+                {FILE_TYPES.map((ft, idx) => (
+                  <div
+                    key={ft.key}
+                    style={{
+                      flex: 1,
+                      height: "4px",
+                      borderRadius: "2px",
+                      background:
+                        idx < currentFileIndex
+                          ? "var(--success-text, #28a745)"
+                          : idx === currentFileIndex
+                          ? "var(--primary, #2563eb)"
+                          : "var(--border, #e5e7eb)",
+                      transition: "background 0.3s ease",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Progress details */}
+              {Object.keys(processingProgress).filter((k) => !k.startsWith("_")).length > 0 && (
+                <div style={{ fontSize: "0.75rem" }}>
+                  {Object.entries(processingProgress)
+                    .filter(([k]) => !k.startsWith("_"))
+                    .map(([key, value]) => (
+                      <div
+                        key={key}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginTop: "4px",
+                        }}
+                      >
+                        <span style={{ color: "var(--muted, #737373)" }}>
+                          {key.replace(/_/g, " ")}
+                        </span>
+                        <strong>{String(value)}</strong>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -382,7 +674,7 @@ export default function ClinicHQUploadModal({
           {processResult && (
             <div
               style={{
-                padding: "12px 16px",
+                padding: "16px",
                 borderRadius: "8px",
                 marginBottom: "16px",
                 background: processResult.success
@@ -393,20 +685,56 @@ export default function ClinicHQUploadModal({
                   : "1px solid var(--danger-text, #dc3545)",
               }}
             >
-              <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "8px" }}>
-                {processResult.message}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                }}
+              >
+                <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>
+                  {processResult.message}
+                </div>
+                {elapsedSeconds > 0 && (
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted, #737373)" }}>
+                    Completed in {formatTime(elapsedSeconds)}
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: "0.8rem" }}>
+
+              {/* File results */}
+              <div style={{ fontSize: "0.85rem" }}>
                 {processResult.results.map((r) => (
-                  <div key={r.source_table} style={{ marginTop: "4px" }}>
-                    {r.success ? (
-                      <span style={{ color: "var(--success-text, #28a745)" }}>&#10003;</span>
-                    ) : (
-                      <span style={{ color: "var(--danger-text, #dc3545)" }}>&#10007;</span>
-                    )}{" "}
-                    {r.source_table}
+                  <div key={r.source_table} style={{ marginTop: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {r.success ? (
+                        <span style={{ color: "var(--success-text, #28a745)" }}>&#10003;</span>
+                      ) : (
+                        <span style={{ color: "var(--danger-text, #dc3545)" }}>&#10007;</span>
+                      )}
+                      <strong>{r.source_table}</strong>
+                      {r.rows_inserted !== undefined && (
+                        <span style={{ color: "var(--muted, #737373)", fontSize: "0.8rem" }}>
+                          ({r.rows_inserted} rows)
+                        </span>
+                      )}
+                    </div>
                     {r.error && (
-                      <span style={{ color: "var(--danger-text, #dc3545)" }}> - {r.error}</span>
+                      <div style={{ color: "var(--danger-text, #dc3545)", marginLeft: "20px", fontSize: "0.8rem" }}>
+                        {r.error}
+                      </div>
+                    )}
+                    {r.post_processing && Object.keys(r.post_processing).length > 0 && (
+                      <div style={{ marginLeft: "20px", marginTop: "4px", fontSize: "0.75rem" }}>
+                        {Object.entries(r.post_processing)
+                          .filter(([k]) => !k.startsWith("_"))
+                          .map(([key, value]) => (
+                            <div key={key} style={{ color: "var(--muted, #737373)" }}>
+                              {key.replace(/_/g, " ")}: <strong>{String(value)}</strong>
+                            </div>
+                          ))}
+                      </div>
                     )}
                   </div>
                 ))}

@@ -269,55 +269,141 @@ function ProcessingTab({ data, onOpenClinicHQ }: { data: ProcessingStats | null;
 
   return (
     <div>
-      {/* Quick Actions */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <button
-          onClick={onOpenClinicHQ}
+      {/* Data Sources Overview */}
+      <h3 style={{ marginBottom: "1rem" }}>Data Sources</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+        {/* ClinicHQ - File Upload */}
+        <div
           style={{
-            padding: "0.75rem 1.25rem",
-            background: "var(--primary, #2563eb)",
-            color: "var(--primary-foreground, #fff)",
-            border: "none",
+            padding: "1.25rem",
+            background: "var(--card-bg, white)",
             borderRadius: "8px",
-            fontSize: "0.9rem",
-            fontWeight: 500,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderLeft: "4px solid #2563eb",
           }}
         >
-          <span>🏥</span> Upload ClinicHQ Batch
-        </button>
-      </div>
-
-      {/* Ingest Status */}
-      <h3 style={{ marginBottom: "1rem" }}>Data Ingest</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        {Object.entries(data.ingest).map(([source, info]) => (
-          <div
-            key={source}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+            <div>
+              <strong style={{ fontSize: "1rem" }}>ClinicHQ</strong>
+              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
+                File Upload (CSV/XLSX)
+              </div>
+            </div>
+            <StatusBadge status={data.ingest.clinichq?.status || "ok"} />
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
+            <div>Last upload: {data.ingest.clinichq?.last_sync ? new Date(data.ingest.clinichq.last_sync).toLocaleDateString() : "Never"}</div>
+            <div>Records (24h): {data.ingest.clinichq?.records_24h || 0}</div>
+          </div>
+          <button
+            onClick={onOpenClinicHQ}
             style={{
-              padding: "1rem",
-              background: "white",
-              borderRadius: "8px",
-              border: "1px solid #e5e7eb",
+              width: "100%",
+              padding: "0.6rem 1rem",
+              background: "var(--primary, #2563eb)",
+              color: "var(--primary-foreground, #fff)",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.5rem",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-              <strong style={{ textTransform: "capitalize" }}>{source.replace("_", " ")}</strong>
-              <StatusBadge status={info.status} />
+            Upload Batch
+          </button>
+        </div>
+
+        {/* ShelterLuv - API */}
+        <div
+          style={{
+            padding: "1.25rem",
+            background: "var(--card-bg, white)",
+            borderRadius: "8px",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderLeft: "4px solid #10b981",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+            <div>
+              <strong style={{ fontSize: "1rem" }}>ShelterLuv</strong>
+              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
+                API Sync (Automatic)
+              </div>
             </div>
-            <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-              <div>Last sync: {info.last_sync ? new Date(info.last_sync).toLocaleString() : "Never"}</div>
-              <div>Records (24h): {info.records_24h}</div>
-            </div>
+            <StatusBadge status="active" />
           </div>
-        ))}
+          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
+            <div>Syncs daily at 6 AM UTC</div>
+            <div>Cats, outcomes, medical records</div>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", padding: "0.4rem 0.6rem", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", textAlign: "center" }}>
+            Automatic - No action needed
+          </div>
+        </div>
+
+        {/* Airtable - API */}
+        <div
+          style={{
+            padding: "1.25rem",
+            background: "var(--card-bg, white)",
+            borderRadius: "8px",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderLeft: "4px solid #f59e0b",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+            <div>
+              <strong style={{ fontSize: "1rem" }}>Airtable</strong>
+              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
+                API Sync (Legacy)
+              </div>
+            </div>
+            <StatusBadge status={data.ingest.airtable?.status || "ok"} />
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
+            <div>Last sync: {data.ingest.airtable?.last_sync ? new Date(data.ingest.airtable.last_sync).toLocaleDateString() : "Never"}</div>
+            <div>Legacy requests & Project 75</div>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", padding: "0.4rem 0.6rem", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", textAlign: "center" }}>
+            Automatic - No action needed
+          </div>
+        </div>
+
+        {/* VolunteerHub - API */}
+        <div
+          style={{
+            padding: "1.25rem",
+            background: "var(--card-bg, white)",
+            borderRadius: "8px",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderLeft: "4px solid #8b5cf6",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+            <div>
+              <strong style={{ fontSize: "1rem" }}>VolunteerHub</strong>
+              <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
+                API Sync (Automatic)
+              </div>
+            </div>
+            <StatusBadge status="active" />
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
+            <div>Syncs daily</div>
+            <div>Volunteers, trappers, fosters</div>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", padding: "0.4rem 0.6rem", background: "var(--bg-secondary, #f3f4f6)", borderRadius: "4px", textAlign: "center" }}>
+            Automatic - No action needed
+          </div>
+        </div>
       </div>
 
       {/* Entity Linking */}
-      <h3 style={{ marginBottom: "1rem" }}>Entity Linking</h3>
+      <h3 style={{ marginBottom: "1rem" }}>Entity Linking Pipeline</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
         <StatCard label="Appointments Linked" value={data.entity_linking.appointments_linked} color="#3b82f6" />
         <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} color="#10b981" />
@@ -325,18 +411,12 @@ function ProcessingTab({ data, onOpenClinicHQ }: { data: ProcessingStats | null;
       </div>
 
       {/* Job Queue */}
-      <h3 style={{ marginBottom: "1rem" }}>Job Queue</h3>
+      <h3 style={{ marginBottom: "1rem" }}>Background Jobs</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
         <StatCard label="Pending" value={data.jobs.pending} color="#f59e0b" />
         <StatCard label="Running" value={data.jobs.running} color="#3b82f6" />
         <StatCard label="Completed (24h)" value={data.jobs.completed_24h} color="#10b981" />
         <StatCard label="Failed (24h)" value={data.jobs.failed_24h} color="#ef4444" />
-      </div>
-
-      <div style={{ marginTop: "1.5rem" }}>
-        <Link href="/admin/ingest" className="btn btn-secondary">
-          View Full Ingest Dashboard
-        </Link>
       </div>
     </div>
   );

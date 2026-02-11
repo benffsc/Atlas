@@ -143,7 +143,7 @@ export default function AdminPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
                 <QuickLink href="/intake/queue" label="Intake Queue" />
                 <QuickLink href="/trappers" label="Trapper Assignments" />
-                <QuickLink href="/admin/ingest" label="Data Ingest Status" />
+                <QuickLink href="/admin/data?tab=processing" label="Data Processing" />
                 <QuickLink href="/admin/tippy-corrections" label="Tippy Corrections" />
                 <QuickLink href="/admin/source-confidence" label="Source Confidence" />
                 <QuickLink href="/admin/ai-access" label="AI Access Controls" />
