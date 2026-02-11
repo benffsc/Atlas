@@ -37,6 +37,11 @@ export async function GET(request: NextRequest) {
   try {
     // Get review items
     // Handle merged persons: if candidate was merged, show the canonical person
+    // Note: Use decision_type = 'review_pending' for pending items (consistent with summary API)
+    const statusCondition = status === "pending"
+      ? "d.decision_type = 'review_pending' AND d.reviewed_at IS NULL"
+      : "d.reviewed_at IS NOT NULL";
+
     const reviews = await queryRows<ReviewItem>(`
       SELECT
         d.decision_id::text,
@@ -57,22 +62,22 @@ export async function GET(request: NextRequest) {
         res_p.display_name as resulting_name,
         d.score_breakdown,
         d.processed_at::text,
-        d.review_status
+        CASE WHEN d.reviewed_at IS NULL THEN 'pending' ELSE 'reviewed' END as review_status
       FROM trapper.data_engine_match_decisions d
       LEFT JOIN trapper.sot_people top_p ON top_p.person_id = d.top_candidate_person_id
       LEFT JOIN trapper.sot_people canonical_p ON canonical_p.person_id = top_p.merged_into_person_id
       LEFT JOIN trapper.sot_people res_p ON res_p.person_id = d.resulting_person_id
-      WHERE d.review_status = $1
+      WHERE ${statusCondition}
       ORDER BY d.processed_at DESC
-      LIMIT $2 OFFSET $3
-    `, [status, limit, offset]);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
-    // Get total count
+    // Get total count using same condition
     const countResult = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::int as count
-      FROM trapper.data_engine_match_decisions
-      WHERE review_status = $1
-    `, [status]);
+      FROM trapper.data_engine_match_decisions d
+      WHERE ${statusCondition}
+    `, []);
 
     return NextResponse.json({
       reviews,
