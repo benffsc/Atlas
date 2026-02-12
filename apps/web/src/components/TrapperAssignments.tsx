@@ -79,6 +79,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   const [assignmentStatus, setAssignmentStatus] = useState<string>("pending");
   const [showReasonForm, setShowReasonForm] = useState(false);
   const [savingReason, setSavingReason] = useState(false);
+  const [unassigningId, setUnassigningId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -273,6 +274,37 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
       console.error("Failed to clear no_trapper_reason:", err);
     } finally {
       setSavingReason(false);
+    }
+  };
+
+  const handleUnassign = async (trapperPersonId: string, trapperName: string) => {
+    if (!confirm(`Unassign ${trapperName} from this request?`)) return;
+    setUnassigningId(trapperPersonId);
+    try {
+      const response = await fetch(
+        `/api/requests/${requestId}/trappers?trapper_person_id=${trapperPersonId}&reason=manual_unassignment`,
+        { method: "DELETE" }
+      );
+      if (response.ok) {
+        // Journal audit entry
+        fetch("/api/journal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            entry_kind: "system",
+            tags: ["trapper_action"],
+            body: `Unassigned trapper: ${trapperName}`,
+          }),
+        }).catch(() => {});
+
+        fetchData();
+        onAssignmentChange?.();
+      }
+    } catch (err) {
+      console.error("Failed to unassign trapper:", err);
+    } finally {
+      setUnassigningId(null);
     }
   };
 
@@ -725,6 +757,34 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
                 )}
               </div>
             </div>
+            <button
+              onClick={() => handleUnassign(t.trapper_person_id, t.trapper_name)}
+              disabled={unassigningId === t.trapper_person_id}
+              title="Unassign trapper"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#6c757d",
+                cursor: unassigningId === t.trapper_person_id ? "not-allowed" : "pointer",
+                padding: "0.25rem 0.5rem",
+                fontSize: "1.1rem",
+                lineHeight: 1,
+                borderRadius: "4px",
+                opacity: unassigningId === t.trapper_person_id ? 0.5 : 1,
+              }}
+              onMouseOver={(e) => {
+                if (unassigningId !== t.trapper_person_id) {
+                  e.currentTarget.style.background = "rgba(220, 53, 69, 0.1)";
+                  e.currentTarget.style.color = "#dc3545";
+                }
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "#6c757d";
+              }}
+            >
+              {unassigningId === t.trapper_person_id ? "..." : "×"}
+            </button>
           </div>
         ))}
       </div>
