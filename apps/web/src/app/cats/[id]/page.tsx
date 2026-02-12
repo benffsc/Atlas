@@ -17,6 +17,8 @@ import AppointmentDetailModal from "@/components/AppointmentDetailModal";
 import { MediaGallery } from "@/components/MediaGallery";
 import { QuickActions, useCatQuickActionState } from "@/components/QuickActions";
 import { ProfileLayout } from "@/components/ProfileLayout";
+import { AtlasCatIdBadge } from "@/components/AtlasCatIdBadge";
+import { MicrochipStatusBadge } from "@/components/MicrochipStatusBadge";
 
 interface Owner {
   person_id: string;
@@ -220,6 +222,9 @@ interface CatDetail {
   field_sources: Record<string, FieldSourceValue[]> | null;
   has_field_conflicts: boolean;
   field_source_count: number;
+  // Atlas Cat ID System (MIG_976)
+  atlas_cat_id: string | null;
+  atlas_cat_id_type: "microchip" | "hash" | null;
 }
 
 // Medical chart condition checklist item
@@ -826,14 +831,18 @@ export default function CatDetailPage() {
                   DECEASED
                 </span>
               )}
+              {cat.atlas_cat_id && (
+                <AtlasCatIdBadge
+                  atlasCatId={cat.atlas_cat_id}
+                  isChipped={cat.atlas_cat_id_type !== "hash"}
+                  size="md"
+                />
+              )}
               {cat.needs_microchip && (
-                <span
-                  className="badge"
-                  style={{ background: "#f59e0b", color: "#fff", fontSize: "0.6em" }}
-                  title="This cat does not have a microchip on record. Identified via ClinicHQ Animal ID."
-                >
-                  NO MICROCHIP
-                </span>
+                <MicrochipStatusBadge
+                  hasChip={false}
+                  size="md"
+                />
               )}
               <DataSourceBadge dataSource={cat.data_source} />
               <OwnershipTypeBadge ownershipType={cat.ownership_type} />

@@ -37,6 +37,14 @@ interface ProcessResult {
   elapsedMs: number;
 }
 
+interface ProgressUpdate {
+  phase: string;
+  current: number;
+  total: number;
+  message: string;
+  stats?: Partial<ProcessingStats>;
+}
+
 interface V2Stats {
   source: { clinichq_raw: number };
   ops: { appointments: number; clinic_accounts: number };
@@ -66,7 +74,7 @@ export default function V2IngestPage() {
   const [error, setError] = useState<string | null>(null);
   const [v2Stats, setV2Stats] = useState<V2Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressUpdate | null>(null);
 
   const fileInputRefs = useRef<Record<FileType, HTMLInputElement | null>>({
     cat_info: null,
@@ -115,14 +123,14 @@ export default function V2IngestPage() {
   const filesUploaded = Object.values(files).filter(Boolean).length;
   const isComplete = filesUploaded === 3;
 
-  // Process all files
+  // Process all files with streaming progress
   const handleProcess = async () => {
     if (!isComplete) return;
 
     setProcessing(true);
     setError(null);
     setResult(null);
-    setProgress("Uploading files...");
+    setProgress({ phase: "uploading", current: 0, total: 100, message: "Uploading files..." });
 
     try {
       const formData = new FormData();
@@ -130,26 +138,63 @@ export default function V2IngestPage() {
       formData.append("owner_info", files.owner_info!);
       formData.append("appointment_info", files.appointment_info!);
       formData.append("dryRun", String(dryRun));
-
-      setProgress("Processing through V2 pipeline...");
+      formData.append("stream", "true"); // Enable streaming
 
       const res = await fetch("/api/v2/ingest/clinichq", {
         method: "POST",
         body: formData,
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
+        const data = await res.json();
         throw new Error(data.error || "Processing failed");
       }
 
-      setResult(data);
-      setProgress(null);
+      // Handle SSE stream
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
 
-      // Reload stats after processing
-      if (!dryRun) {
-        await loadV2Stats();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || ""; // Keep incomplete message in buffer
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === "progress") {
+                setProgress({
+                  phase: data.phase,
+                  current: data.current,
+                  total: data.total,
+                  message: data.message,
+                  stats: data.stats,
+                });
+              } else if (data.type === "complete") {
+                setResult(data);
+                setProgress(null);
+                // Reload stats after processing
+                if (!dryRun) {
+                  await loadV2Stats();
+                }
+              } else if (data.type === "error") {
+                throw new Error(data.error);
+              }
+            } catch (parseErr) {
+              console.error("Failed to parse SSE message:", parseErr);
+            }
+          }
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
@@ -373,7 +418,7 @@ export default function V2IngestPage() {
             cursor: !isComplete || processing ? "not-allowed" : "pointer",
           }}
         >
-          {processing ? (progress || "Processing...") : dryRun ? "Run Dry Run" : "Process to V2"}
+          {processing ? "Processing..." : dryRun ? "Run Dry Run" : "Process to V2"}
         </button>
         <button
           onClick={handleReset}
@@ -390,6 +435,66 @@ export default function V2IngestPage() {
           Reset
         </button>
       </div>
+
+      {/* Progress Bar */}
+      {progress && (
+        <div style={{
+          marginBottom: "1.5rem",
+          padding: "1rem",
+          background: "var(--card-bg, #f9fafb)",
+          border: "1px solid var(--border)",
+          borderRadius: "0.5rem",
+        }}>
+          <div style={{ marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 500 }}>
+            {progress.message}
+          </div>
+
+          {/* Progress bar */}
+          <div style={{
+            height: "8px",
+            background: "var(--border)",
+            borderRadius: "4px",
+            overflow: "hidden",
+            marginBottom: "0.5rem",
+          }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%`,
+                background: "var(--primary, #3b82f6)",
+                borderRadius: "4px",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--muted)" }}>
+            <span>{progress.current.toLocaleString()} / {progress.total.toLocaleString()}</span>
+            <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+          </div>
+
+          {/* Live stats during processing */}
+          {progress.stats && (
+            <div style={{
+              marginTop: "0.75rem",
+              paddingTop: "0.75rem",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              gap: "1.5rem",
+              fontSize: "0.75rem",
+              color: "var(--muted)",
+            }}>
+              <span>People: <strong>{progress.stats.personsCreated || 0}</strong></span>
+              <span>Cats: <strong>{progress.stats.catsCreated || 0}</strong></span>
+              <span>Places: <strong>{progress.stats.placesCreated || 0}</strong></span>
+              <span>Pseudo: <strong>{progress.stats.pseudoProfiles || 0}</strong></span>
+              {(progress.stats.errors || 0) > 0 && (
+                <span style={{ color: "var(--error, #dc2626)" }}>Errors: <strong>{progress.stats.errors}</strong></span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Error */}
       {error && (

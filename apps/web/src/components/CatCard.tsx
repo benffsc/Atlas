@@ -2,6 +2,7 @@
 
 import React from "react";
 import { formatDateLocal } from "@/lib/formatters";
+import { AtlasCatIdBadge, NoAtlasCatId } from "./AtlasCatIdBadge";
 
 export interface CatDisease {
   disease_key: string;
@@ -37,6 +38,9 @@ export interface CatCardData {
   owner_name?: string | null;
   trapper_name?: string | null;
   last_seen?: string | null;
+  // Atlas Cat ID System (MIG_976)
+  atlas_cat_id?: string | null;
+  atlas_cat_id_type?: "microchip" | "hash" | null;
 }
 
 interface CatCardProps {
@@ -291,6 +295,17 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
         {sex && color && <span style={{ color: "var(--card-border)" }}>•</span>}
         {color && <span>{color}</span>}
       </div>
+
+      {/* Atlas Cat ID Badge */}
+      {!compact && cat.atlas_cat_id && (
+        <div style={{ marginBottom: "8px" }}>
+          <AtlasCatIdBadge
+            atlasCatId={cat.atlas_cat_id}
+            isChipped={cat.atlas_cat_id_type !== "hash"}
+            size="sm"
+          />
+        </div>
+      )}
 
       {/* Status Badges (Chipped/No Chip/Unlinked) */}
       {!compact && (

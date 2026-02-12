@@ -31,6 +31,9 @@ interface CatDetailRow {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  // Atlas Cat ID System (MIG_976)
+  atlas_cat_id: string | null;
+  atlas_cat_id_is_chipped: boolean | null;
 }
 
 interface ClinicAppointment {
@@ -179,10 +182,13 @@ export async function GET(
         c.deceased_date::TEXT,
         c.verified_at,
         c.verified_by,
-        s.display_name AS verified_by_name
+        s.display_name AS verified_by_name,
+        c.atlas_cat_id,
+        r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
       FROM trapper.v_cat_detail v
       JOIN trapper.sot_cats c ON c.cat_id = v.cat_id
       LEFT JOIN trapper.staff s ON c.verified_by = s.staff_id::text
+      LEFT JOIN trapper.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE v.cat_id = $1
     `;
 
@@ -215,9 +221,12 @@ export async function GET(
         c.deceased_date::TEXT,
         c.verified_at,
         c.verified_by,
-        s.display_name AS verified_by_name
+        s.display_name AS verified_by_name,
+        c.atlas_cat_id,
+        r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
       FROM trapper.sot_cats c
       LEFT JOIN trapper.staff s ON c.verified_by = s.staff_id::text
+      LEFT JOIN trapper.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE c.cat_id = $1
     `;
 
