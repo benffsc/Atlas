@@ -537,14 +537,19 @@ async function processMergedRecord(
       }
     }
   } else {
+    // Map classification types to account types
+    let accountType = "unknown";
+    if (classification.type === "organization") accountType = "organization";
+    else if (classification.type === "site_name") accountType = "site_name";
+    else if (classification.type === "address") accountType = "address";
+
     await upsertClinicAccount({
       ownerFirstName,
       ownerLastName,
       ownerEmail,
       ownerPhone,
       ownerAddress,
-      accountType: classification.type === "organization" ? "organization" :
-                   classification.type === "address" ? "address" : "unknown",
+      accountType,
       classificationReason: classification.reason,
     });
 
