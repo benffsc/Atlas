@@ -771,43 +771,6 @@ async function processMergedRecord(
 }
 
 // ============================================================================
-// SSE Helper for Progress Streaming
-// ============================================================================
-
-function createSSEStream(controller: ReadableStreamDefaultController<Uint8Array>) {
-  const encoder = new TextEncoder();
-
-  return {
-    sendProgress(data: {
-      phase: string;
-      current: number;
-      total: number;
-      message: string;
-      stats?: Partial<ProcessingStats>;
-    }) {
-      const event = `data: ${JSON.stringify({ type: "progress", ...data })}\n\n`;
-      controller.enqueue(encoder.encode(event));
-    },
-    sendComplete(data: {
-      success: boolean;
-      message: string;
-      stats: ProcessingStats;
-      dryRun: boolean;
-      elapsedMs: number;
-    }) {
-      const event = `data: ${JSON.stringify({ type: "complete", ...data })}\n\n`;
-      controller.enqueue(encoder.encode(event));
-      controller.close();
-    },
-    sendError(error: string) {
-      const event = `data: ${JSON.stringify({ type: "error", error })}\n\n`;
-      controller.enqueue(encoder.encode(event));
-      controller.close();
-    },
-  };
-}
-
-// ============================================================================
 // API Route Handler
 // ============================================================================
 
@@ -893,73 +856,91 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Streaming mode - use Server-Sent Events
-    const responseStream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const sse = createSSEStream(controller);
+    // Streaming mode - use Server-Sent Events with TransformStream
+    const encoder = new TextEncoder();
 
-        try {
-          // Send initial progress
-          sse.sendProgress({
-            phase: "parsing",
-            current: 0,
-            total: mergedRecords.length,
-            message: `Parsed ${catInfoRows.length + ownerInfoRows.length + appointmentInfoRows.length} rows, merged into ${mergedRecords.length} cats`,
-          });
+    // Create a transform stream that we can write to
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
 
-          // Process merged records with progress updates
-          const progressInterval = Math.max(1, Math.floor(mergedRecords.length / 50)); // Update ~50 times
+    // Helper to send SSE events
+    const sendEvent = async (data: Record<string, unknown>) => {
+      const event = `data: ${JSON.stringify(data)}\n\n`;
+      await writer.write(encoder.encode(event));
+    };
 
-          for (let i = 0; i < mergedRecords.length; i++) {
-            const record = mergedRecords[i];
-            try {
-              await processMergedRecord(record, stats, dryRun);
-            } catch (err) {
-              console.error(`[V2 Ingest] Record error (${record.microchip}):`, err);
-              stats.errors++;
-            }
+    // Start processing in the background (don't await)
+    (async () => {
+      try {
+        // Send initial progress
+        await sendEvent({
+          type: "progress",
+          phase: "parsing",
+          current: 0,
+          total: mergedRecords.length,
+          message: `Parsed ${catInfoRows.length + ownerInfoRows.length + appointmentInfoRows.length} rows, merged into ${mergedRecords.length} cats`,
+        });
 
-            // Send progress update periodically
-            if ((i + 1) % progressInterval === 0 || i === mergedRecords.length - 1) {
-              sse.sendProgress({
-                phase: "processing",
-                current: i + 1,
-                total: mergedRecords.length,
-                message: `Processing cat ${i + 1}/${mergedRecords.length}`,
-                stats: {
-                  personsCreated: stats.personsCreated,
-                  personsMatched: stats.personsMatched,
-                  pseudoProfiles: stats.pseudoProfiles,
-                  catsCreated: stats.catsCreated,
-                  placesCreated: stats.placesCreated,
-                  errors: stats.errors,
-                },
-              });
-            }
+        // Process merged records with progress updates
+        const progressInterval = Math.max(1, Math.floor(mergedRecords.length / 50)); // Update ~50 times
+
+        for (let i = 0; i < mergedRecords.length; i++) {
+          const record = mergedRecords[i];
+          try {
+            await processMergedRecord(record, stats, dryRun);
+          } catch (err) {
+            console.error(`[V2 Ingest] Record error (${record.microchip}):`, err);
+            stats.errors++;
           }
 
-          const elapsedMs = Date.now() - startTime;
-
-          // Send completion
-          sse.sendComplete({
-            success: stats.errors === 0,
-            message: `Processed ${mergedRecords.length} cats with ${uniqueAppointments} unique visits (${totalServiceItems} service items)`,
-            stats,
-            dryRun,
-            elapsedMs,
-          });
-        } catch (error) {
-          console.error("[V2 Ingest] Stream error:", error);
-          sse.sendError(error instanceof Error ? error.message : "Processing failed");
+          // Send progress update periodically
+          if ((i + 1) % progressInterval === 0 || i === mergedRecords.length - 1) {
+            await sendEvent({
+              type: "progress",
+              phase: "processing",
+              current: i + 1,
+              total: mergedRecords.length,
+              message: `Processing cat ${i + 1}/${mergedRecords.length}`,
+              stats: {
+                personsCreated: stats.personsCreated,
+                personsMatched: stats.personsMatched,
+                pseudoProfiles: stats.pseudoProfiles,
+                catsCreated: stats.catsCreated,
+                placesCreated: stats.placesCreated,
+                errors: stats.errors,
+              },
+            });
+          }
         }
-      },
-    });
 
-    return new Response(responseStream, {
+        const elapsedMs = Date.now() - startTime;
+
+        // Send completion
+        await sendEvent({
+          type: "complete",
+          success: stats.errors === 0,
+          message: `Processed ${mergedRecords.length} cats with ${uniqueAppointments} unique visits (${totalServiceItems} service items)`,
+          stats,
+          dryRun,
+          elapsedMs,
+        });
+      } catch (error) {
+        console.error("[V2 Ingest] Stream error:", error);
+        await sendEvent({
+          type: "error",
+          error: error instanceof Error ? error.message : "Processing failed",
+        });
+      } finally {
+        await writer.close();
+      }
+    })();
+
+    return new Response(readable, {
       headers: {
         "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
+        "X-Accel-Buffering": "no", // Disable nginx buffering
       },
     });
 
