@@ -10,6 +10,8 @@ export const maxDuration = 300; // 5 minutes
 // Types
 // ============================================================================
 
+type FileType = "cat_info" | "owner_info" | "appointment_info";
+
 interface ProcessingStats {
   total: number;
   sourceInserted: number;
@@ -23,12 +25,24 @@ interface ProcessingStats {
   placesCreated: number;
   placesMatched: number;
   errors: number;
+  files: {
+    cat_info: number;
+    owner_info: number;
+    appointment_info: number;
+  };
 }
 
 interface ClassificationResult {
   type: string;
   shouldBePerson: boolean;
   reason?: string;
+}
+
+interface MergedRecord {
+  microchip: string;
+  catInfo?: Record<string, unknown>;
+  ownerInfo?: Record<string, unknown>;
+  appointmentInfo?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -50,24 +64,6 @@ function getString(row: Record<string, unknown>, ...keys: string[]): string | un
   return undefined;
 }
 
-function getRecordType(row: Record<string, unknown>): string {
-  if (row["Microchip"] || row["Cat Name"] || row["Animal Name"]) return "cat";
-  if (row["Owner First Name"] || row["Owner Last Name"]) return "owner";
-  if (row["Procedure"] || row["Surgery"]) return "procedure";
-  if (row["Date"] || row["Appointment Date"]) return "appointment";
-  return "unknown";
-}
-
-function getAppointmentId(row: Record<string, unknown>): string {
-  const id = getString(row, "ID", "id", "Appointment ID", "Number");
-  if (id) return id;
-
-  const date = getString(row, "Date", "Appointment Date");
-  const number = getString(row, "Number", "#");
-  if (date && number) return `${date}_${number}`;
-
-  return `row_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-}
 
 function normalizePhone(phone: string | undefined): string | null {
   if (!phone) return null;
@@ -328,26 +324,134 @@ async function createPerson(params: {
   return result.person_id;
 }
 
+
 // ============================================================================
-// Main Processing
+// File Parsing
 // ============================================================================
 
-async function processRow(
-  row: Record<string, unknown>,
+function parseXlsxFile(buffer: Buffer): Record<string, unknown>[] {
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+
+  const rawData = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    defval: "",
+    blankrows: false,
+    raw: false,
+  }) as unknown[][];
+
+  if (rawData.length === 0) return [];
+
+  const rawHeaders = rawData[0] as string[];
+  const headers = rawHeaders.map((h, i) => h ? String(h).trim() : `_col_${i + 1}`);
+
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 1; i < rawData.length; i++) {
+    const rowArray = rawData[i] as unknown[];
+    const rowObj: Record<string, unknown> = {};
+    let hasData = false;
+
+    for (let j = 0; j < headers.length; j++) {
+      let value = j < rowArray.length ? rowArray[j] : "";
+      if (typeof value === "string") value = value.trim();
+      if (value instanceof Date) value = value.toISOString();
+      rowObj[headers[j]] = value;
+      if (value !== "" && value !== null && value !== undefined) hasData = true;
+    }
+
+    if (hasData) rows.push(rowObj);
+  }
+
+  return rows;
+}
+
+function getMicrochipFromRow(row: Record<string, unknown>): string | null {
+  const chip = getString(row, "Microchip", "Microchip Number", "Chip", "Microchip #");
+  if (!chip || chip.length < 9) return null;
+  return chip;
+}
+
+// ============================================================================
+// Merge 3 Files by Microchip
+// ============================================================================
+
+function mergeFilesByMicrochip(
+  catInfoRows: Record<string, unknown>[],
+  ownerInfoRows: Record<string, unknown>[],
+  appointmentInfoRows: Record<string, unknown>[]
+): MergedRecord[] {
+  const byMicrochip = new Map<string, MergedRecord>();
+
+  // Index cat_info by microchip
+  for (const row of catInfoRows) {
+    const chip = getMicrochipFromRow(row);
+    if (chip) {
+      if (!byMicrochip.has(chip)) {
+        byMicrochip.set(chip, { microchip: chip });
+      }
+      byMicrochip.get(chip)!.catInfo = row;
+    }
+  }
+
+  // Index owner_info by microchip
+  for (const row of ownerInfoRows) {
+    const chip = getMicrochipFromRow(row);
+    if (chip) {
+      if (!byMicrochip.has(chip)) {
+        byMicrochip.set(chip, { microchip: chip });
+      }
+      byMicrochip.get(chip)!.ownerInfo = row;
+    }
+  }
+
+  // Index appointment_info by microchip
+  for (const row of appointmentInfoRows) {
+    const chip = getMicrochipFromRow(row);
+    if (chip) {
+      if (!byMicrochip.has(chip)) {
+        byMicrochip.set(chip, { microchip: chip });
+      }
+      byMicrochip.get(chip)!.appointmentInfo = row;
+    }
+  }
+
+  return Array.from(byMicrochip.values());
+}
+
+// ============================================================================
+// Process Merged Record
+// ============================================================================
+
+async function processMergedRecord(
+  record: MergedRecord,
   stats: ProcessingStats,
   dryRun: boolean
 ): Promise<void> {
-  const appointmentId = getAppointmentId(row);
-  const recordType = getRecordType(row);
+  // Merge fields from all 3 sources, preferring owner_info for owner data
+  const merged: Record<string, unknown> = {
+    Microchip: record.microchip,
+    ...record.catInfo,
+    ...record.appointmentInfo,
+    ...record.ownerInfo, // Owner info takes precedence for owner fields
+  };
 
-  // Extract owner fields
-  const ownerFirstName = getString(row, "Owner First Name", "First Name");
-  const ownerLastName = getString(row, "Owner Last Name", "Last Name");
-  const ownerEmail = normalizeEmail(getString(row, "Owner Email", "Email"));
-  const ownerPhone = normalizePhone(getString(row, "Owner Phone", "Phone", "Owner Cell Phone", "Cell Phone"));
-  const ownerAddress = getString(row, "Owner Address", "Address", "Street");
-  const appointmentDate = getString(row, "Date", "Appointment Date") || new Date().toISOString().split("T")[0];
-  const microchip = getString(row, "Microchip", "Microchip Number", "Chip");
+  // Extract fields from all sources
+  const ownerFirstName = getString(merged, "Owner First Name", "First Name");
+  const ownerLastName = getString(merged, "Owner Last Name", "Last Name");
+  const ownerEmail = normalizeEmail(getString(merged, "Owner Email", "Email"));
+  const ownerPhone = normalizePhone(getString(merged, "Owner Phone", "Phone", "Owner Cell Phone", "Cell Phone"));
+  const ownerAddress = getString(merged, "Owner Address", "Address", "Street");
+  const appointmentDate = getString(merged, "Date", "Appointment Date", "Service Date") || new Date().toISOString().split("T")[0];
+
+  // Cat fields from cat_info
+  const catName = getString(merged, "Cat Name", "Animal Name", "Name");
+  const catSex = getString(merged, "Sex", "Gender");
+  const catColor = getString(merged, "Color", "Colour", "Coat Color");
+
+  // Generate appointment ID
+  const appointmentId = getString(merged, "ID", "Appointment ID", "Number") ||
+    `${appointmentDate}_${record.microchip}`;
 
   if (dryRun) {
     // Just validate and count
@@ -366,20 +470,37 @@ async function processRow(
       stats.pseudoProfiles++;
     }
 
+    if (record.microchip) {
+      // Check if cat exists by microchip
+      const existingCat = await queryOne<{ cat_id: string }>(`
+        SELECT cat_id FROM sot.cats WHERE microchip = $1 AND merged_into_cat_id IS NULL
+      `, [record.microchip]);
+      if (existingCat) {
+        stats.catsMatched++;
+      } else {
+        stats.catsCreated++;
+      }
+    }
+
     stats.sourceInserted++; // Would insert
     stats.opsInserted++;
     return;
   }
 
-  // LAYER 1: Source - Store raw JSON
-  const sourceRawId = await insertClinicHQRaw(recordType, appointmentId, row);
-  if (sourceRawId) {
-    stats.sourceInserted++;
-  } else {
-    stats.sourceSkipped++;
+  // LAYER 1: Source - Store raw JSON for each file type present
+  if (record.catInfo) {
+    await insertClinicHQRaw("cat", record.microchip, record.catInfo);
+  }
+  if (record.ownerInfo) {
+    await insertClinicHQRaw("owner", record.microchip, record.ownerInfo);
+  }
+  if (record.appointmentInfo) {
+    const sourceRawId = await insertClinicHQRaw("appointment", appointmentId, record.appointmentInfo);
+    if (sourceRawId) stats.sourceInserted++;
+    else stats.sourceSkipped++;
   }
 
-  // LAYER 2: OPS - Create operational appointment
+  // LAYER 2: OPS - Create operational appointment with merged data
   const opsAppointmentId = await upsertAppointment({
     clinichqAppointmentId: appointmentId,
     appointmentDate,
@@ -388,23 +509,20 @@ async function processRow(
     ownerEmail,
     ownerPhone,
     ownerAddress,
-    ownerRawPayload: row,
-    sourceRawId: sourceRawId || undefined,
+    ownerRawPayload: merged,
   });
   stats.opsInserted++;
 
-  // LAYER 3: SOT - Identity Resolution
+  // LAYER 3: SOT - Identity Resolution for Owner
   const classification = await classifyOwner(ownerFirstName, ownerLastName, ownerEmail, ownerPhone);
 
   if (classification.shouldBePerson) {
-    // Try to find existing person
     const existing = await findPersonByIdentifier(ownerEmail, ownerPhone);
 
     if (existing) {
       await updateAppointmentResolution(opsAppointmentId, existing.personId, "auto_linked", `Matched on ${existing.matchedOn}`);
       stats.personsMatched++;
     } else if (ownerFirstName) {
-      // Create new person
       const newPersonId = await createPerson({
         firstName: ownerFirstName,
         lastName: ownerLastName,
@@ -419,7 +537,6 @@ async function processRow(
       }
     }
   } else {
-    // Route to OPS: Pseudo-profile
     await upsertClinicAccount({
       ownerFirstName,
       ownerLastName,
@@ -434,6 +551,25 @@ async function processRow(
     await updateAppointmentResolution(opsAppointmentId, null, "pseudo_profile", classification.reason);
     stats.pseudoProfiles++;
   }
+
+  // LAYER 3: SOT - Create/Update Cat if microchip present
+  if (record.microchip) {
+    const existingCat = await queryOne<{ cat_id: string }>(`
+      SELECT cat_id FROM sot.cats WHERE microchip = $1 AND merged_into_cat_id IS NULL
+    `, [record.microchip]);
+
+    if (existingCat) {
+      stats.catsMatched++;
+    } else {
+      // Create new cat
+      await query(`
+        INSERT INTO sot.cats (microchip, name, sex, color, source_system, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'clinichq', NOW(), NOW())
+        ON CONFLICT (microchip) WHERE merged_into_cat_id IS NULL DO NOTHING
+      `, [record.microchip, catName || null, catSex || null, catColor || null]);
+      stats.catsCreated++;
+    }
+  }
 }
 
 // ============================================================================
@@ -445,54 +581,35 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const file = formData.get("file") as File | null;
     const dryRun = formData.get("dryRun") === "true";
 
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    // Get all 3 files
+    const catInfoFile = formData.get("cat_info") as File | null;
+    const ownerInfoFile = formData.get("owner_info") as File | null;
+    const appointmentInfoFile = formData.get("appointment_info") as File | null;
+
+    if (!catInfoFile || !ownerInfoFile || !appointmentInfoFile) {
+      const missing = [];
+      if (!catInfoFile) missing.push("cat_info");
+      if (!ownerInfoFile) missing.push("owner_info");
+      if (!appointmentInfoFile) missing.push("appointment_info");
+      return NextResponse.json(
+        { error: `Missing files: ${missing.join(", ")}` },
+        { status: 400 }
+      );
     }
 
-    // Parse XLSX
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
+    // Parse all 3 files
+    const catInfoRows = parseXlsxFile(Buffer.from(await catInfoFile.arrayBuffer()));
+    const ownerInfoRows = parseXlsxFile(Buffer.from(await ownerInfoFile.arrayBuffer()));
+    const appointmentInfoRows = parseXlsxFile(Buffer.from(await appointmentInfoFile.arrayBuffer()));
 
-    const rawData = XLSX.utils.sheet_to_json(worksheet, {
-      header: 1,
-      defval: "",
-      blankrows: false,
-      raw: false,
-    }) as unknown[][];
-
-    if (rawData.length === 0) {
-      return NextResponse.json({ error: "No data in file" }, { status: 400 });
-    }
-
-    // Parse headers and rows
-    const rawHeaders = rawData[0] as string[];
-    const headers = rawHeaders.map((h, i) => h ? String(h).trim() : `_col_${i + 1}`);
-
-    const rows: Record<string, unknown>[] = [];
-    for (let i = 1; i < rawData.length; i++) {
-      const rowArray = rawData[i] as unknown[];
-      const rowObj: Record<string, unknown> = {};
-      let hasData = false;
-
-      for (let j = 0; j < headers.length; j++) {
-        let value = j < rowArray.length ? rowArray[j] : "";
-        if (typeof value === "string") value = value.trim();
-        if (value instanceof Date) value = value.toISOString();
-        rowObj[headers[j]] = value;
-        if (value !== "" && value !== null && value !== undefined) hasData = true;
-      }
-
-      if (hasData) rows.push(rowObj);
-    }
+    // Merge by microchip
+    const mergedRecords = mergeFilesByMicrochip(catInfoRows, ownerInfoRows, appointmentInfoRows);
 
     // Initialize stats
     const stats: ProcessingStats = {
-      total: rows.length,
+      total: mergedRecords.length,
       sourceInserted: 0,
       sourceSkipped: 0,
       opsInserted: 0,
@@ -504,14 +621,19 @@ export async function POST(request: NextRequest) {
       placesCreated: 0,
       placesMatched: 0,
       errors: 0,
+      files: {
+        cat_info: catInfoRows.length,
+        owner_info: ownerInfoRows.length,
+        appointment_info: appointmentInfoRows.length,
+      },
     };
 
-    // Process rows
-    for (const row of rows) {
+    // Process merged records
+    for (const record of mergedRecords) {
       try {
-        await processRow(row, stats, dryRun);
+        await processMergedRecord(record, stats, dryRun);
       } catch (err) {
-        console.error(`[V2 Ingest] Row error:`, err);
+        console.error(`[V2 Ingest] Record error (${record.microchip}):`, err);
         stats.errors++;
       }
     }
@@ -520,7 +642,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: stats.errors === 0,
-      message: `Processed ${stats.total} rows`,
+      message: `Merged ${mergedRecords.length} records from 3 files (${catInfoRows.length}/${ownerInfoRows.length}/${appointmentInfoRows.length})`,
       stats,
       dryRun,
       elapsedMs,

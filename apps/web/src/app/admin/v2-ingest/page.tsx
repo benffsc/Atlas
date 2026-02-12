@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 // ============================================================================
 // Types
 // ============================================================================
+
+type FileType = "cat_info" | "owner_info" | "appointment_info";
 
 interface ProcessingStats {
   total: number;
@@ -20,6 +22,11 @@ interface ProcessingStats {
   placesCreated: number;
   placesMatched: number;
   errors: number;
+  files?: {
+    cat_info: number;
+    owner_info: number;
+    appointment_info: number;
+  };
 }
 
 interface ProcessResult {
@@ -37,21 +44,41 @@ interface V2Stats {
   resolution: Record<string, number>;
 }
 
+const FILE_TYPES: { key: FileType; label: string; description: string }[] = [
+  { key: "cat_info", label: "Microchips & Cat Info", description: "Cat details, sex, microchips" },
+  { key: "owner_info", label: "Microchips & Owner", description: "Owner contact info" },
+  { key: "appointment_info", label: "Microchips & Appt Info", description: "Appointment procedures" },
+];
+
 // ============================================================================
-// V2 Ingest Page
+// V2 Ingest Page - 3-File Upload
 // ============================================================================
 
 export default function V2IngestPage() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<Record<FileType, File | null>>({
+    cat_info: null,
+    owner_info: null,
+    appointment_info: null,
+  });
   const [dryRun, setDryRun] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [v2Stats, setV2Stats] = useState<V2Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+
+  const fileInputRefs = useRef<Record<FileType, HTMLInputElement | null>>({
+    cat_info: null,
+    owner_info: null,
+    appointment_info: null,
+  });
 
   // Load V2 stats on mount
+  useEffect(() => {
+    loadV2Stats();
+  }, []);
+
   const loadV2Stats = async () => {
     setLoadingStats(true);
     try {
@@ -68,40 +95,43 @@ export default function V2IngestPage() {
   };
 
   // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setResult(null);
-      setError(null);
-    }
+  const handleFileChange = (fileType: FileType, file: File | null) => {
+    setFiles((prev) => ({ ...prev, [fileType]: file }));
+    setResult(null);
+    setError(null);
   };
 
   // Handle file drop
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (fileType: FileType, e: React.DragEvent) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && (droppedFile.name.endsWith(".xlsx") || droppedFile.name.endsWith(".xls"))) {
-      setFile(droppedFile);
-      setResult(null);
-      setError(null);
+      handleFileChange(fileType, droppedFile);
     } else {
       setError("Please drop an Excel file (.xlsx or .xls)");
     }
   };
 
-  // Process file
+  const filesUploaded = Object.values(files).filter(Boolean).length;
+  const isComplete = filesUploaded === 3;
+
+  // Process all files
   const handleProcess = async () => {
-    if (!file) return;
+    if (!isComplete) return;
 
     setProcessing(true);
     setError(null);
     setResult(null);
+    setProgress("Uploading files...");
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("cat_info", files.cat_info!);
+      formData.append("owner_info", files.owner_info!);
+      formData.append("appointment_info", files.appointment_info!);
       formData.append("dryRun", String(dryRun));
+
+      setProgress("Processing through V2 pipeline...");
 
       const res = await fetch("/api/v2/ingest/clinichq", {
         method: "POST",
@@ -115,6 +145,7 @@ export default function V2IngestPage() {
       }
 
       setResult(data);
+      setProgress(null);
 
       // Reload stats after processing
       if (!dryRun) {
@@ -122,6 +153,7 @@ export default function V2IngestPage() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
+      setProgress(null);
     } finally {
       setProcessing(false);
     }
@@ -129,16 +161,19 @@ export default function V2IngestPage() {
 
   // Reset state
   const handleReset = () => {
-    setFile(null);
+    setFiles({ cat_info: null, owner_info: null, appointment_info: null });
     setResult(null);
     setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setProgress(null);
+    FILE_TYPES.forEach((ft) => {
+      if (fileInputRefs.current[ft.key]) {
+        fileInputRefs.current[ft.key]!.value = "";
+      }
+    });
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
@@ -200,7 +235,7 @@ export default function V2IngestPage() {
           </div>
         ) : (
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>
-            Click Refresh to load V2 stats
+            Loading V2 stats...
           </p>
         )}
 
@@ -210,7 +245,7 @@ export default function V2IngestPage() {
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.875rem" }}>
               {Object.entries(v2Stats.resolution).map(([status, count]) => (
                 <span key={status}>
-                  {status}: <strong>{count.toLocaleString()}</strong>
+                  {status}: <strong>{(count as number).toLocaleString()}</strong>
                 </span>
               ))}
             </div>
@@ -218,62 +253,83 @@ export default function V2IngestPage() {
         )}
       </div>
 
-      {/* Upload Area */}
-      <div
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        style={{
-          border: "2px dashed var(--border, #e5e7eb)",
-          borderRadius: "0.5rem",
-          padding: "2rem",
-          textAlign: "center",
-          marginBottom: "1.5rem",
-          background: file ? "var(--success-bg, #f0fdf4)" : "var(--bg)",
-          cursor: "pointer",
-        }}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={handleFileChange}
-          style={{ display: "none" }}
-        />
+      {/* 3-File Upload Area */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: "1rem",
+        marginBottom: "1.5rem",
+      }}>
+        {FILE_TYPES.map((ft) => (
+          <div
+            key={ft.key}
+            onDrop={(e) => handleDrop(ft.key, e)}
+            onDragOver={(e) => e.preventDefault()}
+            onClick={() => fileInputRefs.current[ft.key]?.click()}
+            style={{
+              border: files[ft.key] ? "2px solid var(--success, #22c55e)" : "2px dashed var(--border, #e5e7eb)",
+              borderRadius: "0.5rem",
+              padding: "1.5rem 1rem",
+              textAlign: "center",
+              background: files[ft.key] ? "var(--success-bg, #f0fdf4)" : "var(--bg)",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            <input
+              ref={(el) => { fileInputRefs.current[ft.key] = el; }}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => handleFileChange(ft.key, e.target.files?.[0] || null)}
+              style={{ display: "none" }}
+            />
 
-        {file ? (
-          <div>
-            <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>📄</div>
-            <div style={{ fontWeight: 500 }}>{file.name}</div>
-            <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              {(file.size / 1024).toFixed(1)} KB
+            <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
+              {files[ft.key] ? "✓" : "📄"}
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleReset();
-              }}
-              style={{
-                marginTop: "0.5rem",
-                padding: "0.25rem 0.75rem",
-                fontSize: "0.75rem",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "0.25rem",
-                cursor: "pointer",
-              }}
-            >
-              Remove
-            </button>
-          </div>
-        ) : (
-          <div>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📤</div>
-            <div style={{ fontWeight: 500 }}>Drop ClinicHQ XLSX file here</div>
-            <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              or click to browse
+            <div style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+              {ft.label}
             </div>
+            <div style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
+              {files[ft.key] ? files[ft.key]!.name : ft.description}
+            </div>
+            {files[ft.key] && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFileChange(ft.key, null);
+                  if (fileInputRefs.current[ft.key]) {
+                    fileInputRefs.current[ft.key]!.value = "";
+                  }
+                }}
+                style={{
+                  marginTop: "0.5rem",
+                  padding: "0.125rem 0.5rem",
+                  fontSize: "0.65rem",
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "0.25rem",
+                  cursor: "pointer",
+                }}
+              >
+                Remove
+              </button>
+            )}
           </div>
+        ))}
+      </div>
+
+      {/* Upload Status */}
+      <div style={{
+        marginBottom: "1rem",
+        fontSize: "0.875rem",
+        color: isComplete ? "var(--success, #22c55e)" : "var(--muted)",
+      }}>
+        {filesUploaded}/3 files selected
+        {!isComplete && (
+          <span style={{ marginLeft: "0.5rem" }}>
+            — Missing: {FILE_TYPES.filter((ft) => !files[ft.key]).map((ft) => ft.label).join(", ")}
+          </span>
         )}
       </div>
 
@@ -301,24 +357,39 @@ export default function V2IngestPage() {
       </div>
 
       {/* Process Button */}
-      <button
-        onClick={handleProcess}
-        disabled={!file || processing}
-        style={{
-          width: "100%",
-          padding: "0.75rem",
-          fontSize: "1rem",
-          fontWeight: 500,
-          background: !file || processing ? "var(--muted)" : "var(--primary, #3b82f6)",
-          color: "white",
-          border: "none",
-          borderRadius: "0.5rem",
-          cursor: !file || processing ? "not-allowed" : "pointer",
-          marginBottom: "1.5rem",
-        }}
-      >
-        {processing ? "Processing..." : dryRun ? "Run Dry Run" : "Process to V2"}
-      </button>
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
+        <button
+          onClick={handleProcess}
+          disabled={!isComplete || processing}
+          style={{
+            flex: 1,
+            padding: "0.75rem",
+            fontSize: "1rem",
+            fontWeight: 500,
+            background: !isComplete || processing ? "var(--muted)" : "var(--primary, #3b82f6)",
+            color: "white",
+            border: "none",
+            borderRadius: "0.5rem",
+            cursor: !isComplete || processing ? "not-allowed" : "pointer",
+          }}
+        >
+          {processing ? (progress || "Processing...") : dryRun ? "Run Dry Run" : "Process to V2"}
+        </button>
+        <button
+          onClick={handleReset}
+          disabled={processing}
+          style={{
+            padding: "0.75rem 1.5rem",
+            fontSize: "1rem",
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            borderRadius: "0.5rem",
+            cursor: processing ? "not-allowed" : "pointer",
+          }}
+        >
+          Reset
+        </button>
+      </div>
 
       {/* Error */}
       {error && (
@@ -363,6 +434,24 @@ export default function V2IngestPage() {
             </span>
           </div>
 
+          {/* File counts */}
+          {result.stats.files && (
+            <div style={{
+              marginBottom: "1rem",
+              padding: "0.75rem",
+              background: "white",
+              borderRadius: "0.375rem",
+              fontSize: "0.875rem",
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Input Files</div>
+              <div style={{ display: "flex", gap: "1.5rem" }}>
+                <span>Cat Info: <strong>{result.stats.files.cat_info}</strong> rows</span>
+                <span>Owner Info: <strong>{result.stats.files.owner_info}</strong> rows</span>
+                <span>Appt Info: <strong>{result.stats.files.appointment_info}</strong> rows</span>
+              </div>
+            </div>
+          )}
+
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
@@ -374,7 +463,7 @@ export default function V2IngestPage() {
               <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--primary)" }}>
                 Layer 1: Source
               </div>
-              <div>Total Rows: <strong>{result.stats.total}</strong></div>
+              <div>Merged Records: <strong>{result.stats.total}</strong></div>
               <div>New Records: <strong>{result.stats.sourceInserted}</strong></div>
               <div>Unchanged: <strong>{result.stats.sourceSkipped}</strong></div>
             </div>
