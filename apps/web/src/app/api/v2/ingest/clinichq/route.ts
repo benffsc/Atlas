@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
-import XLSX from "xlsx";
+import * as XLSX from "xlsx";
 import crypto from "crypto";
 
 // Serverless function timeout
