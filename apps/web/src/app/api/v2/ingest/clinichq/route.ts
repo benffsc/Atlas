@@ -211,10 +211,10 @@ async function upsertClinicAccount(params: {
 // ============================================================================
 
 async function classifyOwner(
-  firstName?: string,
-  lastName?: string,
-  email?: string,
-  phone?: string
+  firstName?: string | null,
+  lastName?: string | null,
+  email?: string | null,
+  phone?: string | null
 ): Promise<ClassificationResult> {
   const displayName = [firstName, lastName].filter(Boolean).join(" ").trim();
 
