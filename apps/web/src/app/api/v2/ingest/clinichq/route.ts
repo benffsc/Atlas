@@ -106,11 +106,11 @@ async function insertClinicHQRaw(
 async function upsertAppointment(params: {
   clinichqAppointmentId: string;
   appointmentDate: string;
-  ownerFirstName?: string;
-  ownerLastName?: string;
-  ownerEmail?: string;
-  ownerPhone?: string;
-  ownerAddress?: string;
+  ownerFirstName?: string | null;
+  ownerLastName?: string | null;
+  ownerEmail?: string | null;
+  ownerPhone?: string | null;
+  ownerAddress?: string | null;
   ownerRawPayload?: Record<string, unknown>;
   sourceRawId?: string;
 }): Promise<string> {
@@ -161,11 +161,11 @@ async function updateAppointmentResolution(
 }
 
 async function upsertClinicAccount(params: {
-  ownerFirstName?: string;
-  ownerLastName?: string;
-  ownerEmail?: string;
-  ownerPhone?: string;
-  ownerAddress?: string;
+  ownerFirstName?: string | null;
+  ownerLastName?: string | null;
+  ownerEmail?: string | null;
+  ownerPhone?: string | null;
+  ownerAddress?: string | null;
   accountType: string;
   classificationReason?: string;
 }): Promise<string> {
