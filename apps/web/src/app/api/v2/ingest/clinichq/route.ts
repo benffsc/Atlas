@@ -40,19 +40,21 @@ interface ClassificationResult {
   reason?: string;
 }
 
-interface AppointmentVisit {
+interface ClinicVisit {
   microchip: string;
   date: string;
+  catInfo?: Record<string, unknown>;
+  ownerInfo?: Record<string, unknown>;
   serviceItems: string[];
-  rawRows: Record<string, unknown>[];
-  mergedData: Record<string, unknown>;
+  appointmentRows: Record<string, unknown>[];
 }
 
+// Legacy type for compatibility - now each MergedRecord is ONE visit
 interface MergedRecord {
   microchip: string;
   catInfo?: Record<string, unknown>;
   ownerInfo?: Record<string, unknown>;
-  appointments: AppointmentVisit[]; // Multiple visits per cat
+  appointments: { microchip: string; date: string; serviceItems: string[]; rawRows: Record<string, unknown>[]; mergedData: Record<string, unknown> }[];
 }
 
 // ============================================================================
@@ -513,148 +515,177 @@ function getDateFromRow(row: Record<string, unknown>): string | null {
 }
 
 // ============================================================================
-// Merge 3 Files by Microchip (with appointment grouping)
+// Merge 3 Files by Microchip + Date (Visit-based)
 // ============================================================================
+// IMPORTANT: Each row in cat_info and owner_info is ONE VISIT, not one cat.
+// A cat with 5 clinic visits = 5 rows in cat_info, 5 rows in owner_info.
+// appointment_info has multiple rows per visit (service items).
+// We merge by microchip+date to get unique visits.
 
-function mergeFilesByMicrochip(
+function mergeFilesByVisit(
   catInfoRows: Record<string, unknown>[],
   ownerInfoRows: Record<string, unknown>[],
   appointmentInfoRows: Record<string, unknown>[]
-): { records: MergedRecord[]; totalServiceItems: number; uniqueAppointments: number } {
-  const byMicrochip = new Map<string, MergedRecord>();
+): { visits: ClinicVisit[]; totalServiceItems: number; uniqueVisits: number } {
+  const visitsByKey = new Map<string, ClinicVisit>();
   let totalServiceItems = 0;
-  let uniqueAppointments = 0;
 
-  // Index cat_info by microchip (one per cat)
+  // Index cat_info by microchip+date (one row per visit)
   for (const row of catInfoRows) {
     const chip = getMicrochipFromRow(row);
-    if (chip) {
-      if (!byMicrochip.has(chip)) {
-        byMicrochip.set(chip, { microchip: chip, appointments: [] });
+    const date = getDateFromRow(row);
+    if (chip && date) {
+      const key = `${chip}|${date}`;
+      if (!visitsByKey.has(key)) {
+        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
       }
-      byMicrochip.get(chip)!.catInfo = row;
+      visitsByKey.get(key)!.catInfo = row;
     }
   }
 
-  // Index owner_info by microchip (one per cat)
+  // Index owner_info by microchip+date (one row per visit)
   for (const row of ownerInfoRows) {
     const chip = getMicrochipFromRow(row);
-    if (chip) {
-      if (!byMicrochip.has(chip)) {
-        byMicrochip.set(chip, { microchip: chip, appointments: [] });
+    const date = getDateFromRow(row);
+    if (chip && date) {
+      const key = `${chip}|${date}`;
+      if (!visitsByKey.has(key)) {
+        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
       }
-      byMicrochip.get(chip)!.ownerInfo = row;
+      visitsByKey.get(key)!.ownerInfo = row;
     }
   }
 
-  // Group appointment_info by microchip + date (multiple rows = service items for same visit)
-  const appointmentsByChipDate = new Map<string, AppointmentVisit>();
-
+  // Add appointment_info rows (multiple per visit = service items)
   for (const row of appointmentInfoRows) {
     const chip = getMicrochipFromRow(row);
     const date = getDateFromRow(row);
-
     if (chip && date) {
       totalServiceItems++;
       const key = `${chip}|${date}`;
-
-      if (!appointmentsByChipDate.has(key)) {
-        appointmentsByChipDate.set(key, {
-          microchip: chip,
-          date,
-          serviceItems: [],
-          rawRows: [],
-          mergedData: {},
-        });
-        uniqueAppointments++;
+      if (!visitsByKey.has(key)) {
+        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
       }
-
-      const visit = appointmentsByChipDate.get(key)!;
+      const visit = visitsByKey.get(key)!;
+      visit.appointmentRows.push(row);
 
       // Extract service item name
       const serviceItem = getString(row, "Service Item", "Procedure", "Service", "Item", "Description");
       if (serviceItem) {
         visit.serviceItems.push(serviceItem);
       }
-
-      visit.rawRows.push(row);
-
-      // Merge data (first row wins for most fields, aggregate services)
-      visit.mergedData = { ...row, ...visit.mergedData };
     }
   }
 
-  // Attach appointments to their cats
-  for (const [, visit] of appointmentsByChipDate) {
+  const visits = Array.from(visitsByKey.values());
+
+  return {
+    visits,
+    totalServiceItems,
+    uniqueVisits: visits.length,
+  };
+}
+
+// Legacy wrapper for compatibility with existing code
+function mergeFilesByMicrochip(
+  catInfoRows: Record<string, unknown>[],
+  ownerInfoRows: Record<string, unknown>[],
+  appointmentInfoRows: Record<string, unknown>[]
+): { records: MergedRecord[]; totalServiceItems: number; uniqueAppointments: number } {
+  const { visits, totalServiceItems, uniqueVisits } = mergeFilesByVisit(catInfoRows, ownerInfoRows, appointmentInfoRows);
+
+  // Group visits by microchip to create MergedRecords (for backward compat)
+  const byMicrochip = new Map<string, MergedRecord>();
+
+  for (const visit of visits) {
     if (!byMicrochip.has(visit.microchip)) {
       byMicrochip.set(visit.microchip, { microchip: visit.microchip, appointments: [] });
     }
-    byMicrochip.get(visit.microchip)!.appointments.push(visit);
+    const record = byMicrochip.get(visit.microchip)!;
+
+    // Use the most recent visit's cat/owner info as the "main" info
+    if (visit.catInfo) record.catInfo = visit.catInfo;
+    if (visit.ownerInfo) record.ownerInfo = visit.ownerInfo;
+
+    // Add this visit as an appointment
+    record.appointments.push({
+      microchip: visit.microchip,
+      date: visit.date,
+      serviceItems: visit.serviceItems,
+      rawRows: visit.appointmentRows,
+      mergedData: { ...visit.catInfo, ...visit.ownerInfo },
+    });
   }
 
   return {
     records: Array.from(byMicrochip.values()),
     totalServiceItems,
-    uniqueAppointments,
+    uniqueAppointments: uniqueVisits,
   };
 }
 
 // ============================================================================
 // Process Merged Record
 // ============================================================================
+// IMPORTANT: Each ClinicHQ row is ONE VISIT, not one cat.
+// A cat with 5 visits = 5 rows in cat_info, 5 rows in owner_info.
+// Each visit has its OWN owner info (which may differ across visits).
+// We create ONE cat record but process EACH visit's owner separately.
 
 async function processMergedRecord(
   record: MergedRecord,
   stats: ProcessingStats,
   dryRun: boolean
 ): Promise<void> {
-  // Merge cat + owner info (one canonical record per cat)
-  const catOwnerMerged: Record<string, unknown> = {
-    Microchip: record.microchip,
-    ...record.catInfo,
-    ...record.ownerInfo, // Owner info takes precedence
-  };
-
-  // Extract owner fields
-  const ownerFirstName = getString(catOwnerMerged, "Owner First Name", "First Name");
-  const ownerLastName = getString(catOwnerMerged, "Owner Last Name", "Last Name");
-  const ownerEmail = normalizeEmail(getString(catOwnerMerged, "Owner Email", "Email"));
-  const ownerPhone = normalizePhone(getString(catOwnerMerged, "Owner Phone", "Phone", "Owner Cell Phone", "Cell Phone"));
-  const ownerAddress = getString(catOwnerMerged, "Owner Address", "Address", "Street");
-
-  // Cat fields
-  const catName = getString(catOwnerMerged, "Cat Name", "Animal Name", "Name");
-  const catSex = getString(catOwnerMerged, "Sex", "Gender");
-  const catColor = getString(catOwnerMerged, "Color", "Colour", "Coat Color");
-
-  // Classify owner once per cat (applies to all appointments)
-  const classification = await classifyOwner(ownerFirstName, ownerLastName, ownerEmail, ownerPhone);
+  // Cat fields from most recent cat_info (for creating the cat record)
+  const catInfo = record.catInfo || {};
+  const catName = getString(catInfo, "Cat Name", "Animal Name", "Name");
+  const catSex = getString(catInfo, "Sex", "Gender");
+  const catColor = getString(catInfo, "Color", "Colour", "Coat Color");
 
   if (dryRun) {
     // DRY RUN: Count without writing
+    // Track unique owners seen to avoid double-counting
+    const seenOwners = new Set<string>();
 
-    // Person/pseudo-profile count (once per unique owner)
-    if (classification.shouldBePerson) {
-      if (ownerEmail || ownerPhone) {
-        const existing = await findPersonByIdentifier(ownerEmail, ownerPhone);
-        if (existing) {
-          stats.personsMatched++;
+    for (const visit of record.appointments) {
+      // Extract owner info FROM THIS VISIT
+      const visitData = visit.mergedData || {};
+      const ownerFirstName = getString(visitData, "Owner First Name", "First Name");
+      const ownerLastName = getString(visitData, "Owner Last Name", "Last Name");
+      const ownerEmail = normalizeEmail(getString(visitData, "Owner Email", "Email"));
+      const ownerPhone = normalizePhone(getString(visitData, "Owner Phone", "Phone", "Owner Cell Phone", "Cell Phone"));
+      const ownerAddress = getString(visitData, "Owner Address", "Address", "Street");
+
+      const ownerKey = `${ownerEmail || ""}|${ownerPhone || ""}|${ownerFirstName || ""}|${ownerLastName || ""}`;
+
+      if (!seenOwners.has(ownerKey)) {
+        seenOwners.add(ownerKey);
+
+        const classification = await classifyOwner(ownerFirstName, ownerLastName, ownerEmail, ownerPhone);
+
+        if (classification.shouldBePerson) {
+          if (ownerEmail || ownerPhone) {
+            const existing = await findPersonByIdentifier(ownerEmail, ownerPhone);
+            if (existing) {
+              stats.personsMatched++;
+            } else {
+              stats.personsCreated++;
+            }
+          }
+
+          if (ownerAddress) {
+            const existingPlace = await findPlaceByAddress(ownerAddress);
+            if (existingPlace) {
+              stats.placesMatched++;
+            } else {
+              stats.placesCreated++;
+            }
+          }
         } else {
-          stats.personsCreated++;
+          stats.pseudoProfiles++;
         }
       }
-
-      // Place count
-      if (ownerAddress) {
-        const existingPlace = await findPlaceByAddress(ownerAddress);
-        if (existingPlace) {
-          stats.placesMatched++;
-        } else {
-          stats.placesCreated++;
-        }
-      }
-    } else {
-      stats.pseudoProfiles++;
     }
 
     // Cat count
@@ -678,7 +709,8 @@ async function processMergedRecord(
   // LIVE MODE: Write to database
   // =========================================================================
 
-  // LAYER 1: Source - Store raw JSON
+  // LAYER 1: Source - Store raw JSON for cat_info and owner_info ONCE per microchip
+  // (This stores the most recent version; individual visit data is in mergedData)
   if (record.catInfo) {
     await insertClinicHQRaw("cat", record.microchip, record.catInfo);
   }
@@ -686,140 +718,8 @@ async function processMergedRecord(
     await insertClinicHQRaw("owner", record.microchip, record.ownerInfo);
   }
 
-  // LAYER 3: SOT - Identity Resolution using centralized Data Engine functions
-  // Uses sot.find_or_create_person() which implements:
-  // - Phase 0: should_be_person() gate (already checked via classifyOwner)
-  // - Phase 1: Fellegi-Sunter weighted scoring
-  // - Phase 2: Decision thresholds (≥0.95 auto_match, 0.50-0.95 review_pending)
-  let personId: string | null = null;
-  let placeId: string | null = null;
-
-  if (classification.shouldBePerson) {
-    // Use centralized identity resolution
-    const resolution = await resolvePersonIdentity({
-      firstName: ownerFirstName,
-      lastName: ownerLastName,
-      email: ownerEmail,
-      phone: ownerPhone,
-      address: ownerAddress,
-      sourceSystem: "clinichq",
-    });
-
-    personId = resolution.personId;
-
-    if (resolution.isNew) {
-      stats.personsCreated++;
-    } else if (personId) {
-      stats.personsMatched++;
-    }
-
-    // Create/find place using centralized function
-    if (ownerAddress && personId) {
-      // Use centralized place resolution (handles deduplication)
-      placeId = await resolvePlace(ownerAddress, "clinichq");
-
-      if (placeId) {
-        // Check if this was a new place or existing match
-        const isNewPlace = await queryOne<{ is_new: boolean }>(`
-          SELECT created_at > NOW() - INTERVAL '1 second' as is_new
-          FROM sot.places WHERE place_id = $1
-        `, [placeId]);
-
-        if (isNewPlace?.is_new) {
-          stats.placesCreated++;
-        } else {
-          stats.placesMatched++;
-        }
-
-        // Link person to place using centralized function
-        await linkPersonToPlace(personId, placeId, "resident");
-      }
-    }
-  } else {
-    // Pseudo-profile
-    let accountType = "unknown";
-    if (classification.type === "organization") accountType = "organization";
-    else if (classification.type === "site_name") accountType = "site_name";
-    else if (classification.type === "address") accountType = "address";
-
-    await upsertClinicAccount({
-      ownerFirstName,
-      ownerLastName,
-      ownerEmail,
-      ownerPhone,
-      ownerAddress,
-      accountType,
-      classificationReason: classification.reason,
-    });
-    stats.pseudoProfiles++;
-  }
-
-  // LAYER 2: OPS - Create appointments (one per unique visit)
-  for (const visit of record.appointments) {
-    const appointmentId = `${visit.date}_${record.microchip}`;
-
-    // Store each service item row in source layer
-    for (const rawRow of visit.rawRows) {
-      await insertClinicHQRaw("appointment_service", `${appointmentId}_${visit.serviceItems.length}`, rawRow);
-    }
-
-    // Merge visit data with owner data
-    const mergedForOps = {
-      ...visit.mergedData,
-      ...catOwnerMerged,
-      serviceItems: visit.serviceItems,
-    };
-
-    const opsAppointmentId = await upsertAppointment({
-      clinichqAppointmentId: appointmentId,
-      appointmentDate: visit.date,
-      ownerFirstName,
-      ownerLastName,
-      ownerEmail,
-      ownerPhone,
-      ownerAddress,
-      ownerRawPayload: mergedForOps,
-      serviceItems: visit.serviceItems,
-    });
-    stats.opsInserted++;
-    stats.sourceInserted++;
-
-    // Update appointment resolution
-    if (personId) {
-      await updateAppointmentResolution(opsAppointmentId, personId, "auto_linked", "Created/matched person");
-    } else if (!classification.shouldBePerson) {
-      await updateAppointmentResolution(opsAppointmentId, null, "pseudo_profile", classification.reason);
-    }
-  }
-
-  // If no appointments but we have cat info, create a placeholder
-  if (record.appointments.length === 0) {
-    const appointmentId = `nodate_${record.microchip}`;
-    const opsAppointmentId = await upsertAppointment({
-      clinichqAppointmentId: appointmentId,
-      appointmentDate: new Date().toISOString().split("T")[0],
-      ownerFirstName,
-      ownerLastName,
-      ownerEmail,
-      ownerPhone,
-      ownerAddress,
-      ownerRawPayload: catOwnerMerged,
-    });
-    stats.opsInserted++;
-
-    if (personId) {
-      await updateAppointmentResolution(opsAppointmentId, personId, "auto_linked", "Created/matched person");
-    } else if (!classification.shouldBePerson) {
-      await updateAppointmentResolution(opsAppointmentId, null, "pseudo_profile", classification.reason);
-    }
-  }
-
-  // LAYER 3: SOT - Create/Update Cat using centralized sot.find_or_create_cat_by_microchip()
-  // This function:
-  // - Validates microchip format
-  // - Cleans cat name (removes embedded microchips, "Unknown" patterns)
-  // - Finds existing cat or creates new with microchip identifier
-  // - Uses COALESCE NULLIF fix: empty strings treated as NULL
+  // LAYER 3: SOT - Create cat FIRST using most recent cat info
+  // The cat entity is the same across all visits; we use the most recent data
   const catResult = await queryOne<{ cat_id: string }>(`
     SELECT sot.find_or_create_cat_by_microchip(
       p_microchip := $1,
@@ -833,7 +733,6 @@ async function processMergedRecord(
   `, [record.microchip, catName || null, catSex || null, catColor || null]);
 
   if (catResult?.cat_id) {
-    // Check if this was a new cat or existing match
     const isNew = await queryOne<{ is_new: boolean }>(`
       SELECT created_at > NOW() - INTERVAL '1 second' as is_new
       FROM sot.cats WHERE cat_id = $1
@@ -843,6 +742,195 @@ async function processMergedRecord(
       stats.catsCreated++;
     } else {
       stats.catsMatched++;
+    }
+  }
+
+  // Track owners we've already processed (to avoid re-creating same person)
+  const processedOwners = new Map<string, { personId: string | null; placeId: string | null; classification: ClassificationResult }>();
+
+  // LAYER 2: OPS - Create appointments (one per unique visit)
+  // Each visit has its OWN owner info that may differ from other visits
+  for (const visit of record.appointments) {
+    const appointmentId = `${visit.date}_${record.microchip}`;
+
+    // Extract owner info FROM THIS VISIT's mergedData (not from the cat-level data)
+    const visitData = visit.mergedData || {};
+    const ownerFirstName = getString(visitData, "Owner First Name", "First Name");
+    const ownerLastName = getString(visitData, "Owner Last Name", "Last Name");
+    const ownerEmail = normalizeEmail(getString(visitData, "Owner Email", "Email"));
+    const ownerPhone = normalizePhone(getString(visitData, "Owner Phone", "Phone", "Owner Cell Phone", "Cell Phone"));
+    const ownerAddress = getString(visitData, "Owner Address", "Address", "Street");
+
+    // Create owner key for deduplication within this record
+    const ownerKey = `${ownerEmail || ""}|${ownerPhone || ""}|${ownerFirstName || ""}|${ownerLastName || ""}`;
+
+    let personId: string | null = null;
+    let placeId: string | null = null;
+    let classification: ClassificationResult;
+
+    // Check if we've already processed this owner in a previous visit
+    if (processedOwners.has(ownerKey)) {
+      const cached = processedOwners.get(ownerKey)!;
+      personId = cached.personId;
+      placeId = cached.placeId;
+      classification = cached.classification;
+    } else {
+      // First time seeing this owner - process through Data Engine
+      classification = await classifyOwner(ownerFirstName, ownerLastName, ownerEmail, ownerPhone);
+
+      if (classification.shouldBePerson) {
+        // Use centralized identity resolution
+        const resolution = await resolvePersonIdentity({
+          firstName: ownerFirstName,
+          lastName: ownerLastName,
+          email: ownerEmail,
+          phone: ownerPhone,
+          address: ownerAddress,
+          sourceSystem: "clinichq",
+        });
+
+        personId = resolution.personId;
+
+        if (resolution.isNew) {
+          stats.personsCreated++;
+        } else if (personId) {
+          stats.personsMatched++;
+        }
+
+        // Create/find place using centralized function
+        if (ownerAddress && personId) {
+          placeId = await resolvePlace(ownerAddress, "clinichq");
+
+          if (placeId) {
+            const isNewPlace = await queryOne<{ is_new: boolean }>(`
+              SELECT created_at > NOW() - INTERVAL '1 second' as is_new
+              FROM sot.places WHERE place_id = $1
+            `, [placeId]);
+
+            if (isNewPlace?.is_new) {
+              stats.placesCreated++;
+            } else {
+              stats.placesMatched++;
+            }
+
+            // Link person to place
+            await linkPersonToPlace(personId, placeId, "resident");
+          }
+        }
+      } else {
+        // Pseudo-profile - route to clinic_accounts
+        let accountType = "unknown";
+        if (classification.type === "organization") accountType = "organization";
+        else if (classification.type === "site_name") accountType = "site_name";
+        else if (classification.type === "address") accountType = "address";
+
+        await upsertClinicAccount({
+          ownerFirstName,
+          ownerLastName,
+          ownerEmail,
+          ownerPhone,
+          ownerAddress,
+          accountType,
+          classificationReason: classification.reason,
+        });
+        stats.pseudoProfiles++;
+      }
+
+      // Cache for future visits with same owner
+      processedOwners.set(ownerKey, { personId, placeId, classification });
+    }
+
+    // Store each service item row in source layer
+    for (let i = 0; i < visit.rawRows.length; i++) {
+      const rawRow = visit.rawRows[i];
+      await insertClinicHQRaw("appointment_service", `${appointmentId}_${i}`, rawRow);
+    }
+
+    // Create appointment with THIS VISIT's owner info
+    const opsAppointmentId = await upsertAppointment({
+      clinichqAppointmentId: appointmentId,
+      appointmentDate: visit.date,
+      ownerFirstName,
+      ownerLastName,
+      ownerEmail,
+      ownerPhone,
+      ownerAddress,
+      ownerRawPayload: {
+        ...visitData,
+        serviceItems: visit.serviceItems,
+      },
+      serviceItems: visit.serviceItems,
+    });
+    stats.opsInserted++;
+    stats.sourceInserted++;
+
+    // Update appointment resolution
+    if (personId) {
+      await updateAppointmentResolution(opsAppointmentId, personId, "auto_linked", "Created/matched person");
+    } else if (!classification.shouldBePerson) {
+      await updateAppointmentResolution(opsAppointmentId, null, "pseudo_profile", classification.reason);
+    }
+  }
+
+  // If no appointments but we have cat/owner info, create a placeholder appointment
+  if (record.appointments.length === 0 && (record.catInfo || record.ownerInfo)) {
+    const fallbackData = { ...record.catInfo, ...record.ownerInfo };
+    const ownerFirstName = getString(fallbackData, "Owner First Name", "First Name");
+    const ownerLastName = getString(fallbackData, "Owner Last Name", "Last Name");
+    const ownerEmail = normalizeEmail(getString(fallbackData, "Owner Email", "Email"));
+    const ownerPhone = normalizePhone(getString(fallbackData, "Owner Phone", "Phone", "Owner Cell Phone", "Cell Phone"));
+    const ownerAddress = getString(fallbackData, "Owner Address", "Address", "Street");
+
+    const classification = await classifyOwner(ownerFirstName, ownerLastName, ownerEmail, ownerPhone);
+    let personId: string | null = null;
+
+    if (classification.shouldBePerson) {
+      const resolution = await resolvePersonIdentity({
+        firstName: ownerFirstName,
+        lastName: ownerLastName,
+        email: ownerEmail,
+        phone: ownerPhone,
+        address: ownerAddress,
+        sourceSystem: "clinichq",
+      });
+      personId = resolution.personId;
+      if (resolution.isNew) stats.personsCreated++;
+      else if (personId) stats.personsMatched++;
+    } else {
+      let accountType = "unknown";
+      if (classification.type === "organization") accountType = "organization";
+      else if (classification.type === "site_name") accountType = "site_name";
+      else if (classification.type === "address") accountType = "address";
+
+      await upsertClinicAccount({
+        ownerFirstName,
+        ownerLastName,
+        ownerEmail,
+        ownerPhone,
+        ownerAddress,
+        accountType,
+        classificationReason: classification.reason,
+      });
+      stats.pseudoProfiles++;
+    }
+
+    const appointmentId = `nodate_${record.microchip}`;
+    const opsAppointmentId = await upsertAppointment({
+      clinichqAppointmentId: appointmentId,
+      appointmentDate: new Date().toISOString().split("T")[0],
+      ownerFirstName,
+      ownerLastName,
+      ownerEmail,
+      ownerPhone,
+      ownerAddress,
+      ownerRawPayload: fallbackData,
+    });
+    stats.opsInserted++;
+
+    if (personId) {
+      await updateAppointmentResolution(opsAppointmentId, personId, "auto_linked", "Created/matched person");
+    } else if (!classification.shouldBePerson) {
+      await updateAppointmentResolution(opsAppointmentId, null, "pseudo_profile", classification.reason);
     }
   }
 }
