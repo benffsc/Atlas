@@ -221,16 +221,11 @@ export default function V2IngestPage() {
     <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
-          <Link href="/admin/data" style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-            ← Back to Data Hub
-          </Link>
-        </div>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
-          V2 Ingest Pipeline
+          Upload ClinicHQ Data
         </h1>
         <p style={{ color: "var(--muted)", marginTop: "0.5rem" }}>
-          Process ClinicHQ data through the 3-layer V2 architecture (Source → OPS → SOT)
+          Upload 3 ClinicHQ Excel exports to process through the data pipeline
         </p>
       </div>
 
@@ -243,7 +238,7 @@ export default function V2IngestPage() {
         marginBottom: "1.5rem",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-          <h3 style={{ fontSize: "0.875rem", fontWeight: 600, margin: 0 }}>V2 Current State</h3>
+          <h3 style={{ fontSize: "0.875rem", fontWeight: 600, margin: 0 }}>Database Status</h3>
           <button
             onClick={loadV2Stats}
             disabled={loadingStats}

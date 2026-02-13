@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import ClinicHQUploadModal from "@/components/ClinicHQUploadModal";
 
 // ============================================================================
 // Types
@@ -267,7 +266,7 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
   );
 }
 
-function ProcessingTab({ data, onOpenClinicHQ, onRefresh }: { data: ProcessingStats | null; onOpenClinicHQ?: () => void; onRefresh?: () => void }) {
+function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRefresh?: () => void }) {
   const [runningJobs, setRunningJobs] = useState(false);
 
   if (!data) {
@@ -354,9 +353,10 @@ function ProcessingTab({ data, onOpenClinicHQ, onRefresh }: { data: ProcessingSt
 
               {/* Action button for file uploads */}
               {isFileUpload && key === "clinichq" && (
-                <button
-                  onClick={onOpenClinicHQ}
+                <Link
+                  href="/admin/v2-ingest"
                   style={{
+                    display: "block",
                     width: "100%",
                     padding: "0.6rem 1rem",
                     background: config.color,
@@ -365,11 +365,12 @@ function ProcessingTab({ data, onOpenClinicHQ, onRefresh }: { data: ProcessingSt
                     borderRadius: "6px",
                     fontSize: "0.85rem",
                     fontWeight: 500,
-                    cursor: "pointer",
+                    textAlign: "center",
+                    textDecoration: "none",
                   }}
                 >
-                  Upload Batch
-                </button>
+                  Upload Data →
+                </Link>
               )}
 
               {/* API cron status indicator */}
@@ -632,7 +633,6 @@ function DataHubContent() {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showClinicHQModal, setShowClinicHQModal] = useState(false);
 
   // Data for each tab
   const [queueData, setQueueData] = useState<QueueSummary | null>(null);
@@ -744,18 +744,12 @@ function DataHubContent() {
         ) : (
           <>
             {activeTab === "review" && <ReviewQueueTab data={queueData} />}
-            {activeTab === "processing" && <ProcessingTab data={processingData} onOpenClinicHQ={() => setShowClinicHQModal(true)} onRefresh={fetchData} />}
+            {activeTab === "processing" && <ProcessingTab data={processingData} onRefresh={fetchData} />}
             {activeTab === "config" && <ConfigurationTab rules={rulesData} />}
             {activeTab === "health" && <HealthTab health={healthData} />}
           </>
         )}
       </div>
-
-      {/* ClinicHQ Upload Modal */}
-      <ClinicHQUploadModal
-        isOpen={showClinicHQModal}
-        onClose={() => setShowClinicHQModal(false)}
-      />
     </div>
   );
 }
