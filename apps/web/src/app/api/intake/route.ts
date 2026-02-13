@@ -5,6 +5,7 @@ interface IntakeSubmission {
   // Source tracking
   source?: "web" | "phone" | "in_person" | "paper";
   source_system?: string;  // For tracking intake type (e.g., "web_intake_receptionist")
+  source_raw_id?: string;  // External system ID (e.g., Jotform Submission ID) for deduplication
 
   // Contact Info
   first_name: string;
@@ -122,6 +123,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for duplicate by source_raw_id first (Jotform Submission ID - most reliable)
+    if (body.source_raw_id) {
+      const existingBySourceId = await queryOne<{ submission_id: string }>(
+        `SELECT submission_id FROM ops.intake_submissions WHERE source_raw_id = $1 LIMIT 1`,
+        [body.source_raw_id]
+      );
+
+      if (existingBySourceId) {
+        console.log(`Duplicate blocked by source_raw_id: ${body.source_raw_id}, existing: ${existingBySourceId.submission_id}`);
+        return NextResponse.json({
+          success: true,
+          submission_id: existingBySourceId.submission_id,
+          message: "Your request was already received. Thank you!",
+          duplicate: true
+        });
+      }
+    }
+
+    // Check for duplicate submission (same email/phone + first_name + cats_address within 5 minutes)
+    // This prevents Jotform/Airtable webhook retries from creating duplicates
+    const duplicateCheck = body.email
+      ? await queryOne<{ submission_id: string; submitted_at: string }>(
+          `SELECT submission_id, submitted_at::TEXT
+           FROM ops.intake_submissions
+           WHERE LOWER(email) = LOWER($1)
+             AND LOWER(first_name) = LOWER($2)
+             AND LOWER(TRIM(cats_address)) = LOWER(TRIM($3))
+             AND submitted_at > NOW() - INTERVAL '5 minutes'
+           LIMIT 1`,
+          [body.email, body.first_name, body.cats_address]
+        )
+      : body.phone
+        ? await queryOne<{ submission_id: string; submitted_at: string }>(
+            `SELECT submission_id, submitted_at::TEXT
+             FROM ops.intake_submissions
+             WHERE REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = REGEXP_REPLACE($1, '[^0-9]', '', 'g')
+               AND LOWER(first_name) = LOWER($2)
+               AND LOWER(TRIM(cats_address)) = LOWER(TRIM($3))
+               AND submitted_at > NOW() - INTERVAL '5 minutes'
+             LIMIT 1`,
+            [body.phone, body.first_name, body.cats_address]
+          )
+        : null;
+
+    if (duplicateCheck) {
+      console.log(`Duplicate submission blocked: ${body.email || body.phone} at ${body.cats_address}, existing: ${duplicateCheck.submission_id}`);
+      return NextResponse.json({
+        success: true,
+        submission_id: duplicateCheck.submission_id,
+        message: "Your request was already received. Thank you!",
+        duplicate: true
+      });
+    }
+
     // Get client IP and user agent
     const ip_address = request.headers.get("x-forwarded-for")?.split(",")[0] ||
                        request.headers.get("x-real-ip") ||
@@ -135,7 +190,7 @@ export async function POST(request: NextRequest) {
     // The trigger will auto-compute triage
     const data = await queryOne<{ submission_id: string; triage_category: string; triage_score: number }>(
       `INSERT INTO ops.intake_submissions (
-        intake_source, source_system, first_name, last_name, email, phone,
+        intake_source, source_system, source_raw_id, first_name, last_name, email, phone,
         requester_address, requester_city, requester_zip,
         matched_person_id, selected_address_place_id, cats_at_requester_address,
         is_third_party_report, third_party_relationship,
@@ -153,16 +208,17 @@ export async function POST(request: NextRequest) {
         priority_override, kitten_outcome, foster_readiness, kitten_urgency_factors,
         reviewed_by, custom_fields, is_test, status, reviewed_at, submission_status
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-        $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34,
-        $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-        $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66,
-        $67, $68, $69, $70, $71
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35,
+        $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51,
+        $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67,
+        $68, $69, $70, $71, $72
       )
       RETURNING submission_id, triage_category::TEXT, triage_score`,
       [
         body.source || "web", // Maps to intake_source enum: web, phone, in_person, paper, legacy_airtable, jotform
         body.source_system || null, // More specific source tracking (web_intake_receptionist, jotform_public, etc.)
+        body.source_raw_id || null, // External system ID (e.g., Jotform Submission ID)
         body.first_name,
         body.last_name,
         body.email || null,

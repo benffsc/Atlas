@@ -98,6 +98,10 @@ const FIELD_MAP = {
   // Notes
   notes: ["Notes", "notes", "Additional notes or details"],
   referralSource: ["Referral Source", "referralSource", "How did you hear about FFSC?"],
+
+  // Jotform tracking
+  jotformSubmissionId: ["Jotform Submission ID", "jotformSubmissionId", "Submission ID"],
+  submittedAt: ["Submitted At", "submittedAt", "Submission Date"],
 };
 
 // Helper to get field value by trying multiple possible column names
@@ -141,9 +145,11 @@ async function syncToAtlas(record) {
   }
 
   // Map Airtable fields to Atlas intake API format
+  const jotformId = getField(fields, "jotformSubmissionId");
   const payload = {
     source: "web",
-    source_system: "web_intake",  // Jotform submissions via Airtable
+    source_system: "jotform_airtable",  // Jotform submissions via Airtable
+    source_raw_id: jotformId || undefined,  // Jotform Submission ID for deduplication
 
     // Contact
     first_name: firstName || "",
