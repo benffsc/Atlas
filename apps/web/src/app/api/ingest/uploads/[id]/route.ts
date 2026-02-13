@@ -30,7 +30,7 @@ export async function DELETE(
   try {
     const result = await withTimeout(
       queryOne<{ upload_id: string }>(
-        `UPDATE trapper.file_uploads
+        `UPDATE ops.file_uploads
          SET status = 'deleted',
              error_message = COALESCE(error_message, '') || ' [Removed by staff]'
          WHERE upload_id = $1
@@ -92,7 +92,7 @@ export async function PATCH(
     if (action === "reset") {
       const result = await withTimeout(
         queryOne<{ upload_id: string; status: string }>(
-          `UPDATE trapper.file_uploads
+          `UPDATE ops.file_uploads
            SET status = 'failed',
                error_message = 'Manually reset: was stuck in processing'
            WHERE upload_id = $1

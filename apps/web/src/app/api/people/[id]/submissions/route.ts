@@ -55,7 +55,7 @@ export async function GET(
         legacy_appointment_date,
         created_request_id,
         COALESCE(place_id, matched_place_id) as place_id
-      FROM trapper.web_intake_submissions
+      FROM ops.intake_submissions
       WHERE matched_person_id = $1
       ORDER BY submitted_at DESC
       LIMIT 50`,

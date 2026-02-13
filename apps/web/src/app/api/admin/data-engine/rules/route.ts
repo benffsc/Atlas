@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         applies_to_sources,
         created_at::text,
         updated_at::text
-      FROM trapper.data_engine_matching_rules
+      FROM sot.data_engine_matching_rules
       ORDER BY priority DESC, rule_name ASC
     `);
 
@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest) {
     values.push(rule_id);
 
     const sql = `
-      UPDATE trapper.data_engine_matching_rules
+      UPDATE sot.data_engine_matching_rules
       SET ${updates.join(", ")}
       WHERE rule_id = $${paramIndex}
       RETURNING rule_id, rule_name, is_active, base_confidence::numeric, updated_at::text

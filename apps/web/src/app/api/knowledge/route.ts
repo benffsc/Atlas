@@ -84,9 +84,9 @@ export async function GET(request: NextRequest) {
         ka.*,
         s1.display_name as created_by_name,
         s2.display_name as updated_by_name
-      FROM trapper.knowledge_articles ka
-      LEFT JOIN trapper.staff s1 ON s1.staff_id = ka.created_by
-      LEFT JOIN trapper.staff s2 ON s2.staff_id = ka.updated_by
+      FROM sot.knowledge_articles ka
+      LEFT JOIN ops.staff s1 ON s1.staff_id = ka.created_by
+      LEFT JOIN ops.staff s2 ON s2.staff_id = ka.updated_by
       ${whereClause}
       ORDER BY ka.updated_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex}
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     const counts = await queryRows<{ category: string; count: number }>(
       `
       SELECT category, COUNT(*)::INT as count
-      FROM trapper.knowledge_articles
+      FROM sot.knowledge_articles
       WHERE is_published = TRUE
       GROUP BY category
       ORDER BY category
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate slug
     const existing = await queryOne<{ article_id: string }>(
-      `SELECT article_id FROM trapper.knowledge_articles WHERE slug = $1`,
+      `SELECT article_id FROM sot.knowledge_articles WHERE slug = $1`,
       [finalSlug]
     );
 
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
     // Create article
     const article = await queryOne<{ article_id: string; slug: string; created_at: string }>(
       `
-      INSERT INTO trapper.knowledge_articles (
+      INSERT INTO sot.knowledge_articles (
         title, slug, summary, content, category, access_level,
         keywords, tags, is_published, created_by, updated_by
       )

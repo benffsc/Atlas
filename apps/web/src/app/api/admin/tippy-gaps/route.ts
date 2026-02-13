@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
          CASE WHEN q.last_asked_at > NOW() - INTERVAL '7 days' THEN 5 ELSE 0 END
         ) as priority_score
       FROM trapper.tippy_unanswerable_questions q
-      LEFT JOIN trapper.staff s ON s.staff_id = q.staff_id
-      LEFT JOIN trapper.staff rs ON rs.staff_id = q.resolved_by
+      LEFT JOIN ops.staff s ON s.staff_id = q.staff_id
+      LEFT JOIN ops.staff rs ON rs.staff_id = q.resolved_by
       ${statusFilter}
       ORDER BY
         CASE q.resolution_status WHEN 'unresolved' THEN 0 ELSE 1 END,

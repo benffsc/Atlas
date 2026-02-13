@@ -54,7 +54,7 @@ export async function PATCH(
       }>(
         `SELECT place_id, formatted_address, address_id,
                 ST_Y(geometry::geometry) as lat, ST_X(geometry::geometry) as lng
-         FROM trapper.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
+         FROM sot.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
         [body.place_id]
       );
 
@@ -73,7 +73,7 @@ export async function PATCH(
       } else {
         // Place has no sot_address — create a minimal one
         const addrResult = await queryOne<{ address_id: string }>(
-          `INSERT INTO trapper.sot_addresses (formatted_address, country)
+          `INSERT INTO sot.addresses (formatted_address, country)
            VALUES ($1, 'USA')
            ON CONFLICT (formatted_address) DO UPDATE SET formatted_address = EXCLUDED.formatted_address
            RETURNING address_id`,
@@ -123,7 +123,7 @@ export async function PATCH(
       addressId = addressResult.address_id;
 
       const placeResult = await queryOne<{ place_id: string }>(
-        `SELECT trapper.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id`,
+        `SELECT sot.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id`,
         [body.formatted_address, null, body.lat, body.lng, "atlas_ui"]
       );
 

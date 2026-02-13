@@ -52,16 +52,16 @@ export async function GET(request: NextRequest) {
         s.display_name AS created_by_name,
         d.conversation_id,
         -- Existing place stats (if place exists)
-        (SELECT COUNT(*) FROM trapper.sot_requests r
+        (SELECT COUNT(*) FROM ops.requests r
          WHERE r.place_id = d.place_id
          AND r.status NOT IN ('cancelled', 'redirected')) AS existing_request_count,
-        (SELECT COUNT(*) FROM trapper.sot_requests r
+        (SELECT COUNT(*) FROM ops.requests r
          WHERE r.place_id = d.place_id
          AND r.status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_request_count
       FROM trapper.tippy_draft_requests d
-      LEFT JOIN trapper.places p ON p.place_id = d.place_id
-      LEFT JOIN trapper.staff s ON s.staff_id = d.created_by_staff_id
-      LEFT JOIN trapper.staff rb ON rb.staff_id = d.reviewed_by
+      LEFT JOIN sot.places p ON p.place_id = d.place_id
+      LEFT JOIN ops.staff s ON s.staff_id = d.created_by_staff_id
+      LEFT JOIN ops.staff rb ON rb.staff_id = d.reviewed_by
       WHERE ($1 = 'all' OR d.status = $1)
       ORDER BY
         CASE WHEN d.priority = 'urgent' THEN 0 ELSE 1 END,
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     // Get stats
     const stats = await queryOne(
-      `SELECT * FROM trapper.v_tippy_draft_stats`
+      `SELECT * FROM ops.v_tippy_draft_stats`
     );
 
     return NextResponse.json({

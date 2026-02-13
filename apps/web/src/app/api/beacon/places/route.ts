@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
         request_count,
         appointment_count,
         calculation_audit
-      FROM trapper.v_beacon_place_metrics
+      FROM ops.v_beacon_place_metrics
       ${whereClause}
       ORDER BY verified_cat_count DESC
       LIMIT $${paramIndex}
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
             ROUND(100.0 * SUM(verified_altered_count) / SUM(verified_cat_count), 1)
           ELSE 0
         END as avg_alteration_rate
-      FROM trapper.v_beacon_place_metrics
+      FROM ops.v_beacon_place_metrics
       ${whereClause}
       `,
       params

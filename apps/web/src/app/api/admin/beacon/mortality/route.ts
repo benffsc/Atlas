@@ -42,9 +42,9 @@ export async function GET() {
         cme.source_system,
         cme.notes,
         cme.created_at::TEXT
-      FROM trapper.cat_mortality_events cme
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = cme.cat_id
-      LEFT JOIN trapper.places p ON p.place_id = cme.place_id
+      FROM sot.cat_mortality_events cme
+      LEFT JOIN sot.cats c ON c.cat_id = cme.cat_id
+      LEFT JOIN sot.places p ON p.place_id = cme.place_id
       ORDER BY cme.created_at DESC
       LIMIT 500
     `;
@@ -98,7 +98,7 @@ export async function PATCH(request: NextRequest) {
     params.push(mortality_event_id);
 
     await query(
-      `UPDATE trapper.cat_mortality_events SET ${updates.join(", ")} WHERE mortality_event_id = $${paramIndex}`,
+      `UPDATE sot.cat_mortality_events SET ${updates.join(", ")} WHERE mortality_event_id = $${paramIndex}`,
       params
     );
 
@@ -122,7 +122,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await query(
-      `DELETE FROM trapper.cat_mortality_events WHERE mortality_event_id = $1`,
+      `DELETE FROM sot.cat_mortality_events WHERE mortality_event_id = $1`,
       [eventId]
     );
 

@@ -87,8 +87,8 @@ export async function GET(
       formatted_address: string | null;
     }>(
       `SELECT p.lat, p.lng, r.place_id, p.formatted_address
-       FROM trapper.sot_requests r
-       LEFT JOIN trapper.places p ON p.place_id = r.place_id
+       FROM ops.requests r
+       LEFT JOIN sot.places p ON p.place_id = r.place_id
        WHERE r.request_id = $1`,
       [id]
     );
@@ -118,7 +118,7 @@ export async function GET(
     let placeContext: PlaceContext | null = null;
     if (requestInfo.place_id) {
       const contextResult = await queryOne<{ context: any }>(
-        `SELECT trapper.get_place_context($1) as context`,
+        `SELECT sot.get_place_context($1) as context`,
         [requestInfo.place_id]
       );
 
@@ -157,8 +157,8 @@ export async function GET(
             p.location::geography,
             ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
           ) as distance_m
-        FROM trapper.sot_requests r
-        JOIN trapper.places p ON p.place_id = r.place_id
+        FROM ops.requests r
+        JOIN sot.places p ON p.place_id = r.place_id
         WHERE r.request_id != $4
           AND p.lat IS NOT NULL
           AND ST_DWithin(
@@ -183,15 +183,15 @@ export async function GET(
           ) as distance_m,
           COALESCE((
             SELECT COUNT(DISTINCT cpr.cat_id)
-            FROM trapper.cat_place_relationships cpr
+            FROM sot.cat_place_relationships cpr
             WHERE cpr.place_id = p.place_id
           ), 0)::INT as cat_count,
           EXISTS (
-            SELECT 1 FROM trapper.sot_requests r
+            SELECT 1 FROM ops.requests r
             WHERE r.place_id = p.place_id
               AND r.status NOT IN ('completed', 'cancelled')
           ) as has_active_request
-        FROM trapper.places p
+        FROM sot.places p
         WHERE p.place_id != $4
           AND p.lat IS NOT NULL
           AND ST_DWithin(
@@ -217,13 +217,13 @@ export async function GET(
           ) as distance_m,
           COALESCE((
             SELECT COUNT(DISTINCT pcr.cat_id)
-            FROM trapper.person_cat_relationships pcr
+            FROM sot.person_cat_relationships pcr
             WHERE pcr.person_id = per.person_id
           ), 0)::INT as cat_count
-        FROM trapper.person_place_relationships ppr
-        JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+        FROM sot.person_place_relationships ppr
+        JOIN sot.people per ON per.person_id = ppr.person_id
           AND per.merged_into_person_id IS NULL
-        JOIN trapper.places pl ON pl.place_id = ppr.place_id
+        JOIN sot.places pl ON pl.place_id = ppr.place_id
         WHERE pl.lat IS NOT NULL
           AND ST_DWithin(
             pl.location::geography,
@@ -247,10 +247,10 @@ export async function GET(
             ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
           ) as distance_m,
           c.altered_status
-        FROM trapper.cat_place_relationships cpr
-        JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
-        JOIN trapper.places pl ON pl.place_id = cpr.place_id
-        LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+        FROM sot.cat_place_relationships cpr
+        JOIN sot.cats c ON c.cat_id = cpr.cat_id
+        JOIN sot.places pl ON pl.place_id = cpr.place_id
+        LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
         WHERE pl.lat IS NOT NULL
           AND ST_DWithin(
             pl.location::geography,

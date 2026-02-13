@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
         fixed_cats_confidence,
         latest_observation_date,
         has_count_discrepancy
-      FROM trapper.v_colony_stats
+      FROM ops.v_colony_stats
       WHERE ${whereClause}
       ORDER BY colony_name`,
       params
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE status = 'active') as active,
         COUNT(*) FILTER (WHERE has_count_discrepancy) as with_discrepancy
-      FROM trapper.v_colony_stats`
+      FROM ops.v_colony_stats`
     );
 
     return NextResponse.json({
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     const colony = await queryOne<{ colony_id: string }>(
-      `INSERT INTO trapper.colonies (colony_name, status, notes, created_by)
+      `INSERT INTO sot.colonies (colony_name, status, notes, created_by)
        VALUES ($1, $2, $3, $4)
        RETURNING colony_id`,
       [colony_name.trim(), status, notes?.trim() || null, created_by.trim()]

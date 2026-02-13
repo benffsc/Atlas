@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     if (googlePlaceId) {
       const addressResult = await queryRows<AddressCheckRow>(
         `SELECT address_id, google_place_id
-         FROM trapper.sot_addresses
+         FROM sot.addresses
          WHERE google_place_id = $1
          LIMIT 1`,
         [googlePlaceId]
@@ -53,13 +53,13 @@ export async function GET(request: NextRequest) {
          p.display_name,
          p.place_kind::TEXT as place_kind,
          p.formatted_address,
-         COALESCE((SELECT COUNT(*) FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0)::INT as cat_count,
-         COALESCE((SELECT COUNT(*) FROM trapper.person_place_relationships ppr WHERE ppr.place_id = p.place_id), 0)::INT as person_count,
+         COALESCE((SELECT COUNT(*) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0)::INT as cat_count,
+         COALESCE((SELECT COUNT(*) FROM sot.person_place_relationships ppr WHERE ppr.place_id = p.place_id), 0)::INT as person_count,
          ST_Distance(
            p.location::geography,
            ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
          )::INT as distance_meters
-       FROM trapper.places p
+       FROM sot.places p
        WHERE p.location IS NOT NULL
          AND ST_DWithin(
            p.location::geography,

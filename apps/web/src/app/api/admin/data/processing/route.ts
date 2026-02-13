@@ -89,7 +89,7 @@ export async function GET() {
         MAX(processed_at) as last_sync,
         COALESCE(SUM(rows_inserted) FILTER (WHERE processed_at > NOW() - INTERVAL '24 hours'), 0)::int as records_24h,
         COALESCE(SUM(rows_total), 0)::int as total_records
-      FROM trapper.file_uploads
+      FROM ops.file_uploads
       WHERE source_system = 'clinichq' AND status = 'completed'
     `);
 
@@ -110,7 +110,7 @@ export async function GET() {
       sync_health: string;
     }>(`
       SELECT sync_type, last_sync_at, sync_health
-      FROM trapper.v_shelterluv_sync_status
+      FROM ops.v_shelterluv_sync_status
       ORDER BY sync_type
     `).catch(() => []);
 
@@ -125,7 +125,7 @@ export async function GET() {
 
     // Get ShelterLuv record count
     const shelterluvCount = await queryOne<{ count: number }>(`
-      SELECT COUNT(*)::int as count FROM trapper.shelterluv_animals
+      SELECT COUNT(*)::int as count FROM source.shelterluv_animals
     `).catch(() => null);
     if (shelterluvCount) {
       sources.shelterluv.total_records = shelterluvCount.count;
@@ -139,7 +139,7 @@ export async function GET() {
       SELECT
         MAX(last_api_sync_at) as last_sync,
         COUNT(*)::int as total_count
-      FROM trapper.volunteerhub_volunteers
+      FROM source.volunteerhub_volunteers
     `).catch(() => null);
 
     if (volunteerhubStatus) {
@@ -159,7 +159,7 @@ export async function GET() {
       SELECT
         MAX(source_created_at) as last_sync,
         COUNT(*)::int as total_count
-      FROM trapper.sot_requests
+      FROM ops.requests
       WHERE source_system = 'airtable'
     `).catch(() => null);
 
@@ -177,7 +177,7 @@ export async function GET() {
       SELECT
         MAX(processed_at) as last_sync,
         COALESCE(SUM(rows_total), 0)::int as total_records
-      FROM trapper.file_uploads
+      FROM ops.file_uploads
       WHERE source_system = 'petlink' AND status = 'completed'
     `).catch(() => null);
 
@@ -197,9 +197,9 @@ export async function GET() {
       last_linking_run: string | null;
     }>(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE inferred_place_id IS NOT NULL)::int as appointments_with_place,
-        (SELECT COUNT(DISTINCT cat_id) FROM trapper.cat_place_relationships)::int as cats_with_place,
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE inferred_place_source IS NOT NULL)::int as places_inferred,
+        (SELECT COUNT(*) FROM ops.appointments WHERE inferred_place_id IS NOT NULL)::int as appointments_with_place,
+        (SELECT COUNT(DISTINCT cat_id) FROM sot.cat_place_relationships)::int as cats_with_place,
+        (SELECT COUNT(*) FROM ops.appointments WHERE inferred_place_source IS NOT NULL)::int as places_inferred,
         (
           SELECT MAX(completed_at)
           FROM trapper.processing_jobs

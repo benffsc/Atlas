@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
   if (assignedToPersonId) {
     conditions.push(`request_id IN (
-      SELECT rta.request_id FROM trapper.request_trapper_assignments rta
+      SELECT rta.request_id FROM ops.request_trapper_assignments rta
       WHERE rta.trapper_person_id = $${paramIndex} AND rta.unassigned_at IS NULL
     )`);
     params.push(assignedToPersonId);
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
         no_trapper_reason,
         primary_trapper_name,
         assignment_status
-      FROM trapper.v_request_list
+      FROM ops.v_request_list
       ${whereClause}
       ORDER BY ${buildOrderBy()}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
 
     // Step 1: Write to raw_intake_request (append-only)
     const rawResult = await queryOne<RawIntakeResult>(
-      `INSERT INTO trapper.raw_intake_request (
+      `INSERT INTO ops.raw_intake_request (
         -- Source tracking
         created_by,
         source_system,
@@ -457,10 +457,10 @@ export async function POST(request: NextRequest) {
           email: string | null;
         }>(
           `SELECT
-            (SELECT id_value_norm FROM trapper.person_identifiers
+            (SELECT id_value_norm FROM sot.person_identifiers
              WHERE person_id = $1 AND id_type = 'phone' AND confidence >= 0.5
              ORDER BY confidence DESC NULLS LAST LIMIT 1) as phone,
-            (SELECT id_value_norm FROM trapper.person_identifiers
+            (SELECT id_value_norm FROM sot.person_identifiers
              WHERE person_id = $1 AND id_type = 'email' AND confidence >= 0.5
              ORDER BY confidence DESC NULLS LAST LIMIT 1) as email`,
           [body.requester_person_id]
@@ -469,8 +469,8 @@ export async function POST(request: NextRequest) {
         // Log phone change if different
         if (body.raw_requester_phone && currentContact) {
           await queryOne(
-            `SELECT trapper.log_contact_update(
-              $1, 'phone'::trapper.identifier_type, $2, $3,
+            `SELECT sot.log_contact_update(
+              $1, 'phone', $2, $3,
               NULL, $4, 'request_submission'
             )`,
             [
@@ -485,8 +485,8 @@ export async function POST(request: NextRequest) {
         // Log email change if different
         if (body.raw_requester_email && currentContact) {
           await queryOne(
-            `SELECT trapper.log_contact_update(
-              $1, 'email'::trapper.identifier_type, $2, $3,
+            `SELECT sot.log_contact_update(
+              $1, 'email', $2, $3,
               NULL, $4, 'request_submission'
             )`,
             [
@@ -511,9 +511,9 @@ export async function POST(request: NextRequest) {
         r.validation_errors,
         r.validation_warnings
        FROM (
-         SELECT trapper.promote_intake_request($1, $2) AS promoted_request_id
+         SELECT ops.promote_intake_request($1, $2) AS promoted_request_id
        ) promotion
-       CROSS JOIN trapper.raw_intake_request r
+       CROSS JOIN ops.raw_intake_request r
        WHERE r.raw_id = $1`,
       [rawResult.raw_id, body.created_by || "app_user"]
     );
@@ -540,7 +540,7 @@ export async function POST(request: NextRequest) {
         review_reason: string | null;
       }>(
         `SELECT intake_status::TEXT, validation_errors, validation_warnings, review_reason
-         FROM trapper.raw_intake_request WHERE raw_id = $1`,
+         FROM ops.raw_intake_request WHERE raw_id = $1`,
         [rawResult.raw_id]
       );
 

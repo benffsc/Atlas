@@ -53,25 +53,25 @@ export async function GET(request: NextRequest) {
               'label', p.display_name,
               'address', p.formatted_address,
               'city', p.city
-            ) FROM trapper.places p WHERE p.place_id = di.entity_id
+            ) FROM sot.places p WHERE p.place_id = di.entity_id
           )
           WHEN di.entity_type = 'cat' THEN (
             SELECT jsonb_build_object(
               'name', c.name,
               'microchip', c.microchip
-            ) FROM trapper.sot_cats c WHERE c.cat_id = di.entity_id
+            ) FROM sot.cats c WHERE c.cat_id = di.entity_id
           )
           WHEN di.entity_type = 'person' THEN (
             SELECT jsonb_build_object(
               'display_name', p.display_name,
               'primary_email', p.primary_email
-            ) FROM trapper.sot_people p WHERE p.person_id = di.entity_id
+            ) FROM sot.people p WHERE p.person_id = di.entity_id
           )
           WHEN di.entity_type = 'request' THEN (
             SELECT jsonb_build_object(
               'short_address', r.short_address,
               'status', r.status
-            ) FROM trapper.sot_requests r WHERE r.request_id = di.entity_id
+            ) FROM ops.requests r WHERE r.request_id = di.entity_id
           )
           ELSE NULL
         END as entity_details,
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
           SELECT jsonb_build_object(
             'tippy_message', tf.tippy_message,
             'user_correction', tf.user_correction,
-            'staff_name', (SELECT display_name FROM trapper.staff WHERE staff_id = tf.staff_id)
+            'staff_name', (SELECT display_name FROM ops.staff WHERE staff_id = tf.staff_id)
           )
           FROM trapper.tippy_feedback tf
           WHERE tf.feedback_id = di.source_reference_id

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         c.tools_used,
         c.is_archived
       FROM trapper.tippy_conversations c
-      LEFT JOIN trapper.staff s ON s.staff_id = c.staff_id
+      LEFT JOIN ops.staff s ON s.staff_id = c.staff_id
       WHERE c.conversation_id = $1
       `,
       [id]

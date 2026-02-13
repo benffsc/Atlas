@@ -1268,9 +1268,9 @@ async function queryCatsAtPlace(addressSearch: string): Promise<ToolResult> {
       COUNT(DISTINCT c.cat_id) as total_cats,
       COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as altered_cats,
       COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status = 'intact' OR c.altered_status = 'No') as unaltered_cats
-    FROM trapper.places p
-    LEFT JOIN trapper.cat_place_relationships cpr ON cpr.place_id = p.place_id
-    LEFT JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+    FROM sot.places p
+    LEFT JOIN sot.cat_place_relationships cpr ON cpr.place_id = p.place_id
+    LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id
     WHERE (p.display_name ILIKE $1 OR p.formatted_address ILIKE $1)
       AND p.merged_into_place_id IS NULL
     GROUP BY p.place_id, p.display_name, p.formatted_address
@@ -1321,7 +1321,7 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
     `
     WITH place_match AS (
       SELECT place_id, display_name, formatted_address
-      FROM trapper.places
+      FROM sot.places
       WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
         AND merged_into_place_id IS NULL
       ORDER BY
@@ -1335,18 +1335,18 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
         pm.display_name,
         pm.formatted_address,
         COALESCE(
-          (SELECT total_cats FROM trapper.place_colony_estimates pce
+          (SELECT total_cats FROM sot.place_colony_estimates pce
            WHERE pce.place_id = pm.place_id
            ORDER BY observation_date DESC NULLS LAST LIMIT 1),
-          (SELECT COUNT(*) FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = pm.place_id)
+          (SELECT COUNT(*) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = pm.place_id)
         ) as colony_estimate,
-        (SELECT COUNT(*) FROM trapper.cat_place_relationships cpr
-         JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+        (SELECT COUNT(*) FROM sot.cat_place_relationships cpr
+         JOIN sot.cats c ON c.cat_id = cpr.cat_id
          WHERE cpr.place_id = pm.place_id
          AND c.altered_status IN ('spayed', 'neutered', 'Yes')) as verified_altered,
-        (SELECT COUNT(*) FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
-        (SELECT COUNT(*) FROM trapper.sot_requests r WHERE r.place_id = pm.place_id AND r.status = 'completed') as completed_requests,
-        (SELECT COUNT(*) FROM trapper.sot_requests r WHERE r.place_id = pm.place_id AND r.status NOT IN ('completed', 'cancelled')) as active_requests
+        (SELECT COUNT(*) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.status = 'completed') as completed_requests,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.status NOT IN ('completed', 'cancelled')) as active_requests
       FROM place_match pm
     )
     SELECT
@@ -1402,8 +1402,8 @@ async function queryRequestStats(
       result = await queryRows(
         `
         SELECT r.status, COUNT(*) as count
-        FROM trapper.sot_requests r
-        ${area ? "LEFT JOIN trapper.places p ON r.place_id = p.place_id" : ""}
+        FROM ops.requests r
+        ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id" : ""}
         WHERE r.created_at > NOW() - INTERVAL '30 days'
         ${area ? "AND p.formatted_address ILIKE $1" : ""}
         GROUP BY r.status
@@ -1424,8 +1424,8 @@ async function queryRequestStats(
       result = await queryRows(
         `
         SELECT r.status, COUNT(*) as count
-        FROM trapper.sot_requests r
-        ${area ? "LEFT JOIN trapper.places p ON r.place_id = p.place_id WHERE p.formatted_address ILIKE $1" : ""}
+        FROM ops.requests r
+        ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id WHERE p.formatted_address ILIKE $1" : ""}
         GROUP BY r.status
         ORDER BY count DESC
         `,
@@ -1460,8 +1460,8 @@ async function queryRequestStats(
             'Unknown'
           ) as area,
           COUNT(*) as count
-        FROM trapper.sot_requests r
-        LEFT JOIN trapper.places p ON r.place_id = p.place_id
+        FROM ops.requests r
+        LEFT JOIN sot.places p ON r.place_id = p.place_id
         WHERE r.status NOT IN ('cancelled')
         GROUP BY area
         ORDER BY count DESC
@@ -1482,8 +1482,8 @@ async function queryRequestStats(
           COUNT(*) FILTER (WHERE r.status = 'scheduled') as scheduled,
           COUNT(*) FILTER (WHERE r.status = 'in_progress') as in_progress,
           COUNT(*) as total_pending
-        FROM trapper.sot_requests r
-        ${area ? "LEFT JOIN trapper.places p ON r.place_id = p.place_id" : ""}
+        FROM ops.requests r
+        ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id" : ""}
         WHERE r.status NOT IN ('completed', 'cancelled')
         ${area ? "AND p.formatted_address ILIKE $1" : ""}
         `,
@@ -1528,10 +1528,10 @@ async function queryFfrImpact(
         COUNT(DISTINCT r.request_id) as total_requests,
         COUNT(DISTINCT r.request_id) FILTER (WHERE r.status = 'completed') as completed_requests,
         COUNT(DISTINCT p.place_id) as places_served
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.places p ON p.place_id = a.place_id
-      LEFT JOIN trapper.sot_requests r ON r.place_id = p.place_id
+      FROM ops.appointments a
+      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN sot.places p ON p.place_id = a.place_id
+      LEFT JOIN ops.requests r ON r.place_id = p.place_id
       WHERE 1=1 ${dateFilter} ${areaFilter}
     )
     SELECT
@@ -1765,17 +1765,17 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
     WITH cat_place_altered AS (
       -- Cats marked as altered linked to places in the area
       SELECT DISTINCT c.cat_id
-      FROM trapper.sot_cats c
-      JOIN trapper.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
-      JOIN trapper.places p ON cpr.place_id = p.place_id
+      FROM sot.cats c
+      JOIN sot.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
+      JOIN sot.places p ON cpr.place_id = p.place_id
       WHERE (${patternPlaceholders})
         AND c.altered_status IN ('spayed', 'neutered', 'Yes')
     ),
     appointment_altered AS (
       -- Cats altered via appointments linked to places in the area
       SELECT DISTINCT a.cat_id
-      FROM trapper.sot_appointments a
-      JOIN trapper.places p ON a.place_id = p.place_id
+      FROM ops.appointments a
+      JOIN sot.places p ON a.place_id = p.place_id
       WHERE (${patternPlaceholders})
         AND (a.is_spay = true OR a.is_neuter = true OR a.service_is_spay = true OR a.service_is_neuter = true)
         AND a.cat_id IS NOT NULL
@@ -1789,8 +1789,8 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
       SELECT
         EXTRACT(YEAR FROM a.appointment_date)::int as year,
         COUNT(DISTINCT a.cat_id) as count
-      FROM trapper.sot_appointments a
-      JOIN trapper.places p ON a.place_id = p.place_id
+      FROM ops.appointments a
+      JOIN sot.places p ON a.place_id = p.place_id
       WHERE (${patternPlaceholders})
         AND (a.is_spay = true OR a.is_neuter = true OR a.service_is_spay = true OR a.service_is_neuter = true)
         AND a.cat_id IS NOT NULL
@@ -1866,7 +1866,7 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
     `
     WITH regional_places AS (
       SELECT DISTINCT p.place_id, p.formatted_address
-      FROM trapper.places p
+      FROM sot.places p
       WHERE (${patternPlaceholders})
         AND p.merged_into_place_id IS NULL
     ),
@@ -1876,15 +1876,15 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as cats_altered,
         COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('intact', 'No') OR c.altered_status IS NULL) as cats_unaltered
       FROM regional_places rp
-      JOIN trapper.cat_place_relationships cpr ON cpr.place_id = rp.place_id
-      JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+      JOIN sot.cat_place_relationships cpr ON cpr.place_id = rp.place_id
+      JOIN sot.cats c ON c.cat_id = cpr.cat_id
     ),
     request_stats AS (
       SELECT
         COUNT(*) as total_requests,
         COUNT(*) FILTER (WHERE r.status = 'completed') as completed_requests,
         COUNT(*) FILTER (WHERE r.status NOT IN ('completed', 'cancelled')) as active_requests
-      FROM trapper.sot_requests r
+      FROM ops.requests r
       JOIN regional_places rp ON r.place_id = rp.place_id
     ),
     colony_stats AS (
@@ -1892,7 +1892,7 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         COUNT(*) as total_estimates,
         COALESCE(AVG(pce.total_cats), 0) as avg_colony_size,
         COALESCE(MAX(pce.total_cats), 0) as largest_colony
-      FROM trapper.place_colony_estimates pce
+      FROM sot.place_colony_estimates pce
       JOIN regional_places rp ON pce.place_id = rp.place_id
     ),
     city_activity AS (
@@ -1978,7 +1978,7 @@ async function queryPersonHistory(nameSearch: string): Promise<ToolResult> {
     `
     WITH person_match AS (
       SELECT person_id, display_name, primary_email, entity_type
-      FROM trapper.sot_people
+      FROM sot.people
       WHERE display_name ILIKE $1
         AND merged_into_person_id IS NULL
         AND is_canonical = TRUE
@@ -1992,9 +1992,9 @@ async function queryPersonHistory(nameSearch: string): Promise<ToolResult> {
         pm.display_name,
         pm.primary_email,
         pm.entity_type,
-        (SELECT COUNT(*) FROM trapper.sot_requests r WHERE r.requester_person_id = pm.person_id) as requests_made,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = pm.person_id) as requests_made,
         (SELECT COUNT(*) FROM trapper.request_trapper_assignments rta WHERE rta.person_id = pm.person_id) as requests_trapped,
-        (SELECT string_agg(DISTINCT pr.role_name, ', ') FROM trapper.person_roles pr WHERE pr.person_id = pm.person_id) as roles
+        (SELECT string_agg(DISTINCT pr.role_name, ', ') FROM sot.person_roles pr WHERE pr.person_id = pm.person_id) as roles
       FROM person_match pm
     )
     SELECT * FROM person_stats
@@ -2031,7 +2031,7 @@ async function queryKnowledgeBase(
 ): Promise<ToolResult> {
   // Use the database search function (assumes staff access level for Tippy)
   const results = await queryRows(
-    `SELECT * FROM trapper.search_knowledge($1, $2, $3, $4)`,
+    `SELECT * FROM sot.search_knowledge($1, $2, $3, $4)`,
     [searchQuery, "staff", category || null, 5]
   );
 
@@ -2049,7 +2049,7 @@ async function queryKnowledgeBase(
   const enrichedResults = [];
   for (const result of results.slice(0, 3)) {
     const fullArticle = await queryOne<{ content: string; keywords: string[] | null }>(
-      `SELECT content, keywords FROM trapper.knowledge_articles WHERE article_id = $1`,
+      `SELECT content, keywords FROM sot.knowledge_articles WHERE article_id = $1`,
       [(result as { article_id: string }).article_id]
     );
     enrichedResults.push({
@@ -2098,7 +2098,7 @@ async function logFieldEvent(
   const place = await queryOne<{ place_id: string; display_name: string | null; formatted_address: string | null }>(
     `
     SELECT place_id, display_name, formatted_address
-    FROM trapper.places
+    FROM sot.places
     WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
       AND merged_into_place_id IS NULL
     ORDER BY
@@ -2112,7 +2112,7 @@ async function logFieldEvent(
   if (!place) {
     // Create a new place if not found (using find_or_create_place_deduped)
     const newPlace = await queryOne<{ place_id: string }>(
-      `SELECT * FROM trapper.find_or_create_place_deduped($1, NULL, NULL, NULL, 'tippy_event')`,
+      `SELECT * FROM sot.find_or_create_place_deduped($1, NULL, NULL, NULL, 'tippy_event')`,
       [location]
     );
 
@@ -2127,7 +2127,7 @@ async function logFieldEvent(
     if (catCount && catCount > 0) {
       await queryOne(
         `
-        INSERT INTO trapper.place_colony_estimates (
+        INSERT INTO sot.place_colony_estimates (
           place_id,
           total_cats,
           source_type,
@@ -2149,7 +2149,7 @@ async function logFieldEvent(
     // Also log to journal_entries for audit trail
     await queryOne(
       `
-      INSERT INTO trapper.journal_entries (
+      INSERT INTO ops.journal_entries (
         entry_type,
         entry_date,
         place_id,
@@ -2184,7 +2184,7 @@ async function logFieldEvent(
   if (catCount && catCount > 0) {
     await queryOne(
       `
-      INSERT INTO trapper.place_colony_estimates (
+      INSERT INTO sot.place_colony_estimates (
         place_id,
         total_cats,
         source_type,
@@ -2206,7 +2206,7 @@ async function logFieldEvent(
   // Log to journal_entries for audit trail
   await queryOne(
     `
-    INSERT INTO trapper.journal_entries (
+    INSERT INTO ops.journal_entries (
       entry_type,
       entry_date,
       place_id,
@@ -2344,18 +2344,18 @@ async function lookupCatAppointment(
         c.display_name as cat_name,
         ci.id_value as microchip,
         c.altered_status,
-        (SELECT COUNT(*) FROM trapper.sot_appointments a WHERE a.cat_id = c.cat_id) as appointment_count,
-        (SELECT MAX(appointment_date)::text FROM trapper.sot_appointments a WHERE a.cat_id = c.cat_id) as last_appointment,
-        (SELECT service_type FROM trapper.sot_appointments a WHERE a.cat_id = c.cat_id ORDER BY appointment_date DESC LIMIT 1) as last_service,
+        (SELECT COUNT(*) FROM ops.appointments a WHERE a.cat_id = c.cat_id) as appointment_count,
+        (SELECT MAX(appointment_date)::text FROM ops.appointments a WHERE a.cat_id = c.cat_id) as last_appointment,
+        (SELECT service_type FROM ops.appointments a WHERE a.cat_id = c.cat_id ORDER BY appointment_date DESC LIMIT 1) as last_service,
         ARRAY(
           SELECT DISTINCT p.display_name
-          FROM trapper.sot_appointments a
-          JOIN trapper.sot_people p ON a.person_id = p.person_id
+          FROM ops.appointments a
+          JOIN sot.people p ON a.person_id = p.person_id
           WHERE a.cat_id = c.cat_id AND p.display_name IS NOT NULL
           LIMIT 5
         ) as owner_names
-      FROM trapper.sot_cats c
-      LEFT JOIN trapper.cat_identifiers ci ON c.cat_id = ci.cat_id AND ci.id_type = 'microchip'
+      FROM sot.cats c
+      LEFT JOIN sot.cat_identifiers ci ON c.cat_id = ci.cat_id AND ci.id_type = 'microchip'
       WHERE (${atlasConditions.join(" OR ")})
         AND c.merged_into_cat_id IS NULL
       ORDER BY c.cat_id, c.updated_at DESC
@@ -2405,7 +2405,7 @@ async function lookupCatAppointment(
         payload->>'Appointment Date' as appointment_date,
         payload->>'Service' as service_type,
         is_processed
-      FROM trapper.staged_records
+      FROM ops.staged_records
       WHERE source_system = 'clinichq'
         AND (${rawConditions.join(" OR ")})
       ORDER BY (payload->>'Appointment Date')::date DESC NULLS LAST
@@ -2667,19 +2667,19 @@ async function createReminder(
 
       switch (entityType) {
         case "place":
-          query = `SELECT place_id FROM trapper.places WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1) AND merged_into_place_id IS NULL LIMIT 1`;
+          query = `SELECT place_id FROM sot.places WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1) AND merged_into_place_id IS NULL LIMIT 1`;
           params = [`%${entityIdentifier}%`];
           break;
         case "cat":
-          query = `SELECT cat_id FROM trapper.sot_cats WHERE display_name ILIKE $1 LIMIT 1`;
+          query = `SELECT cat_id FROM sot.cats WHERE display_name ILIKE $1 LIMIT 1`;
           params = [`%${entityIdentifier}%`];
           break;
         case "person":
-          query = `SELECT person_id FROM trapper.sot_people WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL AND is_canonical = TRUE LIMIT 1`;
+          query = `SELECT person_id FROM sot.people WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL AND is_canonical = TRUE LIMIT 1`;
           params = [`%${entityIdentifier}%`];
           break;
         case "request":
-          query = `SELECT request_id FROM trapper.sot_requests WHERE summary ILIKE $1 OR request_id::text = $1 LIMIT 1`;
+          query = `SELECT request_id FROM ops.requests WHERE summary ILIKE $1 OR request_id::text = $1 LIMIT 1`;
           params = [entityIdentifier.includes("-") ? entityIdentifier : `%${entityIdentifier}%`];
           break;
       }
@@ -2702,7 +2702,7 @@ async function createReminder(
   // Create the reminder
   try {
     const result = await queryOne<{ reminder_id: string; due_at: string }>(
-      `INSERT INTO trapper.staff_reminders (
+      `INSERT INTO ops.staff_reminders (
         staff_id, title, notes, entity_type, entity_id,
         due_at, remind_at, created_via, tippy_conversation_id, contact_info
       ) VALUES (
@@ -2796,7 +2796,7 @@ async function saveLookup(
 
   try {
     const result = await queryOne<{ lookup_id: string }>(
-      `INSERT INTO trapper.staff_lookups (
+      `INSERT INTO ops.staff_lookups (
         staff_id, title, query_text, summary, result_data,
         entity_type, entity_id, tool_calls
       ) VALUES (
@@ -3125,9 +3125,9 @@ async function queryPlacesByContext(
       pc.valid_from::text,
       pc.confidence,
       pc.is_verified
-    FROM trapper.place_contexts pc
-    JOIN trapper.places p ON p.place_id = pc.place_id
-    JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
+    FROM sot.place_contexts pc
+    JOIN sot.places p ON p.place_id = pc.place_id
+    JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
     WHERE pc.context_type = $1
       AND pc.valid_to IS NULL
       AND p.merged_into_place_id IS NULL
@@ -3227,8 +3227,8 @@ async function queryCatJourney(
       c.altered_status,
       c.breed,
       c.primary_color
-    FROM trapper.sot_cats c
-    LEFT JOIN trapper.cat_identifiers ci ON c.cat_id = ci.cat_id AND ci.id_type = 'microchip'
+    FROM sot.cats c
+    LEFT JOIN sot.cat_identifiers ci ON c.cat_id = ci.cat_id AND ci.id_type = 'microchip'
     WHERE (${catConditions.join(" OR ")})
       AND c.merged_into_cat_id IS NULL
     LIMIT 1
@@ -3255,7 +3255,7 @@ async function queryCatJourney(
           payload->>'Appointment Date' as appointment_date,
           payload->>'Service' as service_type,
           TRIM(COALESCE(payload->>'Client First Name', '') || ' ' || COALESCE(payload->>'Client Last Name', '')) as owner_name
-        FROM trapper.staged_records
+        FROM ops.staged_records
         WHERE source_system = 'clinichq'
           AND payload->>'Patient Name' ILIKE $1
         ORDER BY (payload->>'Appointment Date')::date DESC NULLS LAST
@@ -3311,8 +3311,8 @@ async function queryCatJourney(
       a.is_neuter,
       p.formatted_address as place_address,
       a.vet_name
-    FROM trapper.sot_appointments a
-    LEFT JOIN trapper.places p ON a.place_id = p.place_id
+    FROM ops.appointments a
+    LEFT JOIN sot.places p ON a.place_id = p.place_id
     WHERE a.cat_id = $1
     ORDER BY a.appointment_date DESC
     `,
@@ -3334,9 +3334,9 @@ async function queryCatJourney(
       p.formatted_address,
       cpr.relationship_type,
       ARRAY_AGG(DISTINCT pc.context_type) FILTER (WHERE pc.context_type IS NOT NULL) as contexts
-    FROM trapper.cat_place_relationships cpr
-    JOIN trapper.places p ON p.place_id = cpr.place_id
-    LEFT JOIN trapper.place_contexts pc ON pc.place_id = p.place_id AND pc.valid_to IS NULL
+    FROM sot.cat_place_relationships cpr
+    JOIN sot.places p ON p.place_id = cpr.place_id
+    LEFT JOIN sot.place_contexts pc ON pc.place_id = p.place_id AND pc.valid_to IS NULL
     WHERE cpr.cat_id = $1
       AND p.merged_into_place_id IS NULL
     GROUP BY p.place_id, p.formatted_address, cpr.relationship_type
@@ -3357,8 +3357,8 @@ async function queryCatJourney(
       p.display_name as person_name,
       pcr.relationship_type,
       pcr.source_system
-    FROM trapper.person_cat_relationships pcr
-    JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+    FROM sot.person_cat_relationships pcr
+    JOIN sot.people p ON p.person_id = pcr.person_id
     WHERE pcr.cat_id = $1
       AND p.merged_into_person_id IS NULL
     ORDER BY pcr.created_at DESC
@@ -3452,7 +3452,7 @@ async function queryStaffInfo(
         `SELECT
           COUNT(*) as total,
           COUNT(*) FILTER (WHERE is_active = true) as active
-        FROM trapper.staff`
+        FROM ops.staff`
       );
       return {
         success: true,
@@ -3477,10 +3477,10 @@ async function queryStaffInfo(
           s.role,
           s.department,
           s.is_active,
-          (SELECT pi.id_value FROM trapper.person_identifiers pi
+          (SELECT pi.id_value FROM sot.person_identifiers pi
            WHERE pi.person_id = s.person_id AND pi.id_type = 'email'
            LIMIT 1) as email
-        FROM trapper.staff s
+        FROM ops.staff s
         ORDER BY s.is_active DESC, s.display_name`
       );
       return {
@@ -3507,7 +3507,7 @@ async function queryStaffInfo(
         person_id: string | null;
       }>(
         `SELECT s.staff_id, s.display_name, s.role, s.department, s.is_active, s.person_id
-        FROM trapper.staff s
+        FROM ops.staff s
         WHERE LOWER(s.display_name) LIKE '%' || LOWER($1) || '%'
         LIMIT 1`,
         [name]
@@ -3559,7 +3559,7 @@ async function queryTrapperStats(
           all_clinic_days,
           ROUND(avg_cats_per_day_all, 1) as avg_cats_per_day_all,
           all_cats_caught
-        FROM trapper.v_trapper_aggregate_stats
+        FROM ops.v_trapper_aggregate_stats
         LIMIT 1`
       );
 
@@ -3570,7 +3570,7 @@ async function queryTrapperStats(
             COUNT(*) FILTER (WHERE role_status = 'active') as total,
             COUNT(*) FILTER (WHERE trapper_type = 'ffsc_trapper' AND role_status = 'active') as ffsc,
             COUNT(*) FILTER (WHERE trapper_type = 'community_trapper' AND role_status = 'active') as community
-          FROM trapper.person_roles
+          FROM sot.person_roles
           WHERE role = 'trapper'`
         );
         return {
@@ -3611,7 +3611,7 @@ async function queryTrapperStats(
           trapper_type,
           role_status,
           COUNT(*) as count
-        FROM trapper.person_roles
+        FROM sot.person_roles
         WHERE role = 'trapper' AND trapper_type IS NOT NULL
         ${trapperType && trapperType !== "all" ? "AND trapper_type = $1" : ""}
         GROUP BY trapper_type, role_status
@@ -3682,7 +3682,7 @@ async function queryTrapperStats(
           COALESCE(total_altered, 0) as total_altered,
           first_activity_date::text,
           last_activity_date::text
-        FROM trapper.v_trapper_full_stats
+        FROM ops.v_trapper_full_stats
         WHERE display_name ILIKE $1
         LIMIT 1`,
         [`%${trapperName}%`]
@@ -3704,7 +3704,7 @@ async function queryTrapperStats(
           found: true,
           trapper: {
             name: trapper.display_name,
-            type: trapper.trapper_type,
+            type: ops.trapper_type,
             status: trapper.role_status,
           },
           stats: {
@@ -3718,7 +3718,7 @@ async function queryTrapperStats(
             first_activity: trapper.first_activity_date,
             last_activity: trapper.last_activity_date,
           },
-          summary: `${trapper.display_name} (${trapper.trapper_type?.replace(/_/g, " ")}): ${trapper.total_clinic_cats} cats to clinic, ${trapper.total_altered} altered, ${trapper.completed_assignments} requests completed. Last active: ${trapper.last_activity_date || "unknown"}.`,
+          summary: `${trapper.display_name} (${ops.trapper_type?.replace(/_/g, " ")}): ${trapper.total_clinic_cats} cats to clinic, ${trapper.total_altered} altered, ${trapper.completed_assignments} requests completed. Last active: ${trapper.last_activity_date || "unknown"}.`,
         },
       };
     }
@@ -3740,7 +3740,7 @@ async function queryTrapperStats(
           COALESCE(total_altered, 0) as total_altered,
           COALESCE(unique_clinic_days, 0) as unique_clinic_days,
           COALESCE(completed_assignments, 0) as completed_assignments
-        FROM trapper.v_trapper_full_stats
+        FROM ops.v_trapper_full_stats
         WHERE role_status = 'active'
         ${trapperType && trapperType !== "all" ? "AND trapper_type = $1" : ""}
         ORDER BY total_clinic_cats DESC NULLS LAST
@@ -3803,7 +3803,7 @@ async function sendStaffMessage(
     if (entityType === "place") {
       const place = await queryOne<{ place_id: string; label: string }>(
         `SELECT place_id, display_name as label
-         FROM trapper.places
+         FROM sot.places
          WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
            AND merged_into_place_id IS NULL
          LIMIT 1`,
@@ -3817,8 +3817,8 @@ async function sendStaffMessage(
       // Try microchip first, then name
       const cat = await queryOne<{ cat_id: string; display_name: string }>(
         `SELECT c.cat_id, c.display_name
-         FROM trapper.sot_cats c
-         LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id
+         FROM sot.cats c
+         LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id
          WHERE c.display_name ILIKE $1
             OR ci.id_value = $1
          LIMIT 1`,
@@ -3831,8 +3831,8 @@ async function sendStaffMessage(
     } else if (entityType === "person") {
       const person = await queryOne<{ person_id: string; display_name: string }>(
         `SELECT p.person_id, p.display_name
-         FROM trapper.sot_people p
-         LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+         FROM sot.people p
+         LEFT JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
          WHERE (p.display_name ILIKE $1 OR pi.id_value_norm = LOWER($2))
             AND p.merged_into_person_id IS NULL
             AND p.is_canonical = TRUE
@@ -3846,7 +3846,7 @@ async function sendStaffMessage(
     } else if (entityType === "request") {
       const request = await queryOne<{ request_id: string; summary: string }>(
         `SELECT request_id, short_address as summary
-         FROM trapper.sot_requests
+         FROM ops.requests
          WHERE request_id::text = $1
             OR short_address ILIKE $2
          LIMIT 1`,
@@ -4042,7 +4042,7 @@ async function checkDataQuality(
   identifier: string
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.check_entity_quality($1, $2) as result`,
+    `SELECT ops.check_entity_quality($1, $2) as result`,
     [entityType, identifier]
   );
 
@@ -4238,7 +4238,7 @@ async function querySourceExtension(
             ce.sl_status,
             ce.internal_notes,
             ce.last_synced_at
-          FROM trapper.shelterluv_cat_ext ce
+          FROM source.shelterluv_cat_ext ce
           WHERE ce.cat_id = $1::uuid OR ce.sl_animal_id = $1
           LIMIT 1
         `;
@@ -4253,7 +4253,7 @@ async function querySourceExtension(
             pe.foster_count,
             pe.internal_notes,
             pe.last_synced_at
-          FROM trapper.shelterluv_person_ext pe
+          FROM source.shelterluv_person_ext pe
           WHERE pe.person_id = $1::uuid OR pe.sl_person_id = $1
           LIMIT 1
         `;
@@ -4281,7 +4281,7 @@ async function querySourceExtension(
             ae.temperature_f,
             ae.vaccinations_given,
             ae.last_synced_at
-          FROM trapper.clinichq_appointment_ext ae
+          FROM source.clinichq_appointment_ext ae
           WHERE ae.appointment_id = $1::uuid OR ae.chq_visit_id = $1
           LIMIT 1
         `;
@@ -4293,7 +4293,7 @@ async function querySourceExtension(
             ce.weight_history,
             ce.medical_alerts,
             ce.last_synced_at
-          FROM trapper.clinichq_cat_ext ce
+          FROM source.clinichq_cat_ext ce
           WHERE ce.cat_id = $1::uuid OR ce.chq_animal_id = $1
           LIMIT 1
         `;
@@ -4313,7 +4313,7 @@ async function querySourceExtension(
             ci.id_value as petlink_pet_id,
             ci.created_at as registration_date,
             ci.source_system
-          FROM trapper.cat_identifiers ci
+          FROM sot.cat_identifiers ci
           WHERE ci.id_type = 'petlink_pet_id'
             AND (ci.cat_id = $1::uuid OR ci.id_value = $1)
           LIMIT 1
@@ -4446,7 +4446,7 @@ async function queryPartnerOrgStats(
           TRIM(sr.payload->>'Microchip Number') as microchip,
           sr.payload->>'Owner First Name' as org_animal_id,
           (sr.payload->>'Date')::date as visit_date
-        FROM trapper.staged_records sr
+        FROM ops.staged_records sr
         WHERE sr.source_system = 'clinichq'
           AND sr.source_table = 'owner_info'
           AND (${searchConditions})
@@ -4455,18 +4455,18 @@ async function queryPartnerOrgStats(
       org_cats_with_chip AS (
         SELECT DISTINCT c.cat_id, ci.id_value as microchip
         FROM org_records orec
-        JOIN trapper.cat_identifiers ci ON ci.id_type = 'microchip'
+        JOIN sot.cat_identifiers ci ON ci.id_type = 'microchip'
           AND ci.id_value = orec.microchip
           AND LENGTH(orec.microchip) >= 9
-        JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+        JOIN sot.cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
       ),
       org_cats_without_chip AS (
         SELECT DISTINCT c.cat_id
-        FROM trapper.cat_identifiers ci
-        JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+        FROM sot.cat_identifiers ci
+        JOIN sot.cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
         WHERE ci.id_type = 'scas_animal_id'
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.cat_identifiers chip
+            SELECT 1 FROM sot.cat_identifiers chip
             WHERE chip.cat_id = ci.cat_id AND chip.id_type = 'microchip'
           )
       )
@@ -4489,7 +4489,7 @@ async function queryPartnerOrgStats(
       SELECT
         EXTRACT(YEAR FROM (sr.payload->>'Date')::date)::text as year,
         COUNT(DISTINCT sr.payload->>'Microchip Number') as cat_count
-      FROM trapper.staged_records sr
+      FROM ops.staged_records sr
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
         AND (${searchConditions})
@@ -4510,7 +4510,7 @@ async function queryPartnerOrgStats(
           TRIM(sr.payload->>'Microchip Number') as microchip,
           sr.payload->>'Owner First Name' as org_animal_id,
           (sr.payload->>'Date')::date as visit_date
-        FROM trapper.staged_records sr
+        FROM ops.staged_records sr
         WHERE sr.source_system = 'clinichq'
           AND sr.source_table = 'owner_info'
           AND (${searchConditions})
@@ -4524,9 +4524,9 @@ async function queryPartnerOrgStats(
         scas.id_value as scas_animal_id,
         rv.visit_date::text as last_visit
       FROM recent_visits rv
-      JOIN trapper.cat_identifiers ci ON ci.id_type = 'microchip' AND ci.id_value = rv.microchip
-      JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
-      LEFT JOIN trapper.cat_identifiers scas ON scas.cat_id = c.cat_id AND scas.id_type = 'scas_animal_id'
+      JOIN sot.cat_identifiers ci ON ci.id_type = 'microchip' AND ci.id_value = rv.microchip
+      JOIN sot.cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.cat_identifiers scas ON scas.cat_id = c.cat_id AND scas.id_type = 'scas_animal_id'
       ORDER BY rv.visit_date DESC
       LIMIT 5
       `,
@@ -4616,7 +4616,7 @@ async function queryColonyEstimateHistory(
       `
       WITH place_match AS (
         SELECT place_id, display_name, formatted_address
-        FROM trapper.places
+        FROM sot.places
         WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
           AND merged_into_place_id IS NULL
         ORDER BY
@@ -4635,9 +4635,9 @@ async function queryColonyEstimateHistory(
         pce.notes,
         pm.display_name as place_name,
         pm.formatted_address
-      FROM trapper.place_colony_estimates pce
+      FROM sot.place_colony_estimates pce
       JOIN place_match pm ON pce.place_id = pm.place_id
-      LEFT JOIN trapper.colony_source_confidence csc ON pce.source_type = csc.source_type
+      LEFT JOIN sot.colony_source_confidence csc ON pce.source_type = csc.source_type
       ORDER BY pce.observation_date DESC NULLS LAST, pce.reported_at DESC
       LIMIT $2
       `,
@@ -4851,25 +4851,25 @@ async function exploreEntity(
     // Get basic entity info based on type
     if (entityType === "person") {
       const person = await queryOne(
-        `SELECT * FROM trapper.v_person_detail WHERE person_id = $1`,
+        `SELECT * FROM sot.v_person_detail WHERE person_id = $1`,
         [entityId]
       );
       exploration.entity = person;
     } else if (entityType === "cat") {
       const cat = await queryOne(
-        `SELECT * FROM trapper.v_cat_detail WHERE cat_id = $1`,
+        `SELECT * FROM sot.v_cat_detail WHERE cat_id = $1`,
         [entityId]
       );
       exploration.entity = cat;
     } else if (entityType === "place") {
       const place = await queryOne(
-        `SELECT * FROM trapper.v_place_detail WHERE place_id = $1`,
+        `SELECT * FROM sot.v_place_detail WHERE place_id = $1`,
         [entityId]
       );
       exploration.entity = place;
     } else if (entityType === "request") {
       const request = await queryOne(
-        `SELECT * FROM trapper.v_request_detail WHERE request_id = $1`,
+        `SELECT * FROM ops.v_request_detail WHERE request_id = $1`,
         [entityId]
       );
       exploration.entity = request;
@@ -4889,7 +4889,7 @@ async function exploreEntity(
     if (includeQuality) {
       try {
         const quality = await queryOne(
-          `SELECT * FROM trapper.check_entity_quality($1, $2)`,
+          `SELECT * FROM ops.check_entity_quality($1, $2)`,
           [entityType, entityId]
         );
         exploration.quality = quality;
@@ -4915,35 +4915,35 @@ async function exploreEntity(
     if (includeRelationships) {
       if (entityType === "person") {
         const places = await queryRows(
-          `SELECT * FROM trapper.person_place_relationships WHERE person_id = $1`,
+          `SELECT * FROM sot.person_place_relationships WHERE person_id = $1`,
           [entityId]
         );
         const cats = await queryRows(
-          `SELECT * FROM trapper.person_cat_relationships WHERE person_id = $1`,
+          `SELECT * FROM sot.person_cat_relationships WHERE person_id = $1`,
           [entityId]
         );
         exploration.relationships = { places, cats };
       } else if (entityType === "cat") {
         const places = await queryRows(
-          `SELECT * FROM trapper.cat_place_relationships WHERE cat_id = $1`,
+          `SELECT * FROM sot.cat_place_relationships WHERE cat_id = $1`,
           [entityId]
         );
         const people = await queryRows(
-          `SELECT * FROM trapper.person_cat_relationships WHERE cat_id = $1`,
+          `SELECT * FROM sot.person_cat_relationships WHERE cat_id = $1`,
           [entityId]
         );
         exploration.relationships = { places, people };
       } else if (entityType === "place") {
         const people = await queryRows(
-          `SELECT * FROM trapper.person_place_relationships WHERE place_id = $1`,
+          `SELECT * FROM sot.person_place_relationships WHERE place_id = $1`,
           [entityId]
         );
         const cats = await queryRows(
-          `SELECT * FROM trapper.cat_place_relationships WHERE place_id = $1`,
+          `SELECT * FROM sot.cat_place_relationships WHERE place_id = $1`,
           [entityId]
         );
         const contexts = await queryRows(
-          `SELECT * FROM trapper.v_place_active_contexts WHERE place_id = $1`,
+          `SELECT * FROM sot.v_place_active_contexts WHERE place_id = $1`,
           [entityId]
         );
         exploration.relationships = { people, cats, contexts };
@@ -5118,7 +5118,7 @@ async function createDraftRequest(
       formatted_address: string;
     }>(
       `SELECT place_id, display_name, formatted_address
-       FROM trapper.places
+       FROM sot.places
        WHERE (display_name ILIKE $1 OR formatted_address ILIKE $1)
          AND merged_into_place_id IS NULL
        LIMIT 1`,
@@ -5136,15 +5136,15 @@ async function createDraftRequest(
         latest_request_date: string | null;
       }>(
         `SELECT
-           (SELECT COUNT(*) FROM trapper.sot_requests
+           (SELECT COUNT(*) FROM ops.requests
             WHERE place_id = $1 AND status NOT IN ('cancelled', 'redirected')) AS total_requests,
-           (SELECT COUNT(*) FROM trapper.sot_requests
+           (SELECT COUNT(*) FROM ops.requests
             WHERE place_id = $1 AND status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_requests,
            (SELECT COALESCE(SUM(vas.cats_altered), 0)::int
-            FROM trapper.v_request_alteration_stats vas
-            JOIN trapper.sot_requests r ON r.request_id = vas.request_id
+            FROM ops.v_request_alteration_stats vas
+            JOIN ops.requests r ON r.request_id = vas.request_id
             WHERE r.place_id = $1) AS cats_altered,
-           (SELECT MAX(source_created_at)::text FROM trapper.sot_requests
+           (SELECT MAX(source_created_at)::text FROM ops.requests
             WHERE place_id = $1) AS latest_request_date`,
         [placeId]
       );

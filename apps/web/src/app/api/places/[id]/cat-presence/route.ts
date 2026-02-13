@@ -67,7 +67,7 @@ export async function GET(
         days_since_observed,
         altered_date::TEXT,
         is_altered
-      FROM trapper.v_cat_place_presence
+      FROM sot.v_cat_place_presence
       WHERE place_id = $1
       ORDER BY
         CASE effective_status
@@ -86,7 +86,7 @@ export async function GET(
       colony_classification: string | null;
     }>(
       `SELECT authoritative_cat_count, colony_classification::TEXT
-       FROM trapper.places
+       FROM sot.places
        WHERE place_id = $1`,
       [placeId]
     );
@@ -229,7 +229,7 @@ export async function PATCH(
     if (action === "mark_old_as_departed") {
       // Mark all cats not seen in 36+ months as departed
       const result = await query(
-        `UPDATE trapper.cat_place_relationships
+        `UPDATE sot.cat_place_relationships
          SET
            presence_status = 'departed',
            departure_reason = 'unknown',

@@ -98,16 +98,16 @@ export async function GET(request: NextRequest) {
         -- Count potential duplicate person records
         (
           SELECT COUNT(*)::int
-          FROM trapper.sot_people sp
+          FROM sot.people sp
           WHERE sp.merged_into_person_id IS NULL
             AND (
               LOWER(sp.display_name) ILIKE '%' || LOWER(ko.canonical_name) || '%'
               OR (ko.short_name IS NOT NULL AND LOWER(sp.display_name) ILIKE '%' || LOWER(ko.short_name) || '%')
             )
         ) AS matching_person_count
-      FROM trapper.known_organizations ko
-      LEFT JOIN trapper.sot_people p ON p.person_id = ko.canonical_person_id
-      LEFT JOIN trapper.v_organization_match_stats ms ON ms.org_id = ko.org_id
+      FROM sot.known_organizations ko
+      LEFT JOIN sot.people p ON p.person_id = ko.canonical_person_id
+      LEFT JOIN ops.v_organization_match_stats ms ON ms.org_id = ko.org_id
       WHERE ${whereClause}
       ORDER BY ko.match_priority, ko.canonical_name
       `,
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
           FROM trapper.organization_match_log
           WHERE decision = 'review'
         ) AS pending_review
-      FROM trapper.known_organizations
+      FROM sot.known_organizations
       `
     );
 
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
     const orgTypes = await queryRows<{ org_type: string; count: number }>(
       `
       SELECT org_type, COUNT(*)::int AS count
-      FROM trapper.known_organizations
+      FROM sot.known_organizations
       WHERE is_active = TRUE
       GROUP BY org_type
       ORDER BY count DESC
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
 
     const result = await queryOne<KnownOrganization>(
       `
-      INSERT INTO trapper.known_organizations (
+      INSERT INTO sot.known_organizations (
         canonical_name,
         short_name,
         aliases,
@@ -277,13 +277,13 @@ export async function POST(request: NextRequest) {
     if (result && street_address && city) {
       const fullAddress = `${street_address}, ${city}, ${state || "CA"} ${zip || ""}`.trim();
       const placeResult = await queryOne<{ place_id: string }>(
-        `SELECT trapper.find_or_create_place_deduped($1, $2, $3, $4, 'atlas_enrichment') AS place_id`,
+        `SELECT sot.find_or_create_place_deduped($1, $2, $3, $4, 'atlas_enrichment') AS place_id`,
         [fullAddress, canonical_name, lat || null, lng || null]
       );
 
       if (placeResult?.place_id) {
         await execute(
-          `UPDATE trapper.known_organizations SET canonical_place_id = $1 WHERE org_id = $2`,
+          `UPDATE sot.known_organizations SET canonical_place_id = $1 WHERE org_id = $2`,
           [placeResult.place_id, result.org_id]
         );
       }

@@ -50,7 +50,7 @@ export async function GET(
         cat_photo.storage_path as cat_photo_url,
         -- Enriched columns (MIG_870)
         COALESCE(v.cat_weight_lbs, (SELECT cv.weight_lbs
-         FROM trapper.cat_vitals cv
+         FROM ops.cat_vitals cv
          WHERE cv.cat_id = v.cat_id
            AND cv.recorded_at::date = v.appointment_date
          ORDER BY cv.recorded_at DESC
@@ -80,7 +80,7 @@ export async function GET(
         COALESCE(v.client_address, v.place_address) as client_address,
         -- Raw payload for surgery/post-op details
         (SELECT sr.payload
-         FROM trapper.staged_records sr
+         FROM ops.staged_records sr
          WHERE sr.source_system = 'clinichq'
            AND sr.source_table = 'appointment_info'
            AND sr.payload->>'Number' = v.appointment_number
@@ -88,11 +88,11 @@ export async function GET(
            AND TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY') = v.appointment_date
          ORDER BY sr.created_at DESC
          LIMIT 1) as raw_payload
-      FROM trapper.v_appointment_detail v
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = v.cat_id
+      FROM ops.v_appointment_detail v
+      LEFT JOIN sot.cats c ON c.cat_id = v.cat_id
       LEFT JOIN LATERAL (
         SELECT rm.storage_path
-        FROM trapper.request_media rm
+        FROM ops.request_media rm
         WHERE rm.direct_cat_id = v.cat_id
           AND NOT rm.is_archived
         ORDER BY COALESCE(rm.is_hero, FALSE) DESC, rm.uploaded_at DESC
@@ -115,7 +115,7 @@ export async function GET(
         performed_by,
         complications,
         post_op_notes
-      FROM trapper.cat_procedures
+      FROM ops.cat_procedures
       WHERE appointment_id = $1
       ORDER BY procedure_type`,
       [id]
@@ -315,7 +315,7 @@ export async function PATCH(
     }
 
     const result = await queryOne<{ appointment_id: string; clinic_day_number: number | null }>(
-      `UPDATE trapper.sot_appointments
+      `UPDATE ops.appointments
        SET clinic_day_number = $1, updated_at = NOW()
        WHERE appointment_id = $2
        RETURNING appointment_id, clinic_day_number`,

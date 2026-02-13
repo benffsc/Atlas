@@ -28,7 +28,7 @@ export async function POST(
 
     // Verify colony exists
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM trapper.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
       [colonyId]
     );
 
@@ -38,7 +38,7 @@ export async function POST(
 
     // Verify request exists
     const req = await queryOne<{ request_id: string }>(
-      `SELECT request_id FROM trapper.sot_requests WHERE request_id = $1`,
+      `SELECT request_id FROM ops.requests WHERE request_id = $1`,
       [request_id]
     );
 
@@ -48,7 +48,7 @@ export async function POST(
 
     // Insert the link (ignore if already exists)
     await queryOne(
-      `INSERT INTO trapper.colony_requests (colony_id, request_id, added_by)
+      `INSERT INTO sot.colony_requests (colony_id, request_id, added_by)
        VALUES ($1, $2, $3)
        ON CONFLICT (colony_id, request_id) DO NOTHING`,
       [colonyId, request_id, added_by.trim()]
@@ -82,7 +82,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_id: string }>(
-      `DELETE FROM trapper.colony_requests
+      `DELETE FROM sot.colony_requests
        WHERE colony_id = $1 AND request_id = $2
        RETURNING colony_id`,
       [colonyId, requestId]

@@ -29,14 +29,14 @@ function buildMediaCrossRefQuery(
     // Direct media on this request
     unions.push(`
       SELECT ${MEDIA_COLS}, NULL::TEXT AS cross_ref_source
-      FROM trapper.request_media m
+      FROM ops.request_media m
       WHERE m.request_id = $1 AND NOT m.is_archived
     `);
     // Requester person's direct media
     unions.push(`
       SELECT ${MEDIA_COLS}, 'person'::TEXT AS cross_ref_source
-      FROM trapper.request_media m
-      JOIN trapper.sot_requests r ON r.request_id = $1
+      FROM ops.request_media m
+      JOIN ops.requests r ON r.request_id = $1
       WHERE m.person_id = r.requester_person_id
         AND r.requester_person_id IS NOT NULL
         AND NOT m.is_archived
@@ -45,9 +45,9 @@ function buildMediaCrossRefQuery(
     // Linked cats' direct media
     unions.push(`
       SELECT ${MEDIA_COLS}, 'cat'::TEXT AS cross_ref_source
-      FROM trapper.request_media m
+      FROM ops.request_media m
       JOIN trapper.request_cat_links rcl ON rcl.cat_id = m.direct_cat_id
-      JOIN trapper.sot_requests r ON r.request_id = $1
+      JOIN ops.requests r ON r.request_id = $1
       WHERE rcl.request_id = $1
         AND NOT m.is_archived
         ${WINDOW_CONDITION}
@@ -55,8 +55,8 @@ function buildMediaCrossRefQuery(
     // Place's direct media
     unions.push(`
       SELECT ${MEDIA_COLS}, 'place'::TEXT AS cross_ref_source
-      FROM trapper.request_media m
-      JOIN trapper.sot_requests r ON r.request_id = $1
+      FROM ops.request_media m
+      JOIN ops.requests r ON r.request_id = $1
       WHERE m.place_id = r.place_id
         AND r.place_id IS NOT NULL
         AND m.request_id IS DISTINCT FROM $1
@@ -67,14 +67,14 @@ function buildMediaCrossRefQuery(
     // Direct person media
     unions.push(`
       SELECT ${MEDIA_COLS}, NULL::TEXT AS cross_ref_source
-      FROM trapper.request_media m
+      FROM ops.request_media m
       WHERE m.person_id = $1 AND NOT m.is_archived
     `);
     // Media from requests where person is requester
     unions.push(`
       SELECT ${MEDIA_COLS}, 'request'::TEXT AS cross_ref_source
-      FROM trapper.request_media m
-      JOIN trapper.sot_requests r ON r.request_id = m.request_id
+      FROM ops.request_media m
+      JOIN ops.requests r ON r.request_id = m.request_id
       WHERE r.requester_person_id = $1
         AND m.person_id IS DISTINCT FROM $1
         AND NOT m.is_archived
@@ -84,15 +84,15 @@ function buildMediaCrossRefQuery(
     // Direct cat media (direct_cat_id OR linked_cat_id)
     unions.push(`
       SELECT ${MEDIA_COLS}, NULL::TEXT AS cross_ref_source
-      FROM trapper.request_media m
+      FROM ops.request_media m
       WHERE (m.direct_cat_id = $1 OR m.linked_cat_id = $1) AND NOT m.is_archived
     `);
     // Media from linked requests
     unions.push(`
       SELECT ${MEDIA_COLS}, 'request'::TEXT AS cross_ref_source
-      FROM trapper.request_media m
+      FROM ops.request_media m
       JOIN trapper.request_cat_links rcl ON rcl.request_id = m.request_id
-      JOIN trapper.sot_requests r ON r.request_id = rcl.request_id
+      JOIN ops.requests r ON r.request_id = rcl.request_id
       WHERE rcl.cat_id = $1
         AND m.direct_cat_id IS DISTINCT FROM $1
         AND m.linked_cat_id IS DISTINCT FROM $1
@@ -104,14 +104,14 @@ function buildMediaCrossRefQuery(
     // Direct place media
     unions.push(`
       SELECT ${MEDIA_COLS}, NULL::TEXT AS cross_ref_source
-      FROM trapper.request_media m
+      FROM ops.request_media m
       WHERE m.place_id = $1 AND NOT m.is_archived
     `);
     // Media from requests at this place
     unions.push(`
       SELECT ${MEDIA_COLS}, 'request'::TEXT AS cross_ref_source
-      FROM trapper.request_media m
-      JOIN trapper.sot_requests r ON r.request_id = m.request_id
+      FROM ops.request_media m
+      JOIN ops.requests r ON r.request_id = m.request_id
       WHERE r.place_id = $1
         AND m.place_id IS DISTINCT FROM $1
         AND NOT m.is_archived
@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
     // Simple fallback — direct media only
     const media = await queryRows(
       `SELECT ${MEDIA_COLS}, NULL::TEXT AS cross_ref_source
-       FROM trapper.request_media m
+       FROM ops.request_media m
        WHERE NOT m.is_archived
          AND (
            ($1 = 'request' AND m.request_id = $2)

@@ -131,7 +131,7 @@ async function syncUserGroups(): Promise<{ fetched: number; upserted: number }> 
   let upserted = 0;
   for (const group of allGroups) {
     await execute(
-      `INSERT INTO trapper.volunteerhub_user_groups
+      `INSERT INTO source.volunteerhub_user_groups
          (user_group_uid, name, description, parent_user_group_uid, synced_at)
        VALUES ($1, $2, $3, $4, NOW())
        ON CONFLICT (user_group_uid) DO UPDATE SET
@@ -254,7 +254,7 @@ async function syncUsers(
 
         // Upsert into volunteerhub_volunteers (basic fields only)
         const result = await queryOne<{ was_inserted: boolean }>(
-          `INSERT INTO trapper.volunteerhub_volunteers (
+          `INSERT INTO source.volunteerhub_volunteers (
              volunteerhub_id, display_name, email, phone, first_name, last_name,
              status, is_active, user_group_uids, last_api_sync_at, synced_at
            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
@@ -289,7 +289,7 @@ async function syncUsers(
           // New volunteer: run identity matching (respects match_locked + soft blacklist)
           try {
             await execute(
-              `SELECT trapper.match_volunteerhub_volunteer($1)`,
+              `SELECT sot.match_volunteerhub_volunteer($1)`,
               [user.UserId]
             );
           } catch (matchErr) {
@@ -304,7 +304,7 @@ async function syncUsers(
 
         // Process roles for matched volunteers
         const matched = await queryOne<{ matched_person_id: string }>(
-          `SELECT matched_person_id FROM trapper.volunteerhub_volunteers
+          `SELECT matched_person_id FROM source.volunteerhub_volunteers
            WHERE volunteerhub_id = $1 AND matched_person_id IS NOT NULL`,
           [user.UserId]
         );
@@ -312,18 +312,18 @@ async function syncUsers(
         if (matched) {
           try {
             await execute(
-              `SELECT trapper.sync_volunteer_group_memberships($1, $2)`,
+              `SELECT sot.sync_volunteer_group_memberships($1, $2)`,
               [user.UserId, groupUids]
             );
             await execute(
-              `SELECT trapper.process_volunteerhub_group_roles($1, $2)`,
+              `SELECT ops.process_volunteerhub_group_roles($1, $2)`,
               [matched.matched_person_id, user.UserId]
             );
             stats.rolesProcessed++;
 
             // Link volunteer to their home place (uses VH address data)
             const linkResult = await queryOne<{ result: string }>(
-              `SELECT trapper.link_vh_volunteer_to_place($1)::text AS result`,
+              `SELECT sot.link_vh_volunteer_to_place($1)::text AS result`,
               [user.UserId]
             );
             if (linkResult?.result?.includes('"linked"')) {
@@ -400,7 +400,7 @@ export async function GET(request: NextRequest) {
     if (!isFullSync) {
       const lastSync = await queryOne<{ last_sync: string }>(
         `SELECT MAX(last_api_sync_at)::text AS last_sync
-         FROM trapper.volunteerhub_volunteers
+         FROM source.volunteerhub_volunteers
          WHERE last_api_sync_at IS NOT NULL`
       );
       if (lastSync?.last_sync) {
@@ -424,7 +424,7 @@ export async function GET(request: NextRequest) {
     let reconciliation: { deactivated: number } | null = null;
     try {
       const result = await queryOne<{ result: string }>(
-        `SELECT trapper.enforce_vh_role_authority(p_dry_run := false)::text AS result`
+        `SELECT sot.enforce_vh_role_authority(p_dry_run := false)::text AS result`
       );
       if (result?.result) {
         reconciliation = JSON.parse(result.result);
@@ -443,7 +443,7 @@ export async function GET(request: NextRequest) {
     const durationMs = Date.now() - startTime;
     try {
       await execute(
-        `INSERT INTO trapper.ingest_runs (
+        `INSERT INTO ops.ingest_runs (
            source_system, source_table, run_type, status,
            records_fetched, records_created, records_updated, records_errored,
            duration_ms, metadata, started_at, completed_at

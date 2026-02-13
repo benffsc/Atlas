@@ -57,9 +57,9 @@ export async function GET(
         m.source,
         m.conversation_id,
         m.created_at
-      FROM trapper.staff_messages m
-      LEFT JOIN trapper.staff s ON s.staff_id = m.sender_staff_id
-      JOIN trapper.staff r ON r.staff_id = m.recipient_staff_id
+      FROM ops.staff_messages m
+      LEFT JOIN ops.staff s ON s.staff_id = m.sender_staff_id
+      JOIN ops.staff r ON r.staff_id = m.recipient_staff_id
       WHERE m.message_id = $1
         AND (m.recipient_staff_id = $2 OR m.sender_staff_id = $2)`,
       [id, session.staff_id]
@@ -104,7 +104,7 @@ export async function PATCH(
 
     // Verify ownership (must be recipient to update status)
     const existing = await queryOne<{ message_id: string }>(
-      `SELECT message_id FROM trapper.staff_messages
+      `SELECT message_id FROM ops.staff_messages
        WHERE message_id = $1 AND recipient_staff_id = $2`,
       [id, session.staff_id]
     );
@@ -133,7 +133,7 @@ export async function PATCH(
 
     // Update status and read_at if marking as read
     const result = await queryOne<{ message_id: string }>(
-      `UPDATE trapper.staff_messages
+      `UPDATE ops.staff_messages
        SET
          status = $1,
          read_at = ${status === "read" ? "COALESCE(read_at, NOW())" : "read_at"}
@@ -182,7 +182,7 @@ export async function DELETE(
 
     // Verify ownership (must be recipient) and archive
     const result = await queryOne<{ message_id: string }>(
-      `UPDATE trapper.staff_messages
+      `UPDATE ops.staff_messages
        SET status = 'archived'
        WHERE message_id = $1 AND recipient_staff_id = $2
        RETURNING message_id`,

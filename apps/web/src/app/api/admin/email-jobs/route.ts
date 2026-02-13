@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN trapper.email_templates et ON et.template_key = ej.template_key
       LEFT JOIN trapper.email_categories ec ON ec.category_key = ej.category_key
       LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = ej.outlook_account_id
-      LEFT JOIN trapper.staff s ON s.staff_id = ej.created_by
+      LEFT JOIN ops.staff s ON s.staff_id = ej.created_by
       ${whereClause}
       ORDER BY ej.created_at DESC
       LIMIT ${params.length > 0 ? "$2" : "$1"}

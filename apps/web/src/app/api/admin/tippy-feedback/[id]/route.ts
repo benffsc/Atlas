@@ -111,8 +111,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         s.email as staff_email,
         rb.display_name as reviewer_name
       FROM trapper.tippy_feedback tf
-      LEFT JOIN trapper.staff s ON s.staff_id = tf.staff_id
-      LEFT JOIN trapper.staff rb ON rb.staff_id = tf.reviewed_by
+      LEFT JOIN ops.staff s ON s.staff_id = tf.staff_id
+      LEFT JOIN ops.staff rb ON rb.staff_id = tf.reviewed_by
       WHERE tf.feedback_id = $1
       `,
       [id]

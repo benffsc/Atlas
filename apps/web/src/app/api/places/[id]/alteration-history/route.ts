@@ -54,7 +54,7 @@ export async function GET(
         first_request_date,
         latest_request_date,
         yearly_breakdown
-      FROM trapper.v_place_alteration_history
+      FROM sot.v_place_alteration_history
       WHERE place_id = $1
     `;
 

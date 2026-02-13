@@ -84,9 +84,9 @@ export async function GET(
         be.source_system,
         be.notes,
         be.created_at::TEXT
-      FROM trapper.cat_birth_events be
-      LEFT JOIN trapper.sot_cats mc ON mc.cat_id = be.mother_cat_id
-      LEFT JOIN trapper.places p ON p.place_id = be.place_id
+      FROM sot.cat_birth_events be
+      LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
+      LEFT JOIN sot.places p ON p.place_id = be.place_id
       WHERE be.cat_id = $1
     `;
     const birthEvent = await queryOne<BirthEvent>(birthSql, [id]);
@@ -100,8 +100,8 @@ export async function GET(
           c.display_name,
           c.sex,
           c.microchip
-        FROM trapper.cat_birth_events be
-        JOIN trapper.sot_cats c ON c.cat_id = be.cat_id
+        FROM sot.cat_birth_events be
+        JOIN sot.cats c ON c.cat_id = be.cat_id
         WHERE be.litter_id = $1 AND be.cat_id != $2
         LIMIT 10
       `;
@@ -183,18 +183,18 @@ export async function POST(
 
     // Check if cat already has birth event
     const existing = await queryOne<{ birth_event_id: string }>(
-      "SELECT birth_event_id FROM trapper.cat_birth_events WHERE cat_id = $1",
+      "SELECT birth_event_id FROM sot.cat_birth_events WHERE cat_id = $1",
       [id]
     );
 
     if (existing) {
       // Update existing record
       const updateSql = `
-        UPDATE trapper.cat_birth_events
+        UPDATE sot.cat_birth_events
         SET
           mother_cat_id = COALESCE($2::UUID, mother_cat_id),
           birth_date = COALESCE($3::DATE, birth_date),
-          birth_date_precision = COALESCE($4::trapper.birth_date_precision, birth_date_precision),
+          birth_date_precision = COALESCE($4, birth_date_precision),
           birth_year = COALESCE($5, birth_year),
           birth_month = COALESCE($6, birth_month),
           birth_season = COALESCE($7, birth_season),
@@ -235,7 +235,7 @@ export async function POST(
 
     // Create new birth event
     const insertSql = `
-      INSERT INTO trapper.cat_birth_events (
+      INSERT INTO sot.cat_birth_events (
         cat_id,
         mother_cat_id,
         birth_date,
@@ -254,7 +254,7 @@ export async function POST(
         $1,
         $2::UUID,
         $3::DATE,
-        COALESCE($4::trapper.birth_date_precision, 'estimated'),
+        COALESCE($4, 'estimated'),
         $5,
         $6,
         $7,
@@ -320,7 +320,7 @@ export async function DELETE(
 
   try {
     const deleteSql = `
-      DELETE FROM trapper.cat_birth_events
+      DELETE FROM sot.cat_birth_events
       WHERE cat_id = $1
       RETURNING birth_event_id
     `;

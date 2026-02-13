@@ -59,21 +59,21 @@ export async function GET(request: NextRequest) {
             a.medical_notes,
             (
               SELECT cpr.place_id
-              FROM trapper.cat_place_relationships cpr
+              FROM sot.cat_place_relationships cpr
               WHERE cpr.cat_id = a.cat_id
               ORDER BY cpr.created_at DESC
               LIMIT 1
             ) as place_id
-          FROM trapper.sot_appointments a
-          JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-          LEFT JOIN trapper.cat_birth_events be ON be.mother_cat_id = a.cat_id
+          FROM ops.appointments a
+          JOIN sot.cats c ON c.cat_id = a.cat_id
+          LEFT JOIN sot.cat_birth_events be ON be.mother_cat_id = a.cat_id
           WHERE a.is_lactating = true
             AND c.sex = 'Female'
             AND be.birth_event_id IS NULL
           ORDER BY a.cat_id, a.appointment_date DESC
           LIMIT 100
         )
-        INSERT INTO trapper.cat_birth_events (
+        INSERT INTO sot.cat_birth_events (
           cat_id,
           mother_cat_id,
           birth_date,
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
           NULL,
           cat_id,
           appointment_date - INTERVAL '42 days',
-          'estimated'::trapper.birth_date_precision,
+          'estimated',
           EXTRACT(YEAR FROM appointment_date - INTERVAL '42 days')::INT,
           EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days')::INT,
           CASE
@@ -136,14 +136,14 @@ export async function GET(request: NextRequest) {
             END AS death_cause,
             (
               SELECT cpr.place_id
-              FROM trapper.cat_place_relationships cpr
+              FROM sot.cat_place_relationships cpr
               WHERE cpr.cat_id = a.cat_id
               ORDER BY cpr.created_at DESC
               LIMIT 1
             ) as place_id
-          FROM trapper.sot_appointments a
-          JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-          LEFT JOIN trapper.cat_mortality_events me ON me.cat_id = a.cat_id
+          FROM ops.appointments a
+          JOIN sot.cats c ON c.cat_id = a.cat_id
+          LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id
           WHERE (
               LOWER(a.medical_notes) LIKE '%euthanized%'
               OR LOWER(a.medical_notes) LIKE '%euthanasia%'
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
           ORDER BY a.cat_id, a.appointment_date DESC
           LIMIT 200
         )
-        INSERT INTO trapper.cat_mortality_events (
+        INSERT INTO sot.cat_mortality_events (
           cat_id,
           death_date,
           death_date_precision,
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
           'exact',
           EXTRACT(YEAR FROM appointment_date)::INT,
           EXTRACT(MONTH FROM appointment_date)::INT,
-          death_cause::trapper.death_cause,
+          death_cause,
           place_id,
           'beacon_cron',
           appointment_id::TEXT,
@@ -189,9 +189,9 @@ export async function GET(request: NextRequest) {
 
       // Mark cats as deceased
       const deceasedResult = await query(`
-        UPDATE trapper.sot_cats
+        UPDATE sot.cats
         SET is_deceased = true, deceased_date = me.death_date, updated_at = NOW()
-        FROM trapper.cat_mortality_events me
+        FROM sot.cat_mortality_events me
         WHERE sot_cats.cat_id = me.cat_id
           AND (sot_cats.is_deceased IS NULL OR sot_cats.is_deceased = false)
           AND me.source_system = 'beacon_cron'
@@ -209,7 +209,7 @@ export async function GET(request: NextRequest) {
 
     try {
       await query(`
-        INSERT INTO trapper.ingest_runs (
+        INSERT INTO ops.ingest_runs (
           source_system,
           run_type,
           started_at,

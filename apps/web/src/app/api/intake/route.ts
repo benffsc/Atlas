@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     // Insert into web_intake_submissions using direct SQL
     // The trigger will auto-compute triage
     const data = await queryOne<{ submission_id: string; triage_category: string; triage_score: number }>(
-      `INSERT INTO trapper.web_intake_submissions (
+      `INSERT INTO ops.intake_submissions (
         intake_source, source_system, first_name, last_name, email, phone,
         requester_address, requester_city, requester_zip,
         matched_person_id, selected_address_place_id, cats_at_requester_address,
@@ -249,12 +249,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to match to existing person (async, don't wait)
-    queryOne("SELECT trapper.match_intake_to_person($1)", [data.submission_id])
+    queryOne("SELECT sot.match_intake_to_person($1)", [data.submission_id])
       .catch((err: unknown) => console.error("Person matching error:", err));
 
     // Link to place and queue for geocoding — await to ensure place gets created
     try {
-      await queryOne("SELECT trapper.link_intake_submission_to_place($1)", [data.submission_id]);
+      await queryOne("SELECT sot.link_intake_to_place($1)", [data.submission_id]);
     } catch (err: unknown) {
       console.error("Place linking error:", err);
       // Non-fatal: submission was already saved, place linking can be retried
@@ -314,14 +314,14 @@ export async function GET(request: NextRequest) {
     if (submission_id) {
       submissions = await queryRows(
         `SELECT submission_id, submitted_at, status, triage_category::TEXT, cats_address, cats_city
-         FROM trapper.web_intake_submissions
+         FROM ops.intake_submissions
          WHERE submission_id = $1`,
         [submission_id]
       );
     } else if (email) {
       submissions = await queryRows(
         `SELECT submission_id, submitted_at, status, triage_category::TEXT, cats_address, cats_city
-         FROM trapper.web_intake_submissions
+         FROM ops.intake_submissions
          WHERE LOWER(email) = LOWER($1)
          ORDER BY submitted_at DESC
          LIMIT 5`,

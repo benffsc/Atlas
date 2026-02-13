@@ -51,7 +51,7 @@ export async function PATCH(
     }>(`
       SELECT * FROM trapper.advance_trapper_onboarding(
         p_person_id := $1::UUID,
-        p_new_status := $2::trapper.trapper_onboarding_status,
+        p_new_status := $2,
         p_notes := $3,
         p_advanced_by := $4
       )
@@ -94,7 +94,7 @@ export async function GET(
 
   try {
     const candidate = await queryOne(`
-      SELECT * FROM trapper.v_trapper_onboarding_pipeline
+      SELECT * FROM ops.v_trapper_onboarding_pipeline
       WHERE person_id = $1
     `, [id]);
 

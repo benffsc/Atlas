@@ -45,9 +45,9 @@ export async function GET(
         gme.parsed_cat_count,
         gme.ai_processed_at IS NOT NULL AS is_ai_summarized,
         gme.imported_at::TEXT
-      FROM trapper.person_place_relationships ppr
-      JOIN trapper.places p ON p.place_id = ppr.place_id
-      JOIN trapper.google_map_entries gme ON gme.place_id = ppr.place_id
+      FROM sot.person_place_relationships ppr
+      JOIN sot.places p ON p.place_id = ppr.place_id
+      JOIN source.google_map_entries gme ON gme.place_id = ppr.place_id
       WHERE ppr.person_id = $1
         AND ppr.valid_to IS NULL
       ORDER BY gme.imported_at DESC

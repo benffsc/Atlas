@@ -76,7 +76,7 @@ export async function POST(
 
     // Validate place exists
     const place = await queryOne<{ place_id: string }>(
-      `SELECT place_id FROM trapper.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
+      `SELECT place_id FROM sot.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
       [placeId]
     );
 
@@ -89,7 +89,7 @@ export async function POST(
 
     // Validate person exists
     const person = await queryOne<{ person_id: string }>(
-      `SELECT person_id FROM trapper.sot_people WHERE person_id = $1 AND merged_into_person_id IS NULL`,
+      `SELECT person_id FROM sot.people WHERE person_id = $1 AND merged_into_person_id IS NULL`,
       [person_id]
     );
 
@@ -111,10 +111,10 @@ export async function POST(
       source_system: string;
       created_at: string;
     }>(
-      `INSERT INTO trapper.person_place_relationships (
+      `INSERT INTO sot.person_place_relationships (
          person_id, place_id, role, source_system, confidence, note, created_by
        ) VALUES (
-         $1, $2, $3::trapper.person_place_role, 'atlas_ui', 0.9, $4, 'atlas_ui'
+         $1, $2, $3, 'atlas_ui', 0.9, $4, 'atlas_ui'
        )
        ON CONFLICT (person_id, place_id, role) DO NOTHING
        RETURNING
@@ -139,7 +139,7 @@ export async function POST(
 
     // Log to entity_edits for audit trail
     await execute(
-      `INSERT INTO trapper.entity_edits (
+      `INSERT INTO sot.entity_edits (
          entity_type, entity_id, edit_type, field_name,
          new_value, edited_by, edit_source
        ) VALUES (
@@ -214,7 +214,7 @@ export async function DELETE(
 
     // Validate place exists
     const place = await queryOne<{ place_id: string }>(
-      `SELECT place_id FROM trapper.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
+      `SELECT place_id FROM sot.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
       [placeId]
     );
 
@@ -231,8 +231,8 @@ export async function DELETE(
       source_system: string;
     }>(
       `SELECT relationship_id, source_system
-       FROM trapper.person_place_relationships
-       WHERE person_id = $1 AND place_id = $2 AND role = $3::trapper.person_place_role`,
+       FROM sot.person_place_relationships
+       WHERE person_id = $1 AND place_id = $2 AND role = $3`,
       [person_id, placeId, role]
     );
 
@@ -255,7 +255,7 @@ export async function DELETE(
 
     // Log to entity_edits before deleting
     await execute(
-      `INSERT INTO trapper.entity_edits (
+      `INSERT INTO sot.entity_edits (
          entity_type, entity_id, edit_type, field_name,
          old_value, edited_by, edit_source
        ) VALUES (
@@ -267,7 +267,7 @@ export async function DELETE(
 
     // Delete the relationship
     await execute(
-      `DELETE FROM trapper.person_place_relationships
+      `DELETE FROM sot.person_place_relationships
        WHERE relationship_id = $1 AND source_system = 'atlas_ui'`,
       [existing.relationship_id]
     );

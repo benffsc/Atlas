@@ -33,8 +33,8 @@ export async function GET() {
         p.display_name AS parent_name,
         o.created_at,
         o.updated_at
-      FROM trapper.organizations o
-      LEFT JOIN trapper.organizations p ON p.org_id = o.parent_org_id
+      FROM sot.organizations o
+      LEFT JOIN sot.organizations p ON p.org_id = o.parent_org_id
       WHERE o.is_internal = TRUE
       ORDER BY
         CASE o.org_type
@@ -103,14 +103,14 @@ export async function POST(request: NextRequest) {
     let parentId = parent_org_id;
     if (!parentId && org_type === "department") {
       const ffsc = await queryOne<{ org_id: string }>(
-        `SELECT org_id FROM trapper.organizations WHERE org_code = 'FFSC' LIMIT 1`
+        `SELECT org_id FROM sot.organizations WHERE org_code = 'FFSC' LIMIT 1`
       );
       parentId = ffsc?.org_id;
     }
 
     const result = await queryOne<{ org_id: string }>(
       `
-      INSERT INTO trapper.organizations (
+      INSERT INTO sot.organizations (
         org_code, display_name, org_type, description, parent_org_id, is_internal
       ) VALUES ($1, $2, $3, $4, $5, TRUE)
       RETURNING org_id
@@ -183,7 +183,7 @@ export async function PATCH(request: NextRequest) {
 
     const result = await queryOne<{ org_id: string }>(
       `
-      UPDATE trapper.organizations
+      UPDATE sot.organizations
       SET ${updates.join(", ")}
       WHERE org_id = $${paramIndex} AND is_internal = TRUE
       RETURNING org_id

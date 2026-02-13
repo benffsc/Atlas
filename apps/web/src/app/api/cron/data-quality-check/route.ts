@@ -56,49 +56,49 @@ export async function GET(request: NextRequest) {
     const metrics = await queryOne<DataQualityMetrics>(`
       SELECT
         -- Cat-place coverage (CRITICAL for Beacon)
-        (SELECT COUNT(*) FROM trapper.sot_cats WHERE merged_into_cat_id IS NULL) as total_cats,
+        (SELECT COUNT(*) FROM sot.cats WHERE merged_into_cat_id IS NULL) as total_cats,
         (SELECT COUNT(DISTINCT cpr.cat_id)
-         FROM trapper.cat_place_relationships cpr
-         JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+         FROM sot.cat_place_relationships cpr
+         JOIN sot.cats c ON c.cat_id = cpr.cat_id
          WHERE c.merged_into_cat_id IS NULL) as cats_with_places,
         ROUND(100.0 *
           (SELECT COUNT(DISTINCT cpr.cat_id)
-           FROM trapper.cat_place_relationships cpr
-           JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+           FROM sot.cat_place_relationships cpr
+           JOIN sot.cats c ON c.cat_id = cpr.cat_id
            WHERE c.merged_into_cat_id IS NULL) /
-          NULLIF((SELECT COUNT(*) FROM trapper.sot_cats WHERE merged_into_cat_id IS NULL), 0), 1
+          NULLIF((SELECT COUNT(*) FROM sot.cats WHERE merged_into_cat_id IS NULL), 0), 1
         ) as cat_place_coverage_pct,
 
         -- Data Engine review queue
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions
          WHERE review_status = 'pending') as pending_reviews,
 
         -- Geocoding queue
-        (SELECT COUNT(*) FROM trapper.places
+        (SELECT COUNT(*) FROM sot.places
          WHERE merged_into_place_id IS NULL AND latitude IS NULL) as geocoding_queue,
 
         -- Invalid people created in last 24 hours
-        (SELECT COUNT(*) FROM trapper.sot_people
+        (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
          AND created_at > NOW() - INTERVAL '24 hours'
          AND NOT trapper.is_valid_person_name(display_name)) as invalid_people_24h,
 
         -- People quality breakdown
-        (SELECT COUNT(*) FROM trapper.sot_people WHERE merged_into_person_id IS NULL) as total_people,
-        (SELECT COUNT(*) FROM trapper.sot_people
+        (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL) as total_people,
+        (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
          AND trapper.is_valid_person_name(display_name)) as valid_people,
-        (SELECT COUNT(*) FROM trapper.sot_people
+        (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
          AND NOT trapper.is_valid_person_name(display_name)) as invalid_people,
-        (SELECT COUNT(*) FROM trapper.sot_people
+        (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
          AND trapper.is_organization_name(display_name)) as orgs_as_people,
 
         -- Appointment linking
-        (SELECT COUNT(*) FROM trapper.sot_appointments) as total_appointments,
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE person_id IS NOT NULL) as appointments_with_person,
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE trapper_person_id IS NOT NULL) as appointments_with_trapper
+        (SELECT COUNT(*) FROM ops.appointments) as total_appointments,
+        (SELECT COUNT(*) FROM ops.appointments WHERE person_id IS NOT NULL) as appointments_with_person,
+        (SELECT COUNT(*) FROM ops.appointments WHERE trapper_person_id IS NOT NULL) as appointments_with_trapper
     `);
 
     if (!metrics) {

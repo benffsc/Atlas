@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         po.notes,
         po.created_at
       FROM trapper.partner_organizations po
-      LEFT JOIN trapper.places pl ON pl.place_id = po.place_id
+      LEFT JOIN sot.places pl ON pl.place_id = po.place_id
       WHERE ($1 OR po.is_active = TRUE)
       ORDER BY po.appointments_count DESC NULLS LAST, po.org_name
       `,
@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
           a.appointment_id,
           a.partner_org_id,
           a.inferred_place_id
-        FROM trapper.sot_appointments a
-        JOIN trapper.sot_people p ON a.person_id = p.person_id
+        FROM ops.appointments a
+        JOIN sot.people p ON a.person_id = p.person_id
         WHERE p.is_canonical = FALSE
           AND (
             trapper.is_organization_name(p.display_name) OR
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     let place_id = null;
     if (address) {
       const placeResult = await queryOne<{ place_id: string }>(
-        `SELECT trapper.find_or_create_place_deduped($1, $2, NULL, NULL, 'atlas_ui') AS place_id`,
+        `SELECT sot.find_or_create_place_deduped($1, $2, NULL, NULL, 'atlas_ui') AS place_id`,
         [address, org_name]
       );
       place_id = placeResult?.place_id;
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     // Link existing appointments
     if (result?.org_id) {
       await execute(
-        `SELECT * FROM trapper.link_all_appointments_to_partner_orgs()`
+        `SELECT * FROM sot.link_all_appointments_to_partner_orgs()`
       );
     }
 

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
         resolved_by,
         resolved_at::text,
         resolution_notes
-      FROM trapper.v_tier4_pending_review
+      FROM ops.v_tier4_pending_review
       WHERE ($1::text IS NULL OR match_type = $1)
       ORDER BY hours_in_queue DESC
       LIMIT $2 OFFSET $3
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     // Get total count
     const countResult = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::int as count
-      FROM trapper.v_tier4_pending_review
+      FROM ops.v_tier4_pending_review
       WHERE ($1::text IS NULL OR match_type = $1)
     `, [matchType]);
 
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE match_type = 'same_name_same_address')::int as same_name_same_address,
         COUNT(*) FILTER (WHERE match_type = 'tier4_same_name_same_address')::int as tier4_same_name_same_address,
         COALESCE(AVG(hours_in_queue), 0)::numeric as avg_hours_in_queue
-      FROM trapper.v_tier4_pending_review
+      FROM ops.v_tier4_pending_review
     `, []);
 
     return NextResponse.json({

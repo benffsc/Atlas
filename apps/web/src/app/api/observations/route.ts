@@ -123,10 +123,10 @@ export async function GET(request: NextRequest) {
         o.created_at,
         p.display_name as place_name,
         p.formatted_address as place_address
-      FROM trapper.site_observations o
-      LEFT JOIN trapper.places p ON p.place_id = o.place_id
-      LEFT JOIN trapper.sot_people per ON per.person_id = o.observer_person_id
-      LEFT JOIN trapper.staff s ON s.staff_id = o.observer_staff_id
+      FROM ops.site_observations o
+      LEFT JOIN sot.places p ON p.place_id = o.place_id
+      LEFT JOIN sot.people per ON per.person_id = o.observer_person_id
+      LEFT JOIN ops.staff s ON s.staff_id = o.observer_staff_id
       ${whereClause}
       ORDER BY o.observation_date DESC, o.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex}
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
     let effectivePlaceId = place_id;
     if (!place_id && request_id) {
       const req = await queryOne<{ place_id: string }>(
-        `SELECT place_id FROM trapper.sot_requests WHERE request_id = $1`,
+        `SELECT place_id FROM ops.requests WHERE request_id = $1`,
         [request_id]
       );
       if (req?.place_id) {
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
     // Insert observation (includes unified trip report fields)
     const observation = await queryOne<{ observation_id: string; created_at: string }>(
       `
-      INSERT INTO trapper.site_observations (
+      INSERT INTO ops.site_observations (
         place_id,
         request_id,
         observer_person_id,
@@ -377,7 +377,7 @@ export async function POST(request: NextRequest) {
         observation_date: string;
       }>(
         `SELECT total_cats, source_type, observation_date
-         FROM trapper.place_colony_estimates
+         FROM sot.place_colony_estimates
          WHERE place_id = $1
          ORDER BY observation_date DESC, created_at DESC
          LIMIT 1`,

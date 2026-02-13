@@ -115,7 +115,7 @@ export async function GET(
   try {
     // Check if place was merged
     const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
-      `SELECT merged_into_place_id FROM trapper.places WHERE place_id = $1`,
+      `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
       [id]
     );
 
@@ -137,17 +137,17 @@ export async function GET(
         COALESCE(req.request_count, 0) AS request_count,
         COALESCE(req.active_request_count, 0) AS active_request_count,
         COALESCE(alt.total_altered, 0) AS total_altered
-      FROM trapper.places p
+      FROM sot.places p
       LEFT JOIN (
         SELECT place_id, COUNT(DISTINCT cat_id) AS cat_count
-        FROM trapper.cat_place_relationships
+        FROM sot.cat_place_relationships
         WHERE place_id = $1
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
       LEFT JOIN (
         SELECT ppr.place_id, COUNT(DISTINCT ppr.person_id) AS person_count
-        FROM trapper.person_place_relationships ppr
-        JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+        FROM sot.person_place_relationships ppr
+        JOIN sot.people per ON per.person_id = ppr.person_id
         WHERE ppr.place_id = $1
           AND per.merged_into_person_id IS NULL
           AND per.display_name IS NOT NULL
@@ -161,14 +161,14 @@ export async function GET(
           place_id,
           COUNT(*) AS request_count,
           COUNT(*) FILTER (WHERE status IN ('new', 'triaged', 'scheduled', 'in_progress')) AS active_request_count
-        FROM trapper.sot_requests
+        FROM ops.requests
         WHERE place_id = $1
         GROUP BY place_id
       ) req ON req.place_id = p.place_id
       LEFT JOIN (
         SELECT cpr.place_id, COUNT(DISTINCT cp.cat_id) AS total_altered
-        FROM trapper.cat_place_relationships cpr
-        JOIN trapper.cat_procedures cp ON cp.cat_id = cpr.cat_id
+        FROM sot.cat_place_relationships cpr
+        JOIN ops.cat_procedures cp ON cp.cat_id = cpr.cat_id
           AND (cp.is_spay OR cp.is_neuter)
         WHERE cpr.place_id = $1
         GROUP BY cpr.place_id
@@ -202,12 +202,12 @@ export async function GET(
         (SELECT jsonb_agg(jsonb_build_object(
           'role', pr.role, 'trapper_type', pr.trapper_type
         ))
-        FROM trapper.person_roles pr
+        FROM sot.person_roles pr
         WHERE pr.person_id = per.person_id
           AND pr.role_status = 'active'
         ) AS staff_roles
-      FROM trapper.person_place_relationships ppr
-      JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+      FROM sot.person_place_relationships ppr
+      JOIN sot.people per ON per.person_id = ppr.person_id
       WHERE ppr.place_id = $1
         AND per.merged_into_person_id IS NULL
         AND per.display_name IS NOT NULL
@@ -224,7 +224,7 @@ export async function GET(
     // parent building, child units, sibling units, and co-located places (same point)
     const googleNotes = await queryRows<GoogleNote>(
       `WITH family AS (
-        SELECT unnest(trapper.get_place_family($1)) AS fid
+        SELECT unnest(sot.get_place_family($1)) AS fid
       )
       SELECT
         entry_id,
@@ -235,7 +235,7 @@ export async function GET(
         ai_meaning,
         parsed_date::TEXT,
         imported_at::TEXT
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE place_id IN (SELECT fid FROM family)
          OR linked_place_id IN (SELECT fid FROM family)
       ORDER BY parsed_date DESC NULLS LAST, imported_at DESC`,
@@ -253,7 +253,7 @@ export async function GET(
           body,
           created_by,
           created_at::TEXT
-        FROM trapper.journal_entries
+        FROM ops.journal_entries
         WHERE primary_place_id = $1
           AND is_archived = FALSE
         ORDER BY created_at DESC`,
@@ -268,8 +268,8 @@ export async function GET(
     try {
       contexts = await queryRows<PlaceContext>(
         `SELECT pc.context_type, pct.display_label
-        FROM trapper.place_contexts pc
-        JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
+        FROM sot.place_contexts pc
+        JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
         WHERE pc.place_id = $1 AND pc.valid_to IS NULL
         ORDER BY pct.sort_order`,
         [placeId]
@@ -284,23 +284,23 @@ export async function GET(
       dataSources = await queryRows<DataSource>(
         `SELECT source_system, source_description FROM (
           SELECT DISTINCT ppr.source_system, 'People' AS source_description
-          FROM trapper.person_place_relationships ppr
+          FROM sot.person_place_relationships ppr
           WHERE ppr.place_id = $1 AND ppr.source_system IS NOT NULL
           UNION
           SELECT DISTINCT r.source_system, 'Requests'
-          FROM trapper.sot_requests r
+          FROM ops.requests r
           WHERE r.place_id = $1 AND r.source_system IS NOT NULL
           UNION
           SELECT DISTINCT cpr.source_system, 'Cat Links'
-          FROM trapper.cat_place_relationships cpr
+          FROM sot.cat_place_relationships cpr
           WHERE cpr.place_id = $1 AND cpr.source_system IS NOT NULL
           UNION
           SELECT p.data_source, 'Place Record'
-          FROM trapper.places p
+          FROM sot.places p
           WHERE p.place_id = $1 AND p.data_source IS NOT NULL
           UNION
           SELECT DISTINCT pc.source_system, 'Context Tags'
-          FROM trapper.place_contexts pc
+          FROM sot.place_contexts pc
           WHERE pc.place_id = $1 AND pc.source_system IS NOT NULL
         ) sources
         ORDER BY source_system`,
@@ -349,11 +349,11 @@ export async function GET(
         apt.latest_appointment_date,
         apt.latest_service_type,
         COALESCE(dis.positive_diseases, '[]'::jsonb) AS positive_diseases
-      FROM trapper.cat_place_relationships cpr
-      JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+      FROM sot.cat_place_relationships cpr
+      JOIN sot.cats c ON c.cat_id = cpr.cat_id
         AND c.merged_into_cat_id IS NULL
       LEFT JOIN LATERAL (
-        SELECT id_value FROM trapper.cat_identifiers
+        SELECT id_value FROM sot.cat_identifiers
         WHERE cat_id = c.cat_id AND id_type = 'microchip'
         LIMIT 1
       ) ci ON TRUE
@@ -362,7 +362,7 @@ export async function GET(
           COUNT(*) AS appointment_count,
           MAX(appointment_date)::TEXT AS latest_appointment_date,
           (ARRAY_AGG(service_type ORDER BY appointment_date DESC))[1] AS latest_service_type
-        FROM trapper.sot_appointments
+        FROM ops.appointments
         WHERE cat_id = c.cat_id
       ) apt ON TRUE
       LEFT JOIN LATERAL (
@@ -372,7 +372,7 @@ export async function GET(
           'color', dt.color,
           'test_date', ctr.test_date::TEXT
         )) AS positive_diseases
-        FROM trapper.cat_test_results ctr
+        FROM sot.cat_test_results ctr
         JOIN trapper.test_type_disease_mapping m ON m.test_type = ctr.test_type
           AND (ctr.result::TEXT ILIKE '%' || m.result_pattern || '%'
                OR ctr.result_detail ILIKE '%' || m.result_pattern || '%')

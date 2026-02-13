@@ -26,7 +26,7 @@ export async function GET() {
       staleRoles = await queryRows(
         `SELECT role_id::text, person_id::text, display_name, role, trapper_type,
                 days_since_departure, groups_left
-         FROM trapper.v_stale_volunteer_roles
+         FROM ops.v_stale_volunteer_roles
          LIMIT 50`
       );
     } catch {
@@ -45,7 +45,7 @@ export async function GET() {
       missingVolunteer = await queryRows(
         `SELECT person_id::text, display_name, roles_without_volunteer,
                 role_sources, has_vh_record
-         FROM trapper.v_role_without_volunteer
+         FROM ops.v_role_without_volunteer
          LIMIT 50`
       );
     } catch {
@@ -63,7 +63,7 @@ export async function GET() {
     try {
       sourceConflicts = await queryRows(
         `SELECT person_id::text, display_name, role, atlas_status, source_status
-         FROM trapper.v_role_source_conflicts
+         FROM ops.v_role_source_conflicts
          LIMIT 50`
       );
     } catch {
@@ -83,7 +83,7 @@ export async function GET() {
       unmatchedFosters = await queryRows(
         `SELECT id::text, hold_for_name, foster_email, cat_name,
                 match_attempt, created_at::text
-         FROM trapper.shelterluv_unmatched_fosters
+         FROM source.shelterluv_unmatched_fosters
          WHERE resolved_at IS NULL
          ORDER BY created_at DESC
          LIMIT 50`
@@ -108,7 +108,7 @@ export async function GET() {
                 rl.previous_status, rl.new_status, rl.reason,
                 rl.created_at::text
          FROM trapper.role_reconciliation_log rl
-         JOIN trapper.sot_people sp ON sp.person_id = rl.person_id
+         JOIN sot.people sp ON sp.person_id = rl.person_id
          ORDER BY rl.created_at DESC
          LIMIT 20`
       );

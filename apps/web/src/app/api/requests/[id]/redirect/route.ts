@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (existing_target_request_id) {
       // Verify target request exists and is in a valid state
       const target = await queryOne<{ request_id: string; status: string }>(
-        `SELECT request_id, status::TEXT FROM trapper.sot_requests WHERE request_id = $1`,
+        `SELECT request_id, status::TEXT FROM ops.requests WHERE request_id = $1`,
         [existing_target_request_id]
       );
       if (!target) {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Close original + link to existing target
       await queryOne(
-        `UPDATE trapper.sot_requests SET
+        `UPDATE ops.requests SET
           status = 'redirected',
           redirected_to_request_id = $2,
           redirect_reason = $3,
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Link target back (only if it doesn't already have a parent)
       await queryOne(
-        `UPDATE trapper.sot_requests SET
+        `UPDATE ops.requests SET
           redirected_from_request_id = $1
         WHERE request_id = $2
           AND redirected_from_request_id IS NULL`,
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Audit log
       await queryOne(
-        `INSERT INTO trapper.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
+        `INSERT INTO sot.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
          VALUES ('request', $1, 'field_update', 'status', to_jsonb('redirected'::TEXT), $2, $3)`,
         [requestId, `Redirected to existing request ${existing_target_request_id}: ${redirect_reason}`, `staff:${session.staff_id}`]
       );
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Call the redirect_request function
     const result = await queryOne<RedirectResult>(
-      `SELECT * FROM trapper.redirect_request(
+      `SELECT * FROM ops.redirect_request(
         p_original_request_id := $1,
         p_redirect_reason := $2,
         p_new_address := $3,
@@ -235,9 +235,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         r.redirect_at,
         to_req.summary AS to_request_summary,
         from_req.summary AS from_request_summary
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.sot_requests to_req ON to_req.request_id = r.redirected_to_request_id
-      LEFT JOIN trapper.sot_requests from_req ON from_req.request_id = r.redirected_from_request_id
+      FROM ops.requests r
+      LEFT JOIN ops.requests to_req ON to_req.request_id = r.redirected_to_request_id
+      LEFT JOIN ops.requests from_req ON from_req.request_id = r.redirected_from_request_id
       WHERE r.request_id = $1`,
       [requestId]
     );

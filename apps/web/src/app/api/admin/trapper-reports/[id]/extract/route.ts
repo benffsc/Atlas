@@ -193,7 +193,7 @@ export async function POST(
       ai_extraction: { manual?: { cats_trapped?: number; cats_remaining?: number; status_update?: string } } | null;
     }>(
       `SELECT submission_id::text, reporter_email, reporter_person_id::text, raw_content, extraction_status, ai_extraction
-       FROM trapper.trapper_report_submissions WHERE submission_id = $1`,
+       FROM ops.trapper_report_submissions WHERE submission_id = $1`,
       [id]
     );
 
@@ -208,7 +208,7 @@ export async function POST(
 
     // Mark as extracting
     await execute(
-      `UPDATE trapper.trapper_report_submissions SET extraction_status = 'extracting' WHERE submission_id = $1`,
+      `UPDATE ops.trapper_report_submissions SET extraction_status = 'extracting' WHERE submission_id = $1`,
       [id]
     );
 
@@ -223,7 +223,7 @@ export async function POST(
 
     if (!extraction) {
       await execute(
-        `UPDATE trapper.trapper_report_submissions
+        `UPDATE ops.trapper_report_submissions
          SET extraction_status = 'failed', extraction_error = $2
          WHERE submission_id = $1`,
         [id, "AI extraction returned null or invalid JSON"]
@@ -241,7 +241,7 @@ export async function POST(
     if (submission.reporter_person_id) {
       // Reporter was pre-selected, get their info for context
       const preSelectedReporter = await queryOne<{ person_id: string; display_name: string }>(
-        `SELECT person_id::text, display_name FROM trapper.sot_people WHERE person_id = $1`,
+        `SELECT person_id::text, display_name FROM sot.people WHERE person_id = $1`,
         [submission.reporter_person_id]
       );
       if (preSelectedReporter) {
@@ -309,7 +309,7 @@ export async function POST(
       // Status update item - skip if manual status was already provided
       if (site.status_recommendation && requestCandidates[0] && !hasManualStatus) {
         await execute(
-          `INSERT INTO trapper.trapper_report_items (
+          `INSERT INTO ops.trapper_report_items (
             submission_id, item_type,
             target_entity_type, target_entity_id, match_confidence, match_candidates,
             extracted_text, extracted_data
@@ -336,7 +336,7 @@ export async function POST(
       // Colony estimate item - skip if manual numbers were already provided
       if ((site.cats_remaining || site.cats_trapped) && !hasManualNumbers) {
         await execute(
-          `INSERT INTO trapper.trapper_report_items (
+          `INSERT INTO ops.trapper_report_items (
             submission_id, item_type,
             target_entity_type, target_entity_id, match_confidence, match_candidates,
             extracted_text, extracted_data
@@ -380,7 +380,7 @@ export async function POST(
             relatedPlaces[0].place_id !== topPlace.place_id
           ) {
             await execute(
-              `INSERT INTO trapper.trapper_report_items (
+              `INSERT INTO ops.trapper_report_items (
                 submission_id, item_type,
                 target_entity_type, target_entity_id, match_confidence, match_candidates,
                 extracted_data
@@ -408,7 +408,7 @@ export async function POST(
     // Handle reporter email update
     if (extraction.reporter_updates?.new_email && topReporter) {
       await execute(
-        `INSERT INTO trapper.trapper_report_items (
+        `INSERT INTO ops.trapper_report_items (
           submission_id, item_type,
           target_entity_type, target_entity_id, match_confidence, match_candidates,
           extracted_data
@@ -438,7 +438,7 @@ export async function POST(
     if (submission.reporter_person_id) {
       // Preserve pre-selected reporter, just update extraction data
       await execute(
-        `UPDATE trapper.trapper_report_submissions
+        `UPDATE ops.trapper_report_submissions
          SET
            extraction_status = 'extracted',
            extracted_at = NOW(),
@@ -452,7 +452,7 @@ export async function POST(
     } else {
       // Update with AI-matched reporter
       await execute(
-        `UPDATE trapper.trapper_report_submissions
+        `UPDATE ops.trapper_report_submissions
          SET
            extraction_status = 'extracted',
            extracted_at = NOW(),
@@ -485,7 +485,7 @@ export async function POST(
 
     // Mark as failed
     await execute(
-      `UPDATE trapper.trapper_report_submissions
+      `UPDATE ops.trapper_report_submissions
        SET extraction_status = 'failed', extraction_error = $2
        WHERE submission_id = $1`,
       [id, error instanceof Error ? error.message : "Unknown error"]

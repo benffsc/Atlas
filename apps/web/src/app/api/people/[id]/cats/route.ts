@@ -51,10 +51,10 @@ export async function GET(
         pcr.source_system,
         c.data_source,
         pcr.created_at::TEXT
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_cats c ON c.cat_id = pcr.cat_id
-      LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
-      LEFT JOIN trapper.sot_appointments a ON a.appointment_id = pcr.appointment_id
+      FROM sot.person_cat_relationships pcr
+      JOIN sot.cats c ON c.cat_id = pcr.cat_id
+      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+      LEFT JOIN ops.appointments a ON a.appointment_id = pcr.appointment_id
       WHERE pcr.person_id = $1
       ORDER BY
         CASE pcr.relationship_type

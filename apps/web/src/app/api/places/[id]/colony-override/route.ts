@@ -146,7 +146,7 @@ export async function GET(
         colony_override_note,
         colony_override_at,
         colony_override_by
-      FROM trapper.places
+      FROM sot.places
       WHERE place_id = $1
     `;
 
@@ -172,7 +172,7 @@ export async function GET(
         changed_at,
         a_known_at_time,
         n_max_at_time
-      FROM trapper.colony_override_history
+      FROM sot.colony_override_history
       WHERE place_id = $1
       ORDER BY changed_at DESC
       LIMIT 20

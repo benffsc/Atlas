@@ -48,11 +48,11 @@ export async function GET(request: NextRequest) {
             'person_id', p.person_id,
             'display_name', p.display_name
           ))
-          FROM trapper.sot_people p
+          FROM sot.people p
           WHERE p.person_id = ANY(ptl.candidate_person_ids)
             AND p.merged_into_person_id IS NULL
         ) as candidate_details
-      FROM trapper.pending_trapper_links ptl
+      FROM ops.pending_trapper_links ptl
       WHERE ptl.status = $1
       ORDER BY ptl.created_at DESC
       LIMIT $2 OFFSET $3`,
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'linked') AS linked,
         COUNT(*) FILTER (WHERE status = 'created') AS created,
         COUNT(*) FILTER (WHERE status = 'dismissed') AS dismissed
-      FROM trapper.pending_trapper_links`
+      FROM ops.pending_trapper_links`
     );
 
     return NextResponse.json({

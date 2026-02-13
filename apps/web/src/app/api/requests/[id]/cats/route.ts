@@ -36,9 +36,9 @@ export async function GET(
         c.name AS cat_name,
         ci.id_value AS microchip,
         c.sex
-      FROM trapper.request_cat_links rcl
-      JOIN trapper.sot_cats c ON c.cat_id = rcl.cat_id
-      LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+      FROM ops.request_cat_links rcl
+      JOIN sot.cats c ON c.cat_id = rcl.cat_id
+      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
       WHERE rcl.request_id = $1
       ORDER BY rcl.linked_at DESC
     `, [id]);
@@ -78,7 +78,7 @@ export async function POST(
   try {
     // Check if link already exists
     const existing = await queryOne<{ link_id: string }>(`
-      SELECT link_id FROM trapper.request_cat_links
+      SELECT link_id FROM ops.request_cat_links
       WHERE request_id = $1 AND cat_id = $2
     `, [id, body.cat_id]);
 
@@ -91,7 +91,7 @@ export async function POST(
 
     // Create the link
     const result = await queryOne<RequestCatLink>(`
-      INSERT INTO trapper.request_cat_links (
+      INSERT INTO ops.request_cat_links (
         request_id,
         cat_id,
         link_purpose,
@@ -153,7 +153,7 @@ export async function DELETE(
   try {
     // Check if link exists
     const existing = await queryOne<{ link_id: string; link_purpose: string | null }>(`
-      SELECT link_id, link_purpose FROM trapper.request_cat_links
+      SELECT link_id, link_purpose FROM ops.request_cat_links
       WHERE request_id = $1 AND cat_id = $2
     `, [id, body.cat_id]);
 
@@ -166,7 +166,7 @@ export async function DELETE(
 
     // Delete the link
     await queryOne(`
-      DELETE FROM trapper.request_cat_links
+      DELETE FROM ops.request_cat_links
       WHERE request_id = $1 AND cat_id = $2
     `, [id, body.cat_id]);
 

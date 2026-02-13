@@ -27,11 +27,11 @@ export async function GET() {
         'places' as layer,
         COUNT(*)::INT as count,
         COUNT(*) FILTER (WHERE EXISTS (
-          SELECT 1 FROM trapper.sot_requests r
+          SELECT 1 FROM ops.requests r
           WHERE r.place_id = p.place_id
           AND r.status NOT IN ('completed', 'cancelled')
         ))::INT as with_active_requests
-      FROM trapper.places p
+      FROM sot.places p
       WHERE p.merged_into_place_id IS NULL AND p.location IS NOT NULL
 
       UNION ALL
@@ -41,7 +41,7 @@ export async function GET() {
         'google_maps_attached' as layer,
         COUNT(*)::INT as count,
         0 as with_active_requests
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE linked_place_id IS NOT NULL
 
       UNION ALL
@@ -51,7 +51,7 @@ export async function GET() {
         'google_maps_unattached' as layer,
         COUNT(*)::INT as count,
         0 as with_active_requests
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE linked_place_id IS NULL AND lat IS NOT NULL
 
       UNION ALL
@@ -61,7 +61,7 @@ export async function GET() {
         'google_maps_' || COALESCE(ai_classification->>'primary_meaning', 'unclassified') as layer,
         COUNT(*)::INT as count,
         0 as with_active_requests
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE lat IS NOT NULL
       GROUP BY ai_classification->>'primary_meaning'
       ORDER BY count DESC

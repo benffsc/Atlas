@@ -62,19 +62,19 @@ export async function GET() {
         COUNT(*) FILTER (WHERE match_tier = 3)::int as tier3,
         COUNT(*) FILTER (WHERE match_tier = 4)::int as tier4,
         COUNT(*) FILTER (WHERE match_tier = 5)::int as tier5
-      FROM trapper.v_person_dedup_candidates
+      FROM sot.v_person_dedup_candidates
     `, []);
 
     // Get Tier 4 prevention queue (from merge-review)
     const tier4Stats = await queryOne<{ total: number }>(`
       SELECT COUNT(*)::int as total
-      FROM trapper.v_tier4_pending_review
+      FROM ops.v_tier4_pending_review
     `, []);
 
     // Get data engine pending reviews
     const dataEngineStats = await queryOne<{ total: number }>(`
       SELECT COUNT(*)::int as total
-      FROM trapper.data_engine_match_decisions
+      FROM sot.data_engine_match_decisions
       WHERE decision_type = 'review_pending'
         AND reviewed_at IS NULL
     `, []);
@@ -97,7 +97,7 @@ export async function GET() {
     // Get data quality review counts
     const qualityStats = await queryOne<{ total: number }>(`
       SELECT COUNT(*)::int as total
-      FROM trapper.sot_people
+      FROM sot.people
       WHERE data_quality = 'needs_review'
         AND merged_into_person_id IS NULL
     `, []);
@@ -112,27 +112,27 @@ export async function GET() {
     }>(`
       SELECT
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.place_colony_estimates WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.place_colony_estimates WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int +
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int +
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as total,
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.place_colony_estimates WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.place_colony_estimates WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as colony_estimates,
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as reproduction,
         COALESCE(
-          (SELECT COUNT(*) FROM trapper.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
           0
         )::int as mortality
     `, []);
@@ -153,7 +153,7 @@ export async function GET() {
           existing_name as title,
           'Same name + address: ' || COALESCE(shared_address, 'unknown') as subtitle,
           EXTRACT(EPOCH FROM (NOW() - detected_at)) / 3600 as age_hours
-        FROM trapper.v_tier4_pending_review
+        FROM ops.v_tier4_pending_review
 
         UNION ALL
 
@@ -171,7 +171,7 @@ export async function GET() {
             WHEN 5 THEN 'Name only match'
           END as subtitle,
           EXTRACT(EPOCH FROM (NOW() - canonical_created_at)) / 3600 as age_hours
-        FROM trapper.v_person_dedup_candidates
+        FROM sot.v_person_dedup_candidates
 
         UNION ALL
 

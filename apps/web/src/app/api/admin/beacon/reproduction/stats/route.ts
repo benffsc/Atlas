@@ -22,7 +22,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE is_lactating)::INT AS lactating_count,
         COUNT(*) FILTER (WHERE is_in_heat)::INT AS in_heat_count,
         COUNT(DISTINCT cat_id)::INT AS unique_cats
-      FROM trapper.cat_vitals
+      FROM ops.cat_vitals
       WHERE is_pregnant = TRUE OR is_lactating = TRUE OR is_in_heat = TRUE
     `);
 
@@ -38,7 +38,7 @@ export async function GET() {
         COUNT(DISTINCT mother_cat_id)::INT AS unique_mothers,
         COUNT(DISTINCT litter_id)::INT AS unique_litters,
         COUNT(*) FILTER (WHERE birth_year = EXTRACT(YEAR FROM CURRENT_DATE))::INT AS births_this_year
-      FROM trapper.cat_birth_events
+      FROM sot.cat_birth_events
     `);
 
     // Get births by source
@@ -46,7 +46,7 @@ export async function GET() {
       SELECT
         COALESCE(source_system, 'unknown') AS source_system,
         COUNT(*)::INT AS count
-      FROM trapper.cat_birth_events
+      FROM sot.cat_birth_events
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -56,7 +56,7 @@ export async function GET() {
       SELECT
         COALESCE(birth_season, 'unknown') AS season,
         COUNT(*)::INT AS count
-      FROM trapper.cat_birth_events
+      FROM sot.cat_birth_events
       GROUP BY birth_season
       ORDER BY
         CASE birth_season

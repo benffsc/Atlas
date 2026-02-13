@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Check if password change is required
     const staffInfo = await queryOne<{ password_change_required: boolean }>(
       `SELECT COALESCE(password_change_required, FALSE) as password_change_required
-       FROM trapper.staff WHERE staff_id = $1`,
+       FROM ops.staff WHERE staff_id = $1`,
       [result.staff!.staff_id]
     );
 

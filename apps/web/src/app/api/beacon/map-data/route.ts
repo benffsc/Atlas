@@ -289,7 +289,7 @@ export async function GET(req: NextRequest) {
           last_alteration_at::text,
           pin_style,
           pin_tier
-        FROM trapper.v_map_atlas_pins
+        FROM ops.v_map_atlas_pins
         WHERE 1=1
           ${zone ? `AND service_zone = '${zone}'` : ""}
           ${boundsCondition}
@@ -346,29 +346,29 @@ export async function GET(req: NextRequest) {
               ELSE 'low'
             END as priority,
             EXISTS (
-              SELECT 1 FROM trapper.place_colony_estimates pce
+              SELECT 1 FROM sot.place_colony_estimates pce
               WHERE pce.place_id = p.place_id AND pce.eartip_count_observed > 0
             ) as has_observation,
             COALESCE(p.service_zone, 'Unknown') as service_zone,
             -- Get primary person at this place
             (
               SELECT per.display_name
-              FROM trapper.person_place_relationships ppr
-              JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+              FROM sot.person_place_relationships ppr
+              JOIN sot.people per ON per.person_id = ppr.person_id
               WHERE ppr.place_id = p.place_id
               ORDER BY ppr.is_primary DESC NULLS LAST, ppr.created_at ASC
               LIMIT 1
             ) as primary_person_name,
             (
               SELECT COUNT(DISTINCT ppr.person_id)::int
-              FROM trapper.person_place_relationships ppr
+              FROM sot.person_place_relationships ppr
               WHERE ppr.place_id = p.place_id
             ) as person_count
-          FROM trapper.places p
+          FROM sot.places p
           LEFT JOIN (
             SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
-            FROM trapper.cat_place_relationships cpr
-            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+            FROM sot.cat_place_relationships cpr
+            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
             GROUP BY cpr.place_id
           ) cc ON cc.place_id = p.place_id
           WHERE p.merged_into_place_id IS NULL
@@ -414,7 +414,7 @@ export async function GET(req: NextRequest) {
           COALESCE(staff_alert, false) as staff_alert,
           (ai_classification->>'confidence')::numeric as ai_confidence,
           classification_description
-        FROM trapper.v_google_map_entries_classified
+        FROM ops.v_google_map_entries_classified
         WHERE lat IS NOT NULL
           AND lng IS NOT NULL
         ORDER BY
@@ -461,22 +461,22 @@ export async function GET(req: NextRequest) {
               ELSE 'unknown'
             END as tnr_priority,
             EXISTS (
-              SELECT 1 FROM trapper.place_colony_estimates pce
+              SELECT 1 FROM sot.place_colony_estimates pce
               WHERE pce.place_id = p.place_id AND pce.eartip_count_observed > 0
             ) as has_observation,
             COALESCE(p.service_zone, 'Unknown') as service_zone
-          FROM trapper.places p
+          FROM sot.places p
           LEFT JOIN (
             SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
-            FROM trapper.cat_place_relationships cpr
-            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+            FROM sot.cat_place_relationships cpr
+            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
             GROUP BY cpr.place_id
           ) cc ON cc.place_id = p.place_id
           LEFT JOIN (
             SELECT cpr.place_id, COUNT(DISTINCT cp.cat_id) as altered_count
-            FROM trapper.cat_place_relationships cpr
-            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-            JOIN trapper.cat_procedures cp ON cp.cat_id = cpr.cat_id
+            FROM sot.cat_place_relationships cpr
+            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+            JOIN ops.cat_procedures cp ON cp.cat_id = cpr.cat_id
             WHERE cp.is_spay OR cp.is_neuter
             GROUP BY cpr.place_id
           ) ac ON ac.place_id = p.place_id
@@ -520,8 +520,8 @@ export async function GET(req: NextRequest) {
           COALESCE(zs.total_cats_linked, 0)::int as total_cats,
           COALESCE(zs.observation_status, 'unknown') as observation_status,
           ST_AsGeoJSON(oz.boundary_geom) as boundary
-        FROM trapper.observation_zones oz
-        LEFT JOIN trapper.v_observation_zone_summary zs ON zs.zone_id = oz.zone_id
+        FROM ops.observation_zones oz
+        LEFT JOIN ops.v_observation_zone_summary zs ON zs.zone_id = oz.zone_id
         WHERE oz.status = 'active'
           ${zone ? `AND oz.service_zone = '${zone}'` : ""}
         ORDER BY COALESCE(zs.total_cats_linked, 0) DESC
@@ -560,10 +560,10 @@ export async function GET(req: NextRequest) {
           END as role_label,
           pl.service_zone,
           pr.role_status = 'active' as is_active
-        FROM trapper.sot_people p
-        JOIN trapper.person_roles pr ON pr.person_id = p.person_id
-        JOIN trapper.person_place_relationships ppr ON ppr.person_id = p.person_id
-        JOIN trapper.places pl ON pl.place_id = ppr.place_id
+        FROM sot.people p
+        JOIN sot.person_roles pr ON pr.person_id = p.person_id
+        JOIN sot.person_place_relationships ppr ON ppr.person_id = p.person_id
+        JOIN sot.places pl ON pl.place_id = ppr.place_id
         WHERE pr.role IN ('trapper', 'foster', 'caretaker', 'staff', 'volunteer')
           AND pr.role_status = 'active'
           AND pl.location IS NOT NULL
@@ -606,10 +606,10 @@ export async function GET(req: NextRequest) {
             COUNT(DISTINCT a.cat_id) as cat_count,
             MAX(a.appointment_date)::text as last_visit,
             COALESCE(p.service_zone, 'Unknown') as service_zone
-          FROM trapper.places p
-          JOIN trapper.cat_place_relationships cpr ON cpr.place_id = p.place_id
-          JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-          JOIN trapper.sot_appointments a ON a.cat_id = cpr.cat_id
+          FROM sot.places p
+          JOIN sot.cat_place_relationships cpr ON cpr.place_id = p.place_id
+          JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+          JOIN ops.appointments a ON a.cat_id = cpr.cat_id
           WHERE p.merged_into_place_id IS NULL
             AND p.location IS NOT NULL
             AND a.appointment_date > NOW() - INTERVAL '2 years'
@@ -672,7 +672,7 @@ export async function GET(req: NextRequest) {
             WHEN pch.valid_to > CURRENT_DATE - INTERVAL '10 years' THEN 0.5
             ELSE 0.3
           END as opacity
-        FROM trapper.places p
+        FROM sot.places p
         JOIN trapper.place_condition_history pch ON pch.place_id = p.place_id
         LEFT JOIN trapper.place_condition_types pct ON pct.condition_type = pch.condition_type
         WHERE p.merged_into_place_id IS NULL
@@ -709,7 +709,7 @@ export async function GET(req: NextRequest) {
           ST_X(location::geometry) AS lng,
           label, note, photo_url, annotation_type,
           created_by, expires_at::text, created_at::text
-        FROM trapper.map_annotations
+        FROM ops.map_annotations
         WHERE is_active = TRUE
           AND (expires_at IS NULL OR expires_at > NOW())
         ORDER BY created_at DESC
@@ -765,9 +765,9 @@ export async function GET(req: NextRequest) {
       zones_needing_obs: number;
     }>(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.places WHERE merged_into_place_id IS NULL AND location IS NOT NULL ${zoneFilter.replace('p.', '')}) as total_places,
-        (SELECT COUNT(DISTINCT cpr.cat_id) FROM trapper.cat_place_relationships cpr JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL) as total_cats,
-        (SELECT COUNT(*) FROM trapper.observation_zones WHERE status = 'active') as zones_needing_obs
+        (SELECT COUNT(*) FROM sot.places WHERE merged_into_place_id IS NULL AND location IS NOT NULL ${zoneFilter.replace('p.', '')}) as total_places,
+        (SELECT COUNT(DISTINCT cpr.cat_id) FROM sot.cat_place_relationships cpr JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL) as total_cats,
+        (SELECT COUNT(*) FROM ops.observation_zones WHERE status = 'active') as zones_needing_obs
     `);
     result.summary = summary[0];
 

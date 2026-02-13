@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         media_id, storage_path, media_type, is_hero,
         request_id, place_id, direct_cat_id, linked_cat_id, person_id,
         uploaded_at, uploaded_by
-      FROM trapper.request_media
+      FROM ops.request_media
       WHERE media_id = $1 AND is_archived = FALSE`,
       [id]
     );
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Check if media exists
     const media = await queryOne<{ media_id: string }>(
-      `SELECT media_id FROM trapper.request_media
+      `SELECT media_id FROM ops.request_media
        WHERE media_id = $1 AND is_archived = FALSE`,
       [id]
     );
@@ -79,7 +79,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Soft delete by archiving
     const result = await queryOne<{ media_id: string }>(
-      `UPDATE trapper.request_media
+      `UPDATE ops.request_media
        SET is_archived = TRUE,
            archived_at = NOW(),
            archived_by = $2,

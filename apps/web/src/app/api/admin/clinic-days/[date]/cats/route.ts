@@ -84,7 +84,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- Get hero photo first, then most recent cat photo
         (
           SELECT rm.storage_path
-          FROM trapper.request_media rm
+          FROM ops.request_media rm
           WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
             AND rm.is_archived = FALSE
             AND rm.media_type = 'cat_photo'
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- Death cause from cat_mortality_events (subquery to avoid duplicates)
         (
           SELECT cme.death_cause::TEXT
-          FROM trapper.cat_mortality_events cme
+          FROM sot.cat_mortality_events cme
           WHERE cme.cat_id = c.cat_id
           LIMIT 1
         ) AS death_cause,
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               WHEN tr.result::TEXT = 'negative' THEN 'negative'
               ELSE NULL
             END
-          FROM trapper.cat_test_results tr
+          FROM sot.cat_test_results tr
           WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
           ORDER BY tr.test_date DESC
           LIMIT 1
@@ -127,18 +127,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
               ELSE NULL
             END
-          FROM trapper.cat_test_results tr
+          FROM sot.cat_test_results tr
           WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
           ORDER BY tr.test_date DESC
           LIMIT 1
         ) AS fiv_status
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-      LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
-      LEFT JOIN trapper.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
-      LEFT JOIN trapper.sot_people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
-      LEFT JOIN trapper.places pl ON pl.place_id = a.place_id AND pl.merged_into_place_id IS NULL
-      LEFT JOIN trapper.sot_people trp ON trp.person_id = a.trapper_person_id AND trp.merged_into_person_id IS NULL
+      FROM ops.appointments a
+      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
+      LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+      LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
+      LEFT JOIN sot.places pl ON pl.place_id = a.place_id AND pl.merged_into_place_id IS NULL
+      LEFT JOIN sot.people trp ON trp.person_id = a.trapper_person_id AND trp.merged_into_person_id IS NULL
       WHERE a.appointment_date = $1
       ORDER BY a.clinic_day_number NULLS LAST, c.display_name NULLS LAST, a.appointment_number
       `,

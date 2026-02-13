@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         email,
         canonical_place_id,
         is_active
-      FROM trapper.known_organizations
+      FROM sot.known_organizations
       WHERE is_active = TRUE
     `;
 
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     // Check for existing org with same name
     const existing = await queryOne<{ org_id: string }>(
-      `SELECT org_id FROM trapper.known_organizations
+      `SELECT org_id FROM sot.known_organizations
        WHERE LOWER(canonical_name) = LOWER($1)`,
       [body.canonical_name.trim()]
     );
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     // Create the organization
     const result = await queryOne<KnownOrganization>(
-      `INSERT INTO trapper.known_organizations (
+      `INSERT INTO sot.known_organizations (
          canonical_name,
          short_name,
          org_type,

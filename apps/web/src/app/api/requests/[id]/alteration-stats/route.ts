@@ -83,7 +83,7 @@ export async function GET(
         place_name_is_address,
         place_address,
         requester_name
-      FROM trapper.v_request_alteration_stats
+      FROM ops.v_request_alteration_stats
       WHERE request_id = $1
     `;
 

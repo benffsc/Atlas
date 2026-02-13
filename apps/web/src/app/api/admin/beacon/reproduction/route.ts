@@ -26,10 +26,10 @@ export async function GET() {
         cv.is_in_heat,
         cv.recorded_at::TEXT,
         cv.source_system
-      FROM trapper.cat_vitals cv
-      JOIN trapper.sot_cats c ON c.cat_id = cv.cat_id
-      LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = cv.cat_id
-      LEFT JOIN trapper.places p ON p.place_id = cpr.place_id
+      FROM ops.cat_vitals cv
+      JOIN sot.cats c ON c.cat_id = cv.cat_id
+      LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = cv.cat_id
+      LEFT JOIN sot.places p ON p.place_id = cpr.place_id
       WHERE cv.is_pregnant = TRUE OR cv.is_lactating = TRUE OR cv.is_in_heat = TRUE
       ORDER BY cv.recorded_at DESC
       LIMIT 500
@@ -80,7 +80,7 @@ export async function PATCH(request: NextRequest) {
     params.push(vitals_id);
 
     await query(
-      `UPDATE trapper.cat_vitals SET ${updates.join(", ")} WHERE vitals_id = $${paramIndex}`,
+      `UPDATE ops.cat_vitals SET ${updates.join(", ")} WHERE vitals_id = $${paramIndex}`,
       params
     );
 
@@ -106,7 +106,7 @@ export async function DELETE(request: NextRequest) {
     // Instead of deleting, we clear the reproduction flags
     // This preserves other vitals data while removing reproduction indicators
     await query(
-      `UPDATE trapper.cat_vitals
+      `UPDATE ops.cat_vitals
        SET is_pregnant = FALSE, is_lactating = FALSE, is_in_heat = FALSE
        WHERE vitals_id = $1`,
       [vitalsId]

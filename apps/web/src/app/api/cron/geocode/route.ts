@@ -167,11 +167,11 @@ export async function GET(request: NextRequest) {
       geocoded: number;
       pending: number;
       failed: number;
-    }>("SELECT * FROM trapper.v_geocoding_stats");
+    }>("SELECT * FROM ops.v_geocoding_stats");
 
     const reverseStats = await queryOne<{
       pending_reverse: number;
-    }>("SELECT * FROM trapper.v_reverse_geocoding_stats");
+    }>("SELECT * FROM ops.v_reverse_geocoding_stats");
 
     const totalProcessed = queue.length + reverseSuccess + reverseFail;
 

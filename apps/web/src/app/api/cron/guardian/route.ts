@@ -117,12 +117,12 @@ export async function GET(request: NextRequest) {
           p.place_id,
           p.formatted_address,
           COUNT(DISTINCT a.cat_id)::INT as clinic_cats_6mo
-        FROM trapper.places p
-        JOIN trapper.cat_place_relationships cpr ON cpr.place_id = p.place_id
-        JOIN trapper.sot_appointments a ON a.cat_id = cpr.cat_id
+        FROM sot.places p
+        JOIN sot.cat_place_relationships cpr ON cpr.place_id = p.place_id
+        JOIN ops.appointments a ON a.cat_id = cpr.cat_id
         WHERE a.appointment_date > NOW() - INTERVAL '6 months'
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.sot_requests r
+            SELECT 1 FROM ops.requests r
             WHERE r.place_id = p.place_id
               AND r.status NOT IN ('completed', 'cancelled')
           )
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
       await query(`
         UPDATE trapper.data_freshness_tracking
         SET records_count = (
-          SELECT COUNT(*) FROM trapper.google_map_entries WHERE ai_classified_at IS NOT NULL
+          SELECT COUNT(*) FROM source.google_map_entries WHERE ai_classified_at IS NOT NULL
         ),
         last_incremental_update = NOW(),
         updated_at = NOW()
@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
       await query(`
         UPDATE trapper.data_freshness_tracking
         SET records_count = (
-          SELECT COUNT(*) FROM trapper.place_colony_estimates
+          SELECT COUNT(*) FROM sot.place_colony_estimates
         ),
         last_incremental_update = NOW(),
         updated_at = NOW()
@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
     try {
       const staleCategories = await queryRows<{ data_category: string }>(`
         SELECT data_category
-        FROM trapper.v_data_staleness_alerts
+        FROM ops.v_data_staleness_alerts
         WHERE freshness_status IN ('stale', 'never_refreshed')
       `);
 

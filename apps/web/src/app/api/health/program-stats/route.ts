@@ -62,7 +62,7 @@ export async function GET() {
     try {
       fosterQuarterly = await queryRows<QuarterlyStats>(`
         SELECT year, quarter, quarter_label, total_cats, total_alterations
-        FROM trapper.v_foster_program_quarterly
+        FROM ops.v_foster_program_quarterly
         WHERE year >= ${currentYear - 1}
         ORDER BY year DESC, quarter DESC
         LIMIT 8
@@ -76,7 +76,7 @@ export async function GET() {
     try {
       countyQuarterly = await queryRows<QuarterlyStats>(`
         SELECT year, quarter, quarter_label, total_cats, total_alterations
-        FROM trapper.v_county_cat_quarterly
+        FROM ops.v_county_cat_quarterly
         WHERE year >= ${currentYear - 1}
         ORDER BY year DESC, quarter DESC
         LIMIT 8
@@ -90,7 +90,7 @@ export async function GET() {
     try {
       lmfmQuarterly = await queryRows<QuarterlyStats>(`
         SELECT year, quarter, quarter_label, total_cats, total_alterations
-        FROM trapper.v_lmfm_quarterly
+        FROM ops.v_lmfm_quarterly
         WHERE year >= ${currentYear - 1}
         ORDER BY year DESC, quarter DESC
         LIMIT 8
@@ -105,7 +105,7 @@ export async function GET() {
       programComparison = await queryRows(`
         SELECT quarter_label, foster_alterations, county_alterations, lmfm_alterations,
                total_alterations, foster_pct, county_pct, lmfm_pct
-        FROM trapper.v_program_comparison_quarterly
+        FROM ops.v_program_comparison_quarterly
         WHERE year = ${currentYear}
         ORDER BY quarter
       `);
@@ -127,14 +127,14 @@ export async function GET() {
         COUNT(*) FILTER (WHERE appointment_source_category = 'lmfm') as lmfm_ytd,
         COUNT(*) FILTER (WHERE appointment_source_category = 'other_internal') as other_internal_ytd,
         COUNT(*) FILTER (WHERE appointment_source_category = 'regular') as regular_ytd
-      FROM trapper.sot_appointments
+      FROM ops.appointments
       WHERE EXTRACT(YEAR FROM appointment_date) = ${currentYear}
     `);
 
     // Calculate data freshness
     const lastAppointment = await queryOne<{ last_date: string }>(`
       SELECT MAX(appointment_date)::text as last_date
-      FROM trapper.sot_appointments
+      FROM ops.appointments
     `);
 
     // Determine health status

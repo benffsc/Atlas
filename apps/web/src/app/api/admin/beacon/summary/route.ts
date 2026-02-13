@@ -59,8 +59,8 @@ export async function GET() {
           COUNT(DISTINCT pce.place_id)::INT AS places,
           COALESCE(AVG(pce.total_cats), 0)::NUMERIC(5,1) AS avg_size,
           COUNT(*) FILTER (WHERE csc.base_confidence > 0.7)::INT AS high_confidence
-        FROM trapper.place_colony_estimates pce
-        LEFT JOIN trapper.colony_source_confidence csc ON csc.source_type = pce.source_type
+        FROM sot.place_colony_estimates pce
+        LEFT JOIN sot.colony_source_confidence csc ON csc.source_type = pce.source_type
       `, []),
 
       // Reproduction stats (from vitals)
@@ -75,7 +75,7 @@ export async function GET() {
           COUNT(*) FILTER (WHERE is_pregnant)::INT AS pregnant,
           COUNT(*) FILTER (WHERE is_lactating)::INT AS lactating,
           COUNT(*) FILTER (WHERE is_in_heat)::INT AS in_heat
-        FROM trapper.cat_vitals
+        FROM ops.cat_vitals
         WHERE is_pregnant OR is_lactating OR is_in_heat
       `, []),
 
@@ -89,7 +89,7 @@ export async function GET() {
           COUNT(*) FILTER (
             WHERE EXTRACT(YEAR FROM COALESCE(death_date, created_at)) = EXTRACT(YEAR FROM CURRENT_DATE)
           )::INT AS this_year
-        FROM trapper.cat_mortality_events
+        FROM sot.cat_mortality_events
       `, []),
 
       // Birth stats
@@ -100,7 +100,7 @@ export async function GET() {
         SELECT
           COUNT(*)::INT AS births,
           COUNT(DISTINCT litter_id)::INT AS litters
-        FROM trapper.cat_birth_events
+        FROM sot.cat_birth_events
       `, []),
 
       // Seasonal alerts
@@ -116,9 +116,9 @@ export async function GET() {
         recent_reproduction: number;
       }>(`
         SELECT
-          (SELECT COUNT(*)::INT FROM trapper.place_colony_estimates
+          (SELECT COUNT(*)::INT FROM sot.place_colony_estimates
            WHERE created_at >= CURRENT_DATE - INTERVAL '30 days') AS recent_estimates,
-          (SELECT COUNT(*)::INT FROM trapper.cat_vitals
+          (SELECT COUNT(*)::INT FROM ops.cat_vitals
            WHERE recorded_at >= CURRENT_DATE - INTERVAL '30 days'
            AND (is_pregnant OR is_lactating OR is_in_heat)) AS recent_reproduction
       `, []),

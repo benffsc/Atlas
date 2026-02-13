@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const attrDefResult = await query(`
       SELECT attribute_key, entity_type, data_type, description,
              enum_values, extraction_keywords, priority
-      FROM trapper.entity_attribute_definitions
+      FROM sot.entity_attribute_definitions
       ORDER BY entity_type, priority
     `);
     const attributeDefs = attrDefResult.rows as AttributeDefinition[];
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
     if (isWeeklyRun) {
       try {
         const refreshResult = await queryOne<{ queued: number }>(`
-          SELECT trapper.queue_weekly_extraction_refresh(7, 500) as queued
+          SELECT ops.queue_weekly_extraction_refresh(7, 500) as queued
         `);
         results.weekly_queued = refreshResult?.queued || 0;
       } catch (err) {
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
 
     try {
       await execute(`
-        INSERT INTO trapper.ingest_runs (
+        INSERT INTO ops.ingest_runs (
           source_system,
           run_type,
           started_at,
@@ -235,7 +235,7 @@ async function processQueueItem(
     }>(`
       SELECT summary, notes, internal_notes, hold_reason_notes,
              place_id, requester_person_id
-      FROM trapper.sot_requests
+      FROM ops.requests
       WHERE request_id = $1
     `, [queueItem.source_record_id]);
 
@@ -257,7 +257,7 @@ async function processQueueItem(
       cat_id: string;
     }>(`
       SELECT medical_notes, cat_id
-      FROM trapper.sot_appointments
+      FROM ops.appointments
       WHERE appointment_id = $1
     `, [queueItem.source_record_id]);
 
@@ -270,7 +270,7 @@ async function processQueueItem(
       notes: string;
     }>(`
       SELECT notes
-      FROM trapper.sot_people
+      FROM sot.people
       WHERE person_id = $1
     `, [queueItem.source_record_id]);
 
@@ -282,7 +282,7 @@ async function processQueueItem(
       notes: string;
     }>(`
       SELECT notes
-      FROM trapper.places
+      FROM sot.places
       WHERE place_id = $1
     `, [queueItem.source_record_id]);
 
@@ -349,7 +349,7 @@ async function processQueueItem(
 
     // Supersede existing attribute (superseded_by is UUID, use NULL for system updates)
     await execute(`
-      UPDATE trapper.entity_attributes
+      UPDATE sot.entity_attributes
       SET superseded_at = NOW(), superseded_by = NULL
       WHERE entity_type = $1
         AND entity_id = $2
@@ -359,7 +359,7 @@ async function processQueueItem(
 
     // Insert new attribute (attribute_value is JSONB)
     await execute(`
-      INSERT INTO trapper.entity_attributes (
+      INSERT INTO sot.entity_attributes (
         entity_type,
         entity_id,
         attribute_key,

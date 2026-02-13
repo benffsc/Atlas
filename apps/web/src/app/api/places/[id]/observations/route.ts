@@ -58,8 +58,8 @@ export async function GET(
         e.notes,
         COALESCE(p.display_name, e.created_by) AS reporter_name,
         e.created_at::TEXT
-      FROM trapper.place_colony_estimates e
-      LEFT JOIN trapper.sot_people p ON p.person_id = e.reported_by_person_id
+      FROM sot.place_colony_estimates e
+      LEFT JOIN sot.people p ON p.person_id = e.reported_by_person_id
       WHERE e.place_id = $1
         AND e.source_type = 'trapper_site_visit'
         AND e.total_cats_observed IS NOT NULL
@@ -141,7 +141,7 @@ export async function POST(
 
     // Verify place exists
     const placeCheck = await queryOne<{ place_id: string }>(
-      `SELECT place_id FROM trapper.places WHERE place_id = $1`,
+      `SELECT place_id FROM sot.places WHERE place_id = $1`,
       [id]
     );
 
@@ -154,7 +154,7 @@ export async function POST(
 
     // Insert the observation
     const sql = `
-      INSERT INTO trapper.place_colony_estimates (
+      INSERT INTO sot.place_colony_estimates (
         place_id,
         total_cats_observed,
         eartip_count_observed,
@@ -215,8 +215,8 @@ export async function POST(
       // Get M (altered count) from verified clinic data
       const alteredSql = `
         SELECT COUNT(DISTINCT cpr.cat_id)::INT as altered_count
-        FROM trapper.cat_place_relationships cpr
-        JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+        FROM sot.cat_place_relationships cpr
+        JOIN sot.cats c ON c.cat_id = cpr.cat_id
         WHERE cpr.place_id = $1
           AND c.altered_status IN ('spayed', 'neutered')
       `;

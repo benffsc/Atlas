@@ -56,7 +56,7 @@ export async function GET(
         ai_classification->'entity_links'->>'place_id' as ai_place_id,
         ai_classification->'entity_links'->>'place_confidence' as ai_place_confidence,
         (ai_classification->'entity_links'->>'is_same_as_nearby_place')::boolean as ai_is_same_as_nearby
-       FROM trapper.google_map_entries
+       FROM source.google_map_entries
        WHERE entry_id = $1`,
       [id]
     );
@@ -93,15 +93,15 @@ export async function GET(
         trapper.is_multi_unit_place(p.place_id) as is_multi_unit,
         p.place_kind::text as place_kind,
         p.parent_place_id
-      FROM trapper.places p
+      FROM sot.places p
       LEFT JOIN (
         SELECT place_id, COUNT(*) as cat_count
-        FROM trapper.cat_place_relationships
+        FROM sot.cat_place_relationships
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
       LEFT JOIN (
         SELECT place_id, COUNT(*) as person_count
-        FROM trapper.person_place_relationships
+        FROM sot.person_place_relationships
         GROUP BY place_id
       ) pc ON pc.place_id = p.place_id
       WHERE p.merged_into_place_id IS NULL
@@ -135,10 +135,10 @@ export async function GET(
           p.place_id,
           COALESCE(p.unit_identifier, p.formatted_address) as unit_identifier,
           COALESCE(cc.cat_count, 0) as cat_count
-        FROM trapper.places p
+        FROM sot.places p
         LEFT JOIN (
           SELECT place_id, COUNT(*) as cat_count
-          FROM trapper.cat_place_relationships
+          FROM sot.cat_place_relationships
           GROUP BY place_id
         ) cc ON cc.place_id = p.place_id
         WHERE p.parent_place_id = ANY($1)
@@ -179,7 +179,7 @@ export async function GET(
       const aiPlace = await queryOne<{
         formatted_address: string;
       }>(
-        `SELECT formatted_address FROM trapper.places WHERE place_id = $1`,
+        `SELECT formatted_address FROM sot.places WHERE place_id = $1`,
         [entry.ai_place_id]
       );
       if (aiPlace) {

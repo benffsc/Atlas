@@ -6,15 +6,15 @@ import { query, queryOne } from "@/lib/db";
  * Returns status of all AI extraction/classification jobs
  *
  * View in UI: /admin/ai-extraction
- * Backlog view: SELECT * FROM trapper.v_extraction_backlog_summary
- * Queue appointments: SELECT trapper.queue_appointment_extraction(10000)
+ * Backlog view: SELECT * FROM ops.v_extraction_backlog_summary
+ * Queue appointments: SELECT ops.queue_appointment_extraction(10000)
  */
 
 export async function GET() {
   try {
     // Get backlog summary from the view (like geocoding)
     const backlog = await query(`
-      SELECT * FROM trapper.v_extraction_backlog_summary
+      SELECT * FROM ops.v_extraction_backlog_summary
       ORDER BY pending_count DESC
     `);
 
@@ -28,7 +28,7 @@ export async function GET() {
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE ai_classification IS NOT NULL) as classified,
         COUNT(*) FILTER (WHERE ai_classification IS NULL) as unclassified
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
     `);
 
     // Google Maps classification distribution
@@ -36,7 +36,7 @@ export async function GET() {
       SELECT
         ai_classification->>'primary_meaning' as meaning,
         COUNT(*) as count
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE ai_classification IS NOT NULL
       GROUP BY 1
       ORDER BY count DESC
@@ -54,7 +54,7 @@ export async function GET() {
           OR (notes IS NOT NULL AND LENGTH(notes) > 20)
           OR (internal_notes IS NOT NULL AND LENGTH(internal_notes) > 20)
         ) as with_notes
-      FROM trapper.sot_requests
+      FROM ops.requests
     `);
 
     // Clinic appointments backlog
@@ -65,7 +65,7 @@ export async function GET() {
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE medical_notes IS NOT NULL AND LENGTH(medical_notes) > 20) as with_notes
-      FROM trapper.sot_appointments
+      FROM ops.appointments
     `);
 
     // Intake submissions backlog
@@ -79,7 +79,7 @@ export async function GET() {
           (situation_description IS NOT NULL AND LENGTH(situation_description) > 20)
           OR (medical_description IS NOT NULL AND LENGTH(medical_description) > 20)
         ) as with_notes
-      FROM trapper.web_intake_submissions
+      FROM ops.intake_submissions
     `);
 
     // Entity attributes summary
@@ -89,7 +89,7 @@ export async function GET() {
         attribute_key,
         COUNT(*) as count,
         AVG(confidence) as avg_confidence
-      FROM trapper.entity_attributes
+      FROM sot.entity_attributes
       WHERE source_type = 'ai_extracted'
         AND superseded_at IS NULL
       GROUP BY entity_type, attribute_key
@@ -102,7 +102,7 @@ export async function GET() {
         entity_type,
         COUNT(*) as count,
         COUNT(DISTINCT entity_id) as unique_entities
-      FROM trapper.entity_attributes
+      FROM sot.entity_attributes
       WHERE source_type = 'ai_extracted'
         AND superseded_at IS NULL
       GROUP BY entity_type

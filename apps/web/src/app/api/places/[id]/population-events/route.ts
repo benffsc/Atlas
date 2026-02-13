@@ -34,8 +34,8 @@ export async function GET(
         END AS details,
         be.source_system,
         be.created_at::TEXT
-      FROM trapper.cat_birth_events be
-      JOIN trapper.sot_cats c ON c.cat_id = be.cat_id
+      FROM sot.cat_birth_events be
+      JOIN sot.cats c ON c.cat_id = be.cat_id
       WHERE be.place_id = $1
       ORDER BY COALESCE(be.birth_date, be.created_at) DESC
       LIMIT 50
@@ -55,9 +55,9 @@ export async function GET(
         END AS details,
         me.source_system,
         me.created_at::TEXT
-      FROM trapper.cat_mortality_events me
-      JOIN trapper.sot_cats c ON c.cat_id = me.cat_id
-      JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = me.cat_id AND cpr.place_id = $1
+      FROM sot.cat_mortality_events me
+      JOIN sot.cats c ON c.cat_id = me.cat_id
+      JOIN sot.cat_place_relationships cpr ON cpr.cat_id = me.cat_id AND cpr.place_id = $1
       ORDER BY COALESCE(me.death_date, me.created_at) DESC
       LIMIT 50
     `;

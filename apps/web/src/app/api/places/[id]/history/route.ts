@@ -100,7 +100,7 @@ export async function GET(
   try {
     // Get place info
     const placeResult = await queryRows<{ display_name: string }>(
-      `SELECT display_name FROM trapper.places WHERE place_id = $1`,
+      `SELECT display_name FROM sot.places WHERE place_id = $1`,
       [placeId]
     );
 
@@ -119,7 +119,7 @@ export async function GET(
         observation_date::TEXT,
         notes,
         created_at::TEXT
-      FROM trapper.place_colony_estimates
+      FROM sot.place_colony_estimates
       WHERE place_id = $1
         AND source_type IN (
           'legacy_mymaps',
@@ -150,7 +150,7 @@ export async function GET(
         parsed_altered_count,
         parsed_date::TEXT,
         parsed_signals
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE place_id = $1
       ORDER BY parsed_date DESC NULLS LAST, imported_at DESC
       LIMIT 20`,
@@ -169,7 +169,7 @@ export async function GET(
         internal_notes,
         legacy_notes,
         source_created_at::TEXT
-      FROM trapper.sot_requests
+      FROM ops.requests
       WHERE place_id = $1
         AND (notes IS NOT NULL OR internal_notes IS NOT NULL OR legacy_notes IS NOT NULL)
       ORDER BY source_created_at DESC NULLS LAST

@@ -55,7 +55,7 @@ export async function GET(
       LEFT JOIN trapper.email_templates et ON et.template_key = ej.template_key
       LEFT JOIN trapper.email_categories ec ON ec.category_key = ej.category_key
       LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = ej.outlook_account_id
-      LEFT JOIN trapper.staff s ON s.staff_id = ej.created_by
+      LEFT JOIN ops.staff s ON s.staff_id = ej.created_by
       WHERE ej.job_id = $1
     `, [id]);
 

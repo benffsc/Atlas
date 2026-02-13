@@ -54,8 +54,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         cmp.clinichq_males,
         cmp.variance,
         cmp.variance_direction
-      FROM trapper.v_clinic_schedule cs
-      LEFT JOIN trapper.v_clinic_day_comparison cmp ON cmp.clinic_day_id = cs.clinic_day_id
+      FROM ops.v_clinic_schedule cs
+      LEFT JOIN ops.v_clinic_day_comparison cmp ON cmp.clinic_day_id = cs.clinic_day_id
       WHERE cs.clinic_date = $1
       `,
       [date]
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Get entries
     const entries = await queryRows<ClinicDayEntry>(
-      `SELECT * FROM trapper.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
+      `SELECT * FROM ops.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
       [date]
     );
 

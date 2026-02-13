@@ -265,11 +265,11 @@ export async function GET(
         -- Requester info (include contact details)
         r.requester_person_id,
         per.display_name AS requester_name,
-        (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM trapper.person_identifiers pi
+        (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM sot.person_identifiers pi
          WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'email'
            AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_email,
-        (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM trapper.person_identifiers pi
+        (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM sot.person_identifiers pi
          WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'phone'
            AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_phone,
@@ -279,21 +279,21 @@ export async function GET(
             'cat_name', COALESCE(canonical_cat.display_name, c.display_name),
             'link_purpose', rcl.link_purpose::TEXT,
             'linked_at', rcl.linked_at,
-            'microchip', (SELECT ci.id_value FROM trapper.cat_identifiers ci
+            'microchip', (SELECT ci.id_value FROM sot.cat_identifiers ci
                           WHERE ci.cat_id = COALESCE(c.merged_into_cat_id, c.cat_id)
                           AND ci.id_type = 'microchip' LIMIT 1),
             'altered_status', COALESCE(canonical_cat.altered_status, c.altered_status),
-            'last_visit_date', (SELECT MAX(a.appointment_date) FROM trapper.sot_appointments a
+            'last_visit_date', (SELECT MAX(a.appointment_date) FROM ops.appointments a
                                 WHERE a.cat_id = COALESCE(c.merged_into_cat_id, c.cat_id))
         ) ORDER BY rcl.linked_at DESC)
-         FROM trapper.request_cat_links rcl
-         JOIN trapper.sot_cats c ON c.cat_id = rcl.cat_id
-         LEFT JOIN trapper.sot_cats canonical_cat ON canonical_cat.cat_id = c.merged_into_cat_id
+         FROM ops.request_cat_links rcl
+         JOIN sot.cats c ON c.cat_id = rcl.cat_id
+         LEFT JOIN sot.cats canonical_cat ON canonical_cat.cat_id = c.merged_into_cat_id
          WHERE rcl.request_id = r.request_id) AS cats,
-        (SELECT COUNT(*) FROM trapper.request_cat_links rcl WHERE rcl.request_id = r.request_id) AS linked_cat_count,
+        (SELECT COUNT(*) FROM ops.request_cat_links rcl WHERE rcl.request_id = r.request_id) AS linked_cat_count,
         -- Computed scores (handle if functions don't exist yet)
-        COALESCE(trapper.compute_request_readiness(r), 0) AS readiness_score,
-        COALESCE(trapper.compute_request_urgency(r), 0) AS urgency_score,
+        COALESCE(ops.compute_request_readiness(r), 0) AS readiness_score,
+        COALESCE(ops.compute_request_urgency(r), 0) AS urgency_score,
         -- Colony summary (MIG_562)
         pcs.colony_size_estimate,
         pcs.verified_altered_count AS colony_verified_altered,
@@ -322,11 +322,11 @@ export async function GET(
         -- SC_004: Assignment status (maintained field)
         r.no_trapper_reason,
         r.assignment_status::TEXT
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.places p ON p.place_id = r.place_id
-      LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
-      LEFT JOIN trapper.sot_people per ON per.person_id = r.requester_person_id
-      LEFT JOIN trapper.v_place_colony_status pcs ON pcs.place_id = r.place_id
+      FROM ops.requests r
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
+      LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
+      LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
+      LEFT JOIN sot.v_place_colony_status pcs ON pcs.place_id = r.place_id
       WHERE r.request_id = $1
     `;
 
@@ -342,7 +342,7 @@ export async function GET(
     // Fetch status history
     const historySql = `
       SELECT old_status, new_status, changed_by, changed_at, reason
-      FROM trapper.request_status_history
+      FROM ops.request_status_history
       WHERE request_id = $1
       ORDER BY changed_at DESC
       LIMIT 20
@@ -367,9 +367,9 @@ export async function GET(
           pr.trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper') AS is_ffsc_trapper,
           rta.is_primary,
           rta.assigned_at
-        FROM trapper.request_trapper_assignments rta
-        JOIN trapper.sot_people p ON p.person_id = rta.trapper_person_id
-        LEFT JOIN trapper.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
+        FROM ops.request_trapper_assignments rta
+        JOIN sot.people p ON p.person_id = rta.trapper_person_id
+        LEFT JOIN sot.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
         WHERE rta.request_id = $1
           AND rta.unassigned_at IS NULL
         ORDER BY rta.is_primary DESC, rta.assigned_at`,
@@ -524,14 +524,14 @@ export async function PATCH(
         `SELECT
           COALESCE(r.report_required_before_complete, TRUE) as report_required_before_complete,
           EXISTS (
-            SELECT 1 FROM trapper.trapper_trip_reports tr
+            SELECT 1 FROM ops.trapper_trip_reports tr
             WHERE tr.request_id = r.request_id AND tr.is_final_visit = TRUE
           ) as has_final_report,
           EXISTS (
-            SELECT 1 FROM trapper.site_observations so
+            SELECT 1 FROM ops.site_observations so
             WHERE so.request_id = r.request_id AND so.is_final_visit = TRUE
           ) as has_site_observation
-        FROM trapper.sot_requests r
+        FROM ops.requests r
         WHERE r.request_id = $1`,
         [id]
       );
@@ -596,7 +596,7 @@ export async function PATCH(
              cats_trapped, cats_returned, resolution_notes, permission_status::TEXT,
              access_notes, traps_overnight_safe, access_without_contact,
              kitten_count, kitten_age_weeks, kitten_assessment_status
-      FROM trapper.sot_requests WHERE request_id = $1
+      FROM ops.requests WHERE request_id = $1
     `;
     const current = await queryOne<{
       status: string | null;
@@ -638,7 +638,7 @@ export async function PATCH(
 
     if (body.status !== undefined && body.status !== current.status) {
       auditChanges.push({ field: "status", oldValue: current.status, newValue: body.status });
-      updates.push(`status = $${paramIndex}::trapper.request_status`);
+      updates.push(`status = $${paramIndex}`);
       values.push(body.status);
       paramIndex++;
 
@@ -656,7 +656,7 @@ export async function PATCH(
 
     if (body.priority !== undefined && body.priority !== current.priority) {
       auditChanges.push({ field: "priority", oldValue: current.priority, newValue: body.priority });
-      updates.push(`priority = $${paramIndex}::trapper.request_priority`);
+      updates.push(`priority = $${paramIndex}`);
       values.push(body.priority);
       paramIndex++;
     }
@@ -715,7 +715,7 @@ export async function PATCH(
 
     if (body.assigned_trapper_type !== undefined && body.assigned_trapper_type !== current.assigned_trapper_type) {
       auditChanges.push({ field: "assigned_trapper_type", oldValue: current.assigned_trapper_type, newValue: body.assigned_trapper_type || null });
-      updates.push(`assigned_trapper_type = $${paramIndex}::trapper.trapper_type`);
+      updates.push(`assigned_trapper_type = $${paramIndex}`);
       values.push(body.assigned_trapper_type || null);
       paramIndex++;
     }
@@ -772,7 +772,7 @@ export async function PATCH(
       if (body.hold_reason === null) {
         updates.push(`hold_reason = NULL`);
       } else {
-        updates.push(`hold_reason = $${paramIndex}::trapper.hold_reason`);
+        updates.push(`hold_reason = $${paramIndex}`);
         values.push(body.hold_reason);
         paramIndex++;
       }
@@ -786,7 +786,7 @@ export async function PATCH(
 
     // Enhanced intake fields that might be updated
     if (body.permission_status !== undefined) {
-      updates.push(`permission_status = $${paramIndex}::trapper.permission_status`);
+      updates.push(`permission_status = $${paramIndex}`);
       values.push(body.permission_status);
       paramIndex++;
     }
@@ -897,7 +897,7 @@ export async function PATCH(
         updates.push(`no_trapper_reason = NULL`);
         // Check if request has active trappers to determine assignment_status
         updates.push(`assignment_status = CASE
-          WHEN (SELECT COUNT(*) FROM trapper.request_trapper_assignments
+          WHEN (SELECT COUNT(*) FROM ops.request_trapper_assignments
                 WHERE request_id = $${paramIndex} AND unassigned_at IS NULL) > 0
           THEN 'assigned' ELSE 'pending' END`);
         values.push(id);
@@ -947,7 +947,7 @@ export async function PATCH(
     values.push(id);
 
     const sql = `
-      UPDATE trapper.sot_requests
+      UPDATE ops.requests
       SET ${updates.join(", ")}
       WHERE request_id = $${paramIndex}
       RETURNING request_id, status, priority, updated_at
@@ -983,7 +983,7 @@ export async function PATCH(
         // 3. Verifies prior estimates against this observation
         // 4. Updates source accuracy statistics
         const obsResult = await queryOne<{ record_completion_observation: string | null }>(
-          `SELECT trapper.record_completion_observation($1, $2, $3, $4) AS record_completion_observation`,
+          `SELECT ops.record_completion_observation($1, $2, $3, $4) AS record_completion_observation`,
           [
             id,
             body.observation_cats_seen,
@@ -997,7 +997,7 @@ export async function PATCH(
 
           // Get the Chapman estimate if one was computed
           const estimateResult = await queryOne<{ total_cats: number | null }>(
-            `SELECT total_cats FROM trapper.place_colony_estimates WHERE estimate_id = $1`,
+            `SELECT total_cats FROM sot.place_colony_estimates WHERE estimate_id = $1`,
             [obsResult.record_completion_observation]
           );
           chapmanEstimate = estimateResult?.total_cats || null;
@@ -1007,13 +1007,13 @@ export async function PATCH(
         console.error("[completion] record_completion_observation failed, using fallback:", obsErr);
 
         const placeResult = await queryOne<{ place_id: string | null }>(
-          `SELECT place_id FROM trapper.sot_requests WHERE request_id = $1`,
+          `SELECT place_id FROM ops.requests WHERE request_id = $1`,
           [id]
         );
 
         if (placeResult?.place_id) {
           await query(
-            `INSERT INTO trapper.place_colony_estimates (
+            `INSERT INTO sot.place_colony_estimates (
               place_id,
               total_cats_observed,
               eartip_count_observed,

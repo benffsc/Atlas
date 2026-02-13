@@ -57,8 +57,8 @@ export async function GET(
         w.created_request_id,
         w.matched_person_id,
         p.display_name as matched_person_name
-      FROM trapper.web_intake_submissions w
-      LEFT JOIN trapper.sot_people p ON p.person_id = w.matched_person_id
+      FROM ops.intake_submissions w
+      LEFT JOIN sot.people p ON p.person_id = w.matched_person_id
       WHERE w.place_id = $1 OR w.matched_place_id = $1
       ORDER BY w.submitted_at DESC
       LIMIT 50`,

@@ -60,20 +60,20 @@ export async function GET(request: NextRequest) {
         c.canonical_created_at,
         c.duplicate_created_at,
         -- Canonical person stats
-        (SELECT COUNT(*)::int FROM trapper.person_identifiers WHERE person_id = c.canonical_person_id) AS canonical_identifiers,
-        (SELECT COUNT(*)::int FROM trapper.person_place_relationships WHERE person_id = c.canonical_person_id) AS canonical_places,
-        (SELECT COUNT(*)::int FROM trapper.person_cat_relationships WHERE person_id = c.canonical_person_id) AS canonical_cats,
-        (SELECT COUNT(*)::int FROM trapper.sot_requests WHERE requester_person_id = c.canonical_person_id) AS canonical_requests,
+        (SELECT COUNT(*)::int FROM sot.person_identifiers WHERE person_id = c.canonical_person_id) AS canonical_identifiers,
+        (SELECT COUNT(*)::int FROM sot.person_place_relationships WHERE person_id = c.canonical_person_id) AS canonical_places,
+        (SELECT COUNT(*)::int FROM sot.person_cat_relationships WHERE person_id = c.canonical_person_id) AS canonical_cats,
+        (SELECT COUNT(*)::int FROM ops.requests WHERE requester_person_id = c.canonical_person_id) AS canonical_requests,
         -- Duplicate person stats
-        (SELECT COUNT(*)::int FROM trapper.person_identifiers WHERE person_id = c.duplicate_person_id) AS duplicate_identifiers,
-        (SELECT COUNT(*)::int FROM trapper.person_place_relationships WHERE person_id = c.duplicate_person_id) AS duplicate_places,
-        (SELECT COUNT(*)::int FROM trapper.person_cat_relationships WHERE person_id = c.duplicate_person_id) AS duplicate_cats,
-        (SELECT COUNT(*)::int FROM trapper.sot_requests WHERE requester_person_id = c.duplicate_person_id) AS duplicate_requests,
+        (SELECT COUNT(*)::int FROM sot.person_identifiers WHERE person_id = c.duplicate_person_id) AS duplicate_identifiers,
+        (SELECT COUNT(*)::int FROM sot.person_place_relationships WHERE person_id = c.duplicate_person_id) AS duplicate_places,
+        (SELECT COUNT(*)::int FROM sot.person_cat_relationships WHERE person_id = c.duplicate_person_id) AS duplicate_cats,
+        (SELECT COUNT(*)::int FROM ops.requests WHERE requester_person_id = c.duplicate_person_id) AS duplicate_requests,
         -- Shared context
-        (SELECT COUNT(*)::int FROM trapper.person_place_relationships r1
-         JOIN trapper.person_place_relationships r2 ON r1.place_id = r2.place_id
+        (SELECT COUNT(*)::int FROM sot.person_place_relationships r1
+         JOIN sot.person_place_relationships r2 ON r1.place_id = r2.place_id
          WHERE r1.person_id = c.canonical_person_id AND r2.person_id = c.duplicate_person_id) AS shared_place_count
-      FROM trapper.v_person_dedup_candidates c
+      FROM sot.v_person_dedup_candidates c
       WHERE NOT EXISTS (
         SELECT 1 FROM trapper.potential_person_duplicates ppd
         WHERE ppd.status IN ('kept_separate', 'dismissed')
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     // Get summary counts by tier
     const summary = await queryRows<DedupSummary>(
-      `SELECT * FROM trapper.v_person_dedup_summary`
+      `SELECT * FROM sot.v_person_dedup_summary`
     );
 
     return NextResponse.json({
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
 
           // Execute merge
           await queryOne<{ merge_people: object }>(
-            `SELECT trapper.merge_people($1, $2, $3, $4)`,
+            `SELECT sot.merge_people($1, $2, $3, $4)`,
             [pair.duplicate_person_id, pair.canonical_person_id, "admin_person_dedup", "staff"]
           );
 
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
                p1.display_name, p2.display_name,
                trapper.name_similarity(p1.display_name, p2.display_name),
                $3, NOW(), 'staff'
-             FROM trapper.sot_people p1, trapper.sot_people p2
+             FROM sot.people p1, sot.people p2
              WHERE p1.person_id = $1 AND p2.person_id = $2
              ON CONFLICT (person_id, potential_match_id) DO UPDATE SET
                status = $3,

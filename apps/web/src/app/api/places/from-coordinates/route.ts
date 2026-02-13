@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Update place_kind if provided and not default
     if (body.place_kind && body.place_kind !== 'unknown') {
       await queryOne(
-        `UPDATE trapper.places SET place_kind = $1::trapper.place_kind WHERE place_id = $2`,
+        `UPDATE sot.places SET place_kind = $1 WHERE place_id = $2`,
         [body.place_kind, placeId]
       );
     }
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       is_address_backed: boolean;
     }>(
       `SELECT place_id, display_name, formatted_address, is_address_backed
-       FROM trapper.places WHERE place_id = $1`,
+       FROM sot.places WHERE place_id = $1`,
       [placeId]
     );
 

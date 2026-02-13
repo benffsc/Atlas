@@ -54,8 +54,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
        ST_Y(p.location::geometry) as latitude,
        ST_X(p.location::geometry) as longitude,
        r.summary
-     FROM trapper.sot_requests r
-     LEFT JOIN trapper.places p ON r.place_id = p.place_id
+     FROM ops.requests r
+     LEFT JOIN sot.places p ON r.place_id = p.place_id
      WHERE r.request_id = $1`,
     [id]
   );
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   // Get nearby requests
   const nearby = await queryRows<NearbyRequest>(
-    `SELECT * FROM trapper.nearby_requests($1, $2, 0.07, $3)`,
+    `SELECT * FROM ops.nearby_requests($1, $2, 0.07, $3)`,
     [requestData.latitude, requestData.longitude, id]
   );
 

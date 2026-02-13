@@ -78,7 +78,7 @@ export async function GET(
         o.updated_at,
         o.source_system
       FROM trapper.orgs o
-      LEFT JOIN trapper.places pl ON pl.place_id = o.place_id
+      LEFT JOIN sot.places pl ON pl.place_id = o.place_id
       WHERE o.id = $1
       `,
       [id]
@@ -100,8 +100,8 @@ export async function GET(
         c.display_name AS cat_name,
         c.microchip,
         a.service_type
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_cats c ON a.cat_id = c.cat_id
+      FROM ops.appointments a
+      LEFT JOIN sot.cats c ON a.cat_id = c.cat_id
       WHERE a.org_id = $1
       ORDER BY a.appointment_date DESC
       LIMIT 20
@@ -171,7 +171,7 @@ export async function PATCH(
     } else if (body.address && body.create_place) {
       // Create new place from address
       const placeResult = await queryOne<{ place_id: string }>(
-        `SELECT trapper.find_or_create_place_deduped($1, $2, NULL, NULL, 'atlas_ui') AS place_id`,
+        `SELECT sot.find_or_create_place_deduped($1, $2, NULL, NULL, 'atlas_ui') AS place_id`,
         [body.address, body.name || "Organization"]
       );
       if (placeResult?.place_id) {
@@ -209,7 +209,7 @@ export async function PATCH(
 
     // If patterns were updated, re-link appointments
     if ("name_patterns" in body || "aliases" in body) {
-      await execute(`SELECT * FROM trapper.link_all_appointments_to_orgs(500)`);
+      await execute(`SELECT * FROM sot.link_all_appointments_to_orgs(500)`);
     }
 
     return NextResponse.json({ success: true, id: result.id });
@@ -234,7 +234,7 @@ export async function DELETE(
     if (hardDelete) {
       // Hard delete - remove completely (only if no linked appointments)
       const hasAppointments = await queryOne<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM trapper.sot_appointments WHERE org_id = $1`,
+        `SELECT COUNT(*)::int AS count FROM ops.appointments WHERE org_id = $1`,
         [id]
       );
 

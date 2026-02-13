@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         m.cat_description, m.linked_cat_id,
         m.uploaded_by, m.uploaded_at,
         COALESCE(m.is_hero, FALSE) AS is_hero
-       FROM trapper.request_media m
+       FROM ops.request_media m
        WHERE m.person_id = $1 AND NOT m.is_archived
        ORDER BY is_hero DESC, m.uploaded_at DESC`,
       [id]

@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   try {
     // Get queue status
     const dashboard = await queryRows<DashboardRow>(
-      "SELECT * FROM trapper.v_processing_dashboard ORDER BY queued DESC"
+      "SELECT * FROM ops.v_processing_dashboard ORDER BY queued DESC"
     );
 
     // Detect stuck jobs (no heartbeat for 30+ minutes)
@@ -110,16 +110,16 @@ export async function GET(request: NextRequest) {
       unprocessed_staged_records: number;
     }>(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE owner_email IS NULL) as appointments_missing_owner_email,
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE person_id IS NULL AND owner_email IS NOT NULL) as appointments_missing_person_id,
+        (SELECT COUNT(*) FROM ops.appointments WHERE owner_email IS NULL) as appointments_missing_owner_email,
+        (SELECT COUNT(*) FROM ops.appointments WHERE person_id IS NULL AND owner_email IS NOT NULL) as appointments_missing_person_id,
         (SELECT COUNT(DISTINCT cp.cat_id)
-         FROM trapper.cat_procedures cp
+         FROM ops.cat_procedures cp
          WHERE (cp.is_spay OR cp.is_neuter)
            AND NOT EXISTS (
-             SELECT 1 FROM trapper.cat_place_relationships cpr WHERE cpr.cat_id = cp.cat_id
+             SELECT 1 FROM sot.cat_place_relationships cpr WHERE cpr.cat_id = cp.cat_id
            )
         ) as cats_with_procedures_no_place,
-        (SELECT COUNT(*) FROM trapper.staged_records WHERE processed_at IS NULL) as unprocessed_staged_records
+        (SELECT COUNT(*) FROM ops.staged_records WHERE processed_at IS NULL) as unprocessed_staged_records
     `);
 
     // Build integrity metrics with thresholds
@@ -254,7 +254,7 @@ function generateRecommendations(
           break;
         case "cats_with_procedures_no_place":
           recommendations.push(
-            `Critical: ${metric.count} cats with procedures but no place link. Run: SELECT * FROM trapper.run_all_entity_linking();`
+            `Critical: ${metric.count} cats with procedures but no place link. Run: SELECT * FROM sot.run_all_entity_linking();`
           );
           break;
         case "unprocessed_staged_records":

@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
           kitten_intake_mentions,
           is_breeding_season,
           demand_supply_ratio
-        FROM trapper.v_seasonal_dashboard
+        FROM ops.v_seasonal_dashboard
         ${yearFilter}
         ORDER BY year DESC, month DESC
         LIMIT 36
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
           female_cats_spayed,
           breeding_active_pct,
           is_breeding_season
-        FROM trapper.v_breeding_season_indicators
+        FROM ops.v_breeding_season_indicators
         ${yearFilter}
         ORDER BY year DESC, month DESC
         LIMIT 36
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
           historical_avg,
           z_score,
           is_surge_month
-        FROM trapper.v_kitten_surge_prediction
+        FROM ops.v_kitten_surge_prediction
         ${yearFilter}
         ORDER BY year DESC, month DESC
         LIMIT 36
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
           prev_year_alterations,
           appointments_yoy_pct,
           alterations_yoy_pct
-        FROM trapper.v_yoy_activity_comparison
+        FROM ops.v_yoy_activity_comparison
         ${year ? " WHERE current_year = $1" : ""}
         ORDER BY current_year DESC, month DESC
         LIMIT 24

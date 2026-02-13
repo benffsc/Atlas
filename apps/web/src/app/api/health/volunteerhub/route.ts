@@ -25,22 +25,22 @@ export async function GET() {
   try {
     // Core volunteer counts
     const totalResult = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.volunteerhub_volunteers`
+      `SELECT COUNT(*)::int as count FROM source.volunteerhub_volunteers`
     );
 
     const matchedResult = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.volunteerhub_volunteers WHERE matched_person_id IS NOT NULL`
+      `SELECT COUNT(*)::int as count FROM source.volunteerhub_volunteers WHERE matched_person_id IS NOT NULL`
     );
 
     const activeResult = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.volunteerhub_volunteers WHERE is_active = true`
+      `SELECT COUNT(*)::int as count FROM source.volunteerhub_volunteers WHERE is_active = true`
     );
 
     // Group membership breakdown
     const groupBreakdown = await queryRows<GroupBreakdown>(`
       SELECT vug.name, COUNT(*)::int as active_members
-      FROM trapper.volunteerhub_group_memberships vgm
-      JOIN trapper.volunteerhub_user_groups vug ON vug.user_group_uid = vgm.user_group_uid
+      FROM source.volunteerhub_group_memberships vgm
+      JOIN source.volunteerhub_user_groups vug ON vug.user_group_uid = vgm.user_group_uid
       WHERE vgm.left_at IS NULL
       GROUP BY vug.name
       ORDER BY active_members DESC
@@ -58,16 +58,16 @@ export async function GET() {
 
     // Last sync timestamp
     const lastSyncResult = await queryOne<{ last_sync: string | null }>(
-      `SELECT MAX(last_api_sync_at) as last_sync FROM trapper.volunteerhub_volunteers`
+      `SELECT MAX(last_api_sync_at) as last_sync FROM source.volunteerhub_volunteers`
     );
 
     // Recent membership changes
     const joinedResult = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.volunteerhub_group_memberships WHERE joined_at > NOW() - INTERVAL '30 days'`
+      `SELECT COUNT(*)::int as count FROM source.volunteerhub_group_memberships WHERE joined_at > NOW() - INTERVAL '30 days'`
     );
 
     const leftResult = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.volunteerhub_group_memberships WHERE left_at > NOW() - INTERVAL '30 days'`
+      `SELECT COUNT(*)::int as count FROM source.volunteerhub_group_memberships WHERE left_at > NOW() - INTERVAL '30 days'`
     );
 
     // Compute sync health

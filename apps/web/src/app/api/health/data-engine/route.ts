@@ -49,7 +49,7 @@ export async function GET() {
   try {
     // Get Data Engine health metrics
     const health = await queryOne<DataEngineHealth>(`
-      SELECT * FROM trapper.v_data_engine_health
+      SELECT * FROM ops.v_data_engine_health
     `);
 
     // Get recent decisions (last 10)
@@ -61,7 +61,7 @@ export async function GET() {
         incoming_name,
         COALESCE(top_candidate_score, 0)::numeric as confidence_score,
         processed_at::text
-      FROM trapper.data_engine_match_decisions
+      FROM sot.data_engine_match_decisions
       ORDER BY processed_at DESC
       LIMIT 10
     `);
@@ -75,8 +75,8 @@ export async function GET() {
         r.base_confidence::numeric,
         r.is_active,
         COUNT(d.decision_id) FILTER (WHERE d.processed_at > NOW() - INTERVAL '24 hours') as matches_24h
-      FROM trapper.data_engine_matching_rules r
-      LEFT JOIN trapper.data_engine_match_decisions d
+      FROM sot.data_engine_matching_rules r
+      LEFT JOIN sot.data_engine_match_decisions d
         ON d.rules_applied::jsonb ? r.rule_name
       GROUP BY r.rule_id, r.rule_name, r.rule_category, r.primary_signal, r.base_confidence, r.is_active
       ORDER BY r.priority DESC
@@ -91,14 +91,14 @@ export async function GET() {
       household_member_pct: number;
     }>(`
       WITH totals AS (
-        SELECT COUNT(*) as total FROM trapper.data_engine_match_decisions
+        SELECT COUNT(*) as total FROM sot.data_engine_match_decisions
         WHERE processed_at > NOW() - INTERVAL '24 hours'
       ),
       by_type AS (
         SELECT
           decision_type,
           COUNT(*) as cnt
-        FROM trapper.data_engine_match_decisions
+        FROM sot.data_engine_match_decisions
         WHERE processed_at > NOW() - INTERVAL '24 hours'
         GROUP BY decision_type
       )

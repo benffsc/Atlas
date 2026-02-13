@@ -77,7 +77,7 @@ export async function GET() {
       clinic_appointments: number;
     }>(
       `SELECT *
-       FROM trapper.v_seasonal_dashboard
+       FROM ops.v_seasonal_dashboard
        WHERE year = EXTRACT(YEAR FROM CURRENT_DATE)
          AND month = EXTRACT(MONTH FROM CURRENT_DATE)`,
       []
@@ -92,7 +92,7 @@ export async function GET() {
       breeding_active_pct: number;
     }>(
       `SELECT *
-       FROM trapper.v_breeding_season_indicators
+       FROM ops.v_breeding_season_indicators
        WHERE year = EXTRACT(YEAR FROM CURRENT_DATE)
          AND month = EXTRACT(MONTH FROM CURRENT_DATE)`,
       []
@@ -161,7 +161,7 @@ export async function GET() {
       breeding_active_pct: number;
     }>(
       `SELECT year, month, period, breeding_active_pct
-       FROM trapper.v_breeding_season_indicators
+       FROM ops.v_breeding_season_indicators
        WHERE (year = EXTRACT(YEAR FROM CURRENT_DATE) AND month <= EXTRACT(MONTH FROM CURRENT_DATE))
           OR (year = EXTRACT(YEAR FROM CURRENT_DATE) - 1 AND month > EXTRACT(MONTH FROM CURRENT_DATE))
        ORDER BY year, month`,

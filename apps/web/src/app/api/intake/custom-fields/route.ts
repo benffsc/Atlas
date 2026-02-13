@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         is_required,
         is_beacon_critical,
         display_order
-      FROM trapper.intake_custom_fields
+      FROM ops.intake_custom_fields
       WHERE is_active = TRUE
       AND (
         show_for_call_types IS NULL

@@ -38,16 +38,16 @@ export async function GET(
         i.created_at,
         -- Entity details
         CASE i.target_entity_type
-          WHEN 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = i.target_entity_id)
-          WHEN 'place' THEN (SELECT formatted_address FROM trapper.places WHERE place_id = i.target_entity_id)
+          WHEN 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = i.target_entity_id)
+          WHEN 'place' THEN (SELECT formatted_address FROM sot.places WHERE place_id = i.target_entity_id)
           WHEN 'request' THEN (
             SELECT 'Request at ' || COALESCE(pl.formatted_address, 'unknown') || ' (' || r.status::text || ')'
-            FROM trapper.sot_requests r
-            LEFT JOIN trapper.places pl ON pl.place_id = r.place_id
+            FROM ops.requests r
+            LEFT JOIN sot.places pl ON pl.place_id = r.place_id
             WHERE r.request_id = i.target_entity_id
           )
         END as target_entity_name
-      FROM trapper.trapper_report_items i
+      FROM ops.trapper_report_items i
       WHERE i.submission_id = $1 AND i.item_id = $2
       `,
       [id, itemId]
@@ -96,7 +96,7 @@ export async function PATCH(
   try {
     // Verify item belongs to submission
     const item = await queryOne<{ item_id: string }>(
-      `SELECT item_id::text FROM trapper.trapper_report_items WHERE submission_id = $1 AND item_id = $2`,
+      `SELECT item_id::text FROM ops.trapper_report_items WHERE submission_id = $1 AND item_id = $2`,
       [id, itemId]
     );
 
@@ -106,7 +106,7 @@ export async function PATCH(
 
     await execute(
       `
-      UPDATE trapper.trapper_report_items
+      UPDATE ops.trapper_report_items
       SET
         review_status = COALESCE($1, review_status),
         final_entity_id = COALESCE($2::uuid, final_entity_id),

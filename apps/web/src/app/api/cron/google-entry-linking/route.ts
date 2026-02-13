@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // This is a heavy operation - only run daily
     const nearestResult = await queryOne<{ updated: number }>(`
       WITH updated AS (
-        UPDATE trapper.google_map_entries e
+        UPDATE source.google_map_entries e
         SET
           nearest_place_id = nearest.place_id,
           nearest_place_distance_m = nearest.distance_m
@@ -56,10 +56,10 @@ export async function GET(request: NextRequest) {
               ST_SetSRID(ST_MakePoint(e2.lng, e2.lat), 4326)::geography,
               p.location::geography
             ) as distance_m
-          FROM trapper.google_map_entries e2
+          FROM source.google_map_entries e2
           CROSS JOIN LATERAL (
             SELECT place_id, location
-            FROM trapper.places p
+            FROM sot.places p
             WHERE p.merged_into_place_id IS NULL
               AND p.location IS NOT NULL
               AND ST_DWithin(
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       rural_linked: number;
       multi_unit_flagged: number;
       total_linked: number;
-    }>(`SELECT * FROM trapper.link_google_entries_tiered(5000, false)`);
+    }>(`SELECT * FROM sot.link_google_entries_tiered(5000, false)`);
 
     if (tieredResult) {
       results.tiered_residential = tieredResult.residential_linked;
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 
     // Step 3: Process AI suggestions
     const aiResult = await queryOne<{ ai_linked: number }>(
-      `SELECT * FROM trapper.link_google_entries_from_ai(1000, false)`
+      `SELECT * FROM sot.link_google_entries_from_ai(1000, false)`
     );
     results.ai_linked = aiResult?.ai_linked || 0;
 
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE place_id IS NOT NULL OR linked_place_id IS NOT NULL)::int as linked,
         COUNT(*) FILTER (WHERE linked_place_id IS NULL AND place_id IS NULL AND requires_unit_selection = true)::int as needs_unit,
         COUNT(*) FILTER (WHERE linked_place_id IS NULL AND place_id IS NULL AND COALESCE(requires_unit_selection, false) = false)::int as unlinked
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE lat IS NOT NULL
     `);
 

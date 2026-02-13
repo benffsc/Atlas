@@ -29,8 +29,8 @@ export async function GET(
         r.place_id,
         p.colony_classification AS current_place_classification,
         p.authoritative_cat_count
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.places p ON p.place_id = r.place_id
+      FROM ops.requests r
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
       WHERE r.request_id = $1
     `;
 
@@ -96,7 +96,7 @@ export async function POST(
     switch (action) {
       case "accept":
         const acceptResult = await queryOne<{ result: string }>(
-          `SELECT trapper.accept_classification_suggestion($1, $2) AS result`,
+          `SELECT ops.accept_classification_suggestion($1, $2) AS result`,
           [id, "staff"]
         );
         resultValue = acceptResult?.result || null;
@@ -116,7 +116,7 @@ export async function POST(
           );
         }
         const overrideResult = await queryOne<{ result: string }>(
-          `SELECT trapper.override_classification_suggestion($1, $2::trapper.colony_classification, $3, $4, $5) AS result`,
+          `SELECT ops.override_classification_suggestion($1, $2, $3, $4, $5) AS result`,
           [id, override_classification, reason, "staff", authoritative_count || null]
         );
         resultValue = overrideResult?.result || null;
@@ -124,7 +124,7 @@ export async function POST(
 
       case "dismiss":
         await queryOne(
-          `SELECT trapper.dismiss_classification_suggestion($1, $2)`,
+          `SELECT ops.dismiss_classification_suggestion($1, $2)`,
           [id, "staff"]
         );
         resultValue = "dismissed";
@@ -140,8 +140,8 @@ export async function POST(
         r.classification_reviewed_at,
         r.classification_reviewed_by,
         p.colony_classification AS current_place_classification
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.places p ON p.place_id = r.place_id
+      FROM ops.requests r
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
       WHERE r.request_id = $1
     `;
 

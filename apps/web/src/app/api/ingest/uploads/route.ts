@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         data_date_min,
         data_date_max,
         post_processing_results
-      FROM trapper.file_uploads
+      FROM ops.file_uploads
       ${whereClause}
       ORDER BY uploaded_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

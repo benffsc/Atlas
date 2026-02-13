@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
         ai_access_level,
         created_at,
         updated_at
-      FROM trapper.staff
+      FROM ops.staff
       WHERE 1=1
     `;
     const params: unknown[] = [];
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     // Get unique departments for filtering
     const departments = await queryRows<{ department: string }>(`
-      SELECT DISTINCT department FROM trapper.staff WHERE department IS NOT NULL ORDER BY department
+      SELECT DISTINCT department FROM ops.staff WHERE department IS NOT NULL ORDER BY department
     `);
 
     return NextResponse.json({
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     // Create the staff record
     const result = await queryOne<{ staff_id: string }>(`
-      INSERT INTO trapper.staff (
+      INSERT INTO ops.staff (
         first_name,
         last_name,
         email,
@@ -163,19 +163,19 @@ export async function POST(request: NextRequest) {
       if (!isOrgEmail) {
         // Only attempt person creation for non-org emails
         const personResult = await queryOne<{ person_id: string }>(`
-          SELECT trapper.find_or_create_person(
+          SELECT sot.find_or_create_person(
             $1, $2, $3, $4, NULL, 'web_app'
           ) AS person_id
         `, [email, phone?.replace(/\D/g, '') || null, first_name, last_name || null]);
 
         if (personResult?.person_id) {
           await execute(`
-            UPDATE trapper.staff SET person_id = $1 WHERE staff_id = $2
+            UPDATE ops.staff SET person_id = $1 WHERE staff_id = $2
           `, [personResult.person_id, result.staff_id]);
 
           // Add staff role
           await execute(`
-            INSERT INTO trapper.person_roles (person_id, role, role_status, source_system, notes)
+            INSERT INTO sot.person_roles (person_id, role, role_status, source_system, notes)
             VALUES ($1, 'staff', 'active', 'web_app', $2)
             ON CONFLICT (person_id, role) DO UPDATE SET role_status = 'active', updated_at = NOW()
           `, [personResult.person_id, role]);

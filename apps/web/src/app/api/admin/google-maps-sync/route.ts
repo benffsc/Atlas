@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
       SELECT
         COALESCE(icon_meaning, 'unknown') as icon_meaning,
         COUNT(*) as count
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       GROUP BY icon_meaning
       ORDER BY count DESC
     `);
@@ -140,13 +140,13 @@ export async function GET(request: NextRequest) {
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE icon_type IS NOT NULL) as with_icons,
         COUNT(*) FILTER (WHERE synced_at IS NOT NULL) as synced
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
     `);
 
     // Get last sync time
     const lastSync = await queryRows<{ last_synced_at: string }>(`
       SELECT MAX(synced_at)::text as last_synced_at
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE synced_at IS NOT NULL
     `);
 
@@ -161,14 +161,14 @@ export async function GET(request: NextRequest) {
         inserted_count,
         uploaded_at::text,
         processed_at::text
-      FROM trapper.staged_google_maps_imports
+      FROM ops.staged_google_maps_imports
       ORDER BY uploaded_at DESC
       LIMIT 10
     `);
 
     // Get AI classification stats
     const classificationStats = await queryRows<ClassificationStats>(`
-      SELECT * FROM trapper.v_google_map_classification_stats
+      SELECT * FROM ops.v_google_map_classification_stats
       ORDER BY priority
     `);
 
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE ai_meaning = 'watch_list') as watch_list,
         COUNT(*) FILTER (WHERE linked_place_id IS NOT NULL) as linked_to_places,
         COUNT(*) FILTER (WHERE linked_person_id IS NOT NULL) as linked_to_people
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
     `);
 
     // Get recent disease risk entries for review
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
         ) as disease_mentions,
         ai_classified_at::text,
         linked_address
-      FROM trapper.v_google_map_disease_risks
+      FROM ops.v_google_map_disease_risks
       LIMIT 20
     `);
 
@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
 
       // Stage the import (centralized ingest pattern)
       const importResult = await queryOne<{ import_id: string }>(`
-        INSERT INTO trapper.staged_google_maps_imports (
+        INSERT INTO ops.staged_google_maps_imports (
           filename,
           upload_method,
           placemarks,
@@ -330,7 +330,7 @@ export async function POST(request: NextRequest) {
 
       // Process the import (could be async via job queue, but processing immediately for now)
       const processResult = await queryOne<{ result: { success: boolean; updated: number; inserted: number; not_matched: number; error?: string } }>(`
-        SELECT trapper.process_google_maps_import($1) as result
+        SELECT ops.process_google_maps_import($1) as result
       `, [importResult.import_id]);
 
       if (!processResult?.result?.success) {

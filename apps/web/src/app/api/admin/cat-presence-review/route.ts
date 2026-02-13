@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         has_uncertain_cats,
         has_likely_departed,
         reconciliation_priority
-      FROM trapper.v_places_needing_cat_reconciliation
+      FROM ops.v_places_needing_cat_reconciliation
       WHERE ${whereClause}
       ORDER BY reconciliation_priority DESC, uncertain_cats DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE has_count_mismatch) AS with_mismatch,
         COUNT(*) FILTER (WHERE likely_departed > 0) AS with_departed,
         SUM(unconfirmed_cats) AS total_unconfirmed_cats
-      FROM trapper.v_places_needing_cat_reconciliation`
+      FROM ops.v_places_needing_cat_reconciliation`
     );
 
     // Get classification distribution
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       `SELECT
         COALESCE(colony_classification, 'unknown') AS colony_classification,
         COUNT(*) AS count
-      FROM trapper.v_places_needing_cat_reconciliation
+      FROM ops.v_places_needing_cat_reconciliation
       GROUP BY colony_classification
       ORDER BY count DESC`
     );
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await query(
-        `UPDATE trapper.cat_place_relationships
+        `UPDATE sot.cat_place_relationships
          SET
            presence_status = 'departed',
            departure_reason = 'unknown',

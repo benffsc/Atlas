@@ -21,7 +21,7 @@ export async function POST(
     // Get submission
     const submission = await queryOne<{ submission_id: string; extraction_status: string }>(
       `SELECT submission_id::text, extraction_status
-       FROM trapper.trapper_report_submissions WHERE submission_id = $1`,
+       FROM ops.trapper_report_submissions WHERE submission_id = $1`,
       [id]
     );
 
@@ -47,7 +47,7 @@ export async function POST(
         final_entity_id::text,
         extracted_data,
         final_data
-       FROM trapper.trapper_report_items
+       FROM ops.trapper_report_items
        WHERE submission_id = $1
          AND review_status = 'approved'
          AND committed_at IS NULL`,
@@ -106,7 +106,7 @@ export async function POST(
         if (commitResult?.success) {
           // Update item as committed
           await execute(
-            `UPDATE trapper.trapper_report_items
+            `UPDATE ops.trapper_report_items
              SET committed_at = NOW(), commit_result = $2
              WHERE item_id = $1`,
             [item.item_id, JSON.stringify(commitResult)]
@@ -140,21 +140,21 @@ export async function POST(
     if (failCount === 0 && successCount > 0) {
       // Check if there are any remaining pending items
       const pendingItems = await queryOne<{ count: string }>(
-        `SELECT COUNT(*) as count FROM trapper.trapper_report_items
+        `SELECT COUNT(*) as count FROM ops.trapper_report_items
          WHERE submission_id = $1 AND committed_at IS NULL AND review_status != 'rejected'`,
         [id]
       );
 
       if (!pendingItems || parseInt(pendingItems.count) === 0) {
         await execute(
-          `UPDATE trapper.trapper_report_submissions
+          `UPDATE ops.trapper_report_submissions
            SET extraction_status = 'committed'
            WHERE submission_id = $1`,
           [id]
         );
       } else {
         await execute(
-          `UPDATE trapper.trapper_report_submissions
+          `UPDATE ops.trapper_report_submissions
            SET extraction_status = 'reviewed'
            WHERE submission_id = $1`,
           [id]

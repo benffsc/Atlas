@@ -257,8 +257,8 @@ export async function GET(request: NextRequest) {
           p.place_id,
           p.formatted_address,
           p.display_name
-        FROM trapper.sot_requests r
-        LEFT JOIN trapper.places p ON p.place_id = r.place_id
+        FROM ops.requests r
+        LEFT JOIN sot.places p ON p.place_id = r.place_id
         WHERE r.request_id = $1`,
         [requestId]
       );
@@ -270,7 +270,7 @@ export async function GET(request: NextRequest) {
           place_id,
           formatted_address,
           display_name
-        FROM trapper.places
+        FROM sot.places
         WHERE place_id = $1`,
         [placeId]
       );
@@ -301,22 +301,22 @@ export async function GET(request: NextRequest) {
         )::INT as distance_m,
         COALESCE((
           SELECT COUNT(DISTINCT cpr.cat_id)
-          FROM trapper.cat_place_relationships cpr
+          FROM sot.cat_place_relationships cpr
           WHERE cpr.place_id = p.place_id
         ), 0)::INT as cat_count,
         COALESCE((
           SELECT COUNT(DISTINCT ppr.person_id)
-          FROM trapper.person_place_relationships ppr
+          FROM sot.person_place_relationships ppr
           WHERE ppr.place_id = p.place_id
         ), 0)::INT as person_count,
         EXISTS (
-          SELECT 1 FROM trapper.sot_requests r
+          SELECT 1 FROM ops.requests r
           WHERE r.place_id = p.place_id
             AND r.status NOT IN ('completed', 'cancelled')
         ) as has_active_request,
         COALESCE((
           SELECT COUNT(*)
-          FROM trapper.google_map_entries gme
+          FROM source.google_map_entries gme
           WHERE gme.place_id = p.place_id OR gme.linked_place_id = p.place_id
         ), 0)::INT as google_entry_count,
         CASE WHEN p.place_id = $3 THEN TRUE ELSE FALSE END as is_primary,
@@ -324,7 +324,7 @@ export async function GET(request: NextRequest) {
           WHEN p.place_id = $3 THEN 'primary_location'
           ELSE 'nearby_location'
         END as relationship_type
-      FROM trapper.places p
+      FROM sot.places p
       WHERE p.location IS NOT NULL
         AND ST_DWithin(
           p.location::geography,
@@ -364,7 +364,7 @@ export async function GET(request: NextRequest) {
         COALESCE(
           ARRAY(
             SELECT COALESCE(gme.ai_summary, gme.original_content)
-            FROM trapper.google_map_entries gme
+            FROM source.google_map_entries gme
             WHERE (gme.place_id = pl.place_id OR gme.linked_place_id = pl.place_id)
               AND (
                 LOWER(gme.kml_name) ILIKE '%' || LOWER(SPLIT_PART(per.display_name, ' ', 1)) || '%'
@@ -374,10 +374,10 @@ export async function GET(request: NextRequest) {
           ),
           ARRAY[]::TEXT[]
         ) as notes
-      FROM trapper.person_place_relationships ppr
-      JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+      FROM sot.person_place_relationships ppr
+      JOIN sot.people per ON per.person_id = ppr.person_id
         AND per.merged_into_person_id IS NULL
-      JOIN trapper.places pl ON pl.place_id = ppr.place_id
+      JOIN sot.places pl ON pl.place_id = ppr.place_id
       WHERE pl.location IS NOT NULL
         AND ST_DWithin(
           pl.location::geography,
@@ -402,10 +402,10 @@ export async function GET(request: NextRequest) {
           0 as distance_m,
           'requester' as relationship_type,
           ARRAY[]::TEXT[] as notes
-        FROM trapper.sot_requests r
-        JOIN trapper.sot_people per ON per.person_id = r.requester_person_id
+        FROM ops.requests r
+        JOIN sot.people per ON per.person_id = r.requester_person_id
           AND per.merged_into_person_id IS NULL
-        LEFT JOIN trapper.places pl ON pl.place_id = r.place_id
+        LEFT JOIN sot.places pl ON pl.place_id = r.place_id
         WHERE r.request_id = $1`,
         [requestId]
       );
@@ -454,7 +454,7 @@ export async function GET(request: NextRequest) {
         gme.ai_meaning,
         gme.ai_summary,
         gme.parsed_date::TEXT
-      FROM trapper.google_map_entries gme
+      FROM source.google_map_entries gme
       WHERE ST_DWithin(
         ST_SetSRID(ST_MakePoint(gme.lng, gme.lat), 4326)::geography,
         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,

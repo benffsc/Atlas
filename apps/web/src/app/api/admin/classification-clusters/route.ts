@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
             'classification', COALESCE(p.colony_classification::TEXT, 'unknown'),
             'colony_id', p.colony_id
           ))
-          FROM trapper.places p
+          FROM sot.places p
           WHERE p.place_id = ANY(cc.place_ids)
         ) AS places,
         (
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
           ), '{}'::jsonb)
           FROM (
             SELECT suggested_classification, COUNT(*) as cnt
-            FROM trapper.sot_requests r
+            FROM ops.requests r
             WHERE r.place_id = ANY(cc.place_ids)
               AND r.suggested_classification IS NOT NULL
             GROUP BY suggested_classification
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
           );
         }
         result = await queryOne(
-          `SELECT trapper.merge_cluster_to_colony($1, $2, $3) AS success`,
+          `SELECT sot.merge_cluster_to_colony($1, $2, $3) AS success`,
           [cluster_id, colony_id, reviewed_by || "staff"]
         );
         break;
@@ -165,8 +165,8 @@ export async function POST(request: NextRequest) {
           `SELECT
             AVG(ST_Y(location::geometry)) AS center_lat,
             AVG(ST_X(location::geometry)) AS center_lng,
-            (SELECT formatted_address FROM trapper.places WHERE place_id = $2 LIMIT 1) AS first_address
-          FROM trapper.places
+            (SELECT formatted_address FROM sot.places WHERE place_id = $2 LIMIT 1) AS first_address
+          FROM sot.places
           WHERE place_id = ANY($1)`,
           [clusterData.place_ids, clusterData.place_ids[0]]
         );
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         // Create colony
         const colonyName = body.colony_name || `Colony at ${centerData?.first_address?.split(",")[0] || "Unknown"}`;
         const newColony = await queryOne<{ colony_id: string }>(
-          `INSERT INTO trapper.colonies (
+          `INSERT INTO sot.colonies (
             colony_name, center_lat, center_lng, status, created_by
           ) VALUES ($1, $2, $3, 'active', $4)
           RETURNING colony_id`,
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
 
         // Merge cluster to new colony
         result = await queryOne(
-          `SELECT trapper.merge_cluster_to_colony($1, $2, $3) AS success`,
+          `SELECT sot.merge_cluster_to_colony($1, $2, $3) AS success`,
           [cluster_id, newColony?.colony_id, reviewed_by || "staff"]
         );
 

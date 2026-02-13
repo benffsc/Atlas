@@ -39,7 +39,7 @@ export async function GET() {
   try {
     // Get health metrics from the view
     const health = await queryOne<CatDedupHealth>(`
-      SELECT * FROM trapper.v_cat_dedup_health
+      SELECT * FROM sot.v_cat_dedup_health
     `);
 
     // Get pending duplicates for review (top 10 by confidence)
@@ -54,7 +54,7 @@ export async function GET() {
         likely_cause,
         flagged_at::text,
         recommendation
-      FROM trapper.v_cat_duplicate_review
+      FROM sot.v_cat_duplicate_review
       ORDER BY duplicate_confidence DESC
       LIMIT 10
     `);

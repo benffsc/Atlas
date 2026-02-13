@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
           h.created_at::text,
           h.source_system
         FROM trapper.households h
-        LEFT JOIN trapper.places p ON p.place_id = h.primary_place_id
+        LEFT JOIN sot.places p ON p.place_id = h.primary_place_id
         WHERE h.household_id = $1::uuid
       `, [householdId]);
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
           hm.confidence::numeric,
           hm.inferred_from
         FROM trapper.household_members hm
-        JOIN trapper.sot_people p ON p.person_id = hm.person_id
+        JOIN sot.people p ON p.person_id = hm.person_id
         WHERE hm.household_id = $1::uuid
           AND hm.valid_to IS NULL
         ORDER BY hm.created_at ASC
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         h.created_at::text,
         h.source_system
       FROM trapper.households h
-      LEFT JOIN trapper.places p ON p.place_id = h.primary_place_id
+      LEFT JOIN sot.places p ON p.place_id = h.primary_place_id
       ORDER BY h.member_count DESC, h.created_at DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);

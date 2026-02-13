@@ -66,20 +66,20 @@ export async function GET(request: NextRequest) {
         r.created_at,
         CASE
           WHEN r.entity_type = 'place' THEN (
-            SELECT p.display_name FROM trapper.places p WHERE p.place_id = r.entity_id
+            SELECT p.display_name FROM sot.places p WHERE p.place_id = r.entity_id
           )
           WHEN r.entity_type = 'cat' THEN (
-            SELECT c.display_name FROM trapper.sot_cats c WHERE c.cat_id = r.entity_id
+            SELECT c.display_name FROM sot.cats c WHERE c.cat_id = r.entity_id
           )
           WHEN r.entity_type = 'person' THEN (
-            SELECT per.display_name FROM trapper.sot_people per WHERE per.person_id = r.entity_id
+            SELECT per.display_name FROM sot.people per WHERE per.person_id = r.entity_id
           )
           WHEN r.entity_type = 'request' THEN (
-            SELECT req.summary FROM trapper.sot_requests req WHERE req.request_id = r.entity_id
+            SELECT req.summary FROM ops.requests req WHERE req.request_id = r.entity_id
           )
           ELSE NULL
         END as entity_display
-      FROM trapper.staff_reminders r
+      FROM ops.staff_reminders r
       WHERE r.staff_id = $1
         ${statusFilter}
       ORDER BY
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await queryOne<{ reminder_id: string }>(
-      `INSERT INTO trapper.staff_reminders (
+      `INSERT INTO ops.staff_reminders (
         staff_id, title, notes, entity_type, entity_id,
         due_at, remind_at, created_via, contact_info
       ) VALUES (

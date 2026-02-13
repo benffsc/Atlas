@@ -26,7 +26,7 @@ export async function GET() {
   try {
     const result = await queryOne<{ count: number }>(
       `SELECT COUNT(*) as count
-       FROM trapper.places
+       FROM sot.places
        WHERE location IS NULL
          AND formatted_address IS NOT NULL
          AND formatted_address != ''`
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Get places without coordinates
     const places = await queryRows<PlaceWithoutCoords>(
       `SELECT place_id, display_name, formatted_address
-       FROM trapper.places
+       FROM sot.places
        WHERE location IS NULL
          AND formatted_address IS NOT NULL
          AND formatted_address != ''
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
           // Update the place with coordinates
           await queryOne(
-            `UPDATE trapper.places
+            `UPDATE sot.places
              SET location = ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
                  updated_at = NOW()
              WHERE place_id = $3`,

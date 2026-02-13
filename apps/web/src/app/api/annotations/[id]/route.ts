@@ -35,9 +35,9 @@ export async function GET(
         a.created_at::TEXT,
         ST_Y(a.location::geometry) AS lat,
         ST_X(a.location::geometry) AS lng,
-        (SELECT COUNT(*) FROM trapper.journal_entries je
+        (SELECT COUNT(*) FROM ops.journal_entries je
          WHERE je.primary_annotation_id = a.annotation_id AND je.is_archived = FALSE) AS journal_count
-      FROM trapper.map_annotations a
+      FROM ops.map_annotations a
       WHERE a.annotation_id = $1`,
       [id]
     );
@@ -65,7 +65,7 @@ export async function GET(
         body,
         created_by,
         created_at::TEXT
-      FROM trapper.journal_entries
+      FROM ops.journal_entries
       WHERE primary_annotation_id = $1 AND is_archived = FALSE
       ORDER BY created_at DESC
       LIMIT 50`,
@@ -151,7 +151,7 @@ export async function PATCH(
     values.push(id);
 
     const result = await queryOne<{ annotation_id: string }>(
-      `UPDATE trapper.map_annotations
+      `UPDATE ops.map_annotations
        SET ${updates.join(", ")}
        WHERE annotation_id = $${paramIndex} AND is_active = TRUE
        RETURNING annotation_id`,
@@ -184,7 +184,7 @@ export async function DELETE(
     const { id } = await params;
 
     const result = await queryOne<{ annotation_id: string }>(
-      `UPDATE trapper.map_annotations
+      `UPDATE ops.map_annotations
        SET is_active = FALSE
        WHERE annotation_id = $1 AND is_active = TRUE
        RETURNING annotation_id`,

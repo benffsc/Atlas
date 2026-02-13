@@ -60,8 +60,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         tr.is_final_visit,
         tr.submitted_from,
         tr.created_at
-      FROM trapper.trapper_trip_reports tr
-      LEFT JOIN trapper.sot_people p ON p.person_id = tr.trapper_person_id
+      FROM ops.trapper_trip_reports tr
+      LEFT JOIN sot.people p ON p.person_id = tr.trapper_person_id
       WHERE tr.request_id = $1
       ORDER BY tr.visit_date DESC, tr.created_at DESC
       `,
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         report_required_before_complete,
         completion_report_id,
         status
-      FROM trapper.sot_requests
+      FROM ops.requests
       WHERE request_id = $1
       `,
       [id]
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verify the request exists
     const requestExists = await queryOne(
-      `SELECT request_id, status FROM trapper.sot_requests WHERE request_id = $1`,
+      `SELECT request_id, status FROM ops.requests WHERE request_id = $1`,
       [requestId]
     );
 
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Insert the trip report
     const report = await queryOne<{ report_id: string; created_at: string }>(
       `
-      INSERT INTO trapper.trapper_trip_reports (
+      INSERT INTO ops.trapper_trip_reports (
         request_id,
         trapper_person_id,
         visit_date,
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // If this is the final visit, link it to the request
     if (is_final_visit) {
       await query(
-        `UPDATE trapper.sot_requests SET completion_report_id = $1 WHERE request_id = $2`,
+        `UPDATE ops.requests SET completion_report_id = $1 WHERE request_id = $2`,
         [report.report_id, requestId]
       );
     }

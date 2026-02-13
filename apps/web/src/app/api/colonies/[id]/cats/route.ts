@@ -24,7 +24,7 @@ export async function GET(
   try {
     // Verify colony exists
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM trapper.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
       [colonyId]
     );
 
@@ -45,8 +45,8 @@ export async function GET(
         lc.place_id,
         p.formatted_address as place_address,
         lc.linked_at
-      FROM trapper.v_colony_linked_cats lc
-      JOIN trapper.places p ON p.place_id = lc.place_id
+      FROM ops.v_colony_linked_cats lc
+      JOIN sot.places p ON p.place_id = lc.place_id
       WHERE lc.colony_id = $1
       ORDER BY lc.cat_id, lc.linked_at DESC`,
       [colonyId]

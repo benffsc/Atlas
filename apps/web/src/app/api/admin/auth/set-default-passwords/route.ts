@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // Get list of staff that will be updated
     const staffToUpdate = await queryRows<{ staff_id: string; email: string; display_name: string }>(
       `SELECT staff_id, email, display_name
-       FROM trapper.staff
+       FROM ops.staff
        WHERE (password_hash IS NULL OR password_hash = '')
          AND is_active = TRUE`
     );
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Update all staff without passwords
     await queryOne(
-      `UPDATE trapper.staff
+      `UPDATE ops.staff
        SET password_hash = $1,
            password_change_required = TRUE,
            password_set_at = NOW()

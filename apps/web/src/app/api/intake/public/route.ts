@@ -254,7 +254,7 @@ export async function POST(request: NextRequest) {
       triage_category: string;
       triage_score: number;
     }>(
-      `INSERT INTO trapper.web_intake_submissions (
+      `INSERT INTO ops.intake_submissions (
         intake_source, source_system, first_name, last_name, email, phone,
         is_third_party_report, third_party_relationship,
         property_owner_name, property_owner_phone, property_owner_email,
@@ -334,11 +334,11 @@ export async function POST(request: NextRequest) {
 
     // Call centralized functions to create/match person and place (async)
     // match_intake_to_person: matches existing or creates new person record
-    queryOne("SELECT trapper.match_intake_to_person($1)", [submissionId])
+    queryOne("SELECT sot.match_intake_to_person($1)", [submissionId])
       .catch((err: unknown) => console.error("Person matching error:", err));
 
     // link_intake_submission_to_place: creates/matches place, queues geocoding
-    queryOne("SELECT trapper.link_intake_submission_to_place($1)", [submissionId])
+    queryOne("SELECT sot.link_intake_to_place($1)", [submissionId])
       .catch((err: unknown) => console.error("Place linking error:", err));
 
     // Return success with submission reference

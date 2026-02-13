@@ -41,7 +41,7 @@ export async function GET(
 
     // Check org exists
     const org = await queryOne<{ canonical_name: string }>(
-      `SELECT canonical_name FROM trapper.known_organizations WHERE org_id = $1`,
+      `SELECT canonical_name FROM sot.known_organizations WHERE org_id = $1`,
       [id]
     );
 

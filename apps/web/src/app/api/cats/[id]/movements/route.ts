@@ -78,7 +78,7 @@ export async function GET(
         source_type,
         notes,
         created_at
-      FROM trapper.v_cat_movement_timeline
+      FROM sot.v_cat_movement_timeline
       WHERE cat_id = $1
       ORDER BY event_date DESC
       LIMIT 100
@@ -106,7 +106,7 @@ export async function GET(
         primary_place_id,
         primary_place_name,
         primary_address
-      FROM trapper.v_cat_movement_patterns
+      FROM sot.v_cat_movement_patterns
       WHERE cat_id = $1
     `;
 

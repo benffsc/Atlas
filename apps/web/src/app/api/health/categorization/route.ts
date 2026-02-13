@@ -38,13 +38,13 @@ export async function GET() {
     // Get category breakdown
     const categoryBreakdown = await queryRows<CategoryCount>(`
       WITH totals AS (
-        SELECT COUNT(*) as total FROM trapper.sot_appointments
+        SELECT COUNT(*) as total FROM ops.appointments
       )
       SELECT
         COALESCE(appointment_source_category, 'unclassified') as appointment_source_category,
         COUNT(*) as count,
         ROUND(100.0 * COUNT(*) / NULLIF(MAX(t.total), 0), 2) as percentage
-      FROM trapper.sot_appointments, totals t
+      FROM ops.appointments, totals t
       GROUP BY appointment_source_category
       ORDER BY count DESC
     `);
@@ -58,8 +58,8 @@ export async function GET() {
         a.appointment_source_category as current_category,
         'county_scas' as suggested_category,
         'hyphenated_scas_id' as pattern_type
-      FROM trapper.sot_appointments a
-      JOIN trapper.clinichq_visits cv ON cv.appointment_number = a.appointment_number
+      FROM ops.appointments a
+      JOIN source.clinichq_visits cv ON cv.appointment_number = a.appointment_number
       WHERE UPPER(TRIM(cv.client_last_name)) = 'SCAS'
         AND TRIM(cv.client_first_name) ~ '^[AS]-[0-9]+$'
         AND a.appointment_source_category <> 'county_scas'
@@ -75,8 +75,8 @@ export async function GET() {
         a.appointment_source_category as current_category,
         'lmfm' as suggested_category,
         'all_caps_hyphenated' as pattern_type
-      FROM trapper.sot_appointments a
-      JOIN trapper.clinichq_visits cv ON cv.appointment_number = a.appointment_number
+      FROM ops.appointments a
+      JOIN source.clinichq_visits cv ON cv.appointment_number = a.appointment_number
       WHERE a.appointment_source_category <> 'lmfm'
         AND cv.client_first_name ~ '^[A-Z-]+$'
         AND cv.client_last_name ~ '^[A-Z-]+$'
@@ -111,7 +111,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE appointment_source_category = 'county_scas' AND created_at > NOW() - INTERVAL '24 hours') as scas_24h,
         COUNT(*) FILTER (WHERE appointment_source_category = 'lmfm' AND created_at > NOW() - INTERVAL '24 hours') as lmfm_24h,
         COUNT(*) FILTER (WHERE appointment_source_category = 'foster_program' AND created_at > NOW() - INTERVAL '24 hours') as foster_24h
-      FROM trapper.sot_appointments
+      FROM ops.appointments
     `);
 
     // Determine health status

@@ -49,7 +49,7 @@ export async function POST(
       estimated_cat_count: number | null;
     }>(
       `SELECT request_id, source_system, data_source, status, place_id, requester_person_id, estimated_cat_count
-       FROM trapper.sot_requests WHERE request_id = $1`,
+       FROM ops.requests WHERE request_id = $1`,
       [id]
     );
 
@@ -93,22 +93,22 @@ export async function POST(
 
     // Update the request with new Atlas schema fields
     const updateSql = `
-      UPDATE trapper.sot_requests
+      UPDATE ops.requests
       SET
         -- Enhanced intake fields
-        permission_status = $2::trapper.permission_status,
+        permission_status = $2,
         access_notes = $3,
         traps_overnight_safe = $4,
         access_without_contact = $5,
-        colony_duration = $6::trapper.colony_duration,
-        count_confidence = $7::trapper.count_confidence,
+        colony_duration = $6,
+        count_confidence = $7,
         is_being_fed = $8,
         feeding_schedule = $9,
         best_times_seen = $10,
         urgency_reasons = $11,
         urgency_notes = $12,
         -- Mark as upgraded
-        data_source = 'atlas_ui'::trapper.data_source,
+        data_source = 'atlas_ui',
         -- Update status based on flags
         has_kittens = CASE WHEN $13 THEN FALSE ELSE has_kittens END,
         -- Timestamps
@@ -149,7 +149,7 @@ export async function POST(
     // Log the upgrade action in entity_edits
     try {
       await query(
-        `INSERT INTO trapper.entity_edits (
+        `INSERT INTO sot.entity_edits (
           entity_type, entity_id, edit_type, old_value, new_value, changed_by, reason
         ) VALUES (
           'request', $1, 'upgrade',
@@ -181,7 +181,7 @@ export async function POST(
           verified_altered: number | null;
           message: string;
         }>(
-          `SELECT * FROM trapper.auto_reconcile_colony_on_upgrade($1, $2, $3, $4)`,
+          `SELECT * FROM sot.auto_reconcile_colony_on_upgrade($1, $2, $3, $4)`,
           [id, totalCatsReported, body.cats_still_needing_tnr, "web_user"]
         );
 
@@ -192,7 +192,7 @@ export async function POST(
         // Also add a staff-verified estimate for the total_cats_reported
         if (totalCatsReported && existingRequest.place_id) {
           await queryOne(
-            `SELECT trapper.add_staff_verified_estimate($1, $2, $3, $4)`,
+            `SELECT sot.add_staff_verified_estimate($1, $2, $3, $4)`,
             [
               existingRequest.place_id,
               totalCatsReported,

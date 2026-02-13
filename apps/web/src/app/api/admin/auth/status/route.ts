@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE is_active = TRUE AND auth_role = 'admin') as admins,
         COUNT(*) FILTER (WHERE is_active = TRUE AND auth_role = 'staff') as staff_role,
         COUNT(*) FILTER (WHERE is_active = TRUE AND auth_role = 'volunteer') as volunteers
-      FROM trapper.staff`
+      FROM ops.staff`
     );
 
     // Get list of staff with auth details
@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
         COALESCE(s.password_change_required, FALSE) as password_change_required,
         s.password_set_at,
         (s.password_reset_expires_at > NOW()) as has_pending_reset,
-        (SELECT MAX(created_at) FROM trapper.staff_sessions WHERE staff_id = s.staff_id) as last_login
-      FROM trapper.staff s
+        (SELECT MAX(created_at) FROM ops.staff_sessions WHERE staff_id = s.staff_id) as last_login
+      FROM ops.staff s
       WHERE s.is_active = TRUE
       ORDER BY s.display_name`
     );

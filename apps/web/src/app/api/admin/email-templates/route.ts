@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         et.created_at::TEXT,
         et.updated_at::TEXT
       FROM trapper.email_templates et
-      LEFT JOIN trapper.staff s ON s.staff_id = et.last_edited_by
+      LEFT JOIN ops.staff s ON s.staff_id = et.last_edited_by
       ORDER BY et.name
     `);
 

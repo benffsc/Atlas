@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     const result = await queryOne<{
       normalized: string;
     }>(
-      `SELECT trapper.normalize_address($1) as normalized`,
+      `SELECT sot.normalize_address($1) as normalized`,
       [address]
     );
 
@@ -65,14 +65,14 @@ export async function GET(request: NextRequest) {
         p.display_name,
         p.formatted_address,
         p.place_kind::TEXT,
-        (SELECT COUNT(*) FROM trapper.cat_place_relationships WHERE place_id = p.place_id)::INT as cat_count,
-        (SELECT COUNT(*) FROM trapper.sot_requests WHERE place_id = p.place_id)::INT as request_count
-      FROM trapper.places p
-      WHERE trapper.normalize_address(p.formatted_address) = trapper.normalize_address($1)
+        (SELECT COUNT(*) FROM sot.cat_place_relationships WHERE place_id = p.place_id)::INT as cat_count,
+        (SELECT COUNT(*) FROM ops.requests WHERE place_id = p.place_id)::INT as request_count
+      FROM sot.places p
+      WHERE sot.normalize_address(p.formatted_address) = sot.normalize_address($1)
         AND p.merged_into_place_id IS NULL
       ORDER BY
-        (SELECT COUNT(*) FROM trapper.cat_place_relationships WHERE place_id = p.place_id) +
-        (SELECT COUNT(*) FROM trapper.sot_requests WHERE place_id = p.place_id) DESC
+        (SELECT COUNT(*) FROM sot.cat_place_relationships WHERE place_id = p.place_id) +
+        (SELECT COUNT(*) FROM ops.requests WHERE place_id = p.place_id) DESC
       LIMIT 5`,
       [address]
     );

@@ -38,9 +38,9 @@ export async function GET(request: NextRequest) {
       auto_applied_today: number;
     }>(`
       SELECT
-        (SELECT COUNT(DISTINCT place_id) FROM trapper.v_places_needing_classification) AS pending_places,
-        (SELECT COUNT(*) FROM trapper.sot_requests WHERE classification_disposition = 'pending') AS pending_requests,
-        (SELECT COUNT(*) FROM trapper.sot_requests
+        (SELECT COUNT(DISTINCT place_id) FROM ops.v_places_needing_classification) AS pending_places,
+        (SELECT COUNT(*) FROM ops.requests WHERE classification_disposition = 'pending') AS pending_requests,
+        (SELECT COUNT(*) FROM ops.requests
          WHERE classification_disposition = 'accepted'
          AND classification_reviewed_at >= CURRENT_DATE
          AND classification_reviewed_by = 'auto_backfill') AS auto_applied_today
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     // Get classification breakdown
     const breakdownResult = await queryRows<{ classification: string; count: number }>(`
       SELECT suggested_classification AS classification, COUNT(*) AS count
-      FROM trapper.v_places_needing_classification
+      FROM ops.v_places_needing_classification
       GROUP BY 1
       ORDER BY count DESC
     `);
@@ -88,9 +88,9 @@ export async function GET(request: NextRequest) {
         pnc.most_recent_at,
         -- Get signals from most recent request
         (SELECT r.classification_signals
-         FROM trapper.sot_requests r
+         FROM ops.requests r
          WHERE r.request_id = pnc.most_recent_request_id) AS signals_sample
-      FROM trapper.v_places_needing_classification pnc
+      FROM ops.v_places_needing_classification pnc
       WHERE 1=1 ${filterCondition}
       ORDER BY
         pnc.avg_confidence DESC,
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
         // Get the most recent pending request for this place
         const request = await queryOne<{ request_id: string }>(`
           SELECT r.request_id
-          FROM trapper.sot_requests r
+          FROM ops.requests r
           WHERE r.place_id = $1
             AND r.classification_disposition = 'pending'
           ORDER BY r.created_at DESC
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
         // Get the most recent pending request for this place
         const request = await queryOne<{ request_id: string }>(`
           SELECT r.request_id
-          FROM trapper.sot_requests r
+          FROM ops.requests r
           WHERE r.place_id = $1
             AND r.classification_disposition = 'pending'
           ORDER BY r.created_at DESC
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
 
         if (request) {
           await queryOne(
-            `SELECT trapper.override_classification_suggestion($1, $2::trapper.colony_classification, $3, $4, $5)`,
+            `SELECT trapper.override_classification_suggestion($1, $2, $3, $4, $5)`,
             [request.request_id, classification, reason || "Bulk admin action", "admin_bulk", null]
           );
           updated++;

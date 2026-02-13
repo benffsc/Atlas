@@ -52,9 +52,9 @@ export async function GET(
         rta.is_primary,
         rta.assigned_at,
         rta.assignment_reason
-      FROM trapper.request_trapper_assignments rta
-      JOIN trapper.sot_people p ON p.person_id = rta.trapper_person_id
-      LEFT JOIN trapper.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
+      FROM ops.request_trapper_assignments rta
+      JOIN sot.people p ON p.person_id = rta.trapper_person_id
+      LEFT JOIN sot.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
       WHERE rta.request_id = $1
         AND rta.unassigned_at IS NULL
       ORDER BY rta.is_primary DESC, rta.assigned_at`,
@@ -74,8 +74,8 @@ export async function GET(
           rta.assignment_reason,
           rta.unassignment_reason,
           CASE WHEN rta.unassigned_at IS NULL THEN 'active' ELSE 'inactive' END AS status
-        FROM trapper.request_trapper_assignments rta
-        JOIN trapper.sot_people p ON p.person_id = rta.trapper_person_id
+        FROM ops.request_trapper_assignments rta
+        JOIN sot.people p ON p.person_id = rta.trapper_person_id
         WHERE rta.request_id = $1
         ORDER BY rta.assigned_at`,
         [id]
@@ -88,7 +88,7 @@ export async function GET(
       assignment_status: string;
     }>(
       `SELECT no_trapper_reason, assignment_status::TEXT
-       FROM trapper.sot_requests WHERE request_id = $1`,
+       FROM ops.requests WHERE request_id = $1`,
       [id]
     );
 
@@ -134,7 +134,7 @@ export async function POST(
 
     // Use the assign function
     const result = await queryOne<{ assign_trapper_to_request: string }>(
-      `SELECT trapper.assign_trapper_to_request(
+      `SELECT ops.assign_trapper_to_request(
         $1::uuid,
         $2::uuid,
         $3::boolean,
@@ -195,7 +195,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ unassign_trapper_from_request: boolean }>(
-      `SELECT trapper.unassign_trapper_from_request($1::uuid, $2::uuid, $3::text) AS unassign_trapper_from_request`,
+      `SELECT ops.unassign_trapper_from_request($1::uuid, $2::uuid, $3::text) AS unassign_trapper_from_request`,
       [id, trapperPersonId, reason]
     );
 

@@ -45,7 +45,7 @@ export async function POST(
     // Check batch status
     const status = await queryOne<BatchStatus>(
       `SELECT batch_id, files_uploaded, is_complete, batch_status
-       FROM trapper.v_clinichq_batch_status
+       FROM ops.v_clinichq_batch_status
        WHERE batch_id = $1`,
       [batchId]
     );
@@ -169,7 +169,7 @@ export async function POST(
 
     // Mark batch as ready (all files processed) - optional, for tracking
     await query(
-      `UPDATE trapper.file_uploads SET batch_ready = TRUE WHERE batch_id = $1`,
+      `UPDATE ops.file_uploads SET batch_ready = TRUE WHERE batch_id = $1`,
       [batchId]
     );
 

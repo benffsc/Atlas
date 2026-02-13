@@ -110,9 +110,9 @@ export async function GET(
           END AS recency_factor,
           -- Firsthand boost
           CASE WHEN e.is_firsthand THEN COALESCE(sc.is_firsthand_boost, 0.05) ELSE 0 END AS firsthand_boost
-        FROM trapper.place_colony_estimates e
-        LEFT JOIN trapper.colony_source_confidence sc ON sc.source_type = e.source_type
-        LEFT JOIN trapper.sot_people p ON p.person_id = e.reported_by_person_id
+        FROM sot.place_colony_estimates e
+        LEFT JOIN sot.colony_source_confidence sc ON sc.source_type = e.source_type
+        LEFT JOIN sot.people p ON p.person_id = e.reported_by_person_id
         WHERE e.place_id = $1
           AND e.total_cats IS NOT NULL
       ),
@@ -197,7 +197,7 @@ export async function GET(
           primary_source,
           verified_cat_count,
           verified_altered_count
-        FROM trapper.v_place_colony_status
+        FROM sot.v_place_colony_status
         WHERE place_id = $1
       `;
       summaryRow = await queryOne<SummaryRow>(summarySql, [id]);

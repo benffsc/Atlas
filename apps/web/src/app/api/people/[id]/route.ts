@@ -82,7 +82,7 @@ export async function GET(
         p.data_source,
         p.entity_type,
         p.data_quality,
-        (SELECT pl.place_id FROM trapper.places pl
+        (SELECT pl.place_id FROM sot.places pl
          WHERE pl.sot_address_id = p.primary_address_id
            AND pl.merged_into_place_id IS NULL
          LIMIT 1) AS primary_place_id,
@@ -97,7 +97,7 @@ export async function GET(
             'source_table', pi.source_table,
             'confidence', pi.confidence
           ) ORDER BY pi.id_type, pi.confidence DESC)
-          FROM trapper.person_identifiers pi
+          FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id
         ) AS identifiers,
         (
@@ -122,7 +122,7 @@ export async function GET(
             'source_table', pa.source_table,
             'created_at', pa.created_at
           ) ORDER BY pa.created_at DESC)
-          FROM trapper.person_aliases pa
+          FROM sot.person_aliases pa
           WHERE pa.person_id = p.person_id
         ) AS aliases,
         (
@@ -145,9 +145,9 @@ export async function GET(
                 sa.locality,
                 'relationship' AS source_type,
                 ppr.confidence
-              FROM trapper.person_place_relationships ppr
-              JOIN trapper.places pl ON pl.place_id = ppr.place_id
-              LEFT JOIN trapper.sot_addresses sa ON sa.address_id = pl.sot_address_id
+              FROM sot.person_place_relationships ppr
+              JOIN sot.places pl ON pl.place_id = ppr.place_id
+              LEFT JOIN sot.addresses sa ON sa.address_id = pl.sot_address_id
               WHERE ppr.person_id = p.person_id
                 AND pl.merged_into_place_id IS NULL
 
@@ -162,9 +162,9 @@ export async function GET(
                 sa2.locality,
                 'request' AS source_type,
                 0.5 AS confidence
-              FROM trapper.sot_requests r
-              JOIN trapper.places pl2 ON pl2.place_id = r.place_id
-              LEFT JOIN trapper.sot_addresses sa2 ON sa2.address_id = pl2.sot_address_id
+              FROM ops.requests r
+              JOIN sot.places pl2 ON pl2.place_id = r.place_id
+              LEFT JOIN sot.addresses sa2 ON sa2.address_id = pl2.sot_address_id
               WHERE r.requester_person_id = p.person_id
                 AND r.place_id IS NOT NULL
                 AND pl2.merged_into_place_id IS NULL
@@ -180,9 +180,9 @@ export async function GET(
                 sa3.locality,
                 'intake' AS source_type,
                 0.4 AS confidence
-              FROM trapper.web_intake_submissions ws
-              JOIN trapper.places pl3 ON pl3.place_id = COALESCE(ws.selected_address_place_id, ws.place_id)
-              LEFT JOIN trapper.sot_addresses sa3 ON sa3.address_id = pl3.sot_address_id
+              FROM ops.intake_submissions ws
+              JOIN sot.places pl3 ON pl3.place_id = COALESCE(ws.selected_address_place_id, ws.place_id)
+              LEFT JOIN sot.addresses sa3 ON sa3.address_id = pl3.sot_address_id
               WHERE ws.matched_person_id = p.person_id
                 AND COALESCE(ws.selected_address_place_id, ws.place_id) IS NOT NULL
                 AND pl3.merged_into_place_id IS NULL
@@ -190,10 +190,10 @@ export async function GET(
             ORDER BY sub.place_id, sub.confidence DESC
           ) ap
         ) AS associated_places
-      FROM trapper.v_person_detail pd
-      JOIN trapper.sot_people p ON p.person_id = pd.person_id
-      LEFT JOIN trapper.sot_addresses a ON a.address_id = p.primary_address_id
-      LEFT JOIN trapper.staff s ON p.verified_by = s.staff_id::text
+      FROM sot.v_person_detail pd
+      JOIN sot.people p ON p.person_id = pd.person_id
+      LEFT JOIN sot.addresses a ON a.address_id = p.primary_address_id
+      LEFT JOIN ops.staff s ON p.verified_by = s.staff_id::text
       WHERE pd.person_id = $1
     `;
 
@@ -302,7 +302,7 @@ export async function PATCH(
     // Get current values for audit comparison
     const currentSql = `
       SELECT display_name, entity_type, trapping_skill, trapping_skill_notes
-      FROM trapper.sot_people
+      FROM sot.people
       WHERE person_id = $1
     `;
     const current = await queryOne<CurrentPersonData>(currentSql, [id]);
@@ -336,13 +336,13 @@ export async function PATCH(
               );
               if (nameKey?.key) {
                 const existing = await queryOne<{ alias_id: string }>(
-                  `SELECT alias_id FROM trapper.person_aliases
+                  `SELECT alias_id FROM sot.person_aliases
                    WHERE person_id = $1 AND name_key = $2 LIMIT 1`,
                   [id, nameKey.key]
                 );
                 if (!existing) {
                   await query(
-                    `INSERT INTO trapper.person_aliases
+                    `INSERT INTO sot.person_aliases
                      (person_id, name_raw, name_key, source_system, source_table)
                      VALUES ($1, $2, $3, 'atlas_ui', 'name_change')`,
                     [id, current.display_name, nameKey.key]
@@ -431,7 +431,7 @@ export async function PATCH(
     values.push(id);
 
     const sql = `
-      UPDATE trapper.sot_people
+      UPDATE sot.people
       SET ${updates.join(", ")}
       WHERE person_id = $${paramIndex}
       RETURNING person_id, display_name, entity_type, trapping_skill, trapping_skill_notes

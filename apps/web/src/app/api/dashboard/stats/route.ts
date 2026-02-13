@@ -25,12 +25,12 @@ export async function GET(request: NextRequest) {
     const stats = await queryOne<DashboardStats>(`
       WITH active AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.sot_requests
+        FROM ops.requests
         WHERE status NOT IN ('completed', 'cancelled')
       ),
       my_active AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.sot_requests r
+        FROM ops.requests r
         WHERE r.status NOT IN ('completed', 'cancelled')
           AND ($1::uuid IS NOT NULL AND EXISTS (
             SELECT 1 FROM trapper.request_trapper_assignments rta
@@ -41,36 +41,36 @@ export async function GET(request: NextRequest) {
       ),
       intake AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.web_intake_submissions
+        FROM ops.intake_submissions
         WHERE submission_status IN ('new', 'needs_review')
       ),
       cats AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.sot_cats
+        FROM sot.cats
         WHERE created_at >= date_trunc('month', CURRENT_DATE)
       ),
       stale AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.sot_requests
+        FROM ops.requests
         WHERE status NOT IN ('completed', 'cancelled', 'on_hold')
           AND updated_at < NOW() - INTERVAL '14 days'
       ),
       overdue AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.web_intake_submissions
+        FROM ops.intake_submissions
         WHERE submission_status IN ('new', 'needs_review')
           AND submitted_at < NOW() - INTERVAL '7 days'
       ),
       unassigned AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.sot_requests
+        FROM ops.requests
         WHERE status NOT IN ('completed', 'cancelled')
           AND assignment_status = 'pending'
       ),
       with_location AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.sot_requests r
-        JOIN trapper.places p ON p.place_id = r.place_id
+        FROM ops.requests r
+        JOIN sot.places p ON p.place_id = r.place_id
         WHERE r.status NOT IN ('completed', 'cancelled')
           AND p.latitude IS NOT NULL
       ),

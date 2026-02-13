@@ -307,7 +307,7 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
     const notesContent = situationParts;
 
     const result = await queryOne<{ submission_id: string }>(
-      `INSERT INTO trapper.web_intake_submissions (
+      `INSERT INTO ops.intake_submissions (
         first_name, last_name, email, phone,
         requester_address, requester_city, requester_zip,
         cats_address, cats_city, cats_zip, county,
@@ -368,13 +368,13 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
     // Post-insert: Match to person and link to place (fire-and-forget)
     // These are the same triggers used by the regular intake API
     try {
-      await query("SELECT trapper.match_intake_to_person($1)", [result.submission_id]);
+      await query("SELECT sot.match_intake_to_person($1)", [result.submission_id]);
     } catch (err) {
       console.error("Person matching error for", result.submission_id, err);
     }
 
     try {
-      await query("SELECT trapper.link_intake_submission_to_place($1)", [result.submission_id]);
+      await query("SELECT sot.link_intake_to_place($1)", [result.submission_id]);
     } catch (err) {
       console.error("Place linking error for", result.submission_id, err);
     }

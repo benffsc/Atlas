@@ -25,7 +25,7 @@ export async function GET() {
           o.org_id,
           COALESCE(members.count, 0)::int AS direct_member_count,
           COALESCE(cats.count, 0)::int AS direct_cat_count
-        FROM trapper.organizations o
+        FROM sot.organizations o
         LEFT JOIN (
           SELECT org_id, COUNT(*) as count
           FROM trapper.person_organization_link
@@ -43,8 +43,8 @@ export async function GET() {
           parent.org_id as parent_org_id,
           SUM(odc.direct_member_count)::int AS child_member_total,
           SUM(odc.direct_cat_count)::int AS child_cat_total
-        FROM trapper.organizations parent
-        JOIN trapper.organizations child ON child.parent_org_id = parent.org_id
+        FROM sot.organizations parent
+        JOIN sot.organizations child ON child.parent_org_id = parent.org_id
         JOIN org_direct_counts odc ON odc.org_id = child.org_id
         WHERE parent.org_type = 'parent'
         GROUP BY parent.org_id
@@ -68,7 +68,7 @@ export async function GET() {
           THEN odc.direct_cat_count + COALESCE(ct.child_cat_total, 0)
           ELSE odc.direct_cat_count
         END AS cat_count
-      FROM trapper.organizations o
+      FROM sot.organizations o
       JOIN org_direct_counts odc ON odc.org_id = o.org_id
       LEFT JOIN child_totals ct ON ct.parent_org_id = o.org_id
       ORDER BY

@@ -381,7 +381,7 @@ export async function POST(request: NextRequest) {
         ai_access_level: string | null;
         display_name: string | null;
       }>(
-        `SELECT ai_access_level, display_name FROM trapper.staff WHERE staff_id = $1`,
+        `SELECT ai_access_level, display_name FROM ops.staff WHERE staff_id = $1`,
         [session.staff_id]
       );
       // Default to read_only for authenticated staff without explicit level

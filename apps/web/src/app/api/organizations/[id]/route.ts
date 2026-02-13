@@ -66,8 +66,8 @@ export async function GET(
         o.is_internal,
         o.created_at,
         parent.display_name AS parent_name
-      FROM trapper.organizations o
-      LEFT JOIN trapper.organizations parent ON parent.org_id = o.parent_org_id
+      FROM sot.organizations o
+      LEFT JOIN sot.organizations parent ON parent.org_id = o.parent_org_id
       WHERE o.org_id::text = $1 OR o.org_code = $1
     `, [id]);
 
@@ -92,8 +92,8 @@ export async function GET(
         s.department AS staff_department,
         pol.created_at
       FROM trapper.person_organization_link pol
-      JOIN trapper.sot_people p ON p.person_id = pol.person_id
-      LEFT JOIN trapper.staff s ON s.person_id = pol.person_id AND s.is_active = true
+      JOIN sot.people p ON p.person_id = pol.person_id
+      LEFT JOIN ops.staff s ON s.person_id = pol.person_id AND s.is_active = true
       WHERE pol.org_id = $1
       ORDER BY p.display_name
     `, [org.org_id]);
@@ -110,8 +110,8 @@ export async function GET(
         ci.id_value AS microchip,
         cor.created_at
       FROM trapper.cat_organization_relationships cor
-      JOIN trapper.sot_cats c ON c.cat_id = cor.cat_id
-      LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+      JOIN sot.cats c ON c.cat_id = cor.cat_id
+      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
       WHERE cor.org_id = $1
       ORDER BY c.display_name
       LIMIT 100
@@ -126,7 +126,7 @@ export async function GET(
         o.org_type,
         COALESCE(members.count, 0)::int AS member_count,
         COALESCE(cats.count, 0)::int AS cat_count
-      FROM trapper.organizations o
+      FROM sot.organizations o
       LEFT JOIN (
         SELECT org_id, COUNT(*) as count
         FROM trapper.person_organization_link

@@ -51,9 +51,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ka.*,
         s1.display_name as created_by_name,
         s2.display_name as updated_by_name
-      FROM trapper.knowledge_articles ka
-      LEFT JOIN trapper.staff s1 ON s1.staff_id = ka.created_by
-      LEFT JOIN trapper.staff s2 ON s2.staff_id = ka.updated_by
+      FROM sot.knowledge_articles ka
+      LEFT JOIN ops.staff s1 ON s1.staff_id = ka.created_by
+      LEFT JOIN ops.staff s2 ON s2.staff_id = ka.updated_by
       WHERE ${isUUID ? "ka.article_id = $1" : "ka.slug = $1"}
       `,
       [id]
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (session) {
       await query(
         `
-        INSERT INTO trapper.knowledge_usage_log (article_id, staff_id, session_id)
+        INSERT INTO sot.knowledge_usage_log (article_id, staff_id, session_id)
         VALUES ($1, $2, $3)
         `,
         [article.article_id, session.staff_id, request.headers.get("x-session-id") || null]
@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Check article exists
     const existing = await queryOne<{ article_id: string }>(
-      `SELECT article_id FROM trapper.knowledge_articles WHERE article_id = $1 OR slug = $1`,
+      `SELECT article_id FROM sot.knowledge_articles WHERE article_id = $1 OR slug = $1`,
       [id]
     );
 
@@ -161,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Check for slug conflict if slug is being updated
     if (body.slug) {
       const slugConflict = await queryOne<{ article_id: string }>(
-        `SELECT article_id FROM trapper.knowledge_articles WHERE slug = $1 AND article_id != $2`,
+        `SELECT article_id FROM sot.knowledge_articles WHERE slug = $1 AND article_id != $2`,
         [body.slug, existing.article_id]
       );
 
@@ -174,7 +174,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     await query(
-      `UPDATE trapper.knowledge_articles SET ${updates.join(", ")} WHERE article_id = $${paramIndex}`,
+      `UPDATE sot.knowledge_articles SET ${updates.join(", ")} WHERE article_id = $${paramIndex}`,
       [...updateParams, existing.article_id]
     );
 
@@ -203,7 +203,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Check article exists
     const existing = await queryOne<{ article_id: string }>(
-      `SELECT article_id FROM trapper.knowledge_articles WHERE article_id = $1 OR slug = $1`,
+      `SELECT article_id FROM sot.knowledge_articles WHERE article_id = $1 OR slug = $1`,
       [id]
     );
 
@@ -213,13 +213,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Delete usage logs first (foreign key)
     await query(
-      `DELETE FROM trapper.knowledge_usage_log WHERE article_id = $1`,
+      `DELETE FROM sot.knowledge_usage_log WHERE article_id = $1`,
       [existing.article_id]
     );
 
     // Delete article
     await query(
-      `DELETE FROM trapper.knowledge_articles WHERE article_id = $1`,
+      `DELETE FROM sot.knowledge_articles WHERE article_id = $1`,
       [existing.article_id]
     );
 

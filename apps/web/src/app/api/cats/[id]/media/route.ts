@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         uploaded_at,
         source_type,
         source_request_id
-       FROM trapper.v_cat_media
+       FROM sot.v_cat_media
        WHERE cat_id = $1
        ORDER BY uploaded_at DESC`,
       [id]
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             ELSE 'linked'
           END AS source_type,
           request_id AS source_request_id
-         FROM trapper.request_media
+         FROM ops.request_media
          WHERE NOT is_archived
            AND (direct_cat_id = $1 OR linked_cat_id = $1)
          ORDER BY uploaded_at DESC`,

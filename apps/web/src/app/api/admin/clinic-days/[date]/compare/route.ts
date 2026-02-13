@@ -35,13 +35,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Get clinic day summary
     const comparison = await queryOne(
-      `SELECT * FROM trapper.v_clinic_day_comparison WHERE clinic_date = $1`,
+      `SELECT * FROM ops.v_clinic_day_comparison WHERE clinic_date = $1`,
       [date]
     );
 
     // Get clinic day entries (our logged data)
     const loggedEntries = await queryRows(
-      `SELECT * FROM trapper.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
+      `SELECT * FROM ops.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
       [date]
     );
 
@@ -59,11 +59,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         p.formatted_address as place_address,
         a.service_type,
         per.display_name as owner_name
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.sot_people t ON t.person_id = a.trapper_person_id
-      LEFT JOIN trapper.places p ON p.place_id = a.place_id
-      LEFT JOIN trapper.sot_people per ON per.person_id = a.person_id
+      FROM ops.appointments a
+      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN sot.people t ON t.person_id = a.trapper_person_id
+      LEFT JOIN sot.places p ON p.place_id = a.place_id
+      LEFT JOIN sot.people per ON per.person_id = a.person_id
       WHERE a.appointment_date = $1
       ORDER BY t.display_name, c.display_name
       `,

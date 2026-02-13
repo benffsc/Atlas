@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     // Call the SQL function to convert to request
     const result = await queryOne<{ request_id: string }>(
-      `SELECT trapper.convert_intake_to_request($1, $2) as request_id`,
+      `SELECT sot.convert_intake_to_request($1, $2) as request_id`,
       [submission_id, converted_by]
     );
 

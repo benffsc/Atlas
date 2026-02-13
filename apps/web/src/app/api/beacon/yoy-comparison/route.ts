@@ -66,7 +66,7 @@ export async function GET() {
       alterations_yoy_pct: number | null;
     }>(
       `SELECT *
-       FROM trapper.v_yoy_activity_comparison
+       FROM ops.v_yoy_activity_comparison
        WHERE current_year IN ($1, $2)
        ORDER BY current_year, month`,
       [currentYear, previousYear]
@@ -82,7 +82,7 @@ export async function GET() {
          EXTRACT(YEAR FROM created_at)::INT AS year,
          EXTRACT(MONTH FROM created_at)::INT AS month,
          COUNT(*)::INT AS request_count
-       FROM trapper.sot_requests
+       FROM ops.requests
        WHERE EXTRACT(YEAR FROM created_at) IN ($1, $2)
        GROUP BY 1, 2
        ORDER BY 1, 2`,

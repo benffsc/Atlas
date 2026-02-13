@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
         gme.parsed_cat_count,
         gme.ai_summary,
         gme.imported_at::TEXT
-      FROM trapper.google_map_entries gme
-      LEFT JOIN trapper.places np ON np.place_id = gme.nearest_place_id
+      FROM source.google_map_entries gme
+      LEFT JOIN sot.places np ON np.place_id = gme.nearest_place_id
       ${whereClause}
       ORDER BY
         CASE gme.match_status
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       SELECT
         match_status,
         COUNT(*) as count
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       GROUP BY match_status
     `;
     const counts = await queryRows<{ match_status: string; count: string }>(countsSql);
@@ -123,7 +123,7 @@ export async function PATCH(request: NextRequest) {
       // Link to place using the database function
       const linkBody = body as LinkBody;
       const result = await queryOne<{ success: boolean; error?: string }>(
-        `SELECT * FROM trapper.link_google_map_entry($1, $2, $3, $4)`,
+        `SELECT * FROM sot.link_google_map_entry($1, $2, $3, $4)`,
         [
           linkBody.entry_id,
           linkBody.place_id,

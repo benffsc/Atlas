@@ -61,8 +61,8 @@ export async function GET(
         END AS related_place_name
       FROM trapper.place_place_edges e
       JOIN trapper.relationship_types rt ON rt.id = e.relationship_type_id
-      LEFT JOIN trapper.places pa ON pa.place_id = e.place_id_a
-      LEFT JOIN trapper.places pb ON pb.place_id = e.place_id_b
+      LEFT JOIN sot.places pa ON pa.place_id = e.place_id_a
+      LEFT JOIN sot.places pb ON pb.place_id = e.place_id_b
       WHERE e.place_id_a = $1 OR e.place_id_b = $1
       ORDER BY e.created_at DESC
     `, [id]);

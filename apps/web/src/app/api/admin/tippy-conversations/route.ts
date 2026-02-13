@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
           WHERE f.conversation_id = c.conversation_id::text
         ) AS feedback_count
       FROM trapper.tippy_conversations c
-      LEFT JOIN trapper.staff s ON s.staff_id = c.staff_id
+      LEFT JOIN ops.staff s ON s.staff_id = c.staff_id
       ${whereClause}
       ORDER BY c.started_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

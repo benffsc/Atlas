@@ -71,7 +71,7 @@ export async function GET(
   try {
     // First check if this place was merged into another
     const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
-      `SELECT merged_into_place_id FROM trapper.places WHERE place_id = $1`,
+      `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
       [id]
     );
 
@@ -98,9 +98,9 @@ export async function GET(
         v.place_relationships,
         v.cat_count,
         v.person_count
-      FROM trapper.v_place_detail_v2 v
-      LEFT JOIN trapper.places p ON p.place_id = v.place_id
-      LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
+      FROM sot.v_place_detail_v2 v
+      LEFT JOIN sot.places p ON p.place_id = v.place_id
+      LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
       WHERE v.place_id = $1
     `;
 
@@ -117,7 +117,7 @@ export async function GET(
           p.formatted_address,
           p.place_kind::text AS place_kind,
           p.is_address_backed,
-          EXISTS(SELECT 1 FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = p.place_id) AS has_cat_activity,
+          EXISTS(SELECT 1 FROM sot.cat_place_relationships cpr WHERE cpr.place_id = p.place_id) AS has_cat_activity,
           sa.locality,
           sa.postal_code,
           sa.admin_area_1 AS state_province,
@@ -131,8 +131,8 @@ export async function GET(
               'cat_id', c.cat_id, 'cat_name', c.cat_name, 'sex', c.sex,
               'microchip', c.primary_microchip, 'source_system', c.source_system
             ))
-            FROM trapper.cat_place_relationships cpr
-            JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+            FROM sot.cat_place_relationships cpr
+            JOIN sot.cats c ON c.cat_id = cpr.cat_id
             WHERE cpr.place_id = p.place_id
           ), '[]'::json) AS cats,
           COALESCE((
@@ -141,17 +141,17 @@ export async function GET(
               'display_name', per.display_name,
               'role', ppr.role::text
             ))
-            FROM trapper.person_place_relationships ppr
-            JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+            FROM sot.person_place_relationships ppr
+            JOIN sot.people per ON per.person_id = ppr.person_id
             WHERE ppr.place_id = p.place_id
               AND per.merged_into_person_id IS NULL
               AND per.display_name IS NOT NULL
           ), '[]'::json) AS people,
           '[]'::json AS place_relationships,
-          COALESCE((SELECT COUNT(DISTINCT cpr.cat_id) FROM trapper.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0) AS cat_count,
-          COALESCE((SELECT COUNT(DISTINCT ppr.person_id) FROM trapper.person_place_relationships ppr JOIN trapper.sot_people per ON per.person_id = ppr.person_id WHERE ppr.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
-        FROM trapper.places p
-        LEFT JOIN trapper.sot_addresses sa ON sa.address_id = p.sot_address_id
+          COALESCE((SELECT COUNT(DISTINCT cpr.cat_id) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0) AS cat_count,
+          COALESCE((SELECT COUNT(DISTINCT ppr.person_id) FROM sot.person_place_relationships ppr JOIN sot.people per ON per.person_id = ppr.person_id WHERE ppr.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
+        FROM sot.places p
+        LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
         WHERE p.place_id = $1
           AND p.merged_into_place_id IS NULL
       `;
@@ -171,8 +171,8 @@ export async function GET(
          p.verified_at,
          p.verified_by,
          s.display_name AS verified_by_name
-       FROM trapper.places p
-       LEFT JOIN trapper.staff s ON p.verified_by = s.staff_id::text
+       FROM sot.places p
+       LEFT JOIN ops.staff s ON p.verified_by = s.staff_id::text
        WHERE p.place_id = $1`,
       [placeId]
     );
@@ -189,8 +189,8 @@ export async function GET(
          pc.is_verified,
          pc.assigned_at,
          pc.source_system
-       FROM trapper.place_contexts pc
-       JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
+       FROM sot.place_contexts pc
+       JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
        WHERE pc.place_id = $1
          AND pc.valid_to IS NULL
        ORDER BY pct.sort_order`,
@@ -325,7 +325,7 @@ export async function PATCH(
     }
 
     if (body.place_kind !== undefined) {
-      updates.push(`place_kind = $${paramIndex}::trapper.place_kind`);
+      updates.push(`place_kind = $${paramIndex}`);
       values.push(body.place_kind);
       paramIndex++;
     }
@@ -340,7 +340,7 @@ export async function PATCH(
       const currentSql = `
         SELECT formatted_address, locality, postal_code, state_province,
                ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng
-        FROM trapper.places WHERE place_id = $1
+        FROM sot.places WHERE place_id = $1
       `;
       const current = await queryOne<{
         formatted_address: string | null;
@@ -440,7 +440,7 @@ export async function PATCH(
     values.push(id);
 
     const sql = `
-      UPDATE trapper.places
+      UPDATE sot.places
       SET ${updates.join(", ")}
       WHERE place_id = $${paramIndex}
       RETURNING place_id, display_name, place_kind, is_address_backed, formatted_address

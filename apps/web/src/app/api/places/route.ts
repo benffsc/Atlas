@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         person_count,
         has_cat_activity,
         created_at
-      FROM trapper.v_place_list
+      FROM sot.v_place_list
       ${whereClause}
       ORDER BY display_name ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_place_list
+      FROM sot.v_place_list
       ${whereClause}
     `;
 
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     const addressToUse = body.formatted_address || body.location_description || body.display_name;
 
     const result = await queryOne<PlaceRow>(
-      `SELECT trapper.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id`,
+      `SELECT sot.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id`,
       [
         addressToUse,
         body.display_name,
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
       let paramIdx = 1;
 
       if (body.place_kind) {
-        updates.push(`place_kind = $${paramIdx}::trapper.place_kind`);
+        updates.push(`place_kind = $${paramIdx}`);
         updateParams.push(body.place_kind);
         paramIdx++;
       }
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
       if (updates.length > 0) {
         updateParams.push(result.place_id);
         await query(
-          `UPDATE trapper.places SET ${updates.join(', ')}, updated_at = NOW() WHERE place_id = $${paramIdx}`,
+          `UPDATE sot.places SET ${updates.join(', ')}, updated_at = NOW() WHERE place_id = $${paramIdx}`,
           updateParams
         );
       }

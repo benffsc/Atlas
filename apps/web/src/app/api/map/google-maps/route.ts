@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
         g.nearest_place_id,
         g.nearest_place_distance_m,
         p.display_name as nearest_place_name
-      FROM trapper.google_map_entries g
-      LEFT JOIN trapper.places p ON p.place_id = g.nearest_place_id
+      FROM source.google_map_entries g
+      LEFT JOIN sot.places p ON p.place_id = g.nearest_place_id
       WHERE ${conditions.join(" AND ")}
       ORDER BY g.parsed_date DESC NULLS LAST
       LIMIT $${limitParam}
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       SELECT
         COALESCE(ai_classification->>'primary_meaning', 'unclassified') as classification,
         COUNT(*)::INT as count
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE linked_place_id IS NULL AND lat IS NOT NULL
       GROUP BY ai_classification->>'primary_meaning'
       ORDER BY count DESC
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     // Total unattached count
     const totalCount = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::INT as count
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE linked_place_id IS NULL AND lat IS NOT NULL
     `);
 

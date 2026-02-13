@@ -107,10 +107,10 @@ export async function GET(request: NextRequest) {
         ], NULL) as treatments,
         cat_photo.storage_path as cat_photo_url,
         v.source_system
-      FROM trapper.v_appointment_detail v
+      FROM ops.v_appointment_detail v
       LEFT JOIN LATERAL (
         SELECT rm.storage_path
-        FROM trapper.request_media rm
+        FROM ops.request_media rm
         WHERE rm.direct_cat_id = v.cat_id
           AND NOT rm.is_archived
         ORDER BY COALESCE(rm.is_hero, FALSE) DESC, rm.uploaded_at DESC
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_appointment_detail v
+      FROM ops.v_appointment_detail v
       ${whereClause}
     `;
 

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     // Get current password hash
     const staff = await queryOne<{ password_hash: string | null }>(
-      `SELECT password_hash FROM trapper.staff WHERE staff_id = $1`,
+      `SELECT password_hash FROM ops.staff WHERE staff_id = $1`,
       [session.staff_id]
     );
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Update password and clear change requirement
     await queryOne(
-      `UPDATE trapper.staff
+      `UPDATE ops.staff
        SET password_hash = $1,
            password_change_required = FALSE,
            password_set_at = NOW(),

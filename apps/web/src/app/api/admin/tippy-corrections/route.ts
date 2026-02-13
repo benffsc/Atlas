@@ -43,15 +43,15 @@ export async function GET(request: NextRequest) {
         pc.created_at,
         -- Entity display name
         CASE pc.entity_type
-          WHEN 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = pc.entity_id)
-          WHEN 'cat' THEN (SELECT display_name FROM trapper.sot_cats WHERE cat_id = pc.entity_id)
-          WHEN 'place' THEN (SELECT formatted_address FROM trapper.places WHERE place_id = pc.entity_id)
-          WHEN 'request' THEN (SELECT 'Request #' || source_record_id FROM trapper.sot_requests WHERE request_id = pc.entity_id)
+          WHEN 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = pc.entity_id)
+          WHEN 'cat' THEN (SELECT display_name FROM sot.cats WHERE cat_id = pc.entity_id)
+          WHEN 'place' THEN (SELECT formatted_address FROM sot.places WHERE place_id = pc.entity_id)
+          WHEN 'request' THEN (SELECT 'Request #' || source_record_id FROM ops.requests WHERE request_id = pc.entity_id)
         END as entity_display_name,
         -- Reviewer name
         s.display_name as reviewer_name
       FROM trapper.tippy_proposed_corrections pc
-      LEFT JOIN trapper.staff s ON s.staff_id = pc.reviewed_by
+      LEFT JOIN ops.staff s ON s.staff_id = pc.reviewed_by
       ${statusFilter}
       ORDER BY
         CASE pc.confidence WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,

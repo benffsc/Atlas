@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     // Context filter
     const contextFilter = hasContext
       ? `AND EXISTS (
-           SELECT 1 FROM trapper.google_map_entries g
+           SELECT 1 FROM source.google_map_entries g
            WHERE g.linked_place_id = p.place_id
          )`
       : "";
@@ -93,24 +93,24 @@ export async function GET(request: NextRequest) {
 
         -- Latest colony estimate
         COALESCE(
-          (SELECT total_cats FROM trapper.place_colony_estimates
+          (SELECT total_cats FROM sot.place_colony_estimates
            WHERE place_id = p.place_id
            ORDER BY observation_date DESC LIMIT 1),
           0
         ) as colony_size,
         COALESCE(
-          (SELECT altered_count FROM trapper.place_colony_estimates
+          (SELECT altered_count FROM sot.place_colony_estimates
            WHERE place_id = p.place_id
            ORDER BY observation_date DESC LIMIT 1),
           0
         ) as altered_count,
 
         -- Active request
-        (SELECT request_id FROM trapper.sot_requests
+        (SELECT request_id FROM ops.requests
          WHERE place_id = p.place_id
            AND status NOT IN ('completed', 'cancelled')
          ORDER BY created_at DESC LIMIT 1) as active_request_id,
-        (SELECT status FROM trapper.sot_requests
+        (SELECT status FROM ops.requests
          WHERE place_id = p.place_id
            AND status NOT IN ('completed', 'cancelled')
          ORDER BY created_at DESC LIMIT 1) as request_status,
@@ -132,27 +132,27 @@ export async function GET(request: NextRequest) {
               'icon_color', g.icon_color
             ) ORDER BY g.parsed_date DESC NULLS LAST
           )
-          FROM trapper.google_map_entries g
+          FROM source.google_map_entries g
           WHERE g.linked_place_id = p.place_id
           ),
           '[]'::jsonb
         ) as attached_context,
 
         -- Count of attached entries
-        (SELECT COUNT(*)::INT FROM trapper.google_map_entries g
+        (SELECT COUNT(*)::INT FROM source.google_map_entries g
          WHERE g.linked_place_id = p.place_id) as attached_count,
 
         -- AI-extracted attributes
         COALESCE(
           (SELECT jsonb_object_agg(attribute_key, attribute_value)
-           FROM trapper.entity_attributes ea
+           FROM sot.entity_attributes ea
            WHERE ea.entity_type = 'place'
              AND ea.entity_id = p.place_id
              AND ea.superseded_at IS NULL),
           '{}'::jsonb
         ) as ai_attributes
 
-      FROM trapper.places p
+      FROM sot.places p
       WHERE p.merged_into_place_id IS NULL
         AND p.location IS NOT NULL
         ${boundsFilter}
@@ -168,10 +168,10 @@ export async function GET(request: NextRequest) {
       SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE EXISTS (
-          SELECT 1 FROM trapper.google_map_entries g
+          SELECT 1 FROM source.google_map_entries g
           WHERE g.linked_place_id = p.place_id
         )) as with_context
-      FROM trapper.places p
+      FROM sot.places p
       WHERE p.merged_into_place_id IS NULL
         AND p.location IS NOT NULL
     `;

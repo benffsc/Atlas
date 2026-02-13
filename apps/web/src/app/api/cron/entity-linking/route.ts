@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const catInfo = await queryOne(
-        "SELECT * FROM trapper.process_clinichq_cat_info(500)"
+        "SELECT * FROM ops.process_clinichq_cat_info(500)"
       );
       catchup.cat_info = catInfo;
     } catch (e) {
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const ownerInfo = await queryOne(
-        "SELECT * FROM trapper.process_clinichq_owner_info(500)"
+        "SELECT * FROM ops.process_clinichq_owner_info(500)"
       );
       catchup.owner_info = ownerInfo;
     } catch (e) {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Creates cat records for cats without microchips using clinichq_animal_id
     try {
       const unchippedCats = await queryOne(
-        "SELECT * FROM trapper.process_clinichq_unchipped_cats(500)"
+        "SELECT * FROM ops.process_clinichq_unchipped_cats(500)"
       );
       catchup.unchipped_cats = unchippedCats;
     } catch (e) {
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     // Marks cats as deceased and creates mortality events
     try {
       const euthanasia = await queryOne(
-        "SELECT * FROM trapper.process_clinic_euthanasia(500)"
+        "SELECT * FROM ops.process_clinic_euthanasia(500)"
       );
       catchup.euthanasia = euthanasia;
     } catch (e) {
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     // Safely extracts chips from "CatName - A439019 - 981020039875779" patterns
     try {
       const embeddedChips = await queryRows<LinkingResult>(
-        "SELECT * FROM trapper.process_embedded_microchips_in_animal_names()"
+        "SELECT * FROM ops.process_embedded_microchips_in_animal_names()"
       );
       const chipsLinked = embeddedChips.reduce((sum, r) => sum + r.count, 0);
       if (chipsLinked > 0) {
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
 
     // Step 2: Run all entity linking operations
     const results = await queryRows<LinkingResult>(
-      "SELECT * FROM trapper.run_all_entity_linking()"
+      "SELECT * FROM sot.run_all_entity_linking()"
     );
 
     // Build summary

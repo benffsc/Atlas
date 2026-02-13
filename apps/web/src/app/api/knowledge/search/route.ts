@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     // Use the database search function
     const results = await queryRows<SearchResult>(
-      `SELECT * FROM trapper.search_knowledge($1, $2, $3, $4)`,
+      `SELECT * FROM sot.search_knowledge($1, $2, $3, $4)`,
       [queryText, userAccessLevel, category || null, limit]
     );
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       const topResultId = results[0].article_id;
       await query(
         `
-        INSERT INTO trapper.knowledge_usage_log (article_id, query, relevance_score, staff_id, session_id)
+        INSERT INTO sot.knowledge_usage_log (article_id, query, relevance_score, staff_id, session_id)
         VALUES ($1, $2, $3, $4, $5)
         `,
         [topResultId, queryText, results[0].relevance, session.staff_id, request.headers.get("x-session-id") || null]
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     // Use the database search function
     const results = await queryRows<SearchResult>(
-      `SELECT * FROM trapper.search_knowledge($1, $2, $3, $4)`,
+      `SELECT * FROM sot.search_knowledge($1, $2, $3, $4)`,
       [queryText, userAccessLevel, category || null, limit || 10]
     );
 
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     const enrichedResults = [];
     for (const result of results.slice(0, 3)) {
       const fullArticle = await queryRows<{ content: string }>(
-        `SELECT content FROM trapper.knowledge_articles WHERE article_id = $1`,
+        `SELECT content FROM sot.knowledge_articles WHERE article_id = $1`,
         [result.article_id]
       );
       enrichedResults.push({
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       const topResultId = results[0].article_id;
       await query(
         `
-        INSERT INTO trapper.knowledge_usage_log (article_id, query, relevance_score, staff_id, session_id)
+        INSERT INTO sot.knowledge_usage_log (article_id, query, relevance_score, staff_id, session_id)
         VALUES ($1, $2, $3, $4, $5)
         `,
         [topResultId, queryText, results[0].relevance, session.staff_id, request.headers.get("x-tippy-session") || null]

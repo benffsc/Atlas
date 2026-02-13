@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   // For manual GET requests with auth, return status
   try {
     const dashboard = await queryRows<DashboardRow>(
-      "SELECT * FROM trapper.v_processing_dashboard ORDER BY queued DESC"
+      "SELECT * FROM ops.v_processing_dashboard ORDER BY queued DESC"
     );
 
     const totalQueued = dashboard.reduce((sum, row) => sum + Number(row.queued || 0), 0);
@@ -99,7 +99,7 @@ async function processJobs(request: NextRequest): Promise<NextResponse> {
     // Process jobs until time limit or no more jobs
     while (Date.now() - startTime < MAX_DURATION) {
       const result = await queryOne<ProcessResult>(
-        "SELECT * FROM trapper.process_next_job($1)",
+        "SELECT * FROM ops.process_next_job($1)",
         [BATCH_SIZE]
       );
 
@@ -124,7 +124,7 @@ async function processJobs(request: NextRequest): Promise<NextResponse> {
 
     // Get final queue status
     const dashboard = await queryRows<DashboardRow>(
-      "SELECT * FROM trapper.v_processing_dashboard ORDER BY queued DESC"
+      "SELECT * FROM ops.v_processing_dashboard ORDER BY queued DESC"
     );
 
     const totalQueued = dashboard.reduce((sum, row) => sum + Number(row.queued || 0), 0);

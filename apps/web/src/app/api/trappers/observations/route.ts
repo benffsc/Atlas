@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
           r.notes AS request_notes,
           rta.assigned_at
         FROM trapper.request_trapper_assignments rta
-        JOIN trapper.sot_requests r ON r.request_id = rta.request_id
-        JOIN trapper.places p ON p.place_id = r.place_id
+        JOIN ops.requests r ON r.request_id = rta.request_id
+        JOIN sot.places p ON p.place_id = r.place_id
         WHERE rta.assignment_status = 'active'
           AND r.status NOT IN ('completed', 'cancelled')
           ${trapperId ? "AND rta.trapper_person_id = $1" : ""}
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
           COUNT(pce.estimate_id) AS observation_count,
           (
             SELECT pce2.total_cats_observed
-            FROM trapper.place_colony_estimates pce2
+            FROM sot.place_colony_estimates pce2
             WHERE pce2.place_id = ts.place_id
               AND pce2.source_type = 'trapper_site_visit'
             ORDER BY pce2.observation_date DESC
@@ -68,14 +68,14 @@ export async function GET(request: NextRequest) {
           ) AS latest_cats_seen,
           (
             SELECT pce2.eartip_count_observed
-            FROM trapper.place_colony_estimates pce2
+            FROM sot.place_colony_estimates pce2
             WHERE pce2.place_id = ts.place_id
               AND pce2.source_type = 'trapper_site_visit'
             ORDER BY pce2.observation_date DESC
             LIMIT 1
           ) AS latest_eartips_seen
         FROM trapper_sites ts
-        LEFT JOIN trapper.place_colony_estimates pce
+        LEFT JOIN sot.place_colony_estimates pce
           ON pce.place_id = ts.place_id
           AND pce.source_type = 'trapper_site_visit'
         GROUP BY ts.place_id
@@ -85,8 +85,8 @@ export async function GET(request: NextRequest) {
           ts.place_id,
           COUNT(DISTINCT c.cat_id) AS total_cats_from_clinic
         FROM trapper_sites ts
-        LEFT JOIN trapper.cat_place_relationships cpr ON cpr.place_id = ts.place_id
-        LEFT JOIN trapper.sot_cats c ON c.cat_id = cpr.cat_id
+        LEFT JOIN sot.cat_place_relationships cpr ON cpr.place_id = ts.place_id
+        LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id
           AND c.altered_status IN ('spayed', 'neutered')
         GROUP BY ts.place_id
       )
@@ -127,8 +127,8 @@ export async function GET(request: NextRequest) {
         pce.eartip_count_observed::INT,
         pce.observation_date::TEXT,
         pce.notes
-      FROM trapper.place_colony_estimates pce
-      JOIN trapper.places p ON p.place_id = pce.place_id
+      FROM sot.place_colony_estimates pce
+      JOIN sot.places p ON p.place_id = pce.place_id
       WHERE pce.source_type = 'trapper_site_visit'
         AND pce.total_cats_observed IS NOT NULL
       ORDER BY pce.observation_date DESC, pce.created_at DESC

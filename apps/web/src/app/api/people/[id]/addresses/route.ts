@@ -38,8 +38,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         pl.display_name,
         ppr.role,
         ppr.confidence
-      FROM trapper.person_place_relationships ppr
-      JOIN trapper.places pl ON pl.place_id = ppr.place_id
+      FROM sot.person_place_relationships ppr
+      JOIN sot.places pl ON pl.place_id = ppr.place_id
       WHERE ppr.person_id = $1
         AND pl.merged_into_place_id IS NULL
       ORDER BY

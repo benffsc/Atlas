@@ -20,21 +20,21 @@ export async function GET(request: NextRequest) {
   try {
     const [orphans, stats, bySource, byKind] = await Promise.all([
       queryRows<OrphanPlace>(
-        `SELECT * FROM trapper.v_orphan_places LIMIT $1 OFFSET $2`,
+        `SELECT * FROM ops.v_orphan_places LIMIT $1 OFFSET $2`,
         [limit, offset]
       ),
       queryOne<{ total: number }>(
-        `SELECT COUNT(*)::int AS total FROM trapper.v_orphan_places`
+        `SELECT COUNT(*)::int AS total FROM ops.v_orphan_places`
       ),
       queryRows<{ source_system: string | null; count: number }>(
         `SELECT source_system, COUNT(*)::int AS count
-         FROM trapper.v_orphan_places
+         FROM ops.v_orphan_places
          GROUP BY source_system
          ORDER BY count DESC`
       ),
       queryRows<{ place_kind: string | null; count: number }>(
         `SELECT place_kind, COUNT(*)::int AS count
-         FROM trapper.v_orphan_places
+         FROM ops.v_orphan_places
          GROUP BY place_kind
          ORDER BY count DESC`
       ),
@@ -78,11 +78,11 @@ export async function DELETE(request: NextRequest) {
     const result = await queryOne<{ deleted: number }>(`
       WITH to_delete AS (
         SELECT o.place_id
-        FROM trapper.v_orphan_places o
+        FROM ops.v_orphan_places o
         WHERE o.place_id = ANY($1::uuid[])
       ),
       deleted AS (
-        DELETE FROM trapper.places
+        DELETE FROM sot.places
         WHERE place_id IN (SELECT place_id FROM to_delete)
         RETURNING place_id
       )

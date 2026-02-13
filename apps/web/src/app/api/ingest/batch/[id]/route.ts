@@ -41,7 +41,7 @@ export async function GET(
 
   try {
     const status = await queryOne<BatchStatus>(
-      `SELECT * FROM trapper.v_clinichq_batch_status WHERE batch_id = $1`,
+      `SELECT * FROM ops.v_clinichq_batch_status WHERE batch_id = $1`,
       [batchId]
     );
 

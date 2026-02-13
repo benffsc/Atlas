@@ -51,8 +51,8 @@ export async function GET(
         cp.notes,
         cp.assigned_by,
         cp.assigned_at
-      FROM trapper.colony_people cp
-      JOIN trapper.sot_people p ON p.person_id = cp.person_id
+      FROM sot.colony_people cp
+      JOIN sot.people p ON p.person_id = cp.person_id
       WHERE cp.colony_id = $1
         AND p.merged_into_person_id IS NULL
       ORDER BY
@@ -132,7 +132,7 @@ export async function POST(
 
     // Verify colony exists
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM trapper.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
       [colonyId]
     );
 
@@ -142,7 +142,7 @@ export async function POST(
 
     // Verify person exists
     const person = await queryOne<{ person_id: string }>(
-      `SELECT person_id FROM trapper.sot_people
+      `SELECT person_id FROM sot.people
        WHERE person_id = $1 AND merged_into_person_id IS NULL`,
       [person_id]
     );
@@ -232,7 +232,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_people_id: string }>(
-      `DELETE FROM trapper.colony_people
+      `DELETE FROM sot.colony_people
        WHERE colony_id = $1 AND person_id = $2 AND role_type = $3
        RETURNING colony_people_id`,
       [colonyId, personId, roleType]

@@ -52,7 +52,7 @@ export async function GET(
       formatted_address: string | null;
     }>(
       `SELECT place_id, merged_into_place_id, formatted_address
-       FROM trapper.places WHERE place_id = $1`,
+       FROM sot.places WHERE place_id = $1`,
       [id]
     );
 
@@ -82,11 +82,11 @@ export async function GET(
          -- Colony fields (if place is in a colony)
          cp.colony_id,
          c.colony_name
-       FROM trapper.place_contexts pc
-       JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
-       LEFT JOIN trapper.known_organizations ko ON ko.org_id = pc.known_org_id
-       LEFT JOIN trapper.colony_places cp ON cp.place_id = pc.place_id
-       LEFT JOIN trapper.colonies c ON c.colony_id = cp.colony_id
+       FROM sot.place_contexts pc
+       JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
+       LEFT JOIN sot.known_organizations ko ON ko.org_id = pc.known_org_id
+       LEFT JOIN sot.colony_places cp ON cp.place_id = pc.place_id
+       LEFT JOIN sot.colonies c ON c.colony_id = cp.colony_id
        WHERE pc.place_id = $1
          AND pc.valid_to IS NULL
        ORDER BY pct.sort_order`,
@@ -156,7 +156,7 @@ export async function POST(
 
     // Validate context type exists
     const contextTypeCheck = await queryOne<{ context_type: string }>(
-      `SELECT context_type FROM trapper.place_context_types
+      `SELECT context_type FROM sot.place_context_types
        WHERE context_type = $1 AND is_active = TRUE`,
       [body.context_type]
     );
@@ -174,7 +174,7 @@ export async function POST(
       merged_into_place_id: string | null;
     }>(
       `SELECT place_id, merged_into_place_id
-       FROM trapper.places WHERE place_id = $1`,
+       FROM sot.places WHERE place_id = $1`,
       [id]
     );
 
@@ -229,11 +229,11 @@ export async function POST(
          ko.org_type AS known_org_type,
          cp.colony_id,
          c.colony_name
-       FROM trapper.place_contexts pc
-       JOIN trapper.place_context_types pct ON pct.context_type = pc.context_type
-       LEFT JOIN trapper.known_organizations ko ON ko.org_id = pc.known_org_id
-       LEFT JOIN trapper.colony_places cp ON cp.place_id = pc.place_id
-       LEFT JOIN trapper.colonies c ON c.colony_id = cp.colony_id
+       FROM sot.place_contexts pc
+       JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
+       LEFT JOIN sot.known_organizations ko ON ko.org_id = pc.known_org_id
+       LEFT JOIN sot.colony_places cp ON cp.place_id = pc.place_id
+       LEFT JOIN sot.colonies c ON c.colony_id = cp.colony_id
        WHERE pc.context_id = $1`,
       [result.context_id]
     );
@@ -285,7 +285,7 @@ export async function DELETE(
       merged_into_place_id: string | null;
     }>(
       `SELECT place_id, merged_into_place_id
-       FROM trapper.places WHERE place_id = $1`,
+       FROM sot.places WHERE place_id = $1`,
       [id]
     );
 

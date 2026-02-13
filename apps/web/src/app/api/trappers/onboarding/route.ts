@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     // Get candidates from pipeline view
     const candidates = await queryRows<OnboardingCandidate>(`
-      SELECT * FROM trapper.v_trapper_onboarding_pipeline
+      SELECT * FROM ops.v_trapper_onboarding_pipeline
       ${whereClause}
       ORDER BY
         CASE status
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     // Get stats
     const stats = await queryRows<OnboardingStats>(`
-      SELECT * FROM trapper.v_trapper_onboarding_stats
+      SELECT * FROM ops.v_trapper_onboarding_stats
     `);
 
     return NextResponse.json({

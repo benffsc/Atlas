@@ -35,21 +35,20 @@ export async function GET(
     // This includes both contact_attempt and note entries
     const journalLogs = await queryRows<CommunicationLog>(`
       SELECT
-        je.id AS log_id,
-        je.primary_submission_id AS submission_id,
+        je.entry_id::text AS log_id,
+        je.submission_id AS submission_id,
         je.contact_method,
         je.contact_result,
-        je.body AS notes,
-        COALESCE(je.occurred_at, je.created_at) AS contacted_at,
+        je.content AS notes,
+        COALESCE(je.entry_date::timestamp, je.created_at) AS contacted_at,
         je.created_by AS contacted_by,
-        je.entry_kind::TEXT AS entry_kind,
+        je.entry_type AS entry_kind,
         s.display_name AS created_by_staff_name,
         s.role AS created_by_staff_role
-      FROM trapper.journal_entries je
-      LEFT JOIN trapper.staff s ON s.staff_id = je.created_by_staff_id
-      WHERE je.primary_submission_id = $1
-        AND je.is_archived = FALSE
-      ORDER BY COALESCE(je.occurred_at, je.created_at) DESC
+      FROM ops.journal_entries je
+      LEFT JOIN ops.staff s ON s.staff_id = je.created_by_staff_id
+      WHERE je.submission_id = $1
+      ORDER BY COALESCE(je.entry_date::timestamp, je.created_at) DESC
     `, [id]);
 
     // Also fetch from legacy communication_logs table for backwards compatibility
@@ -66,7 +65,7 @@ export async function GET(
         'contact_attempt' AS entry_kind,
         NULL AS created_by_staff_name,
         NULL AS created_by_staff_role
-      FROM trapper.communication_logs
+      FROM ops.communication_logs
       WHERE submission_id = $1
       ORDER BY contacted_at DESC
     `, [id]);
@@ -141,7 +140,7 @@ export async function POST(
     let staffId: string | null = null;
     if (contacted_by) {
       const staffResult = await queryOne<{ staff_id: string }>(`
-        SELECT staff_id FROM trapper.staff
+        SELECT staff_id FROM ops.staff
         WHERE display_name = $1
         LIMIT 1
       `, [contacted_by]);
@@ -152,19 +151,21 @@ export async function POST(
     const entryKind = is_journal_only ? "note" : "contact_attempt";
 
     // Create journal entry (unified communication log)
-    const result = await queryOne<{ id: string }>(`
-      INSERT INTO trapper.journal_entries (
-        body,
-        entry_kind,
-        primary_submission_id,
+    const result = await queryOne<{ entry_id: string }>(`
+      INSERT INTO ops.journal_entries (
+        content,
+        entry_type,
+        submission_id,
         contact_method,
         contact_result,
         created_by,
         created_by_staff_id,
+        source_system,
+        entry_date,
         created_at,
         updated_at
-      ) VALUES ($1, $2::trapper.journal_entry_kind, $3, $4, $5, $6, $7, NOW(), NOW())
-      RETURNING id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'atlas_ui', CURRENT_DATE, NOW(), NOW())
+      RETURNING entry_id
     `, [
       notes || "",
       entryKind,
@@ -186,7 +187,7 @@ export async function POST(
     // (The journal API does this automatically, but we're calling the journal table directly)
     if (!is_journal_only) {
       await queryOne(`
-        UPDATE trapper.web_intake_submissions
+        UPDATE ops.intake_submissions
         SET
           last_contacted_at = NOW(),
           last_contact_method = $2,
@@ -198,7 +199,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      log_id: result.id,
+      log_id: result.entry_id,
     });
   } catch (err) {
     console.error("Error creating communication log:", err);

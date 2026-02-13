@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
           person_id,
           display_name,
           LOWER(TRIM(display_name)) AS normalized_name
-        FROM trapper.sot_people
+        FROM sot.people
         WHERE merged_into_person_id IS NULL
           AND display_name IS NOT NULL
           AND display_name != ''
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       id_value_norm: string;
     }>(`
       SELECT person_id, id_type, id_value_norm
-      FROM trapper.person_identifiers
+      FROM sot.person_identifiers
       WHERE person_id = ANY($1)
       ORDER BY person_id, id_type
     `, [allPersonIds]);
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
       for (const merge of safeMerges) {
         try {
           const result = await queryOne<{ merge_people: object }>(`
-            SELECT trapper.merge_people($1, $2, $3, $4)
+            SELECT sot.merge_people($1, $2, $3, $4)
           `, [merge.source_id, merge.target_id, "auto_merge_exact_name_duplicate", "cron_merge_duplicates"]);
 
           mergeResults.push({

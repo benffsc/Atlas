@@ -42,7 +42,7 @@ export async function GET(
         s.display_name AS created_by_name
       FROM trapper.email_batches eb
       LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = eb.outlook_account_id
-      LEFT JOIN trapper.staff s ON s.staff_id = eb.created_by
+      LEFT JOIN ops.staff s ON s.staff_id = eb.created_by
       WHERE eb.batch_id = $1
     `, [id]);
 
@@ -66,9 +66,9 @@ export async function GET(
         r.estimated_cat_count,
         p.display_name AS requester_name,
         pl.formatted_address
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.sot_people p ON p.person_id = r.requester_person_id
-      LEFT JOIN trapper.places pl ON pl.place_id = r.place_id
+      FROM ops.requests r
+      LEFT JOIN sot.people p ON p.person_id = r.requester_person_id
+      LEFT JOIN sot.places pl ON pl.place_id = r.place_id
       WHERE r.email_batch_id = $1
       ORDER BY r.created_at
     `, [id]);
@@ -150,7 +150,7 @@ export async function PATCH(
 
           // Clear ready_to_email flags on linked requests
           await query(`
-            UPDATE trapper.sot_requests
+            UPDATE ops.requests
             SET ready_to_email = FALSE, updated_at = NOW()
             WHERE email_batch_id = $1
           `, [id]);
@@ -201,7 +201,7 @@ export async function PATCH(
 
       // Unlink requests from batch
       await query(`
-        UPDATE trapper.sot_requests
+        UPDATE ops.requests
         SET email_batch_id = NULL, updated_at = NOW()
         WHERE email_batch_id = $1
       `, [id]);
@@ -286,7 +286,7 @@ export async function DELETE(
 
     // Unlink requests first
     await query(`
-      UPDATE trapper.sot_requests
+      UPDATE ops.requests
       SET email_batch_id = NULL, updated_at = NOW()
       WHERE email_batch_id = $1
     `, [id]);

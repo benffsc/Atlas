@@ -79,9 +79,9 @@ export async function GET(request: NextRequest) {
           ELSE
             TO_CHAR(m.created_at, 'Mon DD')
         END as age_display
-      FROM trapper.staff_messages m
-      LEFT JOIN trapper.staff s ON s.staff_id = m.sender_staff_id
-      JOIN trapper.staff r ON r.staff_id = m.recipient_staff_id
+      FROM ops.staff_messages m
+      LEFT JOIN ops.staff s ON s.staff_id = m.sender_staff_id
+      JOIN ops.staff r ON r.staff_id = m.recipient_staff_id
       WHERE ${directionFilter}
         ${statusFilter}
       ORDER BY m.created_at DESC
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     // Get unread count for badge
     const unreadCount = await queryOne<{ count: number }>(
       `SELECT COUNT(*)::int as count
-       FROM trapper.staff_messages
+       FROM ops.staff_messages
        WHERE recipient_staff_id = $1 AND status = 'unread'`,
       [session.staff_id]
     );
@@ -201,12 +201,12 @@ export async function POST(request: NextRequest) {
 
     // Direct insert if recipient_staff_id provided
     const senderName = await queryOne<{ display_name: string }>(
-      `SELECT display_name FROM trapper.staff WHERE staff_id = $1`,
+      `SELECT display_name FROM ops.staff WHERE staff_id = $1`,
       [session.staff_id]
     );
 
     const result = await queryOne<{ message_id: string }>(
-      `INSERT INTO trapper.staff_messages (
+      `INSERT INTO ops.staff_messages (
         sender_staff_id,
         sender_name,
         recipient_staff_id,

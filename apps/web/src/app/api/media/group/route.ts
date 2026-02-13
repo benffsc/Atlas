@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     // Verify request exists
     const requestExists = await queryOne<{ request_id: string }>(
-      "SELECT request_id FROM trapper.sot_requests WHERE request_id = $1",
+      "SELECT request_id FROM ops.requests WHERE request_id = $1",
       [requestId]
     );
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         cat_description,
         max_confidence,
         linked_cat_id
-      FROM trapper.v_request_photo_groups
+      FROM ops.v_request_photo_groups
       WHERE request_id = $1
       ORDER BY created_at DESC`,
       [requestId]
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     // Verify request exists
     const requestExists = await queryOne<{ request_id: string }>(
-      "SELECT request_id FROM trapper.sot_requests WHERE request_id = $1",
+      "SELECT request_id FROM ops.requests WHERE request_id = $1",
       [request_id]
     );
 
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
         cat_description,
         max_confidence,
         linked_cat_id
-      FROM trapper.v_request_photo_groups
+      FROM ops.v_request_photo_groups
       WHERE collection_id = $1`,
       [result.create_photo_group]
     );
@@ -178,7 +178,7 @@ export async function PATCH(request: NextRequest) {
 
     // Verify group exists
     const groupExists = await queryOne<{ collection_id: string }>(
-      "SELECT collection_id FROM trapper.media_collections WHERE collection_id = $1",
+      "SELECT collection_id FROM ops.media_collections WHERE collection_id = $1",
       [collection_id]
     );
 
@@ -210,7 +210,7 @@ export async function PATCH(request: NextRequest) {
       updateValues.push(collection_id);
 
       await queryOne(
-        `UPDATE trapper.media_collections
+        `UPDATE ops.media_collections
          SET ${updateFields.join(", ")}
          WHERE collection_id = $${paramIndex}`,
         updateValues
@@ -228,7 +228,7 @@ export async function PATCH(request: NextRequest) {
     // Remove media from group
     if (remove_media_ids && remove_media_ids.length > 0) {
       await queryOne(
-        `UPDATE trapper.request_media
+        `UPDATE ops.request_media
          SET photo_group_id = NULL
          WHERE media_id = ANY($1) AND photo_group_id = $2`,
         [remove_media_ids, collection_id]
@@ -250,7 +250,7 @@ export async function PATCH(request: NextRequest) {
         cat_description,
         max_confidence,
         linked_cat_id
-      FROM trapper.v_request_photo_groups
+      FROM ops.v_request_photo_groups
       WHERE collection_id = $1`,
       [collection_id]
     );
@@ -283,7 +283,7 @@ export async function DELETE(request: NextRequest) {
 
     // First, unlink all media from this group
     await queryOne(
-      `UPDATE trapper.request_media
+      `UPDATE ops.request_media
        SET photo_group_id = NULL
        WHERE photo_group_id = $1`,
       [collectionId]
@@ -291,7 +291,7 @@ export async function DELETE(request: NextRequest) {
 
     // Then delete the collection
     const result = await queryOne<{ collection_id: string }>(
-      `DELETE FROM trapper.media_collections
+      `DELETE FROM ops.media_collections
        WHERE collection_id = $1
        RETURNING collection_id`,
       [collectionId]

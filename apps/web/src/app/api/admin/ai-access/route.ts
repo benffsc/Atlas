@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user is admin
     const admin = await queryOne<{ auth_role: string }>(
-      `SELECT auth_role FROM trapper.staff WHERE staff_id = $1`,
+      `SELECT auth_role FROM ops.staff WHERE staff_id = $1`,
       [session.staff_id]
     );
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         auth_role,
         COALESCE(ai_access_level::text, 'read_only') as ai_access_level,
         is_active
-      FROM trapper.staff
+      FROM ops.staff
       ORDER BY
         CASE WHEN auth_role = 'admin' THEN 1 ELSE 2 END,
         display_name`
@@ -82,7 +82,7 @@ export async function PATCH(request: NextRequest) {
 
     // Check if user is admin
     const admin = await queryOne<{ auth_role: string }>(
-      `SELECT auth_role FROM trapper.staff WHERE staff_id = $1`,
+      `SELECT auth_role FROM ops.staff WHERE staff_id = $1`,
       [session.staff_id]
     );
 
@@ -111,8 +111,8 @@ export async function PATCH(request: NextRequest) {
 
     // Update the staff member's AI access level
     const result = await queryOne<{ staff_id: string; display_name: string }>(
-      `UPDATE trapper.staff
-       SET ai_access_level = $1::trapper.ai_access_level,
+      `UPDATE ops.staff
+       SET ai_access_level = $1,
            updated_at = NOW()
        WHERE staff_id = $2
        RETURNING staff_id, display_name`,

@@ -50,16 +50,16 @@ export async function GET(
         pl.formatted_address AS place_address,
         (
           SELECT COUNT(*)::int
-          FROM trapper.sot_people sp
+          FROM sot.people sp
           WHERE sp.merged_into_person_id IS NULL
             AND (
               LOWER(sp.display_name) ILIKE '%' || LOWER(ko.canonical_name) || '%'
               OR (ko.short_name IS NOT NULL AND LOWER(sp.display_name) ILIKE '%' || LOWER(ko.short_name) || '%')
             )
         ) AS matching_person_count
-      FROM trapper.known_organizations ko
-      LEFT JOIN trapper.sot_people p ON p.person_id = ko.canonical_person_id
-      LEFT JOIN trapper.places pl ON pl.place_id = ko.canonical_place_id
+      FROM sot.known_organizations ko
+      LEFT JOIN sot.people p ON p.person_id = ko.canonical_person_id
+      LEFT JOIN sot.places pl ON pl.place_id = ko.canonical_place_id
       WHERE ko.org_id = $1
       `,
       [id]
@@ -140,7 +140,7 @@ export async function PATCH(
     values.push(id);
     const result = await queryOne<KnownOrganization>(
       `
-      UPDATE trapper.known_organizations
+      UPDATE sot.known_organizations
       SET ${updates.join(", ")}
       WHERE org_id = $${paramIndex}
       RETURNING *
@@ -172,7 +172,7 @@ export async function DELETE(
   try {
     const result = await queryOne<{ org_id: string }>(
       `
-      UPDATE trapper.known_organizations
+      UPDATE sot.known_organizations
       SET is_active = FALSE, updated_at = NOW()
       WHERE org_id = $1
       RETURNING org_id

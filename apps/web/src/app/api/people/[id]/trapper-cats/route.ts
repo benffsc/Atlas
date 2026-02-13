@@ -37,8 +37,8 @@ export async function GET(
         mc.notes,
         c.display_name AS cat_name,
         mc.created_at
-      FROM trapper.trapper_manual_catches mc
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = mc.cat_id
+      FROM ops.trapper_manual_catches mc
+      LEFT JOIN sot.cats c ON c.cat_id = mc.cat_id
       WHERE mc.trapper_person_id = $1
       ORDER BY mc.catch_date DESC`,
       [id]

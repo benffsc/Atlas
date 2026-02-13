@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         ts.review_notes
       FROM trapper.email_template_suggestions ts
       JOIN trapper.email_templates et ON et.template_id = ts.template_id
-      JOIN trapper.staff s ON s.staff_id = ts.created_by
+      JOIN ops.staff s ON s.staff_id = ts.created_by
       ${whereClause}
       ORDER BY ts.created_at DESC
     `, params);

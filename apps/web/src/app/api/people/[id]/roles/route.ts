@@ -37,7 +37,7 @@ export async function GET(
     }>(
       `SELECT role, trapper_type, role_status, source_system,
               started_at::text, ended_at::text, notes
-       FROM trapper.person_roles
+       FROM sot.person_roles
        WHERE person_id = $1
        ORDER BY
          CASE role_status WHEN 'active' THEN 0 ELSE 1 END,
@@ -97,7 +97,7 @@ export async function GET(
          vv.how_heard,
          vv.emergency_contact_raw,
          vv.can_drive
-       FROM trapper.volunteerhub_volunteers vv
+       FROM source.volunteerhub_volunteers vv
        WHERE vv.matched_person_id = $1
        LIMIT 1`,
       [id]
@@ -110,8 +110,8 @@ export async function GET(
     if (vhVolunteer) {
       activeGroups = await queryRows<{ name: string; joined_at: string | null }>(
         `SELECT vug.name, vgm.joined_at::text
-         FROM trapper.volunteerhub_group_memberships vgm
-         JOIN trapper.volunteerhub_user_groups vug ON vug.user_group_uid = vgm.user_group_uid
+         FROM source.volunteerhub_group_memberships vgm
+         JOIN source.volunteerhub_user_groups vug ON vug.user_group_uid = vgm.user_group_uid
          WHERE vgm.volunteerhub_id = $1
            AND vgm.left_at IS NULL
          ORDER BY vug.name`,
@@ -120,8 +120,8 @@ export async function GET(
 
       groupHistory = await queryRows<{ name: string; joined_at: string | null; left_at: string | null }>(
         `SELECT vug.name, vgm.joined_at::text, vgm.left_at::text
-         FROM trapper.volunteerhub_group_memberships vgm
-         JOIN trapper.volunteerhub_user_groups vug ON vug.user_group_uid = vgm.user_group_uid
+         FROM source.volunteerhub_group_memberships vgm
+         JOIN source.volunteerhub_user_groups vug ON vug.user_group_uid = vgm.user_group_uid
          WHERE vgm.volunteerhub_id = $1
            AND vgm.left_at IS NOT NULL
          ORDER BY vgm.left_at DESC`,
@@ -139,7 +139,7 @@ export async function GET(
          COALESCE(total_cats_caught, 0) as total_caught,
          COALESCE(active_assignments, 0) as active_assignments,
          last_activity_date as last_catch
-       FROM trapper.v_trapper_full_stats
+       FROM ops.v_trapper_full_stats
        WHERE person_id = $1`,
       [id]
     );
@@ -151,14 +151,14 @@ export async function GET(
       `SELECT
          COUNT(*) FILTER (WHERE relationship_type = 'foster')::int as cats_fostered,
          COUNT(DISTINCT cat_id) FILTER (WHERE relationship_type = 'foster')::int as current_fosters
-       FROM trapper.person_cat_relationships
+       FROM sot.person_cat_relationships
        WHERE person_id = $1`,
       [id]
     );
 
     const placesLinked = await queryOne<{ count: number }>(
       `SELECT COUNT(DISTINCT place_id)::int as count
-       FROM trapper.person_place_relationships
+       FROM sot.person_place_relationships
        WHERE person_id = $1`,
       [id]
     );
@@ -271,7 +271,7 @@ export async function PATCH(
       notes: string | null;
     }>(
       `SELECT role, role_status, trapper_type, started_at::text, ended_at::text, notes
-       FROM trapper.person_roles
+       FROM sot.person_roles
        WHERE person_id = $1 AND role = $2`,
       [id, role]
     );
@@ -298,7 +298,7 @@ export async function PATCH(
         ended_at: string | null;
         notes: string | null;
       }>(
-        `UPDATE trapper.person_roles
+        `UPDATE sot.person_roles
          SET role_status = 'inactive',
              ended_at = CURRENT_DATE,
              notes = $3,
@@ -318,7 +318,7 @@ export async function PATCH(
         ended_at: string | null;
         notes: string | null;
       }>(
-        `UPDATE trapper.person_roles
+        `UPDATE sot.person_roles
          SET role_status = 'active',
              ended_at = NULL,
              notes = $3,
@@ -339,7 +339,7 @@ export async function PATCH(
 
     // Log to entity_edits for audit trail
     await query(
-      `INSERT INTO trapper.entity_edits (
+      `INSERT INTO sot.entity_edits (
          entity_type, entity_id, edit_type, field_name,
          old_value, new_value, reason, edit_source, edited_by
        ) VALUES (

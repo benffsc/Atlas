@@ -28,7 +28,7 @@ export async function GET(
   try {
     const aliases = await queryRows<AliasRow>(
       `SELECT alias_id, name_raw, name_key, source_system, source_table, created_at::text
-       FROM trapper.person_aliases
+       FROM sot.person_aliases
        WHERE person_id = $1
        ORDER BY created_at DESC`,
       [id]
@@ -78,7 +78,7 @@ export async function POST(
 
     // Verify person exists
     const person = await queryOne<{ person_id: string }>(
-      `SELECT person_id FROM trapper.sot_people WHERE person_id = $1`,
+      `SELECT person_id FROM sot.people WHERE person_id = $1`,
       [id]
     );
     if (!person) {
@@ -93,7 +93,7 @@ export async function POST(
 
     if (nameKey?.key) {
       const existing = await queryOne<{ alias_id: string }>(
-        `SELECT alias_id FROM trapper.person_aliases
+        `SELECT alias_id FROM sot.person_aliases
          WHERE person_id = $1 AND name_key = $2 LIMIT 1`,
         [id, nameKey.key]
       );
@@ -106,7 +106,7 @@ export async function POST(
     }
 
     const result = await queryOne<AliasRow>(
-      `INSERT INTO trapper.person_aliases
+      `INSERT INTO sot.person_aliases
        (person_id, name_raw, name_key, source_system, source_table)
        VALUES ($1, $2, $3, 'atlas_ui', 'manual_alias')
        RETURNING alias_id, name_raw, name_key, source_system, source_table, created_at::text`,
@@ -155,7 +155,7 @@ export async function DELETE(
 
     // Verify alias belongs to this person
     const alias = await queryOne<{ name_raw: string }>(
-      `SELECT name_raw FROM trapper.person_aliases
+      `SELECT name_raw FROM sot.person_aliases
        WHERE alias_id = $1 AND person_id = $2`,
       [aliasId, id]
     );
@@ -168,7 +168,7 @@ export async function DELETE(
     }
 
     await query(
-      `DELETE FROM trapper.person_aliases WHERE alias_id = $1`,
+      `DELETE FROM sot.person_aliases WHERE alias_id = $1`,
       [aliasId]
     );
 

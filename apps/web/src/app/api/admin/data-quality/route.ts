@@ -89,12 +89,12 @@ export async function GET(request: NextRequest) {
   try {
     // Get current dashboard metrics
     const dashboard = await queryOne<DataQualityDashboard>(`
-      SELECT * FROM trapper.v_data_quality_dashboard
+      SELECT * FROM ops.v_data_quality_dashboard
     `);
 
     // Get current problems
     const problems = await queryRows<DataQualityProblem>(`
-      SELECT * FROM trapper.v_data_quality_problems
+      SELECT * FROM ops.v_data_quality_problems
       ORDER BY
         CASE severity WHEN 'critical' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,
         count::int DESC

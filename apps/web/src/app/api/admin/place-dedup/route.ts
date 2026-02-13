@@ -61,22 +61,22 @@ export async function GET(request: NextRequest) {
         c.duplicate_name,
         c.duplicate_kind,
         -- Canonical place stats
-        (SELECT COUNT(*)::int FROM trapper.sot_requests WHERE place_id = c.canonical_place_id) AS canonical_requests,
-        (SELECT COUNT(*)::int FROM trapper.cat_place_relationships WHERE place_id = c.canonical_place_id) AS canonical_cats,
-        (SELECT COUNT(*)::int FROM trapper.places ch WHERE ch.parent_place_id = c.canonical_place_id AND ch.merged_into_place_id IS NULL) AS canonical_children,
+        (SELECT COUNT(*)::int FROM ops.requests WHERE place_id = c.canonical_place_id) AS canonical_requests,
+        (SELECT COUNT(*)::int FROM sot.cat_place_relationships WHERE place_id = c.canonical_place_id) AS canonical_cats,
+        (SELECT COUNT(*)::int FROM sot.places ch WHERE ch.parent_place_id = c.canonical_place_id AND ch.merged_into_place_id IS NULL) AS canonical_children,
         -- Duplicate place stats
-        (SELECT COUNT(*)::int FROM trapper.sot_requests WHERE place_id = c.duplicate_place_id) AS duplicate_requests,
-        (SELECT COUNT(*)::int FROM trapper.cat_place_relationships WHERE place_id = c.duplicate_place_id) AS duplicate_cats,
-        (SELECT COUNT(*)::int FROM trapper.places ch WHERE ch.parent_place_id = c.duplicate_place_id AND ch.merged_into_place_id IS NULL) AS duplicate_children,
+        (SELECT COUNT(*)::int FROM ops.requests WHERE place_id = c.duplicate_place_id) AS duplicate_requests,
+        (SELECT COUNT(*)::int FROM sot.cat_place_relationships WHERE place_id = c.duplicate_place_id) AS duplicate_cats,
+        (SELECT COUNT(*)::int FROM sot.places ch WHERE ch.parent_place_id = c.duplicate_place_id AND ch.merged_into_place_id IS NULL) AS duplicate_children,
         -- People counts
         (SELECT COUNT(DISTINCT ppr.person_id)::int
-         FROM trapper.person_place_relationships ppr
-         JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+         FROM sot.person_place_relationships ppr
+         JOIN sot.people per ON per.person_id = ppr.person_id
          WHERE ppr.place_id = c.canonical_place_id
            AND per.merged_into_person_id IS NULL) AS canonical_people,
         (SELECT COUNT(DISTINCT ppr.person_id)::int
-         FROM trapper.person_place_relationships ppr
-         JOIN trapper.sot_people per ON per.person_id = ppr.person_id
+         FROM sot.person_place_relationships ppr
+         JOIN sot.people per ON per.person_id = ppr.person_id
          WHERE ppr.place_id = c.duplicate_place_id
            AND per.merged_into_person_id IS NULL) AS duplicate_people
       FROM trapper.place_dedup_candidates c
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     let junkAddressCount = 0;
     try {
       const junkCount = await queryOne<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM trapper.places
+        `SELECT COUNT(*)::int AS count FROM sot.places
          WHERE merged_into_place_id IS NULL AND is_junk_address = TRUE`
       );
       junkAddressCount = junkCount?.count || 0;
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
           }
 
           await queryOne(
-            `SELECT trapper.merge_place_into($1, $2, $3, $4)`,
+            `SELECT sot.merge_place_into($1, $2, $3, $4)`,
             [pair.duplicate_place_id, pair.canonical_place_id, "admin_place_dedup", "staff"]
           );
 

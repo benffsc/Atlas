@@ -46,20 +46,20 @@ export async function GET(
         l.created_at,
         CASE
           WHEN l.entity_type = 'place' THEN (
-            SELECT p.display_name FROM trapper.places p WHERE p.place_id = l.entity_id
+            SELECT p.display_name FROM sot.places p WHERE p.place_id = l.entity_id
           )
           WHEN l.entity_type = 'cat' THEN (
-            SELECT c.display_name FROM trapper.sot_cats c WHERE c.cat_id = l.entity_id
+            SELECT c.display_name FROM sot.cats c WHERE c.cat_id = l.entity_id
           )
           WHEN l.entity_type = 'person' THEN (
-            SELECT per.display_name FROM trapper.sot_people per WHERE per.person_id = l.entity_id
+            SELECT per.display_name FROM sot.people per WHERE per.person_id = l.entity_id
           )
           WHEN l.entity_type = 'request' THEN (
-            SELECT req.summary FROM trapper.sot_requests req WHERE req.request_id = l.entity_id
+            SELECT req.summary FROM ops.requests req WHERE req.request_id = l.entity_id
           )
           ELSE NULL
         END as entity_display
-      FROM trapper.staff_lookups l
+      FROM ops.staff_lookups l
       WHERE l.lookup_id = $1 AND l.staff_id = $2`,
       [id, session.staff_id]
     );
@@ -109,7 +109,7 @@ export async function PATCH(
     }
 
     const result = await queryOne<{ lookup_id: string }>(
-      `UPDATE trapper.staff_lookups
+      `UPDATE ops.staff_lookups
        SET
          status = $1,
          archived_at = ${status === "archived" ? "NOW()" : "NULL"},
@@ -158,7 +158,7 @@ export async function DELETE(
     const { id } = await params;
 
     const result = await queryOne<{ lookup_id: string }>(
-      `UPDATE trapper.staff_lookups
+      `UPDATE ops.staff_lookups
        SET status = 'deleted', updated_at = NOW()
        WHERE lookup_id = $1 AND staff_id = $2
        RETURNING lookup_id`,

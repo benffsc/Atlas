@@ -57,18 +57,18 @@ export async function GET(request: NextRequest) {
           r.status,
           r.created_at,
           p_req.display_name AS requester_name,
-          (SELECT pi.id_value_norm FROM trapper.person_identifiers pi
+          (SELECT pi.id_value_norm FROM sot.person_identifiers pi
            WHERE pi.person_id = r.requester_person_id AND pi.identifier_type = 'email' LIMIT 1) AS requester_email,
           pl.formatted_address,
           rta.trapper_person_id,
           p_trap.display_name AS trapper_name,
-          (SELECT pi.id_value_norm FROM trapper.person_identifiers pi
+          (SELECT pi.id_value_norm FROM sot.person_identifiers pi
            WHERE pi.person_id = rta.trapper_person_id AND pi.identifier_type = 'email' LIMIT 1) AS trapper_email
-        FROM trapper.sot_requests r
-        LEFT JOIN trapper.sot_people p_req ON p_req.person_id = r.requester_person_id
-        LEFT JOIN trapper.places pl ON pl.place_id = r.place_id
+        FROM ops.requests r
+        LEFT JOIN sot.people p_req ON p_req.person_id = r.requester_person_id
+        LEFT JOIN sot.places pl ON pl.place_id = r.place_id
         LEFT JOIN trapper.request_trapper_assignments rta ON rta.request_id = r.request_id AND rta.is_current = TRUE
-        LEFT JOIN trapper.sot_people p_trap ON p_trap.person_id = rta.trapper_person_id
+        LEFT JOIN sot.people p_trap ON p_trap.person_id = rta.trapper_person_id
         WHERE r.ready_to_email = TRUE
           AND r.email_batch_id IS NULL
         ORDER BY rta.trapper_person_id, r.created_at
@@ -125,10 +125,10 @@ export async function GET(request: NextRequest) {
         eb.*,
         oa.email AS from_email,
         s.display_name AS created_by_name,
-        (SELECT COUNT(*) FROM trapper.sot_requests r WHERE r.email_batch_id = eb.batch_id) AS request_count
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.email_batch_id = eb.batch_id) AS request_count
       FROM trapper.email_batches eb
       LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = eb.outlook_account_id
-      LEFT JOIN trapper.staff s ON s.staff_id = eb.created_by
+      LEFT JOIN ops.staff s ON s.staff_id = eb.created_by
       ${whereClause}
       ORDER BY eb.created_at DESC
       LIMIT 100
@@ -212,14 +212,14 @@ export async function POST(request: NextRequest) {
         r.estimated_cat_count,
         r.status,
         p.display_name AS requester_name,
-        (SELECT pi.id_value_norm FROM trapper.person_identifiers pi
+        (SELECT pi.id_value_norm FROM sot.person_identifiers pi
          WHERE pi.person_id = r.requester_person_id AND pi.identifier_type = 'email' LIMIT 1) AS requester_email,
-        (SELECT pi.id_value_norm FROM trapper.person_identifiers pi
+        (SELECT pi.id_value_norm FROM sot.person_identifiers pi
          WHERE pi.person_id = r.requester_person_id AND pi.identifier_type = 'phone' LIMIT 1) AS requester_phone,
         pl.formatted_address
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.sot_people p ON p.person_id = r.requester_person_id
-      LEFT JOIN trapper.places pl ON pl.place_id = r.place_id
+      FROM ops.requests r
+      LEFT JOIN sot.people p ON p.person_id = r.requester_person_id
+      LEFT JOIN sot.places pl ON pl.place_id = r.place_id
       WHERE r.request_id = ANY($1)
     `, [request_ids]);
 
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
 
     // Link requests to the batch
     await query(`
-      UPDATE trapper.sot_requests
+      UPDATE ops.requests
       SET email_batch_id = $1, updated_at = NOW()
       WHERE request_id = ANY($2)
     `, [batchId, request_ids]);

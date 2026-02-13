@@ -37,9 +37,9 @@ export async function GET(request: NextRequest) {
         r.created_at::TEXT,
         p.formatted_address AS place_address,
         per.display_name AS requester_name
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.places p ON p.place_id = r.place_id
-      LEFT JOIN trapper.sot_people per ON per.person_id = r.requester_person_id
+      FROM ops.requests r
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
+      LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
       WHERE r.status NOT IN ('cancelled', 'redirected', 'handed_off')
         AND ($2::UUID IS NULL OR r.request_id != $2)
         AND (

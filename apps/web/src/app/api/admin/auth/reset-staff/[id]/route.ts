@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Update staff password
     const result = await queryOne<{ display_name: string; email: string }>(
-      `UPDATE trapper.staff
+      `UPDATE ops.staff
        SET password_hash = $1,
            password_change_required = TRUE,
            password_set_at = NOW(),

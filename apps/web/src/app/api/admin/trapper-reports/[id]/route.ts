@@ -41,8 +41,8 @@ export async function GET(
         s.source_system,
         -- Reporter details
         p.display_name as reporter_name
-      FROM trapper.trapper_report_submissions s
-      LEFT JOIN trapper.sot_people p ON p.person_id = s.reporter_person_id
+      FROM ops.trapper_report_submissions s
+      LEFT JOIN sot.people p ON p.person_id = s.reporter_person_id
       WHERE s.submission_id = $1
       `,
       [id]
@@ -73,20 +73,20 @@ export async function GET(
         i.created_at,
         -- Entity display name based on type
         CASE i.target_entity_type
-          WHEN 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = i.target_entity_id)
-          WHEN 'place' THEN (SELECT formatted_address FROM trapper.places WHERE place_id = i.target_entity_id)
+          WHEN 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = i.target_entity_id)
+          WHEN 'place' THEN (SELECT formatted_address FROM sot.places WHERE place_id = i.target_entity_id)
           WHEN 'request' THEN (
             SELECT 'Request at ' || COALESCE(pl.formatted_address, 'unknown')
-            FROM trapper.sot_requests r
-            LEFT JOIN trapper.places pl ON pl.place_id = r.place_id
+            FROM ops.requests r
+            LEFT JOIN sot.places pl ON pl.place_id = r.place_id
             WHERE r.request_id = i.target_entity_id
           )
         END as target_entity_name,
         -- Request status for request items
         CASE WHEN i.target_entity_type = 'request' THEN
-          (SELECT status::text FROM trapper.sot_requests WHERE request_id = i.target_entity_id)
+          (SELECT status::text FROM ops.requests WHERE request_id = i.target_entity_id)
         END as current_request_status
-      FROM trapper.trapper_report_items i
+      FROM ops.trapper_report_items i
       WHERE i.submission_id = $1
       ORDER BY i.created_at
       `,
@@ -135,7 +135,7 @@ export async function PATCH(
   try {
     await execute(
       `
-      UPDATE trapper.trapper_report_submissions
+      UPDATE ops.trapper_report_submissions
       SET
         extraction_status = COALESCE($1, extraction_status),
         reviewed_by = $2,
@@ -174,7 +174,7 @@ export async function DELETE(
   try {
     // Check if any items have been committed
     const committed = await queryOne<{ count: string }>(
-      `SELECT COUNT(*) as count FROM trapper.trapper_report_items WHERE submission_id = $1 AND committed_at IS NOT NULL`,
+      `SELECT COUNT(*) as count FROM ops.trapper_report_items WHERE submission_id = $1 AND committed_at IS NOT NULL`,
       [id]
     );
 
@@ -187,13 +187,13 @@ export async function DELETE(
 
     // Delete items first (due to FK)
     await execute(
-      `DELETE FROM trapper.trapper_report_items WHERE submission_id = $1`,
+      `DELETE FROM ops.trapper_report_items WHERE submission_id = $1`,
       [id]
     );
 
     // Delete submission
     await execute(
-      `DELETE FROM trapper.trapper_report_submissions WHERE submission_id = $1`,
+      `DELETE FROM ops.trapper_report_submissions WHERE submission_id = $1`,
       [id]
     );
 

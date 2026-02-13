@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         uploaded_by,
         uploaded_at,
         is_archived
-       FROM trapper.request_media
+       FROM ops.request_media
        WHERE request_id = $1
          AND NOT is_archived
        ORDER BY uploaded_at DESC`,
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     // Verify request exists
     const requestExists = await queryOne<{ request_id: string }>(
-      `SELECT request_id FROM trapper.sot_requests WHERE request_id = $1`,
+      `SELECT request_id FROM ops.requests WHERE request_id = $1`,
       [id]
     );
 
@@ -147,12 +147,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Insert into database
     const result = await queryOne<{ media_id: string }>(
-      `INSERT INTO trapper.request_media (
+      `INSERT INTO ops.request_media (
         request_id, media_type, original_filename, stored_filename,
         file_size_bytes, mime_type, storage_provider, storage_path,
         caption, notes, cat_description, uploaded_by
       ) VALUES (
-        $1, $2::trapper.media_type, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
       )
       RETURNING media_id`,
       [
@@ -203,7 +203,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const result = await queryOne<{ result: boolean }>(
-      `SELECT trapper.archive_media($1, $2, $3) as result`,
+      `SELECT ops.archive_media($1, $2, $3) as result`,
       [mediaId, archivedBy, reason]
     );
 

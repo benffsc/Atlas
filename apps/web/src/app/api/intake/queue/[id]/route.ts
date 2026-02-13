@@ -70,7 +70,7 @@ export async function GET(
   try {
     const submission = await queryOne<IntakeSubmission>(`
       SELECT *
-      FROM trapper.web_intake_submissions
+      FROM ops.intake_submissions
       WHERE submission_id = $1
     `, [id]);
 
@@ -86,7 +86,7 @@ export async function GET(
     if (submission.matched_person_id) {
       matchedPerson = await queryOne<MatchedPerson>(`
         SELECT person_id, display_name
-        FROM trapper.sot_people
+        FROM sot.people
         WHERE person_id = $1
       `, [submission.matched_person_id]);
     }
@@ -183,7 +183,7 @@ export async function PATCH(
     let currentValues: Record<string, unknown> = {};
     if (editingAnswerFields) {
       const current = await queryOne<IntakeSubmission>(`
-        SELECT * FROM trapper.web_intake_submissions WHERE submission_id = $1
+        SELECT * FROM ops.intake_submissions WHERE submission_id = $1
       `, [id]);
       if (current) {
         currentValues = current as unknown as Record<string, unknown>;
@@ -237,7 +237,7 @@ export async function PATCH(
     values.push(id);
 
     const sql = `
-      UPDATE trapper.web_intake_submissions
+      UPDATE ops.intake_submissions
       SET ${updates.join(', ')}
       WHERE submission_id = $${paramIndex}
       RETURNING *
@@ -260,19 +260,20 @@ export async function PATCH(
         // This function handles deduplication via find_or_create_place_deduped
         // and queues for geocoding if needed
         await queryOne(
-          `SELECT trapper.link_intake_submission_to_place($1)`,
+          `SELECT sot.link_intake_to_place($1)`,
           [id]
         );
 
         // Fetch the updated submission with new place link
         const refreshed = await queryOne<IntakeSubmission>(`
           SELECT w.*,
-                 p.formatted_address as geo_formatted_address,
+                 a.formatted_address as geo_formatted_address,
                  ST_Y(p.location::geometry) as geo_latitude,
                  ST_X(p.location::geometry) as geo_longitude,
                  CASE WHEN p.location IS NOT NULL THEN 'geocoded' ELSE NULL END as geo_confidence
-          FROM trapper.web_intake_submissions w
-          LEFT JOIN trapper.places p ON p.place_id = w.place_id
+          FROM ops.intake_submissions w
+          LEFT JOIN sot.places p ON p.place_id = w.place_id
+          LEFT JOIN sot.addresses a ON a.address_id = p.address_id
           WHERE w.submission_id = $1
         `, [id]);
 

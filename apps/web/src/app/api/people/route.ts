@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         primary_place,
         created_at,
         source_quality
-      FROM trapper.v_person_list_v3
+      FROM sot.v_person_list_v3
       ${whereClause}
       ORDER BY
         CASE surface_quality WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END,
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_person_list_v3
+      FROM sot.v_person_list_v3
       ${whereClause}
     `;
 

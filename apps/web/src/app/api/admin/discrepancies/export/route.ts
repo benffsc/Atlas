@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user is admin
     const admin = await queryOne<{ auth_role: string }>(
-      `SELECT auth_role FROM trapper.staff WHERE staff_id = $1`,
+      `SELECT auth_role FROM ops.staff WHERE staff_id = $1`,
       [session.staff_id]
     );
 
@@ -60,16 +60,16 @@ export async function GET(request: NextRequest) {
         di.created_at,
         CASE
           WHEN di.entity_type = 'cat' THEN (
-            SELECT c.display_name FROM trapper.sot_cats c WHERE c.cat_id = di.entity_id
+            SELECT c.display_name FROM sot.cats c WHERE c.cat_id = di.entity_id
           )
           WHEN di.entity_type = 'place' THEN (
-            SELECT p.formatted_address FROM trapper.places p WHERE p.place_id = di.entity_id
+            SELECT p.formatted_address FROM sot.places p WHERE p.place_id = di.entity_id
           )
           WHEN di.entity_type = 'person' THEN (
-            SELECT per.display_name FROM trapper.sot_people per WHERE per.person_id = di.entity_id
+            SELECT per.display_name FROM sot.people per WHERE per.person_id = di.entity_id
           )
           WHEN di.entity_type = 'request' THEN (
-            SELECT req.summary FROM trapper.sot_requests req WHERE req.request_id = di.entity_id
+            SELECT req.summary FROM ops.requests req WHERE req.request_id = di.entity_id
           )
           ELSE NULL
         END as entity_display

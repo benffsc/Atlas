@@ -41,7 +41,7 @@ export async function GET(
         notes,
         observed_by,
         created_at
-      FROM trapper.colony_observations
+      FROM sot.colony_observations
       WHERE colony_id = $1
       ORDER BY observation_date DESC, created_at DESC`,
       [colonyId]
@@ -91,7 +91,7 @@ export async function POST(
       linked_owned_cats: number;
     }>(
       `SELECT colony_id, linked_community_cats, linked_owned_cats
-       FROM trapper.v_colony_stats
+       FROM ops.v_colony_stats
        WHERE colony_id = $1`,
       [colonyId]
     );
@@ -144,7 +144,7 @@ export async function POST(
 
     // Insert observation
     const observation = await queryOne<{ observation_id: string }>(
-      `INSERT INTO trapper.colony_observations (
+      `INSERT INTO sot.colony_observations (
         colony_id,
         observation_date,
         total_cats,

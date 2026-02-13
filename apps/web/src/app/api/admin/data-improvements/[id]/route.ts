@@ -33,8 +33,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           WHERE tf.feedback_id = di.source_reference_id
         ) END as source_feedback
       FROM trapper.data_improvements di
-      LEFT JOIN trapper.staff a ON a.staff_id = di.assigned_to
-      LEFT JOIN trapper.staff rb ON rb.staff_id = di.resolved_by
+      LEFT JOIN ops.staff a ON a.staff_id = di.assigned_to
+      LEFT JOIN ops.staff rb ON rb.staff_id = di.resolved_by
       WHERE di.improvement_id = $1
       `,
       [id]

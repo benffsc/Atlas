@@ -35,13 +35,13 @@ export async function GET(request: NextRequest) {
         p.data_source,
         p.is_canonical,
         p.created_at::text,
-        (SELECT COUNT(*) FROM trapper.person_identifiers pi WHERE pi.person_id = p.person_id)::int as identifier_count,
+        (SELECT COUNT(*) FROM sot.person_identifiers pi WHERE pi.person_id = p.person_id)::int as identifier_count,
         (SELECT string_agg(pi.id_type || ':' || pi.id_value_norm, ', ')
-         FROM trapper.person_identifiers pi WHERE pi.person_id = p.person_id) as identifiers,
-        (SELECT COUNT(*) FROM trapper.person_cat_relationships pcr WHERE pcr.person_id = p.person_id)::int as cat_count,
-        (SELECT COUNT(*) FROM trapper.person_place_relationships ppr WHERE ppr.person_id = p.person_id)::int as place_count,
-        (SELECT COUNT(*) FROM trapper.sot_appointments a WHERE a.person_id = p.person_id)::int as appointment_count
-      FROM trapper.sot_people p
+         FROM sot.person_identifiers pi WHERE pi.person_id = p.person_id) as identifiers,
+        (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = p.person_id)::int as cat_count,
+        (SELECT COUNT(*) FROM sot.person_place_relationships ppr WHERE ppr.person_id = p.person_id)::int as place_count,
+        (SELECT COUNT(*) FROM ops.appointments a WHERE a.person_id = p.person_id)::int as appointment_count
+      FROM sot.people p
       WHERE p.merged_into_person_id IS NULL
         AND p.data_quality = $1
         ${source ? "AND p.data_source = $4" : ""}
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     );
 
     const totalRow = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.sot_people
+      `SELECT COUNT(*)::int as count FROM sot.people
        WHERE merged_into_person_id IS NULL AND data_quality = $1
        ${source ? "AND data_source = $2" : ""}`,
       source ? [quality, source] : [quality]
@@ -97,7 +97,7 @@ export async function PATCH(request: NextRequest) {
 
     // Verify person exists and is needs_review
     const person = await queryOne<{ display_name: string; data_quality: string }>(
-      `SELECT display_name, data_quality FROM trapper.sot_people
+      `SELECT display_name, data_quality FROM sot.people
        WHERE person_id = $1 AND merged_into_person_id IS NULL`,
       [person_id]
     );
@@ -108,13 +108,13 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "promote") {
       await query(
-        `UPDATE trapper.sot_people SET data_quality = 'normal', updated_at = NOW()
+        `UPDATE sot.people SET data_quality = 'normal', updated_at = NOW()
          WHERE person_id = $1`,
         [person_id]
       );
 
       await query(
-        `INSERT INTO trapper.entity_edits (entity_type, entity_id, field_name, old_value, new_value, edited_by, edit_source)
+        `INSERT INTO sot.entity_edits (entity_type, entity_id, field_name, old_value, new_value, edited_by, edit_source)
          VALUES ('person', $1, 'data_quality', $2, 'normal', 'admin', 'data_quality_review')`,
         [person_id, person.data_quality]
       );
@@ -124,14 +124,14 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "garbage") {
       await query(
-        `UPDATE trapper.sot_people
+        `UPDATE sot.people
          SET data_quality = 'garbage', is_canonical = FALSE, updated_at = NOW()
          WHERE person_id = $1`,
         [person_id]
       );
 
       await query(
-        `INSERT INTO trapper.entity_edits (entity_type, entity_id, field_name, old_value, new_value, edited_by, edit_source)
+        `INSERT INTO sot.entity_edits (entity_type, entity_id, field_name, old_value, new_value, edited_by, edit_source)
          VALUES ('person', $1, 'data_quality', $2, 'garbage', 'admin', 'data_quality_review')`,
         [person_id, person.data_quality]
       );
@@ -162,7 +162,7 @@ export async function PATCH(request: NextRequest) {
 
       // Perform merge
       await query(
-        `SELECT trapper.merge_people($1, $2)`,
+        `SELECT sot.merge_people($1, $2)`,
         [person_id, merge_target_id]
       );
 

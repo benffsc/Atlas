@@ -82,8 +82,8 @@ export async function GET(
         e.notes,
         p.display_name AS reporter_name,
         p.person_id AS reporter_person_id
-      FROM trapper.place_colony_estimates e
-      LEFT JOIN trapper.sot_people p ON p.person_id = e.reported_by_person_id
+      FROM sot.place_colony_estimates e
+      LEFT JOIN sot.people p ON p.person_id = e.reported_by_person_id
       WHERE e.place_id = $1
       ORDER BY e.observation_date DESC NULLS LAST, e.reported_at DESC
     `;
@@ -103,7 +103,7 @@ export async function GET(
           primary_source,
           is_multi_source_confirmed,
           estimated_work_remaining
-        FROM trapper.v_place_colony_status
+        FROM sot.v_place_colony_status
         WHERE place_id = $1
       `;
       status = await queryOne<ColonyStatus>(statusSql, [id]);
@@ -127,7 +127,7 @@ export async function GET(
         authoritative_cat_count,
         authoritative_count_reason,
         allows_clustering
-      FROM trapper.places
+      FROM sot.places
       WHERE place_id = $1
     `;
 
@@ -165,7 +165,7 @@ export async function GET(
           p_hat_chapman_pct,
           best_colony_estimate,
           estimated_work_remaining
-        FROM trapper.v_place_ecology_stats
+        FROM sot.v_place_ecology_stats
         WHERE place_id = $1
       `;
       ecology = await queryOne<EcologyStats>(ecologySql, [id]);

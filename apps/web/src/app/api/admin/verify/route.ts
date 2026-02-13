@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
            COUNT(*) FILTER (WHERE verified_at IS NULL) AS unverified_count,
            COUNT(*) AS total_count,
            MAX(created_at) AS latest_created
-         FROM trapper.place_colony_estimates
+         FROM sot.place_colony_estimates
          WHERE source_type = 'ai_parsed'
 
          UNION ALL
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
            COUNT(*) FILTER (WHERE verified_at IS NULL) AS unverified_count,
            COUNT(*) AS total_count,
            MAX(created_at) AS latest_created
-         FROM trapper.cat_birth_events
+         FROM sot.cat_birth_events
          WHERE source_type = 'ai_parsed'
 
          UNION ALL
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
            COUNT(*) FILTER (WHERE verified_at IS NULL) AS unverified_count,
            COUNT(*) AS total_count,
            MAX(created_at) AS latest_created
-         FROM trapper.cat_mortality_events
+         FROM sot.cat_mortality_events
          WHERE source_type = 'ai_parsed'
 
          UNION ALL
@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
            COUNT(*) FILTER (WHERE verified_at IS NULL) AS unverified_count,
            COUNT(*) AS total_count,
            MAX(created_at) AS latest_created
-         FROM trapper.cat_vitals
+         FROM ops.cat_vitals
          WHERE source_type = 'ai_parsed'`
       );
 
@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
            t.verified_by_staff_id,
            s.display_name AS staff_name
          FROM trapper.${tableName} t
-         LEFT JOIN trapper.staff s ON t.verified_by_staff_id = s.staff_id
+         LEFT JOIN ops.staff s ON t.verified_by_staff_id = s.staff_id
          WHERE t.${idColumn} = ANY($1::uuid[])`,
         [ids]
       );

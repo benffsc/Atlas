@@ -155,7 +155,7 @@ export async function GET(
   try {
     // Use the database function for comprehensive context
     const result = await queryOne<{ context: PlaceContext }>(
-      `SELECT trapper.get_place_context($1) as context`,
+      `SELECT sot.get_place_context($1) as context`,
       [id]
     );
 
@@ -211,7 +211,7 @@ export async function POST(
 
     // Use the address lookup function
     const result = await queryOne<{ context: PlaceContext }>(
-      `SELECT trapper.get_place_context_by_address($1) as context`,
+      `SELECT sot.get_place_context_by_address($1) as context`,
       [address]
     );
 

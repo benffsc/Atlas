@@ -33,20 +33,20 @@ export async function GET(request: NextRequest) {
         p.entity_type,
         (
           SELECT COUNT(*)
-          FROM trapper.person_cat_relationships pcr
+          FROM sot.person_cat_relationships pcr
           WHERE pcr.person_id = p.person_id
             AND pcr.relationship_type NOT LIKE 'former_%'
         ) as cat_count,
         (
           SELECT string_agg(DISTINCT pi.id_value_raw, ', ')
-          FROM trapper.person_identifiers pi
+          FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id
             AND pi.id_type = 'email'
             AND pi.confidence >= 0.5
         ) as emails,
         (
           SELECT string_agg(DISTINCT pi.id_value_raw, ', ')
-          FROM trapper.person_identifiers pi
+          FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id
             AND pi.id_type = 'phone'
         ) as phones,
@@ -61,13 +61,13 @@ export async function GET(request: NextRequest) {
             )
             ORDER BY ppr.confidence DESC NULLS LAST
           )
-          FROM trapper.person_place_relationships ppr
-          JOIN trapper.places pl ON pl.place_id = ppr.place_id
+          FROM sot.person_place_relationships ppr
+          JOIN sot.places pl ON pl.place_id = ppr.place_id
           WHERE ppr.person_id = p.person_id
             AND pl.merged_into_place_id IS NULL
         ) as addresses
-      FROM trapper.sot_people p
-      LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+      FROM sot.people p
+      LEFT JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
         AND pi.confidence >= 0.5
       WHERE p.merged_into_person_id IS NULL
         AND p.is_canonical = TRUE

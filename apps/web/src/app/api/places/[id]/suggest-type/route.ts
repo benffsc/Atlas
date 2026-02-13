@@ -24,7 +24,7 @@ export async function GET(
 
   try {
     const contexts = await queryRows<ContextRow>(
-      `SELECT context_type FROM trapper.place_contexts
+      `SELECT context_type FROM sot.place_contexts
        WHERE place_id = $1 AND (ended_at IS NULL OR ended_at > NOW())
        ORDER BY created_at DESC`,
       [placeId]

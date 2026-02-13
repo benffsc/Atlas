@@ -42,7 +42,7 @@ export async function PATCH(
 
     // Verify cat exists
     const catExists = await queryOne<{ cat_id: string; display_name: string }>(
-      "SELECT cat_id, display_name FROM trapper.sot_cats WHERE cat_id = $1",
+      "SELECT cat_id, display_name FROM sot.cats WHERE cat_id = $1",
       [cat_id]
     );
 
@@ -60,7 +60,7 @@ export async function PATCH(
       request_id: string;
     }>(
       `SELECT media_id, photo_group_id, request_id
-       FROM trapper.request_media
+       FROM ops.request_media
        WHERE media_id = $1 AND NOT COALESCE(is_archived, FALSE)`,
       [mediaId]
     );
@@ -78,7 +78,7 @@ export async function PATCH(
     if (apply_to_group && media.photo_group_id) {
       // Use the database function to identify the entire group
       const result = await queryOne<{ identify_photo_group: number }>(
-        `SELECT trapper.identify_photo_group($1, $2, $3) AS identify_photo_group`,
+        `SELECT ops.identify_photo_group($1, $2, $3) AS identify_photo_group`,
         [media.photo_group_id, cat_id, confidence]
       );
 
@@ -86,7 +86,7 @@ export async function PATCH(
 
       // Get the media IDs that were updated
       const groupMedia = await queryRows<{ media_id: string }>(
-        `SELECT media_id FROM trapper.request_media
+        `SELECT media_id FROM ops.request_media
          WHERE photo_group_id = $1 AND NOT COALESCE(is_archived, FALSE)`,
         [media.photo_group_id]
       );
@@ -95,7 +95,7 @@ export async function PATCH(
     } else {
       // Update just this single media
       await queryOne(
-        `UPDATE trapper.request_media
+        `UPDATE ops.request_media
          SET linked_cat_id = $1,
              cat_identification_confidence = $2
          WHERE media_id = $3`,
@@ -144,7 +144,7 @@ export async function DELETE(
       linked_cat_id: string | null;
     }>(
       `SELECT media_id, photo_group_id, linked_cat_id
-       FROM trapper.request_media
+       FROM ops.request_media
        WHERE media_id = $1 AND NOT COALESCE(is_archived, FALSE)`,
       [mediaId]
     );
@@ -162,7 +162,7 @@ export async function DELETE(
       // Unlink entire group
       const result = await queryOne<{ count: number }>(
         `WITH updated AS (
-           UPDATE trapper.request_media
+           UPDATE ops.request_media
            SET linked_cat_id = NULL,
                cat_identification_confidence = 'unidentified'
            WHERE photo_group_id = $1 AND NOT COALESCE(is_archived, FALSE)
@@ -176,7 +176,7 @@ export async function DELETE(
     } else {
       // Unlink just this media
       await queryOne(
-        `UPDATE trapper.request_media
+        `UPDATE ops.request_media
          SET linked_cat_id = NULL,
              cat_identification_confidence = 'unidentified'
          WHERE media_id = $1`,
@@ -221,7 +221,7 @@ export async function GET(
         cat_identification_confidence,
         photo_group_id,
         cat_description
-       FROM trapper.request_media
+       FROM ops.request_media
        WHERE media_id = $1`,
       [mediaId]
     );
@@ -238,9 +238,9 @@ export async function GET(
     if (media.linked_cat_id) {
       cat = await queryOne<{ cat_id: string; display_name: string; microchip: string | null }>(
         `SELECT c.cat_id, c.display_name,
-                (SELECT id_value FROM trapper.cat_identifiers
+                (SELECT id_value FROM sot.cat_identifiers
                  WHERE cat_id = c.cat_id AND id_type = 'microchip' LIMIT 1) AS microchip
-         FROM trapper.sot_cats c
+         FROM sot.cats c
          WHERE c.cat_id = $1`,
         [media.linked_cat_id]
       );
@@ -258,7 +258,7 @@ export async function GET(
           collection_id,
           group_name,
           COALESCE(photo_count, 0)::int AS photo_count
-         FROM trapper.v_request_photo_groups
+         FROM ops.v_request_photo_groups
          WHERE collection_id = $1`,
         [media.photo_group_id]
       );

@@ -36,8 +36,8 @@ export async function GET() {
         pce.source_type::TEXT,
         pce.confidence_score,
         pce.reported_at::TEXT
-      FROM trapper.place_colony_estimates pce
-      JOIN trapper.places p ON p.place_id = pce.place_id
+      FROM sot.place_colony_estimates pce
+      JOIN sot.places p ON p.place_id = pce.place_id
       WHERE pce.source_type IN ('ai_parsed', 'note_parser', 'beacon')
         AND (pce.confidence_score < 0.7 OR pce.confidence_score IS NULL)
       ORDER BY pce.reported_at DESC
@@ -78,8 +78,8 @@ export async function GET() {
         cv.is_in_heat,
         cv.source_system,
         cv.recorded_at::TEXT
-      FROM trapper.cat_vitals cv
-      JOIN trapper.sot_cats c ON c.cat_id = cv.cat_id
+      FROM ops.cat_vitals cv
+      JOIN sot.cats c ON c.cat_id = cv.cat_id
       WHERE cv.source_system IN ('ai_parsed', 'note_parser', 'beacon')
         AND (cv.is_pregnant OR cv.is_lactating OR cv.is_in_heat)
       ORDER BY cv.recorded_at DESC
@@ -121,8 +121,8 @@ export async function GET() {
         me.death_cause::TEXT,
         me.source_system,
         me.created_at::TEXT
-      FROM trapper.cat_mortality_events me
-      JOIN trapper.sot_cats c ON c.cat_id = me.cat_id
+      FROM sot.cat_mortality_events me
+      JOIN sot.cats c ON c.cat_id = me.cat_id
       WHERE me.source_system IN ('ai_parsed', 'note_parser', 'beacon')
       ORDER BY me.created_at DESC
       LIMIT 50
@@ -158,8 +158,8 @@ export async function GET() {
         be.birth_date_precision::TEXT,
         be.source_system,
         be.created_at::TEXT
-      FROM trapper.cat_birth_events be
-      JOIN trapper.sot_cats c ON c.cat_id = be.cat_id
+      FROM sot.cat_birth_events be
+      JOIN sot.cats c ON c.cat_id = be.cat_id
       WHERE be.source_system IN ('ai_parsed', 'note_parser', 'beacon')
         AND be.birth_date_precision IN ('estimate', 'season_only', 'year_only')
       ORDER BY be.created_at DESC

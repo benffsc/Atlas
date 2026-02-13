@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         po.created_at,
         po.updated_at
       FROM trapper.partner_organizations po
-      LEFT JOIN trapper.places pl ON pl.place_id = po.place_id
+      LEFT JOIN sot.places pl ON pl.place_id = po.place_id
       WHERE po.org_id = $1
       `,
       [id]
@@ -111,7 +111,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Re-link appointments if patterns changed
     if (body.org_name_patterns) {
       await execute(
-        `SELECT * FROM trapper.link_all_appointments_to_partner_orgs()`
+        `SELECT * FROM sot.link_all_appointments_to_partner_orgs()`
       );
     }
 

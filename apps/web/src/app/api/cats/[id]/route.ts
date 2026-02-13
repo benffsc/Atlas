@@ -185,9 +185,9 @@ export async function GET(
         s.display_name AS verified_by_name,
         c.atlas_cat_id,
         r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
-      FROM trapper.v_cat_detail v
-      JOIN trapper.sot_cats c ON c.cat_id = v.cat_id
-      LEFT JOIN trapper.staff s ON c.verified_by = s.staff_id::text
+      FROM sot.v_cat_detail v
+      JOIN sot.cats c ON c.cat_id = v.cat_id
+      LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
       LEFT JOIN trapper.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE v.cat_id = $1
     `;
@@ -204,7 +204,7 @@ export async function GET(
         c.primary_color AS color,
         c.secondary_color,
         NULL::TEXT AS coat_pattern,
-        (SELECT ci.id_value FROM trapper.cat_identifiers ci
+        (SELECT ci.id_value FROM sot.cat_identifiers ci
          WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1) AS microchip,
         COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
         c.data_source,
@@ -224,8 +224,8 @@ export async function GET(
         s.display_name AS verified_by_name,
         c.atlas_cat_id,
         r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
-      FROM trapper.sot_cats c
-      LEFT JOIN trapper.staff s ON c.verified_by = s.staff_id::text
+      FROM sot.cats c
+      LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
       LEFT JOIN trapper.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE c.cat_id = $1
     `;
@@ -259,7 +259,7 @@ export async function GET(
       SELECT
         MIN(appointment_date)::TEXT as first_appointment_date,
         COUNT(*)::INT as total_appointments
-      FROM trapper.sot_appointments
+      FROM ops.appointments
       WHERE cat_id = $1
     `;
     const visitStats = await queryOne<{ first_appointment_date: string | null; total_appointments: number }>(visitStatsSql, [id]);
@@ -278,7 +278,7 @@ export async function GET(
         client_email,
         client_phone,
         ownership_type
-      FROM trapper.v_cat_clinic_history
+      FROM sot.v_cat_clinic_history
       WHERE cat_id = $1
       ORDER BY appointment_date DESC
     `;
@@ -293,7 +293,7 @@ export async function GET(
         is_pregnant,
         is_lactating,
         is_in_heat
-      FROM trapper.cat_vitals
+      FROM ops.cat_vitals
       WHERE cat_id = $1
       ORDER BY recorded_at DESC
       LIMIT 10
@@ -321,7 +321,7 @@ export async function GET(
         test_date::TEXT,
         result::TEXT,
         result_detail
-      FROM trapper.cat_test_results
+      FROM sot.cat_test_results
       WHERE cat_id = $1
       ORDER BY test_date DESC
     `;
@@ -338,7 +338,7 @@ export async function GET(
         is_neuter,
         complications,
         post_op_notes
-      FROM trapper.cat_procedures
+      FROM ops.cat_procedures
       WHERE cat_id = $1
       ORDER BY procedure_date DESC
     `;
@@ -375,7 +375,7 @@ export async function GET(
             CASE WHEN v.service_type ILIKE '%convenia%' THEN 'Convenia (antibiotic)' END,
             CASE WHEN v.service_type ILIKE '%praziquantel%' OR v.service_type ILIKE '%droncit%' THEN 'Dewormer' END
         ], NULL) as treatments
-      FROM trapper.v_appointment_detail v
+      FROM ops.v_appointment_detail v
       WHERE v.cat_id = $1
       ORDER BY v.appointment_date DESC
     `;
@@ -390,7 +390,7 @@ export async function GET(
         source_system,
         notes,
         created_at::TEXT
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
       WHERE cat_id = $1
       ORDER BY created_at DESC
       LIMIT 1
@@ -416,9 +416,9 @@ export async function GET(
         be.source_system,
         be.notes,
         be.created_at::TEXT
-      FROM trapper.cat_birth_events be
-      LEFT JOIN trapper.sot_cats mc ON mc.cat_id = be.mother_cat_id
-      LEFT JOIN trapper.places p ON p.place_id = be.place_id
+      FROM sot.cat_birth_events be
+      LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
+      LEFT JOIN sot.places p ON p.place_id = be.place_id
       WHERE be.cat_id = $1
     `;
 
@@ -429,9 +429,9 @@ export async function GET(
         c.display_name,
         c.sex,
         c.microchip
-      FROM trapper.cat_birth_events be
-      JOIN trapper.cat_birth_events be2 ON be2.litter_id = be.litter_id AND be2.cat_id != be.cat_id
-      JOIN trapper.sot_cats c ON c.cat_id = be2.cat_id
+      FROM sot.cat_birth_events be
+      JOIN sot.cat_birth_events be2 ON be2.litter_id = be.litter_id AND be2.cat_id != be.cat_id
+      JOIN sot.cats c ON c.cat_id = be2.cat_id
       WHERE be.cat_id = $1
       LIMIT 10
     `;
@@ -450,10 +450,10 @@ export async function GET(
         a.appointment_number,
         pcr.source_system,
         pcr.created_at::TEXT
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_people p ON p.person_id = pcr.person_id
-      LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email' AND pi.confidence >= 0.5
-      LEFT JOIN trapper.sot_appointments a ON a.appointment_id = pcr.appointment_id
+      FROM sot.person_cat_relationships pcr
+      JOIN sot.people p ON p.person_id = pcr.person_id
+      LEFT JOIN sot.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email' AND pi.confidence >= 0.5
+      LEFT JOIN ops.appointments a ON a.appointment_id = pcr.appointment_id
       WHERE pcr.cat_id = $1
       ORDER BY
         CASE pcr.relationship_type
@@ -484,8 +484,8 @@ export async function GET(
         me.source_type,
         me.notes
       FROM trapper.cat_movement_events me
-      LEFT JOIN trapper.places fp ON fp.place_id = me.from_place_id
-      JOIN trapper.places tp ON tp.place_id = me.to_place_id
+      LEFT JOIN sot.places fp ON fp.place_id = me.from_place_id
+      JOIN sot.places tp ON tp.place_id = me.to_place_id
       WHERE me.cat_id = $1
       ORDER BY me.event_date DESC
       LIMIT 20
@@ -498,8 +498,8 @@ export async function GET(
         p.display_name,
         p.formatted_address,
         a.inferred_place_source
-      FROM trapper.sot_appointments a
-      JOIN trapper.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id)
+      FROM ops.appointments a
+      JOIN sot.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id)
       WHERE a.cat_id = $1
         AND COALESCE(a.inferred_place_id, a.place_id) IS NOT NULL
       ORDER BY a.cat_id, a.appointment_date DESC
@@ -513,7 +513,7 @@ export async function GET(
         po.org_name_short,
         MIN(a.appointment_date)::TEXT as first_seen,
         COUNT(*)::INT as appointment_count
-      FROM trapper.sot_appointments a
+      FROM ops.appointments a
       JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
       GROUP BY po.org_id, po.org_name, po.org_name_short
@@ -533,12 +533,12 @@ export async function GET(
         NULL::TEXT as ownership_type,
         pl2.formatted_address as origin_address,
         po.org_name_short as partner_org_short
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_people p ON p.person_id = a.person_id
-      LEFT JOIN trapper.clinic_owner_accounts coa ON coa.account_id = a.owner_account_id
-      LEFT JOIN trapper.person_place_relationships ppr ON ppr.person_id = a.person_id
-      LEFT JOIN trapper.places pl ON pl.place_id = ppr.place_id
-      LEFT JOIN trapper.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
+      FROM ops.appointments a
+      LEFT JOIN sot.people p ON p.person_id = a.person_id
+      LEFT JOIN ops.clinic_accounts coa ON coa.account_id = a.owner_account_id
+      LEFT JOIN sot.person_place_relationships ppr ON ppr.person_id = a.person_id
+      LEFT JOIN sot.places pl ON pl.place_id = ppr.place_id
+      LEFT JOIN sot.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
       LEFT JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
       ORDER BY a.appointment_date DESC
@@ -551,7 +551,7 @@ export async function GET(
         field_sources,
         has_conflicts,
         source_count
-      FROM trapper.v_cat_field_sources_summary
+      FROM sot.v_cat_field_sources_summary
       WHERE cat_id = $1
     `;
 
@@ -713,7 +713,7 @@ export async function PATCH(
     // Get current cat data for audit comparison
     const currentSql = `
       SELECT display_name, sex, altered_status, primary_color, breed, notes
-      FROM trapper.sot_cats WHERE cat_id = $1
+      FROM sot.cats WHERE cat_id = $1
     `;
     const current = await queryOne<{
       display_name: string | null;
@@ -814,7 +814,7 @@ export async function PATCH(
     values.push(id);
 
     const sql = `
-      UPDATE trapper.sot_cats
+      UPDATE sot.cats
       SET ${updates.join(", ")}
       WHERE cat_id = $${paramIndex}
       RETURNING cat_id, display_name, sex, altered_status, primary_color, breed

@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
         p.person_id,
         p.display_name,
         trapper.norm_email($1) as normalized_email
-      FROM trapper.person_identifiers pi
-      JOIN trapper.sot_people p ON p.person_id = pi.person_id
+      FROM sot.person_identifiers pi
+      JOIN sot.people p ON p.person_id = pi.person_id
       WHERE pi.id_type = 'email'
         AND pi.id_value_norm = trapper.norm_email($1)
         AND pi.confidence >= 0.5
@@ -112,8 +112,8 @@ export async function POST(request: NextRequest) {
           p.person_id,
           p.display_name,
           trapper.norm_email($1) as normalized_email
-        FROM trapper.person_identifiers pi
-        JOIN trapper.sot_people p ON p.person_id = pi.person_id
+        FROM sot.person_identifiers pi
+        JOIN sot.people p ON p.person_id = pi.person_id
         WHERE pi.id_type = 'email'
           AND pi.id_value_norm = trapper.norm_email($1)
           AND pi.confidence >= 0.5
@@ -149,11 +149,11 @@ export async function POST(request: NextRequest) {
         `SELECT
           p.person_id,
           p.display_name,
-          trapper.norm_phone_us($1) as normalized_phone
-        FROM trapper.person_identifiers pi
-        JOIN trapper.sot_people p ON p.person_id = pi.person_id
+          sot.norm_phone_us($1) as normalized_phone
+        FROM sot.person_identifiers pi
+        JOIN sot.people p ON p.person_id = pi.person_id
         WHERE pi.id_type = 'phone'
-          AND pi.id_value_norm = trapper.norm_phone_us($1)
+          AND pi.id_value_norm = sot.norm_phone_us($1)
           AND pi.confidence >= 0.5
           AND p.merged_into_person_id IS NULL
         LIMIT 1`,
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const normResult = await queryOne<{ normalized: string }>(
-          `SELECT trapper.norm_phone_us($1) as normalized`,
+          `SELECT sot.norm_phone_us($1) as normalized`,
           [phone]
         );
         results.phone = {

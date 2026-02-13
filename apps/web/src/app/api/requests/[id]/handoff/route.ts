@@ -73,7 +73,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (existing_target_request_id) {
       // Verify target request exists and is in a valid state
       const target = await queryOne<{ request_id: string; status: string }>(
-        `SELECT request_id, status::TEXT FROM trapper.sot_requests WHERE request_id = $1`,
+        `SELECT request_id, status::TEXT FROM ops.requests WHERE request_id = $1`,
         [existing_target_request_id]
       );
       if (!target) {
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Close original + link to existing target
       await queryOne(
-        `UPDATE trapper.sot_requests SET
+        `UPDATE ops.requests SET
           status = 'handed_off',
           redirected_to_request_id = $2,
           redirect_reason = $3,
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Link target back (only if it doesn't already have a parent)
       await queryOne(
-        `UPDATE trapper.sot_requests SET
+        `UPDATE ops.requests SET
           redirected_from_request_id = $1,
           transfer_type = COALESCE(transfer_type, 'handoff')
         WHERE request_id = $2
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Audit log
       await queryOne(
-        `INSERT INTO trapper.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
+        `INSERT INTO sot.entity_edits (entity_type, entity_id, edit_type, field_name, new_value, reason, edited_by)
          VALUES ('request', $1, 'field_update', 'status', to_jsonb('handed_off'::TEXT), $2, $3)`,
         [requestId, `Handed off to existing request ${existing_target_request_id}: ${handoff_reason}`, `staff:${session.staff_id}`]
       );
@@ -144,13 +144,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (existing_person_id) {
       const existingPerson = await queryOne<ExistingPerson>(
         `SELECT first_name, last_name,
-          (SELECT id_value FROM trapper.person_identifiers
+          (SELECT id_value FROM sot.person_identifiers
            WHERE person_id = $1 AND id_type = 'email' AND confidence >= 0.5
            ORDER BY confidence DESC NULLS LAST LIMIT 1) as email,
-          (SELECT id_value FROM trapper.person_identifiers
+          (SELECT id_value FROM sot.person_identifiers
            WHERE person_id = $1 AND id_type = 'phone' AND confidence >= 0.5
            ORDER BY confidence DESC NULLS LAST LIMIT 1) as phone
-         FROM trapper.sot_people WHERE person_id = $1`,
+         FROM sot.people WHERE person_id = $1`,
         [existing_person_id]
       );
       if (existingPerson) {
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Call the handoff_request function
     const result = await queryOne<HandoffResult>(
-      `SELECT * FROM trapper.handoff_request(
+      `SELECT * FROM ops.handoff_request(
         p_original_request_id := $1,
         p_handoff_reason := $2,
         p_new_address := $3,

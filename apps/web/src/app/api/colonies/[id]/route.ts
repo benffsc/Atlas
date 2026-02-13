@@ -90,7 +90,7 @@ export async function GET(
         latest_observation_date,
         has_count_discrepancy,
         discrepancy_amount
-      FROM trapper.v_colony_stats
+      FROM ops.v_colony_stats
       WHERE colony_id = $1`,
       [id]
     );
@@ -109,8 +109,8 @@ export async function GET(
         cp.is_primary,
         cp.added_by,
         cp.added_at
-      FROM trapper.colony_places cp
-      JOIN trapper.places p ON p.place_id = cp.place_id
+      FROM sot.colony_places cp
+      JOIN sot.places p ON p.place_id = cp.place_id
       WHERE cp.colony_id = $1
       ORDER BY cp.is_primary DESC, p.formatted_address`,
       [id]
@@ -126,10 +126,10 @@ export async function GET(
         r.estimated_cat_count,
         cr.added_by,
         cr.added_at
-      FROM trapper.colony_requests cr
-      JOIN trapper.sot_requests r ON r.request_id = cr.request_id
-      LEFT JOIN trapper.places p ON p.place_id = r.place_id
-      LEFT JOIN trapper.sot_people rq ON rq.person_id = r.requester_person_id
+      FROM sot.colony_requests cr
+      JOIN ops.requests r ON r.request_id = cr.request_id
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
+      LEFT JOIN sot.people rq ON rq.person_id = r.requester_person_id
       WHERE cr.colony_id = $1
       ORDER BY cr.added_at DESC`,
       [id]
@@ -148,7 +148,7 @@ export async function GET(
         notes,
         observed_by,
         created_at
-      FROM trapper.colony_observations
+      FROM sot.colony_observations
       WHERE colony_id = $1
       ORDER BY observation_date DESC, created_at DESC
       LIMIT 20`,
@@ -218,7 +218,7 @@ export async function PATCH(
     values.push(id);
 
     const result = await queryOne<{ colony_id: string }>(
-      `UPDATE trapper.colonies
+      `UPDATE sot.colonies
        SET ${updates.join(", ")}
        WHERE colony_id = $${paramIndex}
        RETURNING colony_id`,
@@ -248,7 +248,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_id: string }>(
-      `DELETE FROM trapper.colonies WHERE colony_id = $1 RETURNING colony_id`,
+      `DELETE FROM sot.colonies WHERE colony_id = $1 RETURNING colony_id`,
       [id]
     );
 

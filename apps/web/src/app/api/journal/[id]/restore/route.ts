@@ -11,7 +11,7 @@ export async function POST(
 
   try {
     const result = await queryOne<{ id: string }>(
-      `UPDATE trapper.journal_entries
+      `UPDATE ops.journal_entries
        SET is_archived = FALSE,
            updated_by = $2,
            meta = meta - 'archive_reason'
@@ -22,7 +22,7 @@ export async function POST(
 
     if (!result) {
       const existing = await queryOne<{ is_archived: boolean }>(
-        `SELECT is_archived FROM trapper.journal_entries WHERE id = $1`,
+        `SELECT is_archived FROM ops.journal_entries WHERE id = $1`,
         [id]
       );
 

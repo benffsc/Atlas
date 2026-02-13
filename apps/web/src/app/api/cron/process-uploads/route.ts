@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   try {
     // Auto-reset stuck uploads (processing > 5 minutes with no progress)
     const stuckReset = await query(`
-      UPDATE trapper.file_uploads
+      UPDATE ops.file_uploads
       SET status = 'failed',
           error_message = 'Processing timed out after 5 minutes (auto-reset by cron)'
       WHERE status = 'processing'
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     // Find pending uploads that need processing
     const pendingUploads = await queryRows<PendingUpload>(`
       SELECT upload_id, original_filename, source_system, source_table, uploaded_at
-      FROM trapper.file_uploads
+      FROM ops.file_uploads
       WHERE status = 'pending'
         AND file_content IS NOT NULL
       ORDER BY uploaded_at ASC
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       try {
         // Mark as processing
         await query(
-          `UPDATE trapper.file_uploads SET status = 'processing' WHERE upload_id = $1`,
+          `UPDATE ops.file_uploads SET status = 'processing' WHERE upload_id = $1`,
           [upload.upload_id]
         );
 
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
           failCount++;
           // Mark as failed
           await query(
-            `UPDATE trapper.file_uploads
+            `UPDATE ops.file_uploads
              SET status = 'failed', error_message = $2, processed_at = NOW()
              WHERE upload_id = $1`,
             [upload.upload_id, error.slice(0, 500)]
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         // Mark as failed
         await query(
-          `UPDATE trapper.file_uploads
+          `UPDATE ops.file_uploads
            SET status = 'failed', error_message = $2, processed_at = NOW()
            WHERE upload_id = $1`,
           [upload.upload_id, errorMsg.slice(0, 500)]

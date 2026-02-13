@@ -30,7 +30,7 @@ export async function GET() {
         COALESCE(is_firsthand_boost, 0.05) as is_firsthand_boost,
         COALESCE(supersession_tier, 1) as supersession_tier,
         description
-      FROM trapper.colony_source_confidence
+      FROM sot.colony_source_confidence
       ORDER BY supersession_tier DESC, base_confidence DESC
     `);
 
@@ -57,7 +57,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE (is_superseded IS NULL OR is_superseded = FALSE) AND (is_excluded IS NULL OR is_excluded = FALSE)) as active_estimates,
         COUNT(*) FILTER (WHERE is_superseded = TRUE) as superseded_estimates,
         COUNT(*) FILTER (WHERE is_excluded = TRUE) as excluded_estimates
-      FROM trapper.place_colony_estimates
+      FROM sot.place_colony_estimates
       WHERE total_cats IS NOT NULL
     `);
 
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       }
 
       await execute(
-        `INSERT INTO trapper.colony_source_confidence
+        `INSERT INTO sot.colony_source_confidence
           (source_type, base_confidence, is_firsthand_boost, supersession_tier, description)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (source_type) DO UPDATE SET
@@ -164,7 +164,7 @@ export async function DELETE(request: NextRequest) {
       }
 
       await execute(
-        `DELETE FROM trapper.colony_source_confidence WHERE source_type = $1`,
+        `DELETE FROM sot.colony_source_confidence WHERE source_type = $1`,
         [key]
       );
     } else if (type === "count_precision") {

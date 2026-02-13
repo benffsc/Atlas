@@ -48,7 +48,7 @@ export async function GET(
         ai_access_level,
         created_at,
         updated_at
-      FROM trapper.staff
+      FROM ops.staff
       WHERE staff_id = $1
     `, [id]);
 
@@ -115,7 +115,7 @@ export async function PATCH(
     values.push(id);
 
     const result = await queryOne<{ staff_id: string }>(`
-      UPDATE trapper.staff
+      UPDATE ops.staff
       SET ${updates.join(', ')}
       WHERE staff_id = $${paramIndex}
       RETURNING staff_id
@@ -131,12 +131,12 @@ export async function PATCH(
     // If deactivating, update person_roles too
     if (body.is_active === false) {
       const staff = await queryOne<{ person_id: string | null }>(`
-        SELECT person_id FROM trapper.staff WHERE staff_id = $1
+        SELECT person_id FROM ops.staff WHERE staff_id = $1
       `, [id]);
 
       if (staff?.person_id) {
         await execute(`
-          UPDATE trapper.person_roles
+          UPDATE sot.person_roles
           SET role_status = 'inactive', ended_at = NOW()
           WHERE person_id = $1 AND role = 'staff'
         `, [staff.person_id]);
@@ -166,7 +166,7 @@ export async function DELETE(
     if (hardDelete) {
       // Hard delete - only if no Airtable source
       const result = await queryOne<{ staff_id: string }>(`
-        DELETE FROM trapper.staff
+        DELETE FROM ops.staff
         WHERE staff_id = $1 AND source_record_id IS NULL
         RETURNING staff_id
       `, [id]);
@@ -180,19 +180,19 @@ export async function DELETE(
     } else {
       // Soft delete - set inactive
       await execute(`
-        UPDATE trapper.staff
+        UPDATE ops.staff
         SET is_active = FALSE, end_date = CURRENT_DATE
         WHERE staff_id = $1
       `, [id]);
 
       // Update person_roles
       const staff = await queryOne<{ person_id: string | null }>(`
-        SELECT person_id FROM trapper.staff WHERE staff_id = $1
+        SELECT person_id FROM ops.staff WHERE staff_id = $1
       `, [id]);
 
       if (staff?.person_id) {
         await execute(`
-          UPDATE trapper.person_roles
+          UPDATE sot.person_roles
           SET role_status = 'inactive', ended_at = NOW()
           WHERE person_id = $1 AND role = 'staff'
         `, [staff.person_id]);

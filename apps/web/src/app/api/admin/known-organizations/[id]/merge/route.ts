@@ -28,7 +28,7 @@ export async function POST(
 
     // First get the org
     const org = await queryOne<{ canonical_name: string; short_name: string | null }>(
-      `SELECT canonical_name, short_name FROM trapper.known_organizations WHERE org_id = $1`,
+      `SELECT canonical_name, short_name FROM sot.known_organizations WHERE org_id = $1`,
       [id]
     );
 
@@ -38,7 +38,7 @@ export async function POST(
 
     // Call the merge function
     const results = await queryRows<MergeResult>(
-      `SELECT * FROM trapper.merge_organization_duplicates($1, $2)`,
+      `SELECT * FROM sot.merge_organization_duplicates($1, $2)`,
       [org.canonical_name, dryRun]
     );
 
@@ -52,7 +52,7 @@ export async function POST(
         email: string | null;
       }>(
         `SELECT canonical_person_id, canonical_name, phone, email
-         FROM trapper.known_organizations WHERE org_id = $1`,
+         FROM sot.known_organizations WHERE org_id = $1`,
         [id]
       );
 
@@ -92,7 +92,7 @@ export async function GET(
   try {
     // Get the org
     const org = await queryOne<{ canonical_name: string; canonical_person_id: string | null }>(
-      `SELECT canonical_name, canonical_person_id FROM trapper.known_organizations WHERE org_id = $1`,
+      `SELECT canonical_name, canonical_person_id FROM sot.known_organizations WHERE org_id = $1`,
       [id]
     );
 
@@ -117,7 +117,7 @@ export async function GET(
         p.source_system,
         p.created_at,
         p.person_id = $2 AS is_canonical
-      FROM trapper.sot_people p
+      FROM sot.people p
       WHERE p.merged_into_person_id IS NULL
         AND (
           LOWER(p.display_name) ILIKE '%' || LOWER($1) || '%'

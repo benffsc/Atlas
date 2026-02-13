@@ -80,11 +80,11 @@ export async function GET(request: NextRequest) {
           COALESCE(r.internal_notes, '') || ' ' ||
           COALESCE(r.notes, '') || ' ' ||
           COALESCE(r.legacy_notes, '') AS combined_notes
-        FROM trapper.sot_requests r
+        FROM ops.requests r
         WHERE r.place_id IS NOT NULL
           AND (r.internal_notes IS NOT NULL OR r.notes IS NOT NULL OR r.legacy_notes IS NOT NULL)
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.place_colony_estimates pce
+            SELECT 1 FROM sot.place_colony_estimates pce
             WHERE pce.place_id = r.place_id
               AND pce.source_record_id = r.request_id::TEXT
               AND pce.source_type = 'internal_notes_parse'
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
       if (est.total_cats || est.eartip_count) {
         try {
           await query(`
-            INSERT INTO trapper.place_colony_estimates (
+            INSERT INTO sot.place_colony_estimates (
               place_id,
               total_cats,
               eartip_count_observed,
@@ -166,12 +166,12 @@ export async function GET(request: NextRequest) {
           'intake_situation_parse' AS source_type,
           s.place_id,
           COALESCE(s.situation_description, '') AS combined_notes
-        FROM trapper.web_intake_submissions s
+        FROM ops.intake_submissions s
         WHERE s.place_id IS NOT NULL
           AND s.situation_description IS NOT NULL
           AND LENGTH(s.situation_description) > 20
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.place_colony_estimates pce
+            SELECT 1 FROM sot.place_colony_estimates pce
             WHERE pce.place_id = s.place_id
               AND pce.source_record_id = s.submission_id::TEXT
               AND pce.source_type = 'intake_situation_parse'
@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
       if (est.total_cats || est.eartip_count) {
         try {
           await query(`
-            INSERT INTO trapper.place_colony_estimates (
+            INSERT INTO sot.place_colony_estimates (
               place_id,
               total_cats,
               eartip_count_observed,
@@ -271,12 +271,12 @@ export async function GET(request: NextRequest) {
               ~* '\\m(lactating|nursing|with litter|feeding kittens|milk present|mammary)\\M' AS is_lactating,
             (COALESCE(a.internal_notes, '') || ' ' || COALESCE(a.medical_notes, ''))
               ~* '\\m(in heat|estrus|calling|lordosis)\\M' AS is_in_heat
-          FROM trapper.sot_appointments a
+          FROM ops.appointments a
           WHERE a.is_spay = TRUE
             AND a.cat_id IS NOT NULL
             AND (a.internal_notes IS NOT NULL OR a.medical_notes IS NOT NULL)
             AND NOT EXISTS (
-              SELECT 1 FROM trapper.cat_vitals cv
+              SELECT 1 FROM ops.cat_vitals cv
               WHERE cv.cat_id = a.cat_id
                 AND cv.recorded_at::DATE = a.appointment_date::DATE
                 AND cv.source_system = 'notes_parser_cron'
@@ -289,7 +289,7 @@ export async function GET(request: NextRequest) {
             results.reproduction_indicators_found++;
             try {
               await query(`
-                INSERT INTO trapper.cat_vitals (
+                INSERT INTO ops.cat_vitals (
                   cat_id,
                   recorded_at,
                   is_pregnant,
@@ -360,11 +360,11 @@ export async function GET(request: NextRequest) {
                   ~* '\\m(died|death|deceased|passed away|found dead|RIP)\\M' THEN 'unknown'
                 ELSE NULL
               END AS death_cause
-            FROM trapper.sot_requests r
+            FROM ops.requests r
             WHERE r.place_id IS NOT NULL
               AND (r.internal_notes IS NOT NULL OR r.notes IS NOT NULL OR r.legacy_notes IS NOT NULL)
               AND NOT EXISTS (
-                SELECT 1 FROM trapper.cat_mortality_events cme
+                SELECT 1 FROM sot.cat_mortality_events cme
                 WHERE cme.source_record_id = r.request_id::TEXT
                   AND cme.source_system = 'notes_parser_cron'
               )
@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
         for (const m of mortalityMentions) {
           try {
             await query(`
-              INSERT INTO trapper.cat_mortality_events (
+              INSERT INTO sot.cat_mortality_events (
                 cat_id,
                 place_id,
                 death_date,
@@ -400,7 +400,7 @@ export async function GET(request: NextRequest) {
                 $1,
                 CURRENT_DATE,
                 'estimated',
-                $2::trapper.death_cause,
+                $2,
                 'adult',
                 'notes_parser_cron',
                 'notes_parser_cron',
@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
 
     try {
       await query(`
-        INSERT INTO trapper.ingest_runs (
+        INSERT INTO ops.ingest_runs (
           source_system,
           run_type,
           started_at,

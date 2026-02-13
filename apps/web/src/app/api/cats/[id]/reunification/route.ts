@@ -58,10 +58,10 @@ export async function GET(
         r.confirmed_by,
         r.confirmed_at
       FROM trapper.cat_reunifications r
-      LEFT JOIN trapper.sot_people p1 ON p1.person_id = r.original_owner_person_id
-      LEFT JOIN trapper.sot_people p2 ON p2.person_id = r.current_caretaker_person_id
-      LEFT JOIN trapper.places pl1 ON pl1.place_id = r.original_place_id
-      LEFT JOIN trapper.places pl2 ON pl2.place_id = r.found_at_place_id
+      LEFT JOIN sot.people p1 ON p1.person_id = r.original_owner_person_id
+      LEFT JOIN sot.people p2 ON p2.person_id = r.current_caretaker_person_id
+      LEFT JOIN sot.places pl1 ON pl1.place_id = r.original_place_id
+      LEFT JOIN sot.places pl2 ON pl2.place_id = r.found_at_place_id
       WHERE r.cat_id = $1
       ORDER BY r.recorded_at DESC
     `;

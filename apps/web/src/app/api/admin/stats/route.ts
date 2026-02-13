@@ -17,25 +17,25 @@ export async function GET() {
         SELECT
           COALESCE(submission_status::text, '(none)') as status,
           COUNT(*)::int as cnt
-        FROM trapper.web_intake_submissions
+        FROM ops.intake_submissions
         GROUP BY submission_status
       ),
       source_counts AS (
         SELECT
           COALESCE(intake_source::text, '(none)') as source,
           COUNT(*)::int as cnt
-        FROM trapper.web_intake_submissions
+        FROM ops.intake_submissions
         GROUP BY intake_source
       ),
       geo_counts AS (
         SELECT
           COALESCE(geo_confidence, '(pending)') as geo,
           COUNT(*)::int as cnt
-        FROM trapper.web_intake_submissions
+        FROM ops.intake_submissions
         GROUP BY geo_confidence
       )
       SELECT
-        (SELECT COUNT(*)::int FROM trapper.web_intake_submissions) as total,
+        (SELECT COUNT(*)::int FROM ops.intake_submissions) as total,
         (SELECT COALESCE(jsonb_object_agg(status, cnt), '{}') FROM status_counts) as by_status,
         (SELECT COALESCE(jsonb_object_agg(source, cnt), '{}') FROM source_counts) as by_source,
         (SELECT COALESCE(jsonb_object_agg(geo, cnt), '{}') FROM geo_counts) as by_geo_confidence
@@ -61,7 +61,7 @@ export async function GET() {
         pending: number;
         failed: number;
         ready_to_process: number;
-      }>("SELECT * FROM trapper.v_geocoding_stats");
+      }>("SELECT * FROM ops.v_geocoding_stats");
 
       // Get recent failures for visibility
       if (geocodingQueue && geocodingQueue.failed > 0) {
@@ -70,7 +70,7 @@ export async function GET() {
           formatted_address: string;
           geocode_error: string;
         }>(
-          "SELECT place_id, formatted_address, geocode_error FROM trapper.v_geocoding_failures LIMIT 5"
+          "SELECT place_id, formatted_address, geocode_error FROM ops.v_geocoding_failures LIMIT 5"
         );
       }
     } catch {

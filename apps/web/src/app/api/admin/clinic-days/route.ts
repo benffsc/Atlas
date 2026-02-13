@@ -101,11 +101,11 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NOT NULL)::INT AS chipped_count,
         COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NULL AND c.needs_microchip = TRUE)::INT AS unchipped_count,
         COUNT(*) FILTER (WHERE a.cat_id IS NULL)::INT AS unlinked_count
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-      LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = a.cat_id AND ci.id_type = 'microchip'
+      FROM ops.appointments a
+      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = a.cat_id AND ci.id_type = 'microchip'
       LEFT JOIN trapper.clinic_days cd ON cd.clinic_date = a.appointment_date
-      LEFT JOIN trapper.places tp ON tp.place_id = cd.target_place_id
+      LEFT JOIN sot.places tp ON tp.place_id = cd.target_place_id
       ${whereClause}
       GROUP BY
         a.appointment_date,

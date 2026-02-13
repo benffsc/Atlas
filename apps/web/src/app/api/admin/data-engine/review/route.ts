@@ -63,10 +63,10 @@ export async function GET(request: NextRequest) {
         d.score_breakdown,
         d.processed_at::text,
         CASE WHEN d.reviewed_at IS NULL THEN 'pending' ELSE 'reviewed' END as review_status
-      FROM trapper.data_engine_match_decisions d
-      LEFT JOIN trapper.sot_people top_p ON top_p.person_id = d.top_candidate_person_id
-      LEFT JOIN trapper.sot_people canonical_p ON canonical_p.person_id = top_p.merged_into_person_id
-      LEFT JOIN trapper.sot_people res_p ON res_p.person_id = d.resulting_person_id
+      FROM sot.data_engine_match_decisions d
+      LEFT JOIN sot.people top_p ON top_p.person_id = d.top_candidate_person_id
+      LEFT JOIN sot.people canonical_p ON canonical_p.person_id = top_p.merged_into_person_id
+      LEFT JOIN sot.people res_p ON res_p.person_id = d.resulting_person_id
       WHERE ${statusCondition}
       ORDER BY d.processed_at DESC
       LIMIT $1 OFFSET $2
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     // Get total count using same condition
     const countResult = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::int as count
-      FROM trapper.data_engine_match_decisions d
+      FROM sot.data_engine_match_decisions d
       WHERE ${statusCondition}
     `, []);
 

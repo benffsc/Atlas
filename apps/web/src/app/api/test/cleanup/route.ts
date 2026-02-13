@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // Clean up test submissions
     const submissionsResult = await query(`
-      DELETE FROM trapper.web_intake_submissions
+      DELETE FROM ops.intake_submissions
       WHERE submission_id LIKE 'e2e-test-%'
          OR email LIKE 'e2e-%@test.example.com'
       RETURNING submission_id
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
     // Clean up test requests
     const requestsResult = await query(`
-      DELETE FROM trapper.sot_requests
+      DELETE FROM ops.requests
       WHERE source_system = 'e2e_test'
          OR request_id LIKE 'e2e-test-%'
       RETURNING request_id
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     // Clean up test places
     const placesResult = await query(`
-      DELETE FROM trapper.places
+      DELETE FROM sot.places
       WHERE source_system = 'e2e_test'
          OR place_id LIKE 'e2e-test-%'
       RETURNING place_id
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
     // Clean up test people
     const peopleResult = await query(`
-      DELETE FROM trapper.sot_people
+      DELETE FROM sot.people
       WHERE source_system = 'e2e_test'
          OR person_id LIKE 'e2e-test-%'
       RETURNING person_id
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
     // Clean up test cats
     const catsResult = await query(`
-      DELETE FROM trapper.sot_cats
+      DELETE FROM sot.cats
       WHERE source_system = 'e2e_test'
          OR cat_id LIKE 'e2e-test-%'
       RETURNING cat_id
@@ -112,11 +112,11 @@ export async function GET(request: Request) {
   try {
     const result = await query(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com') as test_submissions,
-        (SELECT COUNT(*) FROM trapper.sot_requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%') as test_requests,
-        (SELECT COUNT(*) FROM trapper.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%') as test_places,
-        (SELECT COUNT(*) FROM trapper.sot_people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%') as test_people,
-        (SELECT COUNT(*) FROM trapper.sot_cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%') as test_cats
+        (SELECT COUNT(*) FROM ops.intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com') as test_submissions,
+        (SELECT COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%') as test_requests,
+        (SELECT COUNT(*) FROM sot.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%') as test_places,
+        (SELECT COUNT(*) FROM sot.people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%') as test_people,
+        (SELECT COUNT(*) FROM sot.cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%') as test_cats
     `);
 
     return NextResponse.json({

@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
         pce.observation_date::TEXT,
         pce.notes,
         pce.created_at::TEXT
-      FROM trapper.place_colony_estimates pce
-      JOIN trapper.places p ON p.place_id = pce.place_id
+      FROM sot.place_colony_estimates pce
+      JOIN sot.places p ON p.place_id = pce.place_id
       ${whereClause}
       ORDER BY pce.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
@@ -105,7 +105,7 @@ export async function PATCH(request: NextRequest) {
     params.push(estimate_id);
 
     await query(
-      `UPDATE trapper.place_colony_estimates SET ${updates.join(", ")} WHERE estimate_id = $${paramIndex}`,
+      `UPDATE sot.place_colony_estimates SET ${updates.join(", ")} WHERE estimate_id = $${paramIndex}`,
       params
     );
 
@@ -129,7 +129,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await query(
-      `DELETE FROM trapper.place_colony_estimates WHERE estimate_id = $1`,
+      `DELETE FROM sot.place_colony_estimates WHERE estimate_id = $1`,
       [estimateId]
     );
 

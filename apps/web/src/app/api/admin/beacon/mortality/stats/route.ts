@@ -41,13 +41,13 @@ export async function GET() {
         COUNT(*)::INT AS total_events,
         COUNT(*) FILTER (WHERE cat_id IS NOT NULL)::INT AS with_cat_id,
         COUNT(DISTINCT place_id)::INT AS unique_places
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
     `);
 
     // Get by cause
     const byCause = await queryRows<CauseStat>(`
       SELECT death_cause::TEXT, COUNT(*)::INT AS count
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
       GROUP BY death_cause
       ORDER BY count DESC
     `);
@@ -55,7 +55,7 @@ export async function GET() {
     // Get by age category
     const byAge = await queryRows<AgeStat>(`
       SELECT death_age_category::TEXT, COUNT(*)::INT AS count
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
       GROUP BY death_age_category
       ORDER BY count DESC
     `);
@@ -65,7 +65,7 @@ export async function GET() {
       SELECT
         COALESCE(source_system, 'unknown') AS source_system,
         COUNT(*)::INT AS count
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -73,7 +73,7 @@ export async function GET() {
     // Get this year's deaths
     const thisYear = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::INT AS count
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
       WHERE death_year = EXTRACT(YEAR FROM CURRENT_DATE)
     `);
 

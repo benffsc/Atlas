@@ -58,12 +58,12 @@ export async function GET() {
       remaining: string;
     }>(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions) as total_decisions,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'auto_match') as auto_matched,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'new_entity') as new_entities,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_needed' AND reviewed_at IS NULL) as reviews_pending,
-        (SELECT COUNT(*) FROM trapper.staged_records) as total_staged,
-        (SELECT COUNT(*) FROM trapper.staged_records sr WHERE NOT is_processed) as remaining
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions) as total_decisions,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'auto_match') as auto_matched,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'new_entity') as new_entities,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'review_needed' AND reviewed_at IS NULL) as reviews_pending,
+        (SELECT COUNT(*) FROM ops.staged_records) as total_staged,
+        (SELECT COUNT(*) FROM ops.staged_records sr WHERE NOT is_processed) as remaining
     `, []);
 
     const result: DataEngineStats = {
@@ -85,7 +85,7 @@ export async function GET() {
           source_table,
           entity_type,
           is_active
-        FROM trapper.data_engine_processors
+        FROM sot.data_engine_processors
         ORDER BY priority, processor_name
       `, []) || [];
     } catch {
@@ -102,7 +102,7 @@ export async function GET() {
         source_system,
         source_table,
         COUNT(*) as pending
-      FROM trapper.staged_records
+      FROM ops.staged_records
       WHERE NOT is_processed
       GROUP BY source_system, source_table
       ORDER BY pending DESC
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
           success: string;
           errors: string;
         }>(`
-          SELECT * FROM trapper.data_engine_process_batch_unified($1, $2, $3)
+          SELECT * FROM sot.data_engine_process_batch_unified($1, $2, $3)
         `, [sourceSystem, sourceTable, limit]);
 
         if (unifiedResult && parseInt(unifiedResult.processed || "0") > 0) {
@@ -153,12 +153,12 @@ export async function POST(request: NextRequest) {
             remaining: string;
           }>(`
             SELECT
-              (SELECT COUNT(*) FROM trapper.data_engine_match_decisions) as total_decisions,
-              (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'auto_match') as auto_matched,
-              (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'new_entity') as new_entities,
-              (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_needed' AND reviewed_at IS NULL) as reviews_pending,
-              (SELECT COUNT(*) FROM trapper.staged_records) as total_staged,
-              (SELECT COUNT(*) FROM trapper.staged_records sr WHERE NOT is_processed) as remaining
+              (SELECT COUNT(*) FROM sot.data_engine_match_decisions) as total_decisions,
+              (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'auto_match') as auto_matched,
+              (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'new_entity') as new_entities,
+              (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'review_needed' AND reviewed_at IS NULL) as reviews_pending,
+              (SELECT COUNT(*) FROM ops.staged_records) as total_staged,
+              (SELECT COUNT(*) FROM ops.staged_records sr WHERE NOT is_processed) as remaining
           `, []);
 
           const stats: DataEngineStats = {
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
       duration_ms: string;
     }>(`
       SELECT (r).* FROM (
-        SELECT trapper.data_engine_process_batch($1, NULL, $2, NULL) as r
+        SELECT sot.data_engine_process_batch($1, NULL, $2, NULL) as r
       ) sub
     `, [source, limit]);
 
@@ -244,12 +244,12 @@ export async function POST(request: NextRequest) {
       remaining: string;
     }>(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions) as total_decisions,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'auto_match') as auto_matched,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'new_entity') as new_entities,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_needed' AND reviewed_at IS NULL) as reviews_pending,
-        (SELECT COUNT(*) FROM trapper.staged_records) as total_staged,
-        (SELECT COUNT(*) FROM trapper.staged_records sr WHERE NOT is_processed) as remaining
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions) as total_decisions,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'auto_match') as auto_matched,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'new_entity') as new_entities,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'review_needed' AND reviewed_at IS NULL) as reviews_pending,
+        (SELECT COUNT(*) FROM ops.staged_records) as total_staged,
+        (SELECT COUNT(*) FROM ops.staged_records sr WHERE NOT is_processed) as remaining
     `, []);
 
     const stats: DataEngineStats = {

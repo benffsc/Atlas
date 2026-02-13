@@ -42,12 +42,12 @@ export async function GET(
         e.rolled_back_at,
         -- Get related entity name if exists
         CASE e.related_entity_type
-          WHEN 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = e.related_entity_id)
-          WHEN 'cat' THEN (SELECT display_name FROM trapper.sot_cats WHERE cat_id = e.related_entity_id)
-          WHEN 'place' THEN (SELECT display_name FROM trapper.places WHERE place_id = e.related_entity_id)
+          WHEN 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = e.related_entity_id)
+          WHEN 'cat' THEN (SELECT display_name FROM sot.cats WHERE cat_id = e.related_entity_id)
+          WHEN 'place' THEN (SELECT display_name FROM sot.places WHERE place_id = e.related_entity_id)
           ELSE NULL
         END as related_entity_name
-      FROM trapper.entity_edits e
+      FROM sot.entity_edits e
       WHERE e.entity_type = $1
         AND e.entity_id = $2
       ORDER BY e.created_at DESC

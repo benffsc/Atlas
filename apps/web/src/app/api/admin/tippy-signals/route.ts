@@ -39,13 +39,13 @@ export async function GET(request: NextRequest) {
         is_silent,
         -- Entity name lookup
         CASE
-          WHEN entity_type = 'place' THEN (SELECT label FROM trapper.places WHERE place_id = entity_id)
-          WHEN entity_type = 'cat' THEN (SELECT display_name FROM trapper.sot_cats WHERE cat_id = entity_id)
-          WHEN entity_type = 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = entity_id)
-          WHEN entity_type = 'request' THEN (SELECT short_address FROM trapper.sot_requests WHERE request_id = entity_id)
+          WHEN entity_type = 'place' THEN (SELECT label FROM sot.places WHERE place_id = entity_id)
+          WHEN entity_type = 'cat' THEN (SELECT display_name FROM sot.cats WHERE cat_id = entity_id)
+          WHEN entity_type = 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = entity_id)
+          WHEN entity_type = 'request' THEN (SELECT short_address FROM ops.requests WHERE request_id = entity_id)
           ELSE NULL
         END as entity_name
-      FROM trapper.v_tippy_all_signals
+      FROM ops.v_tippy_all_signals
       WHERE ($1 = 'all' OR signal_type = $1)
         AND (
           $2 = 'all'
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     // Get summary counts
     const summary = await queryRows(
       `SELECT signal_type, total, needs_attention, last_7_days, latest
-       FROM trapper.v_tippy_signal_summary
+       FROM ops.v_tippy_signal_summary
        ORDER BY needs_attention DESC`
     );
 

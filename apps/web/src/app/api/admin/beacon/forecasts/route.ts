@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
             e.p_lower,
             e.estimation_method::TEXT,
             e.last_altered_at::TEXT
-          FROM trapper.v_place_ecology_stats e
+          FROM sot.v_place_ecology_stats e
           WHERE e.a_known > 0 OR e.n_recent_max > 0
         ),
         recent_activity AS (
@@ -117,8 +117,8 @@ export async function GET(request: NextRequest) {
             cpr.place_id,
             COUNT(*) FILTER (WHERE cp.procedure_date >= CURRENT_DATE - INTERVAL '6 months') AS cats_6mo,
             COUNT(*) FILTER (WHERE cp.procedure_date >= CURRENT_DATE - INTERVAL '12 months') AS cats_12mo
-          FROM trapper.cat_procedures cp
-          JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = cp.cat_id
+          FROM ops.cat_procedures cp
+          JOIN sot.cat_place_relationships cpr ON cpr.cat_id = cp.cat_id
           WHERE cp.is_spay OR cp.is_neuter
           GROUP BY cpr.place_id
         )

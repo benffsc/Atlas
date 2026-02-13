@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
           felv_positive_rate_pct,
           first_activity_date,
           last_activity_date
-        FROM trapper.v_trapper_full_stats
+        FROM ops.v_trapper_full_stats
         ${whereClause}
         ORDER BY
           CASE WHEN role_status = 'active' THEN 0 ELSE 1 END,
@@ -140,8 +140,8 @@ export async function GET(request: NextRequest) {
           NULL::NUMERIC AS felv_positive_rate_pct,
           NULL::DATE AS first_activity_date,
           NULL::DATE AS last_activity_date
-        FROM trapper.sot_people p
-        JOIN trapper.person_roles pr ON pr.person_id = p.person_id
+        FROM sot.people p
+        JOIN sot.person_roles pr ON pr.person_id = p.person_id
         ${basicWhere}
         ORDER BY
           CASE WHEN pr.role_status = 'active' THEN 0 ELSE 1 END,
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
     let aggregates: AggregateStats | null = null;
     try {
       aggregates = await queryOne<AggregateStats>(
-        `SELECT * FROM trapper.v_trapper_aggregate_stats`
+        `SELECT * FROM ops.v_trapper_aggregate_stats`
       );
     } catch {
       // Fallback: compute basic aggregates
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
         `SELECT
           COUNT(*) FILTER (WHERE trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper')) AS ffsc,
           COUNT(*) FILTER (WHERE trapper_type = 'community_trapper') AS community
-        FROM trapper.person_roles
+        FROM sot.person_roles
         WHERE role = 'trapper' AND role_status = 'active'`
       );
       aggregates = {

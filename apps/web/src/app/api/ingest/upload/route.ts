@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate
     const existing = await queryOne<{ upload_id: string }>(
-      `SELECT upload_id FROM trapper.file_uploads WHERE file_hash = $1`,
+      `SELECT upload_id FROM ops.file_uploads WHERE file_hash = $1`,
       [fileHash]
     );
 
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     let result;
     try {
       result = await queryOne<{ upload_id: string }>(
-        `INSERT INTO trapper.file_uploads (
+        `INSERT INTO ops.file_uploads (
           original_filename,
           stored_filename,
           file_size_bytes,

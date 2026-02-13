@@ -33,7 +33,7 @@ export async function POST(
 
     // Verify colony exists
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM trapper.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
       [colonyId]
     );
 
@@ -43,7 +43,7 @@ export async function POST(
 
     // Verify place exists
     const place = await queryOne<{ place_id: string }>(
-      `SELECT place_id FROM trapper.places WHERE place_id = $1`,
+      `SELECT place_id FROM sot.places WHERE place_id = $1`,
       [place_id]
     );
 
@@ -54,14 +54,14 @@ export async function POST(
     // If this is being set as primary, unset other primaries first
     if (is_primary) {
       await queryOne(
-        `UPDATE trapper.colony_places SET is_primary = FALSE WHERE colony_id = $1`,
+        `UPDATE sot.colony_places SET is_primary = FALSE WHERE colony_id = $1`,
         [colonyId]
       );
     }
 
     // Insert or update the link
     await queryOne(
-      `INSERT INTO trapper.colony_places (colony_id, place_id, relationship_type, is_primary, added_by)
+      `INSERT INTO sot.colony_places (colony_id, place_id, relationship_type, is_primary, added_by)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (colony_id, place_id) DO UPDATE SET
          relationship_type = EXCLUDED.relationship_type,
@@ -97,7 +97,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_id: string }>(
-      `DELETE FROM trapper.colony_places
+      `DELETE FROM sot.colony_places
        WHERE colony_id = $1 AND place_id = $2
        RETURNING colony_id`,
       [colonyId, placeId]

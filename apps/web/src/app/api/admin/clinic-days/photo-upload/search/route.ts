@@ -58,15 +58,15 @@ export async function GET(request: NextRequest) {
       `
       WITH clinic_day_cats AS (
         SELECT DISTINCT a.cat_id
-        FROM trapper.sot_appointments a
+        FROM ops.appointments a
         WHERE a.appointment_date = $2
           AND a.cat_id IS NOT NULL
       ),
       -- Also find cats by searching staged appointment records for microchip
       staged_microchip_matches AS (
         SELECT DISTINCT a.cat_id
-        FROM trapper.sot_appointments a
-        JOIN trapper.staged_records sr ON sr.source_row_id = a.source_record_id
+        FROM ops.appointments a
+        JOIN ops.staged_records sr ON sr.source_row_id = a.source_record_id
           AND sr.source_system = 'clinichq'
           AND sr.source_table = 'appointment_info'
         WHERE a.appointment_date = $2
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           -- Death cause from cat_mortality_events (subquery to avoid duplicates)
           (
             SELECT cme.death_cause::TEXT
-            FROM trapper.cat_mortality_events cme
+            FROM sot.cat_mortality_events cme
             WHERE cme.cat_id = c.cat_id
             LIMIT 1
           ) AS death_cause,
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
                 WHEN tr.result::TEXT = 'negative' THEN 'negative'
                 ELSE NULL
               END
-            FROM trapper.cat_test_results tr
+            FROM sot.cat_test_results tr
             WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
             ORDER BY tr.test_date DESC
             LIMIT 1
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
                 WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
                 ELSE NULL
               END
-            FROM trapper.cat_test_results tr
+            FROM sot.cat_test_results tr
             WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
             ORDER BY tr.test_date DESC
             LIMIT 1
@@ -123,8 +123,8 @@ export async function GET(request: NextRequest) {
           -- Owner name via subquery to avoid cartesian product (one row per cat)
           (
             SELECT per.display_name
-            FROM trapper.person_cat_relationships pcr
-            JOIN trapper.sot_people per ON per.person_id = pcr.person_id
+            FROM sot.person_cat_relationships pcr
+            JOIN sot.people per ON per.person_id = pcr.person_id
               AND per.merged_into_person_id IS NULL
             WHERE pcr.cat_id = c.cat_id
               AND pcr.relationship_type IN ('owner', 'caretaker')
@@ -134,8 +134,8 @@ export async function GET(request: NextRequest) {
           -- Place address via subquery to avoid cartesian product (one row per cat)
           (
             SELECT pl.formatted_address
-            FROM trapper.cat_place_relationships cpr
-            JOIN trapper.places pl ON pl.place_id = cpr.place_id
+            FROM sot.cat_place_relationships cpr
+            JOIN sot.places pl ON pl.place_id = cpr.place_id
               AND pl.merged_into_place_id IS NULL
             WHERE cpr.cat_id = c.cat_id
             ORDER BY cpr.confidence DESC NULLS LAST, cpr.created_at DESC
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
           -- Get hero photo first, then most recent cat photo
           (
             SELECT rm.storage_path
-            FROM trapper.request_media rm
+            FROM ops.request_media rm
             WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
               AND rm.is_archived = FALSE
               AND rm.media_type = 'cat_photo'
@@ -160,11 +160,11 @@ export async function GET(request: NextRequest) {
           -- Sorting fields
           CASE WHEN ci_mc.id_value = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
           CASE WHEN c.display_name ILIKE $1 THEN 0 ELSE 1 END AS name_match
-        FROM trapper.sot_cats c
-        LEFT JOIN trapper.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
-        LEFT JOIN trapper.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+        FROM sot.cats c
+        LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
+        LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
         -- Get appointment for selected date
-        LEFT JOIN trapper.sot_appointments a_day ON a_day.cat_id = c.cat_id
+        LEFT JOIN ops.appointments a_day ON a_day.cat_id = c.cat_id
           AND a_day.appointment_date = $2
         WHERE c.merged_into_cat_id IS NULL
           AND (
@@ -173,8 +173,8 @@ export async function GET(request: NextRequest) {
             OR ci_chq.id_value ILIKE $1
             -- Search owner names via EXISTS to avoid join duplicates
             OR EXISTS (
-              SELECT 1 FROM trapper.person_cat_relationships pcr
-              JOIN trapper.sot_people per ON per.person_id = pcr.person_id
+              SELECT 1 FROM sot.person_cat_relationships pcr
+              JOIN sot.people per ON per.person_id = pcr.person_id
               WHERE pcr.cat_id = c.cat_id
                 AND pcr.relationship_type IN ('owner', 'caretaker')
                 AND per.merged_into_person_id IS NULL

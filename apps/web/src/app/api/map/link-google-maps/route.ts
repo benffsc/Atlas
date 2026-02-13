@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const maxDistance = Math.min(Math.max(body.max_distance_m || 100, 10), 500);
 
     const result = await queryOne<LinkResult>(`
-      SELECT * FROM trapper.link_google_maps_to_places($1)
+      SELECT * FROM sot.link_google_maps_to_places($1)
     `, [maxDistance]);
 
     if (!result) {

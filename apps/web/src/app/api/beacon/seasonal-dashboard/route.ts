@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
          kitten_intake_mentions,
          is_breeding_season,
          demand_supply_ratio
-       FROM trapper.v_seasonal_dashboard
+       FROM ops.v_seasonal_dashboard
        WHERE year >= $1
        ORDER BY year, month`,
       [startYear]
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
          lactating_count,
          in_heat_count,
          breeding_active_pct
-       FROM trapper.v_breeding_season_indicators
+       FROM ops.v_breeding_season_indicators
        WHERE year >= $1
        ORDER BY year, month`,
       [startYear]
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
          historical_avg,
          z_score,
          is_surge_month
-       FROM trapper.v_kitten_surge_prediction
+       FROM ops.v_kitten_surge_prediction
        WHERE year >= $1
        ORDER BY year, month`,
       [startYear]

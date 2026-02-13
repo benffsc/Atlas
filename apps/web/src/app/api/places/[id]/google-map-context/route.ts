@@ -39,7 +39,7 @@ export async function GET(
   try {
     // Check if place was merged — follow the merge chain
     const mergeCheck = await queryRows<{ merged_into_place_id: string | null }>(
-      `SELECT merged_into_place_id FROM trapper.places WHERE place_id = $1`,
+      `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
       [id]
     );
     const placeId = mergeCheck?.[0]?.merged_into_place_id || id;
@@ -52,7 +52,7 @@ export async function GET(
     // Uses both place_id and linked_place_id to catch all linking methods
     const sql = `
       WITH family AS (
-        SELECT unnest(trapper.get_place_family($1)) AS fid
+        SELECT unnest(sot.get_place_family($1)) AS fid
       )
       SELECT
         entry_id,
@@ -68,7 +68,7 @@ export async function GET(
         match_status,
         matched_at::TEXT,
         imported_at::TEXT
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
       WHERE place_id IN (SELECT fid FROM family)
          OR linked_place_id IN (SELECT fid FROM family)
       ORDER BY parsed_date DESC NULLS LAST, imported_at DESC

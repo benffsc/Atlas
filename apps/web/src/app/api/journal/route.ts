@@ -48,12 +48,12 @@ interface JournalEntryRow {
 // When include_related=true, also fetch journal entries from linked entities
 // within a 2-month attribution window (or while request is open).
 const ENTITY_NAME_JOINS = `
-  LEFT JOIN trapper.sot_cats c ON c.cat_id = d.primary_cat_id
-  LEFT JOIN trapper.sot_people p ON p.person_id = d.primary_person_id
-  LEFT JOIN trapper.places pl ON pl.place_id = d.primary_place_id
-  LEFT JOIN trapper.web_intake_submissions sub ON sub.submission_id = d.primary_submission_id
-  LEFT JOIN trapper.map_annotations ma ON ma.annotation_id = d.primary_annotation_id
-  LEFT JOIN trapper.staff s ON s.staff_id = d.created_by_staff_id
+  LEFT JOIN sot.cats c ON c.cat_id = d.primary_cat_id
+  LEFT JOIN sot.people p ON p.person_id = d.primary_person_id
+  LEFT JOIN sot.places pl ON pl.place_id = d.primary_place_id
+  LEFT JOIN ops.intake_submissions sub ON sub.submission_id = d.primary_submission_id
+  LEFT JOIN ops.map_annotations ma ON ma.annotation_id = d.primary_annotation_id
+  LEFT JOIN ops.staff s ON s.staff_id = d.created_by_staff_id
 `;
 
 const ENTITY_NAME_COLS = `
@@ -88,7 +88,7 @@ function buildCrossRefQuery(
   let paramIdx = 2;
   let kindFilter = "";
   if (entryKind) {
-    kindFilter = `AND je.entry_kind = $${paramIdx}::trapper.journal_entry_kind`;
+    kindFilter = `AND je.entry_kind = $${paramIdx}`;
     params.push(entryKind);
     paramIdx++;
   }
@@ -99,14 +99,14 @@ function buildCrossRefQuery(
     // Direct entries on this request
     unions.push(`
       SELECT je.*, NULL::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
+      FROM ops.journal_entries je
       WHERE je.primary_request_id = $1 ${archivedFilter} ${kindFilter}
     `);
     // Requester person's entries
     unions.push(`
       SELECT je.*, 'person'::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
-      JOIN trapper.sot_requests r ON r.request_id = $1
+      FROM ops.journal_entries je
+      JOIN ops.requests r ON r.request_id = $1
       WHERE je.primary_person_id = r.requester_person_id
         AND r.requester_person_id IS NOT NULL
         AND je.primary_request_id IS DISTINCT FROM $1
@@ -115,9 +115,9 @@ function buildCrossRefQuery(
     // Linked cats' entries
     unions.push(`
       SELECT je.*, 'cat'::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
-      JOIN trapper.request_cat_links rcl ON rcl.cat_id = je.primary_cat_id
-      JOIN trapper.sot_requests r ON r.request_id = $1
+      FROM ops.journal_entries je
+      JOIN ops.request_cats rcl ON rcl.cat_id = je.primary_cat_id
+      JOIN ops.requests r ON r.request_id = $1
       WHERE rcl.request_id = $1
         AND je.primary_request_id IS DISTINCT FROM $1
         ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
@@ -125,8 +125,8 @@ function buildCrossRefQuery(
     // Place entries
     unions.push(`
       SELECT je.*, 'place'::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
-      JOIN trapper.sot_requests r ON r.request_id = $1
+      FROM ops.journal_entries je
+      JOIN ops.requests r ON r.request_id = $1
       WHERE je.primary_place_id = r.place_id
         AND r.place_id IS NOT NULL
         AND je.primary_request_id IS DISTINCT FROM $1
@@ -136,14 +136,14 @@ function buildCrossRefQuery(
     // Direct entries on this person
     unions.push(`
       SELECT je.*, NULL::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
+      FROM ops.journal_entries je
       WHERE je.primary_person_id = $1 ${archivedFilter} ${kindFilter}
     `);
     // Request entries where person is requester
     unions.push(`
       SELECT je.*, 'request'::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
-      JOIN trapper.sot_requests r ON r.request_id = je.primary_request_id
+      FROM ops.journal_entries je
+      JOIN ops.requests r ON r.request_id = je.primary_request_id
       WHERE r.requester_person_id = $1
         AND je.primary_person_id IS DISTINCT FROM $1
         ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
@@ -153,15 +153,15 @@ function buildCrossRefQuery(
     // Direct entries on this cat
     unions.push(`
       SELECT je.*, NULL::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
+      FROM ops.journal_entries je
       WHERE je.primary_cat_id = $1 ${archivedFilter} ${kindFilter}
     `);
     // Request entries from linked requests
     unions.push(`
       SELECT je.*, 'request'::TEXT AS cross_ref_source
-      FROM trapper.journal_entries je
-      JOIN trapper.request_cat_links rcl ON rcl.request_id = je.primary_request_id
-      JOIN trapper.sot_requests r ON r.request_id = rcl.request_id
+      FROM ops.journal_entries je
+      JOIN ops.request_cats rcl ON rcl.request_id = je.primary_request_id
+      JOIN ops.requests r ON r.request_id = rcl.request_id
       WHERE rcl.cat_id = $1
         AND je.primary_cat_id IS DISTINCT FROM $1
         ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
@@ -349,7 +349,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (entryKind) {
-    conditions.push(`je.entry_kind = $${paramIndex}::trapper.journal_entry_kind`);
+    conditions.push(`je.entry_kind = $${paramIndex}`);
     params.push(entryKind);
     paramIndex++;
   }
@@ -390,13 +390,13 @@ export async function GET(request: NextRequest) {
         ma.label AS annotation_label,
         s.display_name AS created_by_staff_name,
         s.role AS created_by_staff_role
-      FROM trapper.journal_entries je
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = je.primary_cat_id
-      LEFT JOIN trapper.sot_people p ON p.person_id = je.primary_person_id
-      LEFT JOIN trapper.places pl ON pl.place_id = je.primary_place_id
-      LEFT JOIN trapper.web_intake_submissions sub ON sub.submission_id = je.primary_submission_id
-      LEFT JOIN trapper.map_annotations ma ON ma.annotation_id = je.primary_annotation_id
-      LEFT JOIN trapper.staff s ON s.staff_id = je.created_by_staff_id
+      FROM ops.journal_entries je
+      LEFT JOIN sot.cats c ON c.cat_id = je.primary_cat_id
+      LEFT JOIN sot.people p ON p.person_id = je.primary_person_id
+      LEFT JOIN sot.places pl ON pl.place_id = je.primary_place_id
+      LEFT JOIN ops.intake_submissions sub ON sub.submission_id = je.primary_submission_id
+      LEFT JOIN ops.map_annotations ma ON ma.annotation_id = je.primary_annotation_id
+      LEFT JOIN ops.staff s ON s.staff_id = je.created_by_staff_id
       ${whereClause}
       ORDER BY je.is_pinned DESC, COALESCE(je.occurred_at, je.created_at) DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -404,7 +404,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.journal_entries je
+      FROM ops.journal_entries je
       ${whereClause}
     `;
 
@@ -487,7 +487,7 @@ export async function POST(request: NextRequest) {
     const createdByStaffId = data.created_by_staff_id || user.staffId;
 
     const result = await queryOne<{ id: string }>(
-      `INSERT INTO trapper.journal_entries (
+      `INSERT INTO ops.journal_entries (
         body,
         entry_kind,
         title,
@@ -505,7 +505,7 @@ export async function POST(request: NextRequest) {
         tags
       ) VALUES (
         $1,
-        $2::trapper.journal_entry_kind,
+        $2,
         $3,
         $4,
         $5,
@@ -550,7 +550,7 @@ export async function POST(request: NextRequest) {
     // If this is a contact_attempt on a submission, update the denormalized contact fields
     if (data.submission_id && entryKind === "contact_attempt") {
       await query(
-        `UPDATE trapper.web_intake_submissions
+        `UPDATE ops.intake_submissions
          SET
            last_contacted_at = COALESCE($2, NOW()),
            last_contact_method = $3,
@@ -660,7 +660,7 @@ export async function PATCH(request: NextRequest) {
     params.push(id);
 
     const result = await queryOne<{ id: string }>(
-      `UPDATE trapper.journal_entries
+      `UPDATE ops.journal_entries
        SET ${setClauses.join(", ")}
        WHERE id = $${paramIndex}
        RETURNING id`,

@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest) {
     }>(
       `SELECT sync_type, last_sync_at, last_record_time,
               last_batch_size, pending_processing::int, sync_health
-       FROM trapper.v_shelterluv_sync_status
+       FROM ops.v_shelterluv_sync_status
        ORDER BY sync_type`
     );
 

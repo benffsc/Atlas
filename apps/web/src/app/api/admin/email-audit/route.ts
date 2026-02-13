@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
         se.submission_id
       FROM trapper.sent_emails se
       LEFT JOIN trapper.email_templates et ON et.template_key = se.template_key
-      LEFT JOIN trapper.staff s ON s.staff_id = se.sent_by
+      LEFT JOIN ops.staff s ON s.staff_id = se.sent_by
       LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = se.outlook_account_id
       ${whereClause}
       ORDER BY se.created_at DESC
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     const senders = await queryRows<{ staff_id: string; display_name: string }>(`
       SELECT DISTINCT s.staff_id, s.display_name
       FROM trapper.sent_emails se
-      JOIN trapper.staff s ON s.staff_id = se.sent_by
+      JOIN ops.staff s ON s.staff_id = se.sent_by
       ORDER BY s.display_name
     `);
 

@@ -146,7 +146,7 @@ interface SyncState {
 async function getSyncState(syncType: string): Promise<SyncState> {
   const result = await queryOne<SyncState>(
     `SELECT last_sync_timestamp, last_sync_at, records_synced
-     FROM trapper.shelterluv_sync_state
+     FROM source.shelterluv_sync_state
      WHERE sync_type = $1`,
     [syncType]
   );
@@ -161,7 +161,7 @@ async function updateSyncState(
   error: string | null = null
 ): Promise<void> {
   await execute(
-    `SELECT trapper.update_shelterluv_sync_state($1, $2, $3, $4, $5)`,
+    `SELECT source.update_shelterluv_sync_state($1, $2, $3, $4, $5)`,
     [syncType, lastTimestamp, recordsSynced, totalRecords, error]
   );
 }
@@ -179,7 +179,7 @@ async function stageRecord(
   const rowHash = computeRowHash(record);
 
   const result = await queryOne<StageResult>(
-    `INSERT INTO trapper.staged_records (
+    `INSERT INTO ops.staged_records (
       source_system, source_table, source_row_id, row_hash, payload,
       created_at, updated_at
     ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -339,7 +339,7 @@ export async function GET(request: NextRequest) {
     // Process people first (identity resolution)
     if (!syncType || syncType === "people") {
       const unprocessedPeople = await queryOne<{ count: number }>(
-        `SELECT COUNT(*)::int as count FROM trapper.staged_records
+        `SELECT COUNT(*)::int as count FROM ops.staged_records
          WHERE source_system = 'shelterluv' AND source_table = 'people'
            AND is_processed IS NOT TRUE`
       );
@@ -351,7 +351,7 @@ export async function GET(request: NextRequest) {
           people_updated: number;
           errors: number;
         }>(
-          `SELECT * FROM trapper.process_shelterluv_people_batch($1)`,
+          `SELECT * FROM ops.process_shelterluv_people_batch($1)`,
           [500]
         );
         processing.people = peopleResult;
@@ -362,7 +362,7 @@ export async function GET(request: NextRequest) {
     if (!syncType || syncType === "animals") {
       const animalBatchSize = 100;
       const unprocessedAnimals = await queryRows<{ id: string }>(
-        `SELECT id::text FROM trapper.staged_records
+        `SELECT id::text FROM ops.staged_records
          WHERE source_system = 'shelterluv'
            AND source_table = 'animals'
            AND is_processed IS NOT TRUE
@@ -376,7 +376,7 @@ export async function GET(request: NextRequest) {
         for (const animal of unprocessedAnimals) {
           try {
             await execute(
-              `SELECT trapper.process_shelterluv_animal($1::uuid)`,
+              `SELECT ops.process_shelterluv_animal($1::uuid)`,
               [animal.id]
             );
             animalsProcessed++;
@@ -391,7 +391,7 @@ export async function GET(request: NextRequest) {
     // Process outcome events (adoptions, fosters, TNR, mortality, relocations)
     if (!syncType || syncType === "events") {
       const unprocessedOutcomes = await queryOne<{ count: number }>(
-        `SELECT COUNT(*)::int as count FROM trapper.staged_records
+        `SELECT COUNT(*)::int as count FROM ops.staged_records
          WHERE source_system = 'shelterluv' AND source_table = 'events'
            AND is_processed IS NOT TRUE
            AND payload->>'Type' LIKE 'Outcome.%'`
@@ -408,7 +408,7 @@ export async function GET(request: NextRequest) {
           transfers_logged: number;
           errors: number;
         }>(
-          `SELECT * FROM trapper.process_shelterluv_events($1)`,
+          `SELECT * FROM ops.process_shelterluv_events($1)`,
           [500]
         );
         processing.events = eventsResult;
@@ -416,7 +416,7 @@ export async function GET(request: NextRequest) {
 
       // Process intake events (FeralWildlife, OwnerSurrender, Stray, etc.)
       const unprocessedIntake = await queryOne<{ count: number }>(
-        `SELECT COUNT(*)::int as count FROM trapper.staged_records
+        `SELECT COUNT(*)::int as count FROM ops.staged_records
          WHERE source_system = 'shelterluv' AND source_table = 'events'
            AND is_processed IS NOT TRUE
            AND payload->>'Type' LIKE 'Intake.%'`
@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
           owner_surrenders_linked: number;
           errors: number;
         }>(
-          `SELECT * FROM trapper.process_shelterluv_intake_events($1)`,
+          `SELECT * FROM ops.process_shelterluv_intake_events($1)`,
           [500]
         );
         processing.intake = intakeResult;
@@ -447,7 +447,7 @@ export async function GET(request: NextRequest) {
       sync_health: string;
     }>(
       `SELECT sync_type, last_sync_at, records_synced::int, pending_processing::int, sync_health
-       FROM trapper.v_shelterluv_sync_status`
+       FROM ops.v_shelterluv_sync_status`
     );
 
     // Calculate totals

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         pct_gap: number;
         zone_priority_score: number;
       }>(
-        `SELECT * FROM trapper.v_zone_observation_priority
+        `SELECT * FROM ops.v_zone_observation_priority
          ${zone ? "WHERE service_zone = $1" : ""}
          ORDER BY zone_priority_score DESC`,
         zone ? [zone] : []
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
         zip_priority_score: number;
         cats_per_1000_households: number | null;
       }>(
-        `SELECT * FROM trapper.v_zip_observation_priority
+        `SELECT * FROM ops.v_zip_observation_priority
          ${whereClause}
          ORDER BY zip_priority_score DESC
          LIMIT $${paramIndex}`,
@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
         observation_status: string;
         zip: string | null;
       }>(
-        `SELECT * FROM trapper.v_place_observation_priority
+        `SELECT * FROM sot.v_place_observation_priority
          ${whereClause}
          ORDER BY place_priority_score DESC
          LIMIT $${paramIndex}`,

@@ -55,7 +55,7 @@ export async function GET(
   try {
     // Get current lock status
     const lockResult = await client.query(`
-      SELECT * FROM trapper.v_active_locks
+      SELECT * FROM ops.v_active_locks
       WHERE entity_type = $1 AND entity_id = $2
     `, [type, id]);
 
@@ -102,7 +102,7 @@ export async function POST(
     if (result.rows[0].success) {
       // Get lock details
       const lockResult = await client.query(`
-        SELECT * FROM trapper.v_active_locks
+        SELECT * FROM ops.v_active_locks
         WHERE entity_type = $1 AND entity_id = $2
       `, [type, id]);
 
@@ -113,7 +113,7 @@ export async function POST(
     } else {
       // Get who has the lock
       const lockResult = await client.query(`
-        SELECT * FROM trapper.v_active_locks
+        SELECT * FROM ops.v_active_locks
         WHERE entity_type = $1 AND entity_id = $2
       `, [type, id]);
 
@@ -270,8 +270,8 @@ async function handleOwnershipTransfer(req: TransferRequest) {
     // Get current owner
     const currentResult = await client.query(`
       SELECT pcr.person_id as owner_id, p.display_name as owner_name
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+      FROM sot.person_cat_relationships pcr
+      JOIN sot.people p ON p.person_id = pcr.person_id
       WHERE pcr.cat_id = $1
         AND pcr.relationship_type IN ('owner', 'caretaker', 'brought_by')
       ORDER BY
@@ -288,7 +288,7 @@ async function handleOwnershipTransfer(req: TransferRequest) {
     // Remove old relationship if exists
     if (oldOwnerId) {
       await client.query(`
-        UPDATE trapper.person_cat_relationships
+        UPDATE sot.person_cat_relationships
         SET relationship_type = 'former_' || relationship_type,
             updated_at = NOW()
         WHERE cat_id = $1
@@ -299,7 +299,7 @@ async function handleOwnershipTransfer(req: TransferRequest) {
 
     // Create new relationship via centralized function (INV-10)
     await client.query(`
-      SELECT trapper.link_person_to_cat(
+      SELECT sot.link_person_to_cat(
         p_person_id := $1,
         p_cat_id := $2,
         p_relationship_type := $3,
@@ -347,10 +347,10 @@ async function handleOwnershipTransfer(req: TransferRequest) {
 // Helper: Get table name for entity type
 function getTableName(type: string): string {
   switch (type) {
-    case "person": return "trapper.sot_people";
-    case "cat": return "trapper.sot_cats";
-    case "place": return "trapper.places";
-    case "request": return "trapper.sot_requests";
+    case "person": return "sot.people";
+    case "cat": return "sot.cats";
+    case "place": return "sot.places";
+    case "request": return "ops.requests";
     default: throw new Error(`Unknown entity type: ${type}`);
   }
 }
@@ -390,9 +390,9 @@ async function getEntitySuggestions(
     // Get cat's location for nearby suggestions
     const catResult = await client.query(`
       SELECT c.cat_id, c.display_name, p.latitude, p.longitude
-      FROM trapper.sot_cats c
-      LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-      LEFT JOIN trapper.places p ON p.place_id = cpr.place_id
+      FROM sot.cats c
+      LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
+      LEFT JOIN sot.places p ON p.place_id = cpr.place_id
       WHERE c.cat_id = $1
     `, [id]);
 
@@ -404,10 +404,10 @@ async function getEntitySuggestions(
       const nearbyPeople = await client.query(`
         SELECT DISTINCT p.person_id, p.display_name,
           COUNT(DISTINCT pcr.cat_id) as cat_count
-        FROM trapper.sot_people p
-        JOIN trapper.person_place_relationships ppr ON ppr.person_id = p.person_id
-        JOIN trapper.places pl ON pl.place_id = ppr.place_id
-        LEFT JOIN trapper.person_cat_relationships pcr ON pcr.person_id = p.person_id
+        FROM sot.people p
+        JOIN sot.person_place_relationships ppr ON ppr.person_id = p.person_id
+        JOIN sot.places pl ON pl.place_id = ppr.place_id
+        LEFT JOIN sot.person_cat_relationships pcr ON pcr.person_id = p.person_id
         WHERE pl.latitude BETWEEN $1 - 0.01 AND $1 + 0.01
           AND pl.longitude BETWEEN $2 - 0.01 AND $2 + 0.01
         GROUP BY p.person_id, p.display_name
@@ -422,12 +422,12 @@ async function getEntitySuggestions(
         SELECT c.cat_id, c.display_name,
           pcr.person_id as owner_id,
           p.display_name as owner_name
-        FROM trapper.sot_cats c
-        LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-        LEFT JOIN trapper.places pl ON pl.place_id = cpr.place_id
-        LEFT JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
+        FROM sot.cats c
+        LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
+        LEFT JOIN sot.places pl ON pl.place_id = cpr.place_id
+        LEFT JOIN sot.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
           AND pcr.relationship_type IN ('owner', 'caretaker')
-        LEFT JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+        LEFT JOIN sot.people p ON p.person_id = pcr.person_id
         WHERE c.cat_id != $3
           AND pl.latitude BETWEEN $1 - 0.01 AND $1 + 0.01
           AND pl.longitude BETWEEN $2 - 0.01 AND $2 + 0.01
@@ -442,8 +442,8 @@ async function getEntitySuggestions(
     // Get person's cats
     const catsResult = await client.query(`
       SELECT c.cat_id, c.display_name, pcr.relationship_type
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_cats c ON c.cat_id = pcr.cat_id
+      FROM sot.person_cat_relationships pcr
+      JOIN sot.cats c ON c.cat_id = pcr.cat_id
       WHERE pcr.person_id = $1
         AND pcr.relationship_type NOT LIKE 'former_%'
     `, [id]);

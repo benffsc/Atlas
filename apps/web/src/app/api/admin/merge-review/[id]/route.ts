@@ -56,36 +56,36 @@ export async function GET(
         ppd.created_at::text,
         -- Person identifiers
         (SELECT array_agg(DISTINCT pi.id_value_norm)
-         FROM trapper.person_identifiers pi
+         FROM sot.person_identifiers pi
          WHERE pi.person_id = p1.person_id AND pi.id_type = 'email') as person_emails,
         (SELECT array_agg(DISTINCT pi.id_value_norm)
-         FROM trapper.person_identifiers pi
+         FROM sot.person_identifiers pi
          WHERE pi.person_id = p1.person_id AND pi.id_type = 'phone') as person_phones,
         -- Match identifiers
         (SELECT array_agg(DISTINCT pi.id_value_norm)
-         FROM trapper.person_identifiers pi
+         FROM sot.person_identifiers pi
          WHERE pi.person_id = p2.person_id AND pi.id_type = 'email') as match_emails,
         (SELECT array_agg(DISTINCT pi.id_value_norm)
-         FROM trapper.person_identifiers pi
+         FROM sot.person_identifiers pi
          WHERE pi.person_id = p2.person_id AND pi.id_type = 'phone') as match_phones,
         -- Shared address
         (SELECT pl.formatted_address
-         FROM trapper.person_place_relationships ppr
-         JOIN trapper.places pl ON pl.place_id = ppr.place_id
+         FROM sot.person_place_relationships ppr
+         JOIN sot.places pl ON pl.place_id = ppr.place_id
          WHERE ppr.person_id = p1.person_id
          LIMIT 1) as shared_address,
         -- Counts
-        (SELECT COUNT(*) FROM trapper.person_cat_relationships pcr WHERE pcr.person_id = p1.person_id)::int as person_cat_count,
-        (SELECT COUNT(*) FROM trapper.sot_requests r WHERE r.requester_person_id = p1.person_id)::int as person_request_count,
-        (SELECT COUNT(*) FROM trapper.person_cat_relationships pcr WHERE pcr.person_id = p2.person_id)::int as match_cat_count,
-        (SELECT COUNT(*) FROM trapper.sot_requests r WHERE r.requester_person_id = p2.person_id)::int as match_request_count,
+        (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = p1.person_id)::int as person_cat_count,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = p1.person_id)::int as person_request_count,
+        (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = p2.person_id)::int as match_cat_count,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = p2.person_id)::int as match_request_count,
         -- Resolution info
         ppd.resolved_by,
         ppd.resolved_at::text,
         ppd.resolution_notes
       FROM trapper.potential_person_duplicates ppd
-      JOIN trapper.sot_people p1 ON p1.person_id = ppd.person_id
-      JOIN trapper.sot_people p2 ON p2.person_id = ppd.potential_match_id
+      JOIN sot.people p1 ON p1.person_id = ppd.person_id
+      JOIN sot.people p2 ON p2.person_id = ppd.potential_match_id
       WHERE ppd.duplicate_id = $1::uuid
     `, [id]);
 

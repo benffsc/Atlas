@@ -33,7 +33,7 @@ export async function GET() {
       failed: number;
       ready_to_process: number;
       active_requests_pending: number;
-    }>("SELECT * FROM trapper.v_geocoding_stats");
+    }>("SELECT * FROM ops.v_geocoding_stats");
 
     const failures = await queryRows<{
       place_id: string;
@@ -41,7 +41,7 @@ export async function GET() {
       geocode_error: string;
       failure_category: string;
     }>(
-      "SELECT place_id, formatted_address, geocode_error, failure_category FROM trapper.v_geocoding_failures LIMIT 10"
+      "SELECT place_id, formatted_address, geocode_error, failure_category FROM ops.v_geocoding_failures LIMIT 10"
     );
 
     return NextResponse.json({
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
       pending: number;
       failed: number;
       active_requests_pending: number;
-    }>("SELECT * FROM trapper.v_geocoding_stats");
+    }>("SELECT * FROM ops.v_geocoding_stats");
 
     return NextResponse.json({
       message: `Processed ${results.length} places: ${successCount} success, ${failedCount} failed/retry`,

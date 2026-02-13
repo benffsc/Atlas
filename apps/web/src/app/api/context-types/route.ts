@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         description,
         sort_order,
         is_active
-      FROM trapper.place_context_types
+      FROM sot.place_context_types
       ${activeOnly ? "WHERE is_active = TRUE" : ""}
       ORDER BY sort_order, display_label
     `;

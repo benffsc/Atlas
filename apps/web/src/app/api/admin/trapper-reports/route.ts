@@ -49,9 +49,9 @@ export async function GET(request: NextRequest) {
         COUNT(i.item_id) FILTER (WHERE i.review_status = 'approved') as approved_items,
         COUNT(i.item_id) FILTER (WHERE i.review_status = 'rejected') as rejected_items,
         COUNT(i.item_id) FILTER (WHERE i.committed_at IS NOT NULL) as committed_items
-      FROM trapper.trapper_report_submissions s
-      LEFT JOIN trapper.sot_people p ON p.person_id = s.reporter_person_id
-      LEFT JOIN trapper.trapper_report_items i ON i.submission_id = s.submission_id
+      FROM ops.trapper_report_submissions s
+      LEFT JOIN sot.people p ON p.person_id = s.reporter_person_id
+      LEFT JOIN ops.trapper_report_items i ON i.submission_id = s.submission_id
       ${statusFilter}
       GROUP BY s.submission_id, p.display_name
       ORDER BY s.received_at DESC
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE extraction_status = 'committed') as committed,
         COUNT(*) FILTER (WHERE extraction_status = 'failed') as failed,
         COUNT(*) as total
-      FROM trapper.trapper_report_submissions
+      FROM ops.trapper_report_submissions
       `
     );
 
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     // Insert submission with optional pre-filled reporter
     const result = await queryOne<{ submission_id: string }>(
       `
-      INSERT INTO trapper.trapper_report_submissions (
+      INSERT INTO ops.trapper_report_submissions (
         reporter_email,
         reporter_person_id,
         reporter_match_confidence,
@@ -206,8 +206,8 @@ export async function POST(request: NextRequest) {
         status: string;
       }>(
         `SELECT r.place_id::text, p.formatted_address, r.status
-         FROM trapper.sot_requests r
-         LEFT JOIN trapper.places p ON p.place_id = r.place_id
+         FROM ops.requests r
+         LEFT JOIN sot.places p ON p.place_id = r.place_id
          WHERE r.request_id = $1`,
         [request_id]
       );
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
       // Create status update item if status provided
       if (structured_data.status_update) {
         await execute(
-          `INSERT INTO trapper.trapper_report_items (
+          `INSERT INTO ops.trapper_report_items (
             submission_id, item_type,
             target_entity_type, target_entity_id, match_confidence,
             extracted_data, review_status
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       // Create colony estimate if numbers provided
       if (structured_data.cats_trapped !== null || structured_data.cats_remaining !== null) {
         await execute(
-          `INSERT INTO trapper.trapper_report_items (
+          `INSERT INTO ops.trapper_report_items (
             submission_id, item_type,
             target_entity_type, target_entity_id, match_confidence,
             extracted_data, review_status

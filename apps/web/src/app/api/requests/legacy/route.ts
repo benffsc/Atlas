@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
           THEN 'Request already completed'
           ELSE NULL
         END AS upgrade_blocked_reason
-      FROM trapper.v_request_alteration_stats vas
-      JOIN trapper.sot_requests r ON r.request_id = vas.request_id
+      FROM ops.v_request_alteration_stats vas
+      JOIN ops.requests r ON r.request_id = vas.request_id
       WHERE ${conditions.join(" AND ")}
       ORDER BY vas.effective_request_date DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_request_alteration_stats vas
+      FROM ops.v_request_alteration_stats vas
       WHERE ${conditions.join(" AND ")}
     `;
 

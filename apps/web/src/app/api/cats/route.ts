@@ -82,13 +82,13 @@ export async function GET(request: NextRequest) {
   // Filter: has_origin (has inferred_place_id from appointments)
   if (hasOrigin === "true") {
     conditions.push(`EXISTS (
-      SELECT 1 FROM trapper.sot_appointments a
+      SELECT 1 FROM ops.appointments a
       WHERE a.cat_id = v_cat_list.cat_id
         AND a.inferred_place_id IS NOT NULL
     )`);
   } else if (hasOrigin === "false") {
     conditions.push(`NOT EXISTS (
-      SELECT 1 FROM trapper.sot_appointments a
+      SELECT 1 FROM ops.appointments a
       WHERE a.cat_id = v_cat_list.cat_id
         AND a.inferred_place_id IS NOT NULL
     )`);
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
   // Filter: partner_org (SCAS, FFSC, etc.)
   if (partnerOrg) {
     conditions.push(`EXISTS (
-      SELECT 1 FROM trapper.sot_appointments a
+      SELECT 1 FROM ops.appointments a
       JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = v_cat_list.cat_id
         AND po.org_name_short ILIKE $${paramIndex}
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
         created_at,
         last_visit_date::TEXT AS last_appointment_date,
         visit_count AS appointment_count
-      FROM trapper.v_cat_list
+      FROM sot.v_cat_list
       ${whereClause}
       ORDER BY ${orderBy}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM trapper.v_cat_list
+      FROM sot.v_cat_list
       ${whereClause}
     `;
 

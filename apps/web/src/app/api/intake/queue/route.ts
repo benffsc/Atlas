@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
         last_contact_method,
         contact_attempt_count,
         is_test
-      FROM trapper.v_intake_triage_queue
+      FROM ops.v_intake_triage_queue
       ${whereClause}
       ORDER BY
         is_emergency DESC,

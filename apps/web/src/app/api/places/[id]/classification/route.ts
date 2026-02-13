@@ -44,7 +44,7 @@ export async function GET(
         authoritative_count_set_at,
         allows_clustering,
         clustering_radius_meters
-      FROM trapper.places
+      FROM sot.places
       WHERE place_id = $1`,
       [id]
     );
@@ -122,7 +122,7 @@ export async function POST(
 
     // Use the database function to set classification
     await query(
-      `SELECT trapper.set_colony_classification($1, $2::trapper.colony_classification, $3, $4, $5)`,
+      `SELECT trapper.set_colony_classification($1, $2, $3, $4, $5)`,
       [
         id,
         classification,
@@ -144,7 +144,7 @@ export async function POST(
         colony_classification::TEXT,
         authoritative_cat_count,
         allows_clustering
-      FROM trapper.places
+      FROM sot.places
       WHERE place_id = $1`,
       [id]
     );
@@ -185,7 +185,7 @@ export async function DELETE(
 
   try {
     await query(
-      `UPDATE trapper.places
+      `UPDATE sot.places
        SET
          authoritative_cat_count = NULL,
          authoritative_count_reason = NULL,

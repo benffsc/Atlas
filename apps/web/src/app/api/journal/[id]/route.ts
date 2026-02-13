@@ -59,11 +59,11 @@ export async function GET(
         p.display_name AS person_name,
         pl.display_name AS place_name,
         ma.label AS annotation_label
-      FROM trapper.journal_entries je
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = je.primary_cat_id
-      LEFT JOIN trapper.sot_people p ON p.person_id = je.primary_person_id
-      LEFT JOIN trapper.places pl ON pl.place_id = je.primary_place_id
-      LEFT JOIN trapper.map_annotations ma ON ma.annotation_id = je.primary_annotation_id
+      FROM ops.journal_entries je
+      LEFT JOIN sot.cats c ON c.cat_id = je.primary_cat_id
+      LEFT JOIN sot.people p ON p.person_id = je.primary_person_id
+      LEFT JOIN sot.places pl ON pl.place_id = je.primary_place_id
+      LEFT JOIN ops.map_annotations ma ON ma.annotation_id = je.primary_annotation_id
       WHERE je.id = $1`,
       [id]
     );
@@ -123,7 +123,7 @@ export async function PATCH(
     }
 
     if (data.entry_kind !== undefined) {
-      updates.push(`entry_kind = $${paramIndex}::trapper.journal_entry_kind`);
+      updates.push(`entry_kind = $${paramIndex}`);
       values.push(data.entry_kind);
       paramIndex++;
     }
@@ -164,7 +164,7 @@ export async function PATCH(
     values.push(id);
 
     const result = await queryOne<{ id: string }>(
-      `UPDATE trapper.journal_entries
+      `UPDATE ops.journal_entries
        SET ${updates.join(", ")}
        WHERE id = $${paramIndex}
        RETURNING id`,
@@ -205,7 +205,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ id: string }>(
-      `UPDATE trapper.journal_entries
+      `UPDATE ops.journal_entries
        SET is_archived = TRUE,
            updated_by = $2,
            meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object('archive_reason', $3::TEXT)
@@ -217,7 +217,7 @@ export async function DELETE(
     if (!result) {
       // Check if it exists but is already archived
       const existing = await queryOne<{ is_archived: boolean }>(
-        `SELECT is_archived FROM trapper.journal_entries WHERE id = $1`,
+        `SELECT is_archived FROM ops.journal_entries WHERE id = $1`,
         [id]
       );
 

@@ -69,7 +69,7 @@ export async function GET(
         c.display_name,
         c.is_deceased,
         c.deceased_date::TEXT
-      FROM trapper.sot_cats c
+      FROM sot.cats c
       WHERE c.cat_id = $1
     `;
     const cat = await queryOne<{
@@ -100,8 +100,8 @@ export async function GET(
         me.reported_date::TEXT,
         me.notes,
         me.created_at::TEXT
-      FROM trapper.cat_mortality_events me
-      LEFT JOIN trapper.places p ON p.place_id = me.place_id
+      FROM sot.cat_mortality_events me
+      LEFT JOIN sot.places p ON p.place_id = me.place_id
       WHERE me.cat_id = $1
     `;
     const mortality = await queryOne<MortalityEvent>(mortalitySql, [id]);
@@ -184,7 +184,7 @@ export async function POST(
         p_cat_id := $1,
         p_death_date := $2::DATE,
         p_death_date_precision := $3,
-        p_death_cause := $4::trapper.death_cause,
+        p_death_cause := $4,
         p_death_cause_notes := $5,
         p_death_age_months := $6,
         p_place_id := $7::UUID,
@@ -248,11 +248,11 @@ export async function DELETE(
     // Delete mortality event and reset cat deceased status
     const deleteSql = `
       WITH deleted AS (
-        DELETE FROM trapper.cat_mortality_events
+        DELETE FROM sot.cat_mortality_events
         WHERE cat_id = $1
         RETURNING cat_id
       )
-      UPDATE trapper.sot_cats
+      UPDATE sot.cats
       SET is_deceased = FALSE, deceased_date = NULL, updated_at = NOW()
       WHERE cat_id = $1
       RETURNING cat_id, display_name

@@ -60,7 +60,7 @@ export async function GET(
 
     // Get full trapper stats
     const stats = await queryOne<TrapperStatsRow>(
-      `SELECT * FROM trapper.v_trapper_full_stats WHERE person_id = $1`,
+      `SELECT * FROM ops.v_trapper_full_stats WHERE person_id = $1`,
       [id]
     );
 

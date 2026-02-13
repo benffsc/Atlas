@@ -48,20 +48,20 @@ export async function GET(request: NextRequest) {
         l.created_at,
         CASE
           WHEN l.entity_type = 'place' THEN (
-            SELECT p.display_name FROM trapper.places p WHERE p.place_id = l.entity_id
+            SELECT p.display_name FROM sot.places p WHERE p.place_id = l.entity_id
           )
           WHEN l.entity_type = 'cat' THEN (
-            SELECT c.display_name FROM trapper.sot_cats c WHERE c.cat_id = l.entity_id
+            SELECT c.display_name FROM sot.cats c WHERE c.cat_id = l.entity_id
           )
           WHEN l.entity_type = 'person' THEN (
-            SELECT per.display_name FROM trapper.sot_people per WHERE per.person_id = l.entity_id
+            SELECT per.display_name FROM sot.people per WHERE per.person_id = l.entity_id
           )
           WHEN l.entity_type = 'request' THEN (
-            SELECT req.summary FROM trapper.sot_requests req WHERE req.request_id = l.entity_id
+            SELECT req.summary FROM ops.requests req WHERE req.request_id = l.entity_id
           )
           ELSE NULL
         END as entity_display
-      FROM trapper.staff_lookups l
+      FROM ops.staff_lookups l
       WHERE l.staff_id = $1
         ${statusFilter}
       ORDER BY l.created_at DESC`,

@@ -41,15 +41,15 @@ export async function GET(request: NextRequest) {
         tf.created_at,
         -- Entity details based on type
         CASE
-          WHEN tf.entity_type = 'place' THEN (SELECT label FROM trapper.places WHERE place_id = tf.entity_id)
-          WHEN tf.entity_type = 'cat' THEN (SELECT name FROM trapper.sot_cats WHERE cat_id = tf.entity_id)
-          WHEN tf.entity_type = 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = tf.entity_id)
-          WHEN tf.entity_type = 'request' THEN (SELECT short_address FROM trapper.sot_requests WHERE request_id = tf.entity_id)
+          WHEN tf.entity_type = 'place' THEN (SELECT label FROM sot.places WHERE place_id = tf.entity_id)
+          WHEN tf.entity_type = 'cat' THEN (SELECT name FROM sot.cats WHERE cat_id = tf.entity_id)
+          WHEN tf.entity_type = 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = tf.entity_id)
+          WHEN tf.entity_type = 'request' THEN (SELECT short_address FROM ops.requests WHERE request_id = tf.entity_id)
           ELSE NULL
         END as entity_name
       FROM trapper.tippy_feedback tf
-      LEFT JOIN trapper.staff s ON s.staff_id = tf.staff_id
-      LEFT JOIN trapper.staff rb ON rb.staff_id = tf.reviewed_by
+      LEFT JOIN ops.staff s ON s.staff_id = tf.staff_id
+      LEFT JOIN ops.staff rb ON rb.staff_id = tf.reviewed_by
       WHERE ($1 = 'all' OR tf.status = $1)
       ORDER BY tf.created_at DESC
       LIMIT $2 OFFSET $3

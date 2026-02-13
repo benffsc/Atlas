@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
         MIN(a.appointment_date)::TEXT as first_date,
         MAX(a.appointment_date)::TEXT as last_date
       FROM trapper.partner_organizations po
-      JOIN trapper.sot_appointments a ON a.partner_org_id = po.org_id
+      JOIN ops.appointments a ON a.partner_org_id = po.org_id
       WHERE po.is_active = true
       GROUP BY po.org_id, po.org_name, po.org_name_short
       ORDER BY cat_count DESC
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
       SELECT DISTINCT ON (a.cat_id, a.appointment_date)
         c.cat_id,
         c.display_name,
-        (SELECT id_value FROM trapper.cat_identifiers WHERE cat_id = c.cat_id AND id_type = 'microchip' LIMIT 1) as microchip,
+        (SELECT id_value FROM sot.cat_identifiers WHERE cat_id = c.cat_id AND id_type = 'microchip' LIMIT 1) as microchip,
         c.sex,
         c.altered_status,
         a.appointment_date::TEXT as appointment_date,
@@ -101,10 +101,10 @@ export async function GET(request: NextRequest) {
         po.org_id as partner_org_id,
         po.org_name as partner_org_name,
         po.org_name_short as partner_org_short
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
       JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
-      LEFT JOIN trapper.places p ON p.place_id = a.inferred_place_id
+      LEFT JOIN sot.places p ON p.place_id = a.inferred_place_id
       WHERE ${whereClause}
       ORDER BY a.cat_id, a.appointment_date DESC, a.appointment_id
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -113,10 +113,10 @@ export async function GET(request: NextRequest) {
     // Get total count
     const countResult = await query(`
       SELECT COUNT(DISTINCT (a.cat_id, a.appointment_date)) as total
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
       JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
-      LEFT JOIN trapper.places p ON p.place_id = a.inferred_place_id
+      LEFT JOIN sot.places p ON p.place_id = a.inferred_place_id
       WHERE ${whereClause}
     `, params);
 

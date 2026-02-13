@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     const entry = await queryOne(
-      `SELECT * FROM trapper.v_clinic_day_entries WHERE entry_id = $1`,
+      `SELECT * FROM ops.v_clinic_day_entries WHERE entry_id = $1`,
       [id]
     );
 

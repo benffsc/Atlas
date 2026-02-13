@@ -167,7 +167,7 @@ export async function PATCH(request: NextRequest) {
     params.push(submission_id);
 
     const sql = `
-      UPDATE trapper.web_intake_submissions
+      UPDATE ops.intake_submissions
       SET ${updates.join(", ")}
       WHERE submission_id = $${paramIndex}
     `;

@@ -67,15 +67,15 @@ export async function GET(request: NextRequest) {
         di.updated_at,
         -- Entity details
         CASE
-          WHEN di.entity_type = 'place' THEN (SELECT label FROM trapper.places WHERE place_id = di.entity_id)
-          WHEN di.entity_type = 'cat' THEN (SELECT name FROM trapper.sot_cats WHERE cat_id = di.entity_id)
-          WHEN di.entity_type = 'person' THEN (SELECT display_name FROM trapper.sot_people WHERE person_id = di.entity_id)
-          WHEN di.entity_type = 'request' THEN (SELECT short_address FROM trapper.sot_requests WHERE request_id = di.entity_id)
+          WHEN di.entity_type = 'place' THEN (SELECT label FROM sot.places WHERE place_id = di.entity_id)
+          WHEN di.entity_type = 'cat' THEN (SELECT name FROM sot.cats WHERE cat_id = di.entity_id)
+          WHEN di.entity_type = 'person' THEN (SELECT display_name FROM sot.people WHERE person_id = di.entity_id)
+          WHEN di.entity_type = 'request' THEN (SELECT short_address FROM ops.requests WHERE request_id = di.entity_id)
           ELSE NULL
         END as entity_name
       FROM trapper.data_improvements di
-      LEFT JOIN trapper.staff a ON a.staff_id = di.assigned_to
-      LEFT JOIN trapper.staff rb ON rb.staff_id = di.resolved_by
+      LEFT JOIN ops.staff a ON a.staff_id = di.assigned_to
+      LEFT JOIN ops.staff rb ON rb.staff_id = di.resolved_by
       ${whereClause}
       ORDER BY
         CASE di.priority

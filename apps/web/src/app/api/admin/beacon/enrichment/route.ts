@@ -26,7 +26,7 @@ export async function GET() {
         COALESCE(source_system, source_type, 'unknown') AS source,
         COUNT(*)::INT AS count,
         MAX(created_at)::TEXT AS last_updated
-      FROM trapper.place_colony_estimates
+      FROM sot.place_colony_estimates
       GROUP BY COALESCE(source_system, source_type, 'unknown')
       ORDER BY count DESC
     `);
@@ -37,7 +37,7 @@ export async function GET() {
         COALESCE(source_system, 'unknown') AS source,
         COUNT(*)::INT AS count,
         MAX(created_at)::TEXT AS last_updated
-      FROM trapper.cat_birth_events
+      FROM sot.cat_birth_events
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -48,7 +48,7 @@ export async function GET() {
         COALESCE(source_system, 'unknown') AS source,
         COUNT(*)::INT AS count,
         MAX(created_at)::TEXT AS last_updated
-      FROM trapper.cat_mortality_events
+      FROM sot.cat_mortality_events
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -65,7 +65,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE ai_processed_at IS NOT NULL)::INT AS paraphrased,
         COUNT(*) FILTER (WHERE ai_quantitative_parsed_at IS NOT NULL)::INT AS quantitative_parsed,
         COUNT(*) FILTER (WHERE place_id IS NOT NULL)::INT AS with_place
-      FROM trapper.google_map_entries
+      FROM source.google_map_entries
     `);
 
     // Recent cron runs
@@ -82,7 +82,7 @@ export async function GET() {
         completed_at::TEXT,
         records_created,
         status
-      FROM trapper.ingest_runs
+      FROM ops.ingest_runs
       WHERE source_system IN ('beacon_cron', 'notes_parser_cron', 'parse_quantitative')
       ORDER BY completed_at DESC
       LIMIT 10
@@ -96,10 +96,10 @@ export async function GET() {
       places_with_ecology: number;
     }>(`
       SELECT
-        (SELECT COUNT(*)::INT FROM trapper.place_colony_estimates) AS colony_estimates,
-        (SELECT COUNT(*)::INT FROM trapper.cat_birth_events) AS birth_events,
-        (SELECT COUNT(*)::INT FROM trapper.cat_mortality_events) AS mortality_events,
-        (SELECT COUNT(DISTINCT place_id)::INT FROM trapper.place_colony_estimates) AS places_with_ecology
+        (SELECT COUNT(*)::INT FROM sot.place_colony_estimates) AS colony_estimates,
+        (SELECT COUNT(*)::INT FROM sot.cat_birth_events) AS birth_events,
+        (SELECT COUNT(*)::INT FROM sot.cat_mortality_events) AS mortality_events,
+        (SELECT COUNT(DISTINCT place_id)::INT FROM sot.place_colony_estimates) AS places_with_ecology
     `);
 
     // AI-parsed specifically
@@ -109,9 +109,9 @@ export async function GET() {
       requests_parsed: number;
     }>(`
       SELECT
-        (SELECT COUNT(*)::INT FROM trapper.place_colony_estimates WHERE source_type = 'ai_parsed') AS colony_from_ai,
-        (SELECT COUNT(*)::INT FROM trapper.place_colony_estimates WHERE source_system = 'google_maps_kml') AS google_maps_parsed,
-        (SELECT COUNT(*)::INT FROM trapper.place_colony_estimates WHERE source_system = 'requests') AS requests_parsed
+        (SELECT COUNT(*)::INT FROM sot.place_colony_estimates WHERE source_type = 'ai_parsed') AS colony_from_ai,
+        (SELECT COUNT(*)::INT FROM sot.place_colony_estimates WHERE source_system = 'google_maps_kml') AS google_maps_parsed,
+        (SELECT COUNT(*)::INT FROM sot.place_colony_estimates WHERE source_system = 'requests') AS requests_parsed
     `);
 
     return NextResponse.json({

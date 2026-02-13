@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         ST_X(location::geometry) AS lng,
         label, note, photo_url, annotation_type,
         created_by, expires_at::text, created_at::text
-      FROM trapper.map_annotations
+      FROM ops.map_annotations
       WHERE ${conditions.join(" AND ")}
       ORDER BY created_at DESC
       LIMIT $${paramIndex}`,
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await queryOne<{ annotation_id: string }>(
-      `INSERT INTO trapper.map_annotations (
+      `INSERT INTO ops.map_annotations (
         location, label, note, photo_url, annotation_type, created_by, expires_at
       ) VALUES (
         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,

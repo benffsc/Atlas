@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   // Health check - returns orchestrator status
   try {
     const health = await queryOne<HealthResult>(
-      `SELECT * FROM trapper.v_orchestrator_health`
+      `SELECT * FROM ops.v_orchestrator_health`
     );
 
     return NextResponse.json({
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   try {
     // Run the orchestrator
     const result = await queryOne<OrchestratorResult>(
-      `SELECT * FROM trapper.run_full_orchestrator($1, $2, $3)`,
+      `SELECT * FROM sot.run_full_orchestrator($1, $2, $3)`,
       [runType, "api", batchSize]
     );
 

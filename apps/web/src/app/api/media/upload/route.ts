@@ -28,11 +28,11 @@ interface BatchUploadResponse {
 
 // Entity validation queries
 const entityQueries: Record<EntityType, string> = {
-  request: "SELECT request_id FROM trapper.sot_requests WHERE request_id = $1",
-  cat: "SELECT cat_id FROM trapper.sot_cats WHERE cat_id = $1",
-  place: "SELECT place_id FROM trapper.places WHERE place_id = $1",
-  person: "SELECT person_id FROM trapper.sot_people WHERE person_id = $1",
-  annotation: "SELECT annotation_id FROM trapper.map_annotations WHERE annotation_id = $1",
+  request: "SELECT request_id FROM ops.requests WHERE request_id = $1",
+  cat: "SELECT cat_id FROM sot.cats WHERE cat_id = $1",
+  place: "SELECT place_id FROM sot.places WHERE place_id = $1",
+  person: "SELECT person_id FROM sot.people WHERE person_id = $1",
+  annotation: "SELECT annotation_id FROM ops.map_annotations WHERE annotation_id = $1",
 };
 
 // Storage path prefixes
@@ -189,12 +189,12 @@ async function uploadSingleFile(
 
   const placeholders = insertValues.map((_, i) => {
     // Handle media_type enum cast (second placeholder after entity column)
-    if (i === 1) return `$${i + 1}::trapper.media_type`;
+    if (i === 1) return `$${i + 1}`;
     return `$${i + 1}`;
   });
 
   const sql = `
-    INSERT INTO trapper.request_media (${insertColumns.join(", ")})
+    INSERT INTO ops.request_media (${insertColumns.join(", ")})
     VALUES (${placeholders.join(", ")})
     RETURNING media_id
   `;

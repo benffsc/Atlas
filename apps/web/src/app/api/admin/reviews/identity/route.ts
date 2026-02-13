@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
           name_similarity,
           canonical_created_at::text,
           duplicate_created_at::text
-        FROM trapper.v_person_dedup_candidates
+        FROM sot.v_person_dedup_candidates
         WHERE match_tier != 4  -- We get tier 4 from the dedicated view
           ${tierFilter}
         ORDER BY canonical_created_at ASC
@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
           incoming_address,
           COALESCE(hours_in_queue, 0)::float as hours_in_queue,
           decision_reason
-        FROM trapper.v_tier4_pending_review
+        FROM ops.v_tier4_pending_review
         ORDER BY hours_in_queue DESC
         LIMIT ${limit} OFFSET ${offset}
       `, []);
@@ -279,7 +279,7 @@ export async function GET(request: NextRequest) {
           incoming_name,
           incoming_address,
           top_candidate_person_id::text,
-          (SELECT display_name FROM trapper.sot_people WHERE person_id = demd.top_candidate_person_id) as top_candidate_name,
+          (SELECT display_name FROM sot.people WHERE person_id = demd.top_candidate_person_id) as top_candidate_name,
           top_candidate_score,
           decision_reason,
           created_at::text as processed_at,
@@ -287,7 +287,7 @@ export async function GET(request: NextRequest) {
           fs_match_probability::numeric,
           fs_field_scores,
           comparison_vector
-        FROM trapper.data_engine_match_decisions demd
+        FROM sot.data_engine_match_decisions demd
         WHERE decision_type = 'review_pending'
           AND review_status = 'needs_review'
         ORDER BY created_at ASC
@@ -352,16 +352,16 @@ export async function GET(request: NextRequest) {
     }>(`
       SELECT
         (
-          (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates) +
-          (SELECT COUNT(*) FROM trapper.v_tier4_pending_review) +
-          (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)
+          (SELECT COUNT(*) FROM sot.v_person_dedup_candidates) +
+          (SELECT COUNT(*) FROM ops.v_tier4_pending_review) +
+          (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)
         )::int as total,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 1)::int as tier1,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 2)::int as tier2,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 3)::int as tier3,
-        (SELECT COUNT(*) FROM trapper.v_tier4_pending_review)::int as tier4,
-        (SELECT COUNT(*) FROM trapper.v_person_dedup_candidates WHERE match_tier = 5)::int as tier5,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)::int as uncertain
+        (SELECT COUNT(*) FROM sot.v_person_dedup_candidates WHERE match_tier = 1)::int as tier1,
+        (SELECT COUNT(*) FROM sot.v_person_dedup_candidates WHERE match_tier = 2)::int as tier2,
+        (SELECT COUNT(*) FROM sot.v_person_dedup_candidates WHERE match_tier = 3)::int as tier3,
+        (SELECT COUNT(*) FROM ops.v_tier4_pending_review)::int as tier4,
+        (SELECT COUNT(*) FROM sot.v_person_dedup_candidates WHERE match_tier = 5)::int as tier5,
+        (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)::int as uncertain
     `, []);
 
     return NextResponse.json({

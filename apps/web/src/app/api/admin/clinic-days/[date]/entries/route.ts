@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { date } = await params;
 
     const entries = await queryRows(
-      `SELECT * FROM trapper.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
+      `SELECT * FROM ops.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
       [date]
     );
 

@@ -28,7 +28,7 @@ export async function GET(
         edited_at,
         edited_by,
         edit_reason
-      FROM trapper.entity_edits
+      FROM sot.entity_edits
       WHERE entity_type = 'intake_submission'
         AND entity_id = $1
       ORDER BY edited_at DESC

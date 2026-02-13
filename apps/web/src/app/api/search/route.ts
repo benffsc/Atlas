@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
           match_value,
           snippet,
           score
-        FROM trapper.search_deep($1, $2)
+        FROM sot.search_deep($1, $2)
       `;
 
       const deepResults = await queryRows<DeepSearchResult>(deepSql, [q, limit]);
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
           match_reason,
           score,
           metadata
-        FROM trapper.search_suggestions($1, $2)
+        FROM sot.search_suggestions($1, $2)
       `;
 
       const suggestions = await queryRows<SearchResult>(suggestionsSql, [
@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
             SELECT place_id::text AS id,
                    ST_Y(location::geometry) AS lat,
                    ST_X(location::geometry) AS lng
-            FROM trapper.places
+            FROM sot.places
             WHERE place_id = ANY($1::uuid[])
               AND location IS NOT NULL
           `, [placeIds]);
@@ -241,8 +241,8 @@ export async function GET(request: NextRequest) {
                    cpr.cat_id::text AS id,
                    ST_Y(p.location::geometry) AS lat,
                    ST_X(p.location::geometry) AS lng
-            FROM trapper.cat_place_relationships cpr
-            JOIN trapper.places p ON p.place_id = cpr.place_id
+            FROM sot.cat_place_relationships cpr
+            JOIN sot.places p ON p.place_id = cpr.place_id
             WHERE cpr.cat_id = ANY($1::uuid[])
               AND p.location IS NOT NULL
               AND p.merged_into_place_id IS NULL
@@ -261,8 +261,8 @@ export async function GET(request: NextRequest) {
                    ppr.person_id::text AS id,
                    ST_Y(p.location::geometry) AS lat,
                    ST_X(p.location::geometry) AS lng
-            FROM trapper.person_place_relationships ppr
-            JOIN trapper.places p ON p.place_id = ppr.place_id
+            FROM sot.person_place_relationships ppr
+            JOIN sot.places p ON p.place_id = ppr.place_id
             WHERE ppr.person_id = ANY($1::uuid[])
               AND p.location IS NOT NULL
               AND p.merged_into_place_id IS NULL
@@ -308,7 +308,7 @@ export async function GET(request: NextRequest) {
         match_reason,
         score,
         metadata
-      FROM trapper.search_unified($1, $2, $3, $4)
+      FROM sot.search_unified($1, $2, $3, $4)
     `;
 
     const results = await queryRows<SearchResult>(searchSql, [
@@ -326,7 +326,7 @@ export async function GET(request: NextRequest) {
         strong_count,
         medium_count,
         weak_count
-      FROM trapper.search_unified_counts($1, $2)
+      FROM sot.search_unified_counts($1, $2)
     `;
 
     const countsResult = await queryRows<CountResult>(countsSql, [q, typeParam]);
@@ -362,7 +362,7 @@ export async function GET(request: NextRequest) {
         match_reason,
         score,
         metadata
-      FROM trapper.search_suggestions($1, 8)
+      FROM sot.search_suggestions($1, 8)
     `;
 
     const suggestions = await queryRows<SearchResult>(suggestionsSql, [q]);
@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
             status,
             score,
             metadata
-          FROM trapper.search_intake($1, $2)
+          FROM sot.search_intake($1, $2)
         `;
         intakeResults = await queryRows<IntakeResult>(intakeSql, [q, 10]);
       } catch {
@@ -416,7 +416,7 @@ export async function GET(request: NextRequest) {
               WHEN LOWER(situation_description) ILIKE '%' || LOWER($1) || '%' THEN 'description_match'
               ELSE 'fuzzy'
             END as match_type
-          FROM trapper.web_intake_submissions
+          FROM ops.intake_submissions
           WHERE
             LOWER(first_name || ' ' || last_name) ILIKE '%' || LOWER($1) || '%'
             OR email ILIKE '%' || LOWER($1) || '%'
@@ -459,9 +459,9 @@ export async function GET(request: NextRequest) {
               WHEN LOWER(COALESCE(r.notes, '')) ILIKE '%' || LOWER($1) || '%' THEN 'notes_match'
               ELSE 'fuzzy'
             END as match_type
-          FROM trapper.sot_requests r
-          LEFT JOIN trapper.places p ON r.place_id = p.place_id
-          LEFT JOIN trapper.sot_people per ON r.requester_person_id = per.person_id
+          FROM ops.requests r
+          LEFT JOIN sot.places p ON r.place_id = p.place_id
+          LEFT JOIN sot.people per ON r.requester_person_id = per.person_id
           WHERE
             r.status NOT IN ('completed', 'cancelled')
             AND (

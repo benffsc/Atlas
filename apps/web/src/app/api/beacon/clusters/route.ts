@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Call function with custom parameters
       let query = `
-        SELECT * FROM trapper.beacon_cluster_colonies($1, $2)
+        SELECT * FROM ops.beacon_cluster_colonies($1, $2)
         WHERE total_verified_cats >= $3
       `;
       const params: unknown[] = [epsilon, minPoints, minCats];

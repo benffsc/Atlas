@@ -41,18 +41,18 @@ export async function GET() {
   try {
     // Get summary stats
     const summary = await queryOne<DataQualitySummary>(
-      `SELECT * FROM trapper.v_data_quality_summary`
+      `SELECT * FROM ops.v_data_quality_summary`
     );
 
     // Get email duplicates (top 50)
     const emailDuplicates = await queryRows<DuplicateGroup>(
-      `SELECT * FROM trapper.v_potential_email_duplicates LIMIT 50`
+      `SELECT * FROM ops.v_potential_email_duplicates LIMIT 50`
     );
 
     // Get garbage names (top 50)
     const garbageNames = await queryRows<GarbageName>(
       `SELECT person_id, display_name, primary_email, pattern_type
-       FROM trapper.v_names_with_garbage_patterns
+       FROM ops.v_names_with_garbage_patterns
        LIMIT 50`
     );
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     // Merge single duplicate
     if (action === "merge_one" && canonical_id && duplicate_id) {
       const result = await queryOne<{ merge_duplicate_person: object }>(
-        `SELECT trapper.merge_duplicate_person($1, $2, 'manual_admin_merge') as result`,
+        `SELECT sot.merge_duplicate_person($1, $2, 'manual_admin_merge') as result`,
         [canonical_id, duplicate_id]
       );
 
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
         errors: number;
         sample_merges: object;
       }>(
-        `SELECT * FROM trapper.merge_email_duplicates($1)`,
+        `SELECT * FROM sot.merge_email_duplicates($1)`,
         [isDryRun]
       );
 
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         errors: number;
         sample_merges: object;
       }>(
-        `SELECT * FROM trapper.merge_phone_duplicates($1)`,
+        `SELECT * FROM sot.merge_phone_duplicates($1)`,
         [isDryRun]
       );
 

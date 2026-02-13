@@ -10,7 +10,7 @@ import { queryOne } from "@/lib/db";
 export async function GET() {
   try {
     const result = await queryOne<{ check_identity_health: unknown }>(
-      `SELECT trapper.check_identity_health() as check_identity_health`
+      `SELECT ops.check_identity_health() as check_identity_health`
     );
 
     if (!result) {

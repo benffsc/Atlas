@@ -41,7 +41,7 @@ export async function POST(
 
     // Call the resolution function
     const result = await queryOne<{ result: ResolveResult }>(`
-      SELECT trapper.data_engine_resolve_review($1::uuid, $2, $3, $4) as result
+      SELECT sot.data_engine_resolve_review($1::uuid, $2, $3, $4) as result
     `, [id, action, "api_user", notes || null]);
 
     if (!result?.result) {
@@ -122,9 +122,9 @@ export async function GET(
         d.reviewed_at::text,
         d.review_notes,
         d.review_action
-      FROM trapper.data_engine_match_decisions d
-      LEFT JOIN trapper.sot_people top_p ON top_p.person_id = d.top_candidate_person_id
-      LEFT JOIN trapper.sot_people res_p ON res_p.person_id = d.resulting_person_id
+      FROM sot.data_engine_match_decisions d
+      LEFT JOIN sot.people top_p ON top_p.person_id = d.top_candidate_person_id
+      LEFT JOIN sot.people res_p ON res_p.person_id = d.resulting_person_id
       WHERE d.decision_id = $1::uuid
     `, [id]);
 

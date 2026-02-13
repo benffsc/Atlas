@@ -24,7 +24,7 @@ export async function PATCH(
 
     // Verify ownership
     const existing = await queryOne<{ reminder_id: string }>(
-      `SELECT reminder_id FROM trapper.staff_reminders
+      `SELECT reminder_id FROM ops.staff_reminders
        WHERE reminder_id = $1 AND staff_id = $2`,
       [id, session.staff_id]
     );
@@ -39,7 +39,7 @@ export async function PATCH(
     // Handle snooze
     if (snooze_until) {
       const result = await queryOne<{ reminder_id: string }>(
-        `UPDATE trapper.staff_reminders
+        `UPDATE ops.staff_reminders
          SET
            status = 'snoozed',
            remind_at = $1,
@@ -77,7 +77,7 @@ export async function PATCH(
       const completedAt = status === "completed" ? "NOW()" : "NULL";
 
       const result = await queryOne<{ reminder_id: string }>(
-        `UPDATE trapper.staff_reminders
+        `UPDATE ops.staff_reminders
          SET
            status = $1,
            completed_at = ${status === "completed" ? "NOW()" : "completed_at"},
@@ -133,7 +133,7 @@ export async function DELETE(
 
     // Verify ownership and archive
     const result = await queryOne<{ reminder_id: string }>(
-      `UPDATE trapper.staff_reminders
+      `UPDATE ops.staff_reminders
        SET status = 'archived', updated_at = NOW()
        WHERE reminder_id = $1 AND staff_id = $2
        RETURNING reminder_id`,

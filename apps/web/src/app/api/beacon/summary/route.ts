@@ -87,7 +87,7 @@ export async function GET() {
         colonies_needs_work: number;
         colonies_needs_attention: number;
         colonies_no_data: number;
-      }>(`SELECT * FROM trapper.v_beacon_summary`, []),
+      }>(`SELECT * FROM ops.v_beacon_summary`, []),
 
       // Cluster-level summary
       queryOne<{
@@ -103,14 +103,14 @@ export async function GET() {
         avg_places_per_cluster: number;
         avg_cats_per_cluster: number;
         overall_cluster_alteration_rate: number;
-      }>(`SELECT * FROM trapper.v_beacon_cluster_summary`, []),
+      }>(`SELECT * FROM ops.v_beacon_cluster_summary`, []),
 
       // Work remaining estimate
       queryOne<{ estimated_to_alter: number }>(`
         SELECT COALESCE(SUM(
           GREATEST(0, estimated_total - verified_altered_count)
         ), 0)::INT as estimated_to_alter
-        FROM trapper.v_beacon_place_metrics
+        FROM ops.v_beacon_place_metrics
         WHERE estimated_total > verified_altered_count
       `, []),
     ]);

@@ -65,7 +65,7 @@ export async function POST(
     // Get upload record (include file_content for serverless environments)
     const upload = await queryOne<FileUpload>(
       `SELECT upload_id, original_filename, stored_filename, source_system, source_table, status, file_content
-       FROM trapper.file_uploads WHERE upload_id = $1`,
+       FROM ops.file_uploads WHERE upload_id = $1`,
       [uploadId]
     );
 
@@ -85,7 +85,7 @@ export async function POST(
 
     // Mark as processing with timestamp for stuck-job detection
     await query(
-      `UPDATE trapper.file_uploads SET status = 'processing', processed_at = NOW() WHERE upload_id = $1`,
+      `UPDATE ops.file_uploads SET status = 'processing', processed_at = NOW() WHERE upload_id = $1`,
       [uploadId]
     );
 
@@ -226,7 +226,7 @@ export async function POST(
       // Step 1: Check if exact content already exists (by hash)
       // This is the primary dedup — same content = skip regardless of source_row_id
       const byHash = await queryOne<{ id: string; file_upload_id: string | null }>(
-        `SELECT id, file_upload_id FROM trapper.staged_records
+        `SELECT id, file_upload_id FROM ops.staged_records
          WHERE source_system = $1 AND source_table = $2 AND row_hash = $3`,
         [upload.source_system, upload.source_table, rowHash]
       );
@@ -235,7 +235,7 @@ export async function POST(
         // Exact same content exists — skip (but claim for this upload if unclaimed)
         if (!byHash.file_upload_id) {
           await query(
-            `UPDATE trapper.staged_records SET file_upload_id = $1 WHERE id = $2`,
+            `UPDATE ops.staged_records SET file_upload_id = $1 WHERE id = $2`,
             [uploadId, byHash.id]
           );
         }
@@ -246,7 +246,7 @@ export async function POST(
       // Step 2: Check if same logical record exists with different content (by source_row_id)
       // Safe to update row_hash here because Step 1 guarantees the new hash doesn't exist
       const byRowId = await queryOne<{ id: string }>(
-        `SELECT id FROM trapper.staged_records
+        `SELECT id FROM ops.staged_records
          WHERE source_system = $1 AND source_table = $2 AND source_row_id = $3`,
         [upload.source_system, upload.source_table, sourceRowId]
       );
@@ -254,7 +254,7 @@ export async function POST(
       if (byRowId) {
         // Same logical record, updated content — safe to update hash (no conflict possible)
         await query(
-          `UPDATE trapper.staged_records
+          `UPDATE ops.staged_records
            SET payload = $1, row_hash = $2, file_upload_id = $3, updated_at = NOW()
            WHERE id = $4`,
           [JSON.stringify(row), rowHash, uploadId, byRowId.id]
@@ -263,7 +263,7 @@ export async function POST(
       } else {
         // New record — INSERT with ON CONFLICT as safety net for race conditions
         const insertResult = await query(
-          `INSERT INTO trapper.staged_records
+          `INSERT INTO ops.staged_records
            (source_system, source_table, source_row_id, payload, row_hash, file_upload_id)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (source_system, source_table, row_hash) DO NOTHING
@@ -286,7 +286,7 @@ export async function POST(
 
     // Mark as completed (persist post-processing results for UI display)
     await query(
-      `UPDATE trapper.file_uploads
+      `UPDATE ops.file_uploads
        SET status = 'completed', processed_at = NOW(),
            rows_total = $2, rows_inserted = $3, rows_updated = $4, rows_skipped = $5,
            data_date_min = $6, data_date_max = $7,
@@ -314,7 +314,7 @@ export async function POST(
 
     // Mark as failed
     await query(
-      `UPDATE trapper.file_uploads
+      `UPDATE ops.file_uploads
        SET status = 'failed', error_message = $2
        WHERE upload_id = $1`,
       [uploadId, error instanceof Error ? error.message : "Unknown error"]
@@ -339,7 +339,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     results._step_num = stepNum;
     try {
       await query(
-        `UPDATE trapper.file_uploads SET post_processing_results = $2 WHERE upload_id = $1`,
+        `UPDATE ops.file_uploads SET post_processing_results = $2 WHERE upload_id = $1`,
         [uploadId, JSON.stringify(results)]
       );
     } catch { /* best-effort progress saving */ }
@@ -362,7 +362,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             ELSE NULL
           END as altered_status,
           NULLIF(TRIM(payload->>'Secondary Color'), '') as secondary_color
-        FROM trapper.staged_records
+        FROM ops.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'cat_info'
           AND payload->>'Microchip Number' IS NOT NULL
@@ -374,7 +374,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       created_cats AS (
         SELECT
           cd.*,
-          trapper.find_or_create_cat_by_microchip(
+          sot.find_or_create_cat_by_microchip(
             cd.microchip,
             cd.name,
             cd.sex,
@@ -395,10 +395,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 2: Update sex on existing cats from cat_info records
     await saveProgress('Updating cat sex data...');
     const sexUpdates = await query(`
-      UPDATE trapper.sot_cats c
+      UPDATE sot.cats c
       SET sex = sr.payload->>'Sex'
-      FROM trapper.staged_records sr
-      JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+      FROM ops.staged_records sr
+      JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
       WHERE ci.cat_id = c.cat_id
         AND sr.source_system = 'clinichq'
         AND sr.source_table = 'cat_info'
@@ -414,10 +414,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // NOTE: We match on payload->>'Number' because source_row_id is a composite (Number_Date)
     await saveProgress('Linking orphaned appointments to cats...');
     const appointmentsLinked = await query(`
-      UPDATE trapper.sot_appointments a
-      SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
-      FROM trapper.staged_records sr
-      JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+      UPDATE ops.appointments a
+      SET cat_id = sot.get_canonical_cat_id(ci.cat_id)
+      FROM ops.staged_records sr
+      JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
       WHERE a.appointment_number = sr.payload->>'Number'
         AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
         AND sr.source_system = 'clinichq'
@@ -432,7 +432,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // This ensures weight data is captured during real-time ingest, not just via migrations
     await saveProgress('Extracting weight vitals...');
     const weightVitals = await query(`
-      INSERT INTO trapper.cat_vitals (
+      INSERT INTO ops.cat_vitals (
         cat_id, recorded_at, weight_lbs, source_system, source_record_id
       )
       SELECT DISTINCT ON (ci.cat_id)
@@ -444,8 +444,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         (sr.payload->>'Weight')::numeric(5,2),
         'clinichq',
         'cat_info_' || sr.source_row_id
-      FROM trapper.staged_records sr
-      JOIN trapper.cat_identifiers ci ON
+      FROM ops.staged_records sr
+      JOIN sot.cat_identifiers ci ON
         ci.id_value = sr.payload->>'Microchip Number'
         AND ci.id_type = 'microchip'
       WHERE sr.source_system = 'clinichq'
@@ -455,7 +455,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         AND sr.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
         AND (sr.payload->>'Weight')::numeric > 0
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.cat_vitals cv
+          SELECT 1 FROM ops.cat_vitals cv
           WHERE cv.cat_id = ci.cat_id
             AND cv.source_record_id = 'cat_info_' || sr.source_row_id
         )
@@ -472,14 +472,14 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     await saveProgress('Creating people from owner records...');
     const peopleCreated = await query(`
       WITH owner_data AS (
-        SELECT DISTINCT ON (COALESCE(NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''), trapper.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone'))))
+        SELECT DISTINCT ON (COALESCE(NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''), sot.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone'))))
           payload->>'Owner First Name' as first_name,
           payload->>'Owner Last Name' as last_name,
           NULLIF(LOWER(TRIM(payload->>'Owner Email')), '') as email,
-          trapper.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')) as phone,
+          sot.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')) as phone,
           NULLIF(TRIM(payload->>'Owner Address'), '') as address,
           payload->>'Number' as appointment_number
-        FROM trapper.staged_records
+        FROM ops.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'owner_info'
           AND file_upload_id = $1
@@ -489,13 +489,13 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             OR (payload->>'Owner Cell Phone' IS NOT NULL AND TRIM(payload->>'Owner Cell Phone') != '')
           )
           AND (payload->>'Owner First Name' IS NOT NULL AND TRIM(payload->>'Owner First Name') != '')
-          AND trapper.should_be_person(
+          AND sot.should_be_person(
             payload->>'Owner First Name',
             payload->>'Owner Last Name',
             NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''),
-            trapper.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
+            sot.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
           )
-        ORDER BY COALESCE(NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''), trapper.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone'))),
+        ORDER BY COALESCE(NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''), sot.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone'))),
                  (payload->>'Date')::date DESC NULLS LAST
       ),
       created_people AS (
@@ -506,7 +506,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           od.phone,
           od.address,
           od.appointment_number,
-          trapper.find_or_create_person(
+          sot.find_or_create_person(
             od.email,
             od.phone,
             od.first_name,
@@ -528,15 +528,15 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       WITH pseudo_profiles AS (
         SELECT DISTINCT ON (TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')))
           TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')) as display_name
-        FROM trapper.staged_records
+        FROM ops.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'owner_info'
           AND file_upload_id = $1
-          AND NOT trapper.should_be_person(
+          AND NOT sot.should_be_person(
             payload->>'Owner First Name',
             payload->>'Owner Last Name',
             NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''),
-            trapper.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
+            sot.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
           )
           AND (payload->>'Owner First Name' IS NOT NULL AND TRIM(payload->>'Owner First Name') != '')
         ORDER BY TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')),
@@ -545,7 +545,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       created_accounts AS (
         SELECT
           pp.*,
-          trapper.find_or_create_clinic_account(pp.display_name, NULL, NULL, 'clinichq') as account_id
+          sot.find_or_create_clinic_account(pp.display_name, NULL, NULL, 'clinichq') as account_id
         FROM pseudo_profiles pp
         WHERE pp.display_name IS NOT NULL AND pp.display_name != ''
       )
@@ -561,8 +561,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         SELECT DISTINCT ON (TRIM(payload->>'Owner Address'))
           TRIM(payload->>'Owner Address') as address,
           NULLIF(LOWER(TRIM(payload->>'Owner Email')), '') as email,
-          trapper.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')) as phone
-        FROM trapper.staged_records
+          sot.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')) as phone
+        FROM ops.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'owner_info'
           AND file_upload_id = $1
@@ -574,7 +574,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       created_places AS (
         SELECT
           oa.*,
-          trapper.find_or_create_place_deduped(
+          sot.find_or_create_place_deduped(
             oa.address,
             NULL,
             NULL,
@@ -590,20 +590,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 3: Link people to places via person_place_relationships
     await saveProgress('Linking people to places...');
     const personPlaceLinks = await query(`
-      INSERT INTO trapper.person_place_relationships (person_id, place_id, role, confidence, source_system, source_table)
+      INSERT INTO sot.person_place_relationships (person_id, place_id, role, confidence, source_system, source_table)
       SELECT DISTINCT
         pi.person_id,
         p.place_id,
-        'resident'::trapper.person_place_role,
+        'resident',
         0.7,
         'clinichq',
         'owner_info'
-      FROM trapper.staged_records sr
-      JOIN trapper.person_identifiers pi ON (
+      FROM ops.staged_records sr
+      JOIN sot.person_identifiers pi ON (
         (pi.id_type = 'email' AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
-        OR (pi.id_type = 'phone' AND pi.id_value_norm = trapper.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
+        OR (pi.id_type = 'phone' AND pi.id_value_norm = sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')))
       )
-      JOIN trapper.places p ON p.normalized_address = trapper.normalize_address(sr.payload->>'Owner Address')
+      JOIN sot.places p ON p.normalized_address = sot.normalize_address(sr.payload->>'Owner Address')
         AND p.merged_into_place_id IS NULL
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
@@ -611,7 +611,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         AND sr.payload->>'Owner Address' IS NOT NULL
         AND TRIM(sr.payload->>'Owner Address') != ''
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.person_place_relationships ppr
+          SELECT 1 FROM sot.person_place_relationships ppr
           WHERE ppr.person_id = pi.person_id AND ppr.place_id = p.place_id
         )
       ON CONFLICT DO NOTHING
@@ -623,21 +623,21 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // identifiers are skipped to prevent shared org identifiers from matching wrong person
     await saveProgress('Linking appointments to people...');
     const personLinks = await query(`
-      UPDATE trapper.sot_appointments a
+      UPDATE ops.appointments a
       SET person_id = pi.person_id
-      FROM trapper.staged_records sr
-      JOIN trapper.person_identifiers pi ON (
+      FROM ops.staged_records sr
+      JOIN sot.person_identifiers pi ON (
         (pi.id_type = 'email'
          AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
          AND NOT EXISTS (
-           SELECT 1 FROM trapper.data_engine_soft_blacklist sbl
+           SELECT 1 FROM sot.data_engine_soft_blacklist sbl
            WHERE sbl.identifier_norm = pi.id_value_norm AND sbl.identifier_type = 'email'
          )
         )
         OR (pi.id_type = 'phone'
-         AND pi.id_value_norm = trapper.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+         AND pi.id_value_norm = sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
          AND NOT EXISTS (
-           SELECT 1 FROM trapper.data_engine_soft_blacklist sbl
+           SELECT 1 FROM sot.data_engine_soft_blacklist sbl
            WHERE sbl.identifier_norm = pi.id_value_norm AND sbl.identifier_type = 'phone'
          )
         )
@@ -655,17 +655,17 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // appointment_info but owner contact fields were never populated from owner_info
     await saveProgress('Backfilling appointment owner fields...');
     const ownerFieldsBackfill = await query(`
-      UPDATE trapper.sot_appointments a
+      UPDATE ops.appointments a
       SET
         client_name = NULLIF(TRIM(
           COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), '') || ' ' ||
           COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), '')
         ), ''),
         owner_email = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
-        owner_phone = trapper.norm_phone_us(
+        owner_phone = sot.norm_phone_us(
           COALESCE(NULLIF(sr.payload->>'Owner Phone', ''), sr.payload->>'Owner Cell Phone')
         )
-      FROM trapper.staged_records sr
+      FROM ops.staged_records sr
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
         AND sr.file_upload_id = $1
@@ -690,10 +690,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // get linked to clinic_owner_accounts instead
     await saveProgress('Linking pseudo-profile appointments...');
     const accountLinks = await query(`
-      UPDATE trapper.sot_appointments a
+      UPDATE ops.appointments a
       SET owner_account_id = coa.account_id
-      FROM trapper.staged_records sr
-      JOIN trapper.clinic_owner_accounts coa ON (
+      FROM ops.staged_records sr
+      JOIN ops.clinic_accounts coa ON (
         LOWER(coa.display_name) = LOWER(TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')))
         OR LOWER(TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')))
           = ANY(SELECT LOWER(unnest(coa.source_display_names)))
@@ -710,7 +710,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 5: Link cats to people via appointments
     await saveProgress('Linking cats to people...');
     const catPersonLinks = await query(`
-      INSERT INTO trapper.person_cat_relationships (cat_id, person_id, relationship_type, confidence, source_system, source_table)
+      INSERT INTO sot.person_cat_relationships (cat_id, person_id, relationship_type, confidence, source_system, source_table)
       SELECT DISTINCT
         a.cat_id,
         a.person_id,
@@ -718,11 +718,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         'high',
         'clinichq',
         'owner_info'
-      FROM trapper.sot_appointments a
+      FROM ops.appointments a
       WHERE a.cat_id IS NOT NULL
         AND a.person_id IS NOT NULL
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.person_cat_relationships cpr
+          SELECT 1 FROM sot.person_cat_relationships cpr
           WHERE cpr.cat_id = a.cat_id AND cpr.person_id = a.person_id
         )
       ON CONFLICT DO NOTHING
@@ -735,10 +735,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // This ensures order doesn't matter - process cat_info OR appointment_info first
     await saveProgress('Pre-linking orphaned appointments...');
     const orphanedLinked = await query(`
-      UPDATE trapper.sot_appointments a
-      SET cat_id = trapper.get_canonical_cat_id(ci.cat_id)
-      FROM trapper.staged_records sr
-      JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+      UPDATE ops.appointments a
+      SET cat_id = sot.get_canonical_cat_id(ci.cat_id)
+      FROM ops.staged_records sr
+      JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
       WHERE a.appointment_number = sr.payload->>'Number'
         AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
         AND sr.source_system = 'clinichq'
@@ -754,38 +754,38 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Uses get_canonical_cat_id to handle merged cats
     await saveProgress('Creating appointments...');
     const newAppointments = await query(`
-      INSERT INTO trapper.sot_appointments (
+      INSERT INTO ops.appointments (
         cat_id, appointment_date, appointment_number, service_type,
         is_spay, is_neuter, vet_name, technician, temperature, medical_notes,
         is_lactating, is_pregnant, is_in_heat,
         data_source, source_system, source_record_id, source_row_hash
       )
       SELECT
-        trapper.get_canonical_cat_id(c.cat_id),
+        sot.get_canonical_cat_id(c.cat_id),
         TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'),
         sr.payload->>'Number',
         COALESCE(sr.payload->>'All Services', sr.payload->>'Service / Subsidy'),
-        trapper.is_positive_value(sr.payload->>'Spay'),
-        trapper.is_positive_value(sr.payload->>'Neuter'),
+        sot.is_positive_value(sr.payload->>'Spay'),
+        sot.is_positive_value(sr.payload->>'Neuter'),
         sr.payload->>'Vet Name',
         sr.payload->>'Technician',
         CASE WHEN sr.payload->>'Temperature' ~ '^[0-9]+\.?[0-9]*$'
              THEN (sr.payload->>'Temperature')::NUMERIC(4,1)
              ELSE NULL END,
         sr.payload->>'Internal Medical Notes',
-        trapper.is_positive_value(sr.payload->>'Lactating') OR trapper.is_positive_value(sr.payload->>'Lactating_2'),
-        trapper.is_positive_value(sr.payload->>'Pregnant'),
-        trapper.is_positive_value(sr.payload->>'In Heat'),
+        sot.is_positive_value(sr.payload->>'Lactating') OR sot.is_positive_value(sr.payload->>'Lactating_2'),
+        sot.is_positive_value(sr.payload->>'Pregnant'),
+        sot.is_positive_value(sr.payload->>'In Heat'),
         'clinichq', 'clinichq', sr.source_row_id, sr.row_hash
-      FROM trapper.staged_records sr
-      LEFT JOIN trapper.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id
+      FROM ops.staged_records sr
+      LEFT JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+      LEFT JOIN sot.cats c ON c.cat_id = ci.cat_id
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'appointment_info'
         AND sr.file_upload_id = $1
         AND sr.payload->>'Date' IS NOT NULL AND sr.payload->>'Date' != ''
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.sot_appointments a
+          SELECT 1 FROM ops.appointments a
           WHERE a.appointment_number = sr.payload->>'Number'
             AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
         )
@@ -796,21 +796,21 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Create cat_procedures from appointments with spay service_type
     await saveProgress('Creating spay procedures...');
     const newSpays = await query(`
-      INSERT INTO trapper.cat_procedures (
+      INSERT INTO ops.cat_procedures (
         cat_id, appointment_id, procedure_type, procedure_date, status,
         performed_by, technician, is_spay, is_neuter,
         source_system, source_record_id
       )
       SELECT
         a.cat_id, a.appointment_id, 'spay', a.appointment_date,
-        'completed'::trapper.procedure_status,
+        'completed',
         a.vet_name, a.technician, TRUE, FALSE,
         'clinichq', a.appointment_number
-      FROM trapper.sot_appointments a
+      FROM ops.appointments a
       WHERE a.cat_id IS NOT NULL
         AND a.service_type ILIKE '%spay%'
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.cat_procedures cp
+          SELECT 1 FROM ops.cat_procedures cp
           WHERE cp.appointment_id = a.appointment_id AND cp.is_spay = TRUE
         )
       ON CONFLICT DO NOTHING
@@ -820,21 +820,21 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Create cat_procedures for neuter service_type
     await saveProgress('Creating neuter procedures...');
     const newNeuters = await query(`
-      INSERT INTO trapper.cat_procedures (
+      INSERT INTO ops.cat_procedures (
         cat_id, appointment_id, procedure_type, procedure_date, status,
         performed_by, technician, is_spay, is_neuter,
         source_system, source_record_id
       )
       SELECT
         a.cat_id, a.appointment_id, 'neuter', a.appointment_date,
-        'completed'::trapper.procedure_status,
+        'completed',
         a.vet_name, a.technician, FALSE, TRUE,
         'clinichq', a.appointment_number
-      FROM trapper.sot_appointments a
+      FROM ops.appointments a
       WHERE a.cat_id IS NOT NULL
         AND a.service_type ILIKE '%neuter%'
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.cat_procedures cp
+          SELECT 1 FROM ops.cat_procedures cp
           WHERE cp.appointment_id = a.appointment_id AND cp.is_neuter = TRUE
         )
       ON CONFLICT DO NOTHING
@@ -844,9 +844,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Fix procedures based on cat sex
     await saveProgress('Fixing procedure types...');
     const fixedMales = await query(`
-      UPDATE trapper.cat_procedures cp
+      UPDATE ops.cat_procedures cp
       SET procedure_type = 'neuter', is_spay = FALSE, is_neuter = TRUE
-      FROM trapper.sot_cats c
+      FROM sot.cats c
       WHERE cp.cat_id = c.cat_id
         AND cp.is_spay = TRUE
         AND LOWER(c.sex) = 'male'
@@ -854,9 +854,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     results.fixed_males = fixedMales.rowCount || 0;
 
     const fixedFemales = await query(`
-      UPDATE trapper.cat_procedures cp
+      UPDATE ops.cat_procedures cp
       SET procedure_type = 'spay', is_spay = TRUE, is_neuter = FALSE
-      FROM trapper.sot_cats c
+      FROM sot.cats c
       WHERE cp.cat_id = c.cat_id
         AND cp.is_neuter = TRUE
         AND LOWER(c.sex) = 'female'
@@ -867,9 +867,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // (service_type contains "Cat Spay" or "Cat Neuter")
     await saveProgress('Marking cats altered by clinic...');
     const alteredByClinic = await query(`
-      UPDATE trapper.sot_cats c
+      UPDATE sot.cats c
       SET altered_by_clinic = TRUE
-      FROM trapper.sot_appointments a
+      FROM ops.appointments a
       WHERE a.cat_id = c.cat_id
         AND (a.service_type ILIKE '%Cat Spay%' OR a.service_type ILIKE '%Cat Neuter%')
         AND c.altered_by_clinic IS DISTINCT FROM TRUE
@@ -889,20 +889,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Update altered_status
     await saveProgress('Updating altered status...');
     await query(`
-      UPDATE trapper.sot_cats c SET altered_status = 'spayed'
+      UPDATE sot.cats c SET altered_status = 'spayed'
       WHERE c.altered_status IS DISTINCT FROM 'spayed'
-        AND EXISTS (SELECT 1 FROM trapper.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_spay = TRUE)
+        AND EXISTS (SELECT 1 FROM ops.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_spay = TRUE)
     `);
     await query(`
-      UPDATE trapper.sot_cats c SET altered_status = 'neutered'
+      UPDATE sot.cats c SET altered_status = 'neutered'
       WHERE c.altered_status IS DISTINCT FROM 'neutered'
-        AND EXISTS (SELECT 1 FROM trapper.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_neuter = TRUE)
+        AND EXISTS (SELECT 1 FROM ops.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_neuter = TRUE)
     `);
 
     // Link appointments to trappers for accurate trapper stats
     await saveProgress('Linking appointments to trappers...');
     const trapperLinks = await query(`
-      SELECT * FROM trapper.link_appointments_to_trappers()
+      SELECT * FROM sot.link_appointments_to_trappers()
     `);
     if (trapperLinks.rows?.[0]) {
       results.appointments_linked_to_trappers = trapperLinks.rows[0].linked || 0;
@@ -913,7 +913,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Must run AFTER appointments are created so we have records to link
     await saveProgress('Extracting embedded microchips...');
     const embeddedChipLinks = await query(`
-      SELECT * FROM trapper.extract_and_link_microchips_from_animal_name()
+      SELECT * FROM ops.extract_and_link_microchips_from_animal_name()
     `);
     if (embeddedChipLinks.rows?.[0]) {
       results.embedded_microchip_cats_created = embeddedChipLinks.rows[0].cats_created || 0;
@@ -924,7 +924,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // This ensures vitals are captured during real-time ingest, not just via migrations
     await saveProgress('Creating appointment vitals...');
     const appointmentVitals = await query(`
-      INSERT INTO trapper.cat_vitals (
+      INSERT INTO ops.cat_vitals (
         cat_id, appointment_id, recorded_at,
         temperature_f, is_pregnant, is_lactating, is_in_heat,
         source_system, source_record_id
@@ -939,7 +939,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         a.is_in_heat,
         'clinichq',
         'appointment_' || a.appointment_number
-      FROM trapper.sot_appointments a
+      FROM ops.appointments a
       WHERE a.cat_id IS NOT NULL
         AND (
           a.temperature IS NOT NULL
@@ -948,7 +948,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           OR a.is_in_heat = TRUE
         )
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.cat_vitals cv
+          SELECT 1 FROM ops.cat_vitals cv
           WHERE cv.appointment_id = a.appointment_id
         )
       ON CONFLICT DO NOTHING
@@ -965,15 +965,15 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         r.request_id,
         a.cat_id,
         CASE
-          WHEN cp.is_spay = TRUE OR cp.is_neuter = TRUE THEN 'tnr_target'::trapper.cat_link_purpose
-          ELSE 'wellness'::trapper.cat_link_purpose
+          WHEN cp.is_spay = TRUE OR cp.is_neuter = TRUE THEN 'tnr_target'
+          ELSE 'wellness'
         END,
         'Auto-linked: clinic visit ' || a.appointment_date::text || ' within request attribution window',
         'ingest_auto'
-      FROM trapper.sot_appointments a
-      JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
-      JOIN trapper.sot_requests r ON r.place_id = cpr.place_id
-      LEFT JOIN trapper.cat_procedures cp ON cp.appointment_id = a.appointment_id
+      FROM ops.appointments a
+      JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
+      JOIN ops.requests r ON r.place_id = cpr.place_id
+      LEFT JOIN ops.cat_procedures cp ON cp.appointment_id = a.appointment_id
       WHERE a.cat_id IS NOT NULL
         -- Attribution window logic (from MIG_208):
         -- Active requests: created up to 6 months ago, or closed up to 3 months ago
@@ -999,7 +999,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // This ensures recapture detection and other attributes are extracted promptly
     await saveProgress('Queuing AI extraction...');
     const aiQueueResult = await query(`
-      SELECT trapper.queue_appointment_extraction(100, 10) as queued
+      SELECT ops.queue_appointment_extraction(100, 10) as queued
     `);
     results.ai_extraction_queued = aiQueueResult.rows?.[0]?.queued || 0;
   }
@@ -1018,7 +1018,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   try {
     await saveProgress('Linking appointments to owners...');
     const owners = await queryOne<{ appointments_updated: number; persons_created: number; persons_linked: number }>(
-      `SELECT * FROM trapper.link_appointments_to_owners()`
+      `SELECT * FROM sot.link_appointments_to_owners()`
     );
     if (owners) {
       linking.appointments_linked_to_owners = owners.appointments_updated;
@@ -1033,7 +1033,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   try {
     await saveProgress('Linking cats to places...');
     const cats = await queryOne<{ cats_linked: number; places_involved: number }>(
-      `SELECT * FROM trapper.run_cat_place_linking()`
+      `SELECT * FROM sot.run_cat_place_linking()`
     );
     if (cats) linking.cats_linked_to_places = cats.cats_linked;
   } catch (err) {
@@ -1045,7 +1045,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   try {
     await saveProgress('Linking appointments to trappers...');
     const trappers = await queryOne<{ run_appointment_trapper_linking: number }>(
-      `SELECT trapper.run_appointment_trapper_linking() as run_appointment_trapper_linking`
+      `SELECT sot.run_appointment_trapper_linking() as run_appointment_trapper_linking`
     );
     if (trappers) linking.appointments_linked_to_trappers = trappers.run_appointment_trapper_linking;
   } catch (err) {
@@ -1060,7 +1060,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 0 (booking_address) is highest priority — uses the actual ClinicHQ booking address
     // (colony site) instead of person's home address.
     await saveProgress('Inferring appointment places...');
-    const inferred = await query(`SELECT * FROM trapper.infer_appointment_places()`);
+    const inferred = await query(`SELECT * FROM ops.infer_appointment_places()`);
     if (inferred.rows) {
       for (const row of inferred.rows) {
         linking[`inferred_place_${row.source}`] = row.appointments_linked;
@@ -1077,7 +1077,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Replaces direct INSERT (which bypassed INV-10 gatekeeper and linked to ALL person places)
     await saveProgress('Linking cats to appointment places...');
     const appointmentPlaces = await queryOne<{ cats_linked: number }>(
-      `SELECT * FROM trapper.link_cats_to_appointment_places()`
+      `SELECT * FROM sot.link_cats_to_appointment_places()`
     );
     if (appointmentPlaces) linking.cats_linked_via_appointment_places = appointmentPlaces.cats_linked;
   } catch (err) {
@@ -1098,7 +1098,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   try {
     await saveProgress('Linking cats to requests (post entity-linking)...');
     const postLinkResult = await queryOne<{ linked: number; skipped: number }>(
-      `SELECT * FROM trapper.link_cats_to_requests_safe()`
+      `SELECT * FROM sot.link_cats_to_requests_safe()`
     );
     if (postLinkResult) {
       results.cats_linked_to_requests_post = postLinkResult.linked;
@@ -1143,21 +1143,21 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           a.cat_id,
           (
             SELECT cpr.place_id
-            FROM trapper.cat_place_relationships cpr
+            FROM sot.cat_place_relationships cpr
             WHERE cpr.cat_id = a.cat_id
             ORDER BY cpr.created_at DESC
             LIMIT 1
           ) as place_id
-        FROM trapper.sot_appointments a
-        JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-        LEFT JOIN trapper.cat_birth_events be ON be.mother_cat_id = a.cat_id
+        FROM ops.appointments a
+        JOIN sot.cats c ON c.cat_id = a.cat_id
+        LEFT JOIN sot.cat_birth_events be ON be.mother_cat_id = a.cat_id
         WHERE a.is_lactating = true
           AND c.sex = 'Female'
           AND be.birth_event_id IS NULL
         ORDER BY a.cat_id, a.appointment_date DESC
         LIMIT 100
       )
-      INSERT INTO trapper.cat_birth_events (
+      INSERT INTO sot.cat_birth_events (
         cat_id, mother_cat_id, birth_date, birth_date_precision,
         birth_year, birth_month, birth_season, place_id,
         source_system, source_record_id, reported_by, notes
@@ -1165,7 +1165,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       SELECT
         NULL, cat_id,
         appointment_date - INTERVAL '42 days',
-        'estimated'::trapper.birth_date_precision,
+        'estimated',
         EXTRACT(YEAR FROM appointment_date - INTERVAL '42 days')::INT,
         EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days')::INT,
         CASE
@@ -1203,14 +1203,14 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           END AS death_cause,
           (
             SELECT cpr.place_id
-            FROM trapper.cat_place_relationships cpr
+            FROM sot.cat_place_relationships cpr
             WHERE cpr.cat_id = a.cat_id
             ORDER BY cpr.created_at DESC
             LIMIT 1
           ) as place_id
-        FROM trapper.sot_appointments a
-        JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-        LEFT JOIN trapper.cat_mortality_events me ON me.cat_id = a.cat_id
+        FROM ops.appointments a
+        JOIN sot.cats c ON c.cat_id = a.cat_id
+        LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id
         WHERE (
             LOWER(a.medical_notes) LIKE '%euthanized%'
             OR LOWER(a.medical_notes) LIKE '%euthanasia%'
@@ -1222,7 +1222,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         ORDER BY a.cat_id, a.appointment_date DESC
         LIMIT 50
       )
-      INSERT INTO trapper.cat_mortality_events (
+      INSERT INTO sot.cat_mortality_events (
         cat_id, death_date, death_date_precision, death_year, death_month,
         death_cause, place_id, source_system, source_record_id, reported_by, notes
       )
@@ -1230,7 +1230,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         cat_id, appointment_date, 'exact',
         EXTRACT(YEAR FROM appointment_date)::INT,
         EXTRACT(MONTH FROM appointment_date)::INT,
-        death_cause::trapper.death_cause,
+        death_cause,
         place_id, 'beacon_cron', appointment_id::TEXT, 'System',
         'Auto-created from clinic notes: ' || LEFT(medical_notes, 200)
       FROM death_appointments
@@ -1241,9 +1241,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Mark cats as deceased
     if (mortalityResult.rowCount && mortalityResult.rowCount > 0) {
       const deceasedResult = await query(`
-        UPDATE trapper.sot_cats
+        UPDATE sot.cats
         SET is_deceased = true, deceased_date = me.death_date, updated_at = NOW()
-        FROM trapper.cat_mortality_events me
+        FROM sot.cat_mortality_events me
         WHERE sot_cats.cat_id = me.cat_id
           AND (sot_cats.is_deceased IS NULL OR sot_cats.is_deceased = false)
           AND me.source_system = 'beacon_cron'
@@ -1327,7 +1327,7 @@ async function processGoogleMapsFile(
 
   if (!isKmz && !isKml) {
     await query(
-      `UPDATE trapper.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
+      `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, "Google Maps files must be .kmz or .kml"]
     );
     return NextResponse.json(
@@ -1355,7 +1355,7 @@ async function processGoogleMapsFile(
       }
     } catch (error) {
       await query(
-        `UPDATE trapper.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
+        `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
         [uploadId, `Failed to extract KMZ: ${error instanceof Error ? error.message : "Unknown error"}`]
       );
       return NextResponse.json(
@@ -1374,7 +1374,7 @@ async function processGoogleMapsFile(
     placemarks = extractPlacemarks(result.kml);
   } catch (error) {
     await query(
-      `UPDATE trapper.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
+      `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, `Failed to parse KML: ${error instanceof Error ? error.message : "Unknown error"}`]
     );
     return NextResponse.json(
@@ -1385,7 +1385,7 @@ async function processGoogleMapsFile(
 
   if (placemarks.length === 0) {
     await query(
-      `UPDATE trapper.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
+      `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, "No placemarks found. If using a link from Google Maps, download the full KMZ export instead."]
     );
     return NextResponse.json(
@@ -1396,7 +1396,7 @@ async function processGoogleMapsFile(
 
   // Stage the import using the centralized pattern
   const importResult = await queryOne<{ import_id: string }>(`
-    INSERT INTO trapper.staged_google_maps_imports (
+    INSERT INTO ops.staged_google_maps_imports (
       filename,
       upload_method,
       placemarks,
@@ -1415,7 +1415,7 @@ async function processGoogleMapsFile(
 
   if (!importResult) {
     await query(
-      `UPDATE trapper.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
+      `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, "Failed to stage import"]
     );
     return NextResponse.json(
@@ -1426,12 +1426,12 @@ async function processGoogleMapsFile(
 
   // Process the import through the centralized function
   const processResult = await queryOne<{ result: { success: boolean; updated: number; inserted: number; not_matched: number; error?: string } }>(`
-    SELECT trapper.process_google_maps_import($1) as result
+    SELECT ops.process_google_maps_import($1) as result
   `, [importResult.import_id]);
 
   if (!processResult?.result?.success) {
     await query(
-      `UPDATE trapper.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
+      `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, processResult?.result?.error || "Processing failed"]
     );
     return NextResponse.json(
@@ -1442,7 +1442,7 @@ async function processGoogleMapsFile(
 
   // Mark file upload as completed
   await query(
-    `UPDATE trapper.file_uploads
+    `UPDATE ops.file_uploads
      SET status = 'completed', processed_at = NOW(),
          rows_total = $2, rows_inserted = $3, rows_updated = $4, rows_skipped = $5
      WHERE upload_id = $1`,
