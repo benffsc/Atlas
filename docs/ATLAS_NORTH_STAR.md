@@ -129,6 +129,90 @@ The **Atlas Orchestrator** is a central spine that ensures every data source flo
 
 ---
 
+## Database Migration Invariants (Added 2026-02-13)
+
+**Critical lesson from DATA_GAP_030:** Database migrations that don't preserve UUIDs cause catastrophic failures. The V1→V2 migration created new UUIDs for all entities, breaking 13,933 geocoded locations and all foreign key relationships.
+
+### Migration Invariants
+
+1. **UUID Preservation is Non-Negotiable** — Entity UUIDs (`place_id`, `person_id`, `cat_id`, etc.) MUST be preserved exactly during migrations. Never use `DEFAULT` for primary keys when copying entities.
+
+2. **All Columns Must Be Accounted For** — Every column must either be:
+   - Copied explicitly
+   - Mapped to a new column name
+   - Documented as intentionally dropped (with reason)
+
+   Special attention to: `location` (PostGIS), `merged_into_*_id` chains, timestamps, provenance fields.
+
+3. **Pre-Migration Verification Required** — Before ANY entity table migration:
+   ```sql
+   -- Record these counts BEFORE migration
+   SELECT 'places', COUNT(*), COUNT(*) FILTER (WHERE location IS NOT NULL) FROM places;
+   SELECT 'cats', COUNT(*), COUNT(*) FILTER (WHERE merged_into_cat_id IS NULL) FROM cats;
+   SELECT 'people', COUNT(*), COUNT(*) FILTER (WHERE primary_email IS NOT NULL) FROM people;
+   ```
+
+4. **Post-Migration Verification Required** — After migration:
+   ```sql
+   -- Counts must match within expected tolerance
+   -- UUID overlap must be 100% for entity tables
+   SELECT COUNT(*) FROM v1.places v1 JOIN v2.places v2 ON v1.place_id = v2.place_id;
+   ```
+
+5. **No "Simple Fixes" for Schema Migrations** — If a migration seems simple, you're probably missing something. Always:
+   - Document column mappings
+   - Test on staging first
+   - Run verification before AND after
+   - Have rollback plan
+
+### Correct Migration Pattern
+
+```sql
+-- CORRECT: Preserve all columns and UUIDs
+INSERT INTO v2.sot.places (
+  place_id,              -- EXPLICIT UUID preservation
+  display_name,
+  formatted_address,
+  location,              -- PostGIS geography - DON'T skip!
+  service_zone,
+  merged_into_place_id,  -- Merge chain - critical
+  source_system,
+  source_record_id,
+  created_at,
+  updated_at
+)
+SELECT
+  place_id,              -- Same UUID
+  display_name,
+  formatted_address,
+  location,              -- Copy geography
+  service_zone,
+  merged_into_place_id,
+  source_system,
+  source_record_id,
+  created_at,
+  updated_at
+FROM v1.trapper.places
+ON CONFLICT (place_id) DO NOTHING;
+```
+
+### Anti-Patterns to Avoid
+
+```sql
+-- WRONG: Creates new UUIDs
+INSERT INTO v2.places (display_name, formatted_address)
+SELECT display_name, formatted_address FROM v1.places;
+
+-- WRONG: Uses find_or_create which may create new entities
+SELECT find_or_create_place_deduped(formatted_address) FROM v1.places;
+
+-- WRONG: Skips location column
+INSERT INTO v2.places (place_id, display_name)  -- Missing location!
+SELECT place_id, display_name FROM v1.places;
+```
+
+---
+
 ## Cross-Source Conflict Detection (IMPLEMENTED - MIG_620, MIG_922, MIG_924)
 
 ### Field-Level Source Tracking

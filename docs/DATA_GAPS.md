@@ -697,3 +697,93 @@ New test files created for program statistics and data quality:
 | `fixtures/staff-program-questions.ts` | 20+ staff question fixtures |
 
 These tests use real data queries and validate Tippy's accuracy against database views.
+
+---
+
+## DATA_GAP_030: V2 Database Migration - UUID and Location Loss
+
+**Status:** CRITICAL - IN PROGRESS
+
+**Problem:** The V1→V2 database migration created NEW UUIDs for all entities instead of preserving the original `place_id`, `person_id`, `cat_id` values. Additionally, the `location` column (PostGIS geography with geocoded coordinates) was not copied. Result:
+
+1. **13,933 places with coordinates in V1** → **0 places with coordinates in V2**
+2. **No UUID overlap** between V1 and V2 entities
+3. **Map completely broken** — `v_map_atlas_pins` returns 0 rows
+4. **All foreign key relationships broken** — relationships can't match entities
+
+**Evidence:**
+```sql
+-- V1: 13,933 places have geocoded locations
+SELECT COUNT(*) FROM trapper.places WHERE location IS NOT NULL;
+-- Result: 13,933
+
+-- V2: 0 places have geocoded locations
+SELECT COUNT(*) FROM sot.places WHERE location IS NOT NULL;
+-- Result: 0
+
+-- UUID match attempt: 0 matches
+SELECT COUNT(*)
+FROM v1.places v1
+JOIN v2.sot.places v2 ON v1.place_id = v2.place_id;
+-- Result: 0
+```
+
+**Root Cause:** Migration scripts used patterns that created new entities instead of preserving existing ones:
+1. Used `INSERT ... DEFAULT` instead of `INSERT ... SELECT place_id, ...`
+2. Relied on `find_or_create_place_deduped()` which creates new UUIDs when no match found
+3. Skipped `location` column during entity copy
+4. No verification step to confirm UUID preservation
+
+**Impact:**
+- Map doesn't load (0 pins)
+- Entity relationships broken
+- Audit trails disconnected
+- Merge chains broken
+- Months of geocoding work lost
+
+**Correct Migration Pattern:**
+```sql
+-- CORRECT: Preserve UUIDs explicitly
+INSERT INTO v2.sot.places (
+  place_id,           -- EXPLICIT UUID preservation
+  display_name,
+  formatted_address,
+  location,           -- DON'T skip location!
+  service_zone,
+  merged_into_place_id,
+  source_system,
+  created_at,
+  updated_at
+)
+SELECT
+  place_id,           -- Same UUID as V1
+  display_name,
+  formatted_address,
+  location,           -- Copy the geography
+  service_zone,
+  merged_into_place_id,
+  source_system,
+  created_at,
+  updated_at
+FROM v1.trapper.places;
+```
+
+**Fix Required:**
+1. Create cross-database migration script that:
+   - Matches V2 places to V1 by `normalized_address` or `formatted_address`
+   - Copies `location` from matched V1 record
+   - For unmatched records, re-queue for geocoding
+2. Add migration verification queries to all future migrations
+3. Document UUID preservation as invariant (added to CLAUDE.md #36-38)
+
+**Lessons Learned:**
+1. **Never use "simple fix" migrations** for schema changes
+2. **Always verify UUID counts** before and after migration
+3. **All columns must be accounted for** — missing columns = broken features
+4. **Test migrations on staging** before production
+5. **Add invariant checks to CI** — UUID counts should match
+
+**Related Invariants:**
+- CLAUDE.md #36: Database Migrations MUST Preserve Entity UUIDs
+- CLAUDE.md #37: Database Migrations MUST Include All Columns
+- CLAUDE.md #38: No "Simple Fixes" for Schema Migrations
