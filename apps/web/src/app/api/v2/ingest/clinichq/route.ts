@@ -460,17 +460,23 @@ function parseXlsxFile(buffer: Buffer): Record<string, unknown>[] {
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
 
+  // Use raw: true to get actual values, then convert carefully
   const rawData = XLSX.utils.sheet_to_json(worksheet, {
     header: 1,
     defval: "",
     blankrows: false,
-    raw: false,
+    raw: true, // Get raw values to preserve number precision
   }) as unknown[][];
 
   if (rawData.length === 0) return [];
 
   const rawHeaders = rawData[0] as string[];
   const headers = rawHeaders.map((h, i) => h ? String(h).trim() : `_col_${i + 1}`);
+
+  // Find microchip column index for special handling
+  const microchipColIndex = headers.findIndex(h =>
+    h === "Microchip" || h === "Microchip Number" || h === "Chip" || h === "Microchip #"
+  );
 
   const rows: Record<string, unknown>[] = [];
   for (let i = 1; i < rawData.length; i++) {
@@ -480,8 +486,17 @@ function parseXlsxFile(buffer: Buffer): Record<string, unknown>[] {
 
     for (let j = 0; j < headers.length; j++) {
       let value = j < rowArray.length ? rowArray[j] : "";
-      if (typeof value === "string") value = value.trim();
-      if (value instanceof Date) value = value.toISOString();
+
+      // Special handling for microchip column - convert number to string preserving precision
+      if (j === microchipColIndex && typeof value === "number") {
+        // Use toFixed(0) to avoid scientific notation
+        value = value.toFixed(0);
+      } else if (typeof value === "string") {
+        value = value.trim();
+      } else if (value instanceof Date) {
+        value = value.toISOString();
+      }
+
       rowObj[headers[j]] = value;
       if (value !== "" && value !== null && value !== undefined) hasData = true;
     }
@@ -493,13 +508,50 @@ function parseXlsxFile(buffer: Buffer): Record<string, unknown>[] {
 }
 
 function getMicrochipFromRow(row: Record<string, unknown>): string | null {
-  const chip = getString(row, "Microchip", "Microchip Number", "Chip", "Microchip #");
+  let chip = getString(row, "Microchip", "Microchip Number", "Chip", "Microchip #");
+  if (!chip) {
+    // Also check for raw number (XLSX might not convert to string)
+    const rawChip = row["Microchip Number"] ?? row["Microchip"];
+    if (typeof rawChip === "number") {
+      // Handle scientific notation or raw number
+      chip = rawChip.toFixed(0);
+    }
+  }
   if (!chip || chip.length < 9) return null;
+
+  // Handle scientific notation in string form (e.g., "9.81E+14")
+  if (chip.includes("E") || chip.includes("e")) {
+    try {
+      const num = parseFloat(chip);
+      if (!isNaN(num)) {
+        chip = num.toFixed(0);
+      }
+    } catch {
+      // Keep original
+    }
+  }
+
   return chip;
 }
 
 function getDateFromRow(row: Record<string, unknown>): string | null {
-  const dateStr = getString(row, "Date", "Appointment Date", "Service Date");
+  // Try many possible date column names
+  const dateStr = getString(
+    row,
+    "Date",
+    "Appointment Date",
+    "Service Date",
+    "Visit Date",
+    "Clinic Date",
+    "Appt Date",
+    "AppointmentDate",
+    "VisitDate",
+    "ServiceDate",
+    "ClinicDate",
+    "date",
+    "appointment_date",
+    "visit_date"
+  );
   if (!dateStr) return null;
 
   // Try to normalize the date
@@ -1036,14 +1088,17 @@ export async function POST(request: NextRequest) {
 
     // Start processing in the background (don't await)
     (async () => {
+      // Track last error for debugging
+      let lastError: string | null = null;
+
       try {
-        // Send initial progress
+        // Send initial progress with clear visit/cat distinction
         await sendEvent({
           type: "progress",
           phase: "parsing",
           current: 0,
           total: mergedRecords.length,
-          message: `Parsed ${catInfoRows.length + ownerInfoRows.length + appointmentInfoRows.length} rows, merged into ${mergedRecords.length} cats`,
+          message: `Parsed: cat_info=${catInfoRows.length} rows, owner_info=${ownerInfoRows.length} rows, appt_info=${appointmentInfoRows.length} rows → ${mergedRecords.length} unique cats with ${uniqueAppointments} visits`,
         });
 
         // Process merged records with progress updates
@@ -1054,7 +1109,9 @@ export async function POST(request: NextRequest) {
           try {
             await processMergedRecord(record, stats, dryRun);
           } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
             console.error(`[V2 Ingest] Record error (${record.microchip}):`, err);
+            lastError = `${record.microchip}: ${errorMsg}`;
             stats.errors++;
           }
 
@@ -1065,14 +1122,17 @@ export async function POST(request: NextRequest) {
               phase: "processing",
               current: i + 1,
               total: mergedRecords.length,
-              message: `Processing cat ${i + 1}/${mergedRecords.length}`,
+              message: `Processing cat ${i + 1}/${mergedRecords.length} (${record.appointments.length} visits)`,
               stats: {
                 personsCreated: stats.personsCreated,
                 personsMatched: stats.personsMatched,
                 pseudoProfiles: stats.pseudoProfiles,
                 catsCreated: stats.catsCreated,
+                catsMatched: stats.catsMatched,
                 placesCreated: stats.placesCreated,
+                opsInserted: stats.opsInserted,
                 errors: stats.errors,
+                lastError: lastError,
               },
             });
           }
@@ -1084,10 +1144,11 @@ export async function POST(request: NextRequest) {
         await sendEvent({
           type: "complete",
           success: stats.errors === 0,
-          message: `Processed ${mergedRecords.length} cats with ${uniqueAppointments} unique visits (${totalServiceItems} service items)`,
+          message: `Processed ${mergedRecords.length} unique cats with ${uniqueAppointments} clinic visits (${totalServiceItems} service items)`,
           stats,
           dryRun,
           elapsedMs,
+          lastError,
         });
       } catch (error) {
         console.error("[V2 Ingest] Stream error:", error);

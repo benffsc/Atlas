@@ -75,6 +75,8 @@ export default function V2IngestPage() {
   const [v2Stats, setV2Stats] = useState<V2Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
 
   const fileInputRefs = useRef<Record<FileType, HTMLInputElement | null>>({
     cat_info: null,
@@ -82,6 +84,37 @@ export default function V2IngestPage() {
     appointment_info: null,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
+  const debugLogRef = useRef<HTMLDivElement | null>(null);
+
+  // Helper to add debug log entry
+  const addDebugLog = (entry: string) => {
+    const timestamp = new Date().toISOString().split("T")[1].split(".")[0];
+    setDebugLog((prev) => [...prev, `[${timestamp}] ${entry}`]);
+    // Auto-scroll to bottom
+    setTimeout(() => {
+      if (debugLogRef.current) {
+        debugLogRef.current.scrollTop = debugLogRef.current.scrollHeight;
+      }
+    }, 0);
+  };
+
+  // Copy debug log to clipboard
+  const copyDebugLog = async () => {
+    const logText = debugLog.join("\n");
+    try {
+      await navigator.clipboard.writeText(logText);
+      alert("Debug log copied to clipboard!");
+    } catch {
+      // Fallback
+      const textarea = document.createElement("textarea");
+      textarea.value = logText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      alert("Debug log copied to clipboard!");
+    }
+  };
 
   // Load V2 stats on mount
   useEffect(() => {
@@ -145,7 +178,12 @@ export default function V2IngestPage() {
     setProcessing(true);
     setError(null);
     setResult(null);
+    setDebugLog([]); // Clear debug log
+    setShowDebug(true); // Show debug console
     setProgress({ phase: "uploading", current: 0, total: 100, message: "Uploading files..." });
+
+    addDebugLog(`Starting ${dryRun ? "DRY RUN" : "LIVE"} processing`);
+    addDebugLog(`Files: cat_info=${files.cat_info?.name}, owner_info=${files.owner_info?.name}, appointment_info=${files.appointment_info?.name}`);
 
     try {
       const formData = new FormData();
@@ -155,14 +193,19 @@ export default function V2IngestPage() {
       formData.append("dryRun", String(dryRun));
       formData.append("stream", "true"); // Enable streaming
 
+      addDebugLog("Uploading files to /api/v2/ingest/clinichq...");
+
       const res = await fetch("/api/v2/ingest/clinichq", {
         method: "POST",
         body: formData,
         signal: abortControllerRef.current.signal,
       });
 
+      addDebugLog(`Response status: ${res.status} ${res.statusText}`);
+
       if (!res.ok) {
         const data = await res.json();
+        addDebugLog(`Error response: ${JSON.stringify(data)}`);
         throw new Error(data.error || "Processing failed");
       }
 
@@ -196,7 +239,19 @@ export default function V2IngestPage() {
                   message: data.message,
                   stats: data.stats,
                 });
+                // Log significant progress events
+                if (data.phase === "parsing" || data.stats?.lastError) {
+                  addDebugLog(data.message);
+                  if (data.stats?.lastError) {
+                    addDebugLog(`ERROR: ${data.stats.lastError}`);
+                  }
+                }
               } else if (data.type === "complete") {
+                addDebugLog(`Complete: ${data.message}`);
+                addDebugLog(`Final stats: ${JSON.stringify(data.stats)}`);
+                if (data.lastError) {
+                  addDebugLog(`Last error: ${data.lastError}`);
+                }
                 setResult(data);
                 setProgress(null);
                 // Reload stats after processing
@@ -204,19 +259,24 @@ export default function V2IngestPage() {
                   await loadV2Stats();
                 }
               } else if (data.type === "error") {
+                addDebugLog(`Stream error: ${data.error}`);
                 throw new Error(data.error);
               }
             } catch (parseErr) {
               console.error("Failed to parse SSE message:", parseErr);
+              addDebugLog(`Parse error: ${parseErr}`);
             }
           }
         }
       }
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
+        addDebugLog("Cancelled by user");
         setError("Processing cancelled by user");
       } else {
-        setError(err instanceof Error ? err.message : "Processing failed");
+        const errorMsg = err instanceof Error ? err.message : "Processing failed";
+        addDebugLog(`Exception: ${errorMsg}`);
+        setError(errorMsg);
       }
       setProgress(null);
     } finally {
@@ -519,14 +579,33 @@ export default function V2IngestPage() {
               gap: "1.5rem",
               fontSize: "0.75rem",
               color: "var(--muted)",
+              flexWrap: "wrap",
             }}>
-              <span>People: <strong>{progress.stats.personsCreated || 0}</strong></span>
-              <span>Cats: <strong>{progress.stats.catsCreated || 0}</strong></span>
+              <span>People: <strong>{progress.stats.personsCreated || 0}</strong> new, <strong>{progress.stats.personsMatched || 0}</strong> matched</span>
+              <span>Cats: <strong>{progress.stats.catsCreated || 0}</strong> new, <strong>{progress.stats.catsMatched || 0}</strong> matched</span>
               <span>Places: <strong>{progress.stats.placesCreated || 0}</strong></span>
               <span>Pseudo: <strong>{progress.stats.pseudoProfiles || 0}</strong></span>
+              <span>Appointments: <strong>{(progress.stats as Record<string, number>).opsInserted || 0}</strong></span>
               {(progress.stats.errors || 0) > 0 && (
                 <span style={{ color: "var(--error, #dc2626)" }}>Errors: <strong>{progress.stats.errors}</strong></span>
               )}
+            </div>
+          )}
+
+          {/* Last error for debugging */}
+          {progress.stats && (progress.stats as Record<string, unknown>).lastError && (
+            <div style={{
+              marginTop: "0.5rem",
+              padding: "0.5rem",
+              background: "var(--error-bg, #fef2f2)",
+              border: "1px solid var(--error-border, #fecaca)",
+              borderRadius: "0.25rem",
+              fontSize: "0.7rem",
+              color: "var(--error, #dc2626)",
+              fontFamily: "monospace",
+              wordBreak: "break-all",
+            }}>
+              <strong>Last error:</strong> {String((progress.stats as Record<string, unknown>).lastError)}
             </div>
           )}
         </div>
@@ -668,6 +747,85 @@ export default function V2IngestPage() {
           Non-person records (orgs, addresses, site names) are routed to ops.clinic_accounts instead of sot.people.
         </p>
       </div>
+
+      {/* Debug Console - only visible during/after processing */}
+      {(showDebug || processing) && debugLog.length > 0 && (
+        <div style={{
+          marginTop: "1.5rem",
+          border: "1px solid var(--border)",
+          borderRadius: "0.5rem",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "0.5rem 0.75rem",
+            background: "#1e1e1e",
+            borderBottom: "1px solid var(--border)",
+          }}>
+            <span style={{ color: "#10b981", fontSize: "0.75rem", fontWeight: 600 }}>
+              🔧 Debug Console ({debugLog.length} entries)
+            </span>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={copyDebugLog}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.65rem",
+                  background: "#374151",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.25rem",
+                  cursor: "pointer",
+                }}
+              >
+                📋 Copy Log
+              </button>
+              <button
+                onClick={() => setShowDebug(false)}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.65rem",
+                  background: "#374151",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "0.25rem",
+                  cursor: "pointer",
+                }}
+              >
+                ✕ Hide
+              </button>
+            </div>
+          </div>
+          <div
+            ref={debugLogRef}
+            style={{
+              maxHeight: "200px",
+              overflowY: "auto",
+              padding: "0.5rem 0.75rem",
+              background: "#0d1117",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: "0.7rem",
+              lineHeight: "1.5",
+              color: "#c9d1d9",
+            }}
+          >
+            {debugLog.map((entry, i) => (
+              <div
+                key={i}
+                style={{
+                  color: entry.includes("ERROR") ? "#f87171" :
+                         entry.includes("Complete") ? "#34d399" :
+                         entry.includes("cancelled") ? "#fbbf24" : "#c9d1d9"
+                }}
+              >
+                {entry}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
