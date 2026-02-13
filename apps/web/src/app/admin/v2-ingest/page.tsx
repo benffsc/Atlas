@@ -81,6 +81,7 @@ export default function V2IngestPage() {
     owner_info: null,
     appointment_info: null,
   });
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load V2 stats on mount
   useEffect(() => {
@@ -123,9 +124,23 @@ export default function V2IngestPage() {
   const filesUploaded = Object.values(files).filter(Boolean).length;
   const isComplete = filesUploaded === 3;
 
+  // Cancel processing
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setProcessing(false);
+    setProgress(null);
+    setError("Processing cancelled by user");
+  };
+
   // Process all files with streaming progress
   const handleProcess = async () => {
     if (!isComplete) return;
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
 
     setProcessing(true);
     setError(null);
@@ -143,6 +158,7 @@ export default function V2IngestPage() {
       const res = await fetch("/api/v2/ingest/clinichq", {
         method: "POST",
         body: formData,
+        signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok) {
@@ -197,10 +213,15 @@ export default function V2IngestPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Processing failed");
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Processing cancelled by user");
+      } else {
+        setError(err instanceof Error ? err.message : "Processing failed");
+      }
       setProgress(null);
     } finally {
       setProcessing(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -398,37 +419,57 @@ export default function V2IngestPage() {
 
       {/* Process Button */}
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
-        <button
-          onClick={handleProcess}
-          disabled={!isComplete || processing}
-          style={{
-            flex: 1,
-            padding: "0.75rem",
-            fontSize: "1rem",
-            fontWeight: 500,
-            background: !isComplete || processing ? "var(--muted)" : "var(--primary, #3b82f6)",
-            color: "white",
-            border: "none",
-            borderRadius: "0.5rem",
-            cursor: !isComplete || processing ? "not-allowed" : "pointer",
-          }}
-        >
-          {processing ? "Processing..." : dryRun ? "Run Dry Run" : "Process to V2"}
-        </button>
-        <button
-          onClick={handleReset}
-          disabled={processing}
-          style={{
-            padding: "0.75rem 1.5rem",
-            fontSize: "1rem",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "0.5rem",
-            cursor: processing ? "not-allowed" : "pointer",
-          }}
-        >
-          Reset
-        </button>
+        {!processing ? (
+          <>
+            <button
+              onClick={handleProcess}
+              disabled={!isComplete}
+              style={{
+                flex: 1,
+                padding: "0.75rem",
+                fontSize: "1rem",
+                fontWeight: 500,
+                background: !isComplete ? "var(--muted)" : "var(--primary, #3b82f6)",
+                color: "white",
+                border: "none",
+                borderRadius: "0.5rem",
+                cursor: !isComplete ? "not-allowed" : "pointer",
+              }}
+            >
+              {dryRun ? "Run Dry Run" : "Process to V2"}
+            </button>
+            <button
+              onClick={handleReset}
+              style={{
+                padding: "0.75rem 1.5rem",
+                fontSize: "1rem",
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "0.5rem",
+                cursor: "pointer",
+              }}
+            >
+              Reset
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={handleCancel}
+            style={{
+              flex: 1,
+              padding: "0.75rem",
+              fontSize: "1rem",
+              fontWeight: 500,
+              background: "var(--error, #dc2626)",
+              color: "white",
+              border: "none",
+              borderRadius: "0.5rem",
+              cursor: "pointer",
+            }}
+          >
+            Cancel Processing
+          </button>
+        )}
       </div>
 
       {/* Progress Bar */}
