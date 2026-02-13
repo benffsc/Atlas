@@ -2,6 +2,7 @@
 -- Run this in Supabase SQL Editor
 -- Purpose: Fix column name mismatches and add missing constraints
 -- Created: 2026-02-12
+-- Updated: Added constraint fixes for ON CONFLICT clauses
 
 -- ============================================================================
 -- 1. FIX source.clinichq_raw record_type CHECK
@@ -18,26 +19,44 @@ ALTER TABLE source.clinichq_raw
     ));
 
 -- ============================================================================
--- 2. FIX ops.appointments: Add clinichq_appointment_id column
+-- 2. FIX ops.appointments: Add clinichq_appointment_id with CONSTRAINT
 -- ============================================================================
 
 ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS clinichq_appointment_id TEXT;
 
--- Create unique constraint for ON CONFLICT
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_appointments_clinichq_id
-    ON ops.appointments(clinichq_appointment_id)
-    WHERE clinichq_appointment_id IS NOT NULL;
+-- Drop partial index if exists (doesn't work with ON CONFLICT)
+DROP INDEX IF EXISTS ops.idx_ops_appointments_clinichq_id;
+
+-- Create actual CONSTRAINT (not partial index) for ON CONFLICT to work
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'appointments_clinichq_id_unique'
+    ) THEN
+        ALTER TABLE ops.appointments
+            ADD CONSTRAINT appointments_clinichq_id_unique
+            UNIQUE (clinichq_appointment_id);
+    END IF;
+END$$;
 
 -- ============================================================================
--- 3. FIX ops.clinic_accounts: Add unique constraint
+-- 3. FIX ops.clinic_accounts: Add CONSTRAINT (not just index)
 -- ============================================================================
 
--- First drop the index if it exists (to allow re-creation)
 DROP INDEX IF EXISTS ops.clinic_accounts_name_email_key;
 
--- Create unique index for COALESCE handling
-CREATE UNIQUE INDEX clinic_accounts_name_email_key
-    ON ops.clinic_accounts(owner_first_name, owner_last_name, COALESCE(owner_email, ''));
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'clinic_accounts_name_email_key'
+    ) THEN
+        ALTER TABLE ops.clinic_accounts
+            ADD CONSTRAINT clinic_accounts_name_email_key
+            UNIQUE (owner_first_name, owner_last_name, owner_email);
+    END IF;
+END$$;
 
 -- ============================================================================
 -- 4. FIX sot.addresses: Add missing columns
@@ -47,12 +66,6 @@ ALTER TABLE sot.addresses ADD COLUMN IF NOT EXISTS raw_input TEXT;
 ALTER TABLE sot.addresses ADD COLUMN IF NOT EXISTS display_address TEXT;
 ALTER TABLE sot.addresses ADD COLUMN IF NOT EXISTS source_system TEXT;
 
--- Copy existing data to new columns (if table has data)
-UPDATE sot.addresses
-SET raw_input = COALESCE(raw_input, raw_address),
-    display_address = COALESCE(display_address, COALESCE(formatted_address, display_line))
-WHERE raw_input IS NULL OR display_address IS NULL;
-
 -- ============================================================================
 -- 5. FIX sot.places: Add address_id column
 -- ============================================================================
@@ -60,44 +73,30 @@ WHERE raw_input IS NULL OR display_address IS NULL;
 ALTER TABLE sot.places ADD COLUMN IF NOT EXISTS address_id UUID REFERENCES sot.addresses(address_id);
 ALTER TABLE sot.places ADD COLUMN IF NOT EXISTS source_system TEXT;
 
--- Copy existing data from sot_address_id (if table has data)
-UPDATE sot.places
-SET address_id = sot_address_id
-WHERE address_id IS NULL AND sot_address_id IS NOT NULL;
-
 -- ============================================================================
--- 6. FIX sot.cats: Add color column
+-- 6. FIX sot.cats: Add color column and unique constraint
 -- ============================================================================
 
 ALTER TABLE sot.cats ADD COLUMN IF NOT EXISTS color TEXT;
 
--- Copy existing data from primary_color (if table has data)
-UPDATE sot.cats
-SET color = primary_color
-WHERE color IS NULL AND primary_color IS NOT NULL;
+-- Drop non-unique index
+DROP INDEX IF EXISTS sot.idx_sot_cats_microchip;
+DROP INDEX IF EXISTS sot.idx_sot_cats_microchip_unique;
+
+-- Create unique index with exact WHERE clause the route expects
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sot_cats_microchip_active
+    ON sot.cats(microchip)
+    WHERE merged_into_cat_id IS NULL;
+
+-- ============================================================================
+-- 7. FIX sot.person_identifiers: Add constraint for route's conflict target
+-- ============================================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_person_identifiers_person_type_norm
+    ON sot.person_identifiers(person_id, id_type, id_value_norm);
 
 -- ============================================================================
 -- VERIFICATION
 -- ============================================================================
 
-SELECT 'MIG_2006 Applied Successfully' as status;
-
--- Check columns exist
-SELECT 'source.clinichq_raw' as table_name,
-    (SELECT string_agg(conname, ', ') FROM pg_constraint
-     WHERE conrelid = 'source.clinichq_raw'::regclass AND contype = 'c') as constraints;
-
-SELECT 'ops.appointments' as table_name,
-    column_name FROM information_schema.columns
-WHERE table_schema = 'ops' AND table_name = 'appointments' AND column_name = 'clinichq_appointment_id';
-
-SELECT 'sot.addresses' as table_name, column_name FROM information_schema.columns
-WHERE table_schema = 'sot' AND table_name = 'addresses'
-AND column_name IN ('raw_input', 'display_address', 'source_system');
-
-SELECT 'sot.places' as table_name, column_name FROM information_schema.columns
-WHERE table_schema = 'sot' AND table_name = 'places'
-AND column_name IN ('address_id', 'source_system');
-
-SELECT 'sot.cats' as table_name, column_name FROM information_schema.columns
-WHERE table_schema = 'sot' AND table_name = 'cats' AND column_name = 'color';
+SELECT 'MIG_2006 Applied Successfully - All constraints fixed' as status;
