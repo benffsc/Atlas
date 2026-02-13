@@ -235,6 +235,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
       title: "Data",
       items: [
         { label: "Data Hub", href: "/admin/data", icon: "🔗" },
+        { label: "V2 Ingest", href: "/admin/v2-ingest", icon: "📤" },
         { label: "Review Queue", href: "/admin/data?tab=review", icon: "📋" },
         { label: "Processing", href: "/admin/data?tab=processing", icon: "⚙️" },
         { label: "Ingest Status", href: "/admin/ingest", icon: "🔄" },

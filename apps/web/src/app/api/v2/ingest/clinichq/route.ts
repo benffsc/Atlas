@@ -216,7 +216,7 @@ async function upsertClinicAccount(params: {
 }
 
 // ============================================================================
-// SOT Resolver Functions
+// SOT Resolver Functions (using centralized sot.* functions from MIG_2007)
 // ============================================================================
 
 async function classifyOwner(
@@ -261,6 +261,60 @@ async function classifyOwner(
   return { type: classification, shouldBePerson, reason };
 }
 
+/**
+ * Use Data Engine to resolve identity - returns existing person or creates new
+ * This replaces the old findPersonByIdentifier + createPerson pattern
+ * Uses sot.find_or_create_person() which implements:
+ * - Phase 0: should_be_person() gate
+ * - Phase 1: Fellegi-Sunter weighted scoring (email 40%, phone 25%, name 25%, address 10%)
+ * - Phase 2: Decision (≥0.95 auto_match, 0.50-0.95 review_pending, <0.50 new_entity)
+ */
+async function resolvePersonIdentity(params: {
+  firstName?: string | null;
+  lastName?: string | null;
+  email: string | null;
+  phone: string | null;
+  address?: string | null;
+  sourceSystem: string;
+}): Promise<{ personId: string | null; isNew: boolean; decision: string }> {
+  // Call the centralized sot.find_or_create_person() function
+  const result = await queryOne<{
+    person_id: string | null;
+    decision_type: string;
+    is_new: boolean;
+  }>(`
+    SELECT
+      person_id,
+      decision_type,
+      CASE WHEN decision_type = 'new_entity' THEN TRUE ELSE FALSE END as is_new
+    FROM sot.find_or_create_person(
+      p_email := $1,
+      p_phone := $2,
+      p_first_name := $3,
+      p_last_name := $4,
+      p_address := $5,
+      p_source_system := $6
+    )
+  `, [
+    params.email,
+    params.phone,
+    params.firstName || null,
+    params.lastName || null,
+    params.address || null,
+    params.sourceSystem,
+  ]);
+
+  return {
+    personId: result?.person_id || null,
+    isNew: result?.is_new || false,
+    decision: result?.decision_type || "rejected",
+  };
+}
+
+/**
+ * Legacy function for compatibility - calls the new resolvePersonIdentity
+ * @deprecated Use resolvePersonIdentity instead
+ */
 async function findPersonByIdentifier(
   email: string | null,
   phone: string | null
@@ -294,6 +348,10 @@ async function findPersonByIdentifier(
   return null;
 }
 
+/**
+ * @deprecated Use resolvePersonIdentity instead - this does direct INSERT
+ * Kept for reference but should not be called
+ */
 async function createPerson(params: {
   firstName: string;
   lastName?: string;
@@ -301,100 +359,94 @@ async function createPerson(params: {
   phone: string | null;
   sourceSystem: string;
 }): Promise<string | null> {
-  const displayName = [params.firstName, params.lastName].filter(Boolean).join(" ").trim();
+  // Use centralized function instead of direct INSERT
+  const result = await resolvePersonIdentity({
+    firstName: params.firstName,
+    lastName: params.lastName,
+    email: params.email,
+    phone: params.phone,
+    sourceSystem: params.sourceSystem,
+  });
 
-  const result = await queryOne<{ person_id: string }>(`
-    INSERT INTO sot.people (
-      first_name, last_name, display_name, primary_email, primary_phone,
-      source_system, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-    RETURNING person_id
-  `, [params.firstName, params.lastName || null, displayName || null, params.email, params.phone, params.sourceSystem]);
-
-  if (!result) return null;
-
-  if (params.email) {
-    await query(`
-      INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system)
-      VALUES ($1, 'email', $2, $2, 1.0, $3)
-      ON CONFLICT (person_id, id_type, id_value_norm) DO NOTHING
-    `, [result.person_id, params.email, params.sourceSystem]);
-  }
-
-  if (params.phone) {
-    await query(`
-      INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system)
-      VALUES ($1, 'phone', $2, $3, 1.0, $4)
-      ON CONFLICT (person_id, id_type, id_value_norm) DO NOTHING
-    `, [result.person_id, params.phone, params.phone, params.sourceSystem]);
-  }
-
-  return result.person_id;
+  return result.personId;
 }
 
 // ============================================================================
-// Place Functions
+// Place Functions (using centralized sot.* functions from MIG_2008)
 // ============================================================================
 
+/**
+ * Find or create place using centralized sot.find_or_create_place_deduped()
+ * This implements:
+ * - Stage 1: Exact normalized address match
+ * - Stage 2: Coordinate match within 10m (if provided)
+ * - Creates address + place if no match found
+ */
+async function resolvePlace(
+  address: string,
+  sourceSystem: string,
+  lat?: number | null,
+  lng?: number | null
+): Promise<string | null> {
+  const result = await queryOne<{ place_id: string }>(`
+    SELECT sot.find_or_create_place_deduped(
+      p_formatted_address := $1,
+      p_display_name := NULL,
+      p_lat := $2,
+      p_lng := $3,
+      p_source_system := $4
+    ) as place_id
+  `, [address, lat || null, lng || null, sourceSystem]);
+
+  return result?.place_id || null;
+}
+
+/**
+ * Legacy function for compatibility
+ * @deprecated Use resolvePlace instead
+ */
 async function findPlaceByAddress(address: string): Promise<string | null> {
-  // Look for existing place with matching address
+  // Look for existing place with matching normalized address
   const existing = await queryOne<{ place_id: string }>(`
     SELECT p.place_id
     FROM sot.places p
-    JOIN sot.addresses a ON a.address_id = p.address_id
     WHERE p.merged_into_place_id IS NULL
-      AND (a.display_address ILIKE $1 OR a.raw_input ILIKE $1)
+      AND p.normalized_address = sot.normalize_address($1)
     LIMIT 1
   `, [address]);
 
   return existing?.place_id || null;
 }
 
+/**
+ * @deprecated Use resolvePlace instead
+ */
 async function createPlace(params: {
   address: string;
   sourceSystem: string;
 }): Promise<string | null> {
-  // First create address
-  const addressResult = await queryOne<{ address_id: string }>(`
-    INSERT INTO sot.addresses (raw_input, display_address, source_system, created_at, updated_at)
-    VALUES ($1, $1, $2, NOW(), NOW())
-    ON CONFLICT DO NOTHING
-    RETURNING address_id
-  `, [params.address, params.sourceSystem]);
-
-  let addressId = addressResult?.address_id;
-
-  if (!addressId) {
-    // Find existing address
-    const existing = await queryOne<{ address_id: string }>(`
-      SELECT address_id FROM sot.addresses WHERE raw_input = $1 LIMIT 1
-    `, [params.address]);
-    addressId = existing?.address_id;
-  }
-
-  if (!addressId) return null;
-
-  // Create place
-  const placeResult = await queryOne<{ place_id: string }>(`
-    INSERT INTO sot.places (address_id, display_name, source_system, created_at, updated_at)
-    VALUES ($1, $2, $3, NOW(), NOW())
-    ON CONFLICT DO NOTHING
-    RETURNING place_id
-  `, [addressId, params.address, params.sourceSystem]);
-
-  return placeResult?.place_id || null;
+  return resolvePlace(params.address, params.sourceSystem);
 }
 
+/**
+ * Link person to place using centralized sot.link_person_to_place()
+ * Validates entities exist and aren't merged before creating relationship
+ */
 async function linkPersonToPlace(
   personId: string,
   placeId: string,
-  relationshipType: string = "resident"
+  role: string = "resident"
 ): Promise<void> {
   await query(`
-    INSERT INTO sot.person_place (person_id, place_id, relationship_type, confidence, source_system, created_at)
-    VALUES ($1, $2, $3, 0.8, 'clinichq', NOW())
-    ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING
-  `, [personId, placeId, relationshipType]);
+    SELECT sot.link_person_to_place(
+      p_person_id := $1,
+      p_place_id := $2,
+      p_role := $3,
+      p_evidence_type := 'appointment',
+      p_source_system := 'clinichq',
+      p_confidence := 'medium'
+    )
+  `, [personId, placeId, role]);
 }
 
 // ============================================================================
@@ -634,43 +686,52 @@ async function processMergedRecord(
     await insertClinicHQRaw("owner", record.microchip, record.ownerInfo);
   }
 
-  // LAYER 3: SOT - Identity Resolution for Owner (do this first to get personId)
+  // LAYER 3: SOT - Identity Resolution using centralized Data Engine functions
+  // Uses sot.find_or_create_person() which implements:
+  // - Phase 0: should_be_person() gate (already checked via classifyOwner)
+  // - Phase 1: Fellegi-Sunter weighted scoring
+  // - Phase 2: Decision thresholds (≥0.95 auto_match, 0.50-0.95 review_pending)
   let personId: string | null = null;
   let placeId: string | null = null;
 
   if (classification.shouldBePerson) {
-    const existing = await findPersonByIdentifier(ownerEmail, ownerPhone);
+    // Use centralized identity resolution
+    const resolution = await resolvePersonIdentity({
+      firstName: ownerFirstName,
+      lastName: ownerLastName,
+      email: ownerEmail,
+      phone: ownerPhone,
+      address: ownerAddress,
+      sourceSystem: "clinichq",
+    });
 
-    if (existing) {
-      personId = existing.personId;
+    personId = resolution.personId;
+
+    if (resolution.isNew) {
+      stats.personsCreated++;
+    } else if (personId) {
       stats.personsMatched++;
-    } else if (ownerFirstName) {
-      personId = await createPerson({
-        firstName: ownerFirstName,
-        lastName: ownerLastName,
-        email: ownerEmail,
-        phone: ownerPhone,
-        sourceSystem: "clinichq",
-      });
-      if (personId) stats.personsCreated++;
     }
 
-    // Create/find place for this person
+    // Create/find place using centralized function
     if (ownerAddress && personId) {
-      const existingPlace = await findPlaceByAddress(ownerAddress);
-      if (existingPlace) {
-        placeId = existingPlace;
-        stats.placesMatched++;
-      } else {
-        placeId = await createPlace({
-          address: ownerAddress,
-          sourceSystem: "clinichq",
-        });
-        if (placeId) stats.placesCreated++;
-      }
+      // Use centralized place resolution (handles deduplication)
+      placeId = await resolvePlace(ownerAddress, "clinichq");
 
-      // Link person to place
       if (placeId) {
+        // Check if this was a new place or existing match
+        const isNewPlace = await queryOne<{ is_new: boolean }>(`
+          SELECT created_at > NOW() - INTERVAL '1 second' as is_new
+          FROM sot.places WHERE place_id = $1
+        `, [placeId]);
+
+        if (isNewPlace?.is_new) {
+          stats.placesCreated++;
+        } else {
+          stats.placesMatched++;
+        }
+
+        // Link person to place using centralized function
         await linkPersonToPlace(personId, placeId, "resident");
       }
     }
@@ -753,20 +814,36 @@ async function processMergedRecord(
     }
   }
 
-  // LAYER 3: SOT - Create/Update Cat
-  const existingCat = await queryOne<{ cat_id: string }>(`
-    SELECT cat_id FROM sot.cats WHERE microchip = $1 AND merged_into_cat_id IS NULL
-  `, [record.microchip]);
+  // LAYER 3: SOT - Create/Update Cat using centralized sot.find_or_create_cat_by_microchip()
+  // This function:
+  // - Validates microchip format
+  // - Cleans cat name (removes embedded microchips, "Unknown" patterns)
+  // - Finds existing cat or creates new with microchip identifier
+  // - Uses COALESCE NULLIF fix: empty strings treated as NULL
+  const catResult = await queryOne<{ cat_id: string }>(`
+    SELECT sot.find_or_create_cat_by_microchip(
+      p_microchip := $1,
+      p_name := $2,
+      p_sex := $3,
+      p_breed := NULL,
+      p_altered_status := NULL,
+      p_color := $4,
+      p_source_system := 'clinichq'
+    ) as cat_id
+  `, [record.microchip, catName || null, catSex || null, catColor || null]);
 
-  if (existingCat) {
-    stats.catsMatched++;
-  } else {
-    await query(`
-      INSERT INTO sot.cats (microchip, name, sex, color, source_system, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, 'clinichq', NOW(), NOW())
-      ON CONFLICT (microchip) WHERE merged_into_cat_id IS NULL DO NOTHING
-    `, [record.microchip, catName || null, catSex || null, catColor || null]);
-    stats.catsCreated++;
+  if (catResult?.cat_id) {
+    // Check if this was a new cat or existing match
+    const isNew = await queryOne<{ is_new: boolean }>(`
+      SELECT created_at > NOW() - INTERVAL '1 second' as is_new
+      FROM sot.cats WHERE cat_id = $1
+    `, [catResult.cat_id]);
+
+    if (isNew?.is_new) {
+      stats.catsCreated++;
+    } else {
+      stats.catsMatched++;
+    }
   }
 }
 
