@@ -693,7 +693,25 @@ async function processMergedRecord(
   const catInfo = record.catInfo || {};
   const catName = getString(catInfo, "Cat Name", "Animal Name", "Name");
   const catSex = getString(catInfo, "Sex", "Gender");
-  const catColor = getString(catInfo, "Color", "Colour", "Coat Color");
+  const catBreed = getString(catInfo, "Breed");
+
+  // Colors - keep separate (primary goes to color column, secondary stored separately)
+  const primaryColor = getString(catInfo, "Primary Color", "Color", "Colour", "Coat Color");
+  const secondaryColor = getString(catInfo, "Secondary Color");
+
+  // Altered status from cat_info (not appointment_info which has procedure flags)
+  const spayNeuterStatus = getString(catInfo, "Spay Neuter Status");
+  let alteredStatus: string | null = null;
+  if (spayNeuterStatus === "Yes" || spayNeuterStatus === "Spayed" || spayNeuterStatus === "Neutered") {
+    // Derive from sex if available
+    if (catSex?.toLowerCase() === "female") {
+      alteredStatus = "spayed";
+    } else if (catSex?.toLowerCase() === "male") {
+      alteredStatus = "neutered";
+    } else {
+      alteredStatus = "altered";
+    }
+  }
 
   if (dryRun) {
     // DRY RUN: Count without writing
@@ -777,12 +795,21 @@ async function processMergedRecord(
       p_microchip := $1,
       p_name := $2,
       p_sex := $3,
-      p_breed := NULL,
-      p_altered_status := NULL,
-      p_color := $4,
+      p_breed := $4,
+      p_altered_status := $5,
+      p_color := $6,
       p_source_system := 'clinichq'
     ) as cat_id
-  `, [record.microchip, catName || null, catSex || null, catColor || null]);
+  `, [record.microchip, catName || null, catSex || null, catBreed || null, alteredStatus, primaryColor || null]);
+
+  // Update secondary color if available (separate column in sot.cats)
+  if (catResult?.cat_id && secondaryColor) {
+    await query(`
+      UPDATE sot.cats
+      SET secondary_color = COALESCE(secondary_color, $2)
+      WHERE cat_id = $1
+    `, [catResult.cat_id, secondaryColor]);
+  }
 
   if (catResult?.cat_id) {
     const isNew = await queryOne<{ is_new: boolean }>(`
