@@ -42,7 +42,10 @@ interface ProgressUpdate {
   current: number;
   total: number;
   message: string;
-  stats?: Partial<ProcessingStats>;
+  stats?: Partial<ProcessingStats> & {
+    opsInserted?: number;
+    lastError?: string | null;
+  };
 }
 
 interface V2Stats {
@@ -585,7 +588,7 @@ export default function V2IngestPage() {
               <span>Cats: <strong>{progress.stats.catsCreated || 0}</strong> new, <strong>{progress.stats.catsMatched || 0}</strong> matched</span>
               <span>Places: <strong>{progress.stats.placesCreated || 0}</strong></span>
               <span>Pseudo: <strong>{progress.stats.pseudoProfiles || 0}</strong></span>
-              <span>Appointments: <strong>{(progress.stats as Record<string, number>).opsInserted || 0}</strong></span>
+              <span>Appointments: <strong>{progress.stats.opsInserted || 0}</strong></span>
               {(progress.stats.errors || 0) > 0 && (
                 <span style={{ color: "var(--error, #dc2626)" }}>Errors: <strong>{progress.stats.errors}</strong></span>
               )}
@@ -593,7 +596,7 @@ export default function V2IngestPage() {
           )}
 
           {/* Last error for debugging */}
-          {progress.stats && (progress.stats as Record<string, unknown>).lastError && (
+          {progress.stats?.lastError && (
             <div style={{
               marginTop: "0.5rem",
               padding: "0.5rem",
@@ -605,7 +608,7 @@ export default function V2IngestPage() {
               fontFamily: "monospace",
               wordBreak: "break-all",
             }}>
-              <strong>Last error:</strong> {String((progress.stats as Record<string, unknown>).lastError)}
+              <strong>Last error:</strong> {progress.stats.lastError}
             </div>
           )}
         </div>
