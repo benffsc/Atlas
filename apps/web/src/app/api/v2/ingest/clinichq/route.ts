@@ -280,23 +280,16 @@ async function resolvePersonIdentity(params: {
   sourceSystem: string;
 }): Promise<{ personId: string | null; isNew: boolean; decision: string }> {
   // Call the centralized sot.find_or_create_person() function
-  const result = await queryOne<{
-    person_id: string | null;
-    decision_type: string;
-    is_new: boolean;
-  }>(`
-    SELECT
-      person_id,
-      decision_type,
-      CASE WHEN decision_type = 'new_entity' THEN TRUE ELSE FALSE END as is_new
-    FROM sot.find_or_create_person(
+  // Note: Function returns UUID directly, not a table
+  const result = await queryOne<{ person_id: string | null }>(`
+    SELECT sot.find_or_create_person(
       p_email := $1,
       p_phone := $2,
       p_first_name := $3,
       p_last_name := $4,
       p_address := $5,
       p_source_system := $6
-    )
+    ) as person_id
   `, [
     params.email,
     params.phone,
@@ -306,10 +299,22 @@ async function resolvePersonIdentity(params: {
     params.sourceSystem,
   ]);
 
+  const personId = result?.person_id || null;
+
+  // Check if this was a new person (created in last second)
+  let isNew = false;
+  if (personId) {
+    const check = await queryOne<{ is_new: boolean }>(`
+      SELECT created_at > NOW() - INTERVAL '2 seconds' as is_new
+      FROM sot.people WHERE person_id = $1
+    `, [personId]);
+    isNew = check?.is_new || false;
+  }
+
   return {
-    personId: result?.person_id || null,
-    isNew: result?.is_new || false,
-    decision: result?.decision_type || "rejected",
+    personId,
+    isNew,
+    decision: personId ? (isNew ? "new_entity" : "auto_match") : "rejected",
   };
 }
 
