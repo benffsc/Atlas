@@ -3704,7 +3704,7 @@ async function queryTrapperStats(
           found: true,
           trapper: {
             name: trapper.display_name,
-            type: ops.trapper_type,
+            type: trapper.trapper_type,
             status: trapper.role_status,
           },
           stats: {
@@ -3718,7 +3718,7 @@ async function queryTrapperStats(
             first_activity: trapper.first_activity_date,
             last_activity: trapper.last_activity_date,
           },
-          summary: `${trapper.display_name} (${ops.trapper_type?.replace(/_/g, " ")}): ${trapper.total_clinic_cats} cats to clinic, ${trapper.total_altered} altered, ${trapper.completed_assignments} requests completed. Last active: ${trapper.last_activity_date || "unknown"}.`,
+          summary: `${trapper.display_name} (${trapper.trapper_type?.replace(/_/g, " ")}): ${trapper.total_clinic_cats} cats to clinic, ${trapper.total_altered} altered, ${trapper.completed_assignments} requests completed. Last active: ${trapper.last_activity_date || "unknown"}.`,
         },
       };
     }
