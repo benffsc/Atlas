@@ -442,18 +442,18 @@ async function createPlace(params: {
 async function linkPersonToPlace(
   personId: string,
   placeId: string,
-  role: string = "resident"
+  relationshipType: string = "resident"
 ): Promise<void> {
   await query(`
     SELECT sot.link_person_to_place(
       p_person_id := $1,
       p_place_id := $2,
-      p_role := $3,
+      p_relationship_type := $3,
       p_evidence_type := 'appointment',
       p_source_system := 'clinichq',
       p_confidence := 'medium'
     )
-  `, [personId, placeId, role]);
+  `, [personId, placeId, relationshipType]);
 }
 
 // ============================================================================
