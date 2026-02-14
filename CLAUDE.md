@@ -46,6 +46,8 @@ These apply to ALL changes across ALL layers:
 38. **No "Simple Fixes" for Schema Migrations** — Schema migrations are NOT simple. Before any migration that touches entity tables: (1) Document the exact column mapping V1→V2, (2) Write verification queries that run BEFORE and AFTER, (3) Test on a staging copy first, (4) Never assume UUIDs will auto-generate correctly. Quick fixes create months of cleanup. See DATA_GAP_012.
 39. **Cat Animal IDs Must Be Passed During Ingest** — Every cat creation from ClinicHQ MUST pass the `Number` field (e.g., "21-118") as `clinichq_animal_id` parameter. Every cat creation from ShelterLuv MUST pass the animal ID as `shelterluv_animal_id` parameter. These are stored both denormalized on `sot.cats` AND in `sot.cat_identifiers` for identity matching. Critical for cross-system linkage and data reconciliation. Ingest routes: `/api/v2/ingest/clinichq/route.ts`, `/api/ingest/process/[id]/route.ts`. See MIG_2051.
 40. **Reverse Geocoding Must Create sot_address** — When `record_reverse_geocoding_result()` upgrades a coordinate-only place with a formatted address from Google, it MUST also: (1) Create canonical `sot_address` record via `find_or_create_address()`, (2) Set `sot_address_id` on the place, (3) Set `is_address_backed = TRUE`. Do NOT leave places with `formatted_address` but `is_address_backed = FALSE` — this creates a limbo state where places look address-backed but aren't queryable as such. See MIG_2050.
+41. **Disease Status Is Ecological, Not Medical** — Disease status (`ops.place_disease_status`) is ECOLOGICAL data about WHERE CATS LIVE, not medical data about where cats were TESTED. Disease computation MUST: (1) Call `sot.should_compute_disease_for_place()` before computing (rejects clinic/shelter/blacklisted), (2) Filter `sot.cat_place` by residential relationship types only (`home`, `residence`, `colony_member`), (3) Exclude transient relationships (`treated_at`, `trapped_at`, `found_at`). FFSC clinic addresses (1814/1820 Empire Industrial) are in `sot.place_soft_blacklist`. V1 bug: disease was computed for clinic because cats are TESTED there, showing 1814 as "confirmed_active FeLV" when it's actually where cats get treated. See MIG_2304.
+42. **Place Soft Blacklist for Non-Residential Computation** — `sot.place_soft_blacklist` excludes places from certain computations: `disease_computation` (don't flag clinics as disease sites), `cat_linking` (don't link cats to staff homes), `all` (both). FFSC clinic addresses are seeded in MIG_2304. Always check this table before: (1) Computing disease status, (2) Linking cats to places, (3) Any ecological computation that should only include residential locations.
 
 See `docs/ATLAS_NORTH_STAR.md` for full invariant definitions and real bug examples.
 
@@ -65,6 +67,8 @@ The **Atlas Data Cleaning Pipeline** is the unified system for all data quality 
 - `classify_owner_name()` - Classifies names as person/org/address/garbage
 - `data_engine_resolve_identity()` - Single fortress for all identity resolution
 - `find_or_create_person()` - Standard entry point (calls Data Engine)
+- `should_compute_disease_for_place()` - Gate: rejects clinic/shelter/blacklisted places (INV-41)
+- `get_residential_relationship_types()` - Returns relationship types for residential linking
 
 **Adding a New Data Gap Fix:**
 1. Document in `docs/DATA_GAPS.md`
