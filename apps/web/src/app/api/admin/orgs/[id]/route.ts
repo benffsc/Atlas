@@ -77,7 +77,7 @@ export async function GET(
         o.created_at,
         o.updated_at,
         o.source_system
-      FROM trapper.orgs o
+      FROM ops.partner_organizations o
       LEFT JOIN sot.places pl ON pl.place_id = o.place_id
       WHERE o.id = $1
       `,
@@ -192,7 +192,7 @@ export async function PATCH(
 
     const result = await queryOne<{ id: string }>(
       `
-      UPDATE trapper.orgs
+      UPDATE ops.partner_organizations
       SET ${updates.join(", ")}
       WHERE id = $${paramIndex}
       RETURNING id
@@ -247,11 +247,11 @@ export async function DELETE(
         );
       }
 
-      await execute(`DELETE FROM trapper.orgs WHERE id = $1`, [id]);
+      await execute(`DELETE FROM ops.partner_organizations WHERE id = $1`, [id]);
     } else {
       // Soft delete - mark as inactive
       await execute(
-        `UPDATE trapper.orgs SET is_active = FALSE WHERE id = $1`,
+        `UPDATE ops.partner_organizations SET is_active = FALSE WHERE id = $1`,
         [id]
       );
     }

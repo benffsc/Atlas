@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         po.last_appointment_date,
         po.notes,
         po.created_at
-      FROM trapper.partner_organizations po
+      FROM ops.partner_organizations po
       LEFT JOIN sot.places pl ON pl.place_id = po.place_id
       WHERE ($1 OR po.is_active = TRUE)
       ORDER BY po.appointments_count DESC NULLS LAST, po.org_name
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         JOIN sot.people p ON a.person_id = p.person_id
         WHERE p.is_canonical = FALSE
           AND (
-            trapper.is_organization_name(p.display_name) OR
+            sot.is_organization_name(p.display_name) OR
             p.display_name ~* 'FFSC|Forgotten Felines|SCAS|Rescue|Shelter|Humane'
           )
       )
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     // Create partner org
     const result = await queryOne<{ org_id: string }>(
       `
-      INSERT INTO trapper.partner_organizations (
+      INSERT INTO ops.partner_organizations (
         org_name, org_name_short, org_name_patterns, org_type,
         place_id, address, contact_name, contact_email, contact_phone,
         relationship_type, notes, created_by

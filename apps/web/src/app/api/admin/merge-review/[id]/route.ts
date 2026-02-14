@@ -83,7 +83,7 @@ export async function GET(
         ppd.resolved_by,
         ppd.resolved_at::text,
         ppd.resolution_notes
-      FROM trapper.potential_person_duplicates ppd
+      FROM sot.person_dedup_candidates ppd
       JOIN sot.people p1 ON p1.person_id = ppd.person_id
       JOIN sot.people p2 ON p2.person_id = ppd.potential_match_id
       WHERE ppd.duplicate_id = $1::uuid
@@ -148,7 +148,7 @@ export async function POST(
     // Get the updated status
     const updated = await queryOne<{ status: string; resolved_at: string }>(`
       SELECT status, resolved_at::text
-      FROM trapper.potential_person_duplicates
+      FROM sot.person_dedup_candidates
       WHERE duplicate_id = $1::uuid
     `, [id]);
 

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) as appointment_count,
         MIN(a.appointment_date)::TEXT as first_date,
         MAX(a.appointment_date)::TEXT as last_date
-      FROM trapper.partner_organizations po
+      FROM ops.partner_organizations po
       JOIN ops.appointments a ON a.partner_org_id = po.org_id
       WHERE po.is_active = true
       GROUP BY po.org_id, po.org_name, po.org_name_short
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         po.org_name_short as partner_org_short
       FROM ops.appointments a
       JOIN sot.cats c ON c.cat_id = a.cat_id
-      JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       LEFT JOIN sot.places p ON p.place_id = a.inferred_place_id
       WHERE ${whereClause}
       ORDER BY a.cat_id, a.appointment_date DESC, a.appointment_id
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
       SELECT COUNT(DISTINCT (a.cat_id, a.appointment_date)) as total
       FROM ops.appointments a
       JOIN sot.cats c ON c.cat_id = a.cat_id
-      JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       LEFT JOIN sot.places p ON p.place_id = a.inferred_place_id
       WHERE ${whereClause}
     `, params);

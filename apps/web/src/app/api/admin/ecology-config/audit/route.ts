@@ -22,7 +22,7 @@ export async function GET() {
         changed_by,
         change_reason,
         changed_at
-      FROM trapper.ecology_config_audit
+      FROM ops.ecology_config_audit
       ORDER BY changed_at DESC
       LIMIT 50
     `;

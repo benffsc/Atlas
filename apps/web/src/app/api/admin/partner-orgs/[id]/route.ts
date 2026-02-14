@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         po.notes,
         po.created_at,
         po.updated_at
-      FROM trapper.partner_organizations po
+      FROM ops.partner_organizations po
       LEFT JOIN sot.places pl ON pl.place_id = po.place_id
       WHERE po.org_id = $1
       `,
@@ -101,7 +101,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     await execute(
       `
-      UPDATE trapper.partner_organizations
+      UPDATE ops.partner_organizations
       SET ${updates.join(", ")}
       WHERE org_id = $${paramIndex}
       `,
@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Soft delete - just mark as inactive
     await execute(
       `
-      UPDATE trapper.partner_organizations
+      UPDATE ops.partner_organizations
       SET is_active = FALSE, updated_at = NOW()
       WHERE org_id = $1
       `,

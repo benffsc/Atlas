@@ -144,7 +144,7 @@ export async function PATCH(request: NextRequest) {
       // Update AI summary
       const summaryBody = body as AiSummaryBody;
       const result = await queryOne<{ found: boolean }>(
-        `SELECT trapper.update_google_map_ai_summary($1, $2, $3) as found`,
+        `SELECT ops.update_google_map_ai_summary($1, $2, $3) as found`,
         [
           summaryBody.entry_id,
           summaryBody.ai_summary,

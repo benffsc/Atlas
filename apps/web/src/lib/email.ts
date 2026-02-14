@@ -237,7 +237,7 @@ export async function sendOutOfCountyEmail(
     out_of_county_email_sent_at: string | null;
   }>(`
     SELECT submission_id, first_name, email, county, out_of_county_email_sent_at
-    FROM trapper.web_intake_submissions
+    FROM ops.web_intake_submissions
     WHERE submission_id = $1
   `, [submissionId]);
 

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
           WHEN di.entity_type = 'request' THEN (SELECT short_address FROM ops.requests WHERE request_id = di.entity_id)
           ELSE NULL
         END as entity_name
-      FROM trapper.data_improvements di
+      FROM ops.data_improvements di
       LEFT JOIN ops.staff a ON a.staff_id = di.assigned_to
       LEFT JOIN ops.staff rb ON rb.staff_id = di.resolved_by
       ${whereClause}
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         COUNT(*) FILTER (WHERE status = 'wont_fix') as wont_fix,
         COUNT(*) as total
-      FROM trapper.data_improvements
+      FROM ops.data_improvements
       `
     );
 
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     const improvement = await queryOne<{ improvement_id: string; created_at: string }>(
       `
-      INSERT INTO trapper.data_improvements (
+      INSERT INTO ops.data_improvements (
         title,
         description,
         entity_type,

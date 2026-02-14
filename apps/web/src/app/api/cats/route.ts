@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
   if (partnerOrg) {
     conditions.push(`EXISTS (
       SELECT 1 FROM ops.appointments a
-      JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = v_cat_list.cat_id
         AND po.org_name_short ILIKE $${paramIndex}
     )`);

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
           h.member_count,
           h.created_at::text,
           h.source_system
-        FROM trapper.households h
+        FROM sot.households h
         LEFT JOIN sot.places p ON p.place_id = h.primary_place_id
         WHERE h.household_id = $1::uuid
       `, [householdId]);
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           hm.role,
           hm.confidence::numeric,
           hm.inferred_from
-        FROM trapper.household_members hm
+        FROM sot.household_members hm
         JOIN sot.people p ON p.person_id = hm.person_id
         WHERE hm.household_id = $1::uuid
           AND hm.valid_to IS NULL
@@ -87,14 +87,14 @@ export async function GET(request: NextRequest) {
         h.member_count,
         h.created_at::text,
         h.source_system
-      FROM trapper.households h
+      FROM sot.households h
       LEFT JOIN sot.places p ON p.place_id = h.primary_place_id
       ORDER BY h.member_count DESC, h.created_at DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
     const countResult = await queryOne<{ count: number }>(`
-      SELECT COUNT(*)::int as count FROM trapper.households
+      SELECT COUNT(*)::int as count FROM sot.households
     `);
 
     return NextResponse.json({

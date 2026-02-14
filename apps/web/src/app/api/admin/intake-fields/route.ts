@@ -26,7 +26,7 @@ export async function GET() {
   try {
     const fields = await queryRows<CustomField>(`
       SELECT *
-      FROM trapper.intake_custom_fields
+      FROM ops.intake_custom_fields
       WHERE is_active = TRUE
       ORDER BY display_order, created_at
     `);
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await queryOne<CustomField>(`
-      INSERT INTO trapper.intake_custom_fields (
+      INSERT INTO ops.intake_custom_fields (
         field_key,
         field_label,
         field_type,
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       // Update synced timestamp if successful
       if (syncResult.success && syncResult.error !== "already_exists") {
         await execute(`
-          UPDATE trapper.intake_custom_fields
+          UPDATE ops.intake_custom_fields
           SET airtable_synced_at = NOW()
           WHERE field_id = $1
         `, [result.field_id]);

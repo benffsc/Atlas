@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         WHERE merged_into_person_id IS NULL
           AND display_name IS NOT NULL
           AND display_name != ''
-          AND trapper.is_valid_person_name(display_name)
+          AND sot.is_valid_person_name(display_name)
       ),
       duplicate_groups AS (
         SELECT

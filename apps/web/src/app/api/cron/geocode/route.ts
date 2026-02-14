@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     // Phase 1: Forward geocoding (address → coordinates)
     // =====================================================================
     const queue = await queryRows<QueuedPlace>(
-      "SELECT * FROM trapper.get_geocoding_queue($1)",
+      "SELECT * FROM ops.get_geocoding_queue($1)",
       [BATCH_LIMIT]
     );
 
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
           const googleFormattedAddress = data.results[0].formatted_address;
 
           await queryOne(
-            "SELECT trapper.record_geocoding_result($1, TRUE, $2, $3, NULL, $4)",
+            "SELECT ops.record_geocoding_result($1, TRUE, $2, $3, NULL, $4)",
             [place.place_id, lat, lng, googleFormattedAddress]
           );
           forwardSuccess++;
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
             : data.error_message || data.status || "Unknown error";
 
           await queryOne(
-            "SELECT trapper.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
+            "SELECT ops.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
             [place.place_id, error]
           );
           forwardFail++;
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       } catch (err) {
         const error = err instanceof Error ? err.message : "Request failed";
         await queryOne(
-          "SELECT trapper.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
+          "SELECT ops.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
           [place.place_id, error]
         );
         forwardFail++;
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     if (reverseBudget > 0) {
       const reverseQueue = await queryRows<ReverseQueuedPlace>(
-        "SELECT * FROM trapper.get_reverse_geocoding_queue($1)",
+        "SELECT * FROM ops.get_reverse_geocoding_queue($1)",
         [reverseBudget]
       );
 
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
             const googleAddress = data.results[0].formatted_address;
 
             const result = await queryOne<{ record_reverse_geocoding_result: { action: string } }>(
-              "SELECT trapper.record_reverse_geocoding_result($1, TRUE, $2)",
+              "SELECT ops.record_reverse_geocoding_result($1, TRUE, $2)",
               [place.place_id, googleAddress]
             );
 
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
               : data.error_message || data.status || "Unknown error";
 
             await queryOne(
-              "SELECT trapper.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
+              "SELECT ops.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
               [place.place_id, error]
             );
             reverseFail++;
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
         } catch (err) {
           const error = err instanceof Error ? err.message : "Request failed";
           await queryOne(
-            "SELECT trapper.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
+            "SELECT ops.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
             [place.place_id, error]
           );
           reverseFail++;

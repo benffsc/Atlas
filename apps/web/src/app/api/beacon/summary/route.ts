@@ -178,7 +178,7 @@ export async function GET() {
         total_verified_cats,
         centroid_lat,
         centroid_lng
-      FROM trapper.mv_beacon_clusters
+      FROM ops.v_beacon_cluster_summary
       WHERE cluster_status IN ('needs_attention', 'needs_work')
       ORDER BY total_verified_cats DESC
       LIMIT 5

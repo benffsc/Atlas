@@ -73,8 +73,8 @@ export async function GET(request: NextRequest) {
         ts.reviewed_by,
         ts.reviewed_at::TEXT,
         ts.review_notes
-      FROM trapper.email_template_suggestions ts
-      JOIN trapper.email_templates et ON et.template_id = ts.template_id
+      FROM ops.email_template_suggestions ts
+      JOIN ops.email_templates et ON et.template_id = ts.template_id
       JOIN ops.staff s ON s.staff_id = ts.created_by
       ${whereClause}
       ORDER BY ts.created_at DESC
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     // Get template info
     const template = await queryOne<{ template_key: string; edit_restricted: boolean }>(`
       SELECT template_key, COALESCE(edit_restricted, TRUE) AS edit_restricted
-      FROM trapper.email_templates
+      FROM ops.email_templates
       WHERE template_id = $1
     `, [template_id]);
 
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     // But we still allow suggestions for tracking purposes
 
     const result = await queryOne<{ suggestion_id: string }>(`
-      INSERT INTO trapper.email_template_suggestions (
+      INSERT INTO ops.email_template_suggestions (
         template_id,
         template_key,
         suggested_name,

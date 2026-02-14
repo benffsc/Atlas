@@ -59,7 +59,7 @@ export async function POST(
       // Log the merge to the organization_match_log
       if (refreshedOrg?.canonical_person_id) {
         await queryOne(
-          `INSERT INTO trapper.organization_match_log (
+          `INSERT INTO ops.organization_match_log (
             org_id, matched_value, match_type, confidence, source_system, decision, person_id, notes
           ) VALUES ($1, $2, 'admin_merge', 1.0, 'admin_ui', 'linked', $3, 'Merged via admin UI')`,
           [id, org.canonical_name, refreshedOrg.canonical_person_id]

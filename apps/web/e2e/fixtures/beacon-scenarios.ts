@@ -336,7 +336,7 @@ export const BEACON_EDGE_CASES: BeaconEdgeCase[] = [
       "When verified altered exceeds estimated total, rate should be capped at 100%",
     sqlQuery: `
       SELECT place_id, verified_altered_count, estimated_total, alteration_rate
-      FROM trapper.v_beacon_place_metrics
+      FROM ops.v_beacon_place_metrics
       WHERE verified_altered_count > estimated_total
         AND estimated_total > 0
     `,
@@ -352,7 +352,7 @@ export const BEACON_EDGE_CASES: BeaconEdgeCase[] = [
       "Places with verified cats but no estimate should use verified count as estimate",
     sqlQuery: `
       SELECT place_id, verified_cat_count, estimated_total, colony_status
-      FROM trapper.v_beacon_place_metrics
+      FROM ops.v_beacon_place_metrics
       WHERE verified_cat_count > 0
         AND (estimated_total IS NULL OR estimated_total = 0)
     `,
@@ -368,7 +368,7 @@ export const BEACON_EDGE_CASES: BeaconEdgeCase[] = [
       "Estimates older than 180 days should have reduced confidence weight",
     sqlQuery: `
       SELECT place_id, observation_date, confidence
-      FROM trapper.place_colony_estimates
+      FROM sot.place_colony_estimates
       WHERE observation_date < NOW() - INTERVAL '180 days'
       LIMIT 10
     `,

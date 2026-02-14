@@ -59,7 +59,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const result = await queryOne(
       `
-      UPDATE trapper.tippy_feedback
+      UPDATE ops.tippy_feedback
       SET ${updates.join(", ")}
       WHERE feedback_id = $${paramIndex}
       RETURNING
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         s.display_name as staff_name,
         s.email as staff_email,
         rb.display_name as reviewer_name
-      FROM trapper.tippy_feedback tf
+      FROM ops.tippy_feedback tf
       LEFT JOIN ops.staff s ON s.staff_id = tf.staff_id
       LEFT JOIN ops.staff rb ON rb.staff_id = tf.reviewed_by
       WHERE tf.feedback_id = $1

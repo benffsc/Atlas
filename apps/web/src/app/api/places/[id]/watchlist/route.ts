@@ -51,7 +51,7 @@ export async function PUT(
 
     // Use the database function which handles validation and audit logging
     const result = await queryOne<WatchlistResult>(
-      `SELECT * FROM trapper.toggle_place_watchlist($1, $2, $3, $4)`,
+      `SELECT * FROM ops.toggle_place_watchlist($1, $2, $3, $4)`,
       [id, watch_list, reason || null, "atlas_ui"]
     );
 

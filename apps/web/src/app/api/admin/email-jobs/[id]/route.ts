@@ -51,10 +51,10 @@ export async function GET(
         ec.display_name AS category_name,
         oa.email AS from_email,
         s.display_name AS created_by_name
-      FROM trapper.email_jobs ej
-      LEFT JOIN trapper.email_templates et ON et.template_key = ej.template_key
-      LEFT JOIN trapper.email_categories ec ON ec.category_key = ej.category_key
-      LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = ej.outlook_account_id
+      FROM ops.email_jobs ej
+      LEFT JOIN ops.email_templates et ON et.template_key = ej.template_key
+      LEFT JOIN ops.email_categories ec ON ec.category_key = ej.category_key
+      LEFT JOIN ops.outlook_email_accounts oa ON oa.account_id = ej.outlook_account_id
       LEFT JOIN ops.staff s ON s.staff_id = ej.created_by
       WHERE ej.job_id = $1
     `, [id]);
@@ -95,7 +95,7 @@ export async function PATCH(
 
     // Get current job
     const job = await queryOne<EmailJob>(`
-      SELECT * FROM trapper.email_jobs WHERE job_id = $1
+      SELECT * FROM ops.email_jobs WHERE job_id = $1
     `, [id]);
 
     if (!job) {
@@ -111,7 +111,7 @@ export async function PATCH(
 
       // Mark as sending
       await query(`
-        UPDATE trapper.email_jobs SET status = 'sending', updated_at = NOW() WHERE job_id = $1
+        UPDATE ops.email_jobs SET status = 'sending', updated_at = NOW() WHERE job_id = $1
       `, [id]);
 
       try {
@@ -159,7 +159,7 @@ export async function PATCH(
 
         if (result.success) {
           await query(`
-            UPDATE trapper.email_jobs
+            UPDATE ops.email_jobs
             SET status = 'sent', sent_at = NOW(), sent_email_id = $2, updated_at = NOW()
             WHERE job_id = $1
           `, [id, result.emailId || null]);
@@ -167,7 +167,7 @@ export async function PATCH(
           return NextResponse.json({ success: true, emailId: result.emailId });
         } else {
           await query(`
-            UPDATE trapper.email_jobs
+            UPDATE ops.email_jobs
             SET status = 'failed', error_message = $2, updated_at = NOW()
             WHERE job_id = $1
           `, [id, result.error || "Unknown error"]);
@@ -177,7 +177,7 @@ export async function PATCH(
       } catch (sendError) {
         const errorMessage = sendError instanceof Error ? sendError.message : "Send failed";
         await query(`
-          UPDATE trapper.email_jobs
+          UPDATE ops.email_jobs
           SET status = 'failed', error_message = $2, updated_at = NOW()
           WHERE job_id = $1
         `, [id, errorMessage]);
@@ -190,7 +190,7 @@ export async function PATCH(
       }
 
       await query(`
-        UPDATE trapper.email_jobs SET status = 'cancelled', updated_at = NOW() WHERE job_id = $1
+        UPDATE ops.email_jobs SET status = 'cancelled', updated_at = NOW() WHERE job_id = $1
       `, [id]);
 
       return NextResponse.json({ success: true });
@@ -225,7 +225,7 @@ export async function PATCH(
       updateValues.push(id);
 
       await query(`
-        UPDATE trapper.email_jobs
+        UPDATE ops.email_jobs
         SET ${updateFields.join(", ")}
         WHERE job_id = $${paramIndex}
       `, updateValues);
@@ -258,7 +258,7 @@ export async function DELETE(
     const { id } = await params;
 
     const job = await queryOne<{ status: string }>(`
-      SELECT status FROM trapper.email_jobs WHERE job_id = $1
+      SELECT status FROM ops.email_jobs WHERE job_id = $1
     `, [id]);
 
     if (!job) {
@@ -269,7 +269,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Can only delete draft jobs" }, { status: 400 });
     }
 
-    await query(`DELETE FROM trapper.email_jobs WHERE job_id = $1`, [id]);
+    await query(`DELETE FROM ops.email_jobs WHERE job_id = $1`, [id]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
          WHERE r1.person_id = c.canonical_person_id AND r2.person_id = c.duplicate_person_id) AS shared_place_count
       FROM sot.v_person_dedup_candidates c
       WHERE NOT EXISTS (
-        SELECT 1 FROM trapper.potential_person_duplicates ppd
+        SELECT 1 FROM sot.person_dedup_candidates ppd
         WHERE ppd.status IN ('kept_separate', 'dismissed')
           AND (
             (ppd.person_id = c.duplicate_person_id AND ppd.potential_match_id = c.canonical_person_id)
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
         if (action === "merge") {
           // Safety check
           const safetyResult = await queryOne<{ person_safe_to_merge: string }>(
-            `SELECT trapper.person_safe_to_merge($1, $2)`,
+            `SELECT sot.person_safe_to_merge($1, $2)`,
             [pair.canonical_person_id, pair.duplicate_person_id]
           );
 
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
 
           // Update potential_person_duplicates if entry exists
           await queryOne(
-            `UPDATE trapper.potential_person_duplicates
+            `UPDATE sot.person_dedup_candidates
              SET status = 'merged', resolved_at = NOW(), resolved_by = 'staff'
              WHERE status = 'pending'
                AND (
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
         } else {
           // keep_separate or dismiss — record in potential_person_duplicates
           await queryOne(
-            `INSERT INTO trapper.potential_person_duplicates (
+            `INSERT INTO sot.person_dedup_candidates (
                person_id, potential_match_id, match_type, matched_identifier,
                new_name, existing_name, name_similarity,
                status, resolved_at, resolved_by

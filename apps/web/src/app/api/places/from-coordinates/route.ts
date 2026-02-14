@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Use centralized function — handles 10m dedup automatically
     const result = await queryOne<{ create_place_from_coordinates: string }>(
-      `SELECT trapper.create_place_from_coordinates($1, $2, $3, $4) AS create_place_from_coordinates`,
+      `SELECT sot.create_place_from_coordinates($1, $2, $3, $4) AS create_place_from_coordinates`,
       [body.lat, body.lng, body.display_name || null, 'atlas_ui']
     );
 

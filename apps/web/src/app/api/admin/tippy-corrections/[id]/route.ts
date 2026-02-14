@@ -30,7 +30,7 @@ export async function GET(
           WHEN 'request' THEN (SELECT 'Request #' || source_record_id FROM ops.requests WHERE request_id = pc.entity_id)
         END as entity_display_name,
         s.display_name as reviewer_name
-      FROM trapper.tippy_proposed_corrections pc
+      FROM ops.tippy_proposed_corrections pc
       LEFT JOIN ops.staff s ON s.staff_id = pc.reviewed_by
       WHERE pc.correction_id = $1
       `,
@@ -73,7 +73,7 @@ export async function PATCH(
   try {
     await execute(
       `
-      UPDATE trapper.tippy_proposed_corrections
+      UPDATE ops.tippy_proposed_corrections
       SET
         status = COALESCE($1, status),
         reviewed_by = $2,

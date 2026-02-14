@@ -50,7 +50,7 @@ export async function GET() {
     let trapperReconciliation: TrapperReconciliation[] | null = null;
     try {
       trapperReconciliation = await queryRows<TrapperReconciliation>(
-        `SELECT * FROM trapper.cross_reference_vh_trappers_with_airtable()`
+        `SELECT * FROM ops.cross_reference_vh_trappers_with_airtable()`
       );
     } catch {
       trapperReconciliation = null;

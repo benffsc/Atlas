@@ -49,7 +49,7 @@ export async function PATCH(
       new_status: string;
       person_created: boolean;
     }>(`
-      SELECT * FROM trapper.advance_trapper_onboarding(
+      SELECT * FROM ops.advance_trapper_onboarding(
         p_person_id := $1::UUID,
         p_new_status := $2,
         p_notes := $3,

@@ -40,8 +40,8 @@ export async function GET(
         eb.*,
         oa.email AS from_email,
         s.display_name AS created_by_name
-      FROM trapper.email_batches eb
-      LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = eb.outlook_account_id
+      FROM ops.email_batches eb
+      LEFT JOIN ops.outlook_email_accounts oa ON oa.account_id = eb.outlook_account_id
       LEFT JOIN ops.staff s ON s.staff_id = eb.created_by
       WHERE eb.batch_id = $1
     `, [id]);
@@ -108,7 +108,7 @@ export async function PATCH(
 
     // Get current batch
     const batch = await queryOne<EmailBatch>(`
-      SELECT * FROM trapper.email_batches WHERE batch_id = $1
+      SELECT * FROM ops.email_batches WHERE batch_id = $1
     `, [id]);
 
     if (!batch) {
@@ -127,7 +127,7 @@ export async function PATCH(
 
       // Mark as sending
       await query(`
-        UPDATE trapper.email_batches SET status = 'sending', updated_at = NOW() WHERE batch_id = $1
+        UPDATE ops.email_batches SET status = 'sending', updated_at = NOW() WHERE batch_id = $1
       `, [id]);
 
       try {
@@ -143,7 +143,7 @@ export async function PATCH(
         if (result.success) {
           // Mark batch as sent
           await query(`
-            UPDATE trapper.email_batches
+            UPDATE ops.email_batches
             SET status = 'sent', sent_at = NOW(), updated_at = NOW()
             WHERE batch_id = $1
           `, [id]);
@@ -157,7 +157,7 @@ export async function PATCH(
 
           // Log the sent email
           await query(`
-            INSERT INTO trapper.sent_emails (
+            INSERT INTO ops.sent_emails (
               recipient_email, recipient_name, recipient_person_id,
               subject, body_html, sent_via, sent_by, outlook_account_id
             ) VALUES ($1, $2, $3, $4, $5, 'outlook', $6, $7)
@@ -174,7 +174,7 @@ export async function PATCH(
           return NextResponse.json({ success: true });
         } else {
           await query(`
-            UPDATE trapper.email_batches
+            UPDATE ops.email_batches
             SET status = 'failed', error_message = $2, updated_at = NOW()
             WHERE batch_id = $1
           `, [id, result.error || "Unknown error"]);
@@ -184,7 +184,7 @@ export async function PATCH(
       } catch (sendError) {
         const errorMessage = sendError instanceof Error ? sendError.message : "Send failed";
         await query(`
-          UPDATE trapper.email_batches
+          UPDATE ops.email_batches
           SET status = 'failed', error_message = $2, updated_at = NOW()
           WHERE batch_id = $1
         `, [id, errorMessage]);
@@ -208,7 +208,7 @@ export async function PATCH(
 
       // Mark batch as cancelled
       await query(`
-        UPDATE trapper.email_batches SET status = 'cancelled', updated_at = NOW() WHERE batch_id = $1
+        UPDATE ops.email_batches SET status = 'cancelled', updated_at = NOW() WHERE batch_id = $1
       `, [id]);
 
       return NextResponse.json({ success: true });
@@ -241,7 +241,7 @@ export async function PATCH(
     updateValues.push(id);
 
     await query(`
-      UPDATE trapper.email_batches
+      UPDATE ops.email_batches
       SET ${updateFields.join(", ")}
       WHERE batch_id = $${paramIndex}
     `, updateValues);
@@ -273,7 +273,7 @@ export async function DELETE(
     const { id } = await params;
 
     const batch = await queryOne<{ status: string }>(`
-      SELECT status FROM trapper.email_batches WHERE batch_id = $1
+      SELECT status FROM ops.email_batches WHERE batch_id = $1
     `, [id]);
 
     if (!batch) {
@@ -292,7 +292,7 @@ export async function DELETE(
     `, [id]);
 
     // Delete the batch
-    await query(`DELETE FROM trapper.email_batches WHERE batch_id = $1`, [id]);
+    await query(`DELETE FROM ops.email_batches WHERE batch_id = $1`, [id]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -81,19 +81,19 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
          AND created_at > NOW() - INTERVAL '24 hours'
-         AND NOT trapper.is_valid_person_name(display_name)) as invalid_people_24h,
+         AND NOT sot.is_valid_person_name(display_name)) as invalid_people_24h,
 
         -- People quality breakdown
         (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL) as total_people,
         (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
-         AND trapper.is_valid_person_name(display_name)) as valid_people,
+         AND sot.is_valid_person_name(display_name)) as valid_people,
         (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
-         AND NOT trapper.is_valid_person_name(display_name)) as invalid_people,
+         AND NOT sot.is_valid_person_name(display_name)) as invalid_people,
         (SELECT COUNT(*) FROM sot.people
          WHERE merged_into_person_id IS NULL
-         AND trapper.is_organization_name(display_name)) as orgs_as_people,
+         AND sot.is_organization_name(display_name)) as orgs_as_people,
 
         -- Appointment linking
         (SELECT COUNT(*) FROM ops.appointments) as total_appointments,

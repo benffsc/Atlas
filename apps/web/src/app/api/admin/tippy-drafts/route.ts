@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*) FROM ops.requests r
          WHERE r.place_id = d.place_id
          AND r.status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_request_count
-      FROM trapper.tippy_draft_requests d
+      FROM ops.tippy_draft_requests d
       LEFT JOIN sot.places p ON p.place_id = d.place_id
       LEFT JOIN ops.staff s ON s.staff_id = d.created_by_staff_id
       LEFT JOIN ops.staff rb ON rb.staff_id = d.reviewed_by

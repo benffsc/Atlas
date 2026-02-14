@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         applies_to_status,
         requires_notes,
         display_order
-      FROM trapper.request_resolution_reasons
+      FROM ops.request_resolution_reasons
       WHERE is_active = TRUE
     `;
 

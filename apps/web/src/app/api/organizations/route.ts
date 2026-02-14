@@ -28,12 +28,12 @@ export async function GET() {
         FROM sot.organizations o
         LEFT JOIN (
           SELECT org_id, COUNT(*) as count
-          FROM trapper.person_organization_link
+          FROM ops.partner_organizations
           GROUP BY org_id
         ) members ON members.org_id = o.org_id
         LEFT JOIN (
           SELECT org_id, COUNT(*) as count
-          FROM trapper.cat_organization_relationships
+          FROM ops.partner_organizations
           GROUP BY org_id
         ) cats ON cats.org_id = o.org_id
       ),

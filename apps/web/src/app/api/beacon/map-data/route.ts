@@ -739,8 +739,8 @@ export async function GET(req: NextRequest) {
             ELSE 0.3
           END as opacity
         FROM sot.places p
-        JOIN trapper.place_condition_history pch ON pch.place_id = p.place_id
-        LEFT JOIN trapper.place_condition_types pct ON pct.condition_type = pch.condition_type
+        JOIN sot.place_condition_history pch ON pch.place_id = p.place_id
+        LEFT JOIN sot.place_condition_types pct ON pct.condition_type = pch.condition_type
         WHERE p.merged_into_place_id IS NULL
           AND p.location IS NOT NULL
           AND pch.superseded_at IS NULL
@@ -787,7 +787,7 @@ export async function GET(req: NextRequest) {
     if (layers.includes("data_coverage")) {
       // First ensure the coverage table is populated
       try {
-        await queryRows(`SELECT trapper.refresh_zone_data_coverage()`);
+        await queryRows(`SELECT sot.refresh_zone_data_coverage()`);
       } catch (e) {
         // Ignore if function doesn't exist yet or fails
         console.log("refresh_zone_data_coverage not available yet:", e);
@@ -810,7 +810,7 @@ export async function GET(req: NextRequest) {
           COALESCE(clinic_appointments, 0)::int as clinic_appointments,
           COALESCE(intake_submissions, 0)::int as intake_submissions,
           COALESCE(coverage_level, 'unknown') as coverage_level
-        FROM trapper.zone_data_coverage
+        FROM sot.zone_data_coverage
         ORDER BY
           CASE coverage_level
             WHEN 'gap' THEN 1

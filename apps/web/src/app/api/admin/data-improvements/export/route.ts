@@ -82,10 +82,10 @@ export async function GET(request: NextRequest) {
             'user_correction', tf.user_correction,
             'staff_name', (SELECT display_name FROM ops.staff WHERE staff_id = tf.staff_id)
           )
-          FROM trapper.tippy_feedback tf
+          FROM ops.tippy_feedback tf
           WHERE tf.feedback_id = di.source_reference_id
         ) END as source_details
-      FROM trapper.data_improvements di
+      FROM ops.data_improvements di
       WHERE di.status = ANY($1)
       ORDER BY
         CASE di.priority

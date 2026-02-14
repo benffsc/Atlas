@@ -123,12 +123,12 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE canonical_person_id IS NOT NULL)::int AS linked_orgs,
         (
           SELECT COUNT(*)::int
-          FROM trapper.organization_match_log
+          FROM ops.organization_match_log
           WHERE created_at > NOW() - INTERVAL '24 hours'
         ) AS matches_24h,
         (
           SELECT COUNT(*)::int
-          FROM trapper.organization_match_log
+          FROM ops.organization_match_log
           WHERE decision = 'review'
         ) AS pending_review
       FROM sot.known_organizations

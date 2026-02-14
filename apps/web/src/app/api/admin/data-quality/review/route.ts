@@ -149,7 +149,7 @@ export async function PATCH(request: NextRequest) {
 
       // Check safe to merge
       const safeCheck = await queryOne<{ safe: boolean; reason: string }>(
-        `SELECT * FROM trapper.person_safe_to_merge($1, $2)`,
+        `SELECT * FROM sot.person_safe_to_merge($1, $2)`,
         [person_id, merge_target_id]
       );
 

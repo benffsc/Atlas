@@ -347,7 +347,7 @@ export async function POST(request: NextRequest) {
           observation_count: number;
           recapture_count: number;
         }>(
-          `SELECT * FROM trapper.calculate_chapman_estimate($1, $2, $3)`,
+          `SELECT * FROM ops.calculate_chapman_estimate($1, $2, $3)`,
           [effectivePlaceId, cats_seen_total, eartipped_seen ?? 0]
         );
 

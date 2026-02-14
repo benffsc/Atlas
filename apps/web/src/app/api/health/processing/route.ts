@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     // Detect stuck jobs (no heartbeat for 30+ minutes)
     const stuckJobs = await queryRows<StuckJob>(
-      "SELECT * FROM trapper.detect_stuck_jobs(30)"
+      "SELECT * FROM ops.detect_stuck_jobs(30)"
     );
 
     // Get recent failures
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         last_error,
         completed_at,
         attempt_count
-      FROM trapper.processing_jobs
+      FROM ops.processing_jobs
       WHERE status = 'failed'
         AND completed_at > NOW() - INTERVAL '24 hours'
       ORDER BY completed_at DESC
@@ -239,7 +239,7 @@ function generateRecommendations(
   // Stuck jobs
   if (stuckJobs.length > 0) {
     recommendations.push(
-      `${stuckJobs.length} stuck job(s) detected. Consider running: UPDATE trapper.processing_jobs SET status = 'retry_pending', next_retry_at = NOW() WHERE job_id IN ('${stuckJobs.map((j) => j.job_id).join("','")}')`
+      `${stuckJobs.length} stuck job(s) detected. Consider running: UPDATE ops.processing_jobs SET status = 'retry_pending', next_retry_at = NOW() WHERE job_id IN ('${stuckJobs.map((j) => j.job_id).join("','")}')`
     );
   }
 

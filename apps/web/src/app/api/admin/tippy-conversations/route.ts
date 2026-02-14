@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (hasFeedback === "true") {
-      whereClauses.push(`EXISTS (SELECT 1 FROM trapper.tippy_feedback f WHERE f.conversation_id = c.conversation_id::text)`);
+      whereClauses.push(`EXISTS (SELECT 1 FROM ops.tippy_feedback f WHERE f.conversation_id = c.conversation_id::text)`);
     }
 
     if (tool) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         -- First user message preview
         (
           SELECT content
-          FROM trapper.tippy_messages m
+          FROM ops.tippy_messages m
           WHERE m.conversation_id = c.conversation_id
             AND m.role = 'user'
           ORDER BY m.created_at
@@ -69,15 +69,15 @@ export async function GET(request: NextRequest) {
         ) AS first_message,
         -- Has feedback
         EXISTS (
-          SELECT 1 FROM trapper.tippy_feedback f
+          SELECT 1 FROM ops.tippy_feedback f
           WHERE f.conversation_id = c.conversation_id::text
         ) AS has_feedback,
         -- Feedback count
         (
-          SELECT COUNT(*) FROM trapper.tippy_feedback f
+          SELECT COUNT(*) FROM ops.tippy_feedback f
           WHERE f.conversation_id = c.conversation_id::text
         ) AS feedback_count
-      FROM trapper.tippy_conversations c
+      FROM ops.tippy_conversations c
       LEFT JOIN ops.staff s ON s.staff_id = c.staff_id
       ${whereClause}
       ORDER BY c.started_at DESC
@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
         COUNT(*) as total_conversations,
         COUNT(DISTINCT staff_id) as unique_staff,
         SUM(message_count) as total_messages,
-        (SELECT COUNT(*) FROM trapper.tippy_feedback) as total_feedback
-      FROM trapper.tippy_conversations
+        (SELECT COUNT(*) FROM ops.tippy_feedback) as total_feedback
+      FROM ops.tippy_conversations
       `
     );
 
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     const tools = await queryRows<{ tool: string }>(
       `
       SELECT DISTINCT unnest(tools_used) as tool
-      FROM trapper.tippy_conversations
+      FROM ops.tippy_conversations
       WHERE tools_used IS NOT NULL AND array_length(tools_used, 1) > 0
       ORDER BY tool
       `

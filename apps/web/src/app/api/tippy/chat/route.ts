@@ -293,7 +293,7 @@ async function getOrCreateConversation(
 
   // Create new conversation
   const result = await queryOne<{ conversation_id: string }>(
-    `INSERT INTO trapper.tippy_conversations (staff_id)
+    `INSERT INTO ops.tippy_conversations (staff_id)
      VALUES ($1)
      RETURNING conversation_id`,
     [staffId || null]
@@ -317,7 +317,7 @@ async function storeMessage(
     // Only store if conversationId is a valid UUID (from DB)
     if (!conversationId.startsWith("conv_")) {
       await execute(
-        `INSERT INTO trapper.tippy_messages
+        `INSERT INTO ops.tippy_messages
          (conversation_id, role, content, tool_calls, tool_results, tokens_used)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
@@ -346,7 +346,7 @@ async function updateConversationTools(
   try {
     if (!conversationId.startsWith("conv_") && toolNames.length > 0) {
       await execute(
-        `UPDATE trapper.tippy_conversations
+        `UPDATE ops.tippy_conversations
          SET tools_used = array_cat(tools_used, $2::text[]),
              updated_at = NOW()
          WHERE conversation_id = $1`,

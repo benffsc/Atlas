@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'auto_match') as total_auto_matches,
         (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'new_entity') as total_new_entities,
         (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE review_status = 'pending') as total_reviews,
-        (SELECT COUNT(*) FROM trapper.households) as total_households,
-        (SELECT COUNT(*) FROM trapper.household_members WHERE valid_to IS NULL) as total_household_members,
+        (SELECT COUNT(*) FROM sot.households) as total_households,
+        (SELECT COUNT(*) FROM sot.household_members WHERE valid_to IS NULL) as total_household_members,
         (SELECT ROUND(AVG(processing_duration_ms)::numeric, 2) FROM sot.data_engine_match_decisions WHERE processing_duration_ms IS NOT NULL) as avg_processing_ms,
         (SELECT ROUND(AVG(top_candidate_score)::numeric, 3) FROM sot.data_engine_match_decisions WHERE top_candidate_score IS NOT NULL) as avg_confidence_score
     `);

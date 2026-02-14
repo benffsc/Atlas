@@ -22,7 +22,7 @@ export async function POST(
     const column = action === "view" ? "view_count" : "download_count";
 
     await query(
-      `UPDATE trapper.education_materials
+      `UPDATE ops.education_materials
        SET ${column} = COALESCE(${column}, 0) + 1
        WHERE material_id = $1`,
       [id]

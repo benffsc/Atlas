@@ -56,7 +56,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Check entry exists
     const existing = await queryOne<{ entry_id: string }>(
-      `SELECT entry_id FROM trapper.clinic_day_entries WHERE entry_id = $1`,
+      `SELECT entry_id FROM ops.clinic_day_entries WHERE entry_id = $1`,
       [id]
     );
 
@@ -107,7 +107,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     updates.push(`updated_at = NOW()`);
 
     await query(
-      `UPDATE trapper.clinic_day_entries SET ${updates.join(", ")} WHERE entry_id = $${paramIndex}`,
+      `UPDATE ops.clinic_day_entries SET ${updates.join(", ")} WHERE entry_id = $${paramIndex}`,
       [...updateParams, id]
     );
 
@@ -137,7 +137,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Check entry exists
     const existing = await queryOne<{ entry_id: string }>(
-      `SELECT entry_id FROM trapper.clinic_day_entries WHERE entry_id = $1`,
+      `SELECT entry_id FROM ops.clinic_day_entries WHERE entry_id = $1`,
       [id]
     );
 
@@ -146,7 +146,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await query(
-      `DELETE FROM trapper.clinic_day_entries WHERE entry_id = $1`,
+      `DELETE FROM ops.clinic_day_entries WHERE entry_id = $1`,
       [id]
     );
 

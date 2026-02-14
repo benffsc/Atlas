@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
           description,
           config_category,
           scientific_reference
-        FROM trapper.ecology_config
+        FROM ops.ecology_config
         ORDER BY config_category, config_key
       `;
       const rows = await queryRows<EcologyConfig>(sql, []);
@@ -86,9 +86,9 @@ export async function GET(request: NextRequest) {
         tnr_low_intensity_rate: number;
       }>(`
         SELECT
-          (SELECT config_value FROM trapper.ecology_config WHERE config_key = 'tnr_time_step_months') AS tnr_time_step_months,
-          (SELECT config_value FROM trapper.ecology_config WHERE config_key = 'tnr_high_intensity_rate') AS tnr_high_intensity_rate,
-          (SELECT config_value FROM trapper.ecology_config WHERE config_key = 'tnr_low_intensity_rate') AS tnr_low_intensity_rate
+          (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_time_step_months') AS tnr_time_step_months,
+          (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_high_intensity_rate') AS tnr_high_intensity_rate,
+          (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_low_intensity_rate') AS tnr_low_intensity_rate
       `, []);
 
       const tnrTimeStep = params?.tnr_time_step_months || 6;

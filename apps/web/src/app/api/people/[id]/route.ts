@@ -75,7 +75,7 @@ export async function GET(
         pd.person_relationships,
         pd.cat_count,
         pd.place_count,
-        trapper.is_valid_person_name(pd.display_name) AS is_valid_name,
+        sot.is_valid_person_name(pd.display_name) AS is_valid_name,
         p.primary_address_id,
         a.formatted_address AS primary_address,
         a.locality AS primary_address_locality,
@@ -110,7 +110,7 @@ export async function GET(
             'appointments_count', po.appointments_count,
             'cats_processed', po.cats_processed
           ) ORDER BY po.org_name)
-          FROM trapper.partner_organizations po
+          FROM ops.partner_organizations po
           WHERE po.contact_person_id = p.person_id
             AND po.is_active = TRUE
         ) AS partner_orgs,
@@ -331,7 +331,7 @@ export async function PATCH(
             );
             if (!isGarbage?.is_garbage) {
               const nameKey = await queryOne<{ key: string }>(
-                `SELECT trapper.norm_name_key($1) AS key`,
+                `SELECT sot.norm_name_key($1) AS key`,
                 [current.display_name]
               );
               if (nameKey?.key) {

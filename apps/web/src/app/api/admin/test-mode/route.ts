@@ -66,7 +66,7 @@ export async function GET() {
         started_at,
         started_by,
         tables_backed_up
-      FROM trapper.test_mode_state
+      FROM ops.test_mode_state
       WHERE is_active = TRUE
       ORDER BY started_at DESC
       LIMIT 1
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     // First, ensure test_mode_state table exists
     await query(`
-      CREATE TABLE IF NOT EXISTS trapper.test_mode_state (
+      CREATE TABLE IF NOT EXISTS ops.test_mode_state (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     // Check if test mode is already active
     const existing = await queryOne<{ is_active: boolean }>(`
-      SELECT is_active FROM trapper.test_mode_state WHERE is_active = TRUE LIMIT 1
+      SELECT is_active FROM ops.test_mode_state WHERE is_active = TRUE LIMIT 1
     `);
 
     if (existing?.is_active) {
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     // Record the test mode session
     await query(`
-      INSERT INTO trapper.test_mode_state (is_active, started_by, tables_backed_up)
+      INSERT INTO ops.test_mode_state (is_active, started_by, tables_backed_up)
       VALUES (TRUE, $1, $2)
     `, [startedBy, backedUpTables]);
 
@@ -200,7 +200,7 @@ export async function DELETE(request: NextRequest) {
       started_at: string;
     }>(`
       SELECT id, tables_backed_up, started_at
-      FROM trapper.test_mode_state
+      FROM ops.test_mode_state
       WHERE is_active = TRUE
       ORDER BY started_at DESC
       LIMIT 1
@@ -258,7 +258,7 @@ export async function DELETE(request: NextRequest) {
 
     // Mark session as ended
     await query(`
-      UPDATE trapper.test_mode_state
+      UPDATE ops.test_mode_state
       SET is_active = FALSE, ended_at = NOW()
       WHERE id = $1
     `, [session.id]);

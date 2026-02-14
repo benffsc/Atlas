@@ -34,7 +34,7 @@ export async function POST(
       success: boolean;
       message: string;
     }>(
-      `SELECT * FROM trapper.manual_link_google_entry($1, $2, $3)`,
+      `SELECT * FROM ops.manual_link_google_entry($1, $2, $3)`,
       [id, body.place_id, body.linked_by ?? "web_app"]
     );
 
@@ -85,7 +85,7 @@ export async function DELETE(
       success: boolean;
       message: string;
     }>(
-      `SELECT * FROM trapper.unlink_google_entry($1, $2)`,
+      `SELECT * FROM ops.unlink_google_entry($1, $2)`,
       [id, unlinkedBy]
     );
 

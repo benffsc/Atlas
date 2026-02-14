@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         END as entity_display_name,
         -- Reviewer name
         s.display_name as reviewer_name
-      FROM trapper.tippy_proposed_corrections pc
+      FROM ops.tippy_proposed_corrections pc
       LEFT JOIN ops.staff s ON s.staff_id = pc.reviewed_by
       ${statusFilter}
       ORDER BY
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'applied') as applied,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         COUNT(*) as total
-      FROM trapper.tippy_proposed_corrections
+      FROM ops.tippy_proposed_corrections
       `
     );
 

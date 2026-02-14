@@ -106,7 +106,7 @@ export async function GET() {
       // Seasonal alerts
       queryRows<SeasonalAlert>(`
         SELECT alert_type, severity, message
-        FROM trapper.get_seasonal_alerts()
+        FROM ops.get_seasonal_alerts()
         WHERE severity IN ('high', 'medium')
       `, []),
 

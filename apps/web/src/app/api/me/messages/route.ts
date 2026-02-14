@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         recipient_id?: string;
         error?: string;
       }>(
-        `SELECT * FROM trapper.send_staff_message(
+        `SELECT * FROM ops.send_staff_message(
           $1, $2, $3, $4, $5, $6, $7, $8, 'dashboard', NULL
         )`,
         [

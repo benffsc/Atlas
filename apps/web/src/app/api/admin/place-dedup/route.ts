@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
          JOIN sot.people per ON per.person_id = ppr.person_id
          WHERE ppr.place_id = c.duplicate_place_id
            AND per.merged_into_person_id IS NULL) AS duplicate_people
-      FROM trapper.place_dedup_candidates c
+      FROM sot.place_dedup_candidates c
       WHERE c.status = 'pending'
       ${tierClause}
       ORDER BY c.match_tier, c.address_similarity DESC
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
           WHEN 4 THEN 'Text Match Only'
         END AS tier_label,
         COUNT(*)::int AS pair_count
-      FROM trapper.place_dedup_candidates
+      FROM sot.place_dedup_candidates
       WHERE status = 'pending'
       GROUP BY match_tier
       ORDER BY match_tier`
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
 
           // Update candidate status
           await queryOne(
-            `UPDATE trapper.place_dedup_candidates
+            `UPDATE sot.place_dedup_candidates
              SET status = 'merged', resolved_at = NOW(), resolved_by = 'staff'
              WHERE status = 'pending'
                AND canonical_place_id = $1 AND duplicate_place_id = $2`,
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
         } else {
           // keep_separate or dismiss
           await queryOne(
-            `UPDATE trapper.place_dedup_candidates
+            `UPDATE sot.place_dedup_candidates
              SET status = $3, resolved_at = NOW(), resolved_by = 'staff'
              WHERE status = 'pending'
                AND canonical_place_id = $1 AND duplicate_place_id = $2`,

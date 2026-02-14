@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         o.last_appointment_date,
         o.notes,
         o.created_at
-      FROM trapper.orgs o
+      FROM ops.partner_organizations o
       LEFT JOIN sot.places pl ON pl.place_id = o.place_id
       WHERE ($1 OR o.is_active = TRUE)
         AND ($2::TEXT IS NULL OR o.org_type = $2)
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE name_patterns IS NOT NULL AND array_length(name_patterns, 1) > 0)::int AS orgs_with_patterns,
         COALESCE(SUM(appointments_count), 0)::int AS total_linked_appointments,
         COALESCE(SUM(cats_count), 0)::int AS total_linked_cats
-      FROM trapper.orgs
+      FROM ops.partner_organizations
       `
     );
 
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     // Create org
     const result = await queryOne<{ id: string }>(
       `
-      INSERT INTO trapper.orgs (
+      INSERT INTO ops.partner_organizations (
         name, short_name, org_type, email, phone, website,
         place_id, address, city, state, zip,
         name_patterns, aliases, relationship_type, notes,

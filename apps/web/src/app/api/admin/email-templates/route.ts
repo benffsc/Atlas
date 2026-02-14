@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         s.display_name AS last_edited_by_name,
         et.created_at::TEXT,
         et.updated_at::TEXT
-      FROM trapper.email_templates et
+      FROM ops.email_templates et
       LEFT JOIN ops.staff s ON s.staff_id = et.last_edited_by
       ORDER BY et.name
     `);
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         template_key,
         COUNT(*)::INT AS total,
         MAX(sent_at)::TEXT AS last_sent
-      FROM trapper.sent_emails
+      FROM ops.sent_emails
       WHERE status = 'sent'
       GROUP BY template_key
     `);
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     if (session.auth_role === "admin") {
       const countResult = await queryOne<{ count: number }>(`
         SELECT COUNT(*)::INT AS count
-        FROM trapper.email_template_suggestions
+        FROM ops.email_template_suggestions
         WHERE status = 'pending'
       `);
       pendingSuggestions = countResult?.count || 0;
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     // Check if key already exists
     const existing = await queryOne<{ template_id: string }>(
-      `SELECT template_id FROM trapper.email_templates WHERE template_key = $1`,
+      `SELECT template_id FROM ops.email_templates WHERE template_key = $1`,
       [template_key]
     );
 
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await queryOne<{ template_id: string }>(`
-      INSERT INTO trapper.email_templates (
+      INSERT INTO ops.email_templates (
         template_key, name, description, subject, body_html, body_text, placeholders
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING template_id
@@ -187,7 +187,7 @@ export async function PATCH(request: NextRequest) {
     // Check if template exists and get restriction status
     const template = await queryOne<{ edit_restricted: boolean }>(`
       SELECT COALESCE(edit_restricted, TRUE) AS edit_restricted
-      FROM trapper.email_templates
+      FROM ops.email_templates
       WHERE template_id = $1
     `, [template_id]);
 
@@ -252,7 +252,7 @@ export async function PATCH(request: NextRequest) {
     values.push(template_id);
 
     await query(
-      `UPDATE trapper.email_templates
+      `UPDATE ops.email_templates
        SET ${setClause.join(", ")}
        WHERE template_id = $${paramIndex}`,
       values
@@ -291,7 +291,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await query(
-      `UPDATE trapper.email_templates SET is_active = FALSE, updated_at = NOW() WHERE template_id = $1`,
+      `UPDATE ops.email_templates SET is_active = FALSE, updated_at = NOW() WHERE template_id = $1`,
       [templateId]
     );
 

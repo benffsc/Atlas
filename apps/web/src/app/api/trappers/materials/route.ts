@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         COALESCE(download_count, 0)::INT AS download_count,
         created_at::TEXT,
         updated_at::TEXT
-      FROM trapper.education_materials
+      FROM ops.education_materials
       ${whereClause}
       ORDER BY display_order, category, title`,
       params
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     // Get category counts
     const categories = await queryRows<{ category: string; count: number }>(
       `SELECT category, COUNT(*)::INT AS count
-       FROM trapper.education_materials
+       FROM ops.education_materials
        WHERE is_active = TRUE
        GROUP BY category
        ORDER BY category`
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
 
     // Insert into database
     const result = await queryOne<{ material_id: string }>(
-      `INSERT INTO trapper.education_materials (
+      `INSERT INTO ops.education_materials (
         title, description, category, file_type, storage_url, file_size_bytes,
         original_filename, is_required, required_for_onboarding_status, display_order
       ) VALUES (
@@ -261,7 +261,7 @@ export async function PATCH(request: NextRequest) {
     values.push(material_id);
 
     await query(
-      `UPDATE trapper.education_materials
+      `UPDATE ops.education_materials
        SET ${setClause.join(", ")}
        WHERE material_id = $${paramIndex}`,
       values
@@ -291,7 +291,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     await query(
-      `UPDATE trapper.education_materials
+      `UPDATE ops.education_materials
        SET is_active = FALSE, updated_at = NOW()
        WHERE material_id = $1`,
       [materialId]

@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
          END +
          CASE WHEN q.last_asked_at > NOW() - INTERVAL '7 days' THEN 5 ELSE 0 END
         ) as priority_score
-      FROM trapper.tippy_unanswerable_questions q
+      FROM ops.tippy_capability_gaps q
       LEFT JOIN ops.staff s ON s.staff_id = q.staff_id
       LEFT JOIN ops.staff rs ON rs.staff_id = q.resolved_by
       ${statusFilter}
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE resolution_status = 'data_added') as data_added,
         COUNT(*) FILTER (WHERE resolution_status = 'out_of_scope') as out_of_scope,
         COUNT(*) as total
-      FROM trapper.tippy_unanswerable_questions
+      FROM ops.tippy_capability_gaps
       `
     );
 

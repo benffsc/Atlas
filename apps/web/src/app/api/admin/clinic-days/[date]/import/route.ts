@@ -59,13 +59,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Get or create clinic day
     let clinicDay = await queryOne<{ clinic_day_id: string }>(
-      `SELECT clinic_day_id FROM trapper.clinic_days WHERE clinic_date = $1`,
+      `SELECT clinic_day_id FROM ops.clinic_days WHERE clinic_date = $1`,
       [date]
     );
 
     if (!clinicDay) {
       clinicDay = await queryOne<{ clinic_day_id: string }>(
-        `INSERT INTO trapper.clinic_days (clinic_date, clinic_type)
+        `INSERT INTO ops.clinic_days (clinic_date, clinic_type)
          VALUES ($1, trapper.get_default_clinic_type($1))
          RETURNING clinic_day_id`,
         [date]
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Check for existing entries
     const existingCount = await queryOne<{ count: number }>(
-      `SELECT COUNT(*)::int as count FROM trapper.clinic_day_entries WHERE clinic_day_id = $1`,
+      `SELECT COUNT(*)::int as count FROM ops.clinic_day_entries WHERE clinic_day_id = $1`,
       [clinicDay.clinic_day_id]
     );
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       if (trapperPersonId) trappersResolved++;
 
       await execute(
-        `INSERT INTO trapper.clinic_day_entries (
+        `INSERT INTO ops.clinic_day_entries (
           clinic_day_id,
           line_number,
           source_description,
@@ -261,7 +261,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { date } = await params;
 
     const clinicDay = await queryOne<{ clinic_day_id: string }>(
-      `SELECT clinic_day_id FROM trapper.clinic_days WHERE clinic_date = $1`,
+      `SELECT clinic_day_id FROM ops.clinic_days WHERE clinic_date = $1`,
       [date]
     );
 
@@ -275,7 +275,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Delete entries from master_list source only
     const result = await queryOne<{ count: number }>(
       `WITH deleted AS (
-        DELETE FROM trapper.clinic_day_entries
+        DELETE FROM ops.clinic_day_entries
         WHERE clinic_day_id = $1
           AND source_system = 'master_list'
         RETURNING 1

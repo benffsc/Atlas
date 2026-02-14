@@ -55,10 +55,10 @@ export async function GET(request: NextRequest) {
         ec.display_name AS category_name,
         oa.email AS from_email,
         s.display_name AS created_by_name
-      FROM trapper.email_jobs ej
-      LEFT JOIN trapper.email_templates et ON et.template_key = ej.template_key
-      LEFT JOIN trapper.email_categories ec ON ec.category_key = ej.category_key
-      LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = ej.outlook_account_id
+      FROM ops.email_jobs ej
+      LEFT JOIN ops.email_templates et ON et.template_key = ej.template_key
+      LEFT JOIN ops.email_categories ec ON ec.category_key = ej.category_key
+      LEFT JOIN ops.outlook_email_accounts oa ON oa.account_id = ej.outlook_account_id
       LEFT JOIN ops.staff s ON s.staff_id = ej.created_by
       ${whereClause}
       ORDER BY ej.created_at DESC
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'queued') AS queued,
         COUNT(*) FILTER (WHERE status = 'sent') AS sent,
         COUNT(*) FILTER (WHERE status = 'failed') AS failed
-      FROM trapper.email_jobs
+      FROM ops.email_jobs
     `);
 
     return NextResponse.json({
@@ -137,13 +137,13 @@ export async function POST(request: NextRequest) {
     let finalOutlookAccountId = outlook_account_id;
     if (!finalOutlookAccountId && category_key) {
       const category = await queryOne<{ default_outlook_account_id: string | null }>(`
-        SELECT default_outlook_account_id FROM trapper.email_categories WHERE category_key = $1
+        SELECT default_outlook_account_id FROM ops.email_categories WHERE category_key = $1
       `, [category_key]);
       finalOutlookAccountId = category?.default_outlook_account_id;
     }
 
     const result = await queryOne<{ job_id: string }>(`
-      INSERT INTO trapper.email_jobs (
+      INSERT INTO ops.email_jobs (
         category_key, template_key, recipient_email, recipient_name, recipient_person_id,
         custom_subject, custom_body_html, placeholders, outlook_account_id,
         submission_id, request_id, created_by, status

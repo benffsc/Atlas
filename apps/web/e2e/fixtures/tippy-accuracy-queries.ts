@@ -34,7 +34,7 @@ export const ENTITY_COUNT_TESTS: AccuracyTest[] = [
     id: "accuracy-total-cats",
     description: "Total cat count matches database",
     tippyQuestion: "How many cats total are in the Atlas system?",
-    sqlQuery: `SELECT COUNT(*)::int as count FROM trapper.sot_cats WHERE merged_into_cat_id IS NULL`,
+    sqlQuery: `SELECT COUNT(*)::int as count FROM sot.cats WHERE merged_into_cat_id IS NULL`,
     extractTippyValue: (r) => {
       const match = r.match(/(\d{1,3}(?:,\d{3})*|\d+)\s*(?:cats?|total)/i);
       return match ? parseInt(match[1].replace(/,/g, "")) : null;
@@ -47,7 +47,7 @@ export const ENTITY_COUNT_TESTS: AccuracyTest[] = [
     id: "accuracy-total-people",
     description: "Total person count matches database",
     tippyQuestion: "How many people are in the Atlas system?",
-    sqlQuery: `SELECT COUNT(*)::int as count FROM trapper.sot_people WHERE merged_into_person_id IS NULL`,
+    sqlQuery: `SELECT COUNT(*)::int as count FROM sot.people WHERE merged_into_person_id IS NULL`,
     extractTippyValue: (r) => {
       const match = r.match(/(\d{1,3}(?:,\d{3})*|\d+)\s*(?:people|persons?|total)/i);
       return match ? parseInt(match[1].replace(/,/g, "")) : null;
@@ -60,7 +60,7 @@ export const ENTITY_COUNT_TESTS: AccuracyTest[] = [
     id: "accuracy-total-places",
     description: "Total place count matches database",
     tippyQuestion: "How many unique places/addresses are in Atlas?",
-    sqlQuery: `SELECT COUNT(*)::int as count FROM trapper.places WHERE merged_into_place_id IS NULL`,
+    sqlQuery: `SELECT COUNT(*)::int as count FROM sot.places WHERE merged_into_place_id IS NULL`,
     extractTippyValue: (r) => {
       const match = r.match(/(\d{1,3}(?:,\d{3})*|\d+)\s*(?:places?|addresses?|locations?)/i);
       return match ? parseInt(match[1].replace(/,/g, "")) : null;
@@ -73,7 +73,7 @@ export const ENTITY_COUNT_TESTS: AccuracyTest[] = [
     id: "accuracy-total-requests",
     description: "Total request count matches database",
     tippyQuestion: "How many trapping requests total have been submitted?",
-    sqlQuery: `SELECT COUNT(*)::int as count FROM trapper.sot_requests`,
+    sqlQuery: `SELECT COUNT(*)::int as count FROM ops.requests`,
     extractTippyValue: (r) => {
       const match = r.match(/(\d{1,3}(?:,\d{3})*|\d+)\s*(?:requests?|total)/i);
       return match ? parseInt(match[1].replace(/,/g, "")) : null;
@@ -88,7 +88,7 @@ export const ENTITY_COUNT_TESTS: AccuracyTest[] = [
     tippyQuestion: "How many active trappers do we have?",
     sqlQuery: `
       SELECT COUNT(DISTINCT person_id)::int as count
-      FROM trapper.person_roles
+      FROM ops.person_roles
       WHERE role IN ('ffsc_trapper', 'head_trapper', 'coordinator')
         AND (ended_at IS NULL OR ended_at > NOW())
     `,
@@ -117,7 +117,7 @@ export const ALTERATION_TESTS: AccuracyTest[] = [
         100.0 * SUM(verified_altered) / NULLIF(SUM(weighted_estimate), 0),
         1
       )::numeric as rate
-      FROM trapper.v_beacon_summary
+      FROM ops.v_beacon_summary
     `,
     extractTippyValue: (r) => {
       const match = r.match(/(\d+(?:\.\d+)?)\s*%/);
@@ -133,7 +133,7 @@ export const ALTERATION_TESTS: AccuracyTest[] = [
     tippyQuestion: "How many cats have been altered this year?",
     sqlQuery: `
       SELECT COUNT(*)::int as count
-      FROM trapper.sot_appointments
+      FROM ops.appointments
       WHERE EXTRACT(YEAR FROM appointment_date) = EXTRACT(YEAR FROM NOW())
         AND procedure_type IN ('spay', 'neuter', 'snr')
     `,
@@ -161,8 +161,8 @@ export const TRAPPER_STATS_TESTS: AccuracyTest[] = [
       SELECT
         p.display_name,
         COUNT(*)::int as cat_count
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_people p ON p.person_id = a.trapper_person_id
+      FROM ops.appointments a
+      JOIN sot.people p ON p.person_id = a.trapper_person_id
       WHERE a.trapper_person_id IS NOT NULL
       GROUP BY p.person_id, p.display_name
       ORDER BY cat_count DESC
@@ -195,7 +195,7 @@ export const COLONY_TESTS: AccuracyTest[] = [
     tippyQuestion: "How many colonies are currently considered 'managed' (>85% alteration rate)?",
     sqlQuery: `
       SELECT COUNT(*)::int as count
-      FROM trapper.v_beacon_summary
+      FROM ops.v_beacon_summary
       WHERE alteration_rate >= 85
     `,
     extractTippyValue: (r) => {
@@ -212,7 +212,7 @@ export const COLONY_TESTS: AccuracyTest[] = [
     tippyQuestion: "How many colonies need attention (below 50% alteration rate)?",
     sqlQuery: `
       SELECT COUNT(*)::int as count
-      FROM trapper.v_beacon_summary
+      FROM ops.v_beacon_summary
       WHERE alteration_rate < 50
         AND weighted_estimate > 0
     `,
@@ -238,7 +238,7 @@ export const ACTIVITY_TESTS: AccuracyTest[] = [
     tippyQuestion: "How many clinic appointments have we had this month?",
     sqlQuery: `
       SELECT COUNT(*)::int as count
-      FROM trapper.sot_appointments
+      FROM ops.appointments
       WHERE appointment_date >= DATE_TRUNC('month', NOW())
     `,
     extractTippyValue: (r) => {
@@ -255,7 +255,7 @@ export const ACTIVITY_TESTS: AccuracyTest[] = [
     tippyQuestion: "How many requests are currently pending triage?",
     sqlQuery: `
       SELECT COUNT(*)::int as count
-      FROM trapper.sot_requests
+      FROM ops.requests
       WHERE status = 'new'
     `,
     extractTippyValue: (r) => {

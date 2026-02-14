@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         c.message_count,
         c.tools_used,
         c.is_archived
-      FROM trapper.tippy_conversations c
+      FROM ops.tippy_conversations c
       LEFT JOIN ops.staff s ON s.staff_id = c.staff_id
       WHERE c.conversation_id = $1
       `,
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         tool_results,
         tokens_used,
         created_at
-      FROM trapper.tippy_messages
+      FROM ops.tippy_messages
       WHERE conversation_id = $1
       ORDER BY created_at ASC
       `,
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         feedback_type,
         status,
         created_at
-      FROM trapper.tippy_feedback
+      FROM ops.tippy_feedback
       WHERE conversation_id = $1
       ORDER BY created_at ASC
       `,

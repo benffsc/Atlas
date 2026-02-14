@@ -87,7 +87,7 @@ export async function POST(
 
     // Compute name_key and check for duplicates
     const nameKey = await queryOne<{ key: string }>(
-      `SELECT trapper.norm_name_key($1) AS key`,
+      `SELECT sot.norm_name_key($1) AS key`,
       [name]
     );
 

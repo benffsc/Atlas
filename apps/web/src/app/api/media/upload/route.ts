@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
     if (createPhotoGroup && files.length > 0 && entityType === "request") {
       const groupName = photoGroupName || `Photo group ${new Date().toLocaleDateString()}`;
       const groupResult = await queryOne<{ create_photo_group: string }>(
-        `SELECT trapper.create_photo_group($1, $2, $3) AS create_photo_group`,
+        `SELECT ops.create_photo_group($1, $2, $3) AS create_photo_group`,
         [entityId, groupName, uploadedBy]
       );
       photoGroupId = groupResult?.create_photo_group || null;

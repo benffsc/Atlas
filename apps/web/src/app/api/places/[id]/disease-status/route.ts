@@ -46,15 +46,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         pds.set_by,
         pds.set_at,
         pds.updated_at
-      FROM trapper.place_disease_status pds
-      JOIN trapper.disease_types dt ON dt.disease_key = pds.disease_type_key
+      FROM ops.place_disease_status pds
+      JOIN ops.disease_types dt ON dt.disease_key = pds.disease_type_key
       WHERE pds.place_id = $1
       ORDER BY dt.severity_order
     `;
 
     const diseaseTypesSql = `
       SELECT disease_key, display_label, short_code, color, decay_window_months, is_contagious
-      FROM trapper.disease_types
+      FROM ops.disease_types
       WHERE is_active = TRUE
       ORDER BY severity_order
     `;

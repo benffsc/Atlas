@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     if (useCache) {
       // Use materialized view for performance
-      let query = `SELECT * FROM trapper.mv_beacon_clusters`;
+      let query = `SELECT * FROM ops.v_beacon_cluster_summary`;
       const params: unknown[] = [];
       let paramIndex = 1;
 

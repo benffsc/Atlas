@@ -32,7 +32,7 @@ export async function PATCH(
   try {
     await execute(
       `
-      UPDATE trapper.tippy_unanswerable_questions
+      UPDATE ops.tippy_capability_gaps
       SET
         resolution_status = COALESCE($1, resolution_status),
         resolved_by = $2,

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         is_active,
         created_at::text,
         updated_at::text
-      FROM trapper.fellegi_sunter_parameters
+      FROM sot.fellegi_sunter_parameters
       ORDER BY agreement_weight DESC
     `);
 
@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest) {
     values.push(field_name);
 
     const sql = `
-      UPDATE trapper.fellegi_sunter_parameters
+      UPDATE sot.fellegi_sunter_parameters
       SET ${updates.join(", ")}
       WHERE field_name = $${paramIndex}
       RETURNING

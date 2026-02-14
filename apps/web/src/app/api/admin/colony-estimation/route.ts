@@ -41,7 +41,7 @@ export async function GET() {
         default_number_confidence,
         description,
         examples
-      FROM trapper.count_precision_factors
+      FROM ops.count_precision_factors
       ORDER BY default_number_confidence DESC
     `);
 
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       }
 
       await execute(
-        `INSERT INTO trapper.count_precision_factors
+        `INSERT INTO ops.count_precision_factors
           (precision_type, default_number_confidence, description, examples)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (precision_type) DO UPDATE SET
@@ -175,7 +175,7 @@ export async function DELETE(request: NextRequest) {
       }
 
       await execute(
-        `DELETE FROM trapper.count_precision_factors WHERE precision_type = $1`,
+        `DELETE FROM ops.count_precision_factors WHERE precision_type = $1`,
         [key]
       );
     } else {

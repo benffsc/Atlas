@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     // Create the photo group using the database function
     const result = await queryOne<{ create_photo_group: string }>(
-      `SELECT trapper.create_photo_group($1, $2, $3, $4, $5) AS create_photo_group`,
+      `SELECT ops.create_photo_group($1, $2, $3, $4, $5) AS create_photo_group`,
       [
         request_id,
         name,

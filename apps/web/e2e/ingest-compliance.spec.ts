@@ -283,7 +283,7 @@ test.describe("Data Provenance Compliance", () => {
 
 // ============================================================================
 // PHONE NORMALIZATION COMPLIANCE
-// CLAUDE.md: Use trapper.norm_phone_us() for normalization
+// CLAUDE.md: Use sot.norm_phone_us() for normalization
 // ============================================================================
 
 test.describe("Phone Normalization Compliance", () => {

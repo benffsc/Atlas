@@ -321,8 +321,8 @@ export async function GET(
           pds.status,
           pds.last_positive_date::TEXT,
           COALESCE(pds.positive_cat_count, 0) AS positive_cat_count
-        FROM trapper.place_disease_status pds
-        JOIN trapper.disease_types dt ON dt.disease_key = pds.disease_type_key
+        FROM ops.place_disease_status pds
+        JOIN ops.disease_types dt ON dt.disease_key = pds.disease_type_key
         WHERE pds.place_id = $1
           AND pds.status NOT IN ('false_flag', 'cleared')
         ORDER BY dt.severity_order`,
@@ -376,7 +376,7 @@ export async function GET(
         JOIN trapper.test_type_disease_mapping m ON m.test_type = ctr.test_type
           AND (ctr.result::TEXT ILIKE '%' || m.result_pattern || '%'
                OR ctr.result_detail ILIKE '%' || m.result_pattern || '%')
-        JOIN trapper.disease_types dt ON dt.disease_key = m.disease_key
+        JOIN ops.disease_types dt ON dt.disease_key = m.disease_key
         WHERE ctr.cat_id = c.cat_id
       ) dis ON TRUE
       WHERE cpr.place_id = $1

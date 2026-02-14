@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
           )
           ELSE NULL
         END as entity_display
-      FROM trapper.data_improvements di
+      FROM ops.data_improvements di
       WHERE di.source = 'tippy_auto_check'
         AND di.status = 'pending'
       ORDER BY

@@ -53,29 +53,29 @@ export function isV1(): boolean {
  */
 const V1_TABLES = {
   // SOT entities
-  cats: "trapper.sot_cats",
-  people: "trapper.sot_people",
-  places: "trapper.places",
+  cats: "sot.cats",
+  people: "sot.people",
+  places: "sot.places",
   addresses: "trapper.addresses",
 
   // Operations
-  appointments: "trapper.sot_appointments",
-  requests: "trapper.sot_requests",
-  intake_submissions: "trapper.web_intake_submissions",
+  appointments: "ops.appointments",
+  requests: "ops.requests",
+  intake_submissions: "ops.web_intake_submissions",
 
   // Identifiers
-  person_identifiers: "trapper.person_identifiers",
-  cat_identifiers: "trapper.cat_identifiers",
+  person_identifiers: "sot.person_identifiers",
+  cat_identifiers: "sot.cat_identifiers",
 
   // Relationships
-  person_cat: "trapper.person_cat_relationships",
-  person_place: "trapper.person_place_relationships",
-  cat_place: "trapper.cat_place_relationships",
+  person_cat: "sot.person_cat",
+  person_place: "sot.person_place",
+  cat_place: "sot.cat_place",
 
   // Support
   clinic_accounts: "trapper.clinic_owner_accounts",
-  soft_blacklist: "trapper.data_engine_soft_blacklist",
-  colony_estimates: "trapper.place_colony_estimates",
+  soft_blacklist: "sot.data_engine_soft_blacklist",
+  colony_estimates: "sot.place_colony_estimates",
 } as const;
 
 /**

@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         urbanization: string;
         notes: string;
       }>(
-        `SELECT * FROM trapper.sonoma_zip_demographics WHERE zip = $1`,
+        `SELECT * FROM ops.sonoma_zip_demographics WHERE zip = $1`,
         [zip]
       );
 
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     }>(
       `SELECT zip, city, service_zone, population_2023, households_2023,
               median_household_income_2023, urbanization, notes
-       FROM trapper.sonoma_zip_demographics
+       FROM ops.sonoma_zip_demographics
        ${zone ? "WHERE service_zone = $1" : ""}
        ORDER BY service_zone, population_2023 DESC`,
       zone ? [zone] : []
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
            SUM(households_2023) as total_households,
            ROUND(AVG(median_household_income_2023), 0) as avg_median_income,
            COUNT(*) as zip_count
-         FROM trapper.sonoma_zip_demographics
+         FROM ops.sonoma_zip_demographics
          GROUP BY service_zone
          ORDER BY total_population DESC`
         );

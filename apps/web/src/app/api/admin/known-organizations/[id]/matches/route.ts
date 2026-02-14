@@ -77,7 +77,7 @@ export async function GET(
         person_id,
         notes,
         created_at
-      FROM trapper.organization_match_log
+      FROM ops.organization_match_log
       WHERE ${whereClause}
       ORDER BY created_at DESC
       LIMIT $${paramIndex - 1} OFFSET $${paramIndex}
@@ -96,7 +96,7 @@ export async function GET(
         COUNT(*) FILTER (WHERE decision = 'flagged')::int AS flagged_count,
         COUNT(*) FILTER (WHERE decision = 'review')::int AS review_count,
         COUNT(*) FILTER (WHERE decision = 'skipped')::int AS skipped_count
-      FROM trapper.organization_match_log
+      FROM ops.organization_match_log
       WHERE org_id = $1
       `,
       [id]
@@ -106,7 +106,7 @@ export async function GET(
     const byType = await queryRows<{ match_type: string; count: number }>(
       `
       SELECT match_type, COUNT(*)::int AS count
-      FROM trapper.organization_match_log
+      FROM ops.organization_match_log
       WHERE org_id = $1
       GROUP BY match_type
       ORDER BY count DESC

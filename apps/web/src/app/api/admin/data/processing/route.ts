@@ -202,7 +202,7 @@ export async function GET() {
         (SELECT COUNT(*) FROM ops.appointments WHERE inferred_place_source IS NOT NULL)::int as places_inferred,
         (
           SELECT MAX(completed_at)
-          FROM trapper.processing_jobs
+          FROM ops.processing_jobs
           WHERE source_table = 'entity_linking' AND status = 'completed'
         ) as last_linking_run
     `);
@@ -219,7 +219,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE status IN ('processing', 'linking'))::int as running,
         COUNT(*) FILTER (WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '24 hours')::int as completed_24h,
         COUNT(*) FILTER (WHERE status = 'failed' AND completed_at > NOW() - INTERVAL '24 hours')::int as failed_24h
-      FROM trapper.processing_jobs
+      FROM ops.processing_jobs
     `);
 
     const stats: ProcessingStats = {
@@ -257,13 +257,13 @@ export async function POST() {
     const result = await queryOne<{ processed: number }>(`
       WITH pending AS (
         SELECT job_id
-        FROM trapper.processing_jobs
+        FROM ops.processing_jobs
         WHERE status = 'queued'
         ORDER BY created_at
         LIMIT 10
       ),
       updated AS (
-        UPDATE trapper.processing_jobs
+        UPDATE ops.processing_jobs
         SET status = 'processing', started_at = NOW()
         WHERE job_id IN (SELECT job_id FROM pending)
         RETURNING job_id

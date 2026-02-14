@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     try {
       feedback = await queryOne<{ feedback_id: string; created_at: string }>(
         `
-        INSERT INTO trapper.tippy_feedback (
+        INSERT INTO ops.tippy_feedback (
           staff_id, tippy_message, user_correction, conversation_id,
           conversation_context, entity_type, entity_id, feedback_type
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         insertParams[7] = "other"; // feedback_type fallback
         feedback = await queryOne<{ feedback_id: string; created_at: string }>(
           `
-          INSERT INTO trapper.tippy_feedback (
+          INSERT INTO ops.tippy_feedback (
             staff_id, tippy_message, user_correction, conversation_id,
             conversation_context, entity_type, entity_id, feedback_type
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
 
       const improvement = await queryOne<{ improvement_id: string }>(
         `
-        INSERT INTO trapper.data_improvements (
+        INSERT INTO ops.data_improvements (
           title,
           description,
           entity_type,
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
 
         // Link improvement back to feedback
         await query(
-          `UPDATE trapper.tippy_feedback SET data_improvement_id = $1 WHERE feedback_id = $2`,
+          `UPDATE ops.tippy_feedback SET data_improvement_id = $1 WHERE feedback_id = $2`,
           [improvementId, feedback.feedback_id]
         );
       }

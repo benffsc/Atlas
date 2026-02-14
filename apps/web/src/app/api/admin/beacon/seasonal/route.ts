@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (view === "alerts") {
-      const sql = `SELECT * FROM trapper.get_seasonal_alerts()`;
+      const sql = `SELECT * FROM ops.get_seasonal_alerts()`;
       const rows = await queryRows<SeasonalAlert>(sql, []);
       return NextResponse.json({ data: rows, view: "alerts" });
     }

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
           WHEN tf.entity_type = 'request' THEN (SELECT short_address FROM ops.requests WHERE request_id = tf.entity_id)
           ELSE NULL
         END as entity_name
-      FROM trapper.tippy_feedback tf
+      FROM ops.tippy_feedback tf
       LEFT JOIN ops.staff s ON s.staff_id = tf.staff_id
       LEFT JOIN ops.staff rb ON rb.staff_id = tf.reviewed_by
       WHERE ($1 = 'all' OR tf.status = $1)
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'resolved') as resolved,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         COUNT(*) as total
-      FROM trapper.tippy_feedback
+      FROM ops.tippy_feedback
       `
     );
 

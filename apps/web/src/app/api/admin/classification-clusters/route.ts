@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
             GROUP BY suggested_classification
           ) r
         ) AS suggestion_distribution
-      FROM trapper.classification_clusters cc
+      FROM ops.v_beacon_cluster_summary cc
       WHERE cc.status = $1
       ORDER BY cc.consistency_score ASC, cc.place_count DESC
       LIMIT $2`,
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'reviewed') AS total_reviewed,
         COUNT(*) FILTER (WHERE status = 'merged') AS total_merged,
         ROUND(AVG(consistency_score)::numeric, 2) AS avg_consistency
-      FROM trapper.classification_clusters`
+      FROM ops.v_beacon_cluster_summary`
     );
 
     return NextResponse.json({
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       case "create_colony_and_merge":
         // Create a new colony and merge the cluster into it
         const clusterData = await queryOne<{ place_ids: string[]; dominant_classification: string }>(
-          `SELECT place_ids, dominant_classification FROM trapper.classification_clusters WHERE cluster_id = $1`,
+          `SELECT place_ids, dominant_classification FROM ops.v_beacon_cluster_summary WHERE cluster_id = $1`,
           [cluster_id]
         );
 

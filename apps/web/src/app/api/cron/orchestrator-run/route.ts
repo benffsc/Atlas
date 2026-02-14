@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     // Try to log the failure
     try {
       await queryOne(
-        `UPDATE trapper.orchestrator_run_logs
+        `UPDATE ops.orchestrator_run_logs
          SET status = 'failed',
              error_message = $1,
              completed_at = NOW()

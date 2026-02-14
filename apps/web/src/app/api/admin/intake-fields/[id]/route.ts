@@ -27,7 +27,7 @@ export async function GET(
 
   try {
     const field = await queryOne<CustomField>(`
-      SELECT * FROM trapper.intake_custom_fields WHERE field_id = $1
+      SELECT * FROM ops.intake_custom_fields WHERE field_id = $1
     `, [id]);
 
     if (!field) {
@@ -93,7 +93,7 @@ export async function PATCH(
 
     values.push(id);
     const result = await queryOne<CustomField>(`
-      UPDATE trapper.intake_custom_fields
+      UPDATE ops.intake_custom_fields
       SET ${updates.join(", ")}
       WHERE field_id = $${paramIndex}
       RETURNING *
@@ -122,7 +122,7 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ field_id: string }>(`
-      UPDATE trapper.intake_custom_fields
+      UPDATE ops.intake_custom_fields
       SET is_active = FALSE
       WHERE field_id = $1
       RETURNING field_id

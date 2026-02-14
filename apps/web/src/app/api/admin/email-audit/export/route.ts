@@ -69,10 +69,10 @@ export async function GET(request: NextRequest) {
         se.created_at::TEXT,
         s.display_name AS sent_by_name,
         oa.email AS from_email
-      FROM trapper.sent_emails se
-      LEFT JOIN trapper.email_templates et ON et.template_key = se.template_key
+      FROM ops.sent_emails se
+      LEFT JOIN ops.email_templates et ON et.template_key = se.template_key
       LEFT JOIN ops.staff s ON s.staff_id = se.sent_by
-      LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = se.outlook_account_id
+      LEFT JOIN ops.outlook_email_accounts oa ON oa.account_id = se.outlook_account_id
       ${whereClause}
       ORDER BY se.created_at DESC
       LIMIT 10000

@@ -33,13 +33,13 @@ export async function GET() {
         last_executed_at::TEXT,
         created_at::TEXT,
         updated_at::TEXT
-      FROM trapper.automation_rules
+      FROM ops.automation_rules
       ORDER BY is_active DESC, name
     `);
 
     // Get available email templates for dropdown
     const templates = await queryRows<{ template_key: string; name: string }>(`
-      SELECT template_key, name FROM trapper.email_templates WHERE is_active = TRUE ORDER BY name
+      SELECT template_key, name FROM ops.email_templates WHERE is_active = TRUE ORDER BY name
     `);
 
     return NextResponse.json({ rules, templates });
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await queryOne<{ rule_id: string }>(`
-      INSERT INTO trapper.automation_rules (
+      INSERT INTO ops.automation_rules (
         name, description, trigger_type, trigger_config, action_type, action_config
       ) VALUES ($1, $2, $3, $4::JSONB, $5, $6::JSONB)
       RETURNING rule_id
@@ -149,7 +149,7 @@ export async function PATCH(request: NextRequest) {
     values.push(rule_id);
 
     await query(
-      `UPDATE trapper.automation_rules
+      `UPDATE ops.automation_rules
        SET ${setClause.join(", ")}
        WHERE rule_id = $${paramIndex}`,
       values
@@ -179,7 +179,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     await query(
-      `DELETE FROM trapper.automation_rules WHERE rule_id = $1`,
+      `DELETE FROM ops.automation_rules WHERE rule_id = $1`,
       [ruleId]
     );
 

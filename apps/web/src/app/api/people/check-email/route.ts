@@ -43,11 +43,11 @@ export async function GET(request: NextRequest) {
       `SELECT
         p.person_id,
         p.display_name,
-        trapper.norm_email($1) as normalized_email
+        sot.norm_email($1) as normalized_email
       FROM sot.person_identifiers pi
       JOIN sot.people p ON p.person_id = pi.person_id
       WHERE pi.id_type = 'email'
-        AND pi.id_value_norm = trapper.norm_email($1)
+        AND pi.id_value_norm = sot.norm_email($1)
         AND pi.confidence >= 0.5
         AND p.merged_into_person_id IS NULL
       LIMIT 1`,
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     // Email doesn't exist - get normalized form anyway
     const normResult = await queryOne<{ normalized: string }>(
-      `SELECT trapper.norm_email($1) as normalized`,
+      `SELECT sot.norm_email($1) as normalized`,
       [email]
     );
 
@@ -111,11 +111,11 @@ export async function POST(request: NextRequest) {
         `SELECT
           p.person_id,
           p.display_name,
-          trapper.norm_email($1) as normalized_email
+          sot.norm_email($1) as normalized_email
         FROM sot.person_identifiers pi
         JOIN sot.people p ON p.person_id = pi.person_id
         WHERE pi.id_type = 'email'
-          AND pi.id_value_norm = trapper.norm_email($1)
+          AND pi.id_value_norm = sot.norm_email($1)
           AND pi.confidence >= 0.5
           AND p.merged_into_person_id IS NULL
         LIMIT 1`,
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const normResult = await queryOne<{ normalized: string }>(
-          `SELECT trapper.norm_email($1) as normalized`,
+          `SELECT sot.norm_email($1) as normalized`,
           [email]
         );
         results.email = {

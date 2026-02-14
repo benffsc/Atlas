@@ -121,7 +121,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE completed_at IS NULL AND processing_started_at IS NOT NULL) as processing,
         COUNT(*) FILTER (WHERE completed_at > NOW() - INTERVAL '24 hours' AND error_message IS NULL) as completed_24h,
         COUNT(*) FILTER (WHERE completed_at > NOW() - INTERVAL '24 hours' AND error_message IS NOT NULL) as errors_24h
-      FROM trapper.extraction_queue
+      FROM ops.extraction_queue
     `);
 
     // Recent extraction jobs

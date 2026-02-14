@@ -51,7 +51,7 @@ export async function GET() {
       current_value: number;
       threshold: number;
     }>(
-      `SELECT * FROM trapper.get_seasonal_alerts()`,
+      `SELECT * FROM ops.get_seasonal_alerts()`,
       []
     );
 

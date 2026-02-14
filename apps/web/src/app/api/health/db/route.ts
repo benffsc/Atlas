@@ -117,7 +117,7 @@ export async function GET() {
     try {
       migrations = await queryRows(`
         SELECT migration_number, migration_name, status
-        FROM trapper.schema_migrations
+        FROM ops.schema_migrations
         ORDER BY migration_number DESC
         LIMIT 10
       `, []);

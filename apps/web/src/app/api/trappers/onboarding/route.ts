@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       onboarding_id: string;
       is_new_person: boolean;
     }>(`
-      SELECT * FROM trapper.create_trapper_interest(
+      SELECT * FROM ops.create_trapper_interest(
         p_first_name := $1,
         p_last_name := $2,
         p_email := $3,

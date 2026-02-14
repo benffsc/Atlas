@@ -36,14 +36,14 @@ export async function GET() {
         COALESCE(stats.active_count, 0) as active_place_count,
         COALESCE(stats.historical_count, 0) as historical_place_count,
         COALESCE(stats.total_count, 0) as total_place_count
-      FROM trapper.disease_types dt
+      FROM ops.disease_types dt
       LEFT JOIN (
         SELECT
           disease_type_key,
           COUNT(*) FILTER (WHERE status IN ('confirmed_active', 'perpetual')) as active_count,
           COUNT(*) FILTER (WHERE status = 'historical') as historical_count,
           COUNT(*) as total_count
-        FROM trapper.place_disease_status
+        FROM ops.place_disease_status
         WHERE status NOT IN ('false_flag', 'cleared')
         GROUP BY disease_type_key
       ) stats ON stats.disease_type_key = dt.disease_key
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
 
     const result = await queryOne(
       `
-      INSERT INTO trapper.disease_types (
+      INSERT INTO ops.disease_types (
         disease_key, display_label, short_code, color,
         decay_window_months, is_contagious, description
       )
@@ -228,7 +228,7 @@ export async function PATCH(request: NextRequest) {
 
     const result = await queryOne(
       `
-      UPDATE trapper.disease_types
+      UPDATE ops.disease_types
       SET ${setClauses.join(", ")}
       WHERE disease_key = $${paramIndex}
       RETURNING *

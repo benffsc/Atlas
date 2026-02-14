@@ -98,7 +98,7 @@ export async function PATCH(
       const country = extractComponent(body.address_components || [], "country") || "US";
 
       const addressResult = await queryOne<{ address_id: string }>(
-        `SELECT trapper.upsert_address_from_google_place($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) AS address_id`,
+        `SELECT sot.upsert_address_from_google_place($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) AS address_id`,
         [
           body.google_place_id,
           body.formatted_address,
@@ -180,7 +180,7 @@ export async function DELETE(
   try {
     // Atomically unlink: ends resident relationship, clears primary_address_id, logs audit
     await query(
-      `SELECT trapper.unlink_person_primary_address($1, $2)`,
+      `SELECT sot.unlink_person_primary_address($1, $2)`,
       [id, "web_user"]
     );
 

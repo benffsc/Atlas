@@ -90,7 +90,7 @@ export async function GET() {
         COUNT(*)::int as total,
         COUNT(*) FILTER (WHERE match_tier = 1)::int as close_similar,
         COUNT(*) FILTER (WHERE match_tier = 2)::int as close_different
-      FROM trapper.place_dedup_candidates
+      FROM sot.place_dedup_candidates
       WHERE status = 'pending'
     `, []);
 
@@ -182,7 +182,7 @@ export async function GET() {
           canonical_address as title,
           distance_meters::int || 'm apart, ' || (address_similarity * 100)::int || '% similar' as subtitle,
           EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 as age_hours
-        FROM trapper.place_dedup_candidates
+        FROM sot.place_dedup_candidates
         WHERE status = 'pending'
       )
       SELECT id, type, title, subtitle, age_hours

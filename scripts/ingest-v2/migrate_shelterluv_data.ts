@@ -117,7 +117,7 @@ async function migrateShelterLuv() {
         deceased_date,
         created_at,
         updated_at
-      FROM trapper.sot_cats
+      FROM sot.cats
       WHERE data_source = 'shelterluv'
         AND merged_into_cat_id IS NULL
       ORDER BY created_at
@@ -132,8 +132,8 @@ async function migrateShelterLuv() {
         ci.id_value,
         ci.source_system,
         ci.created_at
-      FROM trapper.cat_identifiers ci
-      JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id
+      FROM sot.cat_identifiers ci
+      JOIN sot.cats c ON c.cat_id = ci.cat_id
       WHERE c.data_source = 'shelterluv'
         AND c.merged_into_cat_id IS NULL
     `);
@@ -183,7 +183,7 @@ async function migrateShelterLuv() {
         pcr.created_at,
         (
           SELECT LOWER(TRIM(pi.id_value_norm))
-          FROM trapper.person_identifiers pi
+          FROM sot.person_identifiers pi
           WHERE pi.person_id = pcr.person_id
             AND pi.id_type = 'email'
           ORDER BY pi.created_at
@@ -191,14 +191,14 @@ async function migrateShelterLuv() {
         ) as person_email,
         (
           SELECT pi.id_value_norm
-          FROM trapper.person_identifiers pi
+          FROM sot.person_identifiers pi
           WHERE pi.person_id = pcr.person_id
             AND pi.id_type = 'phone'
           ORDER BY pi.created_at
           LIMIT 1
         ) as person_phone
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_cats c ON c.cat_id = pcr.cat_id
+      FROM sot.person_cat pcr
+      JOIN sot.cats c ON c.cat_id = pcr.cat_id
       WHERE c.data_source = 'shelterluv'
         AND c.merged_into_cat_id IS NULL
     `);

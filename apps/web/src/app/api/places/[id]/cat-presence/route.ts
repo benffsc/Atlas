@@ -176,7 +176,7 @@ export async function POST(
 
       try {
         const result = await queryOne<{ update_cat_presence: boolean }>(
-          `SELECT trapper.update_cat_presence($1, $2, $3, $4, $5) AS update_cat_presence`,
+          `SELECT ops.update_cat_presence($1, $2, $3, $4, $5) AS update_cat_presence`,
           [cat_id, placeId, presence_status, departure_reason || null, confirmed_by]
         );
 

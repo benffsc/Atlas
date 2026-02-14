@@ -46,7 +46,7 @@ function buildMediaCrossRefQuery(
     unions.push(`
       SELECT ${MEDIA_COLS}, 'cat'::TEXT AS cross_ref_source
       FROM ops.request_media m
-      JOIN trapper.request_cat_links rcl ON rcl.cat_id = m.cat_id
+      JOIN ops.request_cats rcl ON rcl.cat_id = m.cat_id
       JOIN ops.requests r ON r.request_id = $1
       WHERE rcl.request_id = $1
         AND NOT m.is_archived
@@ -91,7 +91,7 @@ function buildMediaCrossRefQuery(
     unions.push(`
       SELECT ${MEDIA_COLS}, 'request'::TEXT AS cross_ref_source
       FROM ops.request_media m
-      JOIN trapper.request_cat_links rcl ON rcl.request_id = m.request_id
+      JOIN ops.request_cats rcl ON rcl.request_id = m.request_id
       JOIN ops.requests r ON r.request_id = rcl.request_id
       WHERE rcl.cat_id = $1
         AND m.cat_id IS DISTINCT FROM $1

@@ -71,7 +71,7 @@ export async function GET() {
         resolved_at::text,
         resolved_by,
         resolution_notes
-      FROM trapper.cat_duplicate_candidates
+      FROM sot.cat_dedup_candidates
       WHERE resolution = 'merged'
       ORDER BY resolved_at DESC
       LIMIT 5
@@ -85,7 +85,7 @@ export async function GET() {
       SELECT
         likely_cause,
         COUNT(*) as count
-      FROM trapper.cat_duplicate_candidates
+      FROM sot.cat_dedup_candidates
       WHERE resolution = 'pending'
       GROUP BY likely_cause
       ORDER BY count DESC

@@ -283,7 +283,7 @@ export async function POST(
         context_notes: string;
       }>(
         `SELECT place_id::text, formatted_address, match_score, matched_signals, context_notes
-         FROM trapper.match_place_from_report($1, $2, $3)`,
+         FROM ops.match_place_from_report($1, $2, $3)`,
         [site.address, site.resident_name || null, topReporter?.person_id || null]
       );
       const topPlace = placeCandidates[0];
@@ -370,7 +370,7 @@ export async function POST(
             match_score: number;
           }>(
             `SELECT place_id::text, formatted_address, match_score
-             FROM trapper.match_place_from_report($1, $2, $3)`,
+             FROM ops.match_place_from_report($1, $2, $3)`,
             [relatedAddr, null, topReporter?.person_id || null]
           );
 

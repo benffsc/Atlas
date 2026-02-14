@@ -188,7 +188,7 @@ export async function GET(
       FROM sot.v_cat_detail v
       JOIN sot.cats c ON c.cat_id = v.cat_id
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
-      LEFT JOIN trapper.atlas_cat_id_registry r ON r.cat_id = c.cat_id
+      LEFT JOIN ops.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE v.cat_id = $1
     `;
 
@@ -226,7 +226,7 @@ export async function GET(
         r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
       FROM sot.cats c
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
-      LEFT JOIN trapper.atlas_cat_id_registry r ON r.cat_id = c.cat_id
+      LEFT JOIN ops.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE c.cat_id = $1
     `;
 
@@ -308,7 +308,7 @@ export async function GET(
         diagnosed_at::TEXT,
         resolved_at::TEXT,
         is_chronic
-      FROM trapper.cat_conditions
+      FROM ops.cat_conditions
       WHERE cat_id = $1
       ORDER BY diagnosed_at DESC
     `;
@@ -483,7 +483,7 @@ export async function GET(
         me.movement_type,
         me.source_type,
         me.notes
-      FROM trapper.cat_movement_events me
+      FROM sot.cat_movement_events me
       LEFT JOIN sot.places fp ON fp.place_id = me.from_place_id
       JOIN sot.places tp ON tp.place_id = me.to_place_id
       WHERE me.cat_id = $1
@@ -514,7 +514,7 @@ export async function GET(
         MIN(a.appointment_date)::TEXT as first_seen,
         COUNT(*)::INT as appointment_count
       FROM ops.appointments a
-      JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
       GROUP BY po.org_id, po.org_name, po.org_name_short
       ORDER BY first_seen
@@ -539,7 +539,7 @@ export async function GET(
       LEFT JOIN sot.person_place_relationships ppr ON ppr.person_id = a.person_id
       LEFT JOIN sot.places pl ON pl.place_id = ppr.place_id
       LEFT JOIN sot.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
-      LEFT JOIN trapper.partner_organizations po ON po.org_id = a.partner_org_id
+      LEFT JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
       ORDER BY a.appointment_date DESC
     `;

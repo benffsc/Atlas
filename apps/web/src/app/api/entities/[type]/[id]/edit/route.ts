@@ -176,7 +176,7 @@ export async function PATCH(
 
         // Log the edit
         const logResult = await tx.queryOne<{ edit_id: string }>(`
-          SELECT trapper.log_field_edit(
+          SELECT ops.log_field_edit(
             $1, $2, $3, $4, $5, $6, $7, $8, 'web_ui'
           ) as edit_id
         `, [

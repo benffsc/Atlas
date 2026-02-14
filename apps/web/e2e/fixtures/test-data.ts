@@ -109,19 +109,19 @@ export const createTestJournalEntry = (overrides = {}) => ({
 
 // Cleanup query - removes all test records
 export const CLEANUP_QUERIES = [
-  `DELETE FROM trapper.journal_entries WHERE created_by = 'e2e_test' OR body LIKE 'e2e-test-%'`,
-  `DELETE FROM trapper.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'`,
-  `DELETE FROM trapper.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'`,
-  `DELETE FROM trapper.sot_requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%'`,
-  `DELETE FROM trapper.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%'`,
-  `DELETE FROM trapper.sot_people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%'`,
-  `DELETE FROM trapper.sot_cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%'`,
+  `DELETE FROM ops.journal_entries WHERE created_by = 'e2e_test' OR body LIKE 'e2e-test-%'`,
+  `DELETE FROM ops.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'`,
+  `DELETE FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'`,
+  `DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%'`,
+  `DELETE FROM sot.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%'`,
+  `DELETE FROM sot.people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%'`,
+  `DELETE FROM sot.cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%'`,
 ];
 
 // SQL to identify test records (for verification)
 export const COUNT_TEST_RECORDS = `
   SELECT
-    (SELECT COUNT(*) FROM trapper.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%') as test_submissions,
-    (SELECT COUNT(*) FROM trapper.sot_requests WHERE source_system = 'e2e_test') as test_requests,
-    (SELECT COUNT(*) FROM trapper.places WHERE source_system = 'e2e_test') as test_places
+    (SELECT COUNT(*) FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%') as test_submissions,
+    (SELECT COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test') as test_requests,
+    (SELECT COUNT(*) FROM sot.places WHERE source_system = 'e2e_test') as test_places
 `;

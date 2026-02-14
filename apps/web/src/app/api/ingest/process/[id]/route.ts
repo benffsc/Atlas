@@ -980,7 +980,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // automatically linked to any active request at their place
     await saveProgress('Linking cats to requests...');
     const catRequestLinks = await query(`
-      INSERT INTO trapper.request_cat_links (request_id, cat_id, link_purpose, link_notes, linked_by)
+      INSERT INTO ops.request_cats (request_id, cat_id, link_purpose, link_notes, linked_by)
       SELECT DISTINCT
         r.request_id,
         a.cat_id,
@@ -1008,7 +1008,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         -- Only link new appointments (not historical backfill)
         AND a.appointment_date >= CURRENT_DATE - INTERVAL '30 days'
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.request_cat_links rcl
+          SELECT 1 FROM ops.request_cats rcl
           WHERE rcl.request_id = r.request_id AND rcl.cat_id = a.cat_id
         )
       ON CONFLICT (request_id, cat_id) DO NOTHING

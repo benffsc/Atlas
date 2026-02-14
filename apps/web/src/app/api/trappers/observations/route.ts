@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
           r.status AS request_status,
           r.notes AS request_notes,
           rta.assigned_at
-        FROM trapper.request_trapper_assignments rta
+        FROM ops.request_trapper_assignments rta
         JOIN ops.requests r ON r.request_id = rta.request_id
         JOIN sot.places p ON p.place_id = r.place_id
         WHERE rta.assignment_status = 'active'

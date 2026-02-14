@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
         eq.entity_type,
         eq.entity_id,
         eq.trigger_reason
-      FROM trapper.extraction_queue eq
+      FROM ops.extraction_queue eq
       WHERE eq.completed_at IS NULL
         AND eq.processing_started_at IS NULL
       ORDER BY eq.priority, eq.queued_at
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     if (queueResult.rows.length > 0) {
       const queueIds = queueResult.rows.map(r => r.queue_id);
       await execute(`
-        UPDATE trapper.extraction_queue
+        UPDATE ops.extraction_queue
         SET processing_started_at = NOW()
         WHERE queue_id = ANY($1)
       `, [queueIds]);
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
 
         // Mark complete
         await execute(`
-          UPDATE trapper.extraction_queue
+          UPDATE ops.extraction_queue
           SET completed_at = NOW()
           WHERE queue_id = $1
         `, [queueItem.queue_id]);
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
 
         // Mark with error
         await execute(`
-          UPDATE trapper.extraction_queue
+          UPDATE ops.extraction_queue
           SET error_message = $2, completed_at = NOW()
           WHERE queue_id = $1
         `, [queueItem.queue_id, errorMsg]);

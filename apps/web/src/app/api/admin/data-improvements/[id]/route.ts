@@ -29,10 +29,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- Get linked tippy feedback if source is tippy_feedback
         CASE WHEN di.source = 'tippy_feedback' THEN (
           SELECT row_to_json(tf.*)
-          FROM trapper.tippy_feedback tf
+          FROM ops.tippy_feedback tf
           WHERE tf.feedback_id = di.source_reference_id
         ) END as source_feedback
-      FROM trapper.data_improvements di
+      FROM ops.data_improvements di
       LEFT JOIN ops.staff a ON a.staff_id = di.assigned_to
       LEFT JOIN ops.staff rb ON rb.staff_id = di.resolved_by
       WHERE di.improvement_id = $1
@@ -142,7 +142,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const result = await queryOne(
       `
-      UPDATE trapper.data_improvements
+      UPDATE ops.data_improvements
       SET ${updates.join(", ")}
       WHERE improvement_id = $${paramIndex}
       RETURNING

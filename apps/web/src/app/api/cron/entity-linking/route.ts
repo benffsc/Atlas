@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         clinic_date: string;
         entries_matched: number;
         match_method: string;
-      }>("SELECT * FROM trapper.retry_unmatched_master_list_entries()");
+      }>("SELECT * FROM ops.retry_unmatched_master_list_entries()");
       if (retryMatches.length > 0) {
         catchup.master_list_retry = retryMatches;
       }

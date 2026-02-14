@@ -26,7 +26,7 @@ export async function POST() {
       SELECT field_id, field_key, field_label, field_type, options,
              COALESCE(airtable_field_name, field_label) as airtable_field_name,
              airtable_synced_at
-      FROM trapper.intake_custom_fields
+      FROM ops.intake_custom_fields
       WHERE is_active = TRUE
     `);
 
@@ -61,7 +61,7 @@ export async function POST() {
         } else {
           // Update synced timestamp in database
           await execute(`
-            UPDATE trapper.intake_custom_fields
+            UPDATE ops.intake_custom_fields
             SET airtable_synced_at = NOW(), airtable_field_name = $1
             WHERE field_id = $2
           `, [airtableName, field.field_id]);
@@ -110,7 +110,7 @@ export async function GET() {
       SELECT field_id, field_key, field_label, field_type, options,
              COALESCE(airtable_field_name, field_label) as airtable_field_name,
              airtable_synced_at
-      FROM trapper.intake_custom_fields
+      FROM ops.intake_custom_fields
       WHERE is_active = TRUE
     `);
 

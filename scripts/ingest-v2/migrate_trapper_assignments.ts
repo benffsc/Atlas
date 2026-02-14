@@ -17,7 +17,7 @@ async function main() {
       assignment_id, request_id, trapper_person_id, is_primary,
       assigned_at, unassigned_at, assignment_reason, unassignment_reason,
       source_system, source_record_id, created_at, created_by
-    FROM trapper.request_trapper_assignments
+    FROM ops.request_trapper_assignments
   `);
   
   console.log(`Found ${v1Assignments.rows.length} assignments in V1`);
@@ -38,7 +38,7 @@ async function main() {
     if (personCheck.rows.length === 0) {
       // Try to match by email from V1
       const v1PersonEmail = await v1Pool.query(`
-        SELECT pi.id_value_norm FROM trapper.person_identifiers pi
+        SELECT pi.id_value_norm FROM sot.person_identifiers pi
         WHERE pi.person_id = $1 AND pi.id_type = 'email' LIMIT 1
       `, [a.trapper_person_id]);
       

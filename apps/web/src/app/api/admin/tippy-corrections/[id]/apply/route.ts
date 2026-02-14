@@ -22,7 +22,7 @@ export async function POST(
       error?: string;
       manual_required?: boolean;
     }>(
-      `SELECT * FROM trapper.tippy_apply_correction($1, $2)`,
+      `SELECT * FROM ops.tippy_apply_correction($1, $2)`,
       [id, session.staff_id]
     );
 

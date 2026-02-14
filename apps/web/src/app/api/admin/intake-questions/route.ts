@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
           ) FILTER (WHERE o.option_id IS NOT NULL),
           '[]'::jsonb
         ) as options
-      FROM trapper.intake_questions q
-      LEFT JOIN trapper.intake_question_options o ON o.question_id = q.question_id
+      FROM ops.intake_questions q
+      LEFT JOIN ops.intake_question_options o ON o.question_id = q.question_id
       WHERE ($1::text IS NULL OR q.step_name = $1)
         AND ($2::boolean OR q.is_active = TRUE)
       GROUP BY q.question_id
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     // Create the question
     const question = await queryOne<{ question_id: string }>(`
-      INSERT INTO trapper.intake_questions (
+      INSERT INTO ops.intake_questions (
         question_key, question_type, question_text, help_text,
         is_required, display_order, step_name, show_condition, is_custom
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < options.length; i++) {
         const opt = options[i];
         await execute(`
-          INSERT INTO trapper.intake_question_options (
+          INSERT INTO ops.intake_question_options (
             question_id, option_value, option_label, option_description, display_order
           ) VALUES ($1, $2, $3, $4, $5)
         `, [question.question_id, opt.value, opt.label, opt.description || null, i + 1]);
@@ -147,7 +147,7 @@ export async function PUT(request: NextRequest) {
 
     // Update question
     await execute(`
-      UPDATE trapper.intake_questions
+      UPDATE ops.intake_questions
       SET
         question_text = COALESCE($2, question_text),
         help_text = COALESCE($3, help_text),
@@ -163,7 +163,7 @@ export async function PUT(request: NextRequest) {
         if (opt.option_id) {
           // Update existing option
           await execute(`
-            UPDATE trapper.intake_question_options
+            UPDATE ops.intake_question_options
             SET
               option_label = COALESCE($2, option_label),
               option_description = COALESCE($3, option_description),
@@ -174,7 +174,7 @@ export async function PUT(request: NextRequest) {
         } else if (opt.value && opt.label) {
           // Add new option
           await execute(`
-            INSERT INTO trapper.intake_question_options (
+            INSERT INTO ops.intake_question_options (
               question_id, option_value, option_label, option_description, display_order
             ) VALUES ($1, $2, $3, $4, $5)
           `, [question_id, opt.value, opt.label, opt.description || null, opt.displayOrder || 999]);
@@ -201,7 +201,7 @@ export async function DELETE(request: NextRequest) {
   try {
     // Only delete custom questions
     const result = await execute(`
-      DELETE FROM trapper.intake_questions
+      DELETE FROM ops.intake_questions
       WHERE question_id = $1 AND is_custom = TRUE
     `, [question_id]);
 

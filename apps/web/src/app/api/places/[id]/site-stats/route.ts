@@ -29,7 +29,7 @@ export async function GET(
   try {
     // Use the SQL function to get site stats
     const stats = await queryOne<SiteStats>(`
-      SELECT * FROM trapper.get_site_stats_for_place($1::uuid)
+      SELECT * FROM ops.get_site_stats_for_place($1::uuid)
     `, [id]);
 
     if (!stats) {

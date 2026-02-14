@@ -27,7 +27,7 @@ export async function GET() {
         max_value,
         updated_at,
         updated_by
-      FROM trapper.ecology_config
+      FROM ops.ecology_config
       WHERE is_active = TRUE
       ORDER BY config_key
     `;
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // Use the update function which handles validation and audit
     const sql = `
-      SELECT * FROM trapper.update_ecology_config(
+      SELECT * FROM ops.update_ecology_config(
         $1,
         $2,
         $3,

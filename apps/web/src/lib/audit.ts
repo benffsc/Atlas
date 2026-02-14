@@ -40,7 +40,7 @@ export async function logFieldEdit(
 
   try {
     const result = await query<{ log_field_edit: string }>(
-      `SELECT trapper.log_field_edit($1, $2::uuid, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9) as log_field_edit`,
+      `SELECT ops.log_field_edit($1, $2::uuid, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9) as log_field_edit`,
       [
         entityType,
         entityId,

@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         FROM ops.requests r
         LEFT JOIN sot.people p_req ON p_req.person_id = r.requester_person_id
         LEFT JOIN sot.places pl ON pl.place_id = r.place_id
-        LEFT JOIN trapper.request_trapper_assignments rta ON rta.request_id = r.request_id AND rta.is_current = TRUE
+        LEFT JOIN ops.request_trapper_assignments rta ON rta.request_id = r.request_id AND rta.is_current = TRUE
         LEFT JOIN sot.people p_trap ON p_trap.person_id = rta.trapper_person_id
         WHERE r.ready_to_email = TRUE
           AND r.email_batch_id IS NULL
@@ -126,8 +126,8 @@ export async function GET(request: NextRequest) {
         oa.email AS from_email,
         s.display_name AS created_by_name,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.email_batch_id = eb.batch_id) AS request_count
-      FROM trapper.email_batches eb
-      LEFT JOIN trapper.outlook_email_accounts oa ON oa.account_id = eb.outlook_account_id
+      FROM ops.email_batches eb
+      LEFT JOIN ops.outlook_email_accounts oa ON oa.account_id = eb.outlook_account_id
       LEFT JOIN ops.staff s ON s.staff_id = eb.created_by
       ${whereClause}
       ORDER BY eb.created_at DESC
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE status = 'draft') AS draft,
         COUNT(*) FILTER (WHERE status = 'sent') AS sent,
         COUNT(*) FILTER (WHERE status = 'failed') AS failed
-      FROM trapper.email_batches
+      FROM ops.email_batches
     `);
 
     return NextResponse.json({
@@ -237,14 +237,14 @@ export async function POST(request: NextRequest) {
     let finalOutlookAccountId = outlook_account_id;
     if (!finalOutlookAccountId) {
       const category = await queryOne<{ default_outlook_account_id: string | null }>(`
-        SELECT default_outlook_account_id FROM trapper.email_categories WHERE category_key = 'trapper'
+        SELECT default_outlook_account_id FROM ops.email_categories WHERE category_key = 'trapper'
       `);
       finalOutlookAccountId = category?.default_outlook_account_id;
     }
 
     // Create the batch
     const result = await queryOne<{ batch_id: string }>(`
-      INSERT INTO trapper.email_batches (
+      INSERT INTO ops.email_batches (
         batch_type, recipient_email, recipient_name, recipient_person_id,
         outlook_account_id, subject, body_html, status, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8)

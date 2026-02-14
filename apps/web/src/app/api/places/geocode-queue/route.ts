@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Get places from queue
     const queue = await queryRows<QueuedPlace>(
-      "SELECT * FROM trapper.get_geocoding_queue($1)",
+      "SELECT * FROM ops.get_geocoding_queue($1)",
       [limit]
     );
 
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
           // Record success - pass Google's canonical address for dedup
           await queryOne(
-            "SELECT trapper.record_geocoding_result($1, TRUE, $2, $3, NULL, $4)",
+            "SELECT ops.record_geocoding_result($1, TRUE, $2, $3, NULL, $4)",
             [place.place_id, lat, lng, googleFormattedAddress]
           );
 
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
             : data.error_message || data.status || "Unknown error";
 
           await queryOne(
-            "SELECT trapper.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
+            "SELECT ops.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
             [place.place_id, error]
           );
 
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
         const error = err instanceof Error ? err.message : "Request failed";
 
         await queryOne(
-          "SELECT trapper.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
+          "SELECT ops.record_geocoding_result($1, FALSE, NULL, NULL, $2)",
           [place.place_id, error]
         );
 

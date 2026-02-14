@@ -2864,7 +2864,7 @@ async function logDataDiscrepancy(
     });
 
     await queryOne(
-      `INSERT INTO trapper.data_improvements (
+      `INSERT INTO ops.data_improvements (
         title,
         description,
         entity_type,
@@ -2949,7 +2949,7 @@ async function logSiteObservation(
     });
 
     await queryOne(
-      `INSERT INTO trapper.data_improvements (
+      `INSERT INTO ops.data_improvements (
         title,
         description,
         category,
@@ -3026,7 +3026,7 @@ async function queryPersonCatRelationships(
   }
 
   const results = await queryRows<RelationshipResult>(
-    `SELECT * FROM trapper.query_person_cat_history($1, $2, $3)`,
+    `SELECT * FROM ops.query_person_cat_history($1, $2, $3)`,
     [personName || null, personEmail || null, relationshipType || null]
   );
 
@@ -3869,7 +3869,7 @@ async function sendStaffMessage(
       error?: string;
     };
   }>(
-    `SELECT trapper.send_staff_message(
+    `SELECT ops.send_staff_message(
       $1, $2, $3, $4, $5, $6, $7, $8, 'tippy', $9
     ) as result`,
     [
@@ -4081,7 +4081,7 @@ async function findPotentialDuplicates(
   identifier: string
 ): Promise<ToolResult> {
   const results = await queryRows(
-    `SELECT * FROM trapper.find_potential_duplicates($1, $2)`,
+    `SELECT * FROM ops.find_potential_duplicates($1, $2)`,
     [entityType, identifier]
   );
 
@@ -4115,7 +4115,7 @@ async function queryMergeHistory(
   entityId: string
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.query_merge_history($1, $2::uuid) as result`,
+    `SELECT ops.query_merge_history($1, $2::uuid) as result`,
     [entityType, entityId]
   );
 
@@ -4144,7 +4144,7 @@ async function queryDataLineage(
   entityId: string
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.query_data_lineage($1, $2::uuid) as result`,
+    `SELECT ops.query_data_lineage($1, $2::uuid) as result`,
     [entityType, entityId]
   );
 
@@ -4715,7 +4715,7 @@ async function discoverViews(
 
   try {
     const results = await queryRows<ViewRecord>(
-      `SELECT * FROM trapper.tippy_discover_schema($1, $2)`,
+      `SELECT * FROM ops.tippy_discover_schema($1, $2)`,
       [category || null, search || null]
     );
 
@@ -4788,7 +4788,7 @@ async function queryViewDynamic(
       data: unknown[];
       error?: string;
     }>(
-      `SELECT * FROM trapper.tippy_query_view($1, $2, $3, $4)`,
+      `SELECT * FROM ops.tippy_query_view($1, $2, $3, $4)`,
       [viewName, JSON.stringify(filters || []), Math.min(limit || 50, 200), columns || null]
     );
 
@@ -4902,7 +4902,7 @@ async function exploreEntity(
     if (includeLineage) {
       try {
         const lineage = await queryRows(
-          `SELECT * FROM trapper.query_data_lineage($1, $2)`,
+          `SELECT * FROM ops.query_data_lineage($1, $2)`,
           [entityType, entityId]
         );
         exploration.lineage = lineage;
@@ -4954,7 +4954,7 @@ async function exploreEntity(
     if (includeMergeHistory) {
       try {
         const merges = await queryRows(
-          `SELECT * FROM trapper.query_merge_history($1, $2)`,
+          `SELECT * FROM ops.query_merge_history($1, $2)`,
           [entityType, entityId]
         );
         exploration.merge_history = merges;
@@ -5000,7 +5000,7 @@ async function proposeDataCorrection(
 ): Promise<ToolResult> {
   try {
     const correctionId = await queryOne<{ tippy_propose_correction: string }>(
-      `SELECT trapper.tippy_propose_correction(
+      `SELECT ops.tippy_propose_correction(
         $1, $2::uuid, $3, $4::jsonb, $5::jsonb, $6, $7::jsonb, $8, $9, $10::uuid
       )`,
       [
@@ -5051,7 +5051,7 @@ async function logUnanswerable(
 ): Promise<ToolResult> {
   try {
     await queryOne(
-      `SELECT trapper.tippy_log_unanswerable($1, $2, $3, $4, NULL, $5::uuid, $6::uuid)`,
+      `SELECT ops.tippy_log_unanswerable($1, $2, $3, $4, NULL, $5::uuid, $6::uuid)`,
       [
         questionText,
         reason,
@@ -5167,7 +5167,7 @@ async function createDraftRequest(
       draft_id: string;
       expires_at: string;
     }>(
-      `INSERT INTO trapper.tippy_draft_requests (
+      `INSERT INTO ops.tippy_draft_requests (
         created_by_staff_id,
         conversation_id,
         raw_address,

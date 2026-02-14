@@ -56,7 +56,7 @@ async function migrateCoordinates() {
         ST_X(location::geometry) as lng,
         formatted_address,
         normalized_address
-      FROM trapper.places
+      FROM sot.places
       WHERE location IS NOT NULL
         AND merged_into_place_id IS NULL
         AND normalized_address IS NOT NULL
@@ -194,7 +194,7 @@ async function migrateCoordinates() {
 
     // Check map view
     console.log("\n6. Checking map view...");
-    const mapPins = await v2.query(`SELECT COUNT(*) as cnt FROM trapper.v_map_atlas_pins`);
+    const mapPins = await v2.query(`SELECT COUNT(*) as cnt FROM sot.v_map_atlas_pins`);
     console.log(`   Map pins available: ${mapPins.rows[0].cnt}`);
 
     console.log("\n" + "=".repeat(60));

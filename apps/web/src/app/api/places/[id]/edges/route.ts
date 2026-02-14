@@ -59,8 +59,8 @@ export async function GET(
           WHEN e.place_id_a = $1 THEN pb.display_name
           ELSE pa.display_name
         END AS related_place_name
-      FROM trapper.place_place_edges e
-      JOIN trapper.relationship_types rt ON rt.id = e.relationship_type_id
+      FROM sot.place_place_edges e
+      JOIN ops.relationship_types rt ON rt.id = e.relationship_type_id
       LEFT JOIN sot.places pa ON pa.place_id = e.place_id_a
       LEFT JOIN sot.places pb ON pb.place_id = e.place_id_b
       WHERE e.place_id_a = $1 OR e.place_id_b = $1
@@ -70,7 +70,7 @@ export async function GET(
     // Get available relationship types
     const relationshipTypes = await queryRows<RelationshipType>(`
       SELECT id::text, code, label, description
-      FROM trapper.relationship_types
+      FROM ops.relationship_types
       WHERE domain = 'place_place'
         AND active = true
       ORDER BY sort_order, label
@@ -129,7 +129,7 @@ export async function POST(
   try {
     // Get relationship type ID
     const relType = await queryOne<{ id: string }>(`
-      SELECT id::text FROM trapper.relationship_types
+      SELECT id::text FROM ops.relationship_types
       WHERE code = $1 AND domain = 'place_place'
     `, [body.relationship_type]);
 
@@ -142,7 +142,7 @@ export async function POST(
 
     // Check if edge already exists (in either direction)
     const existing = await queryOne<{ edge_id: string }>(`
-      SELECT edge_id FROM trapper.place_place_edges
+      SELECT edge_id FROM sot.place_place_edges
       WHERE (place_id_a = $1 AND place_id_b = $2)
          OR (place_id_a = $2 AND place_id_b = $1)
     `, [id, body.related_place_id]);
@@ -156,7 +156,7 @@ export async function POST(
 
     // Create the edge
     const result = await queryOne<PlaceEdge>(`
-      INSERT INTO trapper.place_place_edges (
+      INSERT INTO sot.place_place_edges (
         place_id_a,
         place_id_b,
         relationship_type_id,
@@ -230,8 +230,8 @@ export async function DELETE(
       relationship_code: string;
     }>(`
       SELECT e.edge_id, e.place_id_a, e.place_id_b, rt.code AS relationship_code
-      FROM trapper.place_place_edges e
-      JOIN trapper.relationship_types rt ON rt.id = e.relationship_type_id
+      FROM sot.place_place_edges e
+      JOIN ops.relationship_types rt ON rt.id = e.relationship_type_id
       WHERE e.edge_id = $1
         AND (e.place_id_a = $2 OR e.place_id_b = $2)
     `, [body.edge_id, id]);
@@ -245,7 +245,7 @@ export async function DELETE(
 
     // Delete the edge
     await queryOne(`
-      DELETE FROM trapper.place_place_edges
+      DELETE FROM sot.place_place_edges
       WHERE edge_id = $1
     `, [body.edge_id]);
 

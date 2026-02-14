@@ -242,7 +242,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       await queryOne(
-        `SELECT trapper.update_trapper_status($1, $2, $3, $4)`,
+        `SELECT ops.update_trapper_status($1, $2, $3, $4)`,
         [person_id, value, reason || null, "staff"]
       );
     } else if (action === "type") {

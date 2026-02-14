@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         FROM ops.requests r
         WHERE r.status NOT IN ('completed', 'cancelled')
           AND ($1::uuid IS NOT NULL AND EXISTS (
-            SELECT 1 FROM trapper.request_trapper_assignments rta
+            SELECT 1 FROM ops.request_trapper_assignments rta
             WHERE rta.request_id = r.request_id
               AND rta.trapper_person_id = $1::uuid
               AND rta.status = 'active'
@@ -76,12 +76,12 @@ export async function GET(request: NextRequest) {
       ),
       person_dedup AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.potential_person_duplicates
+        FROM sot.person_dedup_candidates
         WHERE status = 'pending'
       ),
       place_dedup AS (
         SELECT COUNT(*)::int AS cnt
-        FROM trapper.place_dedup_candidates
+        FROM sot.place_dedup_candidates
         WHERE status = 'pending'
       )
       SELECT

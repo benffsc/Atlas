@@ -35,7 +35,7 @@ async function migrate() {
     const v1Groups = await v1.query(`
       SELECT user_group_uid, name, description, parent_user_group_uid,
              atlas_role, atlas_trapper_type, is_approved_parent, synced_at, created_at
-      FROM trapper.volunteerhub_user_groups
+      FROM source.volunteerhub_user_groups
     `);
 
     let groupsInserted = 0;
@@ -100,7 +100,7 @@ async function migrate() {
              how_heard, volunteer_motivation, emergency_contact_raw,
              can_drive, date_of_birth, volunteer_experience, is_active,
              event_count, last_login_at, username, waiver_status, match_locked
-      FROM trapper.volunteerhub_volunteers
+      FROM source.volunteerhub_volunteers
     `);
 
     let volunteersInserted = 0;
@@ -179,7 +179,7 @@ async function migrate() {
 
     const v1Memberships = await v1.query(`
       SELECT membership_id, volunteerhub_id, user_group_uid, joined_at, left_at, source, created_at, updated_at
-      FROM trapper.volunteerhub_group_memberships
+      FROM source.volunteerhub_group_memberships
     `);
 
     let membershipsInserted = 0;

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Get the source template
     const template = await queryOne<EmailTemplate>(`
-      SELECT * FROM trapper.email_templates WHERE template_id = $1
+      SELECT * FROM ops.email_templates WHERE template_id = $1
     `, [template_id]);
 
     if (!template) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     // Check if translation already exists
     const existingKey = `${template.template_key.replace(/_en$/, "")}_${target_language}`;
     const existing = await queryOne<{ template_id: string }>(`
-      SELECT template_id FROM trapper.email_templates WHERE template_key = $1
+      SELECT template_id FROM ops.email_templates WHERE template_key = $1
     `, [existingKey]);
 
     if (existing && !preview_only) {
@@ -144,7 +144,7 @@ Respond in this exact JSON format:
     const newDescription = `${targetLanguageName} translation of ${template.template_key}`;
 
     const result = await queryOne<{ template_id: string }>(`
-      INSERT INTO trapper.email_templates (
+      INSERT INTO ops.email_templates (
         template_key, name, description, subject, body_html, body_text,
         placeholders, category_key, language, is_active
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)

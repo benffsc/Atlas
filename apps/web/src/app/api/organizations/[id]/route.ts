@@ -91,7 +91,7 @@ export async function GET(
         s.role AS staff_role,
         s.department AS staff_department,
         pol.created_at
-      FROM trapper.person_organization_link pol
+      FROM ops.partner_organizations pol
       JOIN sot.people p ON p.person_id = pol.person_id
       LEFT JOIN ops.staff s ON s.person_id = pol.person_id AND s.is_active = true
       WHERE pol.org_id = $1
@@ -109,7 +109,7 @@ export async function GET(
         c.sex,
         ci.id_value AS microchip,
         cor.created_at
-      FROM trapper.cat_organization_relationships cor
+      FROM ops.partner_organizations cor
       JOIN sot.cats c ON c.cat_id = cor.cat_id
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
       WHERE cor.org_id = $1
@@ -129,12 +129,12 @@ export async function GET(
       FROM sot.organizations o
       LEFT JOIN (
         SELECT org_id, COUNT(*) as count
-        FROM trapper.person_organization_link
+        FROM ops.partner_organizations
         GROUP BY org_id
       ) members ON members.org_id = o.org_id
       LEFT JOIN (
         SELECT org_id, COUNT(*) as count
-        FROM trapper.cat_organization_relationships
+        FROM ops.partner_organizations
         GROUP BY org_id
       ) cats ON cats.org_id = o.org_id
       WHERE o.parent_org_id = $1
@@ -144,7 +144,7 @@ export async function GET(
     // Get total cat count for org (cats may exceed limit)
     const catCount = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::int AS count
-      FROM trapper.cat_organization_relationships
+      FROM ops.partner_organizations
       WHERE org_id = $1
     `, [org.org_id]);
 

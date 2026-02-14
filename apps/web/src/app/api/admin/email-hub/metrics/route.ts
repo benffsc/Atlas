@@ -40,14 +40,14 @@ export async function GET(request: NextRequest) {
       emails_failed_30d,
       total_30d,
     ] = await Promise.all([
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.outlook_email_accounts WHERE is_active = TRUE`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_templates WHERE is_active = TRUE`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_jobs WHERE status IN ('draft', 'queued')`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_batches WHERE status = 'draft'`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.email_template_suggestions WHERE status = 'pending'`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.sent_emails WHERE status = 'sent' AND sent_at > NOW() - INTERVAL '30 days'`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.sent_emails WHERE status = 'failed' AND created_at > NOW() - INTERVAL '30 days'`),
-      safeCount(`SELECT COUNT(*)::INT as count FROM trapper.sent_emails WHERE created_at > NOW() - INTERVAL '30 days'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.outlook_email_accounts WHERE is_active = TRUE`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.email_templates WHERE is_active = TRUE`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.email_jobs WHERE status IN ('draft', 'queued')`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.email_batches WHERE status = 'draft'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.email_template_suggestions WHERE status = 'pending'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.sent_emails WHERE status = 'sent' AND sent_at > NOW() - INTERVAL '30 days'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.sent_emails WHERE status = 'failed' AND created_at > NOW() - INTERVAL '30 days'`),
+      safeCount(`SELECT COUNT(*)::INT as count FROM ops.sent_emails WHERE created_at > NOW() - INTERVAL '30 days'`),
     ]);
 
     const success_rate_30d = total_30d === 0 ? 100 : Math.round((emails_sent_30d / total_30d) * 1000) / 10;

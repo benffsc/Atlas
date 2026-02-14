@@ -57,7 +57,7 @@ export async function GET(
         r.recorded_at,
         r.confirmed_by,
         r.confirmed_at
-      FROM trapper.cat_reunifications r
+      FROM sot.cat_reunifications r
       LEFT JOIN sot.people p1 ON p1.person_id = r.original_owner_person_id
       LEFT JOIN sot.people p2 ON p2.person_id = r.current_caretaker_person_id
       LEFT JOIN sot.places pl1 ON pl1.place_id = r.original_place_id
@@ -111,7 +111,7 @@ export async function POST(
     } = body;
 
     const result = await queryOne<{ reunification_id: string }>(
-      `INSERT INTO trapper.cat_reunifications (
+      `INSERT INTO sot.cat_reunifications (
         cat_id,
         original_owner_person_id,
         current_caretaker_person_id,
@@ -210,7 +210,7 @@ export async function PATCH(
     values.push(id);
 
     await query(
-      `UPDATE trapper.cat_reunifications
+      `UPDATE sot.cat_reunifications
        SET ${updates.join(", ")}
        WHERE reunification_id = $${paramIndex}
          AND cat_id = $${paramIndex + 1}`,

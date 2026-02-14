@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const scores = await queryRows<SourceConfidence>(
       `SELECT source_system, confidence_score, description
-       FROM trapper.source_confidence
+       FROM ops.source_confidence
        ORDER BY confidence_score DESC`
     );
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Upsert the score
     await queryOne(
-      `INSERT INTO trapper.source_confidence (source_system, confidence_score, description)
+      `INSERT INTO ops.source_confidence (source_system, confidence_score, description)
        VALUES ($1, $2, $3)
        ON CONFLICT (source_system) DO UPDATE SET
          confidence_score = $2,
@@ -100,7 +100,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await queryOne(
-      `DELETE FROM trapper.source_confidence WHERE source_system = $1`,
+      `DELETE FROM ops.source_confidence WHERE source_system = $1`,
       [source_system]
     );
 

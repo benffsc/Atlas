@@ -94,7 +94,7 @@ async function findV2PersonId(v1PersonId: string): Promise<string | null> {
   // Get V1 person's email and phone
   const v1Person = await v1Query<{ primary_email: string | null; primary_phone: string | null }>(`
     SELECT primary_email, primary_phone
-    FROM trapper.sot_people
+    FROM sot.people
     WHERE person_id = $1
   `, [v1PersonId]);
 
@@ -147,7 +147,7 @@ async function findV2PlaceId(v1PlaceId: string): Promise<string | null> {
   // Get V1 place's address
   const v1Place = await v1Query<{ formatted_address: string | null }>(`
     SELECT formatted_address
-    FROM trapper.places
+    FROM sot.places
     WHERE place_id = $1
   `, [v1PlaceId]);
 
@@ -204,7 +204,7 @@ async function migrateRequests(stats: Stats, dryRun: boolean): Promise<void> {
       place_id, requester_person_id, assignment_status, no_trapper_reason,
       resolved_at, last_activity_at,
       source_system, source_record_id, created_at, updated_at, source_created_at
-    FROM trapper.sot_requests
+    FROM ops.requests
     ORDER BY created_at
   `);
 
@@ -355,7 +355,7 @@ async function migrateIntakes(stats: Stats, dryRun: boolean): Promise<void> {
       triage_category, triage_score, triage_reasons, triage_computed_at,
       reviewed_by, reviewed_at, review_notes, final_category,
       matched_person_id, matched_place_id, created_request_id, status, created_at
-    FROM trapper.web_intake_submissions
+    FROM ops.web_intake_submissions
     ORDER BY submitted_at
   `);
 
@@ -464,7 +464,7 @@ async function migrateJournals(stats: Stats, dryRun: boolean): Promise<void> {
       id, entry_kind, title, body,
       primary_place_id, primary_request_id, primary_person_id,
       occurred_at, created_by_staff_id, created_at, updated_at
-    FROM trapper.journal_entries
+    FROM ops.journal_entries
     ORDER BY created_at
   `);
 
@@ -540,7 +540,7 @@ async function main() {
   // Test connections
   console.log("Testing database connections...");
   try {
-    const v1Test = await v1Query<{ count: string }>("SELECT COUNT(*) as count FROM trapper.sot_requests");
+    const v1Test = await v1Query<{ count: string }>("SELECT COUNT(*) as count FROM ops.requests");
     console.log(`  V1 (East): Connected - ${v1Test[0].count} requests`);
 
     const v2Test = await v2Query<{ count: string }>("SELECT COUNT(*) as count FROM ops.requests");

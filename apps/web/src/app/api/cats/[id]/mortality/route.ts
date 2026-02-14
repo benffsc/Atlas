@@ -180,7 +180,7 @@ export async function POST(
     // Call the register_mortality_event function
     const result = await queryOne<RegisterMortalityResult>(
       `
-      SELECT * FROM trapper.register_mortality_event(
+      SELECT * FROM ops.register_mortality_event(
         p_cat_id := $1,
         p_death_date := $2::DATE,
         p_death_date_precision := $3,

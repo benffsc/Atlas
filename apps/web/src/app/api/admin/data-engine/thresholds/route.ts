@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         is_active,
         created_at::text,
         updated_at::text
-      FROM trapper.fellegi_sunter_thresholds
+      FROM sot.fellegi_sunter_thresholds
       ORDER BY source_system
     `);
 
@@ -126,7 +126,7 @@ export async function PATCH(request: NextRequest) {
     values.push(source_system);
 
     const sql = `
-      UPDATE trapper.fellegi_sunter_thresholds
+      UPDATE sot.fellegi_sunter_thresholds
       SET ${updates.join(", ")}
       WHERE source_system = $${paramIndex}
       RETURNING
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
 
     const result = await query(
       `
-      INSERT INTO trapper.fellegi_sunter_thresholds
+      INSERT INTO sot.fellegi_sunter_thresholds
       (source_system, upper_threshold, lower_threshold, description)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (source_system) DO UPDATE SET

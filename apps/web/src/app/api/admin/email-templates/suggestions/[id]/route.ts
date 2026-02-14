@@ -44,7 +44,7 @@ export async function GET(
         ts.reviewed_by,
         ts.reviewed_at::TEXT,
         ts.review_notes
-      FROM trapper.email_template_suggestions ts
+      FROM ops.email_template_suggestions ts
       WHERE ts.suggestion_id = $1
     `, [id]);
 
@@ -92,7 +92,7 @@ export async function PATCH(
 
     // Get the suggestion
     const suggestion = await queryOne<TemplateSuggestion>(`
-      SELECT * FROM trapper.email_template_suggestions WHERE suggestion_id = $1
+      SELECT * FROM ops.email_template_suggestions WHERE suggestion_id = $1
     `, [id]);
 
     if (!suggestion) {
@@ -142,7 +142,7 @@ export async function PATCH(
 
       if (updates.length > 0) {
         await query(`
-          UPDATE trapper.email_templates
+          UPDATE ops.email_templates
           SET ${updates.join(", ")}
           WHERE template_id = $${paramIndex}
         `, values);
@@ -151,7 +151,7 @@ export async function PATCH(
 
     // Update the suggestion status
     await query(`
-      UPDATE trapper.email_template_suggestions
+      UPDATE ops.email_template_suggestions
       SET
         status = $1,
         reviewed_by = $2,
@@ -195,7 +195,7 @@ export async function DELETE(
 
     // Get the suggestion
     const suggestion = await queryOne<{ created_by: string; status: string }>(`
-      SELECT created_by, status FROM trapper.email_template_suggestions WHERE suggestion_id = $1
+      SELECT created_by, status FROM ops.email_template_suggestions WHERE suggestion_id = $1
     `, [id]);
 
     if (!suggestion) {
@@ -221,7 +221,7 @@ export async function DELETE(
     }
 
     await query(`
-      UPDATE trapper.email_template_suggestions
+      UPDATE ops.email_template_suggestions
       SET status = 'withdrawn'
       WHERE suggestion_id = $1
     `, [id]);

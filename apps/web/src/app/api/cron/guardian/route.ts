@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     try {
       await query(`
-        REFRESH MATERIALIZED VIEW CONCURRENTLY trapper.mv_place_context_summary
+        REFRESH MATERIALIZED VIEW CONCURRENTLY sot.v_place_context_summary
       `);
       results.materialized_view_refreshed = true;
     } catch (error) {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       // If CONCURRENTLY fails (first run, no unique index), try without
       try {
         await query(`
-          REFRESH MATERIALIZED VIEW trapper.mv_place_context_summary
+          REFRESH MATERIALIZED VIEW sot.v_place_context_summary
         `);
         results.materialized_view_refreshed = true;
       } catch (error2) {
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
           COUNT(*) FILTER (WHERE has_active_request = true)::INT as with_active_request,
           COUNT(*) FILTER (WHERE clinic_activity_level != 'none')::INT as with_clinic_activity,
           COUNT(*) FILTER (WHERE has_google_history = true)::INT as with_google_history
-        FROM trapper.mv_place_context_summary
+        FROM sot.v_place_context_summary
       `);
 
       if (contextStats) {
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
     // Tracks where we have good data vs gaps for Beacon/Tippy
 
     try {
-      await query(`SELECT trapper.refresh_zone_data_coverage()`);
+      await query(`SELECT sot.refresh_zone_data_coverage()`);
       results.zone_coverage_refreshed = true;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
     try {
       // Update Google Maps classification count
       await query(`
-        UPDATE trapper.data_freshness_tracking
+        UPDATE ops.data_freshness_tracking
         SET records_count = (
           SELECT COUNT(*) FROM source.google_map_entries WHERE ai_classified_at IS NOT NULL
         ),
@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
 
       // Update colony estimates count
       await query(`
-        UPDATE trapper.data_freshness_tracking
+        UPDATE ops.data_freshness_tracking
         SET records_count = (
           SELECT COUNT(*) FROM sot.place_colony_estimates
         ),
@@ -182,9 +182,9 @@ export async function GET(request: NextRequest) {
 
       // Update place conditions count
       await query(`
-        UPDATE trapper.data_freshness_tracking
+        UPDATE ops.data_freshness_tracking
         SET records_count = (
-          SELECT COUNT(*) FROM trapper.place_condition_history WHERE superseded_at IS NULL
+          SELECT COUNT(*) FROM sot.place_condition_history WHERE superseded_at IS NULL
         ),
         last_incremental_update = NOW(),
         updated_at = NOW()
