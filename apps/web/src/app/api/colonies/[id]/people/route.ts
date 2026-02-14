@@ -153,7 +153,7 @@ export async function POST(
 
     // Use the assign_colony_person function for idempotent assignment
     const result = await queryOne<{ assign_colony_person: string }>(
-      `SELECT trapper.assign_colony_person($1, $2, $3, $4, $5)`,
+      `SELECT ops.assign_colony_person($1, $2, $3, $4, $5)`,
       [colonyId, person_id, role_type, assigned_by.trim(), notes?.trim() || null]
     );
 
@@ -191,7 +191,7 @@ export async function PATCH(
     if (action === "end") {
       // End the person's role at this colony
       const result = await queryOne<{ end_colony_person: boolean }>(
-        `SELECT trapper.end_colony_person($1, $2, $3, $4)`,
+        `SELECT ops.end_colony_person($1, $2, $3, $4)`,
         [colonyId, person_id, role_type, end_reason || null]
       );
 

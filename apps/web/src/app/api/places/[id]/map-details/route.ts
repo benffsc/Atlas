@@ -373,7 +373,7 @@ export async function GET(
           'test_date', ctr.test_date::TEXT
         )) AS positive_diseases
         FROM sot.cat_test_results ctr
-        JOIN trapper.test_type_disease_mapping m ON m.test_type = ctr.test_type
+        JOIN ops.test_type_disease_mapping m ON m.test_type = ctr.test_type
           AND (ctr.result::TEXT ILIKE '%' || m.result_pattern || '%'
                OR ctr.result_detail ILIKE '%' || m.result_pattern || '%')
         JOIN ops.disease_types dt ON dt.disease_key = m.disease_key

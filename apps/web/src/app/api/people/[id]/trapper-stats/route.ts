@@ -47,7 +47,7 @@ export async function GET(
   try {
     // First check if this person is a trapper
     const trapperCheck = await queryOne<{ is_trapper: boolean }>(
-      `SELECT (trapper.get_trapper_info($1)).is_trapper AS is_trapper`,
+      `SELECT (ops.get_trapper_info($1)).is_trapper AS is_trapper`,
       [id]
     );
 

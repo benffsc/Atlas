@@ -122,7 +122,7 @@ export async function POST(
 
     // Use the database function to set classification
     await query(
-      `SELECT trapper.set_colony_classification($1, $2, $3, $4, $5)`,
+      `SELECT ops.set_colony_classification($1, $2, $3, $4, $5)`,
       [
         id,
         classification,

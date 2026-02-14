@@ -134,7 +134,7 @@ export async function GET() {
         cost_estimate_usd,
         model_used,
         completed_at
-      FROM trapper.attribute_extraction_jobs
+      FROM ops.attribute_extraction_jobs
       ORDER BY completed_at DESC
       LIMIT 10
     `);

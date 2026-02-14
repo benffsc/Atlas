@@ -102,7 +102,7 @@ export async function GET(
   try {
     // Call the database function
     const result = await queryOne<{ get_cat_summary: CatSummary | null }>(
-      `SELECT trapper.get_cat_summary($1) as get_cat_summary`,
+      `SELECT ops.get_cat_summary($1) as get_cat_summary`,
       [id]
     );
 

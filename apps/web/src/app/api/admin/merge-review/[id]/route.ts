@@ -135,7 +135,7 @@ export async function POST(
 
     // Call the resolution function
     const result = await queryOne<{ resolve_person_duplicate: boolean }>(`
-      SELECT trapper.resolve_person_duplicate($1::uuid, $2, $3, $4)
+      SELECT ops.resolve_person_duplicate($1::uuid, $2, $3, $4)
     `, [id, action, resolved_by || "api_user", notes || null]);
 
     if (!result?.resolve_person_duplicate) {

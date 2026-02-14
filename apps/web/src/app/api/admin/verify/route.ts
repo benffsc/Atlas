@@ -8,25 +8,25 @@ interface VerifyRequest {
 }
 
 const ALLOWED_TABLES: Record<string, string> = {
-  colony_estimates: "place_colony_estimates",
-  birth_events: "cat_birth_events",
-  mortality_events: "cat_mortality_events",
-  vitals: "cat_vitals",
-  requests: "sot_requests",
-  places: "places",
-  people: "sot_people",
-  cats: "sot_cats",
+  colony_estimates: "sot.place_colony_estimates",
+  birth_events: "sot.cat_birth_events",
+  mortality_events: "sot.cat_mortality_events",
+  vitals: "sot.cat_vitals",
+  requests: "ops.requests",
+  places: "sot.places",
+  people: "sot.people",
+  cats: "sot.cats",
 };
 
 const ID_COLUMNS: Record<string, string> = {
-  place_colony_estimates: "estimate_id",
-  cat_birth_events: "event_id",
-  cat_mortality_events: "event_id",
-  cat_vitals: "vital_id",
-  sot_requests: "request_id",
-  places: "place_id",
-  sot_people: "person_id",
-  sot_cats: "cat_id",
+  "sot.place_colony_estimates": "estimate_id",
+  "sot.cat_birth_events": "event_id",
+  "sot.cat_mortality_events": "event_id",
+  "sot.cat_vitals": "vital_id",
+  "ops.requests": "request_id",
+  "sot.places": "place_id",
+  "sot.people": "person_id",
+  "sot.cats": "cat_id",
 };
 
 // POST - Mark a record as verified
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // Update the record with verification timestamp
     const result = await queryOne<{ verified_at: string }>(
-      `UPDATE trapper.${tableName}
+      `UPDATE ${tableName}
        SET verified_at = NOW(),
            verified_by_staff_id = $1
        WHERE ${idColumn} = $2
@@ -111,7 +111,7 @@ export async function DELETE(request: NextRequest) {
 
     // Clear verification
     const result = await queryOne<{ [key: string]: string }>(
-      `UPDATE trapper.${tableName}
+      `UPDATE ${tableName}
        SET verified_at = NULL,
            verified_by_staff_id = NULL
        WHERE ${idColumn} = $1
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
            t.verified_at,
            t.verified_by_staff_id,
            s.display_name AS staff_name
-         FROM trapper.${tableName} t
+         FROM ${tableName} t
          LEFT JOIN ops.staff s ON t.verified_by_staff_id = s.staff_id
          WHERE t.${idColumn} = ANY($1::uuid[])`,
         [ids]
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
          ${idColumn} AS id,
          created_at,
          COALESCE(source_type, 'unknown') AS source_type
-       FROM trapper.${tableName}
+       FROM ${tableName}
        WHERE verified_at IS NULL
        ORDER BY created_at DESC
        LIMIT 100`,

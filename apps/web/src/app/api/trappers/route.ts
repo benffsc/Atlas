@@ -254,7 +254,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       await queryOne(
-        `SELECT trapper.change_trapper_type($1, $2, $3, $4)`,
+        `SELECT ops.change_trapper_type($1, $2, $3, $4)`,
         [person_id, value, reason || null, "staff"]
       );
     }
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
     }
 
     await queryOne(
-      `SELECT trapper.add_trapper_role($1, $2, $3, $4)`,
+      `SELECT ops.add_trapper_role($1, $2, $3, $4)`,
       [person_id, type, reason || null, "staff"]
     );
 

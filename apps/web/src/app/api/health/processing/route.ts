@@ -249,7 +249,7 @@ function generateRecommendations(
       switch (metric.metric) {
         case "appointments_missing_owner_email":
           recommendations.push(
-            `Critical: ${metric.count} appointments missing owner_email. Run: SELECT trapper.enqueue_processing('clinichq', 'owner_info', 'backfill', NULL, 10);`
+            `Critical: ${metric.count} appointments missing owner_email. Run: SELECT ops.enqueue_processing('clinichq', 'owner_info', 'backfill', NULL, 10);`
           );
           break;
         case "cats_with_procedures_no_place":

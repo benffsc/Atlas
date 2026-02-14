@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const matches = await queryRows<SimilarPerson>(
-      `SELECT * FROM trapper.find_similar_people($1, $2, $3, $4)
+      `SELECT * FROM sot.find_similar_people($1, $2, $3, $4)
        ORDER BY similarity_score DESC
        LIMIT 10`,
       [name.trim(), phone || null, email || null, threshold]

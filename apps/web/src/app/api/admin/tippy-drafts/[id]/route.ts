@@ -98,7 +98,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (action === "approve") {
       // Use the approve function which handles window logic
       const result = await queryOne<{ approve_tippy_draft: string }>(
-        `SELECT trapper.approve_tippy_draft($1, $2, $3, $4, $5, $6)`,
+        `SELECT ops.approve_tippy_draft($1, $2, $3, $4, $5, $6)`,
         [
           id,
           session.staff_id,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     } else {
       // Reject the draft
       await queryOne(
-        `SELECT trapper.reject_tippy_draft($1, $2, $3)`,
+        `SELECT ops.reject_tippy_draft($1, $2, $3)`,
         [id, session.staff_id, review_notes || null]
       );
 

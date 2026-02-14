@@ -44,7 +44,7 @@ export async function POST(
       previous_count: number | null;
       previous_altered: number | null;
     }>(
-      `SELECT * FROM trapper.set_colony_override($1, $2, $3, $4, $5)`,
+      `SELECT * FROM ops.set_colony_override($1, $2, $3, $4, $5)`,
       [
         id,
         body.count,
@@ -99,7 +99,7 @@ export async function DELETE(
     }
 
     const result = await queryOne<{ clear_colony_override: boolean }>(
-      `SELECT trapper.clear_colony_override($1, $2, $3)`,
+      `SELECT ops.clear_colony_override($1, $2, $3)`,
       [id, body.reason ?? null, body.changed_by ?? "web_app"]
     );
 

@@ -81,7 +81,7 @@ export async function POST(
 
     // Use the add_trapper_catch function
     const result = await queryOne<{ add_trapper_catch: string }>(
-      `SELECT trapper.add_trapper_catch(
+      `SELECT ops.add_trapper_catch(
         $1::uuid,
         $2::text,
         $3::uuid,

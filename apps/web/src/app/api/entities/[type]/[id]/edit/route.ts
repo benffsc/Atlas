@@ -55,7 +55,7 @@ export async function GET(
 
   // Get recent edit history
   const history = await queryRows(`
-    SELECT * FROM trapper.get_entity_history($1, $2, 20)
+    SELECT * FROM ops.get_entity_history($1, $2, 20)
   `, [type, id]);
 
   // Get entity-specific suggestions
@@ -85,7 +85,7 @@ export async function POST(
   const reason = body.reason || "Editing";
 
   const result = await queryOne<{ success: boolean }>(`
-    SELECT trapper.acquire_edit_lock($1, $2, $3, $4, $5) as success
+    SELECT ops.acquire_edit_lock($1, $2, $3, $4, $5) as success
   `, [type, id, userId, userName, reason]);
 
   if (result?.success) {
@@ -234,7 +234,7 @@ export async function DELETE(
   const userId = searchParams.get("user_id") || "anonymous";
 
   const result = await queryOne<{ success: boolean }>(`
-    SELECT trapper.release_edit_lock($1, $2, $3) as success
+    SELECT ops.release_edit_lock($1, $2, $3) as success
   `, [type, id, userId]);
 
   return NextResponse.json({
@@ -293,7 +293,7 @@ async function handleOwnershipTransfer(req: TransferRequest) {
 
       // Log the transfer
       const logResult = await tx.queryOne<{ edit_id: string }>(`
-        SELECT trapper.log_ownership_transfer(
+        SELECT ops.log_ownership_transfer(
           $1, $2, $3, $4, $5, $6, $7, $8
         ) as edit_id
       `, [

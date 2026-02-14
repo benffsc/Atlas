@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await queryOne<{ resolve_pending_trapper_link: { success: boolean; error?: string; person_id?: string } }>(
-      `SELECT trapper.resolve_pending_trapper_link($1, $2, $3, $4, $5)`,
+      `SELECT ops.resolve_pending_trapper_link($1, $2, $3, $4, $5)`,
       [pending_id, person_id || null, action, "staff", notes || null]
     );
 

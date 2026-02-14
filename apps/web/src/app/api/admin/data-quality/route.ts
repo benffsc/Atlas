@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
           pending_reviews,
           geocoding_queue,
           household_coverage_pct
-        FROM trapper.data_quality_snapshots
+        FROM ops.data_quality_snapshots
         ORDER BY snapshot_time DESC
         LIMIT 30
       `);
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
 export async function POST() {
   try {
     const result = await queryOne<{ take_quality_snapshot: string }>(`
-      SELECT trapper.take_quality_snapshot('api')
+      SELECT ops.take_quality_snapshot('api')
     `);
 
     return NextResponse.json({

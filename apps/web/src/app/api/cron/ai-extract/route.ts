@@ -390,7 +390,7 @@ async function processQueueItem(
   // Update extraction status
   const textHash = simpleHash(text);
   await execute(`
-    INSERT INTO trapper.extraction_status (
+    INSERT INTO ops.extraction_status (
       source_table, source_record_id, last_extracted_at,
       extraction_hash, attributes_extracted
     ) VALUES ($1, $2, NOW(), $3, $4)

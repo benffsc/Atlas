@@ -2,7 +2,7 @@ import { query } from "./db";
 
 /**
  * Centralized audit logging for entity changes.
- * Uses the trapper.entity_edits table via log_field_edit() function.
+ * Uses the ops.entity_edits table via log_field_edit() function.
  */
 
 export type EntityType = "person" | "cat" | "place" | "request" | "intake_submission";

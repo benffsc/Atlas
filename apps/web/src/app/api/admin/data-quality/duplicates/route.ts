@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         errors: number;
         sample_changes: object;
       }>(
-        `SELECT * FROM trapper.clean_garbage_names($1)`,
+        `SELECT * FROM ops.clean_garbage_names($1)`,
         [isDryRun]
       );
 

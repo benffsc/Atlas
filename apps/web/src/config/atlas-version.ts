@@ -49,19 +49,19 @@ export function isV1(): boolean {
 // ============================================================================
 
 /**
- * V1 table names (trapper schema)
+ * V1 table names (deprecated - now points to V2 tables since trapper schema is dropped)
  */
 const V1_TABLES = {
   // SOT entities
   cats: "sot.cats",
   people: "sot.people",
   places: "sot.places",
-  addresses: "trapper.addresses",
+  addresses: "sot.addresses",
 
   // Operations
   appointments: "ops.appointments",
   requests: "ops.requests",
-  intake_submissions: "ops.web_intake_submissions",
+  intake_submissions: "ops.intake_submissions",
 
   // Identifiers
   person_identifiers: "sot.person_identifiers",
@@ -73,8 +73,8 @@ const V1_TABLES = {
   cat_place: "sot.cat_place",
 
   // Support
-  clinic_accounts: "trapper.clinic_owner_accounts",
-  soft_blacklist: "sot.data_engine_soft_blacklist",
+  clinic_accounts: "ops.clinic_accounts",
+  soft_blacklist: "sot.soft_blacklist",
   colony_estimates: "sot.place_colony_estimates",
 } as const;
 
@@ -169,16 +169,18 @@ export function getColumn(name: ColumnName): string {
 
 /**
  * Get the primary schema prefix for the current version
+ * Note: trapper schema is dropped, always returns sot
  */
 export function getSchemaPrefix(): string {
-  return isV2() ? "sot." : "trapper.";
+  return "sot.";
 }
 
 /**
  * Get the ops schema prefix for the current version
+ * Note: trapper schema is dropped, always returns ops
  */
 export function getOpsSchemaPrefix(): string {
-  return isV2() ? "ops." : "trapper.";
+  return "ops.";
 }
 
 // ============================================================================

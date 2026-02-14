@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST() {
   try {
-    await queryOne(`SELECT trapper.refresh_beacon_clusters()`, []);
+    await queryOne(`SELECT ops.refresh_beacon_clusters()`, []);
     return NextResponse.json({
       success: true,
       message: "Beacon clusters refreshed",

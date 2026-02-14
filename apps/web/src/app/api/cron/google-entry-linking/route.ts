@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     // Step 4: Flag any remaining multi-unit candidates
     const flagResult = await queryOne<{ count: number }>(
-      `SELECT trapper.flag_multi_unit_candidates() as count`
+      `SELECT ops.flag_multi_unit_candidates() as count`
     );
     results.additional_flagged = flagResult?.count || 0;
 

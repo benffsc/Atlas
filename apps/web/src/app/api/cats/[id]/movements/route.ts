@@ -153,7 +153,7 @@ export async function POST(
     }
 
     const result = await queryOne<{ record_cat_movement: string }>(
-      `SELECT trapper.record_cat_movement($1, $2, $3, $4, $5, $6, $7)`,
+      `SELECT ops.record_cat_movement($1, $2, $3, $4, $5, $6, $7)`,
       [
         id,
         to_place_id,

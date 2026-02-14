@@ -66,7 +66,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!clinicDay) {
       clinicDay = await queryOne<{ clinic_day_id: string }>(
         `INSERT INTO ops.clinic_days (clinic_date, clinic_type)
-         VALUES ($1, trapper.get_default_clinic_type($1))
+         VALUES ($1, ops.get_default_clinic_type($1))
          RETURNING clinic_day_id`,
         [date]
       );
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // Resolve trapper alias
       const trapperResult = entry.parsed_trapper_alias
         ? await queryOne<{ person_id: string | null }>(
-            `SELECT trapper.resolve_trapper_alias($1) as person_id`,
+            `SELECT ops.resolve_trapper_alias($1) as person_id`,
             [entry.parsed_trapper_alias]
           )
         : null;
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       pass: string;
       entries_matched: number;
     }>(
-      `SELECT * FROM trapper.apply_smart_master_list_matches($1)`,
+      `SELECT * FROM ops.apply_smart_master_list_matches($1)`,
       [date]
     );
 
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Create entity relationships from successful matches
     await queryRows(
-      `SELECT * FROM trapper.create_master_list_relationships($1)`,
+      `SELECT * FROM ops.create_master_list_relationships($1)`,
       [date]
     );
 

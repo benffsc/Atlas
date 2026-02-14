@@ -144,7 +144,7 @@ export async function PATCH(
 
     // Atomically relink: ends old relationship, creates new one, updates primary_address_id, logs audit
     const relinkResult = await queryOne<{ relink_person_primary_address: string }>(
-      `SELECT trapper.relink_person_primary_address($1, $2, $3, $4)`,
+      `SELECT sot.relink_person_primary_address($1, $2, $3, $4)`,
       [id, placeId, addressId, "web_user"]
     );
 

@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
              SELECT
                $1, $2, 'admin_dedup_review', '',
                p1.display_name, p2.display_name,
-               trapper.name_similarity(p1.display_name, p2.display_name),
+               sot.name_similarity(p1.display_name, p2.display_name),
                $3, NOW(), 'staff'
              FROM sot.people p1, sot.people p2
              WHERE p1.person_id = $1 AND p2.person_id = $2

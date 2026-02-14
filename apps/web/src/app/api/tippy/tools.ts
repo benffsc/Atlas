@@ -2426,7 +2426,7 @@ async function lookupCatAppointment(
     try {
       await queryOne(
         `
-        INSERT INTO trapper.review_queue (
+        INSERT INTO ops.review_queue (
           entity_type,
           entity_id,
           reason,
@@ -3923,7 +3923,7 @@ async function comprehensivePersonLookup(
   identifierType: string | undefined
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.comprehensive_person_lookup($1, $2) as result`,
+    `SELECT ops.comprehensive_person_lookup($1, $2) as result`,
     [identifier, identifierType || "auto"]
   );
 
@@ -3962,7 +3962,7 @@ async function comprehensiveCatLookup(
   identifierType: string | undefined
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.comprehensive_cat_lookup($1, $2) as result`,
+    `SELECT ops.comprehensive_cat_lookup($1, $2) as result`,
     [identifier, identifierType || "auto"]
   );
 
@@ -3998,7 +3998,7 @@ async function comprehensiveCatLookup(
  */
 async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.comprehensive_place_lookup($1) as result`,
+    `SELECT ops.comprehensive_place_lookup($1) as result`,
     [address]
   );
 
@@ -4172,7 +4172,7 @@ async function queryVolunteerhubData(
   personIdentifier: string
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT trapper.query_volunteerhub_data($1) as result`,
+    `SELECT ops.query_volunteerhub_data($1) as result`,
     [personIdentifier]
   );
 

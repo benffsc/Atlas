@@ -111,7 +111,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const result = await queryOne<{ set_place_disease_override: string }>(
-      `SELECT trapper.set_place_disease_override($1, $2, $3, $4, $5)`,
+      `SELECT ops.set_place_disease_override($1, $2, $3, $4, $5)`,
       [id, disease_key, mappedStatus, notes || null, staff_id || "staff"]
     );
 

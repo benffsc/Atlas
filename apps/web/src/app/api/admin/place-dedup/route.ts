@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
         tier3_count: number;
         tier4_count: number;
         total: number;
-      }>(`SELECT * FROM trapper.refresh_place_dedup_candidates()`);
+      }>(`SELECT * FROM ops.refresh_place_dedup_candidates()`);
       return NextResponse.json({ action: "refresh_candidates", ...result });
     }
 
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
       try {
         if (action === "merge") {
           const safetyResult = await queryOne<{ place_safe_to_merge: string }>(
-            `SELECT trapper.place_safe_to_merge($1, $2)`,
+            `SELECT sot.place_safe_to_merge($1, $2)`,
             [pair.canonical_place_id, pair.duplicate_place_id]
           );
 

@@ -326,7 +326,7 @@ export async function PATCH(
         if (current.display_name) {
           try {
             const isGarbage = await queryOne<{ is_garbage: boolean }>(
-              `SELECT trapper.is_garbage_name($1) AS is_garbage`,
+              `SELECT sot.is_garbage_name($1) AS is_garbage`,
               [current.display_name]
             );
             if (!isGarbage?.is_garbage) {

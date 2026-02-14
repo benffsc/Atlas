@@ -269,7 +269,7 @@ export async function sendOutOfCountyEmail(
   // If successful, mark as sent on submission
   if (result.success) {
     await queryOne(`
-      SELECT trapper.mark_out_of_county_email_sent($1, $2)
+      SELECT ops.mark_out_of_county_email_sent($1, $2)
     `, [submissionId, result.emailId]);
   }
 
@@ -287,7 +287,7 @@ export async function getPendingOutOfCountyEmails(): Promise<Array<{
 }>> {
   return queryRows(`
     SELECT submission_id, first_name, email, detected_county
-    FROM trapper.v_pending_out_of_county_emails
+    FROM ops.v_pending_out_of_county_emails
     LIMIT 50
   `);
 }

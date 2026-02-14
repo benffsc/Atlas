@@ -90,7 +90,7 @@ export async function GET(
         ) as distance_m,
         COALESCE(cc.cat_count, 0) as cat_count,
         COALESCE(pc.person_count, 0) as person_count,
-        trapper.is_multi_unit_place(p.place_id) as is_multi_unit,
+        sot.is_multi_unit_place(p.place_id) as is_multi_unit,
         p.place_kind::text as place_kind,
         p.parent_place_id
       FROM sot.places p

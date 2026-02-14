@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
 
         if (request) {
           await queryOne(
-            `SELECT trapper.accept_classification_suggestion($1, $2)`,
+            `SELECT ops.accept_classification_suggestion($1, $2)`,
             [request.request_id, "admin_bulk"]
           );
           updated++;
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
 
         if (request) {
           await queryOne(
-            `SELECT trapper.override_classification_suggestion($1, $2, $3, $4, $5)`,
+            `SELECT ops.override_classification_suggestion($1, $2, $3, $4, $5)`,
             [request.request_id, classification, reason || "Bulk admin action", "admin_bulk", null]
           );
           updated++;

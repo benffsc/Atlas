@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const orgTypes = await queryRows<OrgType>(
       `
       SELECT type_code, display_name, description
-      FROM trapper.org_types
+      FROM ops.org_types
       ORDER BY display_order, display_name
       `
     );

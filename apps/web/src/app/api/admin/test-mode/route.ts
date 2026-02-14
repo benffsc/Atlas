@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         const tableExists = await queryOne<{ exists: boolean }>(`
           SELECT EXISTS (
             SELECT 1 FROM information_schema.tables
-            WHERE table_schema = 'trapper' AND table_name = $1
+            WHERE table_schema IN ('sot', 'ops') AND table_name = $1
           )
         `, [table]);
 
@@ -150,10 +150,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Drop existing backup if exists
-        await query(`DROP TABLE IF EXISTS trapper.${backupName} CASCADE`);
+        await query(`DROP TABLE IF EXISTS ops._backup_${backupName} CASCADE`);
 
         // Create backup as exact copy
-        await query(`CREATE TABLE trapper.${backupName} AS SELECT * FROM trapper.${table}`);
+        await query(`CREATE TABLE ops._backup_${table} AS SELECT * FROM ops.${table}`);
 
         backedUpTables.push(table);
       } catch (err) {
@@ -226,7 +226,7 @@ export async function DELETE(request: NextRequest) {
           const backupExists = await queryOne<{ exists: boolean }>(`
             SELECT EXISTS (
               SELECT 1 FROM information_schema.tables
-              WHERE table_schema = 'trapper' AND table_name = $1
+              WHERE table_schema IN ('sot', 'ops') AND table_name = $1
             )
           `, [backupName]);
 
@@ -236,8 +236,8 @@ export async function DELETE(request: NextRequest) {
           }
 
           // Truncate original and restore from backup
-          await query(`TRUNCATE trapper.${table} CASCADE`);
-          await query(`INSERT INTO trapper.${table} SELECT * FROM trapper.${backupName}`);
+          await query(`TRUNCATE ops.${table} CASCADE`);
+          await query(`INSERT INTO ops.${table} SELECT * FROM ops._backup_${table}`);
 
           restoredTables.push(table);
         } catch (err) {
@@ -250,7 +250,7 @@ export async function DELETE(request: NextRequest) {
     for (const table of session.tables_backed_up) {
       const backupName = `_testmode_backup_${table}`;
       try {
-        await query(`DROP TABLE IF EXISTS trapper.${backupName} CASCADE`);
+        await query(`DROP TABLE IF EXISTS ops._backup_${backupName} CASCADE`);
       } catch {
         // Ignore cleanup errors
       }

@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
           );
         }
         result = await queryOne(
-          `SELECT trapper.reconcile_cluster_classification($1, $2, $3) AS success`,
+          `SELECT ops.reconcile_cluster_classification($1, $2, $3) AS success`,
           [cluster_id, classification, reviewed_by || "staff"]
         );
         break;
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
 
       case "dismiss":
         result = await queryOne(
-          `SELECT trapper.dismiss_cluster($1, $2, $3) AS success`,
+          `SELECT ops.dismiss_cluster($1, $2, $3) AS success`,
           [cluster_id, reviewed_by || "staff", notes]
         );
         break;

@@ -107,7 +107,7 @@ export async function GET() {
         `SELECT rl.person_id::text, sp.display_name, rl.role,
                 rl.previous_status, rl.new_status, rl.reason,
                 rl.created_at::text
-         FROM trapper.role_reconciliation_log rl
+         FROM ops.role_reconciliation_log rl
          JOIN sot.people sp ON sp.person_id = rl.person_id
          ORDER BY rl.created_at DESC
          LIMIT 20`

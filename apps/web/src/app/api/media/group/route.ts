@@ -220,7 +220,7 @@ export async function PATCH(request: NextRequest) {
     // Add media to group
     if (add_media_ids && add_media_ids.length > 0) {
       await queryOne(
-        `SELECT trapper.assign_photos_to_group($1, $2)`,
+        `SELECT ops.assign_photos_to_group($1, $2)`,
         [collection_id, add_media_ids]
       );
     }

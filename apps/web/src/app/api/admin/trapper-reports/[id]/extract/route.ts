@@ -264,7 +264,7 @@ export async function POST(
         context_notes: string;
       }>(
         `SELECT person_id::text, display_name, match_score, matched_signals, context_notes
-         FROM trapper.match_person_from_report($1, $2)`,
+         FROM ops.match_person_from_report($1, $2)`,
         [null, submission.reporter_email]
       );
       topReporter = reporterCandidates[0];
@@ -300,7 +300,7 @@ export async function POST(
       if (topPlace?.place_id) {
         requestCandidates = await queryRows(
           `SELECT request_id::text, status, requester_name, match_score, context_notes
-           FROM trapper.match_request_from_report($1, $2, $3)`,
+           FROM ops.match_request_from_report($1, $2, $3)`,
           [topPlace.place_id, site.resident_name || null, topReporter?.person_id || null]
         );
       }

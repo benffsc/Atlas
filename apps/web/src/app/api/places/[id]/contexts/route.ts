@@ -186,7 +186,7 @@ export async function POST(
 
     // Use the set_place_classification function (creates manual/verified contexts)
     const result = await queryOne<{ context_id: string }>(
-      `SELECT trapper.set_place_classification(
+      `SELECT ops.set_place_classification(
          p_place_id := $1,
          p_context_type := $2,
          p_assigned_by := $3,
@@ -297,7 +297,7 @@ export async function DELETE(
 
     // Use the remove_place_classification function
     const result = await queryOne<{ removed: boolean }>(
-      `SELECT trapper.remove_place_classification($1, $2) AS removed`,
+      `SELECT ops.remove_place_classification($1, $2) AS removed`,
       [placeId, contextType]
     );
 

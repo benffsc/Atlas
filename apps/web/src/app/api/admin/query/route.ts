@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Build query with optional filters
-    let query = `SELECT * FROM trapper.${viewName}`;
+    let query = `SELECT * FROM ops.${viewName}`;
     const conditions: string[] = [];
 
     if (year) {

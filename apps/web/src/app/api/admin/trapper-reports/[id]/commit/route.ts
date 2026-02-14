@@ -99,7 +99,7 @@ export async function POST(
           edit_ids: string[];
           error: string | null;
         }>(
-          `SELECT * FROM trapper.commit_trapper_report_item($1, $2)`,
+          `SELECT * FROM ops.commit_trapper_report_item($1, $2)`,
           [item.item_id, editedBy]
         );
 

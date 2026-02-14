@@ -84,7 +84,7 @@ export async function POST(
 
     // Get files in correct processing order
     const files = await queryRows<BatchFile>(
-      `SELECT * FROM trapper.get_batch_files_in_order($1)`,
+      `SELECT * FROM ops.get_batch_files_in_order($1)`,
       [batchId]
     );
 
