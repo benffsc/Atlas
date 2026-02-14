@@ -10,18 +10,18 @@
 
 ## Executive Summary
 
-| Category | Data Exists | Connected to UI | Gap |
-|----------|-------------|-----------------|-----|
-| Disease Status | 13 records | NO | View hardcodes empty |
-| Disease Badges | 1,981 test results | NO | View hardcodes `'[]'` |
-| Watch List | Unknown | YES | `sot.places.watch_list` used |
-| Google Maps Entries | EXISTS | YES | View joins properly |
-| Colony Estimates | EXISTS | YES | Separate table |
-| Alteration History | EXISTS | YES | View joins properly |
+| Category | Data Exists | Connected to UI | Status |
+|----------|-------------|-----------------|--------|
+| Disease Status | 13 records | **YES** | **FIXED in MIG_2303** |
+| Disease Badges | 1,981 test results | **YES** | **FIXED in MIG_2303** |
+| Watch List | Unknown | YES | Working |
+| Google Maps Entries | EXISTS | YES | Working |
+| Colony Estimates | EXISTS | YES | Working (separate API) |
+| Alteration History | EXISTS | YES | Working |
 
 ---
 
-## GAP 1: Disease Badges Not Connected (CRITICAL)
+## GAP 1: Disease Badges Not Connected ~~(CRITICAL)~~ **FIXED**
 
 ### What Exists (V2)
 
@@ -62,59 +62,41 @@ ops.place_disease_status → MIG_2110 → v_map_atlas_pins.disease_badges
 MIG_2110 was supposed to update the view to include disease_badges, but MIG_2300 recreated
 the view with placeholders when trapper schema was dropped.
 
-### Fix Needed
+### Fix Applied (MIG_2303)
 
-Update `ops.v_map_atlas_pins` to join to `ops.place_disease_status` and build `disease_badges` JSONB array:
+**FIXED:** `sql/schema/v2/MIG_2303__fix_map_view_disease_join.sql`
+
+The view now joins `ops.v_place_disease_summary`:
 
 ```sql
-LEFT JOIN (
-  SELECT
-    place_id,
-    COUNT(*) as disease_count,
-    JSONB_AGG(JSONB_BUILD_OBJECT(
-      'disease', disease_type_key,
-      'status', status,
-      'positive_count', positive_cat_count,
-      'last_positive', last_positive_date
-    )) as disease_badges
-  FROM ops.place_disease_status
-  GROUP BY place_id
-) disease ON disease.place_id = p.place_id
-```
+-- FIX: Disease summary join (was missing in MIG_2300)
+LEFT JOIN ops.v_place_disease_summary ds ON ds.place_id = p.place_id
 
-And update the pin_style CASE to check `disease_count > 0`:
-```sql
-WHEN COALESCE(disease.disease_count, 0) > 0 THEN 'disease'
+-- Disease badges from ops.v_place_disease_summary
+COALESCE(ds.disease_badges, '[]'::JSONB) as disease_badges,
+COALESCE(ds.active_disease_count, 0) as disease_count,
+
+-- Pin style now checks computed disease status
+WHEN COALESCE(p.disease_risk, FALSE) OR COALESCE(ds.active_disease_count, 0) > 0 THEN 'disease'
 ```
 
 ---
 
-## GAP 2: Pin Style Uses Boolean Flag Instead of Actual Disease Data
+## GAP 2: Pin Style Uses Boolean Flag Instead of Actual Disease Data **FIXED**
 
-### Current Behavior
+### Previous Behavior
 
-The view uses `sot.places.disease_risk` boolean:
+The view only checked `sot.places.disease_risk` boolean, missing computed disease status.
+
+### Fix Applied (MIG_2303)
+
+**FIXED:** Now combines manual flag AND computed disease status:
 
 ```sql
-CASE
-  WHEN COALESCE(p.disease_risk, FALSE) THEN 'disease'
-  ...
-END as pin_style
+WHEN COALESCE(p.disease_risk, FALSE) OR COALESCE(ds.active_disease_count, 0) > 0 THEN 'disease'
 ```
 
-### Problem
-
-- `disease_risk` is a manual flag on the place
-- Actual disease status computed from test results is in `ops.place_disease_status`
-- If `disease_risk = FALSE` but place has `confirmed_active` disease status, it won't show as disease pin
-
-### Recommendation
-
-Combine both:
-```sql
-WHEN COALESCE(p.disease_risk, FALSE)
-     OR COALESCE(disease.disease_count, 0) > 0 THEN 'disease'
-```
+Places with confirmed FeLV/FIV test results now show as disease pins even without manual flagging.
 
 ---
 
@@ -171,7 +153,7 @@ WHEN COALESCE(p.disease_risk, FALSE)
 | `ops.requests` | TNR requests | YES |
 | `ops.intake_submissions` | Intake forms | YES |
 | `ops.google_map_entries` | GM timeline notes | YES |
-| `ops.place_disease_status` | Disease by place | **NO** (GAP) |
+| `ops.place_disease_status` | Disease by place | **YES** (MIG_2303) |
 | `ops.cat_test_results` | Test results | NO (feeds disease_status) |
 | `ops.disease_types` | Disease definitions | NO (reference) |
 | `ops.person_roles` | Volunteer roles | YES |
@@ -180,7 +162,7 @@ WHEN COALESCE(p.disease_risk, FALSE)
 
 ## ACTION ITEMS
 
-1. **Create MIG_2303** - Update `ops.v_map_atlas_pins` to include disease_badges from `ops.place_disease_status`
+1. ~~**Create MIG_2303** - Update `ops.v_map_atlas_pins` to include disease_badges from `ops.place_disease_status`~~ **DONE**
 2. **Verify disease computation** - Run `ops.compute_place_disease_status()` to ensure data is current
 3. **Test map** - Verify 1814 Empire Industrial Ct shows disease pin (has confirmed_active FeLV)
 
@@ -188,10 +170,12 @@ WHEN COALESCE(p.disease_risk, FALSE)
 
 ## FILES REFERENCED
 
-- `sql/schema/v2/MIG_2300__restore_map_views.sql` - Current view definition (has gap)
+- `sql/schema/v2/MIG_2300__restore_map_views.sql` - Original view definition (had gap)
+- `sql/schema/v2/MIG_2303__fix_map_view_disease_join.sql` - **FIX: Adds disease join**
 - `sql/schema/v2/MIG_2116__compute_disease_status.sql` - Disease computation (works)
 - `sql/schema/v2/MIG_2110__disease_tracking_v2.sql` - Disease types setup
 
 ---
 
 *Generated by V1→V2 migration audit, Feb 14 2026*
+*Updated: MIG_2303 created to fix disease badge gap*
