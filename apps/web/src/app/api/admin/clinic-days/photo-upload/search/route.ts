@@ -109,14 +109,15 @@ export async function GET(request: NextRequest) {
           ci_mc.id_value AS microchip,
           ci_chq.id_value AS clinichq_animal_id,
           -- Owner name via subquery to avoid cartesian product (one row per cat)
+          -- V2: Uses sot.person_cat (not sot.person_cat_relationships)
           (
             SELECT per.display_name
-            FROM sot.person_cat_relationships pcr
-            JOIN sot.people per ON per.person_id = pcr.person_id
+            FROM sot.person_cat pc
+            JOIN sot.people per ON per.person_id = pc.person_id
               AND per.merged_into_person_id IS NULL
-            WHERE pcr.cat_id = c.cat_id
-              AND pcr.relationship_type IN ('owner', 'caretaker')
-            ORDER BY pcr.confidence DESC NULLS LAST, pcr.created_at DESC
+            WHERE pc.cat_id = c.cat_id
+              AND pc.relationship_type IN ('owner', 'caretaker')
+            ORDER BY pc.confidence DESC NULLS LAST, pc.created_at DESC
             LIMIT 1
           ) AS owner_name,
           -- Place address via subquery to avoid cartesian product (one row per cat)
@@ -160,11 +161,12 @@ export async function GET(request: NextRequest) {
             OR ci_mc.id_value ILIKE $1
             OR ci_chq.id_value ILIKE $1
             -- Search owner names via EXISTS to avoid join duplicates
+            -- V2: Uses sot.person_cat (not sot.person_cat_relationships)
             OR EXISTS (
-              SELECT 1 FROM sot.person_cat_relationships pcr
-              JOIN sot.people per ON per.person_id = pcr.person_id
-              WHERE pcr.cat_id = c.cat_id
-                AND pcr.relationship_type IN ('owner', 'caretaker')
+              SELECT 1 FROM sot.person_cat pc
+              JOIN sot.people per ON per.person_id = pc.person_id
+              WHERE pc.cat_id = c.cat_id
+                AND pc.relationship_type IN ('owner', 'caretaker')
                 AND per.merged_into_person_id IS NULL
                 AND per.display_name ILIKE $1
             )

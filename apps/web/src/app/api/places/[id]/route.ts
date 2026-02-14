@@ -109,6 +109,7 @@ export async function GET(
     // Fallback: v_place_detail_v2 filters is_address_backed=true.
     // Places with coordinates but no geocoded address (2,494 places) would
     // 404 without this fallback. Query the places table directly.
+    // V2: Uses sot.cat_place and sot.person_place (not *_relationships suffix)
     if (!place) {
       const fallbackSql = `
         SELECT
@@ -117,7 +118,7 @@ export async function GET(
           p.formatted_address,
           p.place_kind::text AS place_kind,
           p.is_address_backed,
-          EXISTS(SELECT 1 FROM sot.cat_place_relationships cpr WHERE cpr.place_id = p.place_id) AS has_cat_activity,
+          EXISTS(SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id) AS has_cat_activity,
           sa.locality,
           sa.postal_code,
           sa.admin_area_1 AS state_province,
@@ -131,25 +132,25 @@ export async function GET(
               'cat_id', c.cat_id, 'cat_name', c.name, 'sex', c.sex,
               'microchip', c.microchip, 'source_system', c.source_system
             ))
-            FROM sot.cat_place_relationships cpr
-            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-            WHERE cpr.place_id = p.place_id
+            FROM sot.cat_place cp
+            JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+            WHERE cp.place_id = p.place_id
           ), '[]'::json) AS cats,
           COALESCE((
             SELECT json_agg(json_build_object(
               'person_id', per.person_id,
               'display_name', per.display_name,
-              'role', ppr.role::text
+              'role', pp.role::text
             ))
-            FROM sot.person_place_relationships ppr
-            JOIN sot.people per ON per.person_id = ppr.person_id
-            WHERE ppr.place_id = p.place_id
+            FROM sot.person_place pp
+            JOIN sot.people per ON per.person_id = pp.person_id
+            WHERE pp.place_id = p.place_id
               AND per.merged_into_person_id IS NULL
               AND per.display_name IS NOT NULL
           ), '[]'::json) AS people,
           '[]'::json AS place_relationships,
-          COALESCE((SELECT COUNT(DISTINCT cpr.cat_id) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0) AS cat_count,
-          COALESCE((SELECT COUNT(DISTINCT ppr.person_id) FROM sot.person_place_relationships ppr JOIN sot.people per ON per.person_id = ppr.person_id WHERE ppr.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
+          COALESCE((SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp WHERE cp.place_id = p.place_id), 0) AS cat_count,
+          COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
         FROM sot.places p
         LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
         WHERE p.place_id = $1

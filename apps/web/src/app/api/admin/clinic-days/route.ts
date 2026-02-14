@@ -92,7 +92,8 @@ export async function GET(request: NextRequest) {
         MIN(a.created_at) AS created_at,
         COUNT(*)::INT AS clinichq_cats,
         COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NOT NULL)::INT AS chipped_count,
-        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NULL AND c.needs_microchip = TRUE)::INT AS unchipped_count,
+        -- V2: sot.cats doesn't have needs_microchip column, just count cats without microchip
+        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NULL)::INT AS unchipped_count,
         COUNT(*) FILTER (WHERE a.cat_id IS NULL)::INT AS unlinked_count
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL

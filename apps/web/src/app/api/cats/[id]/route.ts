@@ -437,26 +437,26 @@ export async function GET(
     `;
 
     // Fetch enhanced stakeholder relationships (MIG_544)
+    // V2: Uses sot.person_cat (not sot.person_cat_relationships)
     const stakeholdersSql = `
       SELECT
-        pcr.person_id,
+        pc.person_id,
         p.display_name AS person_name,
         pi.id_value_norm AS person_email,
-        pcr.relationship_type,
-        pcr.confidence,
-        pcr.context_notes,
-        pcr.effective_date::TEXT,
-        a.appointment_date::TEXT AS appointment_date,
-        a.appointment_number,
-        pcr.source_system,
-        pcr.created_at::TEXT
-      FROM sot.person_cat_relationships pcr
-      JOIN sot.people p ON p.person_id = pcr.person_id
+        pc.relationship_type,
+        pc.confidence,
+        NULL::TEXT AS context_notes,
+        NULL::TEXT AS effective_date,
+        NULL::TEXT AS appointment_date,
+        NULL::TEXT AS appointment_number,
+        pc.source_system,
+        pc.created_at::TEXT
+      FROM sot.person_cat pc
+      JOIN sot.people p ON p.person_id = pc.person_id
       LEFT JOIN sot.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email' AND pi.confidence >= 0.5
-      LEFT JOIN ops.appointments a ON a.appointment_id = pcr.appointment_id
-      WHERE pcr.cat_id = $1
+      WHERE pc.cat_id = $1
       ORDER BY
-        CASE pcr.relationship_type
+        CASE pc.relationship_type
           WHEN 'owner' THEN 1
           WHEN 'adopter' THEN 2
           WHEN 'fostering' THEN 3
@@ -464,7 +464,7 @@ export async function GET(
           WHEN 'brought_in_by' THEN 5
           ELSE 6
         END,
-        pcr.effective_date DESC NULLS LAST
+        pc.created_at DESC NULLS LAST
     `;
 
     // Fetch movement timeline (MIG_546)
