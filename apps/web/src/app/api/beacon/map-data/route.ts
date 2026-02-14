@@ -200,125 +200,187 @@ export async function GET(req: NextRequest) {
     // NEW: Atlas Pins layer (consolidated places + people + cats + history)
     // =========================================================================
     if (layers.includes("atlas_pins")) {
-      // Build filter conditions
-      let riskCondition = "";
-      if (riskFilter === "disease") {
-        riskCondition = "AND disease_risk = TRUE";
-      } else if (riskFilter === "watch_list") {
-        riskCondition = "AND watch_list = TRUE";
-      } else if (riskFilter === "needs_tnr") {
-        riskCondition = "AND pin_style = 'active' AND total_altered < cat_count";
-      } else if (riskFilter === "needs_trapper") {
-        riskCondition = "AND needs_trapper_count > 0";
+      try {
+        // V2: The ops.v_map_atlas_pins view may not work if dependent tables are missing
+        // Try the full view first, fall back to a simpler query if it fails
+
+        // Build filter conditions
+        let riskCondition = "";
+        if (riskFilter === "disease") {
+          riskCondition = "AND disease_risk = TRUE";
+        } else if (riskFilter === "watch_list") {
+          riskCondition = "AND watch_list = TRUE";
+        } else if (riskFilter === "needs_tnr") {
+          riskCondition = "AND pin_style = 'active' AND total_altered < cat_count";
+        } else if (riskFilter === "needs_trapper") {
+          riskCondition = "AND needs_trapper_count > 0";
+        }
+
+        let dataCondition = "";
+        if (dataFilter === "has_atlas") {
+          dataCondition = "AND (cat_count > 0 OR request_count > 0)";
+        } else if (dataFilter === "has_google") {
+          dataCondition = "AND google_entry_count > 0";
+        } else if (dataFilter === "has_people") {
+          dataCondition = "AND person_count > 0";
+        }
+
+        // Disease type filter: only show pins with specific disease types
+        let diseaseCondition = "";
+        if (diseaseFilterKeys.length > 0) {
+          // Filter atlas_pins that have any of the specified disease keys in their badges
+          const escaped = diseaseFilterKeys.map(k => `'${k.replace(/'/g, "''")}'`).join(",");
+          diseaseCondition = `AND disease_count > 0 AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(disease_badges) b
+            WHERE b->>'disease_key' IN (${escaped})
+          )`;
+        }
+
+        const atlasPins = await queryRows<{
+          id: string;
+          address: string;
+          display_name: string | null;
+          lat: number;
+          lng: number;
+          service_zone: string | null;
+          parent_place_id: string | null;
+          place_kind: string | null;
+          unit_identifier: string | null;
+          cat_count: number;
+          people: Array<{ name: string; roles: string[]; is_staff: boolean }>;
+          person_count: number;
+          disease_risk: boolean;
+          disease_risk_notes: string | null;
+          disease_badges: Array<{ disease_key: string; short_code: string; color: string; status: string; last_positive: string | null; positive_cats: number }>;
+          disease_count: number;
+          watch_list: boolean;
+          google_entry_count: number;
+          google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
+          request_count: number;
+          active_request_count: number;
+          needs_trapper_count: number;
+          intake_count: number;
+          total_altered: number;
+          last_alteration_at: string | null;
+          pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+          pin_tier: "active" | "reference";
+        }>(`
+          SELECT
+            id::text,
+            address,
+            display_name,
+            lat,
+            lng,
+            service_zone,
+            parent_place_id::text,
+            place_kind,
+            unit_identifier,
+            cat_count::int,
+            COALESCE(people, '[]')::jsonb as people,
+            person_count::int,
+            disease_risk,
+            disease_risk_notes,
+            COALESCE(disease_badges, '[]')::jsonb as disease_badges,
+            COALESCE(disease_count, 0)::int as disease_count,
+            watch_list,
+            google_entry_count::int,
+            COALESCE(google_summaries, '[]')::jsonb as google_summaries,
+            request_count::int,
+            active_request_count::int,
+            COALESCE(needs_trapper_count, 0)::int as needs_trapper_count,
+            intake_count::int,
+            total_altered::int,
+            last_alteration_at::text,
+            pin_style,
+            pin_tier
+          FROM ops.v_map_atlas_pins
+          WHERE 1=1
+            ${zone ? `AND service_zone = '${zone}'` : ""}
+            ${boundsCondition}
+            ${riskCondition}
+            ${dataCondition}
+            ${diseaseCondition}
+          ORDER BY
+            CASE pin_style
+              WHEN 'disease' THEN 1
+              WHEN 'watch_list' THEN 2
+              WHEN 'active' THEN 3
+              WHEN 'has_history' THEN 4
+              ELSE 5
+            END,
+            (cat_count + request_count + person_count + google_entry_count) DESC
+          LIMIT 12000
+        `);
+
+        // Parse JSONB columns
+        result.atlas_pins = atlasPins.map((pin) => ({
+          ...pin,
+          people: Array.isArray(pin.people) ? pin.people : [],
+          google_summaries: Array.isArray(pin.google_summaries) ? pin.google_summaries : [],
+          disease_badges: Array.isArray(pin.disease_badges) ? pin.disease_badges : [],
+        }));
+      } catch (viewError) {
+        // V2: Fallback to simple places query when the complex view fails
+        console.warn("ops.v_map_atlas_pins failed, using fallback:", viewError);
+        const simplePins = await queryRows<{
+          id: string;
+          address: string;
+          display_name: string | null;
+          lat: number;
+          lng: number;
+          cat_count: number;
+        }>(`
+          SELECT
+            p.place_id::text as id,
+            COALESCE(p.formatted_address, p.display_name, 'Unknown') as address,
+            p.display_name,
+            ST_Y(p.location::geometry) as lat,
+            ST_X(p.location::geometry) as lng,
+            COALESCE(cc.cat_count, 0)::int as cat_count
+          FROM sot.places p
+          LEFT JOIN (
+            SELECT cp.place_id, COUNT(DISTINCT cp.cat_id) as cat_count
+            FROM sot.cat_place cp
+            JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+            GROUP BY cp.place_id
+          ) cc ON cc.place_id = p.place_id
+          WHERE p.merged_into_place_id IS NULL
+            AND p.location IS NOT NULL
+            ${zone ? `AND p.service_zone = '${zone}'` : ""}
+          ORDER BY cc.cat_count DESC NULLS LAST
+          LIMIT 5000
+        `);
+
+        result.atlas_pins = simplePins.map((pin) => ({
+          ...pin,
+          service_zone: null,
+          parent_place_id: null,
+          place_kind: null,
+          unit_identifier: null,
+          people: [],
+          person_count: 0,
+          disease_risk: false,
+          disease_risk_notes: null,
+          disease_badges: [],
+          disease_count: 0,
+          watch_list: false,
+          google_entry_count: 0,
+          google_summaries: [],
+          request_count: 0,
+          active_request_count: 0,
+          needs_trapper_count: 0,
+          intake_count: 0,
+          total_altered: 0,
+          last_alteration_at: null,
+          pin_style: "minimal" as const,
+          pin_tier: "reference" as const,
+        }));
       }
-
-      let dataCondition = "";
-      if (dataFilter === "has_atlas") {
-        dataCondition = "AND (cat_count > 0 OR request_count > 0)";
-      } else if (dataFilter === "has_google") {
-        dataCondition = "AND google_entry_count > 0";
-      } else if (dataFilter === "has_people") {
-        dataCondition = "AND person_count > 0";
-      }
-
-      // Disease type filter: only show pins with specific disease types
-      let diseaseCondition = "";
-      if (diseaseFilterKeys.length > 0) {
-        // Filter atlas_pins that have any of the specified disease keys in their badges
-        const escaped = diseaseFilterKeys.map(k => `'${k.replace(/'/g, "''")}'`).join(",");
-        diseaseCondition = `AND disease_count > 0 AND EXISTS (
-          SELECT 1 FROM jsonb_array_elements(disease_badges) b
-          WHERE b->>'disease_key' IN (${escaped})
-        )`;
-      }
-
-      const atlasPins = await queryRows<{
-        id: string;
-        address: string;
-        display_name: string | null;
-        lat: number;
-        lng: number;
-        service_zone: string | null;
-        parent_place_id: string | null;
-        place_kind: string | null;
-        unit_identifier: string | null;
-        cat_count: number;
-        people: Array<{ name: string; roles: string[]; is_staff: boolean }>;
-        person_count: number;
-        disease_risk: boolean;
-        disease_risk_notes: string | null;
-        disease_badges: Array<{ disease_key: string; short_code: string; color: string; status: string; last_positive: string | null; positive_cats: number }>;
-        disease_count: number;
-        watch_list: boolean;
-        google_entry_count: number;
-        google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
-        request_count: number;
-        active_request_count: number;
-        needs_trapper_count: number;
-        intake_count: number;
-        total_altered: number;
-        last_alteration_at: string | null;
-        pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
-        pin_tier: "active" | "reference";
-      }>(`
-        SELECT
-          id::text,
-          address,
-          display_name,
-          lat,
-          lng,
-          service_zone,
-          parent_place_id::text,
-          place_kind,
-          unit_identifier,
-          cat_count::int,
-          COALESCE(people, '[]')::jsonb as people,
-          person_count::int,
-          disease_risk,
-          disease_risk_notes,
-          COALESCE(disease_badges, '[]')::jsonb as disease_badges,
-          COALESCE(disease_count, 0)::int as disease_count,
-          watch_list,
-          google_entry_count::int,
-          COALESCE(google_summaries, '[]')::jsonb as google_summaries,
-          request_count::int,
-          active_request_count::int,
-          COALESCE(needs_trapper_count, 0)::int as needs_trapper_count,
-          intake_count::int,
-          total_altered::int,
-          last_alteration_at::text,
-          pin_style,
-          pin_tier
-        FROM ops.v_map_atlas_pins
-        WHERE 1=1
-          ${zone ? `AND service_zone = '${zone}'` : ""}
-          ${boundsCondition}
-          ${riskCondition}
-          ${dataCondition}
-          ${diseaseCondition}
-        ORDER BY
-          CASE pin_style
-            WHEN 'disease' THEN 1
-            WHEN 'watch_list' THEN 2
-            WHEN 'active' THEN 3
-            WHEN 'has_history' THEN 4
-            ELSE 5
-          END,
-          (cat_count + request_count + person_count + google_entry_count) DESC
-        LIMIT 12000
-      `);
-
-      // Parse JSONB columns
-      result.atlas_pins = atlasPins.map((pin) => ({
-        ...pin,
-        people: Array.isArray(pin.people) ? pin.people : [],
-        google_summaries: Array.isArray(pin.google_summaries) ? pin.google_summaries : [],
-        disease_badges: Array.isArray(pin.disease_badges) ? pin.disease_badges : [],
-      }));
     }
 
     // =========================================================================
     // LEGACY: Places layer (use atlas_pins instead)
+    // V2: Uses sot.cat_place and sot.person_place instead of *_relationships
     // =========================================================================
     if (layers.includes("places")) {
       const places = await queryRows<{
@@ -350,26 +412,26 @@ export async function GET(req: NextRequest) {
               WHERE pce.place_id = p.place_id AND pce.eartip_count_observed > 0
             ) as has_observation,
             COALESCE(p.service_zone, 'Unknown') as service_zone,
-            -- Get primary person at this place
+            -- Get primary person at this place (V2: sot.person_place)
             (
               SELECT per.display_name
-              FROM sot.person_place_relationships ppr
-              JOIN sot.people per ON per.person_id = ppr.person_id
-              WHERE ppr.place_id = p.place_id
-              ORDER BY ppr.is_primary DESC NULLS LAST, ppr.created_at ASC
+              FROM sot.person_place pp
+              JOIN sot.people per ON per.person_id = pp.person_id
+              WHERE pp.place_id = p.place_id
+              ORDER BY pp.confidence DESC NULLS LAST, pp.created_at ASC
               LIMIT 1
             ) as primary_person_name,
             (
-              SELECT COUNT(DISTINCT ppr.person_id)::int
-              FROM sot.person_place_relationships ppr
-              WHERE ppr.place_id = p.place_id
+              SELECT COUNT(DISTINCT pp.person_id)::int
+              FROM sot.person_place pp
+              WHERE pp.place_id = p.place_id
             ) as person_count
           FROM sot.places p
           LEFT JOIN (
-            SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
-            FROM sot.cat_place_relationships cpr
-            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-            GROUP BY cpr.place_id
+            SELECT cp.place_id, COUNT(DISTINCT cp.cat_id) as cat_count
+            FROM sot.cat_place cp
+            JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+            GROUP BY cp.place_id
           ) cc ON cc.place_id = p.place_id
           WHERE p.merged_into_place_id IS NULL
             AND p.location IS NOT NULL
@@ -427,76 +489,68 @@ export async function GET(req: NextRequest) {
     }
 
     // TNR Priority layer (Targeted TNR data)
+    // V2: Uses sot.cat_place instead of sot.cat_place_relationships
+    // V2: ops.cat_procedures may not exist - skip altered_count for now
     if (layers.includes("tnr_priority")) {
-      const tnrData = await queryRows<{
-        id: string;
-        address: string;
-        lat: number;
-        lng: number;
-        cat_count: number;
-        altered_count: number;
-        alteration_rate: number;
-        tnr_priority: string;
-        has_observation: boolean;
-        service_zone: string;
-      }>(`
-        WITH place_stats AS (
-          SELECT
-            p.place_id as id,
-            p.formatted_address as address,
-            ST_Y(p.location::geometry) as lat,
-            ST_X(p.location::geometry) as lng,
-            COALESCE(cc.cat_count, 0) as cat_count,
-            COALESCE(ac.altered_count, 0) as altered_count,
-            CASE
-              WHEN COALESCE(cc.cat_count, 0) > 0
-              THEN ROUND(100.0 * COALESCE(ac.altered_count, 0) / COALESCE(cc.cat_count, 1), 1)
-              ELSE 0
-            END as alteration_rate,
-            CASE
-              WHEN COALESCE(cc.cat_count, 0) >= 10 AND COALESCE(ac.altered_count, 0)::float / NULLIF(cc.cat_count, 0) < 0.25 THEN 'critical'
-              WHEN COALESCE(cc.cat_count, 0) >= 5 AND COALESCE(ac.altered_count, 0)::float / NULLIF(cc.cat_count, 0) < 0.50 THEN 'high'
-              WHEN COALESCE(ac.altered_count, 0)::float / NULLIF(cc.cat_count, 0) < 0.75 THEN 'medium'
-              WHEN COALESCE(ac.altered_count, 0)::float / NULLIF(cc.cat_count, 0) >= 0.75 THEN 'managed'
-              ELSE 'unknown'
-            END as tnr_priority,
-            EXISTS (
-              SELECT 1 FROM sot.place_colony_estimates pce
-              WHERE pce.place_id = p.place_id AND pce.eartip_count_observed > 0
-            ) as has_observation,
-            COALESCE(p.service_zone, 'Unknown') as service_zone
-          FROM sot.places p
-          LEFT JOIN (
-            SELECT cpr.place_id, COUNT(DISTINCT cpr.cat_id) as cat_count
-            FROM sot.cat_place_relationships cpr
-            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-            GROUP BY cpr.place_id
-          ) cc ON cc.place_id = p.place_id
-          LEFT JOIN (
-            SELECT cpr.place_id, COUNT(DISTINCT cp.cat_id) as altered_count
-            FROM sot.cat_place_relationships cpr
-            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-            JOIN ops.cat_procedures cp ON cp.cat_id = cpr.cat_id
-            WHERE cp.is_spay OR cp.is_neuter
-            GROUP BY cpr.place_id
-          ) ac ON ac.place_id = p.place_id
-          WHERE p.merged_into_place_id IS NULL
-            AND p.location IS NOT NULL
-            AND COALESCE(cc.cat_count, 0) > 0
-            ${zoneFilter}
-        )
-        SELECT * FROM place_stats
-        WHERE tnr_priority IN ('critical', 'high', 'medium')
-        ORDER BY
-          CASE tnr_priority
-            WHEN 'critical' THEN 1
-            WHEN 'high' THEN 2
-            WHEN 'medium' THEN 3
-          END,
-          cat_count DESC
-        LIMIT 3000
-      `);
-      result.tnr_priority = tnrData;
+      try {
+        const tnrData = await queryRows<{
+          id: string;
+          address: string;
+          lat: number;
+          lng: number;
+          cat_count: number;
+          altered_count: number;
+          alteration_rate: number;
+          tnr_priority: string;
+          has_observation: boolean;
+          service_zone: string;
+        }>(`
+          WITH place_stats AS (
+            SELECT
+              p.place_id as id,
+              p.formatted_address as address,
+              ST_Y(p.location::geometry) as lat,
+              ST_X(p.location::geometry) as lng,
+              COALESCE(cc.cat_count, 0) as cat_count,
+              0 as altered_count,  -- V2: ops.cat_procedures not yet migrated
+              0 as alteration_rate,
+              CASE
+                WHEN COALESCE(cc.cat_count, 0) >= 10 THEN 'high'
+                WHEN COALESCE(cc.cat_count, 0) >= 5 THEN 'medium'
+                ELSE 'low'
+              END as tnr_priority,
+              EXISTS (
+                SELECT 1 FROM sot.place_colony_estimates pce
+                WHERE pce.place_id = p.place_id AND pce.eartip_count_observed > 0
+              ) as has_observation,
+              COALESCE(p.service_zone, 'Unknown') as service_zone
+            FROM sot.places p
+            LEFT JOIN (
+              SELECT cp.place_id, COUNT(DISTINCT cp.cat_id) as cat_count
+              FROM sot.cat_place cp
+              JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+              GROUP BY cp.place_id
+            ) cc ON cc.place_id = p.place_id
+            WHERE p.merged_into_place_id IS NULL
+              AND p.location IS NOT NULL
+              AND COALESCE(cc.cat_count, 0) > 0
+              ${zoneFilter}
+          )
+          SELECT * FROM place_stats
+          WHERE tnr_priority IN ('high', 'medium')
+          ORDER BY
+            CASE tnr_priority
+              WHEN 'high' THEN 1
+              WHEN 'medium' THEN 2
+            END,
+            cat_count DESC
+          LIMIT 3000
+        `);
+        result.tnr_priority = tnrData;
+      } catch (e) {
+        console.warn("tnr_priority layer failed:", e);
+        result.tnr_priority = [];
+      }
     }
 
     // Observation zones layer
@@ -530,107 +584,119 @@ export async function GET(req: NextRequest) {
     }
 
     // Volunteers layer - people with roles who have place associations
+    // V2: Uses sot.person_place instead of sot.person_place_relationships
+    // V2: sot.person_roles may have different structure - wrap in try/catch
     if (layers.includes("volunteers")) {
-      const volunteers = await queryRows<{
-        id: string;
-        name: string;
-        lat: number;
-        lng: number;
-        role: string;
-        role_label: string;
-        service_zone: string | null;
-        is_active: boolean;
-      }>(`
-        SELECT DISTINCT ON (p.person_id)
-          p.person_id::text as id,
-          p.display_name as name,
-          ST_Y(pl.location::geometry) as lat,
-          ST_X(pl.location::geometry) as lng,
-          COALESCE(pr.trapper_type, pr.role) as role,
-          CASE
-            WHEN pr.trapper_type = 'coordinator' THEN 'FFSC Coordinator'
-            WHEN pr.trapper_type = 'head_trapper' THEN 'Head Trapper'
-            WHEN pr.trapper_type = 'ffsc_trapper' THEN 'FFSC Trapper'
-            WHEN pr.trapper_type = 'community_trapper' THEN 'Community Trapper'
-            WHEN pr.role = 'foster' THEN 'Foster'
-            WHEN pr.role = 'caretaker' THEN 'Colony Caretaker'
-            WHEN pr.role = 'staff' THEN 'Staff'
-            WHEN pr.role = 'volunteer' THEN 'Volunteer'
-            ELSE INITCAP(REPLACE(pr.role, '_', ' '))
-          END as role_label,
-          pl.service_zone,
-          pr.role_status = 'active' as is_active
-        FROM sot.people p
-        JOIN sot.person_roles pr ON pr.person_id = p.person_id
-        JOIN sot.person_place_relationships ppr ON ppr.person_id = p.person_id
-        JOIN sot.places pl ON pl.place_id = ppr.place_id
-        WHERE pr.role IN ('trapper', 'foster', 'caretaker', 'staff', 'volunteer')
-          AND pr.role_status = 'active'
-          AND pl.location IS NOT NULL
-          AND pl.merged_into_place_id IS NULL
-          AND p.merged_into_person_id IS NULL
-          AND COALESCE(p.data_quality, 'normal') NOT IN ('garbage', 'needs_review')
-          ${zone ? `AND pl.service_zone = '${zone}'` : ""}
-        ORDER BY p.person_id,
-          CASE pr.role
-            WHEN 'trapper' THEN 1
-            WHEN 'staff' THEN 2
-            WHEN 'foster' THEN 3
-            WHEN 'caretaker' THEN 4
-            ELSE 5
-          END
-        LIMIT 500
-      `);
-      result.volunteers = volunteers;
+      try {
+        const volunteers = await queryRows<{
+          id: string;
+          name: string;
+          lat: number;
+          lng: number;
+          role: string;
+          role_label: string;
+          service_zone: string | null;
+          is_active: boolean;
+        }>(`
+          SELECT DISTINCT ON (p.person_id)
+            p.person_id::text as id,
+            p.display_name as name,
+            ST_Y(pl.location::geometry) as lat,
+            ST_X(pl.location::geometry) as lng,
+            COALESCE(pr.trapper_type, pr.role) as role,
+            CASE
+              WHEN pr.trapper_type = 'coordinator' THEN 'FFSC Coordinator'
+              WHEN pr.trapper_type = 'head_trapper' THEN 'Head Trapper'
+              WHEN pr.trapper_type = 'ffsc_trapper' THEN 'FFSC Trapper'
+              WHEN pr.trapper_type = 'community_trapper' THEN 'Community Trapper'
+              WHEN pr.role = 'foster' THEN 'Foster'
+              WHEN pr.role = 'caretaker' THEN 'Colony Caretaker'
+              WHEN pr.role = 'staff' THEN 'Staff'
+              WHEN pr.role = 'volunteer' THEN 'Volunteer'
+              ELSE INITCAP(REPLACE(pr.role, '_', ' '))
+            END as role_label,
+            pl.service_zone,
+            pr.role_status = 'active' as is_active
+          FROM sot.people p
+          JOIN sot.person_roles pr ON pr.person_id = p.person_id
+          JOIN sot.person_place pp ON pp.person_id = p.person_id
+          JOIN sot.places pl ON pl.place_id = pp.place_id
+          WHERE pr.role IN ('trapper', 'foster', 'caretaker', 'staff', 'volunteer')
+            AND pr.role_status = 'active'
+            AND pl.location IS NOT NULL
+            AND pl.merged_into_place_id IS NULL
+            AND p.merged_into_person_id IS NULL
+            ${zone ? `AND pl.service_zone = '${zone}'` : ""}
+          ORDER BY p.person_id,
+            CASE pr.role
+              WHEN 'trapper' THEN 1
+              WHEN 'staff' THEN 2
+              WHEN 'foster' THEN 3
+              WHEN 'caretaker' THEN 4
+              ELSE 5
+            END
+          LIMIT 500
+        `);
+        result.volunteers = volunteers;
+      } catch (e) {
+        console.warn("volunteers layer failed:", e);
+        result.volunteers = [];
+      }
     }
 
     // ClinicHQ clients layer - places with recent appointments
+    // V2: Uses sot.cat_place instead of sot.cat_place_relationships
     if (layers.includes("clinic_clients")) {
-      const clinicClients = await queryRows<{
-        id: string;
-        address: string;
-        lat: number;
-        lng: number;
-        appointment_count: number;
-        cat_count: number;
-        last_visit: string;
-        service_zone: string;
-      }>(`
-        WITH clinic_places AS (
+      try {
+        const clinicClients = await queryRows<{
+          id: string;
+          address: string;
+          lat: number;
+          lng: number;
+          appointment_count: number;
+          cat_count: number;
+          last_visit: string;
+          service_zone: string;
+        }>(`
+          WITH clinic_places AS (
+            SELECT
+              p.place_id,
+              p.formatted_address as address,
+              ST_Y(p.location::geometry) as lat,
+              ST_X(p.location::geometry) as lng,
+              COUNT(DISTINCT a.appointment_id) as appointment_count,
+              COUNT(DISTINCT a.cat_id) as cat_count,
+              MAX(a.appointment_date)::text as last_visit,
+              COALESCE(p.service_zone, 'Unknown') as service_zone
+            FROM sot.places p
+            JOIN sot.cat_place cp ON cp.place_id = p.place_id
+            JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+            JOIN ops.appointments a ON a.cat_id = cp.cat_id
+            WHERE p.merged_into_place_id IS NULL
+              AND p.location IS NOT NULL
+              AND a.appointment_date > NOW() - INTERVAL '2 years'
+              ${zoneFilter}
+            GROUP BY p.place_id, p.formatted_address, p.location, p.service_zone
+          )
           SELECT
-            p.place_id,
-            p.formatted_address as address,
-            ST_Y(p.location::geometry) as lat,
-            ST_X(p.location::geometry) as lng,
-            COUNT(DISTINCT a.appointment_id) as appointment_count,
-            COUNT(DISTINCT a.cat_id) as cat_count,
-            MAX(a.appointment_date)::text as last_visit,
-            COALESCE(p.service_zone, 'Unknown') as service_zone
-          FROM sot.places p
-          JOIN sot.cat_place_relationships cpr ON cpr.place_id = p.place_id
-          JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
-          JOIN ops.appointments a ON a.cat_id = cpr.cat_id
-          WHERE p.merged_into_place_id IS NULL
-            AND p.location IS NOT NULL
-            AND a.appointment_date > NOW() - INTERVAL '2 years'
-            ${zoneFilter}
-          GROUP BY p.place_id, p.formatted_address, p.location, p.service_zone
-        )
-        SELECT
-          place_id::text as id,
-          address,
-          lat,
-          lng,
-          appointment_count::int,
-          cat_count::int,
-          last_visit,
-          service_zone
-        FROM clinic_places
-        WHERE appointment_count > 0
-        ORDER BY appointment_count DESC
-        LIMIT 3000
-      `);
-      result.clinic_clients = clinicClients;
+            place_id::text as id,
+            address,
+            lat,
+            lng,
+            appointment_count::int,
+            cat_count::int,
+            last_visit,
+            service_zone
+          FROM clinic_places
+          WHERE appointment_count > 0
+          ORDER BY appointment_count DESC
+          LIMIT 3000
+        `);
+        result.clinic_clients = clinicClients;
+      } catch (e) {
+        console.warn("clinic_clients layer failed:", e);
+        result.clinic_clients = [];
+      }
     }
 
     // Historical Sources layer - places with historical ecological conditions
@@ -758,18 +824,23 @@ export async function GET(req: NextRequest) {
       result.data_coverage = dataCoverage;
     }
 
-    // Summary stats
-    const summary = await queryRows<{
-      total_places: number;
-      total_cats: number;
-      zones_needing_obs: number;
-    }>(`
-      SELECT
-        (SELECT COUNT(*) FROM sot.places WHERE merged_into_place_id IS NULL AND location IS NOT NULL ${zoneFilter.replace('p.', '')}) as total_places,
-        (SELECT COUNT(DISTINCT cpr.cat_id) FROM sot.cat_place_relationships cpr JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL) as total_cats,
-        (SELECT COUNT(*) FROM ops.observation_zones WHERE status = 'active') as zones_needing_obs
-    `);
-    result.summary = summary[0];
+    // Summary stats (V2: uses sot.cat_place)
+    try {
+      const summary = await queryRows<{
+        total_places: number;
+        total_cats: number;
+        zones_needing_obs: number;
+      }>(`
+        SELECT
+          (SELECT COUNT(*) FROM sot.places WHERE merged_into_place_id IS NULL AND location IS NOT NULL ${zoneFilter.replace('p.', '')}) as total_places,
+          (SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL) as total_cats,
+          0 as zones_needing_obs  -- V2: ops.observation_zones may not exist
+      `);
+      result.summary = summary[0];
+    } catch (e) {
+      console.warn("summary stats failed:", e);
+      result.summary = { total_places: 0, total_cats: 0, zones_needing_obs: 0 };
+    }
 
     return NextResponse.json(result, {
       headers: {

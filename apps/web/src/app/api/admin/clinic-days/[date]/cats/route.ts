@@ -63,6 +63,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get all cats seen on this clinic day (V2 schema)
+    // NOTE: V2 doesn't have ops.request_media or sot.cat_test_results tables
+    // Those features are not yet migrated - return NULL for photo_url, felv_status, fiv_status
     const cats = await queryRows<ClinicDayCat>(
       `
       SELECT
@@ -78,60 +80,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         c.breed AS cat_breed,
         c.primary_color AS cat_color,
         c.secondary_color AS cat_secondary_color,
-        FALSE AS needs_microchip,  -- V2 sot.cats doesn't have needs_microchip column
+        FALSE AS needs_microchip,
         ci_mc.id_value AS microchip,
         ci_chq.id_value AS clinichq_animal_id,
-        -- Get hero photo first, then most recent cat photo
-        (
-          SELECT rm.storage_path
-          FROM ops.request_media rm
-          WHERE rm.cat_id = c.cat_id
-            AND rm.is_archived = FALSE
-            AND rm.media_type = 'cat_photo'
-          ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
-          LIMIT 1
-        ) AS photo_url,
+        NULL AS photo_url,  -- V2: ops.request_media not yet migrated
         per.display_name AS owner_name,
         pl.formatted_address AS place_address,
-        NULL AS trapper_name,  -- V2 ops.appointments doesn't have trapper_person_id
-        -- Deceased status from sot.cats
+        NULL AS trapper_name,
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
         c.deceased_at AS deceased_date,
-        -- Death cause from cat_mortality_events (subquery to avoid duplicates)
+        -- Death cause from cat_mortality_events (table exists in V2)
         (
           SELECT cme.death_cause::TEXT
           FROM sot.cat_mortality_events cme
           WHERE cme.cat_id = c.cat_id
           LIMIT 1
         ) AS death_cause,
-        -- FeLV status from cat_test_results
-        (
-          SELECT
-            CASE
-              WHEN tr.result_detail ILIKE 'FeLV+%' OR tr.result_detail ILIKE '%FeLV+%' THEN 'positive'
-              WHEN tr.result_detail ILIKE 'FeLV-%' OR tr.result_detail ILIKE '%FeLV-%' THEN 'negative'
-              WHEN tr.result::TEXT = 'positive' THEN 'positive'
-              WHEN tr.result::TEXT = 'negative' THEN 'negative'
-              ELSE NULL
-            END
-          FROM sot.cat_test_results tr
-          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
-          ORDER BY tr.test_date DESC
-          LIMIT 1
-        ) AS felv_status,
-        -- FIV status from cat_test_results
-        (
-          SELECT
-            CASE
-              WHEN tr.result_detail ILIKE '%/FIV+' OR tr.result_detail ILIKE '%FIV+%' THEN 'positive'
-              WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
-              ELSE NULL
-            END
-          FROM sot.cat_test_results tr
-          WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
-          ORDER BY tr.test_date DESC
-          LIMIT 1
-        ) AS fiv_status
+        NULL AS felv_status,  -- V2: sot.cat_test_results not yet migrated
+        NULL AS fiv_status    -- V2: sot.cat_test_results not yet migrated
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'

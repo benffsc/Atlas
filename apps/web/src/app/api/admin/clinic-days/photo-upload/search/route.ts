@@ -78,34 +78,9 @@ export async function GET(request: NextRequest) {
             LIMIT 1
           ) AS death_cause,
           FALSE AS needs_microchip,  -- V2 sot.cats doesn't have needs_microchip
-          -- FeLV status from cat_test_results
-          (
-            SELECT
-              CASE
-                WHEN tr.result_detail ILIKE 'FeLV+%' OR tr.result_detail ILIKE '%FeLV+%' THEN 'positive'
-                WHEN tr.result_detail ILIKE 'FeLV-%' OR tr.result_detail ILIKE '%FeLV-%' THEN 'negative'
-                WHEN tr.result::TEXT = 'positive' THEN 'positive'
-                WHEN tr.result::TEXT = 'negative' THEN 'negative'
-                ELSE NULL
-              END
-            FROM sot.cat_test_results tr
-            WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
-            ORDER BY tr.test_date DESC
-            LIMIT 1
-          ) AS felv_status,
-          -- FIV status from cat_test_results
-          (
-            SELECT
-              CASE
-                WHEN tr.result_detail ILIKE '%/FIV+' OR tr.result_detail ILIKE '%FIV+%' THEN 'positive'
-                WHEN tr.result_detail ILIKE '%/FIV-' OR tr.result_detail ILIKE '%FIV-%' THEN 'negative'
-                ELSE NULL
-              END
-            FROM sot.cat_test_results tr
-            WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv'
-            ORDER BY tr.test_date DESC
-            LIMIT 1
-          ) AS fiv_status,
+          -- V2: sot.cat_test_results not yet migrated
+          NULL AS felv_status,
+          NULL AS fiv_status,
           ci_mc.id_value AS microchip,
           ci_chq.id_value AS clinichq_animal_id,
           -- Owner name via subquery to avoid cartesian product (one row per cat)
@@ -121,25 +96,18 @@ export async function GET(request: NextRequest) {
             LIMIT 1
           ) AS owner_name,
           -- Place address via subquery to avoid cartesian product (one row per cat)
+          -- V2: Uses sot.cat_place (not sot.cat_place_relationships)
           (
             SELECT pl.formatted_address
-            FROM sot.cat_place_relationships cpr
-            JOIN sot.places pl ON pl.place_id = cpr.place_id
+            FROM sot.cat_place cp
+            JOIN sot.places pl ON pl.place_id = cp.place_id
               AND pl.merged_into_place_id IS NULL
-            WHERE cpr.cat_id = c.cat_id
-            ORDER BY cpr.confidence DESC NULLS LAST, cpr.created_at DESC
+            WHERE cp.cat_id = c.cat_id
+            ORDER BY cp.confidence DESC NULLS LAST, cp.created_at DESC
             LIMIT 1
           ) AS place_address,
-          -- Get hero photo first, then most recent cat photo
-          (
-            SELECT rm.storage_path
-            FROM ops.request_media rm
-            WHERE rm.cat_id = c.cat_id
-              AND rm.is_archived = FALSE
-              AND rm.media_type = 'cat_photo'
-            ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
-            LIMIT 1
-          ) AS photo_url,
+          -- V2: ops.request_media not yet migrated
+          NULL AS photo_url,
           -- Check if from selected clinic day
           (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
           -- Get appointment info for selected date
