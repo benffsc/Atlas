@@ -66,26 +66,19 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // Get clinic days directly from appointments (actual ClinicHQ data)
+    // Get clinic days directly from V2 ops.appointments
     const clinicDays = await queryRows<ClinicDay>(
       `
       SELECT
-        COALESCE(cd.clinic_day_id, gen_random_uuid()) AS clinic_day_id,
+        gen_random_uuid() AS clinic_day_id,
         a.appointment_date AS clinic_date,
-        COALESCE(cd.clinic_type, 'regular') AS clinic_type,
-        CASE COALESCE(cd.clinic_type, 'regular')
-          WHEN 'regular' THEN 'Regular'
-          WHEN 'tame_only' THEN 'Tame Only'
-          WHEN 'mass_trapping' THEN 'Mass Trapping'
-          WHEN 'emergency' THEN 'Emergency'
-          WHEN 'mobile' THEN 'Mobile'
-          ELSE 'Regular'
-        END AS clinic_type_label,
-        cd.target_place_id,
-        tp.display_name AS target_place_name,
-        tp.formatted_address AS target_place_address,
-        cd.max_capacity,
-        cd.vet_name,
+        'regular' AS clinic_type,
+        'Regular' AS clinic_type_label,
+        NULL AS target_place_id,
+        NULL AS target_place_name,
+        NULL AS target_place_address,
+        NULL AS max_capacity,
+        MAX(a.vet_name) AS vet_name,
         EXTRACT(DOW FROM a.appointment_date)::INT AS day_of_week,
         COUNT(*)::INT AS total_cats,
         COUNT(*) FILTER (WHERE c.sex = 'Female' OR a.is_spay = TRUE)::INT AS total_females,
@@ -93,10 +86,10 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE c.sex IS NULL OR c.sex NOT IN ('Female', 'Male'))::INT AS total_unknown_sex,
         0 AS total_no_shows,
         0 AS total_cancelled,
-        cd.notes,
-        cd.finalized_at,
+        NULL AS notes,
+        NULL AS finalized_at,
         NULL AS finalized_by,
-        COALESCE(cd.created_at, MIN(a.created_at)) AS created_at,
+        MIN(a.created_at) AS created_at,
         COUNT(*)::INT AS clinichq_cats,
         COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NOT NULL)::INT AS chipped_count,
         COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NULL AND c.needs_microchip = TRUE)::INT AS unchipped_count,
@@ -104,21 +97,8 @@ export async function GET(request: NextRequest) {
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = a.cat_id AND ci.id_type = 'microchip'
-      LEFT JOIN trapper.clinic_days cd ON cd.clinic_date = a.appointment_date
-      LEFT JOIN sot.places tp ON tp.place_id = cd.target_place_id
       ${whereClause}
-      GROUP BY
-        a.appointment_date,
-        cd.clinic_day_id,
-        cd.clinic_type,
-        cd.target_place_id,
-        tp.display_name,
-        tp.formatted_address,
-        cd.max_capacity,
-        cd.vet_name,
-        cd.notes,
-        cd.finalized_at,
-        cd.created_at
+      GROUP BY a.appointment_date
       ORDER BY a.appointment_date DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex}
       `,
@@ -171,65 +151,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if day already exists
-    const existing = await queryOne<{ clinic_day_id: string }>(
-      `SELECT clinic_day_id FROM trapper.clinic_days WHERE clinic_date = $1`,
+    // Check if appointments exist for this date
+    const existing = await queryOne<{ count: number }>(
+      `SELECT COUNT(*)::INT as count FROM ops.appointments WHERE appointment_date = $1`,
       [clinic_date]
     );
 
-    if (existing) {
+    if (existing && existing.count > 0) {
       return NextResponse.json(
-        { error: "Clinic day already exists for this date", clinic_day_id: existing.clinic_day_id },
+        { error: "Appointments already exist for this date", appointment_count: existing.count },
         { status: 409 }
       );
     }
 
-    // Determine clinic type - use provided or default based on day of week
-    const finalClinicType = clinic_type || null; // Let DB use default function if not provided
-
-    // Create clinic day with type info
-    const clinicDay = await queryOne<{ clinic_day_id: string; clinic_type: string; created_at: string }>(
-      `
-      INSERT INTO trapper.clinic_days (
-        clinic_date,
-        clinic_type,
-        target_place_id,
-        max_capacity,
-        vet_name,
-        notes
-      )
-      VALUES (
-        $1,
-        COALESCE($2, trapper.get_default_clinic_type($1::DATE)),
-        $3,
-        $4,
-        $5,
-        $6
-      )
-      RETURNING clinic_day_id, clinic_type, created_at
-      `,
-      [
-        clinic_date,
-        finalClinicType,
-        target_place_id || null,
-        max_capacity || null,
-        vet_name || null,
-        notes || null
-      ]
-    );
-
-    if (!clinicDay) {
-      return NextResponse.json(
-        { error: "Failed to create clinic day" },
-        { status: 500 }
-      );
-    }
+    // V2: We don't have a separate clinic_days table
+    // Clinic days are derived from ops.appointments
+    // This endpoint now just returns success with the date info
+    // Future: Consider adding ops.clinic_day_metadata table if needed
 
     return NextResponse.json({
       success: true,
-      clinic_day_id: clinicDay.clinic_day_id,
+      clinic_day_id: null, // No separate table in V2
       clinic_date,
-      clinic_type: clinicDay.clinic_type,
+      clinic_type: clinic_type || "regular",
+      message: "Clinic day noted. Appointments will be ingested via ClinicHQ upload."
     });
   } catch (error) {
     console.error("Clinic day create error:", error);

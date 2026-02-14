@@ -13,7 +13,7 @@ interface PhotoGroup {
   storage_paths: string[];
   cat_description: string | null;
   max_confidence: string | null;
-  linked_cat_id: string | null;
+  cat_id: string | null;
 }
 
 // GET /api/media/group - List photo groups for a request
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         COALESCE(storage_paths, '{}') AS storage_paths,
         cat_description,
         max_confidence,
-        linked_cat_id
+        cat_id
       FROM ops.v_request_photo_groups
       WHERE request_id = $1
       ORDER BY created_at DESC`,
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
         COALESCE(storage_paths, '{}') AS storage_paths,
         cat_description,
         max_confidence,
-        linked_cat_id
+        cat_id
       FROM ops.v_request_photo_groups
       WHERE collection_id = $1`,
       [result.create_photo_group]
@@ -249,7 +249,7 @@ export async function PATCH(request: NextRequest) {
         COALESCE(storage_paths, '{}') AS storage_paths,
         cat_description,
         max_confidence,
-        linked_cat_id
+        cat_id
       FROM ops.v_request_photo_groups
       WHERE collection_id = $1`,
       [collection_id]

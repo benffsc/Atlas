@@ -128,11 +128,11 @@ export async function GET(
           p.updated_at::text AS updated_at,
           COALESCE((
             SELECT json_agg(json_build_object(
-              'cat_id', c.cat_id, 'cat_name', c.cat_name, 'sex', c.sex,
-              'microchip', c.primary_microchip, 'source_system', c.source_system
+              'cat_id', c.cat_id, 'cat_name', c.name, 'sex', c.sex,
+              'microchip', c.microchip, 'source_system', c.source_system
             ))
             FROM sot.cat_place_relationships cpr
-            JOIN sot.cats c ON c.cat_id = cpr.cat_id
+            JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
             WHERE cpr.place_id = p.place_id
           ), '[]'::json) AS cats,
           COALESCE((
@@ -198,18 +198,9 @@ export async function GET(
     );
     const contexts = contextsResult?.rows || [];
 
-    // Fetch partner org info if this place is linked to one
-    const partnerOrg = await queryOne<PartnerOrgInfo>(
-      `SELECT
-         org_id, org_name, org_name_short, org_type,
-         relationship_type, contact_name, contact_email, contact_phone,
-         appointments_count, cats_processed,
-         first_appointment_date::text, last_appointment_date::text
-       FROM trapper.partner_organizations
-       WHERE place_id = $1 AND is_active = TRUE
-       LIMIT 1`,
-      [placeId]
-    );
+    // Partner organizations table doesn't exist in V2 yet
+    // When it's created, update this query to use the correct schema
+    const partnerOrg: PartnerOrgInfo | null = null;
 
     const response = {
       ...place,

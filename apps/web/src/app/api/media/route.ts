@@ -8,7 +8,7 @@ function isValidUUID(str: string): boolean {
 const MEDIA_COLS = `
   m.media_id, m.media_type::TEXT AS media_type, m.original_filename,
   m.storage_path, m.thumbnail_path, m.caption, m.notes,
-  m.cat_description, m.linked_cat_id,
+  m.cat_description, m.cat_id,
   m.uploaded_by, m.uploaded_at,
   COALESCE(m.is_hero, FALSE) AS is_hero`;
 
@@ -46,7 +46,7 @@ function buildMediaCrossRefQuery(
     unions.push(`
       SELECT ${MEDIA_COLS}, 'cat'::TEXT AS cross_ref_source
       FROM ops.request_media m
-      JOIN trapper.request_cat_links rcl ON rcl.cat_id = m.direct_cat_id
+      JOIN trapper.request_cat_links rcl ON rcl.cat_id = m.cat_id
       JOIN ops.requests r ON r.request_id = $1
       WHERE rcl.request_id = $1
         AND NOT m.is_archived
@@ -81,11 +81,11 @@ function buildMediaCrossRefQuery(
         ${WINDOW_CONDITION}
     `);
   } else if (entityType === "cat") {
-    // Direct cat media (direct_cat_id OR linked_cat_id)
+    // Direct cat media
     unions.push(`
       SELECT ${MEDIA_COLS}, NULL::TEXT AS cross_ref_source
       FROM ops.request_media m
-      WHERE (m.direct_cat_id = $1 OR m.linked_cat_id = $1) AND NOT m.is_archived
+      WHERE m.cat_id = $1 AND NOT m.is_archived
     `);
     // Media from linked requests
     unions.push(`
@@ -94,8 +94,7 @@ function buildMediaCrossRefQuery(
       JOIN trapper.request_cat_links rcl ON rcl.request_id = m.request_id
       JOIN ops.requests r ON r.request_id = rcl.request_id
       WHERE rcl.cat_id = $1
-        AND m.direct_cat_id IS DISTINCT FROM $1
-        AND m.linked_cat_id IS DISTINCT FROM $1
+        AND m.cat_id IS DISTINCT FROM $1
         AND NOT m.is_archived
         ${WINDOW_CONDITION}
     `);
@@ -178,7 +177,7 @@ export async function GET(request: NextRequest) {
          AND (
            ($1 = 'request' AND m.request_id = $2)
            OR ($1 = 'place' AND m.place_id = $2)
-           OR ($1 = 'cat' AND (m.direct_cat_id = $2 OR m.linked_cat_id = $2))
+           OR ($1 = 'cat' AND m.cat_id = $2)
            OR ($1 = 'person' AND m.person_id = $2)
          )
        ORDER BY is_hero DESC, uploaded_at DESC`,

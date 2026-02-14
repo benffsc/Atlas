@@ -145,4 +145,76 @@ export async function execute(
   return await query(sql, params);
 }
 
+/**
+ * Execute a callback within a database transaction
+ * Automatically handles BEGIN/COMMIT/ROLLBACK
+ * @param callback - Function that receives a transaction client with query methods
+ * @returns Result from the callback function
+ */
+export async function withTransaction<T>(
+  callback: (tx: TransactionClient) => Promise<T>
+): Promise<T> {
+  if (!pool) {
+    throw new DatabaseConnectionError(
+      "DATABASE_URL is not configured. Please set the DATABASE_URL environment variable."
+    );
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const tx: TransactionClient = {
+      query: async <R extends QueryResultRow = QueryResultRow>(
+        sql: string,
+        params: unknown[] = []
+      ): Promise<QueryResult<R>> => {
+        return client.query<R>(sql, params);
+      },
+      queryRows: async <R extends QueryResultRow = QueryResultRow>(
+        sql: string,
+        params: unknown[] = []
+      ): Promise<R[]> => {
+        const result = await client.query<R>(sql, params);
+        return result.rows;
+      },
+      queryOne: async <R extends QueryResultRow = QueryResultRow>(
+        sql: string,
+        params: unknown[] = []
+      ): Promise<R | null> => {
+        const result = await client.query<R>(sql, params);
+        return result.rows[0] || null;
+      },
+    };
+
+    const result = await callback(tx);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Transaction client interface for use within withTransaction callback
+ */
+export interface TransactionClient {
+  query<T extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params?: unknown[]
+  ): Promise<QueryResult<T>>;
+  queryRows<T extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params?: unknown[]
+  ): Promise<T[]>;
+  queryOne<T extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params?: unknown[]
+  ): Promise<T | null>;
+}
+
 export default pool;

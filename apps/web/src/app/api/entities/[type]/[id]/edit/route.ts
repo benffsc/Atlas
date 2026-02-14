@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool, PoolClient } from "pg";
+import { queryRows, queryOne, withTransaction, TransactionClient } from "@/lib/db";
 
 /**
  * Entity Edit API
@@ -12,10 +12,6 @@ import { Pool, PoolClient } from "pg";
  *   PATCH /api/entities/{type}/{id}/edit - Apply edit(s)
  *   DELETE /api/entities/{type}/{id}/edit - Release edit lock
  */
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 const VALID_ENTITY_TYPES = ["person", "cat", "place", "request"];
 
@@ -51,30 +47,25 @@ export async function GET(
     return NextResponse.json({ error: "Invalid entity type" }, { status: 400 });
   }
 
-  const client = await pool.connect();
-  try {
-    // Get current lock status
-    const lockResult = await client.query(`
-      SELECT * FROM ops.v_active_locks
-      WHERE entity_type = $1 AND entity_id = $2
-    `, [type, id]);
+  // Get current lock status
+  const lock = await queryOne(`
+    SELECT * FROM ops.v_active_locks
+    WHERE entity_type = $1 AND entity_id = $2
+  `, [type, id]);
 
-    // Get recent edit history
-    const historyResult = await client.query(`
-      SELECT * FROM trapper.get_entity_history($1, $2, 20)
-    `, [type, id]);
+  // Get recent edit history
+  const history = await queryRows(`
+    SELECT * FROM trapper.get_entity_history($1, $2, 20)
+  `, [type, id]);
 
-    // Get entity-specific suggestions
-    const suggestions = await getEntitySuggestions(client, type, id);
+  // Get entity-specific suggestions
+  const suggestions = await getEntitySuggestions(type, id);
 
-    return NextResponse.json({
-      lock: lockResult.rows[0] || null,
-      history: historyResult.rows,
-      suggestions,
-    });
-  } finally {
-    client.release();
-  }
+  return NextResponse.json({
+    lock,
+    history,
+    suggestions,
+  });
 }
 
 // POST - Acquire edit lock
@@ -93,38 +84,33 @@ export async function POST(
   const userName = body.user_name || null;
   const reason = body.reason || "Editing";
 
-  const client = await pool.connect();
-  try {
-    const result = await client.query(`
-      SELECT trapper.acquire_edit_lock($1, $2, $3, $4, $5) as success
-    `, [type, id, userId, userName, reason]);
+  const result = await queryOne<{ success: boolean }>(`
+    SELECT trapper.acquire_edit_lock($1, $2, $3, $4, $5) as success
+  `, [type, id, userId, userName, reason]);
 
-    if (result.rows[0].success) {
-      // Get lock details
-      const lockResult = await client.query(`
-        SELECT * FROM ops.v_active_locks
-        WHERE entity_type = $1 AND entity_id = $2
-      `, [type, id]);
+  if (result?.success) {
+    // Get lock details
+    const lock = await queryOne(`
+      SELECT * FROM ops.v_active_locks
+      WHERE entity_type = $1 AND entity_id = $2
+    `, [type, id]);
 
-      return NextResponse.json({
-        success: true,
-        lock: lockResult.rows[0],
-      });
-    } else {
-      // Get who has the lock
-      const lockResult = await client.query(`
-        SELECT * FROM ops.v_active_locks
-        WHERE entity_type = $1 AND entity_id = $2
-      `, [type, id]);
+    return NextResponse.json({
+      success: true,
+      lock,
+    });
+  } else {
+    // Get who has the lock
+    const lock = await queryOne(`
+      SELECT * FROM ops.v_active_locks
+      WHERE entity_type = $1 AND entity_id = $2
+    `, [type, id]);
 
-      return NextResponse.json({
-        success: false,
-        error: "Entity is locked by another user",
-        lock: lockResult.rows[0],
-      }, { status: 409 });
-    }
-  } finally {
-    client.release();
+    return NextResponse.json({
+      success: false,
+      error: "Entity is locked by another user",
+      lock,
+    }, { status: 409 });
   }
 }
 
@@ -150,86 +136,86 @@ export async function PATCH(
   const editorId = editRequest.editor_id || "anonymous";
   const editorName = editRequest.editor_name || null;
 
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    const result = await withTransaction(async (tx) => {
+      const editIds: string[] = [];
+      const tableName = getTableName(type);
+      const idColumn = getIdColumn(type);
 
-    const editIds: string[] = [];
-    const tableName = getTableName(type);
-    const idColumn = getIdColumn(type);
+      // Get current values for audit
+      const currentRow = await tx.queryOne(`
+        SELECT * FROM ${tableName} WHERE ${idColumn} = $1
+      `, [id]);
 
-    // Get current values for audit
-    const currentResult = await client.query(`
-      SELECT * FROM ${tableName} WHERE ${idColumn} = $1
-    `, [id]);
-
-    if (currentResult.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "Entity not found" }, { status: 404 });
-    }
-
-    const currentRow = currentResult.rows[0];
-
-    // Apply each edit
-    for (const edit of editRequest.edits) {
-      const { field, value, reason } = edit;
-
-      // Validate field is editable
-      if (!isFieldEditable(type, field)) {
-        await client.query("ROLLBACK");
-        return NextResponse.json({
-          error: `Field '${field}' is not editable`,
-        }, { status: 400 });
+      if (!currentRow) {
+        throw new Error("ENTITY_NOT_FOUND");
       }
 
-      const oldValue = currentRow[field];
+      // Apply each edit
+      for (const edit of editRequest.edits) {
+        const { field, value, reason } = edit;
 
-      // Skip if no change
-      if (JSON.stringify(oldValue) === JSON.stringify(value)) {
-        continue;
+        // Validate field is editable
+        if (!isFieldEditable(type, field)) {
+          throw new Error(`FIELD_NOT_EDITABLE:${field}`);
+        }
+
+        const oldValue = (currentRow as Record<string, unknown>)[field];
+
+        // Skip if no change
+        if (JSON.stringify(oldValue) === JSON.stringify(value)) {
+          continue;
+        }
+
+        // Update the field
+        await tx.query(`
+          UPDATE ${tableName}
+          SET ${field} = $1, updated_at = NOW()
+          WHERE ${idColumn} = $2
+        `, [value, id]);
+
+        // Log the edit
+        const logResult = await tx.queryOne<{ edit_id: string }>(`
+          SELECT trapper.log_field_edit(
+            $1, $2, $3, $4, $5, $6, $7, $8, 'web_ui'
+          ) as edit_id
+        `, [
+          type, id, field,
+          JSON.stringify(oldValue), JSON.stringify(value),
+          reason, editorId, editorName
+        ]);
+
+        if (logResult) {
+          editIds.push(logResult.edit_id);
+        }
       }
 
-      // Update the field
-      await client.query(`
-        UPDATE ${tableName}
-        SET ${field} = $1, updated_at = NOW()
-        WHERE ${idColumn} = $2
-      `, [value, id]);
+      // Get updated entity
+      const entity = await tx.queryOne(`
+        SELECT * FROM ${tableName} WHERE ${idColumn} = $1
+      `, [id]);
 
-      // Log the edit
-      const logResult = await client.query(`
-        SELECT trapper.log_field_edit(
-          $1, $2, $3, $4, $5, $6, $7, $8, 'web_ui'
-        ) as edit_id
-      `, [
-        type, id, field,
-        JSON.stringify(oldValue), JSON.stringify(value),
-        reason, editorId, editorName
-      ]);
-
-      editIds.push(logResult.rows[0].edit_id);
-    }
-
-    await client.query("COMMIT");
-
-    // Get updated entity
-    const updatedResult = await client.query(`
-      SELECT * FROM ${tableName} WHERE ${idColumn} = $1
-    `, [id]);
+      return { editIds, entity };
+    });
 
     return NextResponse.json({
       success: true,
-      edit_ids: editIds,
-      entity: updatedResult.rows[0],
+      edit_ids: result.editIds,
+      entity: result.entity,
     });
   } catch (error) {
-    await client.query("ROLLBACK");
     console.error("Edit error:", error);
-    return NextResponse.json({
-      error: "Failed to apply edit",
-    }, { status: 500 });
-  } finally {
-    client.release();
+    const message = error instanceof Error ? error.message : "Unknown error";
+
+    if (message === "ENTITY_NOT_FOUND") {
+      return NextResponse.json({ error: "Entity not found" }, { status: 404 });
+    }
+    if (message.startsWith("FIELD_NOT_EDITABLE:")) {
+      const field = message.split(":")[1];
+      return NextResponse.json({ error: `Field '${field}' is not editable` }, { status: 400 });
+    }
+
+    return NextResponse.json({ error: "Failed to apply edit" }, { status: 500 });
   }
 }
 
@@ -247,100 +233,95 @@ export async function DELETE(
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("user_id") || "anonymous";
 
-  const client = await pool.connect();
-  try {
-    const result = await client.query(`
-      SELECT trapper.release_edit_lock($1, $2, $3) as success
-    `, [type, id, userId]);
+  const result = await queryOne<{ success: boolean }>(`
+    SELECT trapper.release_edit_lock($1, $2, $3) as success
+  `, [type, id, userId]);
 
-    return NextResponse.json({
-      success: result.rows[0].success,
-    });
-  } finally {
-    client.release();
-  }
+  return NextResponse.json({
+    success: result?.success ?? false,
+  });
 }
 
 // Helper: Handle ownership transfer
 async function handleOwnershipTransfer(req: TransferRequest) {
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    const result = await withTransaction(async (tx) => {
+      // Get current owner
+      const currentOwner = await tx.queryOne<{ owner_id: string; owner_name: string }>(`
+        SELECT pcr.person_id as owner_id, p.display_name as owner_name
+        FROM sot.person_cat_relationships pcr
+        JOIN sot.people p ON p.person_id = pcr.person_id
+        WHERE pcr.cat_id = $1
+          AND pcr.relationship_type IN ('owner', 'caretaker', 'brought_by')
+        ORDER BY
+          CASE pcr.relationship_type
+            WHEN 'owner' THEN 1
+            WHEN 'caretaker' THEN 2
+            ELSE 3
+          END
+        LIMIT 1
+      `, [req.cat_id]);
 
-    // Get current owner
-    const currentResult = await client.query(`
-      SELECT pcr.person_id as owner_id, p.display_name as owner_name
-      FROM sot.person_cat_relationships pcr
-      JOIN sot.people p ON p.person_id = pcr.person_id
-      WHERE pcr.cat_id = $1
-        AND pcr.relationship_type IN ('owner', 'caretaker', 'brought_by')
-      ORDER BY
-        CASE pcr.relationship_type
-          WHEN 'owner' THEN 1
-          WHEN 'caretaker' THEN 2
-          ELSE 3
-        END
-      LIMIT 1
-    `, [req.cat_id]);
+      const oldOwnerId = currentOwner?.owner_id || null;
 
-    const oldOwnerId = currentResult.rows[0]?.owner_id || null;
+      // Remove old relationship if exists
+      if (oldOwnerId) {
+        await tx.query(`
+          UPDATE sot.person_cat_relationships
+          SET relationship_type = 'former_' || relationship_type,
+              updated_at = NOW()
+          WHERE cat_id = $1
+            AND person_id = $2
+            AND relationship_type NOT LIKE 'former_%'
+        `, [req.cat_id, oldOwnerId]);
+      }
 
-    // Remove old relationship if exists
-    if (oldOwnerId) {
-      await client.query(`
-        UPDATE sot.person_cat_relationships
-        SET relationship_type = 'former_' || relationship_type,
-            updated_at = NOW()
-        WHERE cat_id = $1
-          AND person_id = $2
-          AND relationship_type NOT LIKE 'former_%'
-      `, [req.cat_id, oldOwnerId]);
-    }
+      // Create new relationship via centralized function (INV-10)
+      await tx.query(`
+        SELECT sot.link_person_to_cat(
+          p_person_id := $1,
+          p_cat_id := $2,
+          p_relationship_type := $3,
+          p_evidence_type := 'manual_transfer',
+          p_source_system := 'atlas_ui',
+          p_source_table := 'ownership_transfer',
+          p_confidence := 'high',
+          p_context_notes := $4
+        )
+      `, [req.new_owner_id, req.cat_id, req.relationship_type || "owner",
+          req.reason || "Ownership transfer via UI"]);
 
-    // Create new relationship via centralized function (INV-10)
-    await client.query(`
-      SELECT sot.link_person_to_cat(
-        p_person_id := $1,
-        p_cat_id := $2,
-        p_relationship_type := $3,
-        p_evidence_type := 'manual_transfer',
-        p_source_system := 'atlas_ui',
-        p_source_table := 'ownership_transfer',
-        p_confidence := 'high',
-        p_context_notes := $4
-      )
-    `, [req.new_owner_id, req.cat_id, req.relationship_type || "owner",
-        req.reason || "Ownership transfer via UI"]);
+      // Log the transfer
+      const logResult = await tx.queryOne<{ edit_id: string }>(`
+        SELECT trapper.log_ownership_transfer(
+          $1, $2, $3, $4, $5, $6, $7, $8
+        ) as edit_id
+      `, [
+        req.cat_id, oldOwnerId, req.new_owner_id,
+        req.relationship_type || "owner",
+        req.reason, req.notes,
+        req.editor_id || "anonymous",
+        req.editor_name
+      ]);
 
-    // Log the transfer
-    const logResult = await client.query(`
-      SELECT trapper.log_ownership_transfer(
-        $1, $2, $3, $4, $5, $6, $7, $8
-      ) as edit_id
-    `, [
-      req.cat_id, oldOwnerId, req.new_owner_id,
-      req.relationship_type || "owner",
-      req.reason, req.notes,
-      req.editor_id || "anonymous",
-      req.editor_name
-    ]);
-
-    await client.query("COMMIT");
+      return {
+        editId: logResult?.edit_id,
+        oldOwnerId,
+        newOwnerId: req.new_owner_id,
+      };
+    });
 
     return NextResponse.json({
       success: true,
-      edit_id: logResult.rows[0].edit_id,
-      old_owner_id: oldOwnerId,
-      new_owner_id: req.new_owner_id,
+      edit_id: result.editId,
+      old_owner_id: result.oldOwnerId,
+      new_owner_id: result.newOwnerId,
     });
   } catch (error) {
-    await client.query("ROLLBACK");
     console.error("Transfer error:", error);
     return NextResponse.json({
       error: "Failed to transfer ownership",
     }, { status: 500 });
-  } finally {
-    client.release();
   }
 }
 
@@ -380,7 +361,6 @@ function isFieldEditable(type: string, field: string): boolean {
 
 // Helper: Get entity-specific suggestions
 async function getEntitySuggestions(
-  client: PoolClient,
   type: string,
   id: string
 ): Promise<Record<string, unknown>> {
@@ -388,7 +368,12 @@ async function getEntitySuggestions(
 
   if (type === "cat") {
     // Get cat's location for nearby suggestions
-    const catResult = await client.query(`
+    const catLocation = await queryOne<{
+      cat_id: string;
+      display_name: string;
+      latitude: number | null;
+      longitude: number | null;
+    }>(`
       SELECT c.cat_id, c.display_name, p.latitude, p.longitude
       FROM sot.cats c
       LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
@@ -396,12 +381,12 @@ async function getEntitySuggestions(
       WHERE c.cat_id = $1
     `, [id]);
 
-    if (catResult.rows[0]?.latitude) {
-      const lat = catResult.rows[0].latitude;
-      const lng = catResult.rows[0].longitude;
+    if (catLocation?.latitude) {
+      const lat = catLocation.latitude;
+      const lng = catLocation.longitude;
 
       // Nearby people (potential owners)
-      const nearbyPeople = await client.query(`
+      suggestions.nearby_people = await queryRows(`
         SELECT DISTINCT p.person_id, p.display_name,
           COUNT(DISTINCT pcr.cat_id) as cat_count
         FROM sot.people p
@@ -415,10 +400,8 @@ async function getEntitySuggestions(
         LIMIT 10
       `, [lat, lng]);
 
-      suggestions.nearby_people = nearbyPeople.rows;
-
       // Nearby cats (for comparison)
-      const nearbyCats = await client.query(`
+      suggestions.nearby_cats = await queryRows(`
         SELECT c.cat_id, c.display_name,
           pcr.person_id as owner_id,
           p.display_name as owner_name
@@ -433,22 +416,18 @@ async function getEntitySuggestions(
           AND pl.longitude BETWEEN $2 - 0.01 AND $2 + 0.01
         LIMIT 10
       `, [lat, lng, id]);
-
-      suggestions.nearby_cats = nearbyCats.rows;
     }
   }
 
   if (type === "person") {
     // Get person's cats
-    const catsResult = await client.query(`
+    suggestions.cats = await queryRows(`
       SELECT c.cat_id, c.display_name, pcr.relationship_type
       FROM sot.person_cat_relationships pcr
       JOIN sot.cats c ON c.cat_id = pcr.cat_id
       WHERE pcr.person_id = $1
         AND pcr.relationship_type NOT LIKE 'former_%'
     `, [id]);
-
-    suggestions.cats = catsResult.rows;
   }
 
   return suggestions;

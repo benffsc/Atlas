@@ -62,30 +62,30 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
     }
 
-    // Get all cats seen on this clinic day
+    // Get all cats seen on this clinic day (V2 schema)
     const cats = await queryRows<ClinicDayCat>(
       `
       SELECT
         a.appointment_id,
         a.cat_id,
-        a.clinic_day_number,
+        ROW_NUMBER() OVER (ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST)::INT AS clinic_day_number,
         a.appointment_number,
         a.service_type,
         a.is_spay,
         a.is_neuter,
-        c.display_name AS cat_name,
+        c.name AS cat_name,
         c.sex AS cat_sex,
         c.breed AS cat_breed,
         c.primary_color AS cat_color,
         c.secondary_color AS cat_secondary_color,
-        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+        FALSE AS needs_microchip,  -- V2 sot.cats doesn't have needs_microchip column
         ci_mc.id_value AS microchip,
         ci_chq.id_value AS clinichq_animal_id,
         -- Get hero photo first, then most recent cat photo
         (
           SELECT rm.storage_path
           FROM ops.request_media rm
-          WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
+          WHERE rm.cat_id = c.cat_id
             AND rm.is_archived = FALSE
             AND rm.media_type = 'cat_photo'
           ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
@@ -93,10 +93,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ) AS photo_url,
         per.display_name AS owner_name,
         pl.formatted_address AS place_address,
-        trp.display_name AS trapper_name,
-        -- Deceased status from sot_cats (MIG_290)
+        NULL AS trapper_name,  -- V2 ops.appointments doesn't have trapper_person_id
+        -- Deceased status from sot.cats
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
-        c.deceased_date,
+        c.deceased_at AS deceased_date,
         -- Death cause from cat_mortality_events (subquery to avoid duplicates)
         (
           SELECT cme.death_cause::TEXT
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           WHERE cme.cat_id = c.cat_id
           LIMIT 1
         ) AS death_cause,
-        -- FeLV status from cat_test_results (felv_fiv_status is NOT on sot_cats)
+        -- FeLV status from cat_test_results
         (
           SELECT
             CASE
@@ -137,10 +137,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
       LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
       LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
-      LEFT JOIN sot.places pl ON pl.place_id = a.place_id AND pl.merged_into_place_id IS NULL
-      LEFT JOIN sot.people trp ON trp.person_id = a.trapper_person_id AND trp.merged_into_person_id IS NULL
+      LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
       WHERE a.appointment_date = $1
-      ORDER BY a.clinic_day_number NULLS LAST, c.display_name NULLS LAST, a.appointment_number
+      ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST
       `,
       [date]
     );

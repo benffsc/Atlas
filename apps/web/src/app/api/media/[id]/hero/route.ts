@@ -5,7 +5,7 @@ interface MediaRow {
   media_id: string;
   request_id: string | null;
   place_id: string | null;
-  direct_cat_id: string | null;
+  cat_id: string | null;
   person_id: string | null;
 }
 
@@ -17,7 +17,7 @@ export async function PATCH(
 
   try {
     const media = await queryOne<MediaRow>(
-      `SELECT media_id, request_id, place_id, direct_cat_id, person_id
+      `SELECT media_id, request_id, place_id, cat_id, person_id
        FROM ops.request_media WHERE media_id = $1 AND is_archived = FALSE`,
       [mediaId]
     );
@@ -27,10 +27,10 @@ export async function PATCH(
     }
 
     // Clear existing hero for each linked entity
-    if (media.direct_cat_id) {
+    if (media.cat_id) {
       await execute(
-        `UPDATE ops.request_media SET is_hero = FALSE WHERE direct_cat_id = $1 AND is_hero = TRUE`,
-        [media.direct_cat_id]
+        `UPDATE ops.request_media SET is_hero = FALSE WHERE cat_id = $1 AND is_hero = TRUE`,
+        [media.cat_id]
       );
     }
     if (media.place_id) {

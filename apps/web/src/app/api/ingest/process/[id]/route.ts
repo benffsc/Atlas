@@ -348,42 +348,62 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   if (sourceTable === 'cat_info') {
     // Step 1: Create cats from microchips using find_or_create_cat_by_microchip
     // This creates new cats or returns existing ones
+    // MIG_2051: Now extracts and passes clinichq_animal_id (Number field)
+    // MIG_2054: Now extracts and passes ownership_type from owner_info
     await saveProgress('Creating cats from microchips...');
     const catsCreated = await query(`
       WITH cat_data AS (
-        SELECT DISTINCT ON (payload->>'Microchip Number')
-          payload->>'Microchip Number' as microchip,
-          NULLIF(TRIM(payload->>'Animal Name'), '') as name,
-          NULLIF(TRIM(payload->>'Sex'), '') as sex,
-          NULLIF(TRIM(payload->>'Breed'), '') as breed,
-          NULLIF(TRIM(payload->>'Primary Color'), '') as color,
+        SELECT DISTINCT ON (ci.payload->>'Microchip Number')
+          ci.payload->>'Microchip Number' as microchip,
+          NULLIF(TRIM(ci.payload->>'Animal Name'), '') as name,
+          NULLIF(TRIM(ci.payload->>'Sex'), '') as sex,
+          NULLIF(TRIM(ci.payload->>'Breed'), '') as breed,
+          NULLIF(TRIM(ci.payload->>'Primary Color'), '') as color,
           CASE
-            WHEN TRIM(payload->>'Spay Neuter Status') IN ('Yes', 'No') THEN TRIM(payload->>'Spay Neuter Status')
+            WHEN TRIM(ci.payload->>'Spay Neuter Status') IN ('Yes', 'No') THEN TRIM(ci.payload->>'Spay Neuter Status')
             ELSE NULL
           END as altered_status,
-          NULLIF(TRIM(payload->>'Secondary Color'), '') as secondary_color
-        FROM ops.staged_records
-        WHERE source_system = 'clinichq'
-          AND source_table = 'cat_info'
-          AND payload->>'Microchip Number' IS NOT NULL
-          AND TRIM(payload->>'Microchip Number') != ''
-          AND LENGTH(TRIM(payload->>'Microchip Number')) >= 9
-          AND file_upload_id = $1
-        ORDER BY payload->>'Microchip Number', created_at DESC
+          NULLIF(TRIM(ci.payload->>'Secondary Color'), '') as secondary_color,
+          NULLIF(TRIM(ci.payload->>'Number'), '') as clinichq_animal_id,  -- MIG_2051
+          -- MIG_2054: Normalize ownership_type to match sot.cats constraint
+          CASE TRIM(oi.payload->>'Ownership')
+            WHEN 'Community Cat (Feral)' THEN 'feral'
+            WHEN 'Community Cat (Friendly)' THEN 'community'
+            WHEN 'Owned' THEN 'owned'
+            WHEN 'Foster' THEN 'foster'
+            WHEN 'Shelter' THEN 'unknown'
+            WHEN 'Misc 1' THEN 'unknown'
+            WHEN 'Misc 2' THEN 'unknown'
+            WHEN 'Misc 3' THEN 'unknown'
+            ELSE NULL
+          END as ownership_type
+        FROM ops.staged_records ci
+        LEFT JOIN ops.staged_records oi ON
+          oi.source_system = 'clinichq'
+          AND oi.source_table = 'owner_info'
+          AND oi.payload->>'Microchip Number' = ci.payload->>'Microchip Number'
+          AND oi.file_upload_id = $1
+        WHERE ci.source_system = 'clinichq'
+          AND ci.source_table = 'cat_info'
+          AND ci.payload->>'Microchip Number' IS NOT NULL
+          AND TRIM(ci.payload->>'Microchip Number') != ''
+          AND LENGTH(TRIM(ci.payload->>'Microchip Number')) >= 9
+          AND ci.file_upload_id = $1
+        ORDER BY ci.payload->>'Microchip Number', ci.created_at DESC
       ),
       created_cats AS (
         SELECT
           cd.*,
           sot.find_or_create_cat_by_microchip(
-            cd.microchip,
-            cd.name,
-            cd.sex,
-            cd.breed,
-            cd.altered_status,
-            cd.color,
-            cd.secondary_color,
-            NULL,  -- ownership_type
-            'clinichq'
+            p_microchip := cd.microchip,
+            p_name := cd.name,
+            p_sex := cd.sex,
+            p_breed := cd.breed,
+            p_altered_status := cd.altered_status,
+            p_color := cd.color,
+            p_source_system := 'clinichq',
+            p_clinichq_animal_id := cd.clinichq_animal_id,  -- MIG_2051
+            p_ownership_type := cd.ownership_type  -- MIG_2054
           ) as cat_id
         FROM cat_data cd
         WHERE cd.microchip IS NOT NULL

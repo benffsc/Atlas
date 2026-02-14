@@ -21,15 +21,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       is_hero: boolean;
       request_id: string | null;
       place_id: string | null;
-      direct_cat_id: string | null;
-      linked_cat_id: string | null;
+      cat_id: string | null;
       person_id: string | null;
       uploaded_at: string;
       uploaded_by: string | null;
     }>(
       `SELECT
         media_id, storage_path, media_type, is_hero,
-        request_id, place_id, direct_cat_id, linked_cat_id, person_id,
+        request_id, place_id, cat_id, person_id,
         uploaded_at, uploaded_by
       FROM ops.request_media
       WHERE media_id = $1 AND is_archived = FALSE`,

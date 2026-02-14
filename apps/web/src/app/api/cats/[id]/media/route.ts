@@ -59,14 +59,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           cat_description,
           uploaded_by,
           uploaded_at,
-          CASE
-            WHEN direct_cat_id IS NOT NULL THEN 'direct'
-            ELSE 'linked'
-          END AS source_type,
+          'direct' AS source_type,
           request_id AS source_request_id
          FROM ops.request_media
          WHERE NOT is_archived
-           AND (direct_cat_id = $1 OR linked_cat_id = $1)
+           AND cat_id = $1
          ORDER BY uploaded_at DESC`,
         [id]
       );

@@ -5,7 +5,7 @@ type ConfidenceLevel = "confirmed" | "likely" | "uncertain";
 
 interface IdentifyResult {
   media_id: string;
-  linked_cat_id: string;
+  cat_id: string;
   confidence: ConfidenceLevel;
 }
 
@@ -96,7 +96,7 @@ export async function PATCH(
       // Update just this single media
       await queryOne(
         `UPDATE ops.request_media
-         SET linked_cat_id = $1,
+         SET cat_id = $1,
              cat_identification_confidence = $2
          WHERE media_id = $3`,
         [cat_id, confidence, mediaId]
@@ -141,9 +141,9 @@ export async function DELETE(
     const media = await queryOne<{
       media_id: string;
       photo_group_id: string | null;
-      linked_cat_id: string | null;
+      cat_id: string | null;
     }>(
-      `SELECT media_id, photo_group_id, linked_cat_id
+      `SELECT media_id, photo_group_id, cat_id
        FROM ops.request_media
        WHERE media_id = $1 AND NOT COALESCE(is_archived, FALSE)`,
       [mediaId]
@@ -163,7 +163,7 @@ export async function DELETE(
       const result = await queryOne<{ count: number }>(
         `WITH updated AS (
            UPDATE ops.request_media
-           SET linked_cat_id = NULL,
+           SET cat_id = NULL,
                cat_identification_confidence = 'unidentified'
            WHERE photo_group_id = $1 AND NOT COALESCE(is_archived, FALSE)
            RETURNING 1
@@ -177,7 +177,7 @@ export async function DELETE(
       // Unlink just this media
       await queryOne(
         `UPDATE ops.request_media
-         SET linked_cat_id = NULL,
+         SET cat_id = NULL,
              cat_identification_confidence = 'unidentified'
          WHERE media_id = $1`,
         [mediaId]
@@ -210,14 +210,14 @@ export async function GET(
   try {
     const media = await queryOne<{
       media_id: string;
-      linked_cat_id: string | null;
+      cat_id: string | null;
       cat_identification_confidence: string;
       photo_group_id: string | null;
       cat_description: string | null;
     }>(
       `SELECT
         media_id,
-        linked_cat_id,
+        cat_id,
         cat_identification_confidence,
         photo_group_id,
         cat_description
@@ -235,14 +235,14 @@ export async function GET(
 
     // If linked to a cat, get cat details
     let cat = null;
-    if (media.linked_cat_id) {
+    if (media.cat_id) {
       cat = await queryOne<{ cat_id: string; display_name: string; microchip: string | null }>(
         `SELECT c.cat_id, c.display_name,
                 (SELECT id_value FROM sot.cat_identifiers
                  WHERE cat_id = c.cat_id AND id_type = 'microchip' LIMIT 1) AS microchip
          FROM sot.cats c
          WHERE c.cat_id = $1`,
-        [media.linked_cat_id]
+        [media.cat_id]
       );
     }
 
@@ -266,7 +266,7 @@ export async function GET(
 
     return NextResponse.json({
       media_id: media.media_id,
-      is_identified: media.linked_cat_id !== null,
+      is_identified: media.cat_id !== null,
       confidence: media.cat_identification_confidence,
       cat_description: media.cat_description,
       cat,

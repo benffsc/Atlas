@@ -699,6 +699,24 @@ async function processMergedRecord(
   const catName = getString(catInfo, "Cat Name", "Animal Name", "Name");
   const catSex = getString(catInfo, "Sex", "Gender");
   const catBreed = getString(catInfo, "Breed");
+  // MIG_2051: Extract ClinicHQ animal ID (Number field, e.g. "21-118")
+  const clinichqAnimalId = getString(catInfo, "Number");
+
+  // MIG_2054: Extract and normalize ownership type from owner_info
+  // ClinicHQ values: "Community Cat (Feral)", "Community Cat (Friendly)", "Owned", "Foster", "Shelter", "Misc 1/2/3"
+  // Normalized to: feral, community, owned, foster, unknown (per sot.cats constraint)
+  const ownerInfo = record.ownerInfo || {};
+  const rawOwnership = getString(ownerInfo, "Ownership");
+  let ownershipType: string | null = null;
+  if (rawOwnership) {
+    switch (rawOwnership) {
+      case "Community Cat (Feral)": ownershipType = "feral"; break;
+      case "Community Cat (Friendly)": ownershipType = "community"; break;
+      case "Owned": ownershipType = "owned"; break;
+      case "Foster": ownershipType = "foster"; break;
+      default: ownershipType = "unknown"; break;
+    }
+  }
 
   // Colors - keep separate (primary goes to color column, secondary stored separately)
   const primaryColor = getString(catInfo, "Primary Color", "Color", "Colour", "Coat Color");
@@ -795,6 +813,8 @@ async function processMergedRecord(
 
   // LAYER 3: SOT - Create cat FIRST using most recent cat info
   // The cat entity is the same across all visits; we use the most recent data
+  // MIG_2051: Pass clinichq_animal_id to populate sot.cats.clinichq_animal_id
+  // MIG_2054: Pass ownership_type from owner_info
   const catResult = await queryOne<{ cat_id: string }>(`
     SELECT sot.find_or_create_cat_by_microchip(
       p_microchip := $1,
@@ -803,9 +823,11 @@ async function processMergedRecord(
       p_breed := $4,
       p_altered_status := $5,
       p_color := $6,
-      p_source_system := 'clinichq'
+      p_source_system := 'clinichq',
+      p_clinichq_animal_id := $7,
+      p_ownership_type := $8
     ) as cat_id
-  `, [record.microchip, catName || null, catSex || null, catBreed || null, alteredStatus, primaryColor || null]);
+  `, [record.microchip, catName || null, catSex || null, catBreed || null, alteredStatus, primaryColor || null, clinichqAnimalId || null, ownershipType || null]);
 
   // Update secondary color if available (separate column in sot.cats)
   if (catResult?.cat_id && secondaryColor) {

@@ -172,7 +172,7 @@ async function uploadSingleFile(
       entityColumn = "request_id";
       break;
     case "cat":
-      entityColumn = "direct_cat_id";
+      entityColumn = "cat_id";  // V2 schema uses cat_id, not direct_cat_id
       break;
     case "place":
       entityColumn = "place_id";

@@ -52,8 +52,7 @@ export async function GET(request: NextRequest) {
 
     const searchTerm = `%${query.trim()}%`;
 
-    // Search cats, prioritizing those from the selected clinic day
-    // Also search staged_records for microchip matches on the clinic day
+    // Search cats, prioritizing those from the selected clinic day (V2 schema)
     const cats = await queryRows<SearchResult>(
       `
       WITH clinic_day_cats AS (
@@ -62,26 +61,15 @@ export async function GET(request: NextRequest) {
         WHERE a.appointment_date = $2
           AND a.cat_id IS NOT NULL
       ),
-      -- Also find cats by searching staged appointment records for microchip
-      staged_microchip_matches AS (
-        SELECT DISTINCT a.cat_id
-        FROM ops.appointments a
-        JOIN ops.staged_records sr ON sr.source_row_id = a.source_record_id
-          AND sr.source_system = 'clinichq'
-          AND sr.source_table = 'appointment_info'
-        WHERE a.appointment_date = $2
-          AND a.cat_id IS NOT NULL
-          AND (sr.payload->>'Microchip') ILIKE $1
-      )
       -- Deduplicated cat results with proper sorting
       cat_results AS (
         SELECT
           c.cat_id,
-          c.display_name,
+          c.name AS display_name,
           c.sex,
           c.primary_color,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
-          c.deceased_date,
+          c.deceased_at AS deceased_date,
           -- Death cause from cat_mortality_events (subquery to avoid duplicates)
           (
             SELECT cme.death_cause::TEXT
@@ -89,7 +77,7 @@ export async function GET(request: NextRequest) {
             WHERE cme.cat_id = c.cat_id
             LIMIT 1
           ) AS death_cause,
-          COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+          FALSE AS needs_microchip,  -- V2 sot.cats doesn't have needs_microchip
           -- FeLV status from cat_test_results
           (
             SELECT
@@ -145,7 +133,7 @@ export async function GET(request: NextRequest) {
           (
             SELECT rm.storage_path
             FROM ops.request_media rm
-            WHERE (rm.linked_cat_id = c.cat_id OR rm.direct_cat_id = c.cat_id)
+            WHERE rm.cat_id = c.cat_id
               AND rm.is_archived = FALSE
               AND rm.media_type = 'cat_photo'
             ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
@@ -156,10 +144,10 @@ export async function GET(request: NextRequest) {
           -- Get appointment info for selected date
           a_day.appointment_id,
           a_day.appointment_date,
-          a_day.clinic_day_number,
+          a_day.appointment_number AS clinic_day_number,
           -- Sorting fields
           CASE WHEN ci_mc.id_value = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
-          CASE WHEN c.display_name ILIKE $1 THEN 0 ELSE 1 END AS name_match
+          CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
         FROM sot.cats c
         LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
         LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
@@ -168,7 +156,7 @@ export async function GET(request: NextRequest) {
           AND a_day.appointment_date = $2
         WHERE c.merged_into_cat_id IS NULL
           AND (
-            c.display_name ILIKE $1
+            c.name ILIKE $1
             OR ci_mc.id_value ILIKE $1
             OR ci_chq.id_value ILIKE $1
             -- Search owner names via EXISTS to avoid join duplicates
@@ -180,8 +168,6 @@ export async function GET(request: NextRequest) {
                 AND per.merged_into_person_id IS NULL
                 AND per.display_name ILIKE $1
             )
-            -- Also match cats found via staged record microchip search
-            OR c.cat_id IN (SELECT cat_id FROM staged_microchip_matches)
           )
       )
       SELECT

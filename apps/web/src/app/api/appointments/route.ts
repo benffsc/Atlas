@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN LATERAL (
         SELECT rm.storage_path
         FROM ops.request_media rm
-        WHERE rm.direct_cat_id = v.cat_id
+        WHERE rm.cat_id = v.cat_id
           AND NOT rm.is_archived
         ORDER BY COALESCE(rm.is_hero, FALSE) DESC, rm.uploaded_at DESC
         LIMIT 1

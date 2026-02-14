@@ -12,7 +12,7 @@ interface MediaRow {
   caption: string | null;
   notes: string | null;
   cat_description: string | null;
-  linked_cat_id: string | null;
+  cat_id: string | null;
   uploaded_by: string;
   uploaded_at: string;
   is_archived: boolean;
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         caption,
         notes,
         cat_description,
-        linked_cat_id,
+        cat_id,
         uploaded_by,
         uploaded_at,
         is_archived

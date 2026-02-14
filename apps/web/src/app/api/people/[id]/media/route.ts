@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       `SELECT
         m.media_id, m.media_type::TEXT AS media_type, m.original_filename,
         m.storage_path, m.thumbnail_path, m.caption, m.notes,
-        m.cat_description, m.linked_cat_id,
+        m.cat_description, m.cat_id,
         m.uploaded_by, m.uploaded_at,
         COALESCE(m.is_hero, FALSE) AS is_hero
        FROM ops.request_media m
