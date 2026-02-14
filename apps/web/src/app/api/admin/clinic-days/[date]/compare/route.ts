@@ -33,42 +33,39 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { date } = await params;
 
-    // Get clinic day summary
-    const comparison = await queryOne(
-      `SELECT * FROM ops.v_clinic_day_comparison WHERE clinic_date = $1`,
-      [date]
-    );
+    // V2: No logged entries - clinic day data comes directly from ClinicHQ
+    const loggedEntries: object[] = [];
 
-    // Get clinic day entries (our logged data)
-    const loggedEntries = await queryRows(
-      `SELECT * FROM ops.v_clinic_day_entries WHERE clinic_date = $1 ORDER BY created_at`,
-      [date]
-    );
-
-    // Get ClinicHQ appointments for comparison
+    // Get ClinicHQ appointments (V2 uses ops.appointments)
     const clinichqAppointments = await queryRows<ClinicHQAppointment>(
       `
       SELECT
         a.appointment_id,
         a.cat_id,
-        c.display_name as cat_name,
+        c.name as cat_name,
         c.sex as cat_sex,
-        a.trapper_person_id,
-        t.display_name as trapper_name,
-        p.place_id,
+        NULL as trapper_person_id,
+        NULL as trapper_name,
+        COALESCE(a.inferred_place_id, a.place_id) as place_id,
         p.formatted_address as place_address,
         a.service_type,
         per.display_name as owner_name
       FROM ops.appointments a
-      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
-      LEFT JOIN sot.people t ON t.person_id = a.trapper_person_id
-      LEFT JOIN sot.places p ON p.place_id = a.place_id
-      LEFT JOIN sot.people per ON per.person_id = a.person_id
+      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id) AND p.merged_into_place_id IS NULL
+      LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
       WHERE a.appointment_date = $1
-      ORDER BY t.display_name, c.display_name
+      ORDER BY c.name NULLS LAST
       `,
       [date]
     );
+
+    // V2: No comparison view - just use appointment counts
+    const comparison = {
+      logged_total: 0,
+      logged_females: 0,
+      logged_males: 0,
+    };
 
     // Group ClinicHQ by trapper for easier comparison
     const clinichqByTrapper = clinichqAppointments.reduce((acc, appt) => {
