@@ -53,7 +53,10 @@ export async function GET(request: NextRequest) {
     const searchTerm = `%${query.trim()}%`;
 
     // Search cats, prioritizing those from the selected clinic day (V2 schema)
-    const cats = await queryRows<SearchResult>(
+    // Try with ops.cat_test_results (MIG_2060), fall back if not available
+    let cats: SearchResult[];
+    try {
+      cats = await queryRows<SearchResult>(
       `
       WITH clinic_day_cats AS (
         SELECT DISTINCT a.cat_id
@@ -77,10 +80,20 @@ export async function GET(request: NextRequest) {
             WHERE cme.cat_id = c.cat_id
             LIMIT 1
           ) AS death_cause,
-          FALSE AS needs_microchip,  -- V2 sot.cats doesn't have needs_microchip
-          -- V2: sot.cat_test_results not yet migrated
-          NULL AS felv_status,
-          NULL AS fiv_status,
+          FALSE AS needs_microchip,
+          -- FeLV/FIV from ops.cat_test_results (MIG_2060) - NULL if table doesn't exist
+          (
+            SELECT tr.felv_status
+            FROM ops.cat_test_results tr
+            WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv' AND tr.felv_status IS NOT NULL
+            ORDER BY tr.test_date DESC LIMIT 1
+          ) AS felv_status,
+          (
+            SELECT tr.fiv_status
+            FROM ops.cat_test_results tr
+            WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv' AND tr.fiv_status IS NOT NULL
+            ORDER BY tr.test_date DESC LIMIT 1
+          ) AS fiv_status,
           ci_mc.id_value AS microchip,
           ci_chq.id_value AS clinichq_animal_id,
           -- Owner name via subquery to avoid cartesian product (one row per cat)
@@ -171,8 +184,92 @@ export async function GET(request: NextRequest) {
         display_name NULLS LAST
       LIMIT 50
       `,
-      [searchTerm, date || "1900-01-01"]
-    );
+        [searchTerm, date || "1900-01-01"]
+      );
+    } catch (medicalError) {
+      // Fallback: ops.cat_test_results doesn't exist yet (MIG_2060 not applied)
+      console.warn("ops.cat_test_results not available in search, using fallback");
+      cats = await queryRows<SearchResult>(
+        `
+        WITH clinic_day_cats AS (
+          SELECT DISTINCT a.cat_id
+          FROM ops.appointments a
+          WHERE a.appointment_date = $2
+            AND a.cat_id IS NOT NULL
+        ),
+        cat_results AS (
+          SELECT
+            c.cat_id,
+            c.name AS display_name,
+            c.sex,
+            c.primary_color,
+            COALESCE(c.is_deceased, FALSE) AS is_deceased,
+            c.deceased_at AS deceased_date,
+            (
+              SELECT cme.death_cause::TEXT
+              FROM sot.cat_mortality_events cme
+              WHERE cme.cat_id = c.cat_id
+              LIMIT 1
+            ) AS death_cause,
+            FALSE AS needs_microchip,
+            NULL AS felv_status,
+            NULL AS fiv_status,
+            ci_mc.id_value AS microchip,
+            ci_chq.id_value AS clinichq_animal_id,
+            (
+              SELECT per.display_name
+              FROM sot.person_cat pc
+              JOIN sot.people per ON per.person_id = pc.person_id AND per.merged_into_person_id IS NULL
+              WHERE pc.cat_id = c.cat_id AND pc.relationship_type IN ('owner', 'caretaker')
+              ORDER BY pc.confidence DESC NULLS LAST, pc.created_at DESC
+              LIMIT 1
+            ) AS owner_name,
+            (
+              SELECT pl.formatted_address
+              FROM sot.cat_place cp
+              JOIN sot.places pl ON pl.place_id = cp.place_id AND pl.merged_into_place_id IS NULL
+              WHERE cp.cat_id = c.cat_id
+              ORDER BY cp.confidence DESC NULLS LAST, cp.created_at DESC
+              LIMIT 1
+            ) AS place_address,
+            NULL AS photo_url,
+            (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
+            a_day.appointment_id,
+            a_day.appointment_date,
+            a_day.appointment_number AS clinic_day_number,
+            CASE WHEN ci_mc.id_value = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
+            CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
+          FROM sot.cats c
+          LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
+          LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+          LEFT JOIN ops.appointments a_day ON a_day.cat_id = c.cat_id AND a_day.appointment_date = $2
+          WHERE c.merged_into_cat_id IS NULL
+            AND (
+              c.name ILIKE $1
+              OR ci_mc.id_value ILIKE $1
+              OR ci_chq.id_value ILIKE $1
+              OR EXISTS (
+                SELECT 1 FROM sot.person_cat pc
+                JOIN sot.people per ON per.person_id = pc.person_id
+                WHERE pc.cat_id = c.cat_id
+                  AND pc.relationship_type IN ('owner', 'caretaker')
+                  AND per.merged_into_person_id IS NULL
+                  AND per.display_name ILIKE $1
+              )
+            )
+        )
+        SELECT
+          cat_id, display_name, sex, primary_color, is_deceased, deceased_date,
+          death_cause, needs_microchip, felv_status, fiv_status, microchip,
+          clinichq_animal_id, owner_name, place_address, photo_url,
+          is_from_clinic_day, appointment_id, appointment_date, clinic_day_number
+        FROM cat_results
+        ORDER BY is_from_clinic_day DESC, microchip_exact_match, name_match, display_name NULLS LAST
+        LIMIT 50
+        `,
+        [searchTerm, date || "1900-01-01"]
+      );
+    }
 
     return NextResponse.json({ cats });
   } catch (error) {
