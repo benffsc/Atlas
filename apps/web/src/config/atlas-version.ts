@@ -23,10 +23,11 @@ export type AtlasVersion = "v1" | "v2";
 
 /**
  * Get the current Atlas version from environment
+ * As of 2026-02-14: V2 is now the default. V1 (trapper.*) is deprecated.
  */
 export function getAtlasVersion(): AtlasVersion {
   const version = process.env.ATLAS_VERSION as AtlasVersion;
-  return version === "v2" ? "v2" : "v1"; // Default to v1
+  return version === "v1" ? "v1" : "v2"; // Default to v2 (V1 deprecated)
 }
 
 /**

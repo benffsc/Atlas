@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Get active email templates
     const templates = await queryRows<EmailTemplate>(`
       SELECT template_id, template_key, name, subject
-      FROM trapper.email_templates
+      FROM ops.email_templates
       WHERE is_active = TRUE
       ORDER BY name
     `);
@@ -81,7 +81,6 @@ export async function POST(request: NextRequest) {
       placeholders,
       submissionId,
       personId,
-      requestId,
     } = body;
 
     // Validate required fields
@@ -114,7 +113,6 @@ export async function POST(request: NextRequest) {
           placeholders: placeholders || {},
           submissionId,
           personId,
-          requestId,
           sentBy: staff.staff_id,
         });
 
@@ -165,7 +163,6 @@ export async function POST(request: NextRequest) {
           placeholders: placeholders || {},
           submissionId,
           personId,
-          requestId,
           sentBy: staff.staff_id,
         });
 

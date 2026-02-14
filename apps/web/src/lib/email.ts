@@ -26,7 +26,6 @@ export interface SendEmailParams {
   placeholders?: Record<string, string>;
   submissionId?: string;
   personId?: string;
-  requestId?: string;
   sentBy?: string;
 }
 
@@ -59,7 +58,7 @@ export async function getEmailTemplate(
   templateKey: string
 ): Promise<EmailTemplate | null> {
   return queryOne<EmailTemplate>(
-    `SELECT * FROM trapper.email_templates WHERE template_key = $1 AND is_active = TRUE`,
+    `SELECT * FROM ops.email_templates WHERE template_key = $1 AND is_active = TRUE`,
     [templateKey]
   );
 }
@@ -70,7 +69,7 @@ export async function getEmailTemplate(
 export async function sendTemplateEmail(
   params: SendEmailParams
 ): Promise<SendEmailResult> {
-  const { templateKey, to, toName, placeholders = {}, submissionId, personId, requestId, sentBy } = params;
+  const { templateKey, to, toName, placeholders = {}, submissionId, personId, sentBy } = params;
 
   // Check if Resend is configured
   if (!resend) {
@@ -120,7 +119,6 @@ export async function sendTemplateEmail(
         errorMessage: error.message,
         submissionId,
         personId,
-        requestId,
         createdBy: sentBy,
       });
 
@@ -142,7 +140,6 @@ export async function sendTemplateEmail(
       externalId: data?.id,
       submissionId,
       personId,
-      requestId,
       createdBy: sentBy,
     });
 
@@ -174,7 +171,6 @@ interface LogEmailParams {
   externalId?: string;
   submissionId?: string;
   personId?: string;
-  requestId?: string;
   createdBy?: string;
 }
 
@@ -184,7 +180,7 @@ interface LogEmailParams {
 async function logSentEmail(params: LogEmailParams): Promise<string | undefined> {
   try {
     const result = await queryOne<{ email_id: string }>(`
-      INSERT INTO trapper.sent_emails (
+      INSERT INTO ops.sent_emails (
         template_key,
         recipient_email,
         recipient_name,
@@ -196,13 +192,12 @@ async function logSentEmail(params: LogEmailParams): Promise<string | undefined>
         external_id,
         submission_id,
         person_id,
-        request_id,
         sent_at,
-        sent_by
+        created_by
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         CASE WHEN $7 = 'sent' THEN NOW() ELSE NULL END,
-        $13
+        $12
       )
       RETURNING email_id
     `, [
@@ -217,7 +212,6 @@ async function logSentEmail(params: LogEmailParams): Promise<string | undefined>
       params.externalId || null,
       params.submissionId || null,
       params.personId || null,
-      params.requestId || null,
       params.createdBy || "system",
     ]);
 

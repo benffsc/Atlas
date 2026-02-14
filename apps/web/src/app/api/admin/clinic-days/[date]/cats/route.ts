@@ -83,8 +83,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           c.primary_color AS cat_color,
           c.secondary_color AS cat_secondary_color,
           FALSE AS needs_microchip,
-          ci_mc.id_value AS microchip,
-          ci_chq.id_value AS clinichq_animal_id,
+          -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
+          COALESCE(ci_mc.id_value, c.microchip) AS microchip,
+          COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
           NULL AS photo_url,
           per.display_name AS owner_name,
           pl.formatted_address AS place_address,
@@ -146,8 +147,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           c.primary_color AS cat_color,
           c.secondary_color AS cat_secondary_color,
           FALSE AS needs_microchip,
-          ci_mc.id_value AS microchip,
-          ci_chq.id_value AS clinichq_animal_id,
+          -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
+          COALESCE(ci_mc.id_value, c.microchip) AS microchip,
+          COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
           NULL AS photo_url,
           per.display_name AS owner_name,
           pl.formatted_address AS place_address,

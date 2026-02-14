@@ -254,7 +254,7 @@ export async function saveOutlookAccount(
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
   const result = await queryOne<{ account_id: string }>(`
-    INSERT INTO trapper.outlook_email_accounts (
+    INSERT INTO ops.outlook_email_accounts (
       email, display_name, microsoft_user_id,
       access_token, refresh_token, token_expires_at,
       connected_by_staff_id, last_token_refresh_at
@@ -279,7 +279,7 @@ export async function saveOutlookAccount(
  */
 export async function getConnectedAccounts(): Promise<OutlookAccount[]> {
   return queryRows<OutlookAccount>(`
-    SELECT * FROM trapper.v_connected_outlook_accounts
+    SELECT * FROM ops.v_connected_outlook_accounts
   `);
 }
 
@@ -297,7 +297,7 @@ export async function getAccountById(accountId: string): Promise<{
 } | null> {
   return queryOne(`
     SELECT account_id, email, display_name, access_token, refresh_token, token_expires_at, is_active
-    FROM trapper.outlook_email_accounts
+    FROM ops.outlook_email_accounts
     WHERE account_id = $1 AND is_active = TRUE
   `, [accountId]);
 }
@@ -314,7 +314,7 @@ async function updateTokens(
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
   await query(`
-    UPDATE trapper.outlook_email_accounts
+    UPDATE ops.outlook_email_accounts
     SET access_token = $2,
         refresh_token = $3,
         token_expires_at = $4,
@@ -330,7 +330,7 @@ async function updateTokens(
  */
 async function markAccountError(accountId: string, error: string): Promise<void> {
   await query(`
-    UPDATE trapper.outlook_email_accounts
+    UPDATE ops.outlook_email_accounts
     SET connection_error = $2, updated_at = NOW()
     WHERE account_id = $1
   `, [accountId, error]);
@@ -341,7 +341,7 @@ async function markAccountError(accountId: string, error: string): Promise<void>
  */
 export async function disconnectAccount(accountId: string): Promise<void> {
   await query(`
-    UPDATE trapper.outlook_email_accounts
+    UPDATE ops.outlook_email_accounts
     SET is_active = FALSE, updated_at = NOW()
     WHERE account_id = $1
   `, [accountId]);
@@ -408,7 +408,7 @@ export async function sendOutlookEmail(
 
     // Update last used timestamp
     await query(`
-      UPDATE trapper.outlook_email_accounts
+      UPDATE ops.outlook_email_accounts
       SET last_used_at = NOW()
       WHERE account_id = $1
     `, [accountId]);
@@ -433,10 +433,9 @@ export async function sendTemplatedOutlookEmail(params: {
   placeholders?: Record<string, string>;
   submissionId?: string;
   personId?: string;
-  requestId?: string;
   sentBy?: string;
 }): Promise<{ success: boolean; emailId?: string; error?: string }> {
-  const { accountId, templateKey, to, toName, placeholders = {}, submissionId, personId, requestId, sentBy } = params;
+  const { accountId, templateKey, to, toName, placeholders = {}, submissionId, personId, sentBy } = params;
 
   // Get template
   const template = await queryOne<{
@@ -446,7 +445,7 @@ export async function sendTemplatedOutlookEmail(params: {
     body_text: string | null;
   }>(`
     SELECT template_id, subject, body_html, body_text
-    FROM trapper.email_templates
+    FROM ops.email_templates
     WHERE template_key = $1 AND is_active = TRUE
   `, [templateKey]);
 
@@ -493,7 +492,6 @@ export async function sendTemplatedOutlookEmail(params: {
     fromEmail: account?.email,
     submissionId,
     personId,
-    requestId,
     sentBy,
   });
 
@@ -520,12 +518,11 @@ async function logSentEmail(params: {
   fromEmail?: string;
   submissionId?: string;
   personId?: string;
-  requestId?: string;
   sentBy?: string;
 }): Promise<string | undefined> {
   try {
     const result = await queryOne<{ email_id: string }>(`
-      INSERT INTO trapper.sent_emails (
+      INSERT INTO ops.sent_emails (
         template_key,
         recipient_email,
         recipient_name,
@@ -537,13 +534,12 @@ async function logSentEmail(params: {
         outlook_account_id,
         submission_id,
         person_id,
-        request_id,
         sent_at,
-        sent_by
+        created_by
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         CASE WHEN $7 = 'sent' THEN NOW() ELSE NULL END,
-        $13
+        $12
       )
       RETURNING email_id
     `, [
@@ -558,7 +554,6 @@ async function logSentEmail(params: {
       params.outlookAccountId || null,
       params.submissionId || null,
       params.personId || null,
-      params.requestId || null,
       params.sentBy || "system",
     ]);
 

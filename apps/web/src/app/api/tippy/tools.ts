@@ -1993,8 +1993,8 @@ async function queryPersonHistory(nameSearch: string): Promise<ToolResult> {
         pm.primary_email,
         pm.entity_type,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = pm.person_id) as requests_made,
-        (SELECT COUNT(*) FROM trapper.request_trapper_assignments rta WHERE rta.person_id = pm.person_id) as requests_trapped,
-        (SELECT string_agg(DISTINCT pr.role_name, ', ') FROM sot.person_roles pr WHERE pr.person_id = pm.person_id) as roles
+        (SELECT COUNT(*) FROM ops.request_trapper_assignments rta WHERE rta.person_id = pm.person_id) as requests_trapped,
+        (SELECT string_agg(DISTINCT pr.role::TEXT, ', ') FROM ops.person_roles pr WHERE pr.person_id = pm.person_id) as roles
       FROM person_match pm
     )
     SELECT * FROM person_stats
@@ -3568,10 +3568,10 @@ async function queryTrapperStats(
         const fallback = await queryOne<{ total: number; ffsc: number; community: number }>(
           `SELECT
             COUNT(*) FILTER (WHERE role_status = 'active') as total,
-            COUNT(*) FILTER (WHERE trapper_type = 'ffsc_trapper' AND role_status = 'active') as ffsc,
-            COUNT(*) FILTER (WHERE trapper_type = 'community_trapper' AND role_status = 'active') as community
-          FROM sot.person_roles
-          WHERE role = 'trapper'`
+            COUNT(*) FILTER (WHERE role = 'ffsc_trapper' AND role_status = 'active') as ffsc,
+            COUNT(*) FILTER (WHERE role = 'community_trapper' AND role_status = 'active') as community
+          FROM ops.person_roles
+          WHERE role IN ('trapper', 'ffsc_trapper', 'community_trapper', 'head_trapper')`
         );
         return {
           success: true,
@@ -3608,14 +3608,14 @@ async function queryTrapperStats(
         count: number;
       }>(
         `SELECT
-          trapper_type,
+          role as trapper_type,
           role_status,
           COUNT(*) as count
-        FROM sot.person_roles
-        WHERE role = 'trapper' AND trapper_type IS NOT NULL
-        ${trapperType && trapperType !== "all" ? "AND trapper_type = $1" : ""}
-        GROUP BY trapper_type, role_status
-        ORDER BY trapper_type, role_status`,
+        FROM ops.person_roles
+        WHERE role IN ('trapper', 'ffsc_trapper', 'community_trapper', 'head_trapper')
+        ${trapperType && trapperType !== "all" ? "AND role = $1" : ""}
+        GROUP BY role, role_status
+        ORDER BY role, role_status`,
         trapperType && trapperType !== "all" ? [trapperType] : []
       );
 

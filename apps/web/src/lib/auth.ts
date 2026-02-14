@@ -124,7 +124,7 @@ export async function createSession(
   const tokenHash = await hashToken(token);
 
   const result = await queryOne<{ session_id: string }>(
-    `SELECT trapper.create_staff_session($1, $2, $3, $4, $5) as session_id`,
+    `SELECT ops.create_staff_session($1, $2, $3, $4, $5) as session_id`,
     [staffId, tokenHash, SESSION_EXPIRY_HOURS, ipAddress || null, userAgent || null]
   );
 
@@ -156,7 +156,7 @@ export async function validateSession(token: string): Promise<Staff | null> {
     person_id: string | null;
     session_id: string;
   }>(
-    `SELECT * FROM trapper.validate_staff_session($1)`,
+    `SELECT * FROM ops.validate_staff_session($1)`,
     [tokenHash]
   );
 
@@ -184,7 +184,7 @@ export async function invalidateSession(
   const tokenHash = await hashToken(token);
 
   const result = await queryOne<{ invalidate_staff_session: boolean }>(
-    `SELECT trapper.invalidate_staff_session($1, $2) as invalidate_staff_session`,
+    `SELECT ops.invalidate_staff_session($1, $2) as invalidate_staff_session`,
     [tokenHash, reason]
   );
 
@@ -216,7 +216,7 @@ export async function login(
     locked_until: Date | null;
   }>(
     `SELECT staff_id, display_name, email, password_hash, auth_role, person_id, is_active, locked_until
-     FROM trapper.staff
+     FROM ops.staff
      WHERE LOWER(email) = LOWER($1)`,
     [email]
   );
@@ -254,7 +254,7 @@ export async function login(
 
   if (!passwordValid) {
     // Record failed login attempt
-    await queryOne(`SELECT trapper.record_failed_login($1)`, [email]);
+    await queryOne(`SELECT ops.record_failed_login($1)`, [email]);
     return { success: false, error: "Invalid email or password" };
   }
 
@@ -330,8 +330,8 @@ export async function getSession(
       s.person_id,
       ss.session_id,
       COALESCE(s.password_change_required, FALSE) as password_change_required
-    FROM trapper.staff_sessions ss
-    JOIN trapper.staff s ON s.staff_id = ss.staff_id
+    FROM ops.staff_sessions ss
+    JOIN ops.staff s ON s.staff_id = ss.staff_id
     WHERE ss.token_hash = $1
       AND ss.expires_at > NOW()
       AND ss.invalidated_at IS NULL
@@ -402,7 +402,7 @@ export async function hasPermission(
   action: string
 ): Promise<boolean> {
   const result = await queryOne<{ staff_can_access: boolean }>(
-    `SELECT trapper.staff_can_access($1, $2, $3) as staff_can_access`,
+    `SELECT ops.staff_can_access($1, $2, $3) as staff_can_access`,
     [staffId, resource, action]
   );
 
@@ -468,7 +468,7 @@ export async function setStaffPassword(
   const hash = await hashPassword(newPassword);
 
   const result = await queryOne<{ updated: boolean }>(
-    `UPDATE trapper.staff
+    `UPDATE ops.staff
      SET password_hash = $2, login_attempts = 0, locked_until = NULL
      WHERE staff_id = $1
      RETURNING true as updated`,
@@ -488,7 +488,7 @@ export async function changePassword(
 ): Promise<{ success: boolean; error?: string }> {
   // Get current hash
   const staff = await queryOne<{ password_hash: string | null }>(
-    `SELECT password_hash FROM trapper.staff WHERE staff_id = $1`,
+    `SELECT password_hash FROM ops.staff WHERE staff_id = $1`,
     [staffId]
   );
 
