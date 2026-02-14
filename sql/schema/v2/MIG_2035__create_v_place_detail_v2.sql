@@ -32,7 +32,7 @@ SELECT
     SELECT json_agg(json_build_object(
       'person_id', per.person_id,
       'display_name', COALESCE(per.display_name, per.first_name || ' ' || per.last_name),
-      'role', ppr.role::text
+      'role', ppr.relationship_type::text
     ))
     FROM sot.person_place ppr
     JOIN sot.people per ON per.person_id = ppr.person_id AND per.merged_into_person_id IS NULL

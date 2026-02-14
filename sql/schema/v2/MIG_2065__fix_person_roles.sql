@@ -37,16 +37,13 @@ ALTER TABLE ops.person_roles ADD COLUMN IF NOT EXISTS notes TEXT;
 -- ============================================================================
 
 \echo ''
-\echo '2. Adding on_leave to role_status enum...'
+\echo '2. Checking role_status column type...'
 
--- Check if enum value exists before adding
+-- V2 uses TEXT for role_status, not an enum
+-- Just note that on_leave is now a valid value
 DO $$
 BEGIN
-    -- Try to add the value
-    ALTER TYPE ops.person_role_status ADD VALUE IF NOT EXISTS 'on_leave';
-    RAISE NOTICE 'Added on_leave to ops.person_role_status';
-EXCEPTION WHEN duplicate_object THEN
-    RAISE NOTICE 'on_leave already exists in ops.person_role_status';
+    RAISE NOTICE 'role_status is TEXT - on_leave can be used directly';
 END $$;
 
 -- ============================================================================
@@ -94,7 +91,7 @@ END $$;
 
 CREATE OR REPLACE VIEW ops.v_person_roles_extended AS
 SELECT
-    pr.role_id,
+    pr.id AS role_id,
     pr.person_id,
     p.display_name AS person_name,
     pr.role,
@@ -137,10 +134,10 @@ WHERE table_schema = 'ops' AND table_name = 'person_roles'
 ORDER BY ordinal_position;
 
 \echo ''
-\echo 'Role status values available:'
-SELECT enumlabel
-FROM pg_enum
-WHERE enumtypid = 'ops.person_role_status'::regtype;
+\echo 'Role status values in use:'
+SELECT DISTINCT role_status, COUNT(*) as count
+FROM ops.person_roles
+GROUP BY role_status;
 
 \echo ''
 \echo 'Records with dates:'

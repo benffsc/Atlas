@@ -140,7 +140,7 @@ export async function GET(
             SELECT json_agg(json_build_object(
               'person_id', per.person_id,
               'display_name', per.display_name,
-              'role', pp.role::text
+              'role', pp.relationship_type::text
             ))
             FROM sot.person_place pp
             JOIN sot.people per ON per.person_id = pp.person_id
