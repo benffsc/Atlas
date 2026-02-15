@@ -254,7 +254,7 @@ export async function GET(
         p.safety_notes AS place_safety_notes,
         p.safety_concerns AS place_safety_concerns,
         p.service_zone AS place_service_zone,
-        sa.locality AS place_city,
+        sa.city AS place_city,
         sa.postal_code AS place_postal_code,
         CASE WHEN p.location IS NOT NULL THEN
             jsonb_build_object(

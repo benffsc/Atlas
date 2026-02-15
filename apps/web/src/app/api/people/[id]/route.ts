@@ -142,7 +142,7 @@ export async function GET(
                 COALESCE(pl.display_name, split_part(pl.formatted_address, ',', 1)) AS display_name,
                 pl.formatted_address,
                 pl.place_kind,
-                sa.locality,
+                sa.city AS locality,
                 'relationship' AS source_type,
                 ppr.confidence
               FROM sot.person_place_relationships ppr

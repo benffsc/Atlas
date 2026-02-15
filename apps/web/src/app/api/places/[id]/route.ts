@@ -87,9 +87,9 @@ export async function GET(
         v.place_kind,
         v.is_address_backed,
         v.has_cat_activity,
-        sa.locality,
+        sa.city AS locality,
         sa.postal_code,
-        sa.admin_area_1 AS state_province,
+        sa.state AS state_province,
         v.coordinates,
         v.created_at,
         v.updated_at,
@@ -119,9 +119,9 @@ export async function GET(
           p.place_kind::text AS place_kind,
           p.is_address_backed,
           EXISTS(SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id) AS has_cat_activity,
-          sa.locality,
+          sa.city AS locality,
           sa.postal_code,
-          sa.admin_area_1 AS state_province,
+          sa.state AS state_province,
           CASE WHEN p.location IS NOT NULL THEN
             json_build_object('lat', ST_Y(p.location::geometry), 'lng', ST_X(p.location::geometry))
           ELSE NULL END AS coordinates,
@@ -328,11 +328,13 @@ export async function PATCH(
         body.postal_code !== undefined || body.state_province !== undefined ||
         body.latitude !== undefined || body.longitude !== undefined) {
 
-      // Get current place data for audit comparison
+      // Get current place data for audit comparison (V2: addresses use city/state not locality/state_province)
       const currentSql = `
-        SELECT formatted_address, locality, postal_code, state_province,
-               ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng
-        FROM sot.places WHERE place_id = $1
+        SELECT p.formatted_address, a.city AS locality, a.postal_code, a.state AS state_province,
+               ST_Y(p.location::geometry) as lat, ST_X(p.location::geometry) as lng
+        FROM sot.places p
+        LEFT JOIN sot.addresses a ON a.address_id = p.sot_address_id
+        WHERE p.place_id = $1
       `;
       const current = await queryOne<{
         formatted_address: string | null;
@@ -361,27 +363,34 @@ export async function PATCH(
         paramIndex++;
       }
 
+      // V2: locality, postal_code, state_province are on addresses table, not places
+      // These fields require updating the linked address record, which is not yet implemented
+      // For now, log the audit but skip the direct place update
       if (body.locality !== undefined && body.locality !== current.locality) {
         auditChanges.push({
           field: 'locality',
           oldVal: current.locality,
           newVal: body.locality
         });
-        updates.push(`locality = $${paramIndex}`);
-        values.push(body.locality);
-        paramIndex++;
+        // TODO: Update sot.addresses where address_id = (SELECT sot_address_id FROM sot.places WHERE place_id = $1)
       }
 
       if (body.postal_code !== undefined && body.postal_code !== current.postal_code) {
-        updates.push(`postal_code = $${paramIndex}`);
-        values.push(body.postal_code);
-        paramIndex++;
+        auditChanges.push({
+          field: 'postal_code',
+          oldVal: current.postal_code,
+          newVal: body.postal_code
+        });
+        // TODO: Update sot.addresses
       }
 
       if (body.state_province !== undefined && body.state_province !== current.state_province) {
-        updates.push(`state_province = $${paramIndex}`);
-        values.push(body.state_province);
-        paramIndex++;
+        auditChanges.push({
+          field: 'state_province',
+          oldVal: current.state_province,
+          newVal: body.state_province
+        });
+        // TODO: Update sot.addresses
       }
 
       // Update coordinates if provided

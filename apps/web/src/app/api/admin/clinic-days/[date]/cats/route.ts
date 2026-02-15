@@ -86,7 +86,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
           COALESCE(ci_mc.id_value, c.microchip) AS microchip,
           COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
-          NULL AS photo_url,
+          -- Get first photo from storage for this cat
+          (
+            SELECT 'https://afxpboxisgoxttyrbtpw.supabase.co/storage/v1/object/public/request-media/' || so.name
+            FROM storage.objects so
+            WHERE so.bucket_id = 'request-media'
+              AND so.name LIKE 'cats/' || c.cat_id::text || '/%'
+            ORDER BY so.created_at DESC
+            LIMIT 1
+          ) AS photo_url,
           per.display_name AS owner_name,
           pl.formatted_address AS place_address,
           NULL AS trapper_name,
@@ -151,7 +159,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
           COALESCE(ci_mc.id_value, c.microchip) AS microchip,
           COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
-          NULL AS photo_url,
+          -- Get first photo from storage for this cat (fallback query)
+          (
+            SELECT 'https://afxpboxisgoxttyrbtpw.supabase.co/storage/v1/object/public/request-media/' || so.name
+            FROM storage.objects so
+            WHERE so.bucket_id = 'request-media'
+              AND so.name LIKE 'cats/' || c.cat_id::text || '/%'
+            ORDER BY so.created_at DESC
+            LIMIT 1
+          ) AS photo_url,
           per.display_name AS owner_name,
           pl.formatted_address AS place_address,
           NULL AS trapper_name,
