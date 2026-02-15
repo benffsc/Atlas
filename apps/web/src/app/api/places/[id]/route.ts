@@ -166,35 +166,28 @@ export async function GET(
       );
     }
 
-    // Fetch verification info from places table
-    const verification = await queryOne<VerificationInfo>(
-      `SELECT
-         p.verified_at,
-         p.verified_by,
-         s.display_name AS verified_by_name
-       FROM sot.places p
-       LEFT JOIN ops.staff s ON p.verified_by = s.staff_id::text
-       WHERE p.place_id = $1`,
-      [placeId]
-    );
+    // V2: places table doesn't have verified_at/verified_by columns yet
+    // Return null for now until those columns are added
+    const verification: VerificationInfo | null = null;
 
     // Fetch place contexts (colony_site, foster_home, etc.)
+    // V2: place_contexts uses 'id' not 'context_id', place_context_types uses 'description' not 'display_label'
     const contextsResult = await query<PlaceContext>(
       `SELECT
-         pc.context_id,
+         pc.id AS context_id,
          pc.context_type,
-         pct.display_label AS context_label,
+         COALESCE(pct.description, pc.context_type) AS context_label,
          pc.valid_from,
          pc.evidence_type,
          pc.confidence,
          pc.is_verified,
-         pc.assigned_at,
+         pc.created_at AS assigned_at,
          pc.source_system
        FROM sot.place_contexts pc
-       JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
+       LEFT JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
        WHERE pc.place_id = $1
          AND pc.valid_to IS NULL
-       ORDER BY pct.sort_order`,
+       ORDER BY pc.created_at DESC`,
       [placeId]
     );
     const contexts = contextsResult?.rows || [];
