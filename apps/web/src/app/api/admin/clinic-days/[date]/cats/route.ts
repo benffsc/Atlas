@@ -93,27 +93,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
           c.deceased_at AS deceased_date,
           (
-            SELECT cme.death_cause::TEXT
+            SELECT cme.cause::TEXT
             FROM sot.cat_mortality_events cme
             WHERE cme.cat_id = c.cat_id
             LIMIT 1
           ) AS death_cause,
-          -- FeLV/FIV status from ops.cat_test_results (MIG_2060)
+          -- FeLV/FIV status from ops.cat_test_results (MIG_2117 V2 schema)
+          -- V2: Uses test_type = 'felv' or 'fiv' with result column (not felv_status/fiv_status)
           (
-            SELECT tr.felv_status
+            SELECT tr.result
             FROM ops.cat_test_results tr
             WHERE tr.cat_id = c.cat_id
-              AND tr.test_type = 'felv_fiv'
-              AND tr.felv_status IS NOT NULL
+              AND tr.test_type IN ('felv', 'felv_fiv_combo')
+              AND tr.result IS NOT NULL
             ORDER BY tr.test_date DESC
             LIMIT 1
           ) AS felv_status,
           (
-            SELECT tr.fiv_status
+            SELECT tr.result
             FROM ops.cat_test_results tr
             WHERE tr.cat_id = c.cat_id
-              AND tr.test_type = 'felv_fiv'
-              AND tr.fiv_status IS NOT NULL
+              AND tr.test_type IN ('fiv', 'felv_fiv_combo')
+              AND tr.result IS NOT NULL
             ORDER BY tr.test_date DESC
             LIMIT 1
           ) AS fiv_status
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
           c.deceased_at AS deceased_date,
           (
-            SELECT cme.death_cause::TEXT
+            SELECT cme.cause::TEXT
             FROM sot.cat_mortality_events cme
             WHERE cme.cat_id = c.cat_id
             LIMIT 1

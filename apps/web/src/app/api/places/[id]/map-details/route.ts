@@ -140,7 +140,7 @@ export async function GET(
       FROM sot.places p
       LEFT JOIN (
         SELECT place_id, COUNT(DISTINCT cat_id) AS cat_count
-        FROM sot.cat_place_relationships
+        FROM sot.cat_place
         WHERE place_id = $1
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
@@ -167,7 +167,7 @@ export async function GET(
       ) req ON req.place_id = p.place_id
       LEFT JOIN (
         SELECT cpr.place_id, COUNT(DISTINCT cp.cat_id) AS total_altered
-        FROM sot.cat_place_relationships cpr
+        FROM sot.cat_place cpr
         JOIN ops.cat_procedures cp ON cp.cat_id = cpr.cat_id
           AND (cp.is_spay OR cp.is_neuter)
         WHERE cpr.place_id = $1
@@ -222,6 +222,7 @@ export async function GET(
     // Get Google Maps notes (both original and AI-processed)
     // Uses get_place_family() to include notes from structurally related places:
     // parent building, child units, sibling units, and co-located places (same point)
+    // V2: Table is ops.google_map_entries (not source.google_map_entries)
     const googleNotes = await queryRows<GoogleNote>(
       `WITH family AS (
         SELECT unnest(sot.get_place_family($1)) AS fid
@@ -235,7 +236,7 @@ export async function GET(
         ai_meaning,
         parsed_date::TEXT,
         imported_at::TEXT
-      FROM source.google_map_entries
+      FROM ops.google_map_entries
       WHERE place_id IN (SELECT fid FROM family)
          OR linked_place_id IN (SELECT fid FROM family)
       ORDER BY parsed_date DESC NULLS LAST, imported_at DESC`,
@@ -292,7 +293,7 @@ export async function GET(
           WHERE r.place_id = $1 AND r.source_system IS NOT NULL
           UNION
           SELECT DISTINCT cpr.source_system, 'Cat Links'
-          FROM sot.cat_place_relationships cpr
+          FROM sot.cat_place cpr
           WHERE cpr.place_id = $1 AND cpr.source_system IS NOT NULL
           UNION
           SELECT p.data_source, 'Place Record'
@@ -334,13 +335,15 @@ export async function GET(
     }
 
     // Get cats linked to this place with latest appointment info + disease results
+    // V2: Uses sot.cat_place (not cat_place_relationships) and ops.cat_test_results
+    // V2: sot.cats uses 'name' column (not 'display_name')
     const cats = await queryRows<CatLink>(
       `SELECT
         c.cat_id,
-        c.display_name,
+        c.name AS display_name,
         c.sex,
         c.altered_status,
-        ci.id_value AS microchip,
+        COALESCE(ci.id_value, c.microchip) AS microchip,
         c.breed,
         c.primary_color,
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
@@ -349,7 +352,7 @@ export async function GET(
         apt.latest_appointment_date,
         apt.latest_service_type,
         COALESCE(dis.positive_diseases, '[]'::jsonb) AS positive_diseases
-      FROM sot.cat_place_relationships cpr
+      FROM sot.cat_place cpr
       JOIN sot.cats c ON c.cat_id = cpr.cat_id
         AND c.merged_into_cat_id IS NULL
       LEFT JOIN LATERAL (
@@ -369,18 +372,16 @@ export async function GET(
         SELECT jsonb_agg(DISTINCT jsonb_build_object(
           'disease_key', dt.disease_key,
           'short_code', dt.short_code,
-          'color', dt.color,
+          'color', dt.badge_color,
           'test_date', ctr.test_date::TEXT
         )) AS positive_diseases
-        FROM sot.cat_test_results ctr
-        JOIN ops.test_type_disease_mapping m ON m.test_type = ctr.test_type
-          AND (ctr.result::TEXT ILIKE '%' || m.result_pattern || '%'
-               OR ctr.result_detail ILIKE '%' || m.result_pattern || '%')
-        JOIN ops.disease_types dt ON dt.disease_key = m.disease_key
+        FROM ops.cat_test_results ctr
+        JOIN ops.disease_types dt ON dt.disease_key = ctr.test_type
         WHERE ctr.cat_id = c.cat_id
+          AND ctr.result = 'positive'
       ) dis ON TRUE
       WHERE cpr.place_id = $1
-      ORDER BY apt.latest_appointment_date DESC NULLS LAST, c.display_name`,
+      ORDER BY apt.latest_appointment_date DESC NULLS LAST, c.name`,
       [placeId]
     );
 
