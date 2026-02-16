@@ -78,7 +78,7 @@ export async function GET(
         pd.primary_address_id,
         pd.primary_place_address AS primary_address,
         a.city AS primary_address_locality,
-        pd.data_source,
+        COALESCE(pd.data_source, pd.source_system) AS data_source,
         pd.entity_type,
         pd.data_quality,
         pd.primary_place_id,

@@ -34,46 +34,51 @@ export async function GET(
   const { id } = await params;
 
   try {
-    // Get all edges for this place (both directions)
+    // V2: Use V2 column names (place_id_from/to instead of place_id_a/b)
+    // relationship_type is text, not FK to relationship_types table
     const edges = await queryRows<PlaceEdge>(`
       SELECT
         e.edge_id,
-        e.place_id_a,
-        e.place_id_b,
-        e.relationship_type_id,
-        rt.code AS relationship_code,
-        rt.label AS relationship_label,
-        e.direction,
-        e.note,
+        e.place_id_from AS place_id_a,
+        e.place_id_to AS place_id_b,
+        e.relationship_type AS relationship_type_id,
+        e.relationship_type AS relationship_code,
+        COALESCE(rt.type_label, e.relationship_type) AS relationship_label,
+        'bidirectional' AS direction,
+        NULL::TEXT AS note,
         e.created_at,
-        e.created_by,
+        NULL::TEXT AS created_by,
         CASE
-          WHEN e.place_id_a = $1 THEN e.place_id_b
-          ELSE e.place_id_a
+          WHEN e.place_id_from = $1 THEN e.place_id_to
+          ELSE e.place_id_from
         END AS related_place_id,
         CASE
-          WHEN e.place_id_a = $1 THEN pb.formatted_address
+          WHEN e.place_id_from = $1 THEN pb.formatted_address
           ELSE pa.formatted_address
         END AS related_place_address,
         CASE
-          WHEN e.place_id_a = $1 THEN pb.display_name
+          WHEN e.place_id_from = $1 THEN pb.display_name
           ELSE pa.display_name
         END AS related_place_name
       FROM sot.place_place_edges e
-      JOIN ops.relationship_types rt ON rt.id = e.relationship_type_id
-      LEFT JOIN sot.places pa ON pa.place_id = e.place_id_a
-      LEFT JOIN sot.places pb ON pb.place_id = e.place_id_b
-      WHERE e.place_id_a = $1 OR e.place_id_b = $1
+      LEFT JOIN sot.relationship_types rt ON rt.type_key = e.relationship_type AND rt.applies_to = 'place_place'
+      LEFT JOIN sot.places pa ON pa.place_id = e.place_id_from
+      LEFT JOIN sot.places pb ON pb.place_id = e.place_id_to
+      WHERE e.place_id_from = $1 OR e.place_id_to = $1
       ORDER BY e.created_at DESC
     `, [id]);
 
-    // Get available relationship types
+    // V2: relationship_types is in sot schema with different columns
     const relationshipTypes = await queryRows<RelationshipType>(`
-      SELECT id::text, code, label, description
-      FROM ops.relationship_types
-      WHERE domain = 'place_place'
-        AND active = true
-      ORDER BY sort_order, label
+      SELECT
+        type_id::text AS id,
+        type_key AS code,
+        type_label AS label,
+        description
+      FROM sot.relationship_types
+      WHERE applies_to = 'place_place'
+        AND is_active = true
+      ORDER BY type_label
     `);
 
     return NextResponse.json({
@@ -127,10 +132,10 @@ export async function POST(
   }
 
   try {
-    // Get relationship type ID
-    const relType = await queryOne<{ id: string }>(`
-      SELECT id::text FROM ops.relationship_types
-      WHERE code = $1 AND domain = 'place_place'
+    // V2: Validate relationship type exists in sot.relationship_types
+    const relType = await queryOne<{ type_key: string }>(`
+      SELECT type_key FROM sot.relationship_types
+      WHERE type_key = $1 AND applies_to = 'place_place'
     `, [body.relationship_type]);
 
     if (!relType) {
@@ -140,11 +145,11 @@ export async function POST(
       );
     }
 
-    // Check if edge already exists (in either direction)
+    // V2: Check if edge already exists (in either direction) using place_id_from/to
     const existing = await queryOne<{ edge_id: string }>(`
       SELECT edge_id FROM sot.place_place_edges
-      WHERE (place_id_a = $1 AND place_id_b = $2)
-         OR (place_id_a = $2 AND place_id_b = $1)
+      WHERE (place_id_from = $1 AND place_id_to = $2)
+         OR (place_id_from = $2 AND place_id_to = $1)
     `, [id, body.related_place_id]);
 
     if (existing) {
@@ -154,25 +159,29 @@ export async function POST(
       );
     }
 
-    // Create the edge
+    // V2: Create the edge using V2 column names
     const result = await queryOne<PlaceEdge>(`
       INSERT INTO sot.place_place_edges (
-        place_id_a,
-        place_id_b,
-        relationship_type_id,
-        direction,
-        note,
-        created_by,
+        place_id_from,
+        place_id_to,
+        relationship_type,
+        evidence_type,
+        confidence,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      RETURNING edge_id, place_id_a, place_id_b, relationship_type_id, direction, note, created_at, created_by
+      ) VALUES ($1, $2, $3, 'manual', 1.0, NOW())
+      RETURNING
+        edge_id,
+        place_id_from AS place_id_a,
+        place_id_to AS place_id_b,
+        relationship_type AS relationship_type_id,
+        'bidirectional' AS direction,
+        NULL::TEXT AS note,
+        created_at,
+        NULL::TEXT AS created_by
     `, [
       id,
       body.related_place_id,
-      relType.id,
-      body.direction || 'bidirectional',
-      body.note || null,
-      body.created_by || 'web_user',
+      body.relationship_type,
     ]);
 
     // Log the change
@@ -222,18 +231,21 @@ export async function DELETE(
   }
 
   try {
-    // Check if edge exists and involves this place
+    // V2: Check if edge exists using V2 column names
     const existing = await queryOne<{
       edge_id: string;
       place_id_a: string;
       place_id_b: string;
       relationship_code: string;
     }>(`
-      SELECT e.edge_id, e.place_id_a, e.place_id_b, rt.code AS relationship_code
+      SELECT
+        e.edge_id,
+        e.place_id_from AS place_id_a,
+        e.place_id_to AS place_id_b,
+        e.relationship_type AS relationship_code
       FROM sot.place_place_edges e
-      JOIN ops.relationship_types rt ON rt.id = e.relationship_type_id
       WHERE e.edge_id = $1
-        AND (e.place_id_a = $2 OR e.place_id_b = $2)
+        AND (e.place_id_from = $2 OR e.place_id_to = $2)
     `, [body.edge_id, id]);
 
     if (!existing) {

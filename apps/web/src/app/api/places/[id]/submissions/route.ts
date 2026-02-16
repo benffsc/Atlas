@@ -36,6 +36,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    // V2: Some columns from V1 don't exist in V2 schema
     const submissions = await queryRows<Submission>(
       `SELECT
         w.submission_id,
@@ -48,13 +49,13 @@ export async function GET(
         w.cat_count_text,
         w.situation_description,
         w.submission_status,
-        w.appointment_date,
+        NULL::TIMESTAMPTZ AS appointment_date,
         w.triage_category,
-        w.is_legacy,
-        w.legacy_status,
-        w.legacy_submission_status,
-        w.legacy_appointment_date,
-        w.created_request_id,
+        FALSE AS is_legacy,
+        NULL::TEXT AS legacy_status,
+        NULL::TEXT AS legacy_submission_status,
+        NULL::TIMESTAMPTZ AS legacy_appointment_date,
+        w.request_id AS created_request_id,
         w.matched_person_id,
         p.display_name as matched_person_name
       FROM ops.intake_submissions w

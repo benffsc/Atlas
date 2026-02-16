@@ -344,6 +344,7 @@ export async function GET(
     `;
 
     // Fetch appointments with categories
+    // V2: service_type is often empty, so we infer category from is_spay/is_neuter flags
     const appointmentsSql = `
       SELECT
         v.appointment_id,
@@ -351,11 +352,14 @@ export async function GET(
         v.clinic_day_number,
         CASE
             WHEN v.service_type ILIKE '%spay%' OR v.service_type ILIKE '%neuter%' THEN 'Spay/Neuter'
+            WHEN COALESCE(v.is_spay, false) OR COALESCE(v.is_neuter, false) THEN 'Spay/Neuter'
             WHEN v.service_type ILIKE '%examination%brief%' OR v.service_type ILIKE '%exam%feral%'
                  OR v.service_type ILIKE '%exam fee%' THEN 'Wellness'
             WHEN v.service_type ILIKE '%recheck%' THEN 'Recheck'
             WHEN v.service_type ILIKE '%euthanasia%' THEN 'Euthanasia'
-            ELSE 'Other'
+            WHEN v.service_type ILIKE '%tnr%' THEN 'TNR'
+            WHEN v.service_type IS NULL OR v.service_type = '' THEN 'Clinic Visit'
+            ELSE 'Clinic Visit'
         END as appointment_category,
         v.service_type as service_types,
         COALESCE(v.is_spay, false) as is_spay,

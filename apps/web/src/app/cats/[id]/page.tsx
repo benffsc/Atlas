@@ -1718,7 +1718,7 @@ export default function CatDetailPage() {
                     </td>
                     <td>{formatDateLocal(appt.appointment_date)}</td>
                     <td>
-                      <span className="badge" style={{ background: appt.appointment_category === "Spay/Neuter" ? "#198754" : appt.appointment_category === "Wellness" ? "#0d6efd" : appt.appointment_category === "Recheck" ? "#6f42c1" : appt.appointment_category === "Euthanasia" ? "#dc3545" : "#6c757d", color: "#fff" }}>
+                      <span className="badge" style={{ background: appt.appointment_category === "Spay/Neuter" ? "#198754" : appt.appointment_category === "Wellness" ? "#0d6efd" : appt.appointment_category === "Recheck" ? "#6f42c1" : appt.appointment_category === "Euthanasia" ? "#dc3545" : appt.appointment_category === "TNR" ? "#17a2b8" : appt.appointment_category === "Clinic Visit" ? "#6c757d" : "#adb5bd", color: "#fff" }}>
                         {appt.appointment_category}
                       </span>
                     </td>
