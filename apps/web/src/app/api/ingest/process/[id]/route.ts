@@ -774,12 +774,26 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
 
     // Step 1: Create sot_appointments from staged_records
     // Uses get_canonical_cat_id to handle merged cats
+    // Includes all enriched columns (health flags, FeLV/FIV, financial, etc.)
     await saveProgress('Creating appointments...');
     const newAppointments = await query(`
       INSERT INTO ops.appointments (
         cat_id, appointment_date, appointment_number, service_type,
         is_spay, is_neuter, vet_name, technician, temperature, medical_notes,
         is_lactating, is_pregnant, is_in_heat,
+        -- Health screening flags (MIG_2320)
+        has_uri, has_dental_disease, has_ear_issue, has_eye_issue,
+        has_skin_issue, has_mouth_issue, has_fleas, has_ticks,
+        has_tapeworms, has_ear_mites, has_ringworm,
+        -- Misc flags
+        has_polydactyl, has_bradycardia, has_too_young_for_rabies,
+        has_cryptorchid, has_hernia, has_pyometra,
+        -- Text fields
+        felv_fiv_result, body_composition_score, no_surgery_reason,
+        -- Financial
+        total_invoiced, subsidy_value,
+        -- Unique ID for raw data joins
+        clinichq_appointment_id,
         data_source, source_system, source_record_id, source_row_hash
       )
       SELECT
@@ -798,6 +812,38 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         sot.is_positive_value(sr.payload->>'Lactating') OR sot.is_positive_value(sr.payload->>'Lactating_2'),
         sot.is_positive_value(sr.payload->>'Pregnant'),
         sot.is_positive_value(sr.payload->>'In Heat'),
+        -- Health screening flags
+        sot.is_positive_value(COALESCE(sr.payload->>'URI', sr.payload->>'Upper Respiratory Issue')),
+        sot.is_positive_value(sr.payload->>'Dental Disease'),
+        sot.is_positive_value(COALESCE(sr.payload->>'Ear Issue', sr.payload->>'Ear infections')),
+        sot.is_positive_value(sr.payload->>'Eye Issue'),
+        sot.is_positive_value(sr.payload->>'Skin Issue'),
+        sot.is_positive_value(sr.payload->>'Mouth Issue'),
+        sot.is_positive_value(COALESCE(sr.payload->>'Fleas', sr.payload->>'Fleas/Ticks')),
+        sot.is_positive_value(sr.payload->>'Ticks'),
+        sot.is_positive_value(sr.payload->>'Tapeworms'),
+        sot.is_positive_value(sr.payload->>'Ear mites'),
+        sot.is_positive_value(sr.payload->>'Wood''s Lamp Ringworm Test'),
+        -- Misc flags
+        sot.is_positive_value(sr.payload->>'Polydactyl'),
+        sot.is_positive_value(sr.payload->>'Bradycardia Intra-Op'),
+        sot.is_positive_value(sr.payload->>'Too young for rabies'),
+        sot.is_positive_value(sr.payload->>'Cryptorchid'),
+        sot.is_positive_value(sr.payload->>'Hernia'),
+        sot.is_positive_value(sr.payload->>'Pyometra'),
+        -- Text fields
+        NULLIF(TRIM(sr.payload->>'FeLV/FIV (SNAP test, in-house)'), ''),
+        NULLIF(TRIM(sr.payload->>'Body Composition Score'), ''),
+        NULLIF(TRIM(sr.payload->>'No Surgery Reason'), ''),
+        -- Financial
+        CASE WHEN sr.payload->>'Total Invoiced' ~ '^[\$]?[0-9]+\.?[0-9]*$'
+             THEN REPLACE(sr.payload->>'Total Invoiced', '$', '')::NUMERIC(10,2)
+             ELSE NULL END,
+        CASE WHEN sr.payload->>'Sub Value' ~ '^[\$]?[0-9]+\.?[0-9]*$'
+             THEN REPLACE(sr.payload->>'Sub Value', '$', '')::NUMERIC(10,2)
+             ELSE NULL END,
+        -- Unique ID: date_microchip for joining to raw data
+        TO_CHAR(TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'), 'YYYY-MM-DD') || '_' || sr.payload->>'Microchip Number',
         'clinichq', 'clinichq', sr.source_row_id, sr.row_hash
       FROM ops.staged_records sr
       LEFT JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
@@ -885,18 +931,105 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `);
     results.fixed_females = fixedFemales.rowCount || 0;
 
-    // Mark altered_by_clinic = TRUE when FFSC performed the spay/neuter
-    // (service_type contains "Cat Spay" or "Cat Neuter")
-    await saveProgress('Marking cats altered by clinic...');
-    const alteredByClinic = await query(`
+    // Update altered_status based on spay/neuter procedures
+    // V2 schema uses altered_status instead of altered_by_clinic
+    await saveProgress('Updating cat altered status...');
+    const alteredSpayed = await query(`
       UPDATE sot.cats c
-      SET altered_by_clinic = TRUE
+      SET altered_status = 'spayed'
       FROM ops.appointments a
       WHERE a.cat_id = c.cat_id
-        AND (a.service_type ILIKE '%Cat Spay%' OR a.service_type ILIKE '%Cat Neuter%')
-        AND c.altered_by_clinic IS DISTINCT FROM TRUE
+        AND a.is_spay = TRUE
+        AND LOWER(c.sex) = 'female'
+        AND c.altered_status IS DISTINCT FROM 'spayed'
     `);
-    results.marked_altered_by_clinic = alteredByClinic.rowCount || 0;
+    const alteredNeutered = await query(`
+      UPDATE sot.cats c
+      SET altered_status = 'neutered'
+      FROM ops.appointments a
+      WHERE a.cat_id = c.cat_id
+        AND a.is_neuter = TRUE
+        AND LOWER(c.sex) = 'male'
+        AND c.altered_status IS DISTINCT FROM 'neutered'
+    `);
+    results.marked_altered = (alteredSpayed.rowCount || 0) + (alteredNeutered.rowCount || 0);
+
+    // Enrich appointments with weight and age from cat_info records
+    await saveProgress('Enriching appointments with weight/age...');
+    const enrichedWithWeight = await query(`
+      UPDATE ops.appointments a
+      SET
+        cat_weight_lbs = CASE
+          WHEN ci.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
+          THEN (ci.payload->>'Weight')::NUMERIC(5,2)
+          ELSE a.cat_weight_lbs
+        END,
+        cat_age_years = CASE
+          WHEN ci.payload->>'Age Years' ~ '^[0-9]+$'
+          THEN (ci.payload->>'Age Years')::INTEGER
+          ELSE a.cat_age_years
+        END,
+        cat_age_months = CASE
+          WHEN ci.payload->>'Age Months' ~ '^[0-9]+$'
+          THEN (ci.payload->>'Age Months')::INTEGER
+          ELSE a.cat_age_months
+        END,
+        updated_at = NOW()
+      FROM ops.staged_records ci
+      WHERE ci.source_system = 'clinichq'
+        AND ci.source_table = 'cat_info'
+        AND ci.file_upload_id = $1
+        AND ci.payload->>'Microchip Number' = SPLIT_PART(a.clinichq_appointment_id, '_', 2)
+        AND TO_DATE(ci.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
+        AND a.cat_weight_lbs IS NULL
+    `, [uploadId]);
+    results.enriched_with_weight = enrichedWithWeight.rowCount || 0;
+
+    // Create cat_test_results from FeLV/FIV SNAP test results
+    // Format is "FeLV/FIV" like "Negative/Negative" or "Positive/Negative"
+    await saveProgress('Creating cat test results...');
+    const testResults = await query(`
+      INSERT INTO ops.cat_test_results (
+        cat_id, appointment_id, test_type, test_date, result, result_detail,
+        felv_status, fiv_status, source_system, source_record_id
+      )
+      SELECT
+        a.cat_id,
+        a.appointment_id,
+        'felv_fiv_combo',
+        a.appointment_date,
+        CASE
+          WHEN a.felv_fiv_result ILIKE '%positive%' THEN 'positive'::ops.test_result_enum
+          WHEN a.felv_fiv_result ILIKE '%negative%' THEN 'negative'::ops.test_result_enum
+          ELSE 'inconclusive'::ops.test_result_enum
+        END,
+        a.felv_fiv_result,
+        -- Parse FeLV status (first part before /)
+        CASE
+          WHEN SPLIT_PART(a.felv_fiv_result, '/', 1) ILIKE '%positive%' THEN 'positive'
+          WHEN SPLIT_PART(a.felv_fiv_result, '/', 1) ILIKE '%negative%' THEN 'negative'
+          ELSE NULL
+        END,
+        -- Parse FIV status (second part after /)
+        CASE
+          WHEN SPLIT_PART(a.felv_fiv_result, '/', 2) ILIKE '%positive%' THEN 'positive'
+          WHEN SPLIT_PART(a.felv_fiv_result, '/', 2) ILIKE '%negative%' THEN 'negative'
+          ELSE NULL
+        END,
+        'clinichq',
+        a.appointment_number
+      FROM ops.appointments a
+      WHERE a.felv_fiv_result IS NOT NULL
+        AND a.felv_fiv_result != ''
+        AND a.cat_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM ops.cat_test_results ctr
+          WHERE ctr.appointment_id = a.appointment_id
+            AND ctr.test_type = 'felv_fiv_combo'
+        )
+      ON CONFLICT DO NOTHING
+    `);
+    results.test_results_created = testResults.rowCount || 0;
 
     // NOTE: Cat-place auto-linking removed from ingest process (MIG_305 fix).
     // The previous queries linked ALL cats to ALL of a person's places, which
@@ -1274,6 +1407,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     }
   } catch (err) {
     console.error('Inline mortality events failed (non-fatal):', err);
+  }
+
+  // Disease status computation: run after test results created
+  // This ensures place disease badges are updated with new FeLV/FIV results
+  try {
+    await saveProgress('Computing place disease status...');
+    const diseaseResult = await query(`
+      SELECT * FROM ops.run_disease_status_computation()
+    `);
+    if (diseaseResult.rows?.[0]) {
+      results.disease_computation = diseaseResult.rows[0];
+    }
+  } catch (err) {
+    console.error('Disease status computation failed (non-fatal):', err);
   }
 
   return results;
