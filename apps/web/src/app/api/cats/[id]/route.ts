@@ -330,10 +330,10 @@ export async function GET(
         ctr.result_detail,
         -- Disease badge info for UI display
         dt.disease_key,
-        dt.display_name as disease_display_name,
+        dt.display_label as disease_display_name,
         dt.short_code as disease_short_code,
         dt.badge_color as disease_badge_color,
-        dt.severity_level as disease_severity
+        dt.severity_order as disease_severity
       FROM ops.cat_test_results ctr
       LEFT JOIN ops.disease_types dt ON (
         -- Direct match
@@ -369,7 +369,7 @@ export async function GET(
       SELECT
         v.appointment_id,
         v.appointment_date::TEXT as appointment_date,
-        v.clinic_day_number,
+        v.appointment_number as clinic_day_number,
         CASE
             WHEN v.service_type ILIKE '%spay%' OR v.service_type ILIKE '%neuter%' THEN 'Spay/Neuter'
             WHEN COALESCE(v.is_spay, false) OR COALESCE(v.is_neuter, false) THEN 'Spay/Neuter'
