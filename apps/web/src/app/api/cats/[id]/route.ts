@@ -340,7 +340,7 @@ export async function GET(
         dt.disease_key = ctr.test_type
         -- Handle combo tests: felv_fiv_combo maps to both felv and fiv
         OR (ctr.test_type = 'felv_fiv_combo' AND dt.disease_key IN ('felv', 'fiv')
-            AND ctr.result ILIKE '%' || dt.disease_key || '%positive%')
+            AND ctr.result::TEXT ILIKE '%' || dt.disease_key || '%positive%')
       )
       WHERE ctr.cat_id = $1
       ORDER BY ctr.test_date DESC
