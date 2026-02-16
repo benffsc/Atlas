@@ -94,14 +94,16 @@ export async function GET(
         p.place_kind::text as place_kind,
         p.parent_place_id
       FROM sot.places p
+      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
       LEFT JOIN (
         SELECT place_id, COUNT(*) as cat_count
-        FROM sot.cat_place_relationships
+        FROM sot.cat_place
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
+      -- V2: Uses sot.person_place instead of sot.person_place_relationships
       LEFT JOIN (
         SELECT place_id, COUNT(*) as person_count
-        FROM sot.person_place_relationships
+        FROM sot.person_place
         GROUP BY place_id
       ) pc ON pc.place_id = p.place_id
       WHERE p.merged_into_place_id IS NULL
@@ -136,9 +138,10 @@ export async function GET(
           COALESCE(p.unit_identifier, p.formatted_address) as unit_identifier,
           COALESCE(cc.cat_count, 0) as cat_count
         FROM sot.places p
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         LEFT JOIN (
           SELECT place_id, COUNT(*) as cat_count
-          FROM sot.cat_place_relationships
+          FROM sot.cat_place
           GROUP BY place_id
         ) cc ON cc.place_id = p.place_id
         WHERE p.parent_place_id = ANY($1)

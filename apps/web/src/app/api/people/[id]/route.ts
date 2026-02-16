@@ -120,19 +120,19 @@ export async function GET(
               sub.locality,
               sub.source_type
             FROM (
-              -- From person_place_relationships
+              -- V2: Uses sot.person_place instead of sot.person_place_relationships
               SELECT
-                ppr.place_id,
+                pp.place_id,
                 COALESCE(pl.display_name, split_part(pl.formatted_address, ',', 1)) AS display_name,
                 pl.formatted_address,
                 pl.place_kind,
                 sa.city AS locality,
                 'relationship' AS source_type,
-                ppr.confidence
-              FROM sot.person_place_relationships ppr
-              JOIN sot.places pl ON pl.place_id = ppr.place_id
+                pp.confidence
+              FROM sot.person_place pp
+              JOIN sot.places pl ON pl.place_id = pp.place_id
               LEFT JOIN sot.addresses sa ON sa.address_id = pl.sot_address_id
-              WHERE ppr.person_id = p.person_id
+              WHERE pp.person_id = p.person_id
                 AND pl.merged_into_place_id IS NULL
 
               UNION ALL

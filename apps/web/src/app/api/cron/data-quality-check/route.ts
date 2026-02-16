@@ -56,14 +56,15 @@ export async function GET(request: NextRequest) {
     const metrics = await queryOne<DataQualityMetrics>(`
       SELECT
         -- Cat-place coverage (CRITICAL for Beacon)
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         (SELECT COUNT(*) FROM sot.cats WHERE merged_into_cat_id IS NULL) as total_cats,
         (SELECT COUNT(DISTINCT cpr.cat_id)
-         FROM sot.cat_place_relationships cpr
+         FROM sot.cat_place cpr
          JOIN sot.cats c ON c.cat_id = cpr.cat_id
          WHERE c.merged_into_cat_id IS NULL) as cats_with_places,
         ROUND(100.0 *
           (SELECT COUNT(DISTINCT cpr.cat_id)
-           FROM sot.cat_place_relationships cpr
+           FROM sot.cat_place cpr
            JOIN sot.cats c ON c.cat_id = cpr.cat_id
            WHERE c.merged_into_cat_id IS NULL) /
           NULLIF((SELECT COUNT(*) FROM sot.cats WHERE merged_into_cat_id IS NULL), 0), 1

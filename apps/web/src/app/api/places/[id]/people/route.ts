@@ -111,17 +111,18 @@ export async function POST(
       source_system: string;
       created_at: string;
     }>(
-      `INSERT INTO sot.person_place_relationships (
-         person_id, place_id, role, source_system, confidence, note, created_by
+      // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
+      `INSERT INTO sot.person_place (
+         person_id, place_id, relationship_type, source_system, confidence, note, created_by
        ) VALUES (
          $1, $2, $3, 'atlas_ui', 0.9, $4, 'atlas_ui'
        )
-       ON CONFLICT (person_id, place_id, role) DO NOTHING
+       ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING
        RETURNING
          relationship_id,
          person_id,
          place_id,
-         role::text,
+         relationship_type::text AS role,
          confidence,
          note,
          source_system,
@@ -226,13 +227,14 @@ export async function DELETE(
     }
 
     // Find the relationship (only atlas_ui source allowed for deletion)
+    // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
     const existing = await queryOne<{
       relationship_id: string;
       source_system: string;
     }>(
       `SELECT relationship_id, source_system
-       FROM sot.person_place_relationships
-       WHERE person_id = $1 AND place_id = $2 AND role = $3`,
+       FROM sot.person_place
+       WHERE person_id = $1 AND place_id = $2 AND relationship_type = $3`,
       [person_id, placeId, role]
     );
 
@@ -266,8 +268,9 @@ export async function DELETE(
     );
 
     // Delete the relationship
+    // V2: Uses sot.person_place instead of sot.person_place_relationships
     await execute(
-      `DELETE FROM sot.person_place_relationships
+      `DELETE FROM sot.person_place
        WHERE relationship_id = $1 AND source_system = 'atlas_ui'`,
       [existing.relationship_id]
     );

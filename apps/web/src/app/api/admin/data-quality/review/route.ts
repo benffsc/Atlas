@@ -38,8 +38,10 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*) FROM sot.person_identifiers pi WHERE pi.person_id = p.person_id)::int as identifier_count,
         (SELECT string_agg(pi.id_type || ':' || pi.id_value_norm, ', ')
          FROM sot.person_identifiers pi WHERE pi.person_id = p.person_id) as identifiers,
-        (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = p.person_id)::int as cat_count,
-        (SELECT COUNT(*) FROM sot.person_place_relationships ppr WHERE ppr.person_id = p.person_id)::int as place_count,
+        -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+        (SELECT COUNT(*) FROM sot.person_cat pcr WHERE pcr.person_id = p.person_id)::int as cat_count,
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships
+        (SELECT COUNT(*) FROM sot.person_place ppr WHERE ppr.person_id = p.person_id)::int as place_count,
         (SELECT COUNT(*) FROM ops.appointments a WHERE a.person_id = p.person_id)::int as appointment_count
       FROM sot.people p
       WHERE p.merged_into_person_id IS NULL

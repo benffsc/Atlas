@@ -80,12 +80,13 @@ export async function GET(request: NextRequest) {
           AND pce.source_type = 'trapper_site_visit'
         GROUP BY ts.place_id
       ),
+      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
       site_clinic_cats AS (
         SELECT
           ts.place_id,
           COUNT(DISTINCT c.cat_id) AS total_cats_from_clinic
         FROM trapper_sites ts
-        LEFT JOIN sot.cat_place_relationships cpr ON cpr.place_id = ts.place_id
+        LEFT JOIN sot.cat_place cpr ON cpr.place_id = ts.place_id
         LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id
           AND c.altered_status IN ('spayed', 'neutered')
         GROUP BY ts.place_id

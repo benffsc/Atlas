@@ -149,8 +149,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // V2: Uses sot.cat_place instead of sot.cat_place_relationships
       const result = await query(
-        `UPDATE sot.cat_place_relationships
+        `UPDATE sot.cat_place
          SET
            presence_status = 'departed',
            departure_reason = 'unknown',

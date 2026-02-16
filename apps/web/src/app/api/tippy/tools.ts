@@ -1269,7 +1269,8 @@ async function queryCatsAtPlace(addressSearch: string): Promise<ToolResult> {
       COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as altered_cats,
       COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status = 'intact' OR c.altered_status = 'No') as unaltered_cats
     FROM sot.places p
-    LEFT JOIN sot.cat_place_relationships cpr ON cpr.place_id = p.place_id
+    -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+    LEFT JOIN sot.cat_place cpr ON cpr.place_id = p.place_id
     LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id
     WHERE (p.display_name ILIKE $1 OR p.formatted_address ILIKE $1)
       AND p.merged_into_place_id IS NULL
@@ -1334,17 +1335,18 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
         pm.place_id,
         pm.display_name,
         pm.formatted_address,
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         COALESCE(
           (SELECT total_cats FROM sot.place_colony_estimates pce
            WHERE pce.place_id = pm.place_id
            ORDER BY observation_date DESC NULLS LAST LIMIT 1),
-          (SELECT COUNT(*) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = pm.place_id)
+          (SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = pm.place_id)
         ) as colony_estimate,
-        (SELECT COUNT(*) FROM sot.cat_place_relationships cpr
+        (SELECT COUNT(*) FROM sot.cat_place cpr
          JOIN sot.cats c ON c.cat_id = cpr.cat_id
          WHERE cpr.place_id = pm.place_id
          AND c.altered_status IN ('spayed', 'neutered', 'Yes')) as verified_altered,
-        (SELECT COUNT(*) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
+        (SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.status = 'completed') as completed_requests,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.status NOT IN ('completed', 'cancelled')) as active_requests
       FROM place_match pm
@@ -1764,9 +1766,10 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
     `
     WITH cat_place_altered AS (
       -- Cats marked as altered linked to places in the area
+      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
       SELECT DISTINCT c.cat_id
       FROM sot.cats c
-      JOIN sot.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
+      JOIN sot.cat_place cpr ON c.cat_id = cpr.cat_id
       JOIN sot.places p ON cpr.place_id = p.place_id
       WHERE (${patternPlaceholders})
         AND c.altered_status IN ('spayed', 'neutered', 'Yes')
@@ -1876,7 +1879,8 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as cats_altered,
         COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('intact', 'No') OR c.altered_status IS NULL) as cats_unaltered
       FROM regional_places rp
-      JOIN sot.cat_place_relationships cpr ON cpr.place_id = rp.place_id
+      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+      JOIN sot.cat_place cpr ON cpr.place_id = rp.place_id
       JOIN sot.cats c ON c.cat_id = cpr.cat_id
     ),
     request_stats AS (
@@ -3334,7 +3338,8 @@ async function queryCatJourney(
       p.formatted_address,
       cpr.relationship_type,
       ARRAY_AGG(DISTINCT pc.context_type) FILTER (WHERE pc.context_type IS NOT NULL) as contexts
-    FROM sot.cat_place_relationships cpr
+    -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+    FROM sot.cat_place cpr
     JOIN sot.places p ON p.place_id = cpr.place_id
     LEFT JOIN sot.place_contexts pc ON pc.place_id = p.place_id AND pc.valid_to IS NULL
     WHERE cpr.cat_id = $1
@@ -3353,11 +3358,12 @@ async function queryCatJourney(
 
   const personRels = await queryRows<PersonRelInfo>(
     `
+    -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
     SELECT
       p.display_name as person_name,
       pcr.relationship_type,
       pcr.source_system
-    FROM sot.person_cat_relationships pcr
+    FROM sot.person_cat pcr
     JOIN sot.people p ON p.person_id = pcr.person_id
     WHERE pcr.cat_id = $1
       AND p.merged_into_person_id IS NULL
@@ -4912,34 +4918,35 @@ async function exploreEntity(
     }
 
     // Relationships
+    // V2: Uses sot.person_place, sot.person_cat, sot.cat_place instead of V1 relationship tables
     if (includeRelationships) {
       if (entityType === "person") {
         const places = await queryRows(
-          `SELECT * FROM sot.person_place_relationships WHERE person_id = $1`,
+          `SELECT * FROM sot.person_place WHERE person_id = $1`,
           [entityId]
         );
         const cats = await queryRows(
-          `SELECT * FROM sot.person_cat_relationships WHERE person_id = $1`,
+          `SELECT * FROM sot.person_cat WHERE person_id = $1`,
           [entityId]
         );
         exploration.relationships = { places, cats };
       } else if (entityType === "cat") {
         const places = await queryRows(
-          `SELECT * FROM sot.cat_place_relationships WHERE cat_id = $1`,
+          `SELECT * FROM sot.cat_place WHERE cat_id = $1`,
           [entityId]
         );
         const people = await queryRows(
-          `SELECT * FROM sot.person_cat_relationships WHERE cat_id = $1`,
+          `SELECT * FROM sot.person_cat WHERE cat_id = $1`,
           [entityId]
         );
         exploration.relationships = { places, people };
       } else if (entityType === "place") {
         const people = await queryRows(
-          `SELECT * FROM sot.person_place_relationships WHERE place_id = $1`,
+          `SELECT * FROM sot.person_place WHERE place_id = $1`,
           [entityId]
         );
         const cats = await queryRows(
-          `SELECT * FROM sot.cat_place_relationships WHERE place_id = $1`,
+          `SELECT * FROM sot.cat_place WHERE place_id = $1`,
           [entityId]
         );
         const contexts = await queryRows(

@@ -247,14 +247,15 @@ async function handleOwnershipTransfer(req: TransferRequest) {
   try {
     const result = await withTransaction(async (tx) => {
       // Get current owner
+      // V2: Uses sot.person_cat instead of sot.person_cat_relationships
       const currentOwner = await tx.queryOne<{ owner_id: string; owner_name: string }>(`
-        SELECT pcr.person_id as owner_id, p.display_name as owner_name
-        FROM sot.person_cat_relationships pcr
-        JOIN sot.people p ON p.person_id = pcr.person_id
-        WHERE pcr.cat_id = $1
-          AND pcr.relationship_type IN ('owner', 'caretaker', 'brought_by')
+        SELECT pc.person_id as owner_id, p.display_name as owner_name
+        FROM sot.person_cat pc
+        JOIN sot.people p ON p.person_id = pc.person_id
+        WHERE pc.cat_id = $1
+          AND pc.relationship_type IN ('owner', 'caretaker', 'brought_by')
         ORDER BY
-          CASE pcr.relationship_type
+          CASE pc.relationship_type
             WHEN 'owner' THEN 1
             WHEN 'caretaker' THEN 2
             ELSE 3
@@ -265,9 +266,10 @@ async function handleOwnershipTransfer(req: TransferRequest) {
       const oldOwnerId = currentOwner?.owner_id || null;
 
       // Remove old relationship if exists
+      // V2: Uses sot.person_cat instead of sot.person_cat_relationships
       if (oldOwnerId) {
         await tx.query(`
-          UPDATE sot.person_cat_relationships
+          UPDATE sot.person_cat
           SET relationship_type = 'former_' || relationship_type,
               updated_at = NOW()
           WHERE cat_id = $1
@@ -368,6 +370,7 @@ async function getEntitySuggestions(
 
   if (type === "cat") {
     // Get cat's location for nearby suggestions
+    // V2: Uses sot.cat_place instead of sot.cat_place_relationships
     const catLocation = await queryOne<{
       cat_id: string;
       display_name: string;
@@ -376,8 +379,8 @@ async function getEntitySuggestions(
     }>(`
       SELECT c.cat_id, c.display_name, p.latitude, p.longitude
       FROM sot.cats c
-      LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-      LEFT JOIN sot.places p ON p.place_id = cpr.place_id
+      LEFT JOIN sot.cat_place cp ON cp.cat_id = c.cat_id
+      LEFT JOIN sot.places p ON p.place_id = cp.place_id
       WHERE c.cat_id = $1
     `, [id]);
 
@@ -386,13 +389,14 @@ async function getEntitySuggestions(
       const lng = catLocation.longitude;
 
       // Nearby people (potential owners)
+      // V2: Uses sot.person_place and sot.person_cat instead of *_relationships
       suggestions.nearby_people = await queryRows(`
         SELECT DISTINCT p.person_id, p.display_name,
-          COUNT(DISTINCT pcr.cat_id) as cat_count
+          COUNT(DISTINCT pc.cat_id) as cat_count
         FROM sot.people p
-        JOIN sot.person_place_relationships ppr ON ppr.person_id = p.person_id
-        JOIN sot.places pl ON pl.place_id = ppr.place_id
-        LEFT JOIN sot.person_cat_relationships pcr ON pcr.person_id = p.person_id
+        JOIN sot.person_place pp ON pp.person_id = p.person_id
+        JOIN sot.places pl ON pl.place_id = pp.place_id
+        LEFT JOIN sot.person_cat pc ON pc.person_id = p.person_id
         WHERE pl.latitude BETWEEN $1 - 0.01 AND $1 + 0.01
           AND pl.longitude BETWEEN $2 - 0.01 AND $2 + 0.01
         GROUP BY p.person_id, p.display_name
@@ -401,16 +405,17 @@ async function getEntitySuggestions(
       `, [lat, lng]);
 
       // Nearby cats (for comparison)
+      // V2: Uses sot.cat_place and sot.person_cat instead of *_relationships
       suggestions.nearby_cats = await queryRows(`
         SELECT c.cat_id, c.display_name,
-          pcr.person_id as owner_id,
+          pc.person_id as owner_id,
           p.display_name as owner_name
         FROM sot.cats c
-        LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-        LEFT JOIN sot.places pl ON pl.place_id = cpr.place_id
-        LEFT JOIN sot.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
-          AND pcr.relationship_type IN ('owner', 'caretaker')
-        LEFT JOIN sot.people p ON p.person_id = pcr.person_id
+        LEFT JOIN sot.cat_place cp ON cp.cat_id = c.cat_id
+        LEFT JOIN sot.places pl ON pl.place_id = cp.place_id
+        LEFT JOIN sot.person_cat pc ON pc.cat_id = c.cat_id
+          AND pc.relationship_type IN ('owner', 'caretaker')
+        LEFT JOIN sot.people p ON p.person_id = pc.person_id
         WHERE c.cat_id != $3
           AND pl.latitude BETWEEN $1 - 0.01 AND $1 + 0.01
           AND pl.longitude BETWEEN $2 - 0.01 AND $2 + 0.01
@@ -421,12 +426,13 @@ async function getEntitySuggestions(
 
   if (type === "person") {
     // Get person's cats
+    // V2: Uses sot.person_cat instead of sot.person_cat_relationships
     suggestions.cats = await queryRows(`
-      SELECT c.cat_id, c.display_name, pcr.relationship_type
-      FROM sot.person_cat_relationships pcr
-      JOIN sot.cats c ON c.cat_id = pcr.cat_id
-      WHERE pcr.person_id = $1
-        AND pcr.relationship_type NOT LIKE 'former_%'
+      SELECT c.cat_id, c.display_name, pc.relationship_type
+      FROM sot.person_cat pc
+      JOIN sot.cats c ON c.cat_id = pc.cat_id
+      WHERE pc.person_id = $1
+        AND pc.relationship_type NOT LIKE 'former_%'
     `, [id]);
   }
 

@@ -299,14 +299,16 @@ export async function GET(request: NextRequest) {
           p.location::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
         )::INT as distance_m,
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         COALESCE((
           SELECT COUNT(DISTINCT cpr.cat_id)
-          FROM sot.cat_place_relationships cpr
+          FROM sot.cat_place cpr
           WHERE cpr.place_id = p.place_id
         ), 0)::INT as cat_count,
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships
         COALESCE((
           SELECT COUNT(DISTINCT ppr.person_id)
-          FROM sot.person_place_relationships ppr
+          FROM sot.person_place ppr
           WHERE ppr.place_id = p.place_id
         ), 0)::INT as person_count,
         EXISTS (
@@ -374,7 +376,8 @@ export async function GET(request: NextRequest) {
           ),
           ARRAY[]::TEXT[]
         ) as notes
-      FROM sot.person_place_relationships ppr
+      -- V2: Uses sot.person_place instead of sot.person_place_relationships
+      FROM sot.person_place ppr
       JOIN sot.people per ON per.person_id = ppr.person_id
         AND per.merged_into_person_id IS NULL
       JOIN sot.places pl ON pl.place_id = ppr.place_id

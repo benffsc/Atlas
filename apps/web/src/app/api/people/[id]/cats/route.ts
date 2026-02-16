@@ -42,22 +42,23 @@ export async function GET(
         c.display_name AS cat_name,
         ci.id_value AS microchip,
         pcr.relationship_type,
-        pcr.confidence,
-        pcr.context_notes,
-        pcr.effective_date::TEXT,
-        pcr.appointment_id,
+        pc.confidence,
+        pc.context_notes,
+        pc.effective_date::TEXT,
+        pc.appointment_id,
         a.appointment_date::TEXT,
         a.appointment_number,
-        pcr.source_system,
+        pc.source_system,
         c.data_source,
-        pcr.created_at::TEXT
-      FROM sot.person_cat_relationships pcr
-      JOIN sot.cats c ON c.cat_id = pcr.cat_id
+        pc.created_at::TEXT
+      -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+      FROM sot.person_cat pc
+      JOIN sot.cats c ON c.cat_id = pc.cat_id
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
-      LEFT JOIN ops.appointments a ON a.appointment_id = pcr.appointment_id
-      WHERE pcr.person_id = $1
+      LEFT JOIN ops.appointments a ON a.appointment_id = pc.appointment_id
+      WHERE pc.person_id = $1
       ORDER BY
-        CASE pcr.relationship_type
+        CASE pc.relationship_type
           WHEN 'owner' THEN 1
           WHEN 'adopter' THEN 2
           WHEN 'fostering' THEN 3
@@ -65,7 +66,7 @@ export async function GET(
           WHEN 'brought_in_by' THEN 5
           ELSE 6
         END,
-        pcr.effective_date DESC NULLS LAST,
+        pc.effective_date DESC NULLS LAST,
         c.display_name
     `;
 

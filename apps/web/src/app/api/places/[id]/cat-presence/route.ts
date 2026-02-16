@@ -228,8 +228,9 @@ export async function PATCH(
 
     if (action === "mark_old_as_departed") {
       // Mark all cats not seen in 36+ months as departed
+      // V2: Uses sot.cat_place instead of sot.cat_place_relationships
       const result = await query(
-        `UPDATE sot.cat_place_relationships
+        `UPDATE sot.cat_place
          SET
            presence_status = 'departed',
            departure_reason = 'unknown',

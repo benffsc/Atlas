@@ -356,6 +356,8 @@ export async function GET(
 
     // Fetch current trappers from the proper assignment table
     // This is the source of truth (assigned_to field is deprecated)
+    // V2: Uses status='active' instead of unassigned_at IS NULL
+    // V2: Uses assignment_type='primary' instead of is_primary boolean
     let currentTrappers: CurrentTrapper[] = [];
     try {
       currentTrappers = await queryRows<CurrentTrapper>(
@@ -364,18 +366,19 @@ export async function GET(
           p.display_name AS trapper_name,
           pr.trapper_type::TEXT,
           pr.trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper') AS is_ffsc_trapper,
-          rta.is_primary,
-          rta.assigned_at
+          COALESCE(rta.assignment_type = 'primary', false) AS is_primary,
+          rta.assigned_at::TEXT
         FROM ops.request_trapper_assignments rta
         JOIN sot.people p ON p.person_id = rta.trapper_person_id
         LEFT JOIN sot.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
         WHERE rta.request_id = $1
-          AND rta.unassigned_at IS NULL
-        ORDER BY rta.is_primary DESC, rta.assigned_at`,
+          AND rta.status = 'active'
+        ORDER BY (rta.assignment_type = 'primary') DESC, rta.assigned_at`,
         [id]
       );
-    } catch {
-      // Table might not exist yet
+    } catch (err) {
+      console.error("Error fetching trappers:", err);
+      // Table might not exist yet or query error
     }
 
     return NextResponse.json({

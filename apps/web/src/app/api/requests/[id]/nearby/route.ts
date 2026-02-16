@@ -172,6 +172,7 @@ export async function GET(
       ),
 
       // Nearby places with cat activity
+      // V2: Uses sot.cat_place instead of sot.cat_place_relationships
       queryRows<NearbyPlace>(
         `SELECT
           p.place_id,
@@ -182,9 +183,9 @@ export async function GET(
             ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
           ) as distance_m,
           COALESCE((
-            SELECT COUNT(DISTINCT cpr.cat_id)
-            FROM sot.cat_place_relationships cpr
-            WHERE cpr.place_id = p.place_id
+            SELECT COUNT(DISTINCT cp.cat_id)
+            FROM sot.cat_place cp
+            WHERE cp.place_id = p.place_id
           ), 0)::INT as cat_count,
           EXISTS (
             SELECT 1 FROM ops.requests r
@@ -205,25 +206,26 @@ export async function GET(
       ),
 
       // Nearby people (via their place relationships)
+      // V2: Uses sot.person_place instead of sot.person_place_relationships, sot.person_cat instead of sot.person_cat_relationships
       queryRows<NearbyPerson>(
         `SELECT DISTINCT ON (per.person_id)
           per.person_id,
           per.display_name,
           COALESCE(pl.display_name, split_part(pl.formatted_address, ',', 1)) as place_name,
-          ppr.relationship_type,
+          pp.relationship_type,
           ST_Distance(
             pl.location::geography,
             ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
           ) as distance_m,
           COALESCE((
-            SELECT COUNT(DISTINCT pcr.cat_id)
-            FROM sot.person_cat_relationships pcr
-            WHERE pcr.person_id = per.person_id
+            SELECT COUNT(DISTINCT pc.cat_id)
+            FROM sot.person_cat pc
+            WHERE pc.person_id = per.person_id
           ), 0)::INT as cat_count
-        FROM sot.person_place_relationships ppr
-        JOIN sot.people per ON per.person_id = ppr.person_id
+        FROM sot.person_place pp
+        JOIN sot.people per ON per.person_id = pp.person_id
           AND per.merged_into_person_id IS NULL
-        JOIN sot.places pl ON pl.place_id = ppr.place_id
+        JOIN sot.places pl ON pl.place_id = pp.place_id
         WHERE pl.lat IS NOT NULL
           AND ST_DWithin(
             pl.location::geography,
@@ -236,6 +238,7 @@ export async function GET(
       ),
 
       // Nearby cats (via their place relationships)
+      // V2: Uses sot.cat_place instead of sot.cat_place_relationships
       queryRows<NearbyCat>(
         `SELECT DISTINCT ON (c.cat_id)
           c.cat_id,
@@ -247,9 +250,9 @@ export async function GET(
             ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
           ) as distance_m,
           c.altered_status
-        FROM sot.cat_place_relationships cpr
-        JOIN sot.cats c ON c.cat_id = cpr.cat_id
-        JOIN sot.places pl ON pl.place_id = cpr.place_id
+        FROM sot.cat_place cp
+        JOIN sot.cats c ON c.cat_id = cp.cat_id
+        JOIN sot.places pl ON pl.place_id = cp.place_id
         LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
         WHERE pl.lat IS NOT NULL
           AND ST_DWithin(

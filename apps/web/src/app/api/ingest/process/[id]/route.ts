@@ -607,10 +607,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.places_created_or_matched = parseInt(placesCreated.rows?.[0]?.cnt || '0');
 
-    // Step 3: Link people to places via person_place_relationships
+    // Step 3: Link people to places via person_place
+    // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
     await saveProgress('Linking people to places...');
     const personPlaceLinks = await query(`
-      INSERT INTO sot.person_place_relationships (person_id, place_id, role, confidence, source_system, source_table)
+      INSERT INTO sot.person_place (person_id, place_id, relationship_type, confidence, source_system, source_table)
       SELECT DISTINCT
         pi.person_id,
         p.place_id,
@@ -631,8 +632,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         AND sr.payload->>'Owner Address' IS NOT NULL
         AND TRIM(sr.payload->>'Owner Address') != ''
         AND NOT EXISTS (
-          SELECT 1 FROM sot.person_place_relationships ppr
-          WHERE ppr.person_id = pi.person_id AND ppr.place_id = p.place_id
+          SELECT 1 FROM sot.person_place pp
+          WHERE pp.person_id = pi.person_id AND pp.place_id = p.place_id
         )
       ON CONFLICT DO NOTHING
     `, [uploadId]);
@@ -728,9 +729,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     results.appointments_linked_to_accounts = accountLinks.rowCount || 0;
 
     // Step 5: Link cats to people via appointments
+    // V2: Uses sot.person_cat instead of sot.person_cat_relationships
     await saveProgress('Linking cats to people...');
     const catPersonLinks = await query(`
-      INSERT INTO sot.person_cat_relationships (cat_id, person_id, relationship_type, confidence, source_system, source_table)
+      INSERT INTO sot.person_cat (cat_id, person_id, relationship_type, confidence, source_system, source_table)
       SELECT DISTINCT
         a.cat_id,
         a.person_id,
@@ -742,8 +744,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       WHERE a.cat_id IS NOT NULL
         AND a.person_id IS NOT NULL
         AND NOT EXISTS (
-          SELECT 1 FROM sot.person_cat_relationships cpr
-          WHERE cpr.cat_id = a.cat_id AND cpr.person_id = a.person_id
+          SELECT 1 FROM sot.person_cat pc
+          WHERE pc.cat_id = a.cat_id AND pc.person_id = a.person_id
         )
       ON CONFLICT DO NOTHING
     `);
@@ -991,8 +993,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         'Auto-linked: clinic visit ' || a.appointment_date::text || ' within request attribution window',
         'ingest_auto'
       FROM ops.appointments a
-      JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
-      JOIN ops.requests r ON r.place_id = cpr.place_id
+      JOIN sot.cat_place cp ON cp.cat_id = a.cat_id
+      JOIN ops.requests r ON r.place_id = cp.place_id
       LEFT JOIN ops.cat_procedures cp ON cp.appointment_id = a.appointment_id
       WHERE a.cat_id IS NOT NULL
         -- Attribution window logic (from MIG_208):
@@ -1162,10 +1164,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           a.appointment_date,
           a.cat_id,
           (
-            SELECT cpr.place_id
-            FROM sot.cat_place_relationships cpr
-            WHERE cpr.cat_id = a.cat_id
-            ORDER BY cpr.created_at DESC
+            SELECT cp.place_id
+            FROM sot.cat_place cp
+            WHERE cp.cat_id = a.cat_id
+            ORDER BY cp.created_at DESC
             LIMIT 1
           ) as place_id
         FROM ops.appointments a
@@ -1222,10 +1224,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             ELSE 'unknown'
           END AS death_cause,
           (
-            SELECT cpr.place_id
-            FROM sot.cat_place_relationships cpr
-            WHERE cpr.cat_id = a.cat_id
-            ORDER BY cpr.created_at DESC
+            SELECT cp.place_id
+            FROM sot.cat_place cp
+            WHERE cp.cat_id = a.cat_id
+            ORDER BY cp.created_at DESC
             LIMIT 1
           ) as place_id
         FROM ops.appointments a

@@ -232,45 +232,47 @@ export async function GET(request: NextRequest) {
         }
 
         if (catIds.length > 0) {
+          // V2: Uses sot.cat_place instead of sot.cat_place_relationships
           const catCoords = await queryRows<{
             id: string;
             lat: number;
             lng: number;
           }>(`
-            SELECT DISTINCT ON (cpr.cat_id)
-                   cpr.cat_id::text AS id,
+            SELECT DISTINCT ON (cp.cat_id)
+                   cp.cat_id::text AS id,
                    ST_Y(p.location::geometry) AS lat,
                    ST_X(p.location::geometry) AS lng
-            FROM sot.cat_place_relationships cpr
-            JOIN sot.places p ON p.place_id = cpr.place_id
-            WHERE cpr.cat_id = ANY($1::uuid[])
+            FROM sot.cat_place cp
+            JOIN sot.places p ON p.place_id = cp.place_id
+            WHERE cp.cat_id = ANY($1::uuid[])
               AND p.location IS NOT NULL
               AND p.merged_into_place_id IS NULL
-            ORDER BY cpr.cat_id, cpr.created_at DESC
+            ORDER BY cp.cat_id, cp.created_at DESC
           `, [catIds]);
           for (const c of catCoords) coordMap.set(c.id, { lat: c.lat, lng: c.lng });
         }
 
         if (personIds.length > 0) {
+          // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
           const personCoords = await queryRows<{
             id: string;
             lat: number;
             lng: number;
           }>(`
-            SELECT DISTINCT ON (ppr.person_id)
-                   ppr.person_id::text AS id,
+            SELECT DISTINCT ON (pp.person_id)
+                   pp.person_id::text AS id,
                    ST_Y(p.location::geometry) AS lat,
                    ST_X(p.location::geometry) AS lng
-            FROM sot.person_place_relationships ppr
-            JOIN sot.places p ON p.place_id = ppr.place_id
-            WHERE ppr.person_id = ANY($1::uuid[])
+            FROM sot.person_place pp
+            JOIN sot.places p ON p.place_id = pp.place_id
+            WHERE pp.person_id = ANY($1::uuid[])
               AND p.location IS NOT NULL
               AND p.merged_into_place_id IS NULL
-            ORDER BY ppr.person_id,
-                     ppr.confidence DESC,
-                     CASE ppr.source_system WHEN 'volunteerhub' THEN 1 WHEN 'atlas_ui' THEN 2 WHEN 'airtable' THEN 3 ELSE 4 END,
-                     CASE ppr.role WHEN 'owner' THEN 1 WHEN 'resident' THEN 2 ELSE 3 END,
-                     ppr.created_at DESC
+            ORDER BY pp.person_id,
+                     pp.confidence DESC,
+                     CASE pp.source_system WHEN 'volunteerhub' THEN 1 WHEN 'atlas_ui' THEN 2 WHEN 'airtable' THEN 3 ELSE 4 END,
+                     CASE pp.relationship_type WHEN 'owner' THEN 1 WHEN 'resident' THEN 2 ELSE 3 END,
+                     pp.created_at DESC
           `, [personIds]);
           for (const pr of personCoords) coordMap.set(pr.id, { lat: pr.lat, lng: pr.lng });
         }

@@ -28,7 +28,8 @@ export async function GET() {
         cv.source_system
       FROM ops.cat_vitals cv
       JOIN sot.cats c ON c.cat_id = cv.cat_id
-      LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = cv.cat_id
+      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+      LEFT JOIN sot.cat_place cpr ON cpr.cat_id = cv.cat_id
       LEFT JOIN sot.places p ON p.place_id = cpr.place_id
       WHERE cv.is_pregnant = TRUE OR cv.is_lactating = TRUE OR cv.is_in_heat = TRUE
       ORDER BY cv.recorded_at DESC

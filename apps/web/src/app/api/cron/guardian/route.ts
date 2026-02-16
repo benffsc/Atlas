@@ -118,7 +118,8 @@ export async function GET(request: NextRequest) {
           p.formatted_address,
           COUNT(DISTINCT a.cat_id)::INT as clinic_cats_6mo
         FROM sot.places p
-        JOIN sot.cat_place_relationships cpr ON cpr.place_id = p.place_id
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+        JOIN sot.cat_place cpr ON cpr.place_id = p.place_id
         JOIN ops.appointments a ON a.cat_id = cpr.cat_id
         WHERE a.appointment_date > NOW() - INTERVAL '6 months'
           AND NOT EXISTS (

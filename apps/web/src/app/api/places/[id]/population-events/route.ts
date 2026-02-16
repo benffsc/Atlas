@@ -57,7 +57,8 @@ export async function GET(
         me.created_at::TEXT
       FROM sot.cat_mortality_events me
       JOIN sot.cats c ON c.cat_id = me.cat_id
-      JOIN sot.cat_place_relationships cpr ON cpr.cat_id = me.cat_id AND cpr.place_id = $1
+      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+      JOIN sot.cat_place cpr ON cpr.cat_id = me.cat_id AND cpr.place_id = $1
       ORDER BY COALESCE(me.death_date, me.created_at) DESC
       LIMIT 50
     `;

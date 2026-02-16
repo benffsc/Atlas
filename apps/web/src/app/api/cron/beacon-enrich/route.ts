@@ -57,9 +57,10 @@ export async function GET(request: NextRequest) {
             a.appointment_date,
             a.cat_id,
             a.medical_notes,
+            -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
             (
               SELECT cpr.place_id
-              FROM sot.cat_place_relationships cpr
+              FROM sot.cat_place cpr
               WHERE cpr.cat_id = a.cat_id
               ORDER BY cpr.created_at DESC
               LIMIT 1
@@ -134,9 +135,10 @@ export async function GET(request: NextRequest) {
               WHEN LOWER(a.medical_notes) LIKE '%died%' THEN 'unknown'
               ELSE 'unknown'
             END AS death_cause,
+            -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
             (
               SELECT cpr.place_id
-              FROM sot.cat_place_relationships cpr
+              FROM sot.cat_place cpr
               WHERE cpr.cat_id = a.cat_id
               ORDER BY cpr.created_at DESC
               LIMIT 1

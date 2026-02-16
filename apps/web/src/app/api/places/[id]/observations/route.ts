@@ -213,9 +213,10 @@ export async function POST(
     let chapmanEstimate = null;
     if (body.eartips_seen > 0) {
       // Get M (altered count) from verified clinic data
+      // V2: Uses sot.cat_place instead of sot.cat_place_relationships
       const alteredSql = `
         SELECT COUNT(DISTINCT cpr.cat_id)::INT as altered_count
-        FROM sot.cat_place_relationships cpr
+        FROM sot.cat_place cpr
         JOIN sot.cats c ON c.cat_id = cpr.cat_id
         WHERE cpr.place_id = $1
           AND c.altered_status IN ('spayed', 'neutered')

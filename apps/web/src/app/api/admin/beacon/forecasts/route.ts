@@ -112,13 +112,14 @@ export async function GET(request: NextRequest) {
           FROM sot.v_place_ecology_stats e
           WHERE e.a_known > 0 OR e.n_recent_max > 0
         ),
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         recent_activity AS (
           SELECT
             cpr.place_id,
             COUNT(*) FILTER (WHERE cp.procedure_date >= CURRENT_DATE - INTERVAL '6 months') AS cats_6mo,
             COUNT(*) FILTER (WHERE cp.procedure_date >= CURRENT_DATE - INTERVAL '12 months') AS cats_12mo
           FROM ops.cat_procedures cp
-          JOIN sot.cat_place_relationships cpr ON cpr.cat_id = cp.cat_id
+          JOIN sot.cat_place cpr ON cpr.cat_id = cp.cat_id
           WHERE cp.is_spay OR cp.is_neuter
           GROUP BY cpr.place_id
         )

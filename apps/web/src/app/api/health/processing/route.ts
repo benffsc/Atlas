@@ -112,11 +112,12 @@ export async function GET(request: NextRequest) {
       SELECT
         (SELECT COUNT(*) FROM ops.appointments WHERE owner_email IS NULL) as appointments_missing_owner_email,
         (SELECT COUNT(*) FROM ops.appointments WHERE person_id IS NULL AND owner_email IS NOT NULL) as appointments_missing_person_id,
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         (SELECT COUNT(DISTINCT cp.cat_id)
          FROM ops.cat_procedures cp
          WHERE (cp.is_spay OR cp.is_neuter)
            AND NOT EXISTS (
-             SELECT 1 FROM sot.cat_place_relationships cpr WHERE cpr.cat_id = cp.cat_id
+             SELECT 1 FROM sot.cat_place cpr WHERE cpr.cat_id = cp.cat_id
            )
         ) as cats_with_procedures_no_place,
         (SELECT COUNT(*) FROM ops.staged_records WHERE processed_at IS NULL) as unprocessed_staged_records

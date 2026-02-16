@@ -42,6 +42,7 @@ export async function GET(
 
   try {
     // Get current trappers
+    // V2: Uses assignment_type='primary' instead of is_primary, status='active' instead of unassigned_at IS NULL
     const currentTrappers = await queryRows<TrapperAssignment>(
       `SELECT
         rta.assignment_id,
@@ -49,31 +50,32 @@ export async function GET(
         p.display_name AS trapper_name,
         pr.trapper_type,
         pr.trapper_type IN ('coordinator', 'head_trapper', 'ffsc_trapper') AS is_ffsc_trapper,
-        rta.is_primary,
+        COALESCE(rta.assignment_type = 'primary', false) AS is_primary,
         rta.assigned_at,
-        rta.assignment_reason
+        rta.notes AS assignment_reason
       FROM ops.request_trapper_assignments rta
       JOIN sot.people p ON p.person_id = rta.trapper_person_id
       LEFT JOIN sot.person_roles pr ON pr.person_id = rta.trapper_person_id AND pr.role = 'trapper'
       WHERE rta.request_id = $1
-        AND rta.unassigned_at IS NULL
-      ORDER BY rta.is_primary DESC, rta.assigned_at`,
+        AND rta.status = 'active'
+      ORDER BY (rta.assignment_type = 'primary') DESC, rta.assigned_at`,
       [id]
     );
 
     // Optionally get assignment history
+    // V2: Uses assignment_type='primary' instead of is_primary, status column instead of unassigned_at
     let history: AssignmentHistory[] = [];
     if (includeHistory) {
       history = await queryRows<AssignmentHistory>(
         `SELECT
           rta.trapper_person_id,
           p.display_name AS trapper_name,
-          rta.is_primary,
+          COALESCE(rta.assignment_type = 'primary', false) AS is_primary,
           rta.assigned_at,
-          rta.unassigned_at,
-          rta.assignment_reason,
-          rta.unassignment_reason,
-          CASE WHEN rta.unassigned_at IS NULL THEN 'active' ELSE 'inactive' END AS status
+          NULL::TIMESTAMPTZ AS unassigned_at,
+          rta.notes AS assignment_reason,
+          NULL::TEXT AS unassignment_reason,
+          rta.status
         FROM ops.request_trapper_assignments rta
         JOIN sot.people p ON p.person_id = rta.trapper_person_id
         WHERE rta.request_id = $1

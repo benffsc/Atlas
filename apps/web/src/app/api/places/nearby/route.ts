@@ -47,14 +47,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Find nearby places (within 100 meters)
+    // V2: Uses sot.cat_place and sot.person_place instead of V1 relationship tables
     const nearbyPlaces = await queryRows<NearbyPlaceRow>(
       `SELECT
          p.place_id,
          p.display_name,
          p.place_kind::TEXT as place_kind,
          p.formatted_address,
-         COALESCE((SELECT COUNT(*) FROM sot.cat_place_relationships cpr WHERE cpr.place_id = p.place_id), 0)::INT as cat_count,
-         COALESCE((SELECT COUNT(*) FROM sot.person_place_relationships ppr WHERE ppr.place_id = p.place_id), 0)::INT as person_count,
+         COALESCE((SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = p.place_id), 0)::INT as cat_count,
+         COALESCE((SELECT COUNT(*) FROM sot.person_place ppr WHERE ppr.place_id = p.place_id), 0)::INT as person_count,
          ST_Distance(
            p.location::geography,
            ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography

@@ -61,17 +61,22 @@ export async function GET(request: NextRequest) {
         c.duplicate_created_at,
         -- Canonical person stats
         (SELECT COUNT(*)::int FROM sot.person_identifiers WHERE person_id = c.canonical_person_id) AS canonical_identifiers,
-        (SELECT COUNT(*)::int FROM sot.person_place_relationships WHERE person_id = c.canonical_person_id) AS canonical_places,
-        (SELECT COUNT(*)::int FROM sot.person_cat_relationships WHERE person_id = c.canonical_person_id) AS canonical_cats,
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships
+        (SELECT COUNT(*)::int FROM sot.person_place WHERE person_id = c.canonical_person_id) AS canonical_places,
+        -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+        (SELECT COUNT(*)::int FROM sot.person_cat WHERE person_id = c.canonical_person_id) AS canonical_cats,
         (SELECT COUNT(*)::int FROM ops.requests WHERE requester_person_id = c.canonical_person_id) AS canonical_requests,
         -- Duplicate person stats
         (SELECT COUNT(*)::int FROM sot.person_identifiers WHERE person_id = c.duplicate_person_id) AS duplicate_identifiers,
-        (SELECT COUNT(*)::int FROM sot.person_place_relationships WHERE person_id = c.duplicate_person_id) AS duplicate_places,
-        (SELECT COUNT(*)::int FROM sot.person_cat_relationships WHERE person_id = c.duplicate_person_id) AS duplicate_cats,
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships
+        (SELECT COUNT(*)::int FROM sot.person_place WHERE person_id = c.duplicate_person_id) AS duplicate_places,
+        -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+        (SELECT COUNT(*)::int FROM sot.person_cat WHERE person_id = c.duplicate_person_id) AS duplicate_cats,
         (SELECT COUNT(*)::int FROM ops.requests WHERE requester_person_id = c.duplicate_person_id) AS duplicate_requests,
         -- Shared context
-        (SELECT COUNT(*)::int FROM sot.person_place_relationships r1
-         JOIN sot.person_place_relationships r2 ON r1.place_id = r2.place_id
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships
+        (SELECT COUNT(*)::int FROM sot.person_place r1
+         JOIN sot.person_place r2 ON r1.place_id = r2.place_id
          WHERE r1.person_id = c.canonical_person_id AND r2.person_id = c.duplicate_person_id) AS shared_place_count
       FROM sot.v_person_dedup_candidates c
       WHERE NOT EXISTS (

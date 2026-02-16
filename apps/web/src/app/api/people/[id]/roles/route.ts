@@ -144,6 +144,7 @@ export async function GET(
       [id]
     );
 
+    // V2: Uses sot.person_cat instead of sot.person_cat_relationships
     const fosterStats = await queryOne<{
       cats_fostered: number;
       current_fosters: number;
@@ -151,14 +152,15 @@ export async function GET(
       `SELECT
          COUNT(*) FILTER (WHERE relationship_type = 'foster')::int as cats_fostered,
          COUNT(DISTINCT cat_id) FILTER (WHERE relationship_type = 'foster')::int as current_fosters
-       FROM sot.person_cat_relationships
+       FROM sot.person_cat
        WHERE person_id = $1`,
       [id]
     );
 
+    // V2: Uses sot.person_place instead of sot.person_place_relationships
     const placesLinked = await queryOne<{ count: number }>(
       `SELECT COUNT(DISTINCT place_id)::int as count
-       FROM sot.person_place_relationships
+       FROM sot.person_place
        WHERE person_id = $1`,
       [id]
     );

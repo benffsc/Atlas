@@ -198,7 +198,8 @@ export async function GET() {
     }>(`
       SELECT
         (SELECT COUNT(*) FROM ops.appointments WHERE inferred_place_id IS NOT NULL)::int as appointments_with_place,
-        (SELECT COUNT(DISTINCT cat_id) FROM sot.cat_place_relationships)::int as cats_with_place,
+        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+        (SELECT COUNT(DISTINCT cat_id) FROM sot.cat_place)::int as cats_with_place,
         (SELECT COUNT(*) FROM ops.appointments WHERE inferred_place_source IS NOT NULL)::int as places_inferred,
         (
           SELECT MAX(completed_at)

@@ -16,7 +16,7 @@ interface PersonAddress {
 /**
  * GET /api/people/[id]/addresses
  *
- * Returns all addresses associated with a person from person_place_relationships.
+ * Returns all addresses associated with a person from sot.person_place.
  * Used for address autofill in intake forms.
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -30,27 +30,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
     const addresses = await queryRows<PersonAddress>(
       `
       SELECT
-        ppr.place_id,
+        pp.place_id,
         pl.formatted_address,
         pl.display_name,
-        ppr.role,
-        ppr.confidence
-      FROM sot.person_place_relationships ppr
-      JOIN sot.places pl ON pl.place_id = ppr.place_id
-      WHERE ppr.person_id = $1
+        pp.relationship_type AS role,
+        pp.confidence
+      FROM sot.person_place pp
+      JOIN sot.places pl ON pl.place_id = pp.place_id
+      WHERE pp.person_id = $1
         AND pl.merged_into_place_id IS NULL
       ORDER BY
-        ppr.confidence DESC NULLS LAST,
-        CASE ppr.role
+        pp.confidence DESC NULLS LAST,
+        CASE pp.relationship_type
           WHEN 'resident' THEN 1
           WHEN 'owner' THEN 2
           WHEN 'requester' THEN 3
           ELSE 4
         END,
-        ppr.created_at DESC
+        pp.created_at DESC
       `,
       [id]
     );

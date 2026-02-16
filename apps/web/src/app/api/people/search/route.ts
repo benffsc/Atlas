@@ -36,14 +36,16 @@ export async function GET(request: NextRequest) {
 
   const searchPattern = `%${query}%`;
 
+  // V2: Uses sot.person_cat instead of sot.person_cat_relationships, sot.person_place instead of person_place_relationships
   const people = await queryRows<PersonSearchResult>(`
     SELECT DISTINCT ON (p.person_id)
       p.person_id,
       p.display_name,
       p.entity_type,
       (
+        -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
         SELECT COUNT(*)
-        FROM sot.person_cat_relationships pcr
+        FROM sot.person_cat pcr
         WHERE pcr.person_id = p.person_id
           AND pcr.relationship_type NOT LIKE 'former_%'
       ) as cat_count,
@@ -61,17 +63,18 @@ export async function GET(request: NextRequest) {
           AND pi.id_type = 'phone'
       ) as phones,
       (
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
         SELECT jsonb_agg(
           jsonb_build_object(
             'place_id', ppr.place_id,
             'formatted_address', pl.formatted_address,
             'display_name', pl.display_name,
-            'role', ppr.role,
+            'role', ppr.relationship_type,
             'confidence', ppr.confidence
           )
           ORDER BY ppr.confidence DESC NULLS LAST
         )
-        FROM sot.person_place_relationships ppr
+        FROM sot.person_place ppr
         JOIN sot.places pl ON pl.place_id = ppr.place_id
         WHERE ppr.person_id = p.person_id
           AND pl.merged_into_place_id IS NULL

@@ -69,15 +69,18 @@ export async function GET(
          FROM sot.person_identifiers pi
          WHERE pi.person_id = p2.person_id AND pi.id_type = 'phone') as match_phones,
         -- Shared address
+        -- V2: Uses sot.person_place instead of sot.person_place_relationships
         (SELECT pl.formatted_address
-         FROM sot.person_place_relationships ppr
+         FROM sot.person_place ppr
          JOIN sot.places pl ON pl.place_id = ppr.place_id
          WHERE ppr.person_id = p1.person_id
          LIMIT 1) as shared_address,
         -- Counts
-        (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = p1.person_id)::int as person_cat_count,
+        -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+        (SELECT COUNT(*) FROM sot.person_cat pcr WHERE pcr.person_id = p1.person_id)::int as person_cat_count,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = p1.person_id)::int as person_request_count,
-        (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = p2.person_id)::int as match_cat_count,
+        -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+        (SELECT COUNT(*) FROM sot.person_cat pcr WHERE pcr.person_id = p2.person_id)::int as match_cat_count,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = p2.person_id)::int as match_request_count,
         -- Resolution info
         ppd.resolved_by,
