@@ -225,6 +225,7 @@ export async function GET(
     // Uses get_place_family() to include notes from structurally related places:
     // parent building, child units, sibling units, and co-located places (same point)
     // V2: Table is ops.google_map_entries (not source.google_map_entries)
+    // V2: google_map_entries doesn't have original_redacted column
     const googleNotes = await queryRows<GoogleNote>(
       `WITH family AS (
         SELECT unnest(sot.get_place_family($1)) AS fid
@@ -233,7 +234,7 @@ export async function GET(
         entry_id,
         kml_name,
         original_content,
-        original_redacted,
+        NULL AS original_redacted,
         ai_summary,
         ai_meaning,
         parsed_date::TEXT,
