@@ -71,6 +71,12 @@ interface CatTestResult {
   test_date: string;
   result: string;
   result_detail: string | null;
+  // Disease badge info for UI display
+  disease_key: string | null;
+  disease_display_name: string | null;
+  disease_short_code: string | null;
+  disease_badge_color: string | null;
+  disease_severity: number | null;
 }
 
 interface CatProcedure {
@@ -312,18 +318,32 @@ export async function GET(
       ORDER BY diagnosed_at DESC
     `;
 
-    // Fetch test results
+    // Fetch test results with disease badge info for display
     // V2: Uses ops.cat_test_results (not sot.cat_test_results)
+    // Joins to ops.disease_types to get badge_color, short_code for UI display
     const testsSql = `
       SELECT
-        test_id,
-        test_type,
-        test_date::TEXT,
-        result::TEXT,
-        result_detail
-      FROM ops.cat_test_results
-      WHERE cat_id = $1
-      ORDER BY test_date DESC
+        ctr.test_id,
+        ctr.test_type,
+        ctr.test_date::TEXT,
+        ctr.result::TEXT,
+        ctr.result_detail,
+        -- Disease badge info for UI display
+        dt.disease_key,
+        dt.display_name as disease_display_name,
+        dt.short_code as disease_short_code,
+        dt.badge_color as disease_badge_color,
+        dt.severity_level as disease_severity
+      FROM ops.cat_test_results ctr
+      LEFT JOIN ops.disease_types dt ON (
+        -- Direct match
+        dt.disease_key = ctr.test_type
+        -- Handle combo tests: felv_fiv_combo maps to both felv and fiv
+        OR (ctr.test_type = 'felv_fiv_combo' AND dt.disease_key IN ('felv', 'fiv')
+            AND ctr.result ILIKE '%' || dt.disease_key || '%positive%')
+      )
+      WHERE ctr.cat_id = $1
+      ORDER BY ctr.test_date DESC
     `;
 
     // Fetch procedures
@@ -676,8 +696,13 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching cat detail:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to fetch cat detail" },
+      {
+        error: "Failed to fetch cat detail",
+        details: errorMessage,
+        cat_id: id
+      },
       { status: 500 }
     );
   }
