@@ -53,7 +53,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     `;
 
     const diseaseTypesSql = `
-      SELECT disease_key, display_label, short_code, color, decay_window_months, is_contagious
+      SELECT disease_key, display_label, short_code, badge_color as color, decay_window_months, is_contagious
       FROM ops.disease_types
       WHERE is_active = TRUE
       ORDER BY severity_order

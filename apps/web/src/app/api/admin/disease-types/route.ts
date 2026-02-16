@@ -26,7 +26,7 @@ export async function GET() {
         dt.disease_key,
         dt.display_label,
         dt.short_code,
-        dt.color,
+        dt.badge_color as color,
         dt.severity_order,
         dt.decay_window_months,
         dt.is_contagious,

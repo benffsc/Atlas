@@ -583,11 +583,14 @@ export async function GET(
 
     // Helper function for graceful query execution (returns empty array on error)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async function safeQueryRows<T>(sql: string, params: unknown[]): Promise<T[]> {
+    async function safeQueryRows<T>(sql: string, params: unknown[], queryName?: string): Promise<T[]> {
       try {
         return await queryRows<any>(sql, params) as T[];
       } catch (err) {
-        console.warn("Query failed (returning empty array):", err instanceof Error ? err.message : err);
+        // Log with query context to help debug column mismatches
+        const sqlPreview = sql.slice(0, 100).replace(/\s+/g, ' ').trim();
+        console.error(`[Cat ${id}] Query failed${queryName ? ` (${queryName})` : ''}: ${err instanceof Error ? err.message : err}`);
+        console.error(`  SQL preview: ${sqlPreview}...`);
         return [];
       }
     }

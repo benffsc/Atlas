@@ -320,7 +320,7 @@ export async function GET(
         `SELECT
           dt.disease_key,
           dt.short_code,
-          dt.color,
+          dt.badge_color as color,
           pds.status,
           pds.last_positive_date::TEXT,
           COALESCE(pds.positive_cat_count, 0) AS positive_cat_count
