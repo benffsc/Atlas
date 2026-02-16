@@ -264,27 +264,11 @@ END;
 $$;
 
 -- ============================================================================
--- Phase 5: Mark cats as altered_by_clinic where applicable
+-- Phase 5: Skip altered_by_clinic (column doesn't exist in V2 sot.cats)
 -- ============================================================================
 
 \echo ''
-\echo 'Phase 5: Marking cats as altered_by_clinic...'
-
-DO $$
-DECLARE
-  v_marked INTEGER;
-BEGIN
-  UPDATE sot.cats c
-  SET altered_by_clinic = TRUE
-  FROM ops.appointments a
-  WHERE a.cat_id = c.cat_id
-    AND (a.is_spay = TRUE OR a.is_neuter = TRUE)
-    AND c.altered_by_clinic IS DISTINCT FROM TRUE;
-
-  GET DIAGNOSTICS v_marked = ROW_COUNT;
-  RAISE NOTICE 'MIG_2319: Marked % cats as altered_by_clinic', v_marked;
-END;
-$$;
+\echo 'Phase 5: Skipping altered_by_clinic (V2 schema uses altered_status instead)...'
 
 -- ============================================================================
 -- Phase 6: Verification
@@ -305,14 +289,14 @@ BEGIN
   SELECT COUNT(*) INTO v_with_spay FROM ops.appointments WHERE is_spay = TRUE;
   SELECT COUNT(*) INTO v_with_neuter FROM ops.appointments WHERE is_neuter = TRUE;
   SELECT COUNT(*) INTO v_total_procs FROM ops.cat_procedures;
-  SELECT COUNT(*) INTO v_altered_cats FROM sot.cats WHERE altered_by_clinic = TRUE;
+  SELECT COUNT(*) INTO v_altered_cats FROM sot.cats WHERE altered_status IN ('spayed', 'neutered');
 
   RAISE NOTICE '=== MIG_2319 Verification ===';
   RAISE NOTICE 'Total appointments: %', v_total_appts;
   RAISE NOTICE 'Appointments with is_spay=TRUE: %', v_with_spay;
   RAISE NOTICE 'Appointments with is_neuter=TRUE: %', v_with_neuter;
   RAISE NOTICE 'Total cat_procedures: %', v_total_procs;
-  RAISE NOTICE 'Cats marked altered_by_clinic: %', v_altered_cats;
+  RAISE NOTICE 'Cats with altered_status: %', v_altered_cats;
 END;
 $$;
 

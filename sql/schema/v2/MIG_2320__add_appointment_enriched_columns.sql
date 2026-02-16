@@ -86,7 +86,10 @@ ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS clinichq_appointment_id TE
 \echo ''
 \echo 'Phase 2: Updating ops.v_appointment_detail view...'
 
-CREATE OR REPLACE VIEW ops.v_appointment_detail AS
+-- Must drop first because column order changed
+DROP VIEW IF EXISTS ops.v_appointment_detail;
+
+CREATE VIEW ops.v_appointment_detail AS
 SELECT
   a.appointment_id,
   a.appointment_date,
@@ -157,11 +160,11 @@ SELECT
   COALESCE(a.resolved_person_id, a.person_id) AS person_id,
   COALESCE(p.display_name, p.first_name || ' ' || p.last_name) AS person_name,
   -- Contact info (from person identifiers)
-  (SELECT pi.id_value FROM sot.person_identifiers pi
+  (SELECT pi.id_value_raw FROM sot.person_identifiers pi
    WHERE pi.person_id = COALESCE(a.resolved_person_id, a.person_id)
    AND pi.id_type = 'email' AND pi.confidence >= 0.5
    ORDER BY pi.confidence DESC LIMIT 1) AS contact_email,
-  (SELECT pi.id_value FROM sot.person_identifiers pi
+  (SELECT pi.id_value_norm FROM sot.person_identifiers pi
    WHERE pi.person_id = COALESCE(a.resolved_person_id, a.person_id)
    AND pi.id_type = 'phone' AND pi.confidence >= 0.5
    ORDER BY pi.confidence DESC LIMIT 1) AS contact_phone,
