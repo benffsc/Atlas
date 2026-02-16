@@ -9,6 +9,7 @@ import { queryRows } from "@/lib/db";
  * Shows "this person's location has this context" on person detail.
  */
 
+// Uses source.google_map_entries (source of truth)
 interface PersonPlaceContext {
   person_id: string;
   place_id: string;
@@ -33,7 +34,7 @@ export async function GET(
   }
 
   try {
-    // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
+    // V2: Uses sot.person_place and source.google_map_entries
     const sql = `
       SELECT
         ppr.person_id,
@@ -43,8 +44,7 @@ export async function GET(
         p.formatted_address,
         gme.entry_id,
         COALESCE(gme.ai_summary, LEFT(gme.original_content, 200)) AS context_preview,
-        gme.parsed_cat_count,
-        gme.ai_processed_at IS NOT NULL AS is_ai_summarized,
+        gme.ai_summary IS NOT NULL AS is_ai_summarized,
         gme.imported_at::TEXT
       FROM sot.person_place ppr
       JOIN sot.places p ON p.place_id = ppr.place_id

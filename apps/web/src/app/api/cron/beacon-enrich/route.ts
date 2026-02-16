@@ -206,7 +206,39 @@ export async function GET(request: NextRequest) {
     }
 
     // ============================================================
-    // 3. Log run to ingest_runs table
+    // 3. Sync Disease Status (if mortality events mention diseases)
+    // ============================================================
+    // Mortality events may indicate disease (FeLV+, FIV+ euthanasia)
+    // Run disease computation to sync place disease flags
+
+    let diseaseResults: {
+      places_processed?: number;
+      flags_set_true?: number;
+      flags_set_false?: number;
+    } = {};
+
+    try {
+      const diseaseRow = await queryOne<{
+        places_processed: number;
+        cats_with_tests: number;
+        disease_statuses_created: number;
+        flags_set_true: number;
+        flags_set_false: number;
+      }>("SELECT * FROM ops.run_disease_status_computation()");
+
+      if (diseaseRow) {
+        diseaseResults = {
+          places_processed: diseaseRow.places_processed,
+          flags_set_true: diseaseRow.flags_set_true,
+          flags_set_false: diseaseRow.flags_set_false,
+        };
+      }
+    } catch (err) {
+      results.errors.push(`Disease sync: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+
+    // ============================================================
+    // 4. Log run to ingest_runs table
     // ============================================================
 
     try {
@@ -233,7 +265,7 @@ export async function GET(request: NextRequest) {
       `, [
         results.birth_events_created + results.mortality_events_created,
         results.birth_events_created + results.mortality_events_created,
-        `Births: ${results.birth_events_created}, Mortality: ${results.mortality_events_created}, Deceased marked: ${results.cats_marked_deceased}`,
+        `Births: ${results.birth_events_created}, Mortality: ${results.mortality_events_created}, Deceased marked: ${results.cats_marked_deceased}, Disease flags: +${diseaseResults.flags_set_true || 0}/-${diseaseResults.flags_set_false || 0}`,
       ]);
     } catch {
       // Table may not exist
@@ -242,8 +274,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       ...results,
+      disease: diseaseResults,
       duration_ms: Date.now() - startTime,
-      message: `Created ${results.birth_events_created} birth events, ${results.mortality_events_created} mortality events`,
+      message: `Created ${results.birth_events_created} birth events, ${results.mortality_events_created} mortality events, synced disease flags`,
     });
 
   } catch (error) {

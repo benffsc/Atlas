@@ -10,6 +10,7 @@ import { queryRows } from "@/lib/db";
  * with AI summaries (if available) for display as context cards.
  */
 
+// Uses source.google_map_entries (source of truth for GM data)
 interface GoogleMapEntry {
   entry_id: string;
   kml_name: string | null;
@@ -50,6 +51,7 @@ export async function GET(
     // - Sibling units (other units of same building)
     // - Co-located places (same geocoded point, within 1m)
     // Uses both place_id and linked_place_id to catch all linking methods
+    // Uses source.google_map_entries (source of truth)
     const sql = `
       WITH family AS (
         SELECT unnest(sot.get_place_family($1)) AS fid

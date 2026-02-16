@@ -132,7 +132,7 @@ export async function GET(
       [placeId]
     );
 
-    // Get Google Map entries (with AI summaries)
+    // Get Google Map entries (with AI summaries) from source table
     const googleMapEntries = await queryRows<{
       entry_id: string;
       original_content: string | null;

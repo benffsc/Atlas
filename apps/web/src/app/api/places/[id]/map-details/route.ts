@@ -224,8 +224,7 @@ export async function GET(
     // Get Google Maps notes (both original and AI-processed)
     // Uses get_place_family() to include notes from structurally related places:
     // parent building, child units, sibling units, and co-located places (same point)
-    // V2: Table is ops.google_map_entries (not source.google_map_entries)
-    // V2: google_map_entries doesn't have original_redacted column
+    // Uses source.google_map_entries (source of truth for GM data)
     const googleNotes = await queryRows<GoogleNote>(
       `WITH family AS (
         SELECT unnest(sot.get_place_family($1)) AS fid
@@ -239,7 +238,7 @@ export async function GET(
         ai_meaning,
         parsed_date::TEXT,
         imported_at::TEXT
-      FROM ops.google_map_entries
+      FROM source.google_map_entries
       WHERE place_id IN (SELECT fid FROM family)
          OR linked_place_id IN (SELECT fid FROM family)
       ORDER BY parsed_date DESC NULLS LAST, imported_at DESC`,

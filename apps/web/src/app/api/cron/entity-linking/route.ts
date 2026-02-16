@@ -123,6 +123,37 @@ export async function GET(request: NextRequest) {
       totalLinked += row.count;
     }
 
+    // Step 3: Run disease status computation and sync flags
+    // This updates ops.place_disease_status and syncs sot.places.disease_risk
+    // MIG_2315: Reconciles disease_risk flags with actual test data
+    let diseaseResults: {
+      places_processed?: number;
+      cats_with_tests?: number;
+      disease_statuses_created?: number;
+      flags_set_true?: number;
+      flags_set_false?: number;
+    } = {};
+
+    try {
+      const diseaseRow = await queryOne<{
+        places_processed: number;
+        cats_with_tests: number;
+        disease_statuses_created: number;
+        flags_set_true: number;
+        flags_set_false: number;
+      }>("SELECT * FROM ops.run_disease_status_computation()");
+
+      if (diseaseRow) {
+        diseaseResults = diseaseRow;
+        summary["disease_statuses_computed"] = diseaseRow.disease_statuses_created || 0;
+        summary["disease_flags_set_true"] = diseaseRow.flags_set_true || 0;
+        summary["disease_flags_set_false"] = diseaseRow.flags_set_false || 0;
+      }
+    } catch (e) {
+      // Function may not exist yet (pre-MIG_2315) - non-fatal
+      console.warn("Disease status computation skipped:", e instanceof Error ? e.message : "Unknown");
+    }
+
     return NextResponse.json({
       success: true,
       message: totalLinked > 0
@@ -130,6 +161,7 @@ export async function GET(request: NextRequest) {
         : "No new entities to link",
       catchup,
       results: summary,
+      disease: diseaseResults,
       total_linked: totalLinked,
       duration_ms: Date.now() - startTime,
     });

@@ -178,9 +178,23 @@ export default function JournalSection({
   useEffect(() => {
     if (!isStaffAutoFilled) {
       fetch("/api/staff")
-        .then((res) => res.json())
-        .then((data) => setStaffList(data.staff || []))
-        .catch((err) => console.error("Failed to fetch staff:", err));
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Staff API returned ${res.status}: ${res.statusText}`);
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (!data.staff || data.staff.length === 0) {
+            console.warn("JournalSection: No active staff found in database");
+          }
+          setStaffList(data.staff || []);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch staff:", err);
+          // Still set empty array so UI doesn't break
+          setStaffList([]);
+        });
     }
   }, [isStaffAutoFilled]);
 
