@@ -1,0 +1,427 @@
+-- ============================================================================
+-- MIG_2320: Add Enriched Columns to ops.appointments
+-- ============================================================================
+-- Issue: V2 ops.appointments is missing columns that existed in V1, causing
+-- the appointment detail API to fail with "column does not exist" errors.
+--
+-- Missing columns from V1:
+-- - clinic_day_number (MIG_870)
+-- - Health screening flags (has_uri, has_fleas, etc.) (MIG_870)
+-- - Misc flags (has_polydactyl, has_cryptorchid, etc.) (MIG_899)
+-- - Financial (total_invoiced, subsidy_value) (MIG_871)
+-- - Cat vitals (cat_weight_lbs, cat_age_years, cat_age_months) (MIG_870)
+-- - felv_fiv_result, body_composition_score, no_surgery_reason (MIG_870)
+-- - ownership_type (MIG_2054)
+-- - resolved_person_id (identity resolution) (MIG_2058)
+-- - clinichq_appointment_id (MIG_2058)
+--
+-- This migration:
+-- 1. Adds missing columns to ops.appointments
+-- 2. Updates ops.v_appointment_detail view to include all columns
+-- 3. Backfills columns from ops.staged_records where available
+-- ============================================================================
+
+\echo '=== MIG_2320: Add Enriched Columns to ops.appointments ==='
+\echo ''
+
+BEGIN;
+
+-- ============================================================================
+-- Phase 1: Add Missing Columns
+-- ============================================================================
+
+\echo 'Phase 1: Adding missing columns to ops.appointments...'
+
+-- Clinic day number for scheduling
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS clinic_day_number INTEGER;
+
+-- Health screening flags (MIG_870)
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_uri BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_dental_disease BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_ear_issue BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_eye_issue BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_skin_issue BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_mouth_issue BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_fleas BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_ticks BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_tapeworms BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_ear_mites BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_ringworm BOOLEAN DEFAULT FALSE;
+
+-- Misc flags (MIG_899)
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_polydactyl BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_bradycardia BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_too_young_for_rabies BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_cryptorchid BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_hernia BOOLEAN DEFAULT FALSE;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS has_pyometra BOOLEAN DEFAULT FALSE;
+
+-- Test results and body condition
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS felv_fiv_result TEXT;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS body_composition_score TEXT;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS no_surgery_reason TEXT;
+
+-- Financial
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS total_invoiced NUMERIC(10,2);
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS subsidy_value NUMERIC(10,2);
+
+-- Cat snapshot at appointment time
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS cat_weight_lbs NUMERIC(5,2);
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS cat_age_years INTEGER;
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS cat_age_months INTEGER;
+
+-- Ownership type
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS ownership_type TEXT;
+
+-- Identity resolution
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS resolved_person_id UUID REFERENCES sot.people(person_id);
+ALTER TABLE ops.appointments ADD COLUMN IF NOT EXISTS clinichq_appointment_id TEXT;
+
+\echo 'Added columns to ops.appointments'
+
+-- ============================================================================
+-- Phase 2: Update the View
+-- ============================================================================
+
+\echo ''
+\echo 'Phase 2: Updating ops.v_appointment_detail view...'
+
+CREATE OR REPLACE VIEW ops.v_appointment_detail AS
+SELECT
+  a.appointment_id,
+  a.appointment_date,
+  a.appointment_number,
+  a.clinic_day_number,
+  a.clinichq_appointment_id,
+  -- Computed appointment category
+  CASE
+    WHEN a.is_spay OR a.is_neuter THEN 'Spay/Neuter'
+    WHEN a.service_type ILIKE '%wellness%' OR a.service_type ILIKE '%exam%' THEN 'Wellness'
+    WHEN a.service_type ILIKE '%recheck%' OR a.service_type ILIKE '%follow%' THEN 'Recheck'
+    WHEN a.service_type ILIKE '%euthan%' THEN 'Euthanasia'
+    ELSE 'Other'
+  END AS appointment_category,
+  a.service_type,
+  a.is_spay,
+  a.is_neuter,
+  a.is_alteration,
+  a.vet_name,
+  a.technician,
+  a.temperature,
+  a.medical_notes,
+  a.is_lactating,
+  a.is_pregnant,
+  a.is_in_heat,
+  -- Health screening flags
+  COALESCE(a.has_uri, FALSE) AS has_uri,
+  COALESCE(a.has_dental_disease, FALSE) AS has_dental_disease,
+  COALESCE(a.has_ear_issue, FALSE) AS has_ear_issue,
+  COALESCE(a.has_eye_issue, FALSE) AS has_eye_issue,
+  COALESCE(a.has_skin_issue, FALSE) AS has_skin_issue,
+  COALESCE(a.has_mouth_issue, FALSE) AS has_mouth_issue,
+  COALESCE(a.has_fleas, FALSE) AS has_fleas,
+  COALESCE(a.has_ticks, FALSE) AS has_ticks,
+  COALESCE(a.has_tapeworms, FALSE) AS has_tapeworms,
+  COALESCE(a.has_ear_mites, FALSE) AS has_ear_mites,
+  COALESCE(a.has_ringworm, FALSE) AS has_ringworm,
+  -- Misc flags
+  COALESCE(a.has_polydactyl, FALSE) AS has_polydactyl,
+  COALESCE(a.has_bradycardia, FALSE) AS has_bradycardia,
+  COALESCE(a.has_too_young_for_rabies, FALSE) AS has_too_young_for_rabies,
+  COALESCE(a.has_cryptorchid, FALSE) AS has_cryptorchid,
+  COALESCE(a.has_hernia, FALSE) AS has_hernia,
+  COALESCE(a.has_pyometra, FALSE) AS has_pyometra,
+  -- Test results / body condition
+  a.felv_fiv_result,
+  a.body_composition_score,
+  a.no_surgery_reason,
+  -- Financial
+  a.total_invoiced,
+  a.subsidy_value,
+  -- Cat vitals snapshot
+  a.cat_weight_lbs,
+  a.cat_age_years,
+  a.cat_age_months,
+  -- Ownership
+  a.ownership_type,
+  -- Cat info
+  a.cat_id,
+  c.name AS cat_name,
+  c.microchip AS cat_microchip,
+  c.sex AS cat_sex,
+  c.altered_status AS cat_altered_status,
+  c.breed AS cat_breed,
+  c.primary_color AS cat_color,
+  c.secondary_color AS cat_secondary_color,
+  -- Person info (resolved or original)
+  COALESCE(a.resolved_person_id, a.person_id) AS person_id,
+  COALESCE(p.display_name, p.first_name || ' ' || p.last_name) AS person_name,
+  -- Contact info (from person identifiers)
+  (SELECT pi.id_value FROM sot.person_identifiers pi
+   WHERE pi.person_id = COALESCE(a.resolved_person_id, a.person_id)
+   AND pi.id_type = 'email' AND pi.confidence >= 0.5
+   ORDER BY pi.confidence DESC LIMIT 1) AS contact_email,
+  (SELECT pi.id_value FROM sot.person_identifiers pi
+   WHERE pi.person_id = COALESCE(a.resolved_person_id, a.person_id)
+   AND pi.id_type = 'phone' AND pi.confidence >= 0.5
+   ORDER BY pi.confidence DESC LIMIT 1) AS contact_phone,
+  -- Place info (inferred takes precedence)
+  COALESCE(a.inferred_place_id, a.place_id) AS place_id,
+  pl.display_name AS place_name,
+  pl.formatted_address AS place_address,
+  -- Owner info from raw payload (denormalized)
+  a.owner_email,
+  a.owner_phone,
+  a.owner_first_name,
+  a.owner_last_name,
+  a.owner_address,
+  COALESCE(NULLIF(TRIM(a.owner_first_name || ' ' || COALESCE(a.owner_last_name, '')), ''), '') AS client_name,
+  a.owner_address AS client_address,
+  -- Source tracking
+  a.source_system,
+  a.source_record_id,
+  a.created_at,
+  a.updated_at,
+  a.original_created_at
+FROM ops.appointments a
+LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+LEFT JOIN sot.people p ON p.person_id = COALESCE(a.resolved_person_id, a.person_id) AND p.merged_into_person_id IS NULL
+LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL;
+
+\echo 'Updated ops.v_appointment_detail view'
+
+-- ============================================================================
+-- Phase 3: Backfill from staged_records using is_positive_value()
+-- ============================================================================
+-- Note: Requires MIG_2319 to have been applied first (creates sot.is_positive_value)
+
+\echo ''
+\echo 'Phase 3: Backfilling enriched columns from staged_records...'
+
+DO $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  -- Check if is_positive_value exists
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'sot' AND p.proname = 'is_positive_value'
+  ) THEN
+    RAISE NOTICE 'sot.is_positive_value() does not exist. Run MIG_2319 first.';
+    RAISE NOTICE 'Skipping backfill from staged_records.';
+    RETURN;
+  END IF;
+
+  -- Backfill health flags and other columns from staged_records
+  WITH staged_data AS (
+    SELECT
+      a.appointment_id,
+      sr.payload,
+      -- Health screening
+      sot.is_positive_value(COALESCE(sr.payload->>'URI', sr.payload->>'Upper Respiratory Issue')) AS has_uri,
+      sot.is_positive_value(sr.payload->>'Dental Disease') AS has_dental_disease,
+      sot.is_positive_value(COALESCE(sr.payload->>'Ear Issue', sr.payload->>'Ear infections')) AS has_ear_issue,
+      sot.is_positive_value(sr.payload->>'Eye Issue') AS has_eye_issue,
+      sot.is_positive_value(sr.payload->>'Skin Issue') AS has_skin_issue,
+      sot.is_positive_value(sr.payload->>'Mouth Issue') AS has_mouth_issue,
+      sot.is_positive_value(COALESCE(sr.payload->>'Fleas', sr.payload->>'Fleas_1', sr.payload->>'Fleas_2', sr.payload->>'Fleas/Ticks')) AS has_fleas,
+      sot.is_positive_value(COALESCE(sr.payload->>'Ticks', sr.payload->>'Ticks_1', sr.payload->>'Ticks_2')) AS has_ticks,
+      sot.is_positive_value(COALESCE(sr.payload->>'Tapeworms', sr.payload->>'Tapeworms_1', sr.payload->>'Tapeworms_2')) AS has_tapeworms,
+      sot.is_positive_value(sr.payload->>'Ear mites') AS has_ear_mites,
+      sot.is_positive_value(sr.payload->>'Wood''s Lamp Ringworm Test') AS has_ringworm,
+      -- Misc flags
+      sot.is_positive_value(sr.payload->>'Polydactyl') AS has_polydactyl,
+      sot.is_positive_value(sr.payload->>'Bradycardia Intra-Op') AS has_bradycardia,
+      sot.is_positive_value(sr.payload->>'Too young for rabies') AS has_too_young_for_rabies,
+      sot.is_positive_value(sr.payload->>'Cryptorchid') AS has_cryptorchid,
+      sot.is_positive_value(sr.payload->>'Hernia') AS has_hernia,
+      sot.is_positive_value(sr.payload->>'Pyometra') AS has_pyometra,
+      -- Text fields
+      NULLIF(TRIM(sr.payload->>'FeLV/FIV (SNAP test, in-house)'), '') AS felv_fiv_result,
+      NULLIF(TRIM(sr.payload->>'Body Composition Score'), '') AS body_composition_score,
+      NULLIF(TRIM(sr.payload->>'No Surgery Reason'), '') AS no_surgery_reason,
+      -- Financial
+      CASE
+        WHEN sr.payload->>'Total Invoiced' ~ '^\$?[0-9]+\.?[0-9]*$'
+        THEN REPLACE(sr.payload->>'Total Invoiced', '$', '')::NUMERIC(10,2)
+        ELSE NULL
+      END AS total_invoiced,
+      CASE
+        WHEN sr.payload->>'Sub Value' ~ '^\$?[0-9]+\.?[0-9]*$'
+        THEN REPLACE(sr.payload->>'Sub Value', '$', '')::NUMERIC(10,2)
+        ELSE NULL
+      END AS subsidy_value,
+      -- Weight (from appointment_info or cat_info)
+      CASE
+        WHEN sr.payload->>'Weight' ~ '^[0-9]+\.?[0-9]*$'
+        THEN (sr.payload->>'Weight')::NUMERIC(5,2)
+        ELSE NULL
+      END AS cat_weight_lbs
+    FROM ops.appointments a
+    JOIN ops.staged_records sr ON (
+      sr.source_system = 'clinichq'
+      AND sr.source_table = 'appointment_info'
+      AND sr.payload->>'Number' = a.appointment_number
+      AND sr.payload->>'Date' IS NOT NULL
+      AND TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
+    )
+    WHERE a.source_system = 'clinichq'
+  )
+  UPDATE ops.appointments a
+  SET
+    has_uri = COALESCE(sd.has_uri, a.has_uri, FALSE),
+    has_dental_disease = COALESCE(sd.has_dental_disease, a.has_dental_disease, FALSE),
+    has_ear_issue = COALESCE(sd.has_ear_issue, a.has_ear_issue, FALSE),
+    has_eye_issue = COALESCE(sd.has_eye_issue, a.has_eye_issue, FALSE),
+    has_skin_issue = COALESCE(sd.has_skin_issue, a.has_skin_issue, FALSE),
+    has_mouth_issue = COALESCE(sd.has_mouth_issue, a.has_mouth_issue, FALSE),
+    has_fleas = COALESCE(sd.has_fleas, a.has_fleas, FALSE),
+    has_ticks = COALESCE(sd.has_ticks, a.has_ticks, FALSE),
+    has_tapeworms = COALESCE(sd.has_tapeworms, a.has_tapeworms, FALSE),
+    has_ear_mites = COALESCE(sd.has_ear_mites, a.has_ear_mites, FALSE),
+    has_ringworm = COALESCE(sd.has_ringworm, a.has_ringworm, FALSE),
+    has_polydactyl = COALESCE(sd.has_polydactyl, a.has_polydactyl, FALSE),
+    has_bradycardia = COALESCE(sd.has_bradycardia, a.has_bradycardia, FALSE),
+    has_too_young_for_rabies = COALESCE(sd.has_too_young_for_rabies, a.has_too_young_for_rabies, FALSE),
+    has_cryptorchid = COALESCE(sd.has_cryptorchid, a.has_cryptorchid, FALSE),
+    has_hernia = COALESCE(sd.has_hernia, a.has_hernia, FALSE),
+    has_pyometra = COALESCE(sd.has_pyometra, a.has_pyometra, FALSE),
+    felv_fiv_result = COALESCE(sd.felv_fiv_result, a.felv_fiv_result),
+    body_composition_score = COALESCE(sd.body_composition_score, a.body_composition_score),
+    no_surgery_reason = COALESCE(sd.no_surgery_reason, a.no_surgery_reason),
+    total_invoiced = COALESCE(sd.total_invoiced, a.total_invoiced),
+    subsidy_value = COALESCE(sd.subsidy_value, a.subsidy_value),
+    cat_weight_lbs = COALESCE(sd.cat_weight_lbs, a.cat_weight_lbs),
+    updated_at = NOW()
+  FROM staged_data sd
+  WHERE a.appointment_id = sd.appointment_id;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RAISE NOTICE 'MIG_2320: Backfilled enriched columns for % appointments', v_count;
+END;
+$$;
+
+-- ============================================================================
+-- Phase 4: Backfill ownership_type from owner_info staged records
+-- ============================================================================
+
+\echo ''
+\echo 'Phase 4: Backfilling ownership_type from owner_info...'
+
+DO $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  UPDATE ops.appointments a
+  SET ownership_type = CASE TRIM(sr.payload->>'Ownership')
+    WHEN 'Community Cat (Feral)' THEN 'feral'
+    WHEN 'Community Cat (Friendly)' THEN 'community'
+    WHEN 'Owned' THEN 'owned'
+    WHEN 'Foster' THEN 'foster'
+    WHEN 'Shelter' THEN 'shelter'
+    ELSE NULL
+  END
+  FROM ops.staged_records sr
+  WHERE sr.source_system = 'clinichq'
+    AND sr.source_table = 'owner_info'
+    AND sr.payload->>'Number' = a.appointment_number
+    AND sr.payload->>'Date' IS NOT NULL
+    AND TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
+    AND a.ownership_type IS NULL
+    AND sr.payload->>'Ownership' IS NOT NULL;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RAISE NOTICE 'MIG_2320: Set ownership_type for % appointments', v_count;
+END;
+$$;
+
+-- ============================================================================
+-- Phase 5: Backfill cat age from cat_info staged records
+-- ============================================================================
+
+\echo ''
+\echo 'Phase 5: Backfilling cat age from cat_info...'
+
+DO $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  UPDATE ops.appointments a
+  SET
+    cat_age_years = CASE
+      WHEN ci.payload->>'Age Years' ~ '^[0-9]+$'
+      THEN (ci.payload->>'Age Years')::INTEGER
+      ELSE NULL
+    END,
+    cat_age_months = CASE
+      WHEN ci.payload->>'Age Months' ~ '^[0-9]+$'
+      THEN (ci.payload->>'Age Months')::INTEGER
+      ELSE NULL
+    END
+  FROM ops.staged_records ai
+  JOIN ops.staged_records ci ON (
+    ci.source_system = 'clinichq'
+    AND ci.source_table = 'cat_info'
+    AND ci.payload->>'Microchip Number' = ai.payload->>'Microchip Number'
+    AND ci.payload->>'Date' = ai.payload->>'Date'
+  )
+  WHERE ai.source_system = 'clinichq'
+    AND ai.source_table = 'appointment_info'
+    AND ai.payload->>'Number' = a.appointment_number
+    AND ai.payload->>'Date' IS NOT NULL
+    AND TO_DATE(ai.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
+    AND (a.cat_age_years IS NULL OR a.cat_age_months IS NULL);
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RAISE NOTICE 'MIG_2320: Set cat age for % appointments', v_count;
+END;
+$$;
+
+-- ============================================================================
+-- Phase 6: Verification
+-- ============================================================================
+
+\echo ''
+\echo 'Phase 6: Verification...'
+
+DO $$
+DECLARE
+  v_total INTEGER;
+  v_with_health_flags INTEGER;
+  v_with_felv_fiv INTEGER;
+  v_with_weight INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO v_total FROM ops.appointments;
+  SELECT COUNT(*) INTO v_with_health_flags FROM ops.appointments
+    WHERE has_uri OR has_dental_disease OR has_fleas OR has_ticks;
+  SELECT COUNT(*) INTO v_with_felv_fiv FROM ops.appointments WHERE felv_fiv_result IS NOT NULL;
+  SELECT COUNT(*) INTO v_with_weight FROM ops.appointments WHERE cat_weight_lbs IS NOT NULL;
+
+  RAISE NOTICE '=== MIG_2320 Verification ===';
+  RAISE NOTICE 'Total appointments: %', v_total;
+  RAISE NOTICE 'With health flags: %', v_with_health_flags;
+  RAISE NOTICE 'With FeLV/FIV result: %', v_with_felv_fiv;
+  RAISE NOTICE 'With weight: %', v_with_weight;
+END;
+$$;
+
+COMMIT;
+
+\echo ''
+\echo '=============================================='
+\echo 'MIG_2320 Complete!'
+\echo '=============================================='
+\echo ''
+\echo 'Added columns:'
+\echo '  - clinic_day_number'
+\echo '  - Health flags (has_uri, has_fleas, etc.)'
+\echo '  - Misc flags (has_polydactyl, has_cryptorchid, etc.)'
+\echo '  - felv_fiv_result, body_composition_score, no_surgery_reason'
+\echo '  - total_invoiced, subsidy_value'
+\echo '  - cat_weight_lbs, cat_age_years, cat_age_months'
+\echo '  - ownership_type, resolved_person_id, clinichq_appointment_id'
+\echo ''
+\echo 'Updated ops.v_appointment_detail view'
+\echo 'Backfilled from staged_records'
+\echo ''
