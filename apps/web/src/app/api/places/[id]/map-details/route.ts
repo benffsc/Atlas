@@ -146,7 +146,7 @@ export async function GET(
       ) cc ON cc.place_id = p.place_id
       LEFT JOIN (
         SELECT ppr.place_id, COUNT(DISTINCT ppr.person_id) AS person_count
-        FROM sot.person_place_relationships ppr
+        FROM sot.person_place ppr
         JOIN sot.people per ON per.person_id = ppr.person_id
         WHERE ppr.place_id = $1
           AND per.merged_into_person_id IS NULL
@@ -184,12 +184,14 @@ export async function GET(
     // Get people linked to this place
     // Use DISTINCT ON to deduplicate when a person has multiple roles (resident, owner, contact)
     // Filter out entries that look like addresses (have state abbreviations or zip codes)
+    // V2: Uses sot.person_place (not person_place_relationships)
+    // V2: Uses relationship_type instead of role
     const people = await queryRows<PersonLink>(
       `SELECT
         per.person_id,
         per.display_name,
-        (ARRAY_AGG(ppr.role::text ORDER BY
-          CASE ppr.role
+        (ARRAY_AGG(ppr.relationship_type::text ORDER BY
+          CASE ppr.relationship_type
             WHEN 'resident' THEN 1
             WHEN 'owner' THEN 2
             WHEN 'tenant' THEN 3
@@ -197,7 +199,7 @@ export async function GET(
             ELSE 5
           END
         ))[1] AS role,
-        BOOL_OR(ppr.role IN ('resident', 'owner')) AS is_home,
+        BOOL_OR(ppr.relationship_type IN ('resident', 'owner')) AS is_home,
         BOOL_OR(ppr.source_system = 'atlas_ui') AS is_manual,
         (SELECT jsonb_agg(jsonb_build_object(
           'role', pr.role, 'trapper_type', pr.trapper_type
@@ -206,7 +208,7 @@ export async function GET(
         WHERE pr.person_id = per.person_id
           AND pr.role_status = 'active'
         ) AS staff_roles
-      FROM sot.person_place_relationships ppr
+      FROM sot.person_place ppr
       JOIN sot.people per ON per.person_id = ppr.person_id
       WHERE ppr.place_id = $1
         AND per.merged_into_person_id IS NULL
@@ -215,7 +217,7 @@ export async function GET(
         AND per.display_name !~ '\\d{5}'
         AND per.display_name !~* '^\\d+\\s+\\w+\\s+(st|rd|ave|blvd|dr|ln|ct|way|pl)\\b'
       GROUP BY per.person_id, per.display_name
-      ORDER BY BOOL_OR(ppr.role IN ('resident', 'owner')) DESC, per.display_name`,
+      ORDER BY BOOL_OR(ppr.relationship_type IN ('resident', 'owner')) DESC, per.display_name`,
       [placeId]
     );
 
@@ -285,7 +287,7 @@ export async function GET(
       dataSources = await queryRows<DataSource>(
         `SELECT source_system, source_description FROM (
           SELECT DISTINCT ppr.source_system, 'People' AS source_description
-          FROM sot.person_place_relationships ppr
+          FROM sot.person_place ppr
           WHERE ppr.place_id = $1 AND ppr.source_system IS NOT NULL
           UNION
           SELECT DISTINCT r.source_system, 'Requests'
