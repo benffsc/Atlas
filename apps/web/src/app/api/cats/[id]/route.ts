@@ -155,78 +155,77 @@ export async function GET(
 
   try {
     // Primary query using v_cat_detail view
+    // V2: Fixed column names to match actual view columns
     const sql = `
       SELECT
         v.cat_id,
         v.display_name,
         v.sex,
         v.altered_status,
-        v.altered_by_clinic,
+        FALSE AS altered_by_clinic,
         v.breed,
-        v.color,
+        COALESCE(v.color, v.primary_color) AS color,
         c.secondary_color,
-        v.coat_pattern,
+        v.pattern AS coat_pattern,
         v.microchip,
-        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+        FALSE AS needs_microchip,
         v.data_source,
         v.ownership_type,
-        v.quality_tier,
-        v.quality_reason,
-        v.notes,
+        c.data_quality AS quality_tier,
+        NULL::TEXT AS quality_reason,
+        NULL::TEXT AS notes,
         v.identifiers,
         v.owners,
         v.places,
         v.created_at,
         v.updated_at,
-        c.is_deceased,
-        c.deceased_date::TEXT,
+        v.is_deceased,
+        v.deceased_at::TEXT AS deceased_date,
         c.verified_at,
         c.verified_by,
         s.display_name AS verified_by_name,
-        c.atlas_cat_id,
-        r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
+        NULL::TEXT AS atlas_cat_id,
+        FALSE AS atlas_cat_id_is_chipped
       FROM sot.v_cat_detail v
       JOIN sot.cats c ON c.cat_id = v.cat_id
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
-      LEFT JOIN ops.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE v.cat_id = $1
     `;
 
     // Fallback query that doesn't depend on views
+    // V2: Uses correct column names (name not display_name, etc.)
     const fallbackSql = `
       SELECT
         c.cat_id,
-        c.display_name,
+        c.name AS display_name,
         c.sex,
         c.altered_status,
-        c.altered_by_clinic,
+        FALSE AS altered_by_clinic,
         c.breed,
-        c.primary_color AS color,
+        COALESCE(c.primary_color, c.color) AS color,
         c.secondary_color,
-        NULL::TEXT AS coat_pattern,
-        (SELECT ci.id_value FROM sot.cat_identifiers ci
-         WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1) AS microchip,
-        COALESCE(c.needs_microchip, FALSE) AS needs_microchip,
+        c.pattern AS coat_pattern,
+        c.microchip,
+        FALSE AS needs_microchip,
         c.data_source,
         c.ownership_type,
-        NULL::TEXT AS quality_tier,
+        c.data_quality AS quality_tier,
         NULL::TEXT AS quality_reason,
-        c.notes,
+        NULL::TEXT AS notes,
         '[]'::jsonb AS identifiers,
         '[]'::jsonb AS owners,
         '[]'::jsonb AS places,
         c.created_at,
         c.updated_at,
         c.is_deceased,
-        c.deceased_date::TEXT,
+        c.deceased_at::TEXT AS deceased_date,
         c.verified_at,
         c.verified_by,
         s.display_name AS verified_by_name,
-        c.atlas_cat_id,
-        r.microchip_suffix IS NOT NULL AS atlas_cat_id_is_chipped
+        NULL::TEXT AS atlas_cat_id,
+        FALSE AS atlas_cat_id_is_chipped
       FROM sot.cats c
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
-      LEFT JOIN ops.atlas_cat_id_registry r ON r.cat_id = c.cat_id
       WHERE c.cat_id = $1
     `;
 
@@ -314,6 +313,7 @@ export async function GET(
     `;
 
     // Fetch test results
+    // V2: Uses ops.cat_test_results (not sot.cat_test_results)
     const testsSql = `
       SELECT
         test_id,
@@ -321,7 +321,7 @@ export async function GET(
         test_date::TEXT,
         result::TEXT,
         result_detail
-      FROM sot.cat_test_results
+      FROM ops.cat_test_results
       WHERE cat_id = $1
       ORDER BY test_date DESC
     `;
@@ -506,21 +506,23 @@ export async function GET(
     `;
 
     // Fetch partner organizations this cat has been associated with
+    // V2: Uses 'name' and 'short_name' columns (not org_name, org_name_short)
     const partnerOrgsSql = `
       SELECT
         po.org_id,
-        po.org_name,
-        po.org_name_short,
+        po.name AS org_name,
+        po.short_name AS org_name_short,
         MIN(a.appointment_date)::TEXT as first_seen,
         COUNT(*)::INT as appointment_count
       FROM ops.appointments a
       JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
-      GROUP BY po.org_id, po.org_name, po.org_name_short
+      GROUP BY po.org_id, po.name, po.short_name
       ORDER BY first_seen
     `;
 
     // Enhanced clinic history with origin addresses and partner orgs
+    // V2: Uses sot.person_place and po.short_name
     const enhancedClinicHistorySql = `
       SELECT
         a.appointment_id,
@@ -532,11 +534,11 @@ export async function GET(
         a.owner_phone as client_phone,
         NULL::TEXT as ownership_type,
         pl2.formatted_address as origin_address,
-        po.org_name_short as partner_org_short
+        po.short_name as partner_org_short
       FROM ops.appointments a
       LEFT JOIN sot.people p ON p.person_id = a.person_id
       LEFT JOIN ops.clinic_accounts coa ON coa.account_id = a.owner_account_id
-      LEFT JOIN sot.person_place_relationships ppr ON ppr.person_id = a.person_id
+      LEFT JOIN sot.person_place ppr ON ppr.person_id = a.person_id
       LEFT JOIN sot.places pl ON pl.place_id = ppr.place_id
       LEFT JOIN sot.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
       LEFT JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id

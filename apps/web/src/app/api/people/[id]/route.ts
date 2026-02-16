@@ -61,31 +61,27 @@ export async function GET(
   }
 
   try {
-    // Use original v_person_detail (all people) so direct links work,
-    // but add is_valid_name flag so UI can show warning for suspect entries
+    // V2: Use v_person_detail view with correct column names
     const sql = `
       SELECT
         pd.person_id,
         pd.display_name,
-        pd.merged_into_person_id,
+        p.merged_into_person_id,
         pd.created_at,
         pd.updated_at,
         pd.cats,
         pd.places,
-        pd.person_relationships,
+        '[]'::jsonb AS person_relationships,
         pd.cat_count,
         pd.place_count,
         sot.is_valid_person_name(pd.display_name) AS is_valid_name,
-        p.primary_address_id,
-        a.formatted_address AS primary_address,
-        a.locality AS primary_address_locality,
-        p.data_source,
-        p.entity_type,
-        p.data_quality,
-        (SELECT pl.place_id FROM sot.places pl
-         WHERE pl.sot_address_id = p.primary_address_id
-           AND pl.merged_into_place_id IS NULL
-         LIMIT 1) AS primary_place_id,
+        pd.primary_address_id,
+        pd.primary_place_address AS primary_address,
+        a.city AS primary_address_locality,
+        pd.data_source,
+        pd.entity_type,
+        pd.data_quality,
+        pd.primary_place_id,
         p.verified_at,
         p.verified_by,
         s.display_name AS verified_by_name,
@@ -100,20 +96,8 @@ export async function GET(
           FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id
         ) AS identifiers,
-        (
-          SELECT jsonb_agg(jsonb_build_object(
-            'org_id', po.org_id,
-            'org_name', po.org_name,
-            'org_name_short', po.org_name_short,
-            'org_type', po.org_type,
-            'role', 'representative',
-            'appointments_count', po.appointments_count,
-            'cats_processed', po.cats_processed
-          ) ORDER BY po.org_name)
-          FROM ops.partner_organizations po
-          WHERE po.contact_person_id = p.person_id
-            AND po.is_active = TRUE
-        ) AS partner_orgs,
+        -- V2: partner_organizations doesn't have contact_person_id yet
+        NULL::jsonb AS partner_orgs,
         (
           SELECT jsonb_agg(jsonb_build_object(
             'alias_id', pa.alias_id,
@@ -154,12 +138,13 @@ export async function GET(
               UNION ALL
 
               -- From requests where this person is requester
+              -- V2: Uses city column (not locality)
               SELECT
                 r.place_id,
                 COALESCE(pl2.display_name, split_part(pl2.formatted_address, ',', 1)) AS display_name,
                 pl2.formatted_address,
                 pl2.place_kind,
-                sa2.locality,
+                sa2.city AS locality,
                 'request' AS source_type,
                 0.5 AS confidence
               FROM ops.requests r
@@ -172,12 +157,13 @@ export async function GET(
               UNION ALL
 
               -- From intake submissions matched to this person
+              -- V2: Uses city column (not locality)
               SELECT
                 COALESCE(ws.selected_address_place_id, ws.place_id) AS place_id,
                 COALESCE(pl3.display_name, split_part(pl3.formatted_address, ',', 1)) AS display_name,
                 pl3.formatted_address,
                 pl3.place_kind,
-                sa3.locality,
+                sa3.city AS locality,
                 'intake' AS source_type,
                 0.4 AS confidence
               FROM ops.intake_submissions ws

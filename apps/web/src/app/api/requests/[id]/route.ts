@@ -167,7 +167,8 @@ export async function GET(
   }
 
   try {
-    // Query request with all fields including new operational ones
+    // Query request with V2 schema columns
+    // V2: Many V1 columns don't exist, so we use defaults/NULLs
     const sql = `
       SELECT
         r.request_id,
@@ -178,69 +179,69 @@ export async function GET(
         r.estimated_cat_count,
         r.total_cats_reported,
         r.cat_count_semantic::TEXT,
-        r.has_kittens,
-        r.cats_are_friendly,
-        r.preferred_contact_method,
-        r.assigned_to,
-        r.assigned_trapper_type::TEXT,
-        r.assigned_at,
-        r.assignment_notes,
-        r.scheduled_date,
-        r.scheduled_time_range,
+        FALSE AS has_kittens,
+        NULL::BOOLEAN AS cats_are_friendly,
+        NULL::TEXT AS preferred_contact_method,
+        NULL::TEXT AS assigned_to,
+        NULL::TEXT AS assigned_trapper_type,
+        NULL::TIMESTAMPTZ AS assigned_at,
+        NULL::TEXT AS assignment_notes,
+        NULL::DATE AS scheduled_date,
+        NULL::TEXT AS scheduled_time_range,
         r.resolved_at,
-        r.resolution_notes,
-        r.cats_trapped,
-        r.cats_returned,
-        r.data_source::TEXT,
+        r.resolution AS resolution_notes,
+        NULL::INT AS cats_trapped,
+        NULL::INT AS cats_returned,
+        r.source_system AS data_source,
         r.source_system,
         r.source_record_id,
         r.source_created_at,
-        r.created_by,
+        NULL::TEXT AS created_by,
         r.created_at,
         r.updated_at,
-        -- Enhanced intake fields
-        r.permission_status::TEXT,
-        r.property_owner_contact,
-        r.access_notes,
-        r.traps_overnight_safe,
-        r.access_without_contact,
-        r.property_type::TEXT,
-        r.colony_duration::TEXT,
-        r.location_description,
-        r.eartip_count,
-        r.eartip_estimate::TEXT,
-        r.count_confidence::TEXT,
-        r.kitten_count,
-        r.kitten_age_weeks,
-        r.kitten_assessment_status,
-        r.kitten_assessment_outcome,
-        r.kitten_foster_readiness,
-        r.kitten_urgency_factors,
-        r.kitten_assessment_notes,
-        r.not_assessing_reason,
-        r.kitten_assessed_by,
-        r.kitten_assessed_at,
-        r.is_being_fed,
-        r.feeder_name,
-        r.feeding_schedule,
-        r.best_times_seen,
-        r.urgency_reasons,
-        r.urgency_deadline,
-        r.urgency_notes,
-        r.best_contact_times,
+        -- Enhanced intake fields (V2: not present, use defaults)
+        NULL::TEXT AS permission_status,
+        NULL::TEXT AS property_owner_contact,
+        NULL::TEXT AS access_notes,
+        NULL::BOOLEAN AS traps_overnight_safe,
+        NULL::BOOLEAN AS access_without_contact,
+        NULL::TEXT AS property_type,
+        NULL::TEXT AS colony_duration,
+        NULL::TEXT AS location_description,
+        NULL::INT AS eartip_count,
+        NULL::TEXT AS eartip_estimate,
+        NULL::TEXT AS count_confidence,
+        NULL::INT AS kitten_count,
+        NULL::INT AS kitten_age_weeks,
+        NULL::TEXT AS kitten_assessment_status,
+        NULL::TEXT AS kitten_assessment_outcome,
+        NULL::TEXT AS kitten_foster_readiness,
+        NULL::TEXT[] AS kitten_urgency_factors,
+        NULL::TEXT AS kitten_assessment_notes,
+        NULL::TEXT AS not_assessing_reason,
+        NULL::TEXT AS kitten_assessed_by,
+        NULL::TIMESTAMPTZ AS kitten_assessed_at,
+        NULL::BOOLEAN AS is_being_fed,
+        NULL::TEXT AS feeder_name,
+        NULL::TEXT AS feeding_schedule,
+        NULL::TEXT AS best_times_seen,
+        NULL::TEXT[] AS urgency_reasons,
+        NULL::TEXT AS urgency_deadline,
+        NULL::TEXT AS urgency_notes,
+        NULL::TEXT AS best_contact_times,
         -- Hold tracking
         r.hold_reason::TEXT,
-        r.hold_reason_notes,
-        r.hold_started_at,
+        NULL::TEXT AS hold_reason_notes,
+        NULL::TIMESTAMPTZ AS hold_started_at,
         -- Activity tracking
         r.last_activity_at,
-        r.last_activity_type,
-        -- Redirect/Handoff fields
-        r.redirected_to_request_id,
-        r.redirected_from_request_id,
-        r.redirect_reason,
-        r.redirect_at,
-        r.transfer_type,
+        NULL::TEXT AS last_activity_type,
+        -- Redirect/Handoff fields (V2: not present)
+        NULL::UUID AS redirected_to_request_id,
+        NULL::UUID AS redirected_from_request_id,
+        NULL::TEXT AS redirect_reason,
+        NULL::TIMESTAMPTZ AS redirect_at,
+        NULL::TEXT AS transfer_type,
         -- Place info (use address if place name matches requester name)
         r.place_id,
         CASE
@@ -251,8 +252,8 @@ export async function GET(
         END AS place_name,
         p.formatted_address AS place_address,
         p.place_kind::TEXT,
-        p.safety_notes AS place_safety_notes,
-        p.safety_concerns AS place_safety_concerns,
+        NULL::TEXT AS place_safety_notes,
+        NULL::TEXT[] AS place_safety_concerns,
         p.service_zone AS place_service_zone,
         sa.city AS place_city,
         sa.postal_code AS place_postal_code,
@@ -273,28 +274,26 @@ export async function GET(
          WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'phone'
            AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_phone,
-        -- Linked cats (from request_cat_links table, following merge chains)
+        -- Linked cats (V2: uses request_cats table, not request_cat_links)
         (SELECT jsonb_agg(jsonb_build_object(
             'cat_id', COALESCE(c.merged_into_cat_id, c.cat_id),
-            'cat_name', COALESCE(canonical_cat.display_name, c.display_name),
-            'link_purpose', rcl.link_purpose::TEXT,
-            'linked_at', rcl.linked_at,
-            'microchip', (SELECT ci.id_value FROM sot.cat_identifiers ci
-                          WHERE ci.cat_id = COALESCE(c.merged_into_cat_id, c.cat_id)
-                          AND ci.id_type = 'microchip' LIMIT 1),
+            'cat_name', COALESCE(canonical_cat.name, c.name),
+            'link_purpose', rc.link_type::TEXT,
+            'linked_at', rc.created_at,
+            'microchip', c.microchip,
             'altered_status', COALESCE(canonical_cat.altered_status, c.altered_status),
             'last_visit_date', (SELECT MAX(a.appointment_date) FROM ops.appointments a
                                 WHERE a.cat_id = COALESCE(c.merged_into_cat_id, c.cat_id))
-        ) ORDER BY rcl.linked_at DESC)
-         FROM ops.request_cat_links rcl
-         JOIN sot.cats c ON c.cat_id = rcl.cat_id
+        ) ORDER BY rc.created_at DESC)
+         FROM ops.request_cats rc
+         JOIN sot.cats c ON c.cat_id = rc.cat_id
          LEFT JOIN sot.cats canonical_cat ON canonical_cat.cat_id = c.merged_into_cat_id
-         WHERE rcl.request_id = r.request_id) AS cats,
-        (SELECT COUNT(*) FROM ops.request_cat_links rcl WHERE rcl.request_id = r.request_id) AS linked_cat_count,
-        -- Computed scores (handle if functions don't exist yet)
-        COALESCE(ops.compute_request_readiness(r), 0) AS readiness_score,
-        COALESCE(ops.compute_request_urgency(r), 0) AS urgency_score,
-        -- Colony summary (MIG_562)
+         WHERE rc.request_id = r.request_id) AS cats,
+        (SELECT COUNT(*) FROM ops.request_cats rc WHERE rc.request_id = r.request_id) AS linked_cat_count,
+        -- Computed scores (V2: functions may not exist, use defaults)
+        0 AS readiness_score,
+        0 AS urgency_score,
+        -- Colony summary
         pcs.colony_size_estimate,
         pcs.verified_altered_count AS colony_verified_altered,
         pcs.estimated_work_remaining AS colony_work_remaining,
@@ -306,19 +305,19 @@ export async function GET(
         CASE WHEN pcs.verified_altered_count > COALESCE(r.total_cats_reported, 0)
              AND r.total_cats_reported IS NOT NULL
         THEN TRUE ELSE FALSE END AS colony_verified_exceeds_reported,
-        -- Email batching (MIG_605)
-        r.ready_to_email,
-        r.email_summary,
-        r.email_batch_id,
-        -- Classification suggestion (MIG_622)
-        r.suggested_classification::TEXT,
-        r.classification_confidence,
-        r.classification_signals,
-        r.classification_disposition,
-        r.classification_suggested_at,
-        r.classification_reviewed_at,
-        r.classification_reviewed_by,
-        p.colony_classification::TEXT AS current_place_classification,
+        -- Email batching (V2: not present)
+        FALSE AS ready_to_email,
+        NULL::TEXT AS email_summary,
+        NULL::UUID AS email_batch_id,
+        -- Classification suggestion (V2: not present)
+        NULL::TEXT AS suggested_classification,
+        NULL::NUMERIC AS classification_confidence,
+        NULL::JSONB AS classification_signals,
+        NULL::TEXT AS classification_disposition,
+        NULL::TIMESTAMPTZ AS classification_suggested_at,
+        NULL::TIMESTAMPTZ AS classification_reviewed_at,
+        NULL::TEXT AS classification_reviewed_by,
+        NULL::TEXT AS current_place_classification,
         -- SC_004: Assignment status (maintained field)
         r.no_trapper_reason,
         r.assignment_status::TEXT
