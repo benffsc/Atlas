@@ -756,6 +756,80 @@ export default function CatDetailPage() {
     return test?.result || "unknown";
   };
 
+  // Get FIV status from any of the test types that include FIV
+  const getFivTest = () => {
+    return cat.tests?.find(t =>
+      t.test_type === "fiv" ||
+      t.test_type === "felv_fiv" ||
+      t.test_type === "felv_fiv_combo"
+    );
+  };
+
+  // Get FeLV status from any of the test types that include FeLV
+  const getFelvTest = () => {
+    return cat.tests?.find(t =>
+      t.test_type === "felv" ||
+      t.test_type === "felv_fiv" ||
+      t.test_type === "felv_fiv_combo"
+    );
+  };
+
+  // Get combined FIV/FeLV display - returns { fivResult, felvResult, testDate, hasAnyTest }
+  const getFelvFivStatus = () => {
+    const fivTest = getFivTest();
+    const felvTest = getFelvTest();
+
+    // For combo tests, parse the result to get individual statuses
+    const parseComboResult = (result: string | undefined, disease: "fiv" | "felv") => {
+      if (!result) return null;
+      const lower = result.toLowerCase();
+      // Check for explicit mentions like "FIV: Positive" or "fiv positive"
+      if (lower.includes(disease)) {
+        if (lower.includes(`${disease} positive`) || lower.includes(`${disease}: positive`)) return "positive";
+        if (lower.includes(`${disease} negative`) || lower.includes(`${disease}: negative`)) return "negative";
+      }
+      // For simple "positive" or "negative" on combo tests, assume both are same
+      if (lower === "positive" || lower === "negative") return lower;
+      return null;
+    };
+
+    let fivResult: string | null = null;
+    let felvResult: string | null = null;
+    let testDate: string | null = null;
+
+    if (fivTest) {
+      testDate = fivTest.test_date;
+      if (fivTest.test_type === "fiv") {
+        fivResult = fivTest.result?.toLowerCase() || null;
+      } else {
+        // Combo test - parse result
+        fivResult = parseComboResult(fivTest.result, "fiv") || fivTest.result?.toLowerCase() || null;
+      }
+    }
+
+    if (felvTest) {
+      testDate = testDate || felvTest.test_date;
+      if (felvTest.test_type === "felv") {
+        felvResult = felvTest.result?.toLowerCase() || null;
+      } else {
+        // Combo test - parse result
+        felvResult = parseComboResult(felvTest.result, "felv") || felvTest.result?.toLowerCase() || null;
+      }
+    }
+
+    return {
+      fivResult,
+      felvResult,
+      testDate,
+      hasAnyTest: !!(fivTest || felvTest),
+      // For display: any positive is concerning
+      anyPositive: fivResult === "positive" || felvResult === "positive",
+      allNegative: (fivResult === "negative" || !fivResult) && (felvResult === "negative" || !felvResult) && (fivTest || felvTest),
+    };
+  };
+
+  const felvFivStatus = getFelvFivStatus();
+
   const getLatestVital = () => cat.vitals?.[0] || null;
   const latestVital = getLatestVital();
   // Find latest vital WITH weight (may be different record than temperature)
@@ -1115,20 +1189,36 @@ export default function CatDetailPage() {
             textAlign: "center",
           }}>
             <div style={{ marginBottom: "0.5rem", fontSize: "0.875rem", color: "var(--muted)" }}>FeLV/FIV</div>
-            {cat.tests?.find(t => t.test_type === "felv_fiv") ? (
-              <div style={{
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-                color: getTestResult("felv_fiv") === "negative" ? "#198754" : "#dc3545",
-              }}>
-                {getTestResult("felv_fiv") === "negative" ? "NEG" : "POS"}
-              </div>
+            {felvFivStatus.hasAnyTest ? (
+              <>
+                <div style={{
+                  fontSize: "1.5rem",
+                  fontWeight: "bold",
+                  color: felvFivStatus.anyPositive ? "#dc3545" : "#198754",
+                }}>
+                  {felvFivStatus.anyPositive ? "POS" : "NEG"}
+                </div>
+                {/* Show individual results if available */}
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                  {felvFivStatus.felvResult && (
+                    <span style={{ color: felvFivStatus.felvResult === "positive" ? "#dc3545" : "#198754" }}>
+                      FeLV: {felvFivStatus.felvResult === "positive" ? "+" : "-"}
+                    </span>
+                  )}
+                  {felvFivStatus.felvResult && felvFivStatus.fivResult && " / "}
+                  {felvFivStatus.fivResult && (
+                    <span style={{ color: felvFivStatus.fivResult === "positive" ? "#dc3545" : "#198754" }}>
+                      FIV: {felvFivStatus.fivResult === "positive" ? "+" : "-"}
+                    </span>
+                  )}
+                </div>
+              </>
             ) : (
               <div style={{ fontSize: "1.25rem", color: "var(--muted)" }}>Not Tested</div>
             )}
-            {cat.tests?.find(t => t.test_type === "felv_fiv") && (
+            {felvFivStatus.testDate && (
               <div style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
-                {formatDateLocal(cat.tests.find(t => t.test_type === "felv_fiv")!.test_date)}
+                {formatDateLocal(felvFivStatus.testDate)}
               </div>
             )}
           </div>
@@ -1275,17 +1365,33 @@ export default function CatDetailPage() {
       {(cat.tests?.length > 0 || cat.procedures?.length > 0 || cat.conditions?.length > 0) && (
         <Section title="Medical Summary">
           <div className="detail-grid">
-            {cat.tests?.filter(t => t.test_type === "felv_fiv").slice(0, 1).map(test => (
-              <div className="detail-item" key={test.test_id}>
+            {felvFivStatus.hasAnyTest && (
+              <div className="detail-item">
                 <span className="detail-label">FeLV/FIV Status</span>
                 <span className="detail-value">
-                  <span className="badge" style={{ background: test.result === "negative" ? "#198754" : test.result === "positive" ? "#dc3545" : "#ffc107", color: test.result === "positive" || test.result === "negative" ? "#fff" : "#000" }}>
-                    {test.result.toUpperCase()}
-                  </span>
-                  <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>({formatDateLocal(test.test_date)})</span>
+                  {felvFivStatus.felvResult && (
+                    <span className="badge" style={{
+                      background: felvFivStatus.felvResult === "negative" ? "#198754" : felvFivStatus.felvResult === "positive" ? "#dc3545" : "#ffc107",
+                      color: felvFivStatus.felvResult === "positive" || felvFivStatus.felvResult === "negative" ? "#fff" : "#000",
+                      marginRight: "0.25rem"
+                    }}>
+                      FeLV: {felvFivStatus.felvResult.toUpperCase()}
+                    </span>
+                  )}
+                  {felvFivStatus.fivResult && (
+                    <span className="badge" style={{
+                      background: felvFivStatus.fivResult === "negative" ? "#198754" : felvFivStatus.fivResult === "positive" ? "#dc3545" : "#ffc107",
+                      color: felvFivStatus.fivResult === "positive" || felvFivStatus.fivResult === "negative" ? "#fff" : "#000"
+                    }}>
+                      FIV: {felvFivStatus.fivResult.toUpperCase()}
+                    </span>
+                  )}
+                  {felvFivStatus.testDate && (
+                    <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>({formatDateLocal(felvFivStatus.testDate)})</span>
+                  )}
                 </span>
               </div>
-            ))}
+            )}
             {cat.procedures?.filter(p => p.is_spay || p.is_neuter).slice(0, 1).map(proc => (
               <div className="detail-item" key={proc.procedure_id}>
                 <span className="detail-label">{proc.is_spay ? "Spay" : "Neuter"}</span>
