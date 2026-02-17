@@ -224,7 +224,82 @@ VALUES (sr.payload->>'Client Address', ...);
 
 ---
 
-## Gap 7: Person Linking Fails for 29% of Appointments
+## Gap 7: Package Line Items Not Exported (CRITICAL)
+
+**Discovery Date:** 2026-02-16
+**Impact:** ALL vaccine and treatment data from package bundles is MISSING
+
+**Problem:** ClinicHQ CSV exports only include **ONE row per appointment** - the primary billable service. Package items at $0.00 are NOT exported.
+
+**Example - Appointment 24-85 (microchip 900085001746878):**
+
+| What ClinicHQ Shows | What We Have |
+|---------------------|--------------|
+| Cat Neuter - $50.00 | ✅ Cat Neuter / |
+| Rabies 3 year vaccine - $0.00 | ❌ NOT CAPTURED |
+| FVRCP vaccine - 1 year - $0.00 | ❌ NOT CAPTURED |
+| Ear Tip - $0.00 | ❌ NOT CAPTURED |
+| Buprenorphine - $0.00 | ❌ NOT CAPTURED |
+| Microchip (Found Animals) - $0.00 | ❌ NOT CAPTURED |
+| Praziquantel - Cats - $0.00 | ❌ NOT CAPTURED |
+| Revolution - $0.00 | ❌ NOT CAPTURED |
+| FeLV/FIV Test | ✅ Captured as COLUMN (Negative/Positive) |
+
+**What IS captured (as columns, not service rows):**
+- FeLV/FIV test results (in `FeLV/FIV (SNAP test, in-house)` column)
+- Medical observations (pregnant, lactating, URI, dental disease, etc.)
+- Spay/Neuter flags
+
+**What is MISSING:**
+- Vaccine services (Rabies, FVRCP) - ~3,800+ affected
+- Flea/parasite treatments (Revolution, Activyl) - thousands affected
+- Dewormers (Praziquantel) - thousands affected
+- Ear tips - thousands affected
+- Microchip services - thousands affected
+
+**Evidence:**
+```sql
+-- Only 3,776 Rabies vaccines exist despite ~27,000 spay/neuter appointments
+SELECT COUNT(*) FROM ops.appointments WHERE service_type ILIKE '%rabies%';
+-- 3,776
+
+-- These are standalone vaccine appointments, NOT bundled vaccines
+SELECT COUNT(*) FROM ops.appointments WHERE service_type ILIKE '%spay%' OR service_type ILIKE '%neuter%';
+-- ~27,000
+```
+
+**UI Impact:**
+- Cat detail shows "No vaccines recorded" even when cat received vaccines
+- Treatment history is incomplete
+- Cannot track which cats have been ear-tipped
+- Cannot track flea treatment coverage
+
+### Fix Options
+
+**Option A: Request Line Item Export from ClinicHQ**
+- Work with ClinicHQ to export all service line items, not just primary
+- Would require new export format or API integration
+- Most complete solution
+
+**Option B: Infer from Packages**
+- If "Feral Cat Treatments Package" is primary service, assume standard items included
+- Less accurate, doesn't capture variations
+- Quick workaround
+
+**Option C: Accept Limitation**
+- Document that vaccine/treatment data is incomplete
+- FeLV/FIV is still captured (most critical for disease tracking)
+- Cat detail page shows accurate message ("No vaccines recorded" = true from our data)
+
+### Recommendation
+
+**Short-term:** Option C - Accept limitation and document. The most critical data (FeLV/FIV, spay/neuter) IS captured.
+
+**Long-term:** Option A - Work with ClinicHQ to export all line items.
+
+---
+
+## Gap 8: Person Linking Fails for 29% of Appointments
 
 **Location:** Owner_info processing
 

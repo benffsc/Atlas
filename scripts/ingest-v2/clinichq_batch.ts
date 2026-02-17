@@ -189,7 +189,7 @@ function getDateFromRow(row: Record<string, unknown>): string | null {
 // File Parsing
 // ============================================================================
 
-function parseXlsxFile(filePath: string): Record<string, unknown>[] {
+function parseXlsxFile(filePath: string, fillDown: boolean = false): Record<string, unknown>[] {
   const buffer = fs.readFileSync(filePath);
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const sheetName = workbook.SheetNames[0];
@@ -211,14 +211,30 @@ function parseXlsxFile(filePath: string): Record<string, unknown>[] {
     h === "Microchip" || h === "Microchip Number" || h === "Chip" || h === "Microchip #"
   );
 
+  // For fill-down, find the "Date" column - if Date is empty, it's a detail row
+  const dateColIndex = headers.findIndex(h => h === "Date");
+
+  // Columns that should NOT be filled down (they're specific to each service line)
+  const serviceOnlyColumns = new Set([
+    "Service / Subsidy", "Serv Value", "Sub Value", "Invoiced", "Pot Deduct"
+  ]);
+
   const rows: Record<string, unknown>[] = [];
+  let lastMasterRow: Record<string, unknown> = {};
+
   for (let i = 1; i < rawData.length; i++) {
     const rowArray = rawData[i] as unknown[];
     const rowObj: Record<string, unknown> = {};
     let hasData = false;
 
+    // Check if this is a detail row (Date column is empty)
+    const isDetailRow = fillDown && dateColIndex >= 0 &&
+      (rowArray[dateColIndex] === "" || rowArray[dateColIndex] === undefined || rowArray[dateColIndex] === null);
+
     for (let j = 0; j < headers.length; j++) {
       let value = j < rowArray.length ? rowArray[j] : "";
+
+      // Handle microchip as number
       if (j === microchipColIndex && typeof value === "number") {
         value = value.toFixed(0);
       } else if (typeof value === "string") {
@@ -226,11 +242,28 @@ function parseXlsxFile(filePath: string): Record<string, unknown>[] {
       } else if (value instanceof Date) {
         value = value.toISOString();
       }
+
+      // Fill-down logic: if this is a detail row and the cell is empty,
+      // use the value from the last master row (except for service-specific columns)
+      if (fillDown && isDetailRow && (value === "" || value === undefined || value === null)) {
+        const header = headers[j];
+        if (!serviceOnlyColumns.has(header) && lastMasterRow[header] !== undefined) {
+          value = lastMasterRow[header];
+        }
+      }
+
       rowObj[headers[j]] = value;
       if (value !== "" && value !== null && value !== undefined) hasData = true;
     }
 
-    if (hasData) rows.push(rowObj);
+    if (hasData) {
+      rows.push(rowObj);
+
+      // If this is a master row (has Date), save it for fill-down
+      if (fillDown && !isDetailRow) {
+        lastMasterRow = { ...rowObj };
+      }
+    }
   }
 
   return rows;
@@ -267,19 +300,35 @@ function mergeFilesByMicrochip(
     }
   }
 
+  // Process appointment rows - handle continuation rows (service line items without microchip)
+  // ClinicHQ exports have:
+  //   Row 1: Full data (Date, Number, Microchip, medical fields, primary service)
+  //   Row 2-N: Empty except for "Service / Subsidy" column (additional services)
+  let currentKey: string | null = null;
   for (const row of appointmentInfoRows) {
     const chip = getMicrochipFromRow(row);
     const date = getDateFromRow(row);
+
     if (chip && date) {
-      const key = `${chip}|${date}`;
-      if (!visitsByKey.has(key)) {
-        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
+      // This is a "header row" with full appointment data
+      currentKey = `${chip}|${date}`;
+      if (!visitsByKey.has(currentKey)) {
+        visitsByKey.set(currentKey, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
       }
-      const visit = visitsByKey.get(key)!;
+      const visit = visitsByKey.get(currentKey)!;
       visit.appointmentRows.push(row);
-      const serviceItem = getString(row, "Service Item", "Procedure", "Service", "Item", "Description");
+      // Extract service from header row - check multiple possible field names
+      const serviceItem = getString(row, "Service / Subsidy", "Service Item", "Procedure", "Service", "Item", "Description");
+      if (serviceItem) visit.serviceItems.push(serviceItem);
+    } else if (currentKey) {
+      // This is a "continuation row" - service line item belonging to the previous appointment
+      const visit = visitsByKey.get(currentKey)!;
+      visit.appointmentRows.push(row);
+      // Extract service from continuation row
+      const serviceItem = getString(row, "Service / Subsidy", "Service Item", "Procedure", "Service", "Item", "Description");
       if (serviceItem) visit.serviceItems.push(serviceItem);
     }
+    // If no chip/date AND no currentKey, skip the row (orphan)
   }
 
   const byMicrochip = new Map<string, MergedRecord>();
@@ -759,14 +808,17 @@ async function main() {
   }
 
   // Parse files
+  // Note: appointment_info uses fill-down=true because ClinicHQ exports in
+  // master-detail format where the first row has all data and subsequent rows
+  // only have the Service / Subsidy column filled in.
   console.log("\nParsing files...");
   const catInfoRows = parseXlsxFile(catInfoPath);
   const ownerInfoRows = parseXlsxFile(ownerInfoPath);
-  const appointmentInfoRows = parseXlsxFile(appointmentInfoPath);
+  const appointmentInfoRows = parseXlsxFile(appointmentInfoPath, true); // Enable fill-down
 
   console.log(`  cat_info: ${catInfoRows.length} rows`);
   console.log(`  owner_info: ${ownerInfoRows.length} rows`);
-  console.log(`  appointment_info: ${appointmentInfoRows.length} rows`);
+  console.log(`  appointment_info: ${appointmentInfoRows.length} rows (with fill-down)`);
 
   // Merge
   console.log("\nMerging by microchip + date...");
