@@ -19,6 +19,28 @@ interface ClinicHQAppointment {
   owner_name: string | null;
 }
 
+interface LoggedEntry {
+  entry_id: string;
+  line_number: number | null;
+  raw_client_name: string | null;
+  parsed_owner_name: string | null;
+  parsed_cat_name: string | null;
+  parsed_trapper_alias: string | null;
+  trapper_name: string | null;
+  female_count: number;
+  male_count: number;
+  cat_count: number;
+  matched_appointment_id: string | null;
+  match_confidence: string | null;
+  match_reason: string | null;
+}
+
+interface ComparisonStats {
+  logged_total: number;
+  logged_females: number;
+  logged_males: number;
+}
+
 /**
  * GET /api/admin/clinic-days/[date]/compare
  * Compare clinic day logs vs ClinicHQ appointments
@@ -33,8 +55,46 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { date } = await params;
 
-    // V2: No logged entries - clinic day data comes directly from ClinicHQ
-    const loggedEntries: object[] = [];
+    // Get logged entries from master list imports
+    const loggedEntries = await queryRows<LoggedEntry>(
+      `
+      SELECT
+        e.entry_id,
+        e.line_number,
+        e.raw_client_name,
+        e.parsed_owner_name,
+        e.parsed_cat_name,
+        e.parsed_trapper_alias,
+        trapper.display_name AS trapper_name,
+        COALESCE(e.female_count, 0) AS female_count,
+        COALESCE(e.male_count, 0) AS male_count,
+        COALESCE(e.cat_count, 1) AS cat_count,
+        e.matched_appointment_id,
+        e.match_confidence,
+        e.match_reason
+      FROM ops.clinic_day_entries e
+      JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+      LEFT JOIN sot.people trapper ON trapper.person_id = e.trapper_person_id
+        AND trapper.merged_into_person_id IS NULL
+      WHERE cd.clinic_date = $1
+      ORDER BY e.line_number NULLS LAST, e.created_at
+      `,
+      [date]
+    );
+
+    // Calculate logged entry stats
+    const comparisonStats = await queryOne<ComparisonStats>(
+      `
+      SELECT
+        COUNT(*)::INT AS logged_total,
+        COALESCE(SUM(female_count), 0)::INT AS logged_females,
+        COALESCE(SUM(male_count), 0)::INT AS logged_males
+      FROM ops.clinic_day_entries e
+      JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+      WHERE cd.clinic_date = $1
+      `,
+      [date]
+    );
 
     // Get ClinicHQ appointments (V2 uses ops.appointments)
     const clinichqAppointments = await queryRows<ClinicHQAppointment>(
@@ -60,11 +120,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [date]
     );
 
-    // V2: No comparison view - just use appointment counts
+    // Use actual logged entry stats
     const comparison = {
-      logged_total: 0,
-      logged_females: 0,
-      logged_males: 0,
+      logged_total: comparisonStats?.logged_total || 0,
+      logged_females: comparisonStats?.logged_females || 0,
+      logged_males: comparisonStats?.logged_males || 0,
     };
 
     // Group ClinicHQ by trapper for easier comparison

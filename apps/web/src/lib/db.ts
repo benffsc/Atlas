@@ -1,5 +1,8 @@
 import { Pool, QueryResult, QueryResultRow } from "pg";
 
+// Re-export QueryResultRow for use in other files
+export type { QueryResultRow };
+
 // Custom error class for database connection issues
 export class DatabaseConnectionError extends Error {
   constructor(message: string, public originalError?: Error) {

@@ -72,7 +72,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         SELECT
           a.appointment_id,
           a.cat_id,
-          ROW_NUMBER() OVER (ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST)::INT AS clinic_day_number,
+          -- Use stored clinic_day_number if assigned, else fallback to ROW_NUMBER
+          COALESCE(a.clinic_day_number,
+            ROW_NUMBER() OVER (ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST)::INT
+          ) AS clinic_day_number,
           a.appointment_number,
           a.service_type,
           a.is_spay,
@@ -145,7 +148,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         SELECT
           a.appointment_id,
           a.cat_id,
-          ROW_NUMBER() OVER (ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST)::INT AS clinic_day_number,
+          -- Use stored clinic_day_number if assigned, else fallback to ROW_NUMBER
+          COALESCE(a.clinic_day_number,
+            ROW_NUMBER() OVER (ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST)::INT
+          ) AS clinic_day_number,
           a.appointment_number,
           a.service_type,
           a.is_spay,

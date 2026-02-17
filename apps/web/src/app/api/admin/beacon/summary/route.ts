@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
+import { queryOne, type QueryResultRow } from "@/lib/db";
 
 interface BeaconSummary {
   // Colony estimates
@@ -31,7 +31,7 @@ interface BeaconSummary {
 }
 
 // Helper to safely run query, returning null on error
-async function safeQueryOne<T>(sql: string): Promise<T | null> {
+async function safeQueryOne<T extends QueryResultRow>(sql: string): Promise<T | null> {
   try {
     return await queryOne<T>(sql, []);
   } catch {

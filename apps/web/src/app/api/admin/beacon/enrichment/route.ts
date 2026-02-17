@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne, queryRows, type QueryResultRow } from "@/lib/db";
 
 /**
  * Beacon Data Enrichment Pipeline Status
@@ -19,7 +19,7 @@ interface SourceStats {
 }
 
 // Helper to safely run query, returning empty array on error
-async function safeQueryRows<T>(sql: string): Promise<T[]> {
+async function safeQueryRows<T extends QueryResultRow>(sql: string): Promise<T[]> {
   try {
     return await queryRows<T>(sql);
   } catch {
@@ -28,7 +28,7 @@ async function safeQueryRows<T>(sql: string): Promise<T[]> {
 }
 
 // Helper to safely run query, returning null on error
-async function safeQueryOne<T>(sql: string): Promise<T | null> {
+async function safeQueryOne<T extends QueryResultRow>(sql: string): Promise<T | null> {
   try {
     return await queryOne<T>(sql, []);
   } catch {

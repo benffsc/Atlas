@@ -94,8 +94,9 @@ export async function GET(request: NextRequest) {
             WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv' AND tr.fiv_status IS NOT NULL
             ORDER BY tr.test_date DESC LIMIT 1
           ) AS fiv_status,
-          ci_mc.id_value AS microchip,
-          ci_chq.id_value AS clinichq_animal_id,
+          -- Use microchip from cat_identifiers OR directly from sot.cats
+          COALESCE(ci_mc.id_value, c.microchip) AS microchip,
+          COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
           -- Owner name via subquery to avoid cartesian product (one row per cat)
           -- V2: Uses sot.person_cat (not sot.person_cat_relationships)
           (
@@ -126,9 +127,12 @@ export async function GET(request: NextRequest) {
           -- Get appointment info for selected date
           a_day.appointment_id,
           a_day.appointment_date,
-          a_day.appointment_number AS clinic_day_number,
-          -- Sorting fields
-          CASE WHEN ci_mc.id_value = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
+          -- Use stored clinic_day_number, fallback to ROW_NUMBER if not assigned
+          COALESCE(a_day.clinic_day_number,
+            ROW_NUMBER() OVER (PARTITION BY a_day.appointment_date ORDER BY a_day.appointment_number NULLS LAST, c.name NULLS LAST)::INT
+          ) AS clinic_day_number,
+          -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
+          CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
           CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
         FROM sot.cats c
         LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
@@ -141,6 +145,8 @@ export async function GET(request: NextRequest) {
             c.name ILIKE $1
             OR ci_mc.id_value ILIKE $1
             OR ci_chq.id_value ILIKE $1
+            -- Also search microchip directly on sot.cats table
+            OR c.microchip ILIKE $1
             -- Search owner names via EXISTS to avoid join duplicates
             -- V2: Uses sot.person_cat (not sot.person_cat_relationships)
             OR EXISTS (
@@ -214,8 +220,9 @@ export async function GET(request: NextRequest) {
             FALSE AS needs_microchip,
             NULL AS felv_status,
             NULL AS fiv_status,
-            ci_mc.id_value AS microchip,
-            ci_chq.id_value AS clinichq_animal_id,
+            -- Use microchip from cat_identifiers OR directly from sot.cats
+            COALESCE(ci_mc.id_value, c.microchip) AS microchip,
+            COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
             (
               SELECT per.display_name
               FROM sot.person_cat pc
@@ -236,8 +243,12 @@ export async function GET(request: NextRequest) {
             (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
             a_day.appointment_id,
             a_day.appointment_date,
-            a_day.appointment_number AS clinic_day_number,
-            CASE WHEN ci_mc.id_value = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
+            -- Use stored clinic_day_number, fallback to ROW_NUMBER if not assigned
+            COALESCE(a_day.clinic_day_number,
+              ROW_NUMBER() OVER (PARTITION BY a_day.appointment_date ORDER BY a_day.appointment_number NULLS LAST, c.name NULLS LAST)::INT
+            ) AS clinic_day_number,
+            -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
+            CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
             CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
           FROM sot.cats c
           LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
@@ -248,6 +259,8 @@ export async function GET(request: NextRequest) {
               c.name ILIKE $1
               OR ci_mc.id_value ILIKE $1
               OR ci_chq.id_value ILIKE $1
+              -- Also search microchip directly on sot.cats table
+              OR c.microchip ILIKE $1
               OR EXISTS (
                 SELECT 1 FROM sot.person_cat pc
                 JOIN sot.people per ON per.person_id = pc.person_id
