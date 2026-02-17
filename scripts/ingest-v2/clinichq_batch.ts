@@ -189,7 +189,47 @@ function getDateFromRow(row: Record<string, unknown>): string | null {
 // File Parsing
 // ============================================================================
 
-function parseXlsxFile(filePath: string, fillDown: boolean = false): Record<string, unknown>[] {
+/**
+ * Detects if an XLSX file uses master-detail format.
+ * Master-detail format: first row has full data, subsequent rows only have
+ * service-specific columns filled (Date is empty but Service/Subsidy has data).
+ */
+function detectMasterDetailFormat(rawData: unknown[][], headers: string[]): boolean {
+  const dateColIndex = headers.findIndex(h => h === "Date");
+  const serviceColIndex = headers.findIndex(h => h === "Service / Subsidy");
+
+  // Must have both Date and Service columns
+  if (dateColIndex < 0 || serviceColIndex < 0) return false;
+
+  // Sample first 50 data rows to detect pattern
+  let detailRowCount = 0;
+  const sampleSize = Math.min(50, rawData.length - 1);
+
+  for (let i = 1; i <= sampleSize; i++) {
+    const row = rawData[i] as unknown[];
+    const dateValue = row[dateColIndex];
+    const serviceValue = row[serviceColIndex];
+
+    // Detail row = empty date but has service value
+    const hasEmptyDate = dateValue === "" || dateValue === undefined || dateValue === null;
+    const hasService = serviceValue && String(serviceValue).trim() !== "";
+
+    if (hasEmptyDate && hasService) {
+      detailRowCount++;
+    }
+  }
+
+  // If more than 20% of sampled rows are detail rows, it's master-detail format
+  const isMasterDetail = detailRowCount > sampleSize * 0.2;
+
+  if (isMasterDetail) {
+    console.log(`  [Auto-detected] Master-detail format (${detailRowCount}/${sampleSize} detail rows in sample)`);
+  }
+
+  return isMasterDetail;
+}
+
+function parseXlsxFile(filePath: string, fillDown: boolean | "auto" = "auto"): Record<string, unknown>[] {
   const buffer = fs.readFileSync(filePath);
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const sheetName = workbook.SheetNames[0];
@@ -214,6 +254,11 @@ function parseXlsxFile(filePath: string, fillDown: boolean = false): Record<stri
   // For fill-down, find the "Date" column - if Date is empty, it's a detail row
   const dateColIndex = headers.findIndex(h => h === "Date");
 
+  // Auto-detect master-detail format if fillDown is "auto"
+  const useFillDown = fillDown === "auto"
+    ? detectMasterDetailFormat(rawData, headers)
+    : fillDown;
+
   // Columns that should NOT be filled down (they're specific to each service line)
   const serviceOnlyColumns = new Set([
     "Service / Subsidy", "Serv Value", "Sub Value", "Invoiced", "Pot Deduct"
@@ -228,7 +273,7 @@ function parseXlsxFile(filePath: string, fillDown: boolean = false): Record<stri
     let hasData = false;
 
     // Check if this is a detail row (Date column is empty)
-    const isDetailRow = fillDown && dateColIndex >= 0 &&
+    const isDetailRow = useFillDown && dateColIndex >= 0 &&
       (rowArray[dateColIndex] === "" || rowArray[dateColIndex] === undefined || rowArray[dateColIndex] === null);
 
     for (let j = 0; j < headers.length; j++) {
@@ -245,7 +290,7 @@ function parseXlsxFile(filePath: string, fillDown: boolean = false): Record<stri
 
       // Fill-down logic: if this is a detail row and the cell is empty,
       // use the value from the last master row (except for service-specific columns)
-      if (fillDown && isDetailRow && (value === "" || value === undefined || value === null)) {
+      if (useFillDown && isDetailRow && (value === "" || value === undefined || value === null)) {
         const header = headers[j];
         if (!serviceOnlyColumns.has(header) && lastMasterRow[header] !== undefined) {
           value = lastMasterRow[header];
@@ -260,7 +305,7 @@ function parseXlsxFile(filePath: string, fillDown: boolean = false): Record<stri
       rows.push(rowObj);
 
       // If this is a master row (has Date), save it for fill-down
-      if (fillDown && !isDetailRow) {
+      if (useFillDown && !isDetailRow) {
         lastMasterRow = { ...rowObj };
       }
     }
@@ -808,17 +853,18 @@ async function main() {
   }
 
   // Parse files
-  // Note: appointment_info uses fill-down=true because ClinicHQ exports in
-  // master-detail format where the first row has all data and subsequent rows
-  // only have the Service / Subsidy column filled in.
+  // All files use auto-detection for master-detail format (fill-down).
+  // ClinicHQ appointment exports use master-detail format where the first row
+  // has all data and subsequent rows only have Service / Subsidy filled.
+  // The parser auto-detects this pattern and applies fill-down automatically.
   console.log("\nParsing files...");
   const catInfoRows = parseXlsxFile(catInfoPath);
   const ownerInfoRows = parseXlsxFile(ownerInfoPath);
-  const appointmentInfoRows = parseXlsxFile(appointmentInfoPath, true); // Enable fill-down
+  const appointmentInfoRows = parseXlsxFile(appointmentInfoPath); // Auto-detects fill-down
 
   console.log(`  cat_info: ${catInfoRows.length} rows`);
   console.log(`  owner_info: ${ownerInfoRows.length} rows`);
-  console.log(`  appointment_info: ${appointmentInfoRows.length} rows (with fill-down)`);
+  console.log(`  appointment_info: ${appointmentInfoRows.length} rows`);
 
   // Merge
   console.log("\nMerging by microchip + date...");
