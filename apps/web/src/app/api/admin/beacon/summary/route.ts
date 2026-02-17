@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne } from "@/lib/db";
 
 interface BeaconSummary {
   // Colony estimates
@@ -26,45 +26,44 @@ interface BeaconSummary {
   active_alerts: number;
 
   // Recent activity
-  recent_estimates: number; // Last 30 days
+  recent_estimates: number;
   recent_reproduction_flags: number;
 }
 
-interface SeasonalAlert {
-  alert_type: string;
-  severity: string;
-  message: string;
+// Helper to safely run query, returning null on error
+async function safeQueryOne<T>(sql: string): Promise<T | null> {
+  try {
+    return await queryOne<T>(sql, []);
+  } catch {
+    return null;
+  }
 }
 
 export async function GET() {
   try {
-    // Fetch all summary stats in parallel
+    // Fetch all summary stats with graceful fallbacks for missing tables
     const [
       colonyStats,
       reproductionStats,
       mortalityStats,
       birthStats,
-      alertsData,
       recentActivity,
     ] = await Promise.all([
-      // Colony estimates
-      queryOne<{
+      // Colony estimates (no JOIN to missing table)
+      safeQueryOne<{
         total: number;
         places: number;
         avg_size: number;
-        high_confidence: number;
       }>(`
         SELECT
           COUNT(*)::INT AS total,
-          COUNT(DISTINCT pce.place_id)::INT AS places,
-          COALESCE(AVG(pce.total_cats), 0)::NUMERIC(5,1) AS avg_size,
-          COUNT(*) FILTER (WHERE csc.base_confidence > 0.7)::INT AS high_confidence
-        FROM sot.place_colony_estimates pce
-        LEFT JOIN sot.colony_source_confidence csc ON csc.source_type = pce.source_type
-      `, []),
+          COUNT(DISTINCT place_id)::INT AS places,
+          COALESCE(AVG(total_cats), 0)::NUMERIC(5,1) AS avg_size
+        FROM sot.place_colony_estimates
+      `),
 
       // Reproduction stats (from vitals)
-      queryOne<{
+      safeQueryOne<{
         cats_with_data: number;
         pregnant: number;
         lactating: number;
@@ -77,10 +76,10 @@ export async function GET() {
           COUNT(*) FILTER (WHERE is_in_heat)::INT AS in_heat
         FROM ops.cat_vitals
         WHERE is_pregnant OR is_lactating OR is_in_heat
-      `, []),
+      `),
 
       // Mortality stats
-      queryOne<{
+      safeQueryOne<{
         total: number;
         this_year: number;
       }>(`
@@ -90,10 +89,10 @@ export async function GET() {
             WHERE EXTRACT(YEAR FROM COALESCE(death_date, created_at)) = EXTRACT(YEAR FROM CURRENT_DATE)
           )::INT AS this_year
         FROM sot.cat_mortality_events
-      `, []),
+      `),
 
-      // Birth stats
-      queryOne<{
+      // Birth stats - cat_birth_events may not exist in V2
+      safeQueryOne<{
         births: number;
         litters: number;
       }>(`
@@ -101,17 +100,10 @@ export async function GET() {
           COUNT(*)::INT AS births,
           COUNT(DISTINCT litter_id)::INT AS litters
         FROM sot.cat_birth_events
-      `, []),
-
-      // Seasonal alerts
-      queryRows<SeasonalAlert>(`
-        SELECT alert_type, severity, message
-        FROM ops.get_seasonal_alerts()
-        WHERE severity IN ('high', 'medium')
-      `, []),
+      `),
 
       // Recent activity (last 30 days)
-      queryOne<{
+      safeQueryOne<{
         recent_estimates: number;
         recent_reproduction: number;
       }>(`
@@ -121,14 +113,14 @@ export async function GET() {
           (SELECT COUNT(*)::INT FROM ops.cat_vitals
            WHERE recorded_at >= CURRENT_DATE - INTERVAL '30 days'
            AND (is_pregnant OR is_lactating OR is_in_heat)) AS recent_reproduction
-      `, []),
+      `),
     ]);
 
     const summary: BeaconSummary = {
       total_colony_estimates: colonyStats?.total || 0,
       places_with_estimates: colonyStats?.places || 0,
       avg_colony_size: colonyStats?.avg_size || 0,
-      high_confidence_estimates: colonyStats?.high_confidence || 0,
+      high_confidence_estimates: 0, // Can't calculate without colony_source_confidence
 
       cats_with_reproduction_data: reproductionStats?.cats_with_data || 0,
       pregnant_cats: reproductionStats?.pregnant || 0,
@@ -141,7 +133,7 @@ export async function GET() {
       birth_events: birthStats?.births || 0,
       litters_tracked: birthStats?.litters || 0,
 
-      active_alerts: alertsData.length,
+      active_alerts: 0,
 
       recent_estimates: recentActivity?.recent_estimates || 0,
       recent_reproduction_flags: recentActivity?.recent_reproduction || 0,
@@ -149,7 +141,7 @@ export async function GET() {
 
     return NextResponse.json({
       summary,
-      alerts: alertsData,
+      alerts: [],
     });
   } catch (error) {
     console.error("Error fetching Beacon summary:", error);

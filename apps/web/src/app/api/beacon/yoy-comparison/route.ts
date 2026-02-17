@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { queryRows, queryOne } from "@/lib/db";
+import { queryRows } from "@/lib/db";
 
 /**
  * GET /api/beacon/yoy-comparison
@@ -12,30 +12,19 @@ interface MonthlyComparison {
   month_name: string;
   current_year: {
     year: number;
-    appointments: number;
     alterations: number;
-    requests: number;
   };
   previous_year: {
     year: number;
-    appointments: number;
     alterations: number;
-    requests: number;
   };
-  change_pct: {
-    appointments: number | null;
-    alterations: number | null;
-    requests: number | null;
-  };
+  change_pct: number | null;
 }
 
 interface YoYSummary {
   ytd_alterations_current: number;
   ytd_alterations_previous: number;
-  ytd_appointments_current: number;
-  ytd_appointments_previous: number;
   ytd_change_pct: number | null;
-  appointments_change_pct: number | null;
   trend: "up" | "down" | "stable";
   current_year: number;
   previous_year: number;
@@ -56,86 +45,38 @@ export async function GET() {
     // Get YoY comparison data from the view
     const yoyData = await queryRows<{
       current_year: number;
+      previous_year: number;
       month: number;
-      month_name: string;
-      current_appointments: number;
-      prev_year_appointments: number | null;
-      current_alterations: number;
-      prev_year_alterations: number | null;
-      appointments_yoy_pct: number | null;
-      alterations_yoy_pct: number | null;
+      current_year_alterations: number;
+      previous_year_alterations: number;
+      yoy_change_pct: number | null;
     }>(
-      `SELECT *
+      `SELECT current_year, previous_year, month,
+              current_year_alterations, previous_year_alterations, yoy_change_pct
        FROM ops.v_yoy_activity_comparison
-       WHERE current_year IN ($1, $2)
-       ORDER BY current_year, month`,
-      [currentYear, previousYear]
-    );
-
-    // Get request counts by month for both years
-    const requestData = await queryRows<{
-      year: number;
-      month: number;
-      request_count: number;
-    }>(
-      `SELECT
-         EXTRACT(YEAR FROM created_at)::INT AS year,
-         EXTRACT(MONTH FROM created_at)::INT AS month,
-         COUNT(*)::INT AS request_count
-       FROM ops.requests
-       WHERE EXTRACT(YEAR FROM created_at) IN ($1, $2)
-       GROUP BY 1, 2
-       ORDER BY 1, 2`,
-      [currentYear, previousYear]
+       WHERE current_year = $1
+       ORDER BY month`,
+      [currentYear]
     );
 
     // Build comparison data
     const comparison: MonthlyComparison[] = [];
-    const currentYearData = yoyData.filter(d => d.current_year === currentYear);
-    const prevYearData = yoyData.filter(d => d.current_year === previousYear);
 
     for (let month = 1; month <= 12; month++) {
-      const currMonth = currentYearData.find(d => d.month === month);
-      const prevMonth = prevYearData.find(d => d.month === month);
-
-      const currRequests = requestData.find(r => r.year === currentYear && r.month === month);
-      const prevRequests = requestData.find(r => r.year === previousYear && r.month === month);
-
-      const currAppts = currMonth?.current_appointments || 0;
-      const prevAppts = currMonth?.prev_year_appointments || prevMonth?.current_appointments || 0;
-
-      const currAlts = currMonth?.current_alterations || 0;
-      const prevAlts = currMonth?.prev_year_alterations || prevMonth?.current_alterations || 0;
-
-      const currReqs = currRequests?.request_count || 0;
-      const prevReqs = prevRequests?.request_count || 0;
+      const monthData = yoyData.find(d => d.month === month);
 
       comparison.push({
         month,
         month_name: MONTH_NAMES[month - 1],
         current_year: {
           year: currentYear,
-          appointments: currAppts,
-          alterations: currAlts,
-          requests: currReqs,
+          alterations: monthData?.current_year_alterations || 0,
         },
         previous_year: {
           year: previousYear,
-          appointments: prevAppts,
-          alterations: prevAlts,
-          requests: prevReqs,
+          alterations: monthData?.previous_year_alterations || 0,
         },
-        change_pct: {
-          appointments: prevAppts > 0
-            ? Math.round(((currAppts - prevAppts) / prevAppts) * 100)
-            : null,
-          alterations: prevAlts > 0
-            ? Math.round(((currAlts - prevAlts) / prevAlts) * 100)
-            : null,
-          requests: prevReqs > 0
-            ? Math.round(((currReqs - prevReqs) / prevReqs) * 100)
-            : null,
-        },
+        change_pct: monthData?.yoy_change_pct ?? null,
       });
     }
 
@@ -148,20 +89,8 @@ export async function GET() {
       .filter(c => c.month <= currentMonth)
       .reduce((sum, c) => sum + c.previous_year.alterations, 0);
 
-    const ytdCurrentAppointments = comparison
-      .filter(c => c.month <= currentMonth)
-      .reduce((sum, c) => sum + c.current_year.appointments, 0);
-
-    const ytdPreviousAppointments = comparison
-      .filter(c => c.month <= currentMonth)
-      .reduce((sum, c) => sum + c.previous_year.appointments, 0);
-
     const ytdChangePct = ytdPreviousAlterations > 0
       ? Math.round(((ytdCurrentAlterations - ytdPreviousAlterations) / ytdPreviousAlterations) * 100)
-      : null;
-
-    const appointmentsChangePct = ytdPreviousAppointments > 0
-      ? Math.round(((ytdCurrentAppointments - ytdPreviousAppointments) / ytdPreviousAppointments) * 100)
       : null;
 
     let trend: "up" | "down" | "stable" = "stable";
@@ -171,16 +100,13 @@ export async function GET() {
     }
 
     const monthsWithData = comparison.filter(c =>
-      c.current_year.appointments > 0 || c.current_year.alterations > 0
+      c.current_year.alterations > 0
     ).length;
 
     const summary: YoYSummary = {
       ytd_alterations_current: ytdCurrentAlterations,
       ytd_alterations_previous: ytdPreviousAlterations,
-      ytd_appointments_current: ytdCurrentAppointments,
-      ytd_appointments_previous: ytdPreviousAppointments,
       ytd_change_pct: ytdChangePct,
-      appointments_change_pct: appointmentsChangePct,
       trend,
       current_year: currentYear,
       previous_year: previousYear,
@@ -193,7 +119,7 @@ export async function GET() {
       .map(c => ({
         month: c.month,
         month_name: c.month_name,
-        change_pct: c.change_pct.alterations || 0,
+        change_pct: c.change_pct || 0,
       }))
       .sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0));
 

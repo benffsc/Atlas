@@ -79,6 +79,36 @@ export async function GET(request: NextRequest) {
     }
 
     if (view === "forecasts") {
+      // Check if ecology stats view exists - with error handling
+      let viewExists: { exists: boolean } | null = null;
+      try {
+        viewExists = await queryOne<{ exists: boolean }>(`
+          SELECT EXISTS(
+            SELECT 1 FROM pg_views
+            WHERE schemaname = 'sot' AND viewname = 'v_place_ecology_stats'
+          ) as exists
+        `, []);
+      } catch {
+        // If check itself fails, assume view doesn't exist
+        viewExists = { exists: false };
+      }
+
+      if (!viewExists?.exists) {
+        return NextResponse.json({
+          forecasts: [],
+          summary: {
+            total_places_with_data: 0,
+            total_population_estimate: 0,
+            total_altered: 0,
+            overall_alteration_rate: 0,
+            places_near_completion: 0,
+            places_needs_attention: 0,
+            avg_months_to_complete: null,
+          },
+          message: "Ecology stats view not deployed. Run beacon enrichment migrations.",
+        });
+      }
+
       // Get Vortex parameters for calculations
       const params = await queryOne<{
         tnr_time_step_months: number;

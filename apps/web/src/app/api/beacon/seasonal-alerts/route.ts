@@ -42,70 +42,84 @@ const ALERT_RECOMMENDATIONS: Record<string, string> = {
 
 export async function GET() {
   try {
-    // Get active alerts from the database function
-    const alertsRaw = await queryRows<{
-      alert_type: string;
-      severity: string;
-      message: string;
-      metric_name: string;
-      current_value: number;
-      threshold: number;
-    }>(
-      `SELECT * FROM ops.get_seasonal_alerts()`,
-      []
-    );
+    // Build alerts from breeding indicators and seasonal data
+    const alerts: SeasonalAlert[] = [];
 
-    // Enrich alerts with recommendations
-    const alerts: SeasonalAlert[] = alertsRaw.map((alert) => ({
-      alert_type: alert.alert_type,
-      severity: alert.severity as "high" | "medium" | "info",
-      message: alert.message,
-      metric_name: alert.metric_name,
-      current_value: alert.current_value,
-      threshold: alert.threshold,
-      recommendation: ALERT_RECOMMENDATIONS[alert.alert_type],
-    }));
-
-    // Get current season data
-    const currentData = await queryOne<{
-      year: number;
-      month: number;
-      season: string;
-      is_breeding_season: boolean;
-      demand_supply_ratio: number | null;
-      pregnant_cats: number;
-      clinic_appointments: number;
-    }>(
-      `SELECT *
-       FROM ops.v_seasonal_dashboard
-       WHERE year = EXTRACT(YEAR FROM CURRENT_DATE)
-         AND month = EXTRACT(MONTH FROM CURRENT_DATE)`,
-      []
-    );
-
-    // Get breeding indicators for current month
-    const breedingIndicators = await queryOne<{
-      pregnant_count: number;
-      lactating_count: number;
-      in_heat_count: number;
-      female_cats_spayed: number;
-      breeding_active_pct: number;
-    }>(
-      `SELECT *
-       FROM ops.v_breeding_season_indicators
-       WHERE year = EXTRACT(YEAR FROM CURRENT_DATE)
-         AND month = EXTRACT(MONTH FROM CURRENT_DATE)`,
-      []
-    );
-
-    // Build current season info
     const currentMonth = new Date().getMonth() + 1;
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+    // Get current season data - use month_num for filtering
+    const currentData = await queryOne<{
+      year: number;
+      month_num: number;
+      season: string;
+      is_breeding_season: boolean;
+      total_appointments: number;
+      alterations: number;
+    }>(
+      `SELECT year, month_num, season, is_breeding_season, total_appointments, alterations
+       FROM ops.v_seasonal_dashboard
+       WHERE year = EXTRACT(YEAR FROM CURRENT_DATE)::INT
+         AND month_num = EXTRACT(MONTH FROM CURRENT_DATE)::INT
+       LIMIT 1`,
+      []
+    );
+
+    // Get breeding indicators for current month - month is a date column
+    const breedingIndicators = await queryOne<{
+      pregnant_count: number;
+      lactating_count: number;
+      pregnancy_rate_pct: number;
+      lactation_rate_pct: number;
+      breeding_intensity: number;
+      breeding_phase: string;
+      total_female_appts: number;
+    }>(
+      `SELECT pregnant_count, lactating_count, pregnancy_rate_pct, lactation_rate_pct,
+              breeding_intensity, breeding_phase, total_female_appts
+       FROM ops.v_breeding_season_indicators
+       WHERE EXTRACT(YEAR FROM month)::INT = EXTRACT(YEAR FROM CURRENT_DATE)::INT
+         AND EXTRACT(MONTH FROM month)::INT = EXTRACT(MONTH FROM CURRENT_DATE)::INT
+       LIMIT 1`,
+      []
+    );
+
+    // Calculate breeding active percentage from available data
+    const breedingActivePct = breedingIndicators
+      ? ((breedingIndicators.pregnancy_rate_pct || 0) + (breedingIndicators.lactation_rate_pct || 0)) / 2
+      : 0;
+
+    // Generate alerts based on breeding indicators
+    if (breedingIndicators) {
+      if (breedingActivePct > 50) {
+        alerts.push({
+          alert_type: "kitten_surge",
+          severity: breedingActivePct > 70 ? "high" : "medium",
+          message: `High breeding activity detected: ${breedingActivePct.toFixed(1)}% breeding rate`,
+          metric_name: "breeding_active_pct",
+          current_value: breedingActivePct,
+          threshold: 50,
+          recommendation: ALERT_RECOMMENDATIONS.kitten_surge,
+        });
+      }
+      if (breedingIndicators.pregnant_count > 10) {
+        alerts.push({
+          alert_type: "breeding_peak",
+          severity: "medium",
+          message: `${breedingIndicators.pregnant_count} pregnant cats processed this month`,
+          metric_name: "pregnant_count",
+          current_value: Number(breedingIndicators.pregnant_count),
+          threshold: 10,
+          recommendation: ALERT_RECOMMENDATIONS.breeding_peak,
+        });
+      }
+    }
+
+    // Build current season info
     const currentSeason: CurrentSeason = {
       is_breeding_season: currentMonth >= 2 && currentMonth <= 11,
-      breeding_active_pct: breedingIndicators?.breeding_active_pct || 0,
-      demand_supply_ratio: currentData?.demand_supply_ratio || null,
+      breeding_active_pct: breedingActivePct,
+      demand_supply_ratio: null,
       current_month: currentMonth,
       current_month_name: monthNames[currentMonth - 1],
       season: currentData?.season || getSeasonName(currentMonth),
@@ -114,19 +128,19 @@ export async function GET() {
     // Build prediction based on breeding indicators
     let prediction: Prediction;
 
-    if (breedingIndicators && breedingIndicators.breeding_active_pct > 50) {
+    if (breedingActivePct > 50) {
       prediction = {
         kitten_surge_expected: true,
-        surge_confidence: breedingIndicators.breeding_active_pct > 70 ? "high" : "medium",
+        surge_confidence: breedingActivePct > 70 ? "high" : "medium",
         expected_timing: "2-3 months",
-        reasoning: `${breedingIndicators.breeding_active_pct}% of spayed females showed breeding indicators (pregnant/lactating/in-heat).`,
+        reasoning: `${breedingActivePct.toFixed(1)}% breeding rate indicates likely kitten surge.`,
       };
-    } else if (breedingIndicators && breedingIndicators.breeding_active_pct > 30) {
+    } else if (breedingActivePct > 30) {
       prediction = {
         kitten_surge_expected: true,
         surge_confidence: "low",
         expected_timing: "3-4 months",
-        reasoning: `${breedingIndicators.breeding_active_pct}% breeding activity suggests moderate kitten intake ahead.`,
+        reasoning: `${breedingActivePct.toFixed(1)}% breeding activity suggests moderate kitten intake ahead.`,
       };
     } else if (currentMonth >= 3 && currentMonth <= 5) {
       // Spring kitten season
@@ -155,16 +169,14 @@ export async function GET() {
 
     // Get monthly breeding data for chart (last 12 months)
     const breedingHistory = await queryRows<{
-      year: number;
-      month: number;
-      period: string;
-      breeding_active_pct: number;
+      month: string;
+      pregnancy_rate_pct: number;
+      lactation_rate_pct: number;
     }>(
-      `SELECT year, month, period, breeding_active_pct
+      `SELECT TO_CHAR(month, 'YYYY-MM') as month, pregnancy_rate_pct, lactation_rate_pct
        FROM ops.v_breeding_season_indicators
-       WHERE (year = EXTRACT(YEAR FROM CURRENT_DATE) AND month <= EXTRACT(MONTH FROM CURRENT_DATE))
-          OR (year = EXTRACT(YEAR FROM CURRENT_DATE) - 1 AND month > EXTRACT(MONTH FROM CURRENT_DATE))
-       ORDER BY year, month`,
+       WHERE month >= CURRENT_DATE - INTERVAL '12 months'
+       ORDER BY month`,
       []
     );
 
@@ -175,10 +187,11 @@ export async function GET() {
       breeding_history: breedingHistory,
       breeding_indicators: breedingIndicators
         ? {
-            pregnant: breedingIndicators.pregnant_count,
-            lactating: breedingIndicators.lactating_count,
-            in_heat: breedingIndicators.in_heat_count,
-            total_females_processed: breedingIndicators.female_cats_spayed,
+            pregnant: Number(breedingIndicators.pregnant_count),
+            lactating: Number(breedingIndicators.lactating_count),
+            pregnancy_rate: breedingIndicators.pregnancy_rate_pct,
+            lactation_rate: breedingIndicators.lactation_rate_pct,
+            total_females_processed: Number(breedingIndicators.total_female_appts),
           }
         : null,
     });

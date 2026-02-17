@@ -10,28 +10,31 @@ import { queryRows } from "@/lib/db";
 
 interface MonthlyData {
   year: number;
-  month: number;
-  period: string;
+  month_num: number;
+  month_label: string;
   season: string;
-  clinic_appointments: number;
+  total_appointments: number;
   alterations: number;
-  kitten_procedures: number;
-  pregnant_cats: number;
-  intake_requests: number;
-  urgent_requests: number;
-  kitten_intake_mentions: number;
   is_breeding_season: boolean;
-  demand_supply_ratio: number | null;
 }
 
 interface BreedingIndicator {
-  year: number;
-  month: number;
-  period: string;
+  month: string;
   pregnant_count: number;
   lactating_count: number;
-  in_heat_count: number;
-  breeding_active_pct: number;
+  pregnancy_rate_pct: number;
+  lactation_rate_pct: number;
+  breeding_intensity: number;
+  breeding_phase: string;
+}
+
+interface KittenSurge {
+  prediction_date: string;
+  current_pregnant: number;
+  current_lactating: number;
+  estimated_kittens_2mo: number;
+  surge_risk_level: string;
+  is_breeding_season: boolean;
 }
 
 export async function GET(request: NextRequest) {
@@ -44,61 +47,46 @@ export async function GET(request: NextRequest) {
     const monthlyData = await queryRows<MonthlyData>(
       `SELECT
          year,
-         month,
-         period,
+         month_num,
+         month_label,
          season,
-         clinic_appointments,
-         alterations,
-         kitten_procedures,
-         pregnant_cats,
-         intake_requests,
-         urgent_requests,
-         kitten_intake_mentions,
-         is_breeding_season,
-         demand_supply_ratio
+         total_appointments::INT,
+         alterations::INT,
+         is_breeding_season
        FROM ops.v_seasonal_dashboard
        WHERE year >= $1
-       ORDER BY year, month`,
+       ORDER BY year, month_num`,
       [startYear]
     );
 
     // Get breeding indicators
     const breedingIndicators = await queryRows<BreedingIndicator>(
       `SELECT
-         year,
-         month,
-         period,
-         pregnant_count,
-         lactating_count,
-         in_heat_count,
-         breeding_active_pct
+         TO_CHAR(month, 'YYYY-MM') as month,
+         pregnant_count::INT,
+         lactating_count::INT,
+         pregnancy_rate_pct,
+         lactation_rate_pct,
+         breeding_intensity::INT,
+         breeding_phase
        FROM ops.v_breeding_season_indicators
-       WHERE year >= $1
-       ORDER BY year, month`,
+       WHERE EXTRACT(YEAR FROM month) >= $1
+       ORDER BY month`,
       [startYear]
     );
 
     // Get kitten surge analysis
-    const kittenSurge = await queryRows<{
-      year: number;
-      month: number;
-      month_name: string;
-      kitten_appointments: number;
-      historical_avg: number;
-      z_score: number;
-      is_surge_month: boolean;
-    }>(
+    const kittenSurge = await queryRows<KittenSurge>(
       `SELECT
-         year,
-         month,
-         month_name,
-         kitten_appointments,
-         historical_avg,
-         z_score,
-         is_surge_month
+         TO_CHAR(prediction_date, 'YYYY-MM-DD') as prediction_date,
+         current_pregnant::INT,
+         current_lactating::INT,
+         estimated_kittens_2mo,
+         surge_risk_level,
+         is_breeding_season
        FROM ops.v_kitten_surge_prediction
-       WHERE year >= $1
-       ORDER BY year, month`,
+       WHERE EXTRACT(YEAR FROM prediction_date) >= $1
+       ORDER BY prediction_date`,
       [startYear]
     );
 
@@ -109,30 +97,19 @@ export async function GET(request: NextRequest) {
 
     const ytdAlterations = currentYearData.reduce((sum, d) => sum + (d.alterations || 0), 0);
     const prevYtdAlterations = prevYearData
-      .filter((d) => d.month <= new Date().getMonth() + 1)
+      .filter((d) => d.month_num <= new Date().getMonth() + 1)
       .reduce((sum, d) => sum + (d.alterations || 0), 0);
-
-    const ytdRequests = currentYearData.reduce((sum, d) => sum + (d.intake_requests || 0), 0);
-    const prevYtdRequests = prevYearData
-      .filter((d) => d.month <= new Date().getMonth() + 1)
-      .reduce((sum, d) => sum + (d.intake_requests || 0), 0);
 
     const summary = {
       ytd_alterations: ytdAlterations,
       prev_ytd_alterations: prevYtdAlterations,
-      ytd_requests: ytdRequests,
-      prev_ytd_requests: prevYtdRequests,
       alterations_yoy_change:
         prevYtdAlterations > 0
           ? Math.round(((ytdAlterations - prevYtdAlterations) / prevYtdAlterations) * 100)
           : null,
-      requests_yoy_change:
-        prevYtdRequests > 0
-          ? Math.round(((ytdRequests - prevYtdRequests) / prevYtdRequests) * 100)
-          : null,
-      peak_kitten_months: kittenSurge
-        .filter((k) => k.is_surge_month && k.year === currentYear)
-        .map((k) => k.month_name),
+      peak_risk_months: kittenSurge
+        .filter((k) => k.surge_risk_level === "high")
+        .map((k) => k.prediction_date),
     };
 
     return NextResponse.json({

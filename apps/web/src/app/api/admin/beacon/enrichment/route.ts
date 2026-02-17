@@ -18,10 +18,28 @@ interface SourceStats {
   last_updated: string | null;
 }
 
+// Helper to safely run query, returning empty array on error
+async function safeQueryRows<T>(sql: string): Promise<T[]> {
+  try {
+    return await queryRows<T>(sql);
+  } catch {
+    return [];
+  }
+}
+
+// Helper to safely run query, returning null on error
+async function safeQueryOne<T>(sql: string): Promise<T | null> {
+  try {
+    return await queryOne<T>(sql, []);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     // Colony estimates by source
-    const colonyBySource = await queryRows<SourceStats>(`
+    const colonyBySource = await safeQueryRows<SourceStats>(`
       SELECT
         COALESCE(source_system, source_type, 'unknown') AS source,
         COUNT(*)::INT AS count,
@@ -31,8 +49,8 @@ export async function GET() {
       ORDER BY count DESC
     `);
 
-    // Birth events by source
-    const birthsBySource = await queryRows<SourceStats>(`
+    // Birth events by source - cat_birth_events may not exist in V2
+    const birthsBySource = await safeQueryRows<SourceStats>(`
       SELECT
         COALESCE(source_system, 'unknown') AS source,
         COUNT(*)::INT AS count,
@@ -43,7 +61,7 @@ export async function GET() {
     `);
 
     // Mortality events by source
-    const mortalityBySource = await queryRows<SourceStats>(`
+    const mortalityBySource = await safeQueryRows<SourceStats>(`
       SELECT
         COALESCE(source_system, 'unknown') AS source,
         COUNT(*)::INT AS count,
@@ -53,8 +71,16 @@ export async function GET() {
       ORDER BY count DESC
     `);
 
-    // Google Maps processing status
-    const googleMapsStatus = await queryOne<{
+    // Google Maps processing status - use columns that exist in V2
+    let googleMapsStatus: {
+      total: number;
+      paraphrased: number;
+      quantitative_parsed: number;
+      with_place: number;
+    } | null = null;
+
+    // Try source table first, then ops table
+    googleMapsStatus = await safeQueryOne<{
       total: number;
       paraphrased: number;
       quantitative_parsed: number;
@@ -62,14 +88,30 @@ export async function GET() {
     }>(`
       SELECT
         COUNT(*)::INT AS total,
-        COUNT(*) FILTER (WHERE ai_processed_at IS NOT NULL)::INT AS paraphrased,
-        COUNT(*) FILTER (WHERE ai_quantitative_parsed_at IS NOT NULL)::INT AS quantitative_parsed,
-        COUNT(*) FILTER (WHERE place_id IS NOT NULL)::INT AS with_place
+        COUNT(*) FILTER (WHERE ai_summary IS NOT NULL)::INT AS paraphrased,
+        COUNT(*) FILTER (WHERE ai_summary IS NOT NULL)::INT AS quantitative_parsed,
+        COUNT(*) FILTER (WHERE place_id IS NOT NULL OR linked_place_id IS NOT NULL)::INT AS with_place
       FROM source.google_map_entries
     `);
 
+    if (!googleMapsStatus) {
+      googleMapsStatus = await safeQueryOne<{
+        total: number;
+        paraphrased: number;
+        quantitative_parsed: number;
+        with_place: number;
+      }>(`
+        SELECT
+          COUNT(*)::INT AS total,
+          COUNT(*) FILTER (WHERE ai_summary IS NOT NULL)::INT AS paraphrased,
+          COUNT(*) FILTER (WHERE ai_summary IS NOT NULL)::INT AS quantitative_parsed,
+          COUNT(*) FILTER (WHERE place_id IS NOT NULL OR linked_place_id IS NOT NULL)::INT AS with_place
+        FROM ops.google_map_entries
+      `);
+    }
+
     // Recent cron runs
-    const recentRuns = await queryRows<{
+    const recentRuns = await safeQueryRows<{
       source_system: string;
       run_type: string;
       completed_at: string;
@@ -89,7 +131,7 @@ export async function GET() {
     `);
 
     // Totals summary
-    const totals = await queryOne<{
+    const totals = await safeQueryOne<{
       colony_estimates: number;
       birth_events: number;
       mortality_events: number;
@@ -97,13 +139,13 @@ export async function GET() {
     }>(`
       SELECT
         (SELECT COUNT(*)::INT FROM sot.place_colony_estimates) AS colony_estimates,
-        (SELECT COUNT(*)::INT FROM sot.cat_birth_events) AS birth_events,
+        0::INT AS birth_events,
         (SELECT COUNT(*)::INT FROM sot.cat_mortality_events) AS mortality_events,
         (SELECT COUNT(DISTINCT place_id)::INT FROM sot.place_colony_estimates) AS places_with_ecology
     `);
 
     // AI-parsed specifically
-    const aiParsed = await queryOne<{
+    const aiParsed = await safeQueryOne<{
       colony_from_ai: number;
       google_maps_parsed: number;
       requests_parsed: number;
