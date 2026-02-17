@@ -158,7 +158,7 @@ function computeRowHash(row) {
 async function getSyncState(client, syncType) {
   const result = await client.query(`
     SELECT last_sync_timestamp, last_sync_at, records_synced
-    FROM trapper.shelterluv_sync_state
+    FROM source.shelterluv_sync_state
     WHERE sync_type = $1
   `, [syncType]);
   return result.rows[0] || { last_sync_timestamp: null };
@@ -166,7 +166,7 @@ async function getSyncState(client, syncType) {
 
 async function updateSyncState(client, syncType, lastTimestamp, recordsSynced, totalRecords, error = null) {
   await client.query(`
-    SELECT trapper.update_shelterluv_sync_state($1, $2, $3, $4, $5)
+    SELECT source.update_shelterluv_sync_state($1, $2, $3, $4, $5)
   `, [syncType, lastTimestamp, recordsSynced, totalRecords, error]);
 }
 
@@ -174,7 +174,7 @@ async function stageRecord(client, sourceTable, record, sourceRowId) {
   const rowHash = computeRowHash(record);
 
   const result = await client.query(`
-    INSERT INTO trapper.staged_records (
+    INSERT INTO ops.staged_records (
       source_system, source_table, source_row_id, row_hash, payload,
       created_at, updated_at
     ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -484,7 +484,7 @@ async function main() {
       // Check current sync status
       const statusResult = await client.query(`
         SELECT sync_type, last_sync_at, last_record_time, last_batch_size, sync_health
-        FROM trapper.v_shelterluv_sync_status
+        FROM ops.v_shelterluv_sync_status
       `);
 
       console.log(`\n${bold}Sync Status:${reset}`);
