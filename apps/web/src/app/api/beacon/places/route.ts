@@ -38,18 +38,18 @@ interface BeaconPlace {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if the view exists before querying
+    // Check if the view exists before querying (V2: ops schema)
     const viewCheck = await queryOne<{ exists: boolean }>(`
       SELECT EXISTS(
-        SELECT 1 FROM pg_views WHERE schemaname = 'trapper' AND viewname = 'v_beacon_place_metrics'
+        SELECT 1 FROM pg_views WHERE schemaname = 'ops' AND viewname = 'v_beacon_place_metrics'
       ) as exists
     `, []);
 
     if (!viewCheck?.exists) {
       return NextResponse.json({
         error: "Beacon places view not deployed",
-        missing: ["v_beacon_place_metrics (MIG_340)"],
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
+        missing: ["v_beacon_place_metrics (MIG_2082)"],
+        hint: "Run V2 beacon migrations: MIG_2082__beacon_views_implementation.sql",
         health_check: "/api/beacon/health",
       }, { status: 503 });
     }
@@ -64,62 +64,74 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // managed, in_progress, needs_work, needs_attention
     const limit = Math.min(parseInt(searchParams.get("limit") || "1000", 10), 5000);
 
-    // Build query
-    let whereClause = "WHERE verified_cat_count >= $1";
+    // Build query - V2 uses total_cats instead of verified_cat_count
+    let whereClause = "WHERE total_cats >= $1";
     const params: unknown[] = [minCats];
     let paramIndex = 2;
 
-    // Bounding box filter
+    // Bounding box filter - V2 uses latitude/longitude
     if (bounds) {
       const [south, west, north, east] = bounds.split(",").map(Number);
       if (!isNaN(south) && !isNaN(west) && !isNaN(north) && !isNaN(east)) {
-        whereClause += ` AND lat BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
-        whereClause += ` AND lng BETWEEN $${paramIndex + 2} AND $${paramIndex + 3}`;
+        whereClause += ` AND latitude BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+        whereClause += ` AND longitude BETWEEN $${paramIndex + 2} AND $${paramIndex + 3}`;
         params.push(south, north, west, east);
         paramIndex += 4;
       }
     }
 
-    // Colony status filter
+    // Colony status filter - V2 computes status from alteration_rate_pct
     if (status) {
-      whereClause += ` AND colony_status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
+      // Map status to alteration rate ranges
+      const statusConditions: Record<string, string> = {
+        managed: "alteration_rate_pct >= 75",
+        in_progress: "alteration_rate_pct >= 50 AND alteration_rate_pct < 75",
+        needs_work: "alteration_rate_pct >= 25 AND alteration_rate_pct < 50",
+        needs_attention: "alteration_rate_pct < 25 OR alteration_rate_pct IS NULL",
+      };
+      if (statusConditions[status]) {
+        whereClause += ` AND (${statusConditions[status]})`;
+      }
     }
 
-    // Query places
+    // Query places - V2 column mapping
     const places = await queryRows<BeaconPlace>(
       `
       SELECT
         place_id,
         formatted_address,
-        normalized_address,
-        lat,
-        lng,
-        verified_cat_count,
-        verified_altered_count,
-        verified_unaltered_count,
-        estimated_total,
-        estimate_source_count,
-        latest_estimate_date,
-        verified_alteration_rate,
-        lower_bound_alteration_rate,
-        colony_status,
-        has_cat_activity,
-        has_trapping_activity,
+        COALESCE(display_name, formatted_address) as normalized_address,
+        latitude as lat,
+        longitude as lng,
+        total_cats as verified_cat_count,
+        altered_cats as verified_altered_count,
+        (total_cats - altered_cats) as verified_unaltered_count,
+        COALESCE(colony_estimate, total_cats) as estimated_total,
+        1 as estimate_source_count,
+        last_appointment_date as latest_estimate_date,
+        alteration_rate_pct as verified_alteration_rate,
+        alteration_rate_pct as lower_bound_alteration_rate,
+        CASE
+          WHEN alteration_rate_pct >= 75 THEN 'managed'
+          WHEN alteration_rate_pct >= 50 THEN 'in_progress'
+          WHEN alteration_rate_pct >= 25 THEN 'needs_work'
+          ELSE 'needs_attention'
+        END as colony_status,
+        (total_appointments > 0) as has_cat_activity,
+        (total_requests > 0) as has_trapping_activity,
         last_activity_at,
-        request_count,
-        appointment_count,
-        calculation_audit
+        total_requests as request_count,
+        total_appointments as appointment_count,
+        '{}'::JSONB as calculation_audit
       FROM ops.v_beacon_place_metrics
       ${whereClause}
-      ORDER BY verified_cat_count DESC
+      ORDER BY total_cats DESC
       LIMIT $${paramIndex}
       `,
       [...params, limit]
     );
 
-    // Get summary stats for this query
+    // Get summary stats for this query - V2 column mapping
     const summary = await queryOne<{
       total_places: number;
       total_cats: number;
@@ -129,11 +141,11 @@ export async function GET(request: NextRequest) {
       `
       SELECT
         COUNT(*)::INT as total_places,
-        COALESCE(SUM(verified_cat_count), 0)::INT as total_cats,
-        COALESCE(SUM(verified_altered_count), 0)::INT as total_altered,
+        COALESCE(SUM(total_cats), 0)::INT as total_cats,
+        COALESCE(SUM(altered_cats), 0)::INT as total_altered,
         CASE
-          WHEN SUM(verified_cat_count) > 0 THEN
-            ROUND(100.0 * SUM(verified_altered_count) / SUM(verified_cat_count), 1)
+          WHEN SUM(total_cats) > 0 THEN
+            ROUND(100.0 * SUM(altered_cats) / SUM(total_cats), 1)
           ELSE 0
         END as avg_alteration_rate
       FROM ops.v_beacon_place_metrics

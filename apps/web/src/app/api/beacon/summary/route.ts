@@ -48,99 +48,110 @@ interface BeaconDashboardSummary {
 
 export async function GET() {
   try {
-    // Check if required views exist before querying
-    const viewCheck = await queryOne<{ summary_exists: boolean; clusters_exists: boolean }>(`
+    // Check if required views exist before querying (V2 views are in ops schema)
+    const viewCheck = await queryOne<{ summary_exists: boolean; cluster_summary_exists: boolean }>(`
       SELECT
-        EXISTS(SELECT 1 FROM pg_views WHERE schemaname = 'trapper' AND viewname = 'v_beacon_summary') as summary_exists,
-        EXISTS(SELECT 1 FROM pg_matviews WHERE schemaname = 'trapper' AND matviewname = 'mv_beacon_clusters') as clusters_exists
+        EXISTS(SELECT 1 FROM pg_views WHERE schemaname = 'ops' AND viewname = 'v_beacon_summary') as summary_exists,
+        EXISTS(SELECT 1 FROM pg_views WHERE schemaname = 'ops' AND viewname = 'v_beacon_cluster_summary') as cluster_summary_exists
     `, []);
 
-    if (!viewCheck?.summary_exists || !viewCheck?.clusters_exists) {
+    if (!viewCheck?.summary_exists || !viewCheck?.cluster_summary_exists) {
       const missing = [];
-      if (!viewCheck?.summary_exists) missing.push("v_beacon_summary (MIG_340)");
-      if (!viewCheck?.clusters_exists) missing.push("mv_beacon_clusters (MIG_341)");
+      if (!viewCheck?.summary_exists) missing.push("v_beacon_summary (MIG_2082)");
+      if (!viewCheck?.cluster_summary_exists) missing.push("v_beacon_cluster_summary (MIG_2082)");
 
       return NextResponse.json({
         error: "Beacon views not deployed",
         missing,
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
+        hint: "Run V2 beacon migrations: MIG_2082__beacon_views_implementation.sql",
         migrations_needed: [
-          "MIG_340__beacon_calculation_views.sql",
-          "MIG_341__beacon_clustering.sql",
+          "MIG_2082__beacon_views_implementation.sql",
         ],
         health_check: "/api/beacon/health",
       }, { status: 503 });
     }
 
-    // Fetch summary data from views
+    // Fetch summary data from V2 views (column names differ from V1)
     const [placeSummary, clusterSummary, workRemaining] = await Promise.all([
-      // Place-level summary
+      // Place-level summary - V2 column mapping
       queryOne<{
         total_cats: number;
         total_places: number;
-        places_with_cats: number;
-        total_verified_cats: number;
-        total_altered_cats: number;
-        overall_alteration_rate: number;
-        colonies_managed: number;
-        colonies_in_progress: number;
-        colonies_needs_work: number;
-        colonies_needs_attention: number;
-        colonies_no_data: number;
-      }>(`SELECT * FROM ops.v_beacon_summary`, []),
+        cats_with_places: number;
+        altered_cats: number;
+        alteration_rate_pct: number;
+        total_zones: number;
+        active_zones: number;
+        estimated_colonies: number;
+        estimated_unfixed_cats: number;
+        high_priority_zones: number;
+      }>(`SELECT
+        total_cats,
+        total_places,
+        cats_with_places,
+        altered_cats,
+        alteration_rate_pct,
+        total_zones,
+        active_zones,
+        estimated_colonies,
+        estimated_unfixed_cats,
+        high_priority_zones
+      FROM ops.v_beacon_summary`, []),
 
-      // Cluster-level summary
+      // Cluster-level summary - V2 uses zones instead of clusters
       queryOne<{
-        total_clusters: number;
-        places_in_clusters: number;
-        isolated_places: number;
-        cats_in_clusters: number;
-        altered_in_clusters: number;
-        clusters_managed: number;
-        clusters_in_progress: number;
-        clusters_needs_work: number;
-        clusters_needs_attention: number;
-        avg_places_per_cluster: number;
-        avg_cats_per_cluster: number;
-        overall_cluster_alteration_rate: number;
-      }>(`SELECT * FROM ops.v_beacon_cluster_summary`, []),
+        total_zones: number;
+        places_in_zones: number;
+        cats_in_zones: number;
+        altered_in_zones: number;
+        zones_managed: number;
+        zones_in_progress: number;
+        zones_needs_work: number;
+        zones_needs_attention: number;
+      }>(`SELECT
+        COUNT(*)::INT as total_zones,
+        COALESCE(SUM(place_count), 0)::INT as places_in_zones,
+        COALESCE(SUM(cat_count), 0)::INT as cats_in_zones,
+        COALESCE(SUM(altered_cat_count), 0)::INT as altered_in_zones,
+        COUNT(*) FILTER (WHERE cluster_status = 'managed')::INT as zones_managed,
+        COUNT(*) FILTER (WHERE cluster_status = 'in_progress')::INT as zones_in_progress,
+        COUNT(*) FILTER (WHERE cluster_status = 'needs_work')::INT as zones_needs_work,
+        COUNT(*) FILTER (WHERE cluster_status = 'needs_attention')::INT as zones_needs_attention
+      FROM ops.v_beacon_cluster_summary`, []),
 
       // Work remaining estimate
       queryOne<{ estimated_to_alter: number }>(`
-        SELECT COALESCE(SUM(
-          GREATEST(0, estimated_total - verified_altered_count)
-        ), 0)::INT as estimated_to_alter
-        FROM ops.v_beacon_place_metrics
-        WHERE estimated_total > verified_altered_count
+        SELECT COALESCE(estimated_unfixed_cats, 0)::INT as estimated_to_alter
+        FROM ops.v_beacon_summary
       `, []),
     ]);
 
     const summary: BeaconDashboardSummary = {
-      // Overall metrics
+      // Overall metrics (V2 column mapping)
       total_cats: placeSummary?.total_cats || 0,
       total_places: placeSummary?.total_places || 0,
-      places_with_cats: placeSummary?.places_with_cats || 0,
+      places_with_cats: placeSummary?.cats_with_places || 0,
 
-      // Alteration metrics
-      total_verified_cats: placeSummary?.total_verified_cats || 0,
-      total_altered_cats: placeSummary?.total_altered_cats || 0,
-      overall_alteration_rate: placeSummary?.overall_alteration_rate || null,
+      // Alteration metrics (V2: uses altered_cats and alteration_rate_pct)
+      total_verified_cats: placeSummary?.total_cats || 0, // V2: total_cats is verified
+      total_altered_cats: placeSummary?.altered_cats || 0,
+      overall_alteration_rate: placeSummary?.alteration_rate_pct || null,
 
-      // Colony status breakdown
-      colonies_managed: placeSummary?.colonies_managed || 0,
-      colonies_in_progress: placeSummary?.colonies_in_progress || 0,
-      colonies_needs_work: placeSummary?.colonies_needs_work || 0,
-      colonies_needs_attention: placeSummary?.colonies_needs_attention || 0,
-      colonies_no_data: placeSummary?.colonies_no_data || 0,
+      // Colony status breakdown (V2: uses zones terminology)
+      colonies_managed: clusterSummary?.zones_managed || 0,
+      colonies_in_progress: clusterSummary?.zones_in_progress || 0,
+      colonies_needs_work: clusterSummary?.zones_needs_work || 0,
+      colonies_needs_attention: clusterSummary?.zones_needs_attention || 0,
+      colonies_no_data: (placeSummary?.total_zones || 0) - (clusterSummary?.total_zones || 0),
 
-      // Cluster metrics
-      total_clusters: clusterSummary?.total_clusters || 0,
-      places_in_clusters: clusterSummary?.places_in_clusters || 0,
-      isolated_places: clusterSummary?.isolated_places || 0,
-      clusters_managed: clusterSummary?.clusters_managed || 0,
-      clusters_in_progress: clusterSummary?.clusters_in_progress || 0,
-      clusters_needs_work: clusterSummary?.clusters_needs_work || 0,
-      clusters_needs_attention: clusterSummary?.clusters_needs_attention || 0,
+      // Cluster metrics (V2: uses zones)
+      total_clusters: clusterSummary?.total_zones || 0,
+      places_in_clusters: clusterSummary?.places_in_zones || 0,
+      isolated_places: (placeSummary?.total_places || 0) - (clusterSummary?.places_in_zones || 0),
+      clusters_managed: clusterSummary?.zones_managed || 0,
+      clusters_in_progress: clusterSummary?.zones_in_progress || 0,
+      clusters_needs_work: clusterSummary?.zones_needs_work || 0,
+      clusters_needs_attention: clusterSummary?.zones_needs_attention || 0,
 
       // Work remaining
       estimated_cats_to_alter: workRemaining?.estimated_to_alter || null,
@@ -164,23 +175,23 @@ export async function GET() {
           ) / 10
         : 0;
 
-    // Get top priority clusters (needs attention with most cats)
+    // Get top priority zones (needs attention with most cats) - V2 uses zones
     const priorityClusters = await queryRows<{
-      cluster_id: number;
+      zone_id: string;
+      cluster_name: string;
       place_count: number;
-      total_verified_cats: number;
-      centroid_lat: number;
-      centroid_lng: number;
+      cat_count: number;
+      alteration_rate: number;
     }>(`
       SELECT
-        cluster_id,
-        place_count,
-        total_verified_cats,
-        centroid_lat,
-        centroid_lng
+        zone_id,
+        cluster_name,
+        place_count::INT,
+        cat_count::INT,
+        alteration_rate
       FROM ops.v_beacon_cluster_summary
       WHERE cluster_status IN ('needs_attention', 'needs_work')
-      ORDER BY total_verified_cats DESC
+      ORDER BY cat_count DESC
       LIMIT 5
     `, []);
 

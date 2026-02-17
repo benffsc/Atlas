@@ -29,18 +29,18 @@ interface BeaconCluster {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if the materialized view exists
+    // Check if the view exists (V2: uses regular view in ops schema)
     const viewCheck = await queryOne<{ exists: boolean }>(`
       SELECT EXISTS(
-        SELECT 1 FROM pg_matviews WHERE schemaname = 'trapper' AND matviewname = 'mv_beacon_clusters'
+        SELECT 1 FROM pg_views WHERE schemaname = 'ops' AND viewname = 'v_beacon_cluster_summary'
       ) as exists
     `, []);
 
     if (!viewCheck?.exists) {
       return NextResponse.json({
         error: "Beacon clusters view not deployed",
-        missing: ["mv_beacon_clusters (MIG_341)"],
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
+        missing: ["v_beacon_cluster_summary (MIG_2082)"],
+        hint: "Run V2 beacon migrations: MIG_2082__beacon_views_implementation.sql",
         health_check: "/api/beacon/health",
       }, { status: 503 });
     }
@@ -65,14 +65,28 @@ export async function GET(request: NextRequest) {
     let clusters: BeaconCluster[];
 
     if (useCache) {
-      // Use materialized view for performance
-      let query = `SELECT * FROM ops.v_beacon_cluster_summary`;
+      // Use V2 view with column mapping
+      let query = `
+        SELECT
+          zone_id::TEXT as cluster_id,
+          ARRAY[]::TEXT[] as place_ids,
+          place_count::INT,
+          ST_Y(cluster_centroid::geometry) as centroid_lat,
+          ST_X(cluster_centroid::geometry) as centroid_lng,
+          cat_count::INT as total_verified_cats,
+          altered_cat_count::INT as total_altered_cats,
+          alteration_rate as avg_alteration_rate,
+          cluster_status,
+          ST_AsGeoJSON(cluster_bounds) as bounding_box_geojson,
+          '{}'::JSONB as cluster_audit
+        FROM ops.v_beacon_cluster_summary
+      `;
       const params: unknown[] = [];
       let paramIndex = 1;
 
       const conditions: string[] = [];
       if (minCats > 1) {
-        conditions.push(`total_verified_cats >= $${paramIndex++}`);
+        conditions.push(`cat_count >= $${paramIndex++}`);
         params.push(minCats);
       }
       if (status) {
@@ -82,23 +96,35 @@ export async function GET(request: NextRequest) {
       if (conditions.length > 0) {
         query += ` WHERE ${conditions.join(" AND ")}`;
       }
-      query += ` ORDER BY total_verified_cats DESC`;
+      query += ` ORDER BY cat_count DESC`;
 
       clusters = await queryRows<BeaconCluster>(query, params);
     } else {
-      // Call function with custom parameters
+      // V2 doesn't have beacon_cluster_colonies function, use the view with filters
       let query = `
-        SELECT * FROM ops.beacon_cluster_colonies($1, $2)
-        WHERE total_verified_cats >= $3
+        SELECT
+          zone_id::TEXT as cluster_id,
+          ARRAY[]::TEXT[] as place_ids,
+          place_count::INT,
+          ST_Y(cluster_centroid::geometry) as centroid_lat,
+          ST_X(cluster_centroid::geometry) as centroid_lng,
+          cat_count::INT as total_verified_cats,
+          altered_cat_count::INT as total_altered_cats,
+          alteration_rate as avg_alteration_rate,
+          cluster_status,
+          ST_AsGeoJSON(cluster_bounds) as bounding_box_geojson,
+          '{}'::JSONB as cluster_audit
+        FROM ops.v_beacon_cluster_summary
+        WHERE cat_count >= $1
       `;
-      const params: unknown[] = [epsilon, minPoints, minCats];
-      let paramIndex = 4;
+      const params: unknown[] = [minCats];
+      let paramIndex = 2;
 
       if (status) {
         query += ` AND cluster_status = $${paramIndex++}`;
         params.push(status);
       }
-      query += ` ORDER BY total_verified_cats DESC`;
+      query += ` ORDER BY cat_count DESC`;
 
       clusters = await queryRows<BeaconCluster>(query, params);
     }
