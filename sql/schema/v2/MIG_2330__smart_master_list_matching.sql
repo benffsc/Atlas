@@ -2,13 +2,51 @@
 -- Smart matching functions for master list to ClinicHQ appointments
 -- Part of clinic day ground truth workflow
 
--- Pass 1: Match by owner name (exact, case-insensitive)
+-- Pass 1: Match by owner name (with cat name preference for multi-cat owners)
 CREATE OR REPLACE FUNCTION ops.match_master_list_by_owner_name(p_clinic_date DATE)
 RETURNS INT AS $$
 DECLARE
   v_matched INT := 0;
 BEGIN
-  -- Match entries where parsed_owner_name matches appointment owner display name
+  -- Pass 1a: Match by owner name AND cat name (highest confidence, handles multi-cat owners)
+  WITH matches AS (
+    UPDATE ops.clinic_day_entries e
+    SET
+      matched_appointment_id = sub.appointment_id,
+      match_confidence = 'high',
+      match_reason = 'owner_and_cat_name',
+      matched_at = NOW()
+    FROM (
+      SELECT DISTINCT ON (e2.entry_id)
+        e2.entry_id,
+        a.appointment_id,
+        similarity(LOWER(COALESCE(e2.parsed_cat_name, '')), LOWER(COALESCE(c.name, ''))) AS cat_sim
+      FROM ops.clinic_day_entries e2
+      JOIN ops.clinic_days cd ON cd.clinic_day_id = e2.clinic_day_id
+      JOIN ops.appointments a ON a.appointment_date = cd.clinic_date
+      JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.people owner ON owner.person_id = a.person_id AND owner.merged_into_person_id IS NULL
+      WHERE cd.clinic_date = p_clinic_date
+        AND e2.matched_appointment_id IS NULL
+        AND e2.parsed_owner_name IS NOT NULL
+        AND e2.parsed_cat_name IS NOT NULL
+        AND (
+          LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(owner.display_name))
+          OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(CONCAT(owner.first_name, ' ', owner.last_name)))
+        )
+        AND similarity(LOWER(e2.parsed_cat_name), LOWER(c.name)) > 0.5
+        AND NOT EXISTS (
+          SELECT 1 FROM ops.clinic_day_entries e3
+          WHERE e3.matched_appointment_id = a.appointment_id
+        )
+      ORDER BY e2.entry_id, cat_sim DESC
+    ) sub
+    WHERE e.entry_id = sub.entry_id
+    RETURNING e.entry_id
+  )
+  SELECT COUNT(*) INTO v_matched FROM matches;
+
+  -- Pass 1b: Match by owner name only (for remaining unmatched, single-cat owners or no cat name)
   WITH matches AS (
     UPDATE ops.clinic_day_entries e
     SET
@@ -23,7 +61,7 @@ BEGIN
       FROM ops.clinic_day_entries e2
       JOIN ops.clinic_days cd ON cd.clinic_day_id = e2.clinic_day_id
       JOIN ops.appointments a ON a.appointment_date = cd.clinic_date
-      LEFT JOIN sot.people owner ON owner.person_id = a.owner_person_id
+      LEFT JOIN sot.people owner ON owner.person_id = a.person_id AND owner.merged_into_person_id IS NULL
       WHERE cd.clinic_date = p_clinic_date
         AND e2.matched_appointment_id IS NULL
         AND e2.parsed_owner_name IS NOT NULL
@@ -40,7 +78,7 @@ BEGIN
     WHERE e.entry_id = sub.entry_id
     RETURNING e.entry_id
   )
-  SELECT COUNT(*) INTO v_matched FROM matches;
+  SELECT v_matched + COUNT(*) INTO v_matched FROM matches;
 
   RETURN v_matched;
 END;
@@ -240,7 +278,7 @@ BEGIN
     FROM ops.clinic_day_entries e
     JOIN ops.appointments a ON a.appointment_date = p_clinic_date
     LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
-    LEFT JOIN sot.people owner ON owner.person_id = a.owner_person_id
+    LEFT JOIN sot.people owner ON owner.person_id = a.person_id
     WHERE e.clinic_day_id = v_clinic_day_id
       AND e.matched_appointment_id IS NULL
       AND NOT EXISTS (
