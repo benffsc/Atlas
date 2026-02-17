@@ -550,13 +550,17 @@ async function upsertAppointment(params: {
   ownerAddress?: string | null;
   ownerRawPayload?: Record<string, unknown>;
   sourceRawId?: string;
+  serviceType?: string | null;
+  isSpay?: boolean;
+  isNeuter?: boolean;
 }): Promise<string> {
   const result = await queryOne<{ appointment_id: string }>(`
     INSERT INTO ops.appointments (
       clinichq_appointment_id, appointment_date,
       owner_first_name, owner_last_name, owner_email, owner_phone, owner_address,
-      owner_raw_payload, source_raw_id, resolution_status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+      owner_raw_payload, source_raw_id, resolution_status,
+      service_type, is_spay, is_neuter
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, $11, $12)
     ON CONFLICT (clinichq_appointment_id) DO UPDATE SET
       owner_first_name = COALESCE(EXCLUDED.owner_first_name, ops.appointments.owner_first_name),
       owner_last_name = COALESCE(EXCLUDED.owner_last_name, ops.appointments.owner_last_name),
@@ -565,6 +569,9 @@ async function upsertAppointment(params: {
       owner_address = COALESCE(EXCLUDED.owner_address, ops.appointments.owner_address),
       owner_raw_payload = COALESCE(EXCLUDED.owner_raw_payload, ops.appointments.owner_raw_payload),
       source_raw_id = COALESCE(EXCLUDED.source_raw_id, ops.appointments.source_raw_id),
+      service_type = COALESCE(EXCLUDED.service_type, ops.appointments.service_type),
+      is_spay = EXCLUDED.is_spay OR ops.appointments.is_spay,
+      is_neuter = EXCLUDED.is_neuter OR ops.appointments.is_neuter,
       updated_at = NOW()
     RETURNING appointment_id
   `, [
@@ -577,6 +584,9 @@ async function upsertAppointment(params: {
     params.ownerAddress || null,
     params.ownerRawPayload ? JSON.stringify(params.ownerRawPayload) : null,
     params.sourceRawId || null,
+    params.serviceType || null,
+    params.isSpay || false,
+    params.isNeuter || false,
   ]);
 
   if (!result) throw new Error(`Failed to upsert appointment: ${params.clinichqAppointmentId}`);
@@ -777,6 +787,13 @@ async function processRecord(record: MergedRecord, stats: Stats, dryRun: boolean
       await insertClinicHQRaw("appointment_service", `${appointmentId}_${i}`, rawRow);
     }
 
+    // Extract service data from service items
+    const serviceItems = visit.serviceItems || [];
+    const serviceType = serviceItems.join("; ");
+    const serviceTypeLower = serviceType.toLowerCase();
+    const isSpay = serviceTypeLower.includes("spay") || serviceTypeLower.includes("cat spay");
+    const isNeuter = serviceTypeLower.includes("neuter") || serviceTypeLower.includes("cat neuter");
+
     // Create appointment
     const opsAppointmentId = await upsertAppointment({
       clinichqAppointmentId: appointmentId,
@@ -787,6 +804,9 @@ async function processRecord(record: MergedRecord, stats: Stats, dryRun: boolean
       ownerPhone,
       ownerAddress,
       ownerRawPayload: { ...visitData, serviceItems: visit.serviceItems },
+      serviceType,
+      isSpay,
+      isNeuter,
     });
     stats.appointmentsCreated++;
 
