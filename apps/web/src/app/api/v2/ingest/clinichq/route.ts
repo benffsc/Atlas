@@ -25,8 +25,10 @@ interface ProcessingStats {
   placesCreated: number;
   placesMatched: number;
   errors: number;
-  uniqueAppointments: number; // Unique visits (microchip+date)
+  uniqueAppointments: number; // Unique visits (microchip+date or appt number)
   totalServiceItems: number;  // Total service item rows
+  droppedRows: number;        // Rows dropped (no date AND no identifier)
+  pendingMicrochipCount: number; // Visits using appointment number fallback (need microchip)
   files: {
     cat_info: number;
     owner_info: number;
@@ -539,6 +541,33 @@ function getMicrochipFromRow(row: Record<string, unknown>): string | null {
   return chip;
 }
 
+/**
+ * Extract microchip from Animal Name field if embedded
+ * e.g., "Bob 900085001797178" -> "900085001797178"
+ * e.g., "900085001788104" (chip used as name) -> "900085001788104"
+ */
+function extractMicrochipFromAnimalName(row: Record<string, unknown>): string | null {
+  const animalName = getString(row, "Animal Name", "Cat Name", "Name");
+  if (!animalName) return null;
+
+  // Pattern: 15-digit microchip (most common format)
+  const match = animalName.match(/\b(9\d{14})\b/);
+  if (match) return match[1];
+
+  // Pattern: 9 or 10 digit chip
+  const shortMatch = animalName.match(/\b(9\d{8,9})\b/);
+  if (shortMatch) return shortMatch[1];
+
+  return null;
+}
+
+/**
+ * Get appointment number from row (used as fallback key when microchip is missing)
+ */
+function getAppointmentNumberFromRow(row: Record<string, unknown>): string | null {
+  return getString(row, "Number", "Appointment Number", "Appt Number", "Appt #", "ID");
+}
+
 function getDateFromRow(row: Record<string, unknown>): string | null {
   // Try many possible date column names
   const dateStr = getString(
@@ -578,36 +607,76 @@ function getDateFromRow(row: Record<string, unknown>): string | null {
 // A cat with 5 clinic visits = 5 rows in cat_info, 5 rows in owner_info.
 // appointment_info has multiple rows per visit (service items).
 // We merge by microchip+date to get unique visits.
+//
+// FIX (MIG_2332): When microchip is missing:
+// 1. Try to extract from Animal Name (e.g., "Bob 900085001797178")
+// 2. Fall back to appointment Number as the key
+// This prevents records from being silently dropped.
 
 function mergeFilesByVisit(
   catInfoRows: Record<string, unknown>[],
   ownerInfoRows: Record<string, unknown>[],
   appointmentInfoRows: Record<string, unknown>[]
-): { visits: ClinicVisit[]; totalServiceItems: number; uniqueVisits: number } {
+): { visits: ClinicVisit[]; totalServiceItems: number; uniqueVisits: number; droppedRows: number } {
   const visitsByKey = new Map<string, ClinicVisit>();
   let totalServiceItems = 0;
+  let droppedRows = 0;
 
-  // Index cat_info by microchip+date (one row per visit)
-  for (const row of catInfoRows) {
-    const chip = getMicrochipFromRow(row);
+  // Helper to get the best identifier for a row
+  const getVisitKey = (row: Record<string, unknown>): { key: string; microchip: string } | null => {
     const date = getDateFromRow(row);
-    if (chip && date) {
-      const key = `${chip}|${date}`;
+    if (!date) {
+      droppedRows++;
+      return null;
+    }
+
+    // Try microchip from Microchip Number column first
+    let chip = getMicrochipFromRow(row);
+
+    // If no microchip, try extracting from Animal Name (e.g., "Bob 900085001797178")
+    if (!chip) {
+      chip = extractMicrochipFromAnimalName(row);
+    }
+
+    // If we have a microchip, use microchip|date as key
+    if (chip) {
+      return { key: `${chip}|${date}`, microchip: chip };
+    }
+
+    // Fallback: use appointment Number as key (for records without microchip)
+    const apptNumber = getAppointmentNumberFromRow(row);
+    if (apptNumber) {
+      // Use a synthetic microchip placeholder based on appointment number
+      // This ensures these records are processed but marked as needing microchip
+      return { key: `appt:${apptNumber}|${date}`, microchip: `PENDING_${apptNumber}` };
+    }
+
+    // No usable identifier - skip this row
+    droppedRows++;
+    return null;
+  };
+
+  // Index cat_info by key (one row per visit)
+  for (const row of catInfoRows) {
+    const result = getVisitKey(row);
+    if (result) {
+      const { key, microchip } = result;
+      const date = getDateFromRow(row)!;
       if (!visitsByKey.has(key)) {
-        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
+        visitsByKey.set(key, { microchip, date, serviceItems: [], appointmentRows: [] });
       }
       visitsByKey.get(key)!.catInfo = row;
     }
   }
 
-  // Index owner_info by microchip+date (one row per visit)
+  // Index owner_info by key (one row per visit)
   for (const row of ownerInfoRows) {
-    const chip = getMicrochipFromRow(row);
-    const date = getDateFromRow(row);
-    if (chip && date) {
-      const key = `${chip}|${date}`;
+    const result = getVisitKey(row);
+    if (result) {
+      const { key, microchip } = result;
+      const date = getDateFromRow(row)!;
       if (!visitsByKey.has(key)) {
-        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
+        visitsByKey.set(key, { microchip, date, serviceItems: [], appointmentRows: [] });
       }
       visitsByKey.get(key)!.ownerInfo = row;
     }
@@ -615,13 +684,13 @@ function mergeFilesByVisit(
 
   // Add appointment_info rows (multiple per visit = service items)
   for (const row of appointmentInfoRows) {
-    const chip = getMicrochipFromRow(row);
-    const date = getDateFromRow(row);
-    if (chip && date) {
+    const result = getVisitKey(row);
+    if (result) {
       totalServiceItems++;
-      const key = `${chip}|${date}`;
+      const { key, microchip } = result;
+      const date = getDateFromRow(row)!;
       if (!visitsByKey.has(key)) {
-        visitsByKey.set(key, { microchip: chip, date, serviceItems: [], appointmentRows: [] });
+        visitsByKey.set(key, { microchip, date, serviceItems: [], appointmentRows: [] });
       }
       const visit = visitsByKey.get(key)!;
       visit.appointmentRows.push(row);
@@ -640,6 +709,7 @@ function mergeFilesByVisit(
     visits,
     totalServiceItems,
     uniqueVisits: visits.length,
+    droppedRows,
   };
 }
 
@@ -648,8 +718,11 @@ function mergeFilesByMicrochip(
   catInfoRows: Record<string, unknown>[],
   ownerInfoRows: Record<string, unknown>[],
   appointmentInfoRows: Record<string, unknown>[]
-): { records: MergedRecord[]; totalServiceItems: number; uniqueAppointments: number } {
-  const { visits, totalServiceItems, uniqueVisits } = mergeFilesByVisit(catInfoRows, ownerInfoRows, appointmentInfoRows);
+): { records: MergedRecord[]; totalServiceItems: number; uniqueAppointments: number; droppedRows: number; pendingMicrochipCount: number } {
+  const { visits, totalServiceItems, uniqueVisits, droppedRows } = mergeFilesByVisit(catInfoRows, ownerInfoRows, appointmentInfoRows);
+
+  // Count visits that need microchip assignment (using appointment number fallback)
+  const pendingMicrochipCount = visits.filter(v => v.microchip.startsWith("PENDING_")).length;
 
   // Group visits by microchip to create MergedRecords (for backward compat)
   const byMicrochip = new Map<string, MergedRecord>();
@@ -678,6 +751,8 @@ function mergeFilesByMicrochip(
     records: Array.from(byMicrochip.values()),
     totalServiceItems,
     uniqueAppointments: uniqueVisits,
+    droppedRows,
+    pendingMicrochipCount,
   };
 }
 
@@ -802,32 +877,59 @@ async function processMergedRecord(
   // LIVE MODE: Write to database
   // =========================================================================
 
-  // LAYER 1: Source - Store raw JSON for cat_info and owner_info ONCE per microchip
-  // (This stores the most recent version; individual visit data is in mergedData)
+  // LAYER 1: Source - Store raw JSON for cat_info and owner_info
+  // Use clinichq_animal_id as sourceRecordId for better tracking
+  const sourceRecordId = clinichqAnimalId || record.microchip;
   if (record.catInfo) {
-    await insertClinicHQRaw("cat", record.microchip, record.catInfo);
+    await insertClinicHQRaw("cat", sourceRecordId, record.catInfo);
   }
   if (record.ownerInfo) {
-    await insertClinicHQRaw("owner", record.microchip, record.ownerInfo);
+    await insertClinicHQRaw("owner", sourceRecordId, record.ownerInfo);
   }
 
   // LAYER 3: SOT - Create cat FIRST using most recent cat info
   // The cat entity is the same across all visits; we use the most recent data
   // MIG_2051: Pass clinichq_animal_id to populate sot.cats.clinichq_animal_id
   // MIG_2054: Pass ownership_type from owner_info
-  const catResult = await queryOne<{ cat_id: string }>(`
-    SELECT sot.find_or_create_cat_by_microchip(
-      p_microchip := $1,
-      p_name := $2,
-      p_sex := $3,
-      p_breed := $4,
-      p_altered_status := $5,
-      p_color := $6,
-      p_source_system := 'clinichq',
-      p_clinichq_animal_id := $7,
-      p_ownership_type := $8
-    ) as cat_id
-  `, [record.microchip, catName || null, catSex || null, catBreed || null, alteredStatus, primaryColor || null, clinichqAnimalId || null, ownershipType || null]);
+  // MIG_2332/MIG_2333: Handle cats without microchip
+  // - For cats WITH microchip: use find_or_create_cat_by_microchip
+  // - For cats WITHOUT microchip: use find_or_create_cat_by_clinichq_id
+  const isPendingMicrochip = record.microchip.startsWith("PENDING_");
+  const actualMicrochip = isPendingMicrochip ? null : record.microchip;
+
+  let catResult: { cat_id: string } | null = null;
+
+  if (actualMicrochip) {
+    // Cat HAS microchip - use standard function
+    catResult = await queryOne<{ cat_id: string }>(`
+      SELECT sot.find_or_create_cat_by_microchip(
+        p_microchip := $1,
+        p_name := $2,
+        p_sex := $3,
+        p_breed := $4,
+        p_altered_status := $5,
+        p_color := $6,
+        p_source_system := 'clinichq',
+        p_clinichq_animal_id := $7,
+        p_ownership_type := $8
+      ) as cat_id
+    `, [actualMicrochip, catName || null, catSex || null, catBreed || null, alteredStatus, primaryColor || null, clinichqAnimalId || null, ownershipType || null]);
+  } else if (clinichqAnimalId) {
+    // Cat WITHOUT microchip but HAS clinichq_animal_id - use fallback function
+    catResult = await queryOne<{ cat_id: string }>(`
+      SELECT sot.find_or_create_cat_by_clinichq_id(
+        p_clinichq_animal_id := $1,
+        p_name := $2,
+        p_sex := $3,
+        p_breed := $4,
+        p_altered_status := $5,
+        p_color := $6,
+        p_source_system := 'clinichq',
+        p_ownership_type := $7
+      ) as cat_id
+    `, [clinichqAnimalId, catName || null, catSex || null, catBreed || null, alteredStatus, primaryColor || null, ownershipType || null]);
+  }
+  // If neither microchip nor clinichq_animal_id exists, catResult stays null
 
   // Update secondary color if available (separate column in sot.cats)
   if (catResult?.cat_id && secondaryColor) {
@@ -857,7 +959,9 @@ async function processMergedRecord(
   // LAYER 2: OPS - Create appointments (one per unique visit)
   // Each visit has its OWN owner info that may differ from other visits
   for (const visit of record.appointments) {
-    const appointmentId = `${visit.date}_${record.microchip}`;
+    // Use actual microchip or clinichq_animal_id for appointment ID (MIG_2332)
+    const appointmentKey = actualMicrochip || clinichqAnimalId || record.microchip;
+    const appointmentId = `${visit.date}_${appointmentKey}`;
 
     // Extract owner info FROM THIS VISIT's mergedData (not from the cat-level data)
     const visitData = visit.mergedData || {};
@@ -1075,7 +1179,8 @@ export async function POST(request: NextRequest) {
     const appointmentInfoRows = parseXlsxFile(Buffer.from(await appointmentInfoFile.arrayBuffer()));
 
     // Merge by microchip (with appointment grouping by date)
-    const { records: mergedRecords, totalServiceItems, uniqueAppointments } = mergeFilesByMicrochip(
+    // FIX (MIG_2332): Now uses appointment number as fallback when microchip is missing
+    const { records: mergedRecords, totalServiceItems, uniqueAppointments, droppedRows, pendingMicrochipCount } = mergeFilesByMicrochip(
       catInfoRows,
       ownerInfoRows,
       appointmentInfoRows
@@ -1097,6 +1202,8 @@ export async function POST(request: NextRequest) {
       errors: 0,
       uniqueAppointments,
       totalServiceItems,
+      droppedRows,
+      pendingMicrochipCount,
       files: {
         cat_info: catInfoRows.length,
         owner_info: ownerInfoRows.length,

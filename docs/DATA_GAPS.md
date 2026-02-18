@@ -700,6 +700,77 @@ These tests use real data queries and validate Tippy's accuracy against database
 
 ---
 
+## DATA_GAP_031: Pseudo-Profile Pollution from ClinicHQ Bulk Import
+
+**Status:** FIXED (MIG_2337)
+
+**Problem:** During V2 ClinicHQ bulk import (direct-import.cjs), pseudo-profiles were created in sot.people that should have been routed to ops.clinic_accounts:
+
+| Record | Issue | Cat Count |
+|--------|-------|-----------|
+| Rebooking placeholder | ClinicHQ system account with fake identifiers | 2,381 |
+| Speedy Creek Winery | Organization name, not person | 116 |
+| Petaluma Poultry | Organization name, not person | 91 |
+| Keller Estates Vineyards | Organization name, not person | 64 |
+| Petaluma Livestock Auction | Organization name, not person | 31 |
+
+**Evidence:**
+```sql
+-- High cat counts with suspicious names
+SELECT person_id, first_name, last_name,
+       (SELECT COUNT(*) FROM sot.person_cat WHERE person_id = p.person_id) as cat_count
+FROM sot.people p
+WHERE first_name ILIKE '%rebooking%' OR last_name ILIKE '%placeholder%'
+   OR first_name ILIKE '%speedy creek%' OR first_name ILIKE '%petaluma%'
+   OR first_name ILIKE '%keller%';
+-- Result: 5 pseudo-profiles with 2,683 total cats
+
+-- Entity linking propagated cats to placeholder's address
+SELECT COUNT(*) FROM sot.cat_place_relationships
+WHERE place_id IN (
+  SELECT place_id FROM sot.person_place
+  WHERE person_id = 'a12eaac7-edfe-48c1-88c6-53576be12afb'  -- Rebooking placeholder
+);
+-- Result: 5,553 polluted relationships (35,243 cleaned before MIG_2337)
+```
+
+**Root Cause:**
+1. `should_be_person()` passed because contact info existed (fake @noemail.com domain, FFSC phone)
+2. ClinicHQ uses "Owner First Name" for site names / org names as booking practice
+3. Entity linking (`link_cats_to_places()`) propagated cats to these records' places
+4. No detection for placeholder names or organization keywords
+
+**Fix Applied (MIG_2337):**
+1. Archived polluted people to `ops.archived_people` (preserve audit trail)
+2. Moved to `ops.clinic_accounts` (preserve raw data for reference)
+3. Deleted relationships (person_cat, person_place, identifiers)
+4. Marked people with `merged_into_person_id = self` (archived indicator)
+5. Updated `should_be_person()` to reject:
+   - Fake email domains (@noemail.com, @petestablished.com, @example.com)
+   - Placeholder names (rebooking, placeholder, unknown, test)
+   - Organization keywords (winery, poultry, ranch, farm, vineyard, auction, estates)
+   - FFSC phone (7075767999) with no real email
+6. Created `ops.v_suspicious_people` monitoring view for ongoing detection
+7. Added entries to `sot.soft_blacklist` for fake domains/phones
+
+**Verification:**
+```sql
+-- Confirm should_be_person() rejects fake patterns
+SELECT sot.should_be_person('Rebooking', 'placeholder', 'test@noemail.com', '7075767999');
+-- Should return FALSE
+
+-- Check monitoring view for new issues
+SELECT * FROM ops.v_suspicious_people;
+-- Review regularly for new pollution
+```
+
+**Related Invariants:**
+- INV-25: ClinicHQ Pseudo-Profiles Are NOT People
+- INV-29: Data Engine Rejects No-Identifier Cases
+- CLAUDE.md: sot_people contains ONLY real people
+
+---
+
 ## DATA_GAP_030: V2 Database Migration - UUID and Location Loss
 
 **Status:** CRITICAL - IN PROGRESS

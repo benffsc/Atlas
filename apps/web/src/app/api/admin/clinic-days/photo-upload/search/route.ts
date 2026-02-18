@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
           c.deceased_at AS deceased_date,
           -- Death cause from cat_mortality_events (subquery to avoid duplicates)
           (
-            SELECT cme.death_cause::TEXT
+            SELECT cme.cause::TEXT
             FROM sot.cat_mortality_events cme
             WHERE cme.cat_id = c.cat_id
             LIMIT 1
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
             COALESCE(c.is_deceased, FALSE) AS is_deceased,
             c.deceased_at AS deceased_date,
             (
-              SELECT cme.death_cause::TEXT
+              SELECT cme.cause::TEXT
               FROM sot.cat_mortality_events cme
               WHERE cme.cat_id = c.cat_id
               LIMIT 1
