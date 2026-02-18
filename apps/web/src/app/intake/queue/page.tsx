@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import CreateRequestWizard from "@/components/CreateRequestWizard";
 import PlaceResolver from "@/components/PlaceResolver";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
@@ -322,6 +323,7 @@ function IntakeQueueContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const openSubmissionId = searchParams.get("open");
+  const { user: currentUser } = useCurrentUser();
 
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -616,7 +618,7 @@ function IntakeQueueContent() {
       contact_method: "phone",
       contact_result: "answered",
       notes: "",
-      contacted_by: "",
+      contacted_by: currentUser?.display_name || "",
       is_journal_only: false,
     });
     setShowContactModal(true);
@@ -2743,7 +2745,7 @@ function IntakeQueueContent() {
                   <button
                     onClick={() => {
                       setShowInlineContactForm("note");
-                      setContactForm({ ...contactForm, is_journal_only: true, notes: "" });
+                      setContactForm({ ...contactForm, is_journal_only: true, notes: "", contacted_by: contactForm.contacted_by || currentUser?.display_name || "" });
                     }}
                     style={{
                       padding: "0.35rem 0.75rem",
@@ -2761,7 +2763,7 @@ function IntakeQueueContent() {
                   <button
                     onClick={() => {
                       setShowInlineContactForm("call");
-                      setContactForm({ ...contactForm, is_journal_only: false, notes: "", contact_method: "phone", contact_result: "answered" });
+                      setContactForm({ ...contactForm, is_journal_only: false, notes: "", contact_method: "phone", contact_result: "answered", contacted_by: contactForm.contacted_by || currentUser?.display_name || "" });
                     }}
                     style={{
                       padding: "0.35rem 0.75rem",
@@ -2826,9 +2828,15 @@ function IntakeQueueContent() {
                         style={{ width: "100%", padding: "0.4rem", fontSize: "0.85rem" }}
                       >
                         <option value="">Select staff...</option>
+                        {/* Show current user as first option if logged in */}
+                        {currentUser && !staffList.some(s => s.staff_id === currentUser.staff_id) && (
+                          <option key={currentUser.staff_id} value={currentUser.display_name}>
+                            {currentUser.display_name} (You)
+                          </option>
+                        )}
                         {staffList.map((s) => (
                           <option key={s.staff_id} value={s.display_name}>
-                            {s.display_name} ({s.role})
+                            {s.display_name}{s.staff_id === currentUser?.staff_id ? " (You)" : ""} ({s.role})
                           </option>
                         ))}
                       </select>
@@ -3199,9 +3207,15 @@ function IntakeQueueContent() {
                     style={{ width: "100%", padding: "0.5rem" }}
                   >
                     <option value="">Select staff...</option>
+                    {/* Show current user as first option if logged in */}
+                    {currentUser && !staffList.some(s => s.staff_id === currentUser.staff_id) && (
+                      <option key={currentUser.staff_id} value={currentUser.display_name}>
+                        {currentUser.display_name} (You)
+                      </option>
+                    )}
                     {staffList.map((s) => (
                       <option key={s.staff_id} value={s.display_name}>
-                        {s.display_name} ({s.role})
+                        {s.display_name}{s.staff_id === currentUser?.staff_id ? " (You)" : ""} ({s.role})
                       </option>
                     ))}
                   </select>
