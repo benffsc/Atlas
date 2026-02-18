@@ -565,7 +565,7 @@ function extractMicrochipFromAnimalName(row: Record<string, unknown>): string | 
  * Get appointment number from row (used as fallback key when microchip is missing)
  */
 function getAppointmentNumberFromRow(row: Record<string, unknown>): string | null {
-  return getString(row, "Number", "Appointment Number", "Appt Number", "Appt #", "ID");
+  return getString(row, "Number", "Appointment Number", "Appt Number", "Appt #", "ID") ?? null;
 }
 
 function getDateFromRow(row: Record<string, unknown>): string | null {
