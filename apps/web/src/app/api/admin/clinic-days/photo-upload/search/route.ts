@@ -127,10 +127,8 @@ export async function GET(request: NextRequest) {
           -- Get appointment info for selected date
           a_day.appointment_id,
           a_day.appointment_date,
-          -- Use stored clinic_day_number, fallback to ROW_NUMBER if not assigned
-          COALESCE(a_day.clinic_day_number,
-            ROW_NUMBER() OVER (PARTITION BY a_day.appointment_date ORDER BY a_day.appointment_number NULLS LAST, c.name NULLS LAST)::INT
-          ) AS clinic_day_number,
+          -- Only show clinic_day_number if explicitly assigned (no auto-generation)
+          a_day.clinic_day_number,
           -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
           CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
           CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
