@@ -17,12 +17,15 @@ import { VerificationBadge, LastVerified } from "@/components/VerificationBadge"
 import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
 import { validatePersonName } from "@/lib/validation";
 import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
-import { formatDateLocal, formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
+import { formatDateLocal, formatPhone, isValidPhone, extractPhones } from "@/lib/formatters";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
-import { ProfileLayout } from "@/components/ProfileLayout";
+import { TwoColumnLayout } from "@/components/layouts";
+import { Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { MediaGallery } from "@/components/MediaGallery";
+import { LinkedCatsSection } from "@/components/LinkedCatsSection";
+import { LinkedPlacesSection } from "@/components/LinkedPlacesSection";
 
 interface Cat {
   cat_id: string;
@@ -30,7 +33,7 @@ interface Cat {
   relationship_type: string;
   confidence: string;
   source_system: string;
-  data_source: string; // clinichq, petlink, or legacy_import
+  data_source: string;
   microchip: string | null;
 }
 
@@ -49,23 +52,6 @@ interface PersonRelationship {
   relationship_type: string;
   relationship_label: string;
   confidence: number;
-}
-
-interface PlaceDetails {
-  place_id: string;
-  formatted_address: string;
-  name: string;
-  geometry: {
-    location: {
-      lat: number;
-      lng: number;
-    };
-  };
-  address_components: Array<{
-    long_name: string;
-    short_name: string;
-    types: string[];
-  }>;
 }
 
 interface PersonIdentifier {
@@ -173,35 +159,21 @@ interface VolunteerRolesData {
   };
 }
 
+// Human-readable source name mapping
+const SOURCE_LABELS: Record<string, { label: string; bg: string; color: string }> = {
+  clinichq: { label: "ClinicHQ", bg: "#198754", color: "#fff" },
+  petlink: { label: "PetLink", bg: "#0d6efd", color: "#fff" },
+  legacy_import: { label: "Legacy Import", bg: "#ffc107", color: "#000" },
+  volunteerhub: { label: "VolunteerHub", bg: "#6f42c1", color: "#fff" },
+  airtable: { label: "Airtable", bg: "#ff6f00", color: "#fff" },
+  web_intake: { label: "Web Intake", bg: "#3b82f6", color: "#fff" },
+  atlas_ui: { label: "Atlas", bg: "#374151", color: "#fff" },
+  shelterluv: { label: "ShelterLuv", bg: "#e91e63", color: "#fff" },
+};
 
-// Section component for read-only display with edit toggle
-function Section({
-  title,
-  children,
-  onEdit,
-  editMode = false,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onEdit?: () => void;
-  editMode?: boolean;
-}) {
-  return (
-    <div className="detail-section">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>{title}</h2>
-        {onEdit && !editMode && (
-          <button
-            onClick={onEdit}
-            style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
-          >
-            Edit
-          </button>
-        )}
-      </div>
-      {children}
-    </div>
-  );
+function getSourceLabel(source: string | null): string {
+  if (!source) return "Unknown";
+  return SOURCE_LABELS[source]?.label || source;
 }
 
 // Entity type badge (site vs person)
@@ -296,21 +268,56 @@ function DataSourceBadge({ dataSource }: { dataSource: string | null }) {
   );
 }
 
-// Human-readable source name mapping (shared between badge and contact card)
-const SOURCE_LABELS: Record<string, { label: string; bg: string; color: string }> = {
-  clinichq: { label: "ClinicHQ", bg: "#198754", color: "#fff" },
-  petlink: { label: "PetLink", bg: "#0d6efd", color: "#fff" },
-  legacy_import: { label: "Legacy Import", bg: "#ffc107", color: "#000" },
-  volunteerhub: { label: "VolunteerHub", bg: "#6f42c1", color: "#fff" },
-  airtable: { label: "Airtable", bg: "#ff6f00", color: "#fff" },
-  web_intake: { label: "Web Intake", bg: "#3b82f6", color: "#fff" },
-  atlas_ui: { label: "Atlas", bg: "#374151", color: "#fff" },
-  shelterluv: { label: "ShelterLuv", bg: "#e91e63", color: "#fff" },
-};
-
-function getSourceLabel(source: string | null): string {
-  if (!source) return "Unknown";
-  return SOURCE_LABELS[source]?.label || source;
+// Tab navigation component
+function TabNav({
+  tabs,
+  activeTab,
+  onTabChange
+}: {
+  tabs: Array<{ id: string; label: string; badge?: number }>;
+  activeTab: string;
+  onTabChange: (id: string) => void;
+}) {
+  return (
+    <div style={{
+      display: "flex",
+      gap: "0.25rem",
+      borderBottom: "1px solid var(--border, #dee2e6)",
+      padding: "0 1rem",
+    }}>
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => onTabChange(tab.id)}
+          style={{
+            padding: "0.75rem 1rem",
+            background: "transparent",
+            border: "none",
+            borderBottom: activeTab === tab.id ? "2px solid var(--primary, #0d6efd)" : "2px solid transparent",
+            color: activeTab === tab.id ? "var(--primary, #0d6efd)" : "var(--text-muted, #6c757d)",
+            fontWeight: activeTab === tab.id ? 600 : 400,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          {tab.label}
+          {tab.badge !== undefined && tab.badge > 0 && (
+            <span style={{
+              background: activeTab === tab.id ? "var(--primary, #0d6efd)" : "#6c757d",
+              color: "#fff",
+              fontSize: "0.7rem",
+              padding: "0.125rem 0.375rem",
+              borderRadius: "9999px",
+            }}>
+              {tab.badge}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export default function PersonDetailPage() {
@@ -324,6 +331,7 @@ export default function PersonDetailPage() {
   const [volunteerRoles, setVolunteerRoles] = useState<VolunteerRolesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("details");
 
   // Edit mode states
   const [editingContact, setEditingContact] = useState(false);
@@ -339,7 +347,6 @@ export default function PersonDetailPage() {
 
   // Name edit state
   const [editingName, setEditingName] = useState(false);
-  const [editDisplayName, setEditDisplayName] = useState("");
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [savingName, setSavingName] = useState(false);
@@ -409,8 +416,7 @@ export default function PersonDetailPage() {
       } else {
         setTrapperInfo(null);
       }
-    } catch (err) {
-      // Not a trapper, or error - just ignore
+    } catch {
       setTrapperInfo(null);
     }
   }, [id]);
@@ -420,15 +426,13 @@ export default function PersonDetailPage() {
       const response = await fetch(`/api/people/${id}/roles`);
       if (response.ok) {
         const data: VolunteerRolesData = await response.json();
-        // Only set if they have any roles
         if (data.roles && data.roles.length > 0) {
           setVolunteerRoles(data);
         } else {
           setVolunteerRoles(null);
         }
       }
-    } catch (err) {
-      // No roles data - ignore
+    } catch {
       setVolunteerRoles(null);
     }
   }, [id]);
@@ -495,7 +499,6 @@ export default function PersonDetailPage() {
 
   const startEditingIdentifiers = () => {
     if (person) {
-      // Get current phone/email from identifiers
       const phoneId = person.identifiers?.find(i => i.id_type === "phone");
       const emailId = person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5);
       setEditPhone(phoneId?.id_value || "");
@@ -532,10 +535,9 @@ export default function PersonDetailPage() {
         return;
       }
 
-      // Refresh person data
       await fetchPerson();
       setEditingIdentifiers(false);
-    } catch (err) {
+    } catch {
       setIdentifierError("Network error while saving");
     } finally {
       setSavingIdentifiers(false);
@@ -548,7 +550,6 @@ export default function PersonDetailPage() {
       const spaceIdx = name.indexOf(" ");
       setEditFirstName(spaceIdx > 0 ? name.substring(0, spaceIdx) : name);
       setEditLastName(spaceIdx > 0 ? name.substring(spaceIdx + 1) : "");
-      setEditDisplayName(name);
       setNameError(null);
       setNameWarning(null);
       setEditingName(true);
@@ -597,10 +598,9 @@ export default function PersonDetailPage() {
       }
 
       setNameWarning(`Previous name "${person?.display_name}" preserved as alias. Staff can still search by the old name.`);
-      // Refresh person data
       await fetchPerson();
       setEditingName(false);
-    } catch (err) {
+    } catch {
       setNameError("Network error while saving");
     } finally {
       setSavingName(false);
@@ -675,13 +675,18 @@ export default function PersonDetailPage() {
     return <div className="empty">Person not found</div>;
   }
 
-  const profileHeader = (
+  // Get primary email and phone
+  const primaryEmail = person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value;
+  const primaryPhone = person.identifiers?.find(i => i.id_type === "phone")?.id_value;
+
+  // Build header content
+  const headerContent = (
     <div>
       <BackButton fallbackHref="/people" />
 
-      {/* Header */}
-      <div className="detail-header" style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+      <div style={{ marginTop: "1rem" }}>
+        {/* Name row with edit */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
           {editingName ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -735,38 +740,22 @@ export default function PersonDetailPage() {
               )}
             </div>
           ) : (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <h1 style={{ margin: 0 }}>{person.display_name}</h1>
-                <button
-                  onClick={startEditingName}
-                  style={{
-                    padding: "0.125rem 0.5rem",
-                    fontSize: "0.75rem",
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                  title="Edit name"
-                >
-                  Edit
-                </button>
-              </div>
-              {person.aliases && person.aliases.length > 0 && (
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
-                  Also known as: {person.aliases.map(a => a.name_raw).join(", ")}
-                </div>
-              )}
-              {nameWarning && (
-                <div style={{ fontSize: "0.8rem", color: "#198754", marginTop: "0.25rem" }}>
-                  {nameWarning}
-                </div>
-              )}
-            </div>
-          )}
-          {!editingName && (
             <>
+              <h1 style={{ margin: 0, fontSize: "1.75rem" }}>{person.display_name}</h1>
+              <button
+                onClick={startEditingName}
+                style={{
+                  padding: "0.125rem 0.5rem",
+                  fontSize: "0.75rem",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+                title="Edit name"
+              >
+                Edit
+              </button>
               {trapperInfo && <TrapperBadge trapperType={trapperInfo.trapper_type} />}
               {volunteerRoles?.roles
                 .filter(r => r.role_status === "active" && r.role !== "trapper" && r.role !== "volunteer")
@@ -783,31 +772,40 @@ export default function PersonDetailPage() {
               <DataSourceBadge dataSource={person.data_source} />
             </>
           )}
-          <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
-            {person.identifiers?.some(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5) && (
-              <button
-                onClick={() => setShowEmailModal(true)}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  fontSize: "0.875rem",
-                  background: "transparent",
-                  color: "inherit",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
-                  cursor: "pointer",
-                }}
-              >
-                <span>✉️</span>
-                Email
-              </button>
-            )}
-            <a
-              href={`/people/${person.person_id}/print`}
-              target="_blank"
-              rel="noopener noreferrer"
+        </div>
+
+        {/* Aliases */}
+        {person.aliases && person.aliases.length > 0 && !editingName && (
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>
+            Also known as: {person.aliases.map(a => a.name_raw).join(", ")}
+          </div>
+        )}
+
+        {/* Warnings */}
+        {nameWarning && (
+          <div style={{ fontSize: "0.8rem", color: "#198754", marginBottom: "0.25rem" }}>
+            {nameWarning}
+          </div>
+        )}
+        {person.entity_type === "site" && (
+          <p className="text-muted text-sm" style={{ color: "#dc3545", marginBottom: "0.25rem" }}>
+            This is a site/location account from ClinicHQ, not a person.
+          </p>
+        )}
+        {person.entity_type === "unknown" && (
+          <p className="text-muted text-sm" style={{ color: "#ffc107", marginBottom: "0.25rem" }}>
+            This record needs review - may be a site, business, or duplicate entry.
+          </p>
+        )}
+
+        {/* ID */}
+        <p className="text-muted text-sm" style={{ marginBottom: "0.5rem" }}>ID: {person.person_id}</p>
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          {primaryEmail && (
+            <button
+              onClick={() => setShowEmailModal(true)}
               style={{
                 padding: "0.25rem 0.75rem",
                 fontSize: "0.875rem",
@@ -815,105 +813,652 @@ export default function PersonDetailPage() {
                 color: "inherit",
                 border: "1px solid var(--border)",
                 borderRadius: "6px",
-                textDecoration: "none",
                 display: "inline-flex",
                 alignItems: "center",
-              }}
-            >
-              Print
-            </a>
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              style={{
-                padding: "0.25rem 0.75rem",
-                fontSize: "0.875rem",
-                background: showHistory ? "var(--primary)" : "transparent",
-                color: showHistory ? "white" : "inherit",
-                border: showHistory ? "none" : "1px solid var(--border)",
-              }}
-            >
-              History
-            </button>
-          </div>
-        </div>
-        {nameError && (
-          <div style={{ color: "#dc3545", marginTop: "0.5rem", fontSize: "0.875rem" }}>
-            {nameError}
-          </div>
-        )}
-        {nameWarning && !nameError && (
-          <div style={{ color: "#856404", marginTop: "0.5rem", fontSize: "0.875rem" }}>
-            {nameWarning}
-          </div>
-        )}
-        <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>ID: {person.person_id}</p>
-        {person.entity_type === "site" && (
-          <p className="text-muted text-sm" style={{ marginTop: "0.25rem", color: "#dc3545" }}>
-            This is a site/location account from ClinicHQ, not a person.
-          </p>
-        )}
-        {person.entity_type === "unknown" && (
-          <p className="text-muted text-sm" style={{ marginTop: "0.25rem", color: "#ffc107" }}>
-            This record needs review - may be a site, business, or duplicate entry.
-          </p>
-        )}
-      </div>
-
-      {/* Contact Card — always visible above tabs */}
-      <div className="card" style={{ padding: "1rem 1.25rem", marginBottom: "1rem" }}>
-        {/* Source row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>Source</span>
-            {person.data_source && (() => {
-              const src = SOURCE_LABELS[person.data_source] || { label: person.data_source, bg: "#6c757d", color: "#fff" };
-              return (
-                <span
-                  className="badge"
-                  style={{ background: src.bg, color: src.color, fontSize: "0.8rem", padding: "0.2rem 0.6rem" }}
-                >
-                  {src.label}
-                </span>
-              );
-            })()}
-            {!person.data_source && (
-              <span className="text-muted" style={{ fontSize: "0.8rem" }}>Unknown</span>
-            )}
-          </div>
-          {!editingContact && !editingIdentifiers && (
-            <button
-              onClick={startEditingIdentifiers}
-              style={{
-                padding: "0.25rem 0.75rem",
-                fontSize: "0.8rem",
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
+                gap: "0.375rem",
                 cursor: "pointer",
               }}
             >
-              Edit
+              <span>✉️</span>
+              Email
             </button>
           )}
+          <a
+            href={`/people/${person.person_id}/print`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: "0.25rem 0.75rem",
+              fontSize: "0.875rem",
+              background: "transparent",
+              color: "inherit",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            Print
+          </a>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            style={{
+              padding: "0.25rem 0.75rem",
+              fontSize: "0.875rem",
+              background: showHistory ? "var(--primary)" : "transparent",
+              color: showHistory ? "white" : "inherit",
+              border: showHistory ? "none" : "1px solid var(--border)",
+              borderRadius: "6px",
+            }}
+          >
+            History
+          </button>
         </div>
+      </div>
+    </div>
+  );
 
-        {/* Skeleton warning */}
-        {person.data_quality === "skeleton" && (
-          <div style={{
-            padding: "0.5rem 0.75rem",
-            background: "#fef3cd",
-            border: "1px solid #ffc107",
-            borderRadius: "6px",
-            fontSize: "0.8rem",
-            color: "#856404",
-            marginBottom: "0.75rem",
-          }}>
-            Skeleton record — contact info incomplete. Created from {getSourceLabel(person.data_source)} with name only.
+  // Build sidebar content
+  const sidebarContent = (
+    <div className="space-y-4">
+      <StatsSidebar
+        stats={[
+          { label: "Cats", value: person.cat_count, icon: "🐱" },
+          { label: "Places", value: person.place_count, icon: "📍" },
+          { label: "Requests", value: requests.length, icon: "📋", href: `/requests?person_id=${person.person_id}` },
+          ...(volunteerRoles?.volunteer_profile?.hours_logged != null ? [{
+            label: "Hours Logged",
+            value: volunteerRoles.volunteer_profile.hours_logged,
+            icon: "⏱️"
+          }] : []),
+        ]}
+        sections={[
+          // Quick Actions
+          {
+            title: "Quick Actions",
+            content: (
+              <QuickActions
+                entityType="person"
+                entityId={person.person_id}
+                state={usePersonQuickActionState({
+                  email: primaryEmail,
+                  phone: primaryPhone,
+                  is_trapper: !!trapperInfo,
+                  cat_count: person.cat_count,
+                  request_count: requests?.length || 0,
+                })}
+                onActionComplete={fetchPerson}
+              />
+            ),
+          },
+          // Contact info
+          {
+            title: "Contact",
+            content: (
+              <div style={{ fontSize: "0.875rem" }}>
+                {/* Address */}
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: "0.125rem" }}>Address</div>
+                  {person.primary_address ? (
+                    person.primary_place_id ? (
+                      <a href={`/places/${person.primary_place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>
+                        {person.primary_address}
+                      </a>
+                    ) : (
+                      <span>{person.primary_address}</span>
+                    )
+                  ) : (
+                    <span className="text-muted">No address set</span>
+                  )}
+                </div>
+
+                {/* Phone */}
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: "0.125rem" }}>Phone</div>
+                  {primaryPhone ? (
+                    <span>{formatPhone(primaryPhone)}</span>
+                  ) : (
+                    <span className="text-muted">Not available</span>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: "0.125rem" }}>Email</div>
+                  {primaryEmail ? (
+                    <span style={{ wordBreak: "break-all" }}>{primaryEmail}</span>
+                  ) : (
+                    <span className="text-muted">Not available</span>
+                  )}
+                </div>
+
+                <button
+                  onClick={startEditingIdentifiers}
+                  style={{
+                    marginTop: "0.5rem",
+                    padding: "0.25rem 0.5rem",
+                    fontSize: "0.75rem",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    width: "100%",
+                  }}
+                >
+                  Edit Contact Info
+                </button>
+              </div>
+            ),
+          },
+          // Verification
+          {
+            title: "Verification",
+            content: (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                <VerificationBadge
+                  table="people"
+                  recordId={person.person_id}
+                  verifiedAt={person.verified_at}
+                  verifiedBy={person.verified_by_name}
+                  onVerify={() => fetchPerson()}
+                />
+                {person.verified_at && (
+                  <LastVerified verifiedAt={person.verified_at} verifiedBy={person.verified_by_name} />
+                )}
+              </div>
+            ),
+          },
+          // Record info
+          {
+            title: "Record Info",
+            content: (
+              <div style={{ fontSize: "0.875rem" }}>
+                <StatRow label="Created" value={formatDateLocal(person.created_at)} />
+                <StatRow label="Updated" value={formatDateLocal(person.updated_at)} />
+                <StatRow label="Source" value={getSourceLabel(person.data_source)} />
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+
+  // Transform cats for LinkedCatsSection
+  const catsForSection = person.cats?.map(c => ({
+    cat_id: c.cat_id,
+    cat_name: c.cat_name,
+    relationship_type: c.relationship_type,
+    microchip: c.microchip,
+    altered_status: null,
+    linked_at: person.created_at,
+  })) || [];
+
+  // Transform places for LinkedPlacesSection
+  const placesForSection = (person.associated_places || person.places || []).map(p => {
+    if ('source_type' in p) {
+      const ap = p as AssociatedPlace;
+      return {
+        place_id: ap.place_id,
+        display_name: ap.display_name,
+        formatted_address: ap.formatted_address,
+        place_kind: ap.place_kind,
+        relationship_type: ap.source_type,
+        is_primary: person.primary_address_id ? ap.formatted_address === person.primary_address : false,
+      };
+    } else {
+      const pl = p as Place;
+      return {
+        place_id: pl.place_id,
+        display_name: pl.place_name,
+        formatted_address: pl.formatted_address,
+        place_kind: pl.place_kind,
+        relationship_type: pl.role,
+        is_primary: false,
+      };
+    }
+  });
+
+  // Build main content
+  const mainContent = (
+    <>
+      {/* Staff Quick Notes */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <QuickNotes
+          entityType="person"
+          entityId={person.person_id}
+          entries={journal}
+          onNoteAdded={fetchJournal}
+        />
+      </div>
+
+      {/* Trapper Stats (if trapper) */}
+      {trapperInfo && (
+        <Section title="Trapper Statistics" className="mb-4">
+          <TrapperStatsCard personId={id} compact />
+        </Section>
+      )}
+
+      {/* Volunteer Profile (if volunteer) */}
+      {volunteerRoles && (volunteerRoles.volunteer_profile || volunteerRoles.volunteer_groups.active.length > 0) && (
+        <Section title="Volunteer Profile" className="mb-4">
+          {/* Role badges */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
+            {volunteerRoles.roles
+              .filter(r => r.role_status === "active")
+              .map(r => {
+                if (r.role === "trapper") return null;
+                if (r.role === "volunteer") return (
+                  <VolunteerBadge key={r.role} role="volunteer" size="md"
+                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)} />
+                );
+                return (
+                  <VolunteerBadge key={r.role} role={r.role as "foster" | "caretaker" | "staff"} size="md"
+                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)} />
+                );
+              })
+            }
+            {volunteerRoles.volunteer_profile?.is_active === false && (
+              <span style={{ fontSize: "0.75rem", color: "#dc2626", fontWeight: 500 }}>Inactive</span>
+            )}
           </div>
-        )}
 
-        {editingIdentifiers ? (
-          <div>
+          {/* Active Groups */}
+          {volunteerRoles.volunteer_groups.active.length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Active Groups</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                {volunteerRoles.volunteer_groups.active.map(g => (
+                  <span key={g.name} style={{
+                    display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.75rem",
+                    background: "var(--bg-secondary)", borderRadius: "9999px", color: "var(--text-primary)"
+                  }}>
+                    {g.name}
+                    {g.joined_at && <span style={{ color: "var(--text-muted)", marginLeft: "0.25rem" }}>
+                      ({new Date(g.joined_at).toLocaleDateString()})
+                    </span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Activity stats */}
+          {volunteerRoles.volunteer_profile && (
+            <div className="detail-grid" style={{ marginBottom: "1rem" }}>
+              {volunteerRoles.volunteer_profile.event_count != null && (
+                <div className="detail-item">
+                  <span className="detail-label">Events</span>
+                  <span className="detail-value">{volunteerRoles.volunteer_profile.event_count}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.joined && (
+                <div className="detail-item">
+                  <span className="detail-label">Member Since</span>
+                  <span className="detail-value">{formatDateLocal(volunteerRoles.volunteer_profile.joined)}</span>
+                </div>
+              )}
+              {volunteerRoles.volunteer_profile.last_activity && (
+                <div className="detail-item">
+                  <span className="detail-label">Last Activity</span>
+                  <span className="detail-value">{formatDateLocal(volunteerRoles.volunteer_profile.last_activity)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Skills/Interests */}
+          {volunteerRoles.volunteer_profile?.skills && Object.keys(volunteerRoles.volunteer_profile.skills).length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Skills &amp; Interests</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                {Object.entries(volunteerRoles.volunteer_profile.skills)
+                  .filter(([, v]) => v && v !== "false" && v !== "No")
+                  .map(([key, value]) => (
+                    <span key={key} style={{
+                      display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.7rem",
+                      background: "#f0fdf4", color: "#166534", borderRadius: "9999px", border: "1px solid #bbf7d0",
+                    }} title={String(value)}>
+                      {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    </span>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {volunteerRoles.volunteer_profile?.notes && (
+            <div style={{ padding: "0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", fontSize: "0.85rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Volunteer Notes</div>
+              {volunteerRoles.volunteer_profile.notes}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Cats */}
+      <Section
+        title={`Cats${person.cat_count > 0 ? ` (${person.cat_count})` : ""}`}
+        className="mb-4"
+      >
+        {catsForSection.length > 0 ? (
+          <>
+            <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
+              <span style={{ color: "#198754", fontWeight: 500 }}>ClinicHQ</span> = actual clinic patient,{" "}
+              <span style={{ color: "var(--muted)" }}>PetLink</span> = microchip only
+            </p>
+            <LinkedCatsSection cats={catsForSection} context="person" emptyMessage="No cats linked" />
+          </>
+        ) : (
+          <p className="text-muted">No cats linked to this person.</p>
+        )}
+      </Section>
+
+      {/* Places */}
+      <Section
+        title={`Places${person.place_count > 0 ? ` (${person.place_count})` : ""}`}
+        className="mb-4"
+      >
+        <LinkedPlacesSection
+          places={placesForSection}
+          context="person"
+          emptyMessage="No places linked"
+          showCount={false}
+          title=""
+        />
+      </Section>
+
+      {/* Photos */}
+      <Section title="Photos" className="mb-4" defaultCollapsed>
+        <MediaGallery
+          entityType="person"
+          entityId={id}
+          allowUpload={true}
+          includeRelated={true}
+          defaultMediaType="site_photo"
+        />
+      </Section>
+
+      {/* Bottom Tabs */}
+      <div className="card" style={{ marginTop: "1.5rem" }}>
+        <TabNav
+          tabs={[
+            { id: "details", label: "Details" },
+            { id: "history", label: "History", badge: requests.length },
+            { id: "admin", label: "Admin" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+
+        <div style={{ padding: "1rem" }}>
+          {activeTab === "details" && (
+            <>
+              {/* Clinic History */}
+              <ClinicHistorySection personId={id} />
+
+              {/* Location Context */}
+              <PersonPlaceGoogleContext personId={id} className="mt-4" />
+
+              {/* Related People */}
+              {person.person_relationships && person.person_relationships.length > 0 && (
+                <Section title="Related People">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+                    {person.person_relationships.map((rel) => (
+                      <EntityLink
+                        key={rel.person_id}
+                        href={`/people/${rel.person_id}`}
+                        label={rel.person_name}
+                        badge={rel.relationship_label}
+                      />
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Journal & Communications */}
+              <Section title="Journal & Communications">
+                <JournalSection
+                  entries={journal}
+                  entityType="person"
+                  entityId={id}
+                  onEntryAdded={fetchJournal}
+                />
+              </Section>
+            </>
+          )}
+
+          {activeTab === "history" && (
+            <>
+              {/* Related Requests */}
+              <Section title="Requests">
+                {requests.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {requests.map((req) => (
+                      <a
+                        key={req.request_id}
+                        href={`/requests/${req.request_id}`}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.75rem",
+                          padding: "0.75rem 1rem",
+                          background: "#f8f9fa",
+                          borderRadius: "8px",
+                          textDecoration: "none",
+                          color: "inherit",
+                          border: "1px solid #dee2e6",
+                        }}
+                      >
+                        <StatusBadge status={req.status} />
+                        <PriorityBadge priority={req.priority} />
+                        <span style={{ flex: 1, fontWeight: 500 }}>
+                          {req.summary || req.place_name || "No summary"}
+                        </span>
+                        <span className="text-muted text-sm">
+                          {formatDateLocal(req.created_at)}
+                        </span>
+                      </a>
+                    ))}
+                    {requests.length >= 10 && (
+                      <a href={`/requests?person_id=${person.person_id}`} className="text-sm" style={{ marginTop: "0.5rem" }}>
+                        View all requests from this person...
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted">No requests from this person.</p>
+                )}
+              </Section>
+
+              {/* Website Submissions */}
+              <Section title="Website Submissions">
+                <SubmissionsSection entityType="person" entityId={id} />
+              </Section>
+            </>
+          )}
+
+          {activeTab === "admin" && (
+            <>
+              {/* Previous Names / Aliases */}
+              <Section title="Previous Names">
+                {person.aliases && person.aliases.length > 0 ? (
+                  <table style={{ width: "100%", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
+                        <th style={{ padding: "0.5rem 0" }}>Name</th>
+                        <th style={{ padding: "0.5rem 0" }}>Source</th>
+                        <th style={{ padding: "0.5rem 0" }}>Date</th>
+                        <th style={{ padding: "0.5rem 0", width: "60px" }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {person.aliases.map((alias) => {
+                        const sourceLabel = alias.source_table === "name_change" ? "Name Change" :
+                          alias.source_table === "manual_alias" ? "Manual" :
+                          alias.source_system || "System";
+                        return (
+                          <tr key={alias.alias_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                            <td style={{ padding: "0.5rem 0" }}>{alias.name_raw}</td>
+                            <td style={{ padding: "0.5rem 0" }}>
+                              <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
+                                {sourceLabel}
+                              </span>
+                            </td>
+                            <td style={{ padding: "0.5rem 0" }} className="text-muted">
+                              {formatDateLocal(alias.created_at)}
+                            </td>
+                            <td style={{ padding: "0.5rem 0" }}>
+                              <button
+                                onClick={() => handleDeleteAlias(alias.alias_id)}
+                                style={{
+                                  padding: "0.125rem 0.375rem",
+                                  fontSize: "0.7rem",
+                                  background: "transparent",
+                                  border: "1px solid var(--border)",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  color: "#dc3545",
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-muted text-sm">No previous names recorded.</p>
+                )}
+                <div style={{ marginTop: "0.75rem" }}>
+                  {addingAlias ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        value={newAliasName}
+                        onChange={(e) => setNewAliasName(e.target.value)}
+                        placeholder="Enter previous name"
+                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.875rem", width: "200px" }}
+                        autoFocus
+                        onKeyDown={(e) => e.key === "Enter" && handleAddAlias()}
+                      />
+                      <button
+                        onClick={handleAddAlias}
+                        disabled={savingAlias || !newAliasName.trim()}
+                        style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}
+                      >
+                        {savingAlias ? "Saving..." : "Add"}
+                      </button>
+                      <button
+                        onClick={() => { setAddingAlias(false); setAliasError(null); setNewAliasName(""); }}
+                        style={{
+                          padding: "0.25rem 0.75rem",
+                          fontSize: "0.8rem",
+                          background: "transparent",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      {aliasError && (
+                        <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{aliasError}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingAlias(true)}
+                      style={{
+                        padding: "0.25rem 0.75rem",
+                        fontSize: "0.8rem",
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Add Previous Name
+                    </button>
+                  )}
+                </div>
+              </Section>
+
+              {/* Data Sources */}
+              {person.identifiers && person.identifiers.length > 0 && (
+                <Section title="Data Sources">
+                  <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
+                    This person record was seeded from these sources:
+                  </p>
+                  <table style={{ width: "100%", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
+                        <th style={{ padding: "0.5rem 0" }}>Type</th>
+                        <th style={{ padding: "0.5rem 0" }}>Value</th>
+                        <th style={{ padding: "0.5rem 0" }}>Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {person.identifiers.map((pid, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <td style={{ padding: "0.5rem 0" }}>
+                            <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
+                              {pid.id_type}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.5rem 0" }}>{pid.id_type === "phone" ? formatPhone(pid.id_value) : pid.id_value}</td>
+                          <td style={{ padding: "0.5rem 0" }} className="text-muted">
+                            {pid.source_system ? `${pid.source_system}${pid.source_table ? `.${pid.source_table}` : ""}` : "Unknown"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Section>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <TwoColumnLayout
+        header={headerContent}
+        main={mainContent}
+        sidebar={sidebarContent}
+        sidebarWidth="35%"
+      />
+
+      {/* Edit Identifiers Modal */}
+      {editingIdentifiers && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "var(--card-bg, #fff)",
+            borderRadius: "12px",
+            padding: "1.5rem",
+            width: "500px",
+            maxWidth: "90vw",
+            maxHeight: "90vh",
+            overflow: "auto",
+          }}>
+            <h3 style={{ margin: "0 0 1rem 0" }}>Edit Contact Information</h3>
+
             {identifierError && (
               <div style={{ color: "#dc3545", marginBottom: "0.75rem", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px", fontSize: "0.875rem" }}>
                 {identifierError}
@@ -938,6 +1483,7 @@ export default function PersonDetailPage() {
                       flex: 1,
                       minWidth: "140px",
                       border: editPhone && !isValidPhone(editPhone) ? "1px solid #dc3545" : undefined,
+                      padding: "0.5rem",
                     }}
                   />
                   {editPhone && !isValidPhone(editPhone) && (() => {
@@ -956,7 +1502,6 @@ export default function PersonDetailPage() {
                             border: "none",
                             borderRadius: "4px",
                             cursor: "pointer",
-                            whiteSpace: "nowrap",
                           }}
                           title={`Fix to: ${formatPhone(phones[0])}`}
                         >
@@ -964,7 +1509,6 @@ export default function PersonDetailPage() {
                         </button>
                       );
                     }
-                    // Multiple phones - show options
                     return phones.map((p, i) => (
                       <button
                         key={p}
@@ -978,7 +1522,6 @@ export default function PersonDetailPage() {
                           border: "none",
                           borderRadius: "4px",
                           cursor: "pointer",
-                          whiteSpace: "nowrap",
                         }}
                         title={`Use: ${formatPhone(p)}`}
                       >
@@ -995,7 +1538,7 @@ export default function PersonDetailPage() {
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="email@example.com"
-                  style={{ width: "100%" }}
+                  style={{ width: "100%", padding: "0.5rem" }}
                 />
               </div>
             </div>
@@ -1073,702 +1616,9 @@ export default function PersonDetailPage() {
               </button>
             </div>
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {/* Address */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Addr</span>
-              {person.primary_address ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  {person.primary_place_id ? (
-                    <a
-                      href={`/places/${person.primary_place_id}`}
-                      style={{ fontSize: "0.9rem", color: "var(--primary)", textDecoration: "none" }}
-                    >
-                      {person.primary_address}
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: "0.9rem" }}>{person.primary_address}</span>
-                  )}
-                  {person.primary_address_locality && (
-                    <span className="text-muted" style={{ fontSize: "0.75rem" }}>
-                      ({person.primary_address_locality})
-                    </span>
-                  )}
-                </div>
-              ) : person.associated_places && person.associated_places.length > 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <a
-                    href={`/places/${person.associated_places[0].place_id}`}
-                    style={{ fontSize: "0.9rem", color: "var(--primary)", textDecoration: "none" }}
-                  >
-                    {person.associated_places[0].display_name || person.associated_places[0].formatted_address || "Unknown"}
-                  </a>
-                  <span className="text-muted" style={{ fontSize: "0.7rem", padding: "1px 5px", background: "#f3f4f6", borderRadius: "4px" }}>
-                    via {person.associated_places[0].source_type}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-muted" style={{ fontSize: "0.85rem" }}>No address set</span>
-              )}
-            </div>
-
-            {/* Phone(s) */}
-            {(() => {
-              const phones = person.identifiers?.filter(i => i.id_type === "phone") || [];
-              if (phones.length === 0) {
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Phone</span>
-                    <span className="text-muted" style={{ fontSize: "0.85rem" }}>Not available</span>
-                  </div>
-                );
-              }
-              return phones.map((pid, idx) => (
-                <div key={`phone-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Phone</span>
-                  <span style={{ fontSize: "0.9rem" }}>{formatPhone(pid.id_value)}</span>
-                  {pid.source_system && (
-                    <span className="text-muted" style={{ fontSize: "0.7rem" }}>
-                      ({getSourceLabel(pid.source_system)})
-                    </span>
-                  )}
-                </div>
-              ));
-            })()}
-
-            {/* Email(s) */}
-            {(() => {
-              const emails = person.identifiers?.filter(i => i.id_type === "email") || [];
-              if (emails.length === 0) {
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Email</span>
-                    <span className="text-muted" style={{ fontSize: "0.85rem" }}>Not available</span>
-                  </div>
-                );
-              }
-              return emails.map((eid, idx) => {
-                const isFabricated = eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5;
-                return (
-                <div key={`email-${idx}`} style={{ display: "flex", alignItems: "center", gap: "0.5rem", opacity: isFabricated ? 0.5 : 1 }}>
-                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", minWidth: "3rem" }}>Email</span>
-                  <span style={{ fontSize: "0.9rem", textDecoration: isFabricated ? "line-through" : "none" }}>{eid.id_value}</span>
-                  {eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5 && (
-                    <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#333", padding: "1px 4px", borderRadius: "3px", fontWeight: 500 }}>
-                      Chip Reg.
-                    </span>
-                  )}
-                  {eid.source_system && !(eid.source_system === "petlink" && (eid.confidence ?? 1) < 0.5) && (
-                    <span className="text-muted" style={{ fontSize: "0.7rem" }}>
-                      ({getSourceLabel(eid.source_system)})
-                    </span>
-                  )}
-                </div>
-                );
-              });
-            })()}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const overviewTab = (
-    <>
-      {/* Quick Actions */}
-      <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
-        <QuickActions
-          entityType="person"
-          entityId={person.person_id}
-          state={usePersonQuickActionState({
-            email: person.identifiers?.find((i) => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value,
-            phone: person.identifiers?.find((i) => i.id_type === "phone")?.id_value,
-            is_trapper: !!trapperInfo,
-            cat_count: person.cat_count,
-            request_count: requests?.length || 0,
-          })}
-          onActionComplete={fetchPerson}
-        />
-      </div>
-
-      {/* Staff Quick Notes */}
-      <QuickNotes
-        entityType="person"
-        entityId={person.person_id}
-        entries={journal}
-        onNoteAdded={fetchJournal}
-      />
-
-      {/* Trapper Stats (if person is a trapper) */}
-      {trapperInfo && (
-        <Section title="Trapper Statistics">
-          <TrapperStatsCard personId={id} compact />
-        </Section>
-      )}
-
-      {/* Volunteer Profile (if person has volunteer roles) */}
-      {volunteerRoles && (volunteerRoles.volunteer_profile || volunteerRoles.volunteer_groups.active.length > 0) && (
-        <Section title="Volunteer Profile">
-          {/* Role badges */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
-            {volunteerRoles.roles
-              .filter(r => r.role_status === "active")
-              .map(r => {
-                if (r.role === "trapper") return null; // TrapperBadge handles this
-                if (r.role === "volunteer") return (
-                  <VolunteerBadge key={r.role} role="volunteer" size="md"
-                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)} />
-                );
-                return (
-                  <VolunteerBadge key={r.role} role={r.role as "foster" | "caretaker" | "staff"} size="md"
-                    groupNames={volunteerRoles.volunteer_groups.active.map(g => g.name)} />
-                );
-              })
-            }
-            {volunteerRoles.volunteer_profile?.is_active === false && (
-              <span style={{ fontSize: "0.75rem", color: "#dc2626", fontWeight: 500 }}>Inactive</span>
-            )}
-          </div>
-
-          {/* Active Groups */}
-          {volunteerRoles.volunteer_groups.active.length > 0 && (
-            <div style={{ marginBottom: "1rem" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Active Groups</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-                {volunteerRoles.volunteer_groups.active.map(g => (
-                  <span key={g.name} style={{
-                    display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.75rem",
-                    background: "var(--bg-secondary)", borderRadius: "9999px", color: "var(--text-primary)"
-                  }}>
-                    {g.name}
-                    {g.joined_at && <span style={{ color: "var(--text-muted)", marginLeft: "0.25rem" }}>
-                      ({new Date(g.joined_at).toLocaleDateString()})
-                    </span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Activity stats */}
-          {volunteerRoles.volunteer_profile && (
-            <div className="detail-grid" style={{ marginBottom: "1rem" }}>
-              {volunteerRoles.volunteer_profile.hours_logged != null && (
-                <div className="detail-item">
-                  <span className="detail-label">Hours Logged</span>
-                  <span className="detail-value">{volunteerRoles.volunteer_profile.hours_logged}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.event_count != null && (
-                <div className="detail-item">
-                  <span className="detail-label">Events</span>
-                  <span className="detail-value">{volunteerRoles.volunteer_profile.event_count}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.joined && (
-                <div className="detail-item">
-                  <span className="detail-label">Member Since</span>
-                  <span className="detail-value">{formatDateLocal(volunteerRoles.volunteer_profile.joined)}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.last_activity && (
-                <div className="detail-item">
-                  <span className="detail-label">Last Activity</span>
-                  <span className="detail-value">{formatDateLocal(volunteerRoles.volunteer_profile.last_activity)}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Skills/Interests */}
-          {volunteerRoles.volunteer_profile?.skills && Object.keys(volunteerRoles.volunteer_profile.skills).length > 0 && (
-            <div style={{ marginBottom: "1rem" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Skills &amp; Interests</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-                {Object.entries(volunteerRoles.volunteer_profile.skills)
-                  .filter(([, v]) => v && v !== "false" && v !== "No")
-                  .map(([key, value]) => (
-                    <span key={key} style={{
-                      display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.7rem",
-                      background: "#f0fdf4", color: "#166534", borderRadius: "9999px", border: "1px solid #bbf7d0",
-                    }} title={String(value)}>
-                      {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                    </span>
-                  ))
-                }
-              </div>
-            </div>
-          )}
-
-          {/* Availability, Languages, Personal */}
-          {volunteerRoles.volunteer_profile && (
-            <div className="detail-grid">
-              {volunteerRoles.volunteer_profile.availability && (
-                <div className="detail-item">
-                  <span className="detail-label">Availability</span>
-                  <span className="detail-value" style={{ fontSize: "0.85rem" }}>{volunteerRoles.volunteer_profile.availability}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.languages && (
-                <div className="detail-item">
-                  <span className="detail-label">Languages</span>
-                  <span className="detail-value">{volunteerRoles.volunteer_profile.languages}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.pronouns && (
-                <div className="detail-item">
-                  <span className="detail-label">Pronouns</span>
-                  <span className="detail-value">{volunteerRoles.volunteer_profile.pronouns}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.occupation && (
-                <div className="detail-item">
-                  <span className="detail-label">Occupation</span>
-                  <span className="detail-value">{volunteerRoles.volunteer_profile.occupation}</span>
-                </div>
-              )}
-              {volunteerRoles.volunteer_profile.can_drive != null && (
-                <div className="detail-item">
-                  <span className="detail-label">Can Drive</span>
-                  <span className="detail-value">{volunteerRoles.volunteer_profile.can_drive ? "Yes" : "No"}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Notes */}
-          {volunteerRoles.volunteer_profile?.notes && (
-            <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "var(--bg-secondary)", borderRadius: "6px", fontSize: "0.85rem" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.25rem" }}>Volunteer Notes</div>
-              {volunteerRoles.volunteer_profile.notes}
-            </div>
-          )}
-
-          {/* Operational Summary */}
-          {(volunteerRoles.operational_summary.foster_stats.cats_fostered > 0 ||
-            volunteerRoles.operational_summary.places_linked > 0) && (
-            <div className="detail-grid" style={{ marginTop: "0.75rem" }}>
-              {volunteerRoles.operational_summary.foster_stats.cats_fostered > 0 && (
-                <>
-                  <div className="detail-item">
-                    <span className="detail-label">Cats Fostered</span>
-                    <span className="detail-value">{volunteerRoles.operational_summary.foster_stats.cats_fostered}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Current Fosters</span>
-                    <span className="detail-value">{volunteerRoles.operational_summary.foster_stats.current_fosters}</span>
-                  </div>
-                </>
-              )}
-              <div className="detail-item">
-                <span className="detail-label">Linked Places</span>
-                <span className="detail-value">{volunteerRoles.operational_summary.places_linked}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Group History (collapsed) */}
-          {volunteerRoles.volunteer_groups.history.length > 0 && (
-            <details style={{ marginTop: "0.75rem" }}>
-              <summary style={{ fontSize: "0.8rem", color: "var(--text-secondary)", cursor: "pointer" }}>
-                Group History ({volunteerRoles.volunteer_groups.history.length})
-              </summary>
-              <div style={{ marginTop: "0.5rem" }}>
-                {volunteerRoles.volunteer_groups.history.map((g, i) => (
-                  <div key={i} style={{ fontSize: "0.8rem", padding: "0.25rem 0", color: "var(--text-muted)" }}>
-                    {g.name}
-                    <span style={{ marginLeft: "0.5rem" }}>
-                      {g.joined_at && new Date(g.joined_at).toLocaleDateString()} &rarr; {g.left_at && new Date(g.left_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-        </Section>
-      )}
-
-      {/* Summary Stats */}
-      <Section title="Summary">
-        <div className="detail-grid">
-          <div className="detail-item">
-            <span className="detail-label">Cats</span>
-            <span className="detail-value">{person.cat_count}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Places</span>
-            <span className="detail-value">{person.place_count}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Created</span>
-            <span className="detail-value">
-              {formatDateLocal(person.created_at)}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Updated</span>
-            <span className="detail-value">
-              {formatDateLocal(person.updated_at)}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Verification</span>
-            <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <VerificationBadge
-                table="people"
-                recordId={person.person_id}
-                verifiedAt={person.verified_at}
-                verifiedBy={person.verified_by_name}
-                onVerify={() => fetchPerson()}
-              />
-              {person.verified_at && (
-                <LastVerified verifiedAt={person.verified_at} verifiedBy={person.verified_by_name} />
-              )}
-            </span>
-          </div>
         </div>
-      </Section>
-
-      {/* Photos */}
-      <Section title="Photos">
-        <MediaGallery
-          entityType="person"
-          entityId={id}
-          allowUpload={true}
-          includeRelated={true}
-          defaultMediaType="site_photo"
-        />
-      </Section>
-
-      {/* Journal & Communications */}
-      <Section title="Journal & Communications">
-        <JournalSection
-          entries={journal}
-          entityType="person"
-          entityId={id}
-          onEntryAdded={fetchJournal}
-        />
-      </Section>
-    </>
-  );
-
-  const connectionsTab = (
-    <>
-      {/* Cats */}
-      <Section title="Cats">
-        {person.cats && person.cats.length > 0 ? (
-          <>
-            <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
-              <span style={{ color: "#198754", fontWeight: 500 }}>ClinicHQ</span> = actual clinic patient,{" "}
-              <span style={{ color: "var(--muted)" }}>PetLink</span> = microchip only
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-              {person.cats.map((cat) => (
-                <EntityLink
-                  key={cat.cat_id}
-                  href={`/cats/${cat.cat_id}`}
-                  label={cat.cat_name}
-                  sublabel={cat.microchip || undefined}
-                  dataSource={cat.data_source}
-                  badge={cat.relationship_type}
-                  badgeColor={cat.relationship_type === "owner" ? "#0d6efd" : "#6c757d"}
-                />
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="text-muted">No cats linked to this person.</p>
-        )}
-      </Section>
-
-      {/* Clinic History */}
-      <ClinicHistorySection personId={id} />
-
-      {/* Associated Places */}
-      <Section title="Associated Places">
-        {(() => {
-          const places = person.associated_places || person.places;
-          if (!places || places.length === 0) {
-            return <p className="text-muted">No places linked to this person.</p>;
-          }
-
-          const sourceLabels: Record<string, { label: string; color: string }> = {
-            relationship: { label: "via relationship", color: "#6c757d" },
-            request: { label: "via request", color: "#198754" },
-            intake: { label: "via intake", color: "#3b82f6" },
-          };
-
-          // Use associated_places if available (has source_type), otherwise fall back to places
-          if (person.associated_places && person.associated_places.length > 0) {
-            return (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-                {person.associated_places.map((ap) => {
-                  const src = sourceLabels[ap.source_type] || sourceLabels.relationship;
-                  const isPrimary = person.primary_address_id &&
-                    ap.formatted_address === person.primary_address;
-                  return (
-                    <EntityLink
-                      key={`${ap.place_id}-${ap.source_type}`}
-                      href={`/places/${ap.place_id}`}
-                      label={ap.display_name || ap.formatted_address || "Unknown"}
-                      sublabel={
-                        (ap.locality ? `${ap.locality} — ` : "") + src.label +
-                        (isPrimary ? " (Primary)" : "")
-                      }
-                      badge={ap.place_kind || undefined}
-                      badgeColor={src.color}
-                    />
-                  );
-                })}
-              </div>
-            );
-          }
-
-          // Fallback: legacy places array from v_person_detail
-          return (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-              {(person.places as Place[]).map((place) => (
-                <EntityLink
-                  key={place.place_id}
-                  href={`/places/${place.place_id}`}
-                  label={place.place_name}
-                  sublabel={place.formatted_address || undefined}
-                  badge={place.place_kind || place.role}
-                  badgeColor={place.role === "requester" ? "#198754" : "#6c757d"}
-                />
-              ))}
-            </div>
-          );
-        })()}
-      </Section>
-
-      {/* Location Context from Google Maps */}
-      <PersonPlaceGoogleContext personId={id} className="mt-4" />
-
-      {/* Related People */}
-      {person.person_relationships && person.person_relationships.length > 0 && (
-        <Section title="Related People">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {person.person_relationships.map((rel) => (
-              <EntityLink
-                key={rel.person_id}
-                href={`/people/${rel.person_id}`}
-                label={rel.person_name}
-                badge={rel.relationship_label}
-              />
-            ))}
-          </div>
-        </Section>
       )}
-    </>
-  );
 
-  const historyTab = (
-    <>
-      {/* Related Requests */}
-      <Section title="Requests">
-        {requests.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {requests.map((req) => (
-              <a
-                key={req.request_id}
-                href={`/requests/${req.request_id}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.75rem 1rem",
-                  background: "#f8f9fa",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  color: "inherit",
-                  border: "1px solid #dee2e6",
-                }}
-              >
-                <StatusBadge status={req.status} />
-                <PriorityBadge priority={req.priority} />
-                <span style={{ flex: 1, fontWeight: 500 }}>
-                  {req.summary || req.place_name || "No summary"}
-                </span>
-                <span className="text-muted text-sm">
-                  {formatDateLocal(req.created_at)}
-                </span>
-              </a>
-            ))}
-            {requests.length >= 10 && (
-              <a href={`/requests?person_id=${person.person_id}`} className="text-sm" style={{ marginTop: "0.5rem" }}>
-                View all requests from this person...
-              </a>
-            )}
-          </div>
-        ) : (
-          <p className="text-muted">No requests from this person.</p>
-        )}
-      </Section>
-
-      {/* Website Submissions */}
-      <Section title="Website Submissions">
-        <SubmissionsSection entityType="person" entityId={id} />
-      </Section>
-    </>
-  );
-
-  const aliasSourceLabel = (alias: PersonAlias) => {
-    if (alias.source_table === "name_change") return "Name Change";
-    if (alias.source_table === "manual_alias") return "Manual";
-    if (alias.source_system) return alias.source_system;
-    return "System";
-  };
-
-  const dataTab = (
-    <>
-      {/* Previous Names / Aliases */}
-      <Section title="Previous Names">
-        {person.aliases && person.aliases.length > 0 ? (
-          <table style={{ width: "100%", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
-                <th style={{ padding: "0.5rem 0" }}>Name</th>
-                <th style={{ padding: "0.5rem 0" }}>Source</th>
-                <th style={{ padding: "0.5rem 0" }}>Date</th>
-                <th style={{ padding: "0.5rem 0", width: "60px" }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {person.aliases.map((alias) => (
-                <tr key={alias.alias_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "0.5rem 0" }}>{alias.name_raw}</td>
-                  <td style={{ padding: "0.5rem 0" }}>
-                    <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
-                      {aliasSourceLabel(alias)}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.5rem 0" }} className="text-muted">
-                    {formatDateLocal(alias.created_at)}
-                  </td>
-                  <td style={{ padding: "0.5rem 0" }}>
-                    <button
-                      onClick={() => handleDeleteAlias(alias.alias_id)}
-                      style={{
-                        padding: "0.125rem 0.375rem",
-                        fontSize: "0.7rem",
-                        background: "transparent",
-                        border: "1px solid var(--border)",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        color: "#dc3545",
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-muted text-sm">No previous names recorded.</p>
-        )}
-        <div style={{ marginTop: "0.75rem" }}>
-          {addingAlias ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <input
-                type="text"
-                value={newAliasName}
-                onChange={(e) => setNewAliasName(e.target.value)}
-                placeholder="Enter previous name"
-                style={{ padding: "0.25rem 0.5rem", fontSize: "0.875rem", width: "200px" }}
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && handleAddAlias()}
-              />
-              <button
-                onClick={handleAddAlias}
-                disabled={savingAlias || !newAliasName.trim()}
-                style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem" }}
-              >
-                {savingAlias ? "Saving..." : "Add"}
-              </button>
-              <button
-                onClick={() => { setAddingAlias(false); setAliasError(null); setNewAliasName(""); }}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  fontSize: "0.8rem",
-                  background: "transparent",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                Cancel
-              </button>
-              {aliasError && (
-                <span style={{ color: "#dc3545", fontSize: "0.8rem" }}>{aliasError}</span>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={() => setAddingAlias(true)}
-              style={{
-                padding: "0.25rem 0.75rem",
-                fontSize: "0.8rem",
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              + Add Previous Name
-            </button>
-          )}
-        </div>
-      </Section>
-
-      {person.identifiers && person.identifiers.length > 0 && (
-        <Section title="Data Sources">
-          <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
-            This person record was seeded from these sources:
-          </p>
-          <table style={{ width: "100%", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
-                <th style={{ padding: "0.5rem 0" }}>Type</th>
-                <th style={{ padding: "0.5rem 0" }}>Value</th>
-                <th style={{ padding: "0.5rem 0" }}>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {person.identifiers.map((pid, idx) => (
-                <tr key={idx} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "0.5rem 0" }}>
-                    <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
-                      {pid.id_type}
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.5rem 0" }}>{pid.id_type === "phone" ? formatPhone(pid.id_value) : pid.id_value}</td>
-                  <td style={{ padding: "0.5rem 0" }} className="text-muted">
-                    {pid.source_system ? `${pid.source_system}${pid.source_table ? `.${pid.source_table}` : ""}` : "Unknown"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
-      )}
-    </>
-  );
-
-  const connectionCount = (person.cat_count || 0) + (person.place_count || 0);
-
-  return (
-    <ProfileLayout
-      header={profileHeader}
-      defaultTab="overview"
-      tabs={[
-        { id: "overview", label: "Overview", content: overviewTab },
-        { id: "connections", label: "Connections", content: connectionsTab, badge: connectionCount || undefined },
-        { id: "history", label: "History", content: historyTab, badge: requests.length || undefined },
-        { id: "data", label: "Data", content: dataTab },
-      ]}
-    >
       {/* Edit History Panel */}
       {showHistory && (
         <div style={{
@@ -1797,14 +1647,13 @@ export default function PersonDetailPage() {
       <SendEmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        defaultTo={person.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value
-          ?? ""}
+        defaultTo={primaryEmail ?? ""}
         defaultToName={person.display_name}
         personId={person.person_id}
         placeholders={{
           first_name: person.display_name?.split(" ")[0] || "",
         }}
       />
-    </ProfileLayout>
+    </>
   );
 }

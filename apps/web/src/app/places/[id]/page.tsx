@@ -27,9 +27,10 @@ import { CatPresenceReconciliation } from "@/components/CatPresenceReconciliatio
 import { CreateColonyModal } from "@/components/CreateColonyModal";
 import { PlaceContextEditor } from "@/components/PlaceContextEditor";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
-import { ProfileLayout } from "@/components/ProfileLayout";
 import DiseaseStatusSection from "@/components/DiseaseStatusSection";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
+import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
+import { LinkedPeopleSection } from "@/components/LinkedPeopleSection";
 
 interface Cat {
   cat_id: string;
@@ -116,37 +117,135 @@ interface RelatedRequest {
   requester_name: string | null;
 }
 
-
-// Section component for read-only display with edit toggle
-function Section({
-  title,
-  children,
-  onEdit,
-  editMode = false,
+// Tab navigation component
+function TabNav({
+  tabs,
+  activeTab,
+  onTabChange,
 }: {
-  title: string;
-  children: React.ReactNode;
-  onEdit?: () => void;
-  editMode?: boolean;
+  tabs: { id: string; label: string; badge?: number }[];
+  activeTab: string;
+  onTabChange: (id: string) => void;
 }) {
   return (
-    <div className="detail-section">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>{title}</h2>
-        {onEdit && !editMode && (
-          <button
-            onClick={onEdit}
-            style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
-          >
-            Edit
-          </button>
-        )}
-      </div>
-      {children}
+    <div style={{
+      display: "flex",
+      gap: "0.25rem",
+      borderBottom: "1px solid var(--border)",
+      marginBottom: "1.5rem",
+    }}>
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => onTabChange(tab.id)}
+          style={{
+            padding: "0.75rem 1rem",
+            background: "transparent",
+            border: "none",
+            borderBottom: activeTab === tab.id ? "2px solid var(--primary)" : "2px solid transparent",
+            color: activeTab === tab.id ? "var(--foreground)" : "var(--muted)",
+            fontWeight: activeTab === tab.id ? 600 : 400,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          {tab.label}
+          {tab.badge !== undefined && tab.badge > 0 && (
+            <span
+              className="badge"
+              style={{
+                fontSize: "0.7rem",
+                padding: "0.1rem 0.4rem",
+                background: activeTab === tab.id ? "var(--primary)" : "#6c757d",
+              }}
+            >
+              {tab.badge}
+            </span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }
 
+// Place kind badge component
+function PlaceKindBadge({ kind }: { kind: string | null | undefined }) {
+  if (!kind || kind === "unknown") return null;
+
+  const kindConfig: Record<string, { label: string; bg: string; color: string }> = {
+    residential_house: { label: "House", bg: "#dcfce7", color: "#166534" },
+    single_family: { label: "House", bg: "#dcfce7", color: "#166534" },
+    apartment_unit: { label: "Unit", bg: "#dbeafe", color: "#1d4ed8" },
+    apartment_building: { label: "Apts", bg: "#e0e7ff", color: "#4338ca" },
+    mobile_home: { label: "Mobile", bg: "#ede9fe", color: "#7c3aed" },
+    mobile_home_space: { label: "Mobile", bg: "#ede9fe", color: "#7c3aed" },
+    business: { label: "Business", bg: "#fef3c7", color: "#b45309" },
+    farm: { label: "Farm", bg: "#ecfccb", color: "#4d7c0f" },
+    outdoor_site: { label: "Outdoor", bg: "#ccfbf1", color: "#0d9488" },
+    clinic: { label: "Clinic", bg: "#fee2e2", color: "#dc2626" },
+    shelter: { label: "Shelter", bg: "#f3e8ff", color: "#9333ea" },
+    neighborhood: { label: "Area", bg: "#f3f4f6", color: "#6b7280" },
+  };
+
+  const config = kindConfig[kind] || { label: kind.replace(/_/g, " "), bg: "#f3f4f6", color: "#6b7280" };
+
+  return (
+    <span
+      className="badge"
+      style={{ background: config.bg, color: config.color, fontSize: "0.75rem" }}
+    >
+      {config.label}
+    </span>
+  );
+}
+
+// Context type badge
+function ContextBadge({ context }: { context: PlaceContext }) {
+  const contextTypeColors: Record<string, { bg: string; color: string }> = {
+    colony_site: { bg: "#dc3545", color: "#fff" },
+    foster_home: { bg: "#198754", color: "#fff" },
+    adopter_residence: { bg: "#0d6efd", color: "#fff" },
+    volunteer_location: { bg: "#6610f2", color: "#fff" },
+    trapper_base: { bg: "#fd7e14", color: "#000" },
+    trap_pickup: { bg: "#ffc107", color: "#000" },
+    clinic: { bg: "#20c997", color: "#000" },
+    shelter: { bg: "#6f42c1", color: "#fff" },
+    partner_org: { bg: "#0dcaf0", color: "#000" },
+    feeding_station: { bg: "#adb5bd", color: "#000" },
+  };
+
+  const colors = contextTypeColors[context.context_type] || { bg: "#6c757d", color: "#fff" };
+
+  return (
+    <span
+      className="badge"
+      style={{
+        fontSize: "0.7rem",
+        background: colors.bg,
+        color: colors.color,
+      }}
+      title={`${context.context_label}${context.is_verified ? " (Verified)" : ""} - ${Math.round(context.confidence * 100)}% confidence`}
+    >
+      {context.context_label}
+      {context.is_verified && " ✓"}
+    </span>
+  );
+}
+
+// Place kind options
+const PLACE_KINDS = [
+  { value: "unknown", label: "Unknown" },
+  { value: "residential_house", label: "Residential House" },
+  { value: "apartment_unit", label: "Apartment Unit" },
+  { value: "apartment_building", label: "Apartment Building" },
+  { value: "business", label: "Business" },
+  { value: "clinic", label: "Clinic" },
+  { value: "neighborhood", label: "Neighborhood" },
+  { value: "outdoor_site", label: "Outdoor Site" },
+  { value: "mobile_home_space", label: "Mobile Home Space" },
+];
 
 export default function PlaceDetailPage() {
   const params = useParams();
@@ -160,6 +259,7 @@ export default function PlaceDetailPage() {
   const [requests, setRequests] = useState<RelatedRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("details");
 
   // Edit modes
   const [editingDetails, setEditingDetails] = useState(false);
@@ -177,19 +277,6 @@ export default function PlaceDetailPage() {
   // Edit history panel
   const [showHistory, setShowHistory] = useState(false);
   const [showColonyModal, setShowColonyModal] = useState(false);
-
-  // Place kind options
-  const PLACE_KINDS = [
-    { value: "unknown", label: "Unknown" },
-    { value: "residential_house", label: "Residential House" },
-    { value: "apartment_unit", label: "Apartment Unit" },
-    { value: "apartment_building", label: "Apartment Building" },
-    { value: "business", label: "Business" },
-    { value: "clinic", label: "Clinic" },
-    { value: "neighborhood", label: "Neighborhood" },
-    { value: "outdoor_site", label: "Outdoor Site" },
-    { value: "mobile_home_space", label: "Mobile Home Space" },
-  ];
 
   const fetchPlace = useCallback(async () => {
     try {
@@ -269,9 +356,7 @@ export default function PlaceDetailPage() {
   };
 
   const handleViewAllMedia = () => {
-    const params = new URLSearchParams();
-    params.set("tab", "media");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setActiveTab("media");
   };
 
   const startEditing = () => {
@@ -311,7 +396,6 @@ export default function PlaceDetailPage() {
         return;
       }
 
-      // Refresh place data
       await fetchPlace();
       setEditingDetails(false);
     } catch (err) {
@@ -355,7 +439,6 @@ export default function PlaceDetailPage() {
     setSaving(true);
     setSaveError(null);
 
-    // Extract locality from address components
     const locality = placeDetails.address_components.find(c => c.types.includes("locality"))?.long_name || null;
     const postal_code = placeDetails.address_components.find(c => c.types.includes("postal_code"))?.long_name || null;
     const state = placeDetails.address_components.find(c => c.types.includes("administrative_area_level_1"))?.short_name || null;
@@ -383,7 +466,6 @@ export default function PlaceDetailPage() {
         return;
       }
 
-      // Refresh place data
       await fetchPlace();
       setEditingAddress(false);
     } catch (err) {
@@ -415,163 +497,230 @@ export default function PlaceDetailPage() {
     return <div className="empty">Place not found</div>;
   }
 
-  const placeKindColors: Record<string, string> = {
-    residential_house: "#198754",
-    apartment_unit: "#0d6efd",
-    apartment_building: "#6610f2",
-    business: "#fd7e14",
-    clinic: "#dc3545",
-    outdoor_site: "#20c997",
-    neighborhood: "#6c757d",
-    mobile_home_space: "#795548",
-  };
+  // Transform people for LinkedPeopleSection
+  const peopleForSection = place.people?.map(p => ({
+    person_id: p.person_id,
+    display_name: p.person_name,
+    relationship_type: p.role,
+    confidence: p.confidence,
+  })) || [];
 
-  // Context type colors for badges
-  const contextTypeColors: Record<string, { bg: string; color: string }> = {
-    colony_site: { bg: "#dc3545", color: "#fff" },
-    foster_home: { bg: "#198754", color: "#fff" },
-    adopter_residence: { bg: "#0d6efd", color: "#fff" },
-    volunteer_location: { bg: "#6610f2", color: "#fff" },
-    trapper_base: { bg: "#fd7e14", color: "#000" },
-    trap_pickup: { bg: "#ffc107", color: "#000" },
-    clinic: { bg: "#20c997", color: "#000" },
-    shelter: { bg: "#6f42c1", color: "#fff" },
-    partner_org: { bg: "#0dcaf0", color: "#000" },
-    feeding_station: { bg: "#adb5bd", color: "#000" },
-  };
-
-  /* ── Header (always visible) ── */
-  const profileHeader = (
+  /* ── Header Content ── */
+  const headerContent = (
     <div>
       <BackButton fallbackHref="/places" />
 
-      <div className="detail-header" style={{ marginTop: "1rem" }}>
-        <h1 style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-          {place.display_name}
-          {place.place_kind && (
-            <span
-              className="badge"
-              style={{
-                fontSize: "0.5em",
-                background: placeKindColors[place.place_kind] || "#6c757d",
-              }}
-            >
-              {place.place_kind.replace(/_/g, " ")}
-            </span>
-          )}
-          {place.contexts && place.contexts.length > 0 && place.contexts.map((ctx) => {
-            const colors = contextTypeColors[ctx.context_type] || { bg: "#6c757d", color: "#fff" };
-            return (
-              <span
-                key={ctx.context_id}
-                className="badge"
-                style={{
-                  fontSize: "0.5em",
-                  background: colors.bg,
-                  color: colors.color,
-                }}
-                title={`${ctx.context_label}${ctx.is_verified ? " (Verified)" : ""} - ${Math.round(ctx.confidence * 100)}% confidence`}
-              >
-                {ctx.context_label}
-                {ctx.is_verified && " ✓"}
+      <div style={{ marginTop: "1rem" }}>
+        {/* Title row */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+          <h1 style={{ margin: 0, fontSize: "1.75rem" }}>{place.display_name}</h1>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            <PlaceKindBadge kind={place.place_kind} />
+            {place.contexts?.map((ctx) => (
+              <ContextBadge key={ctx.context_id} context={ctx} />
+            ))}
+            {place.has_cat_activity && (
+              <span className="badge" style={{ background: "#dcfce7", color: "#166534", fontSize: "0.7rem" }}>
+                Cat Activity
               </span>
-            );
-          })}
-          <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
+            )}
+          </div>
+        </div>
+
+        {/* Address subtitle */}
+        {place.formatted_address && place.formatted_address !== place.display_name && (
+          <p className="text-muted" style={{ margin: "0.5rem 0 0 0" }}>{place.formatted_address}</p>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
+          {place.coordinates && (
             <a
-              href={`/places/${place.place_id}/print`}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`}
               style={{
-                padding: "0.25rem 0.75rem",
+                padding: "0.5rem 1rem",
                 fontSize: "0.875rem",
-                background: "transparent",
-                color: "inherit",
-                border: "1px solid var(--border)",
+                background: "#6366f1",
+                color: "white",
+                border: "none",
                 borderRadius: "6px",
                 textDecoration: "none",
                 display: "inline-flex",
                 alignItems: "center",
+                gap: "0.25rem",
               }}
             >
-              Print
+              📍 View on Map
             </a>
-            {place.coordinates && (
-              <a
-                href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  fontSize: "0.875rem",
-                  background: "#6366f1",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                }}
-              >
-                View on Map
-              </a>
-            )}
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              style={{
-                padding: "0.25rem 0.75rem",
-                fontSize: "0.875rem",
-                background: showHistory ? "var(--primary)" : "transparent",
-                color: showHistory ? "white" : "inherit",
-                border: showHistory ? "none" : "1px solid var(--border)",
-              }}
-            >
-              History
-            </button>
-            <button
-              onClick={() => setShowColonyModal(true)}
-              style={{
-                padding: "0.25rem 0.75rem",
-                fontSize: "0.875rem",
-                background: "transparent",
-                color: "#059669",
-                border: "1px solid #059669",
-                borderRadius: "4px",
-              }}
-              title="Create a colony from this location"
-            >
-              Create Colony
-            </button>
-          </div>
-        </h1>
-        {place.formatted_address && place.formatted_address !== place.display_name && (
-          <p className="text-muted">{place.formatted_address}</p>
-        )}
-        <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
-          ID: {place.place_id}
-        </p>
+          )}
+          <a
+            href={`/places/${place.place_id}/print`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: "0.5rem 1rem",
+              fontSize: "0.875rem",
+              background: "transparent",
+              color: "inherit",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              textDecoration: "none",
+            }}
+          >
+            Print
+          </a>
+          <button
+            onClick={() => setShowColonyModal(true)}
+            style={{
+              padding: "0.5rem 1rem",
+              fontSize: "0.875rem",
+              background: "transparent",
+              color: "#059669",
+              border: "1px solid #059669",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+          >
+            Create Colony
+          </button>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            style={{
+              padding: "0.5rem 1rem",
+              fontSize: "0.875rem",
+              background: showHistory ? "var(--primary)" : "transparent",
+              color: showHistory ? "white" : "inherit",
+              border: showHistory ? "none" : "1px solid var(--border)",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+          >
+            History
+          </button>
+        </div>
       </div>
     </div>
   );
 
-  /* ── Tab: Overview ── */
-  const overviewTab = (
-    <>
-      {/* Quick Actions */}
-      <div className="card" style={{ padding: "0.75rem 1rem", marginBottom: "1.5rem" }}>
-        <QuickActions
-          entityType="place"
-          entityId={place.place_id}
-          state={usePlaceQuickActionState({
-            lat: place.coordinates?.lat,
-            lng: place.coordinates?.lng,
-            request_count: requests.length,
-            cat_count: place.cat_count,
-            colony_estimate: null,
-            last_observation_days: null,
-          })}
-          onActionComplete={fetchPlace}
-        />
+  /* ── Sidebar Content ── */
+  const sidebarContent = (
+    <div className="space-y-4">
+      {/* Quick Stats */}
+      <StatsSidebar
+        stats={[
+          { label: "Cats", value: place.cat_count, icon: "🐱", href: `#cats` },
+          { label: "People", value: place.person_count, icon: "👤" },
+          { label: "Requests", value: requests.length, icon: "📋", href: `/requests?place_id=${place.place_id}` },
+        ]}
+        sections={[
+          {
+            title: "Quick Actions",
+            content: (
+              <QuickActions
+                entityType="place"
+                entityId={place.place_id}
+                state={usePlaceQuickActionState({
+                  lat: place.coordinates?.lat,
+                  lng: place.coordinates?.lng,
+                  request_count: requests.length,
+                  cat_count: place.cat_count,
+                  colony_estimate: null,
+                  last_observation_days: null,
+                })}
+                onActionComplete={fetchPlace}
+              />
+            ),
+          },
+        ]}
+      />
+
+      {/* Colony Estimates - Always visible */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h4 className="text-sm font-semibold text-gray-900">Colony Size</h4>
+        </div>
+        <div className="p-4">
+          <ColonyEstimates placeId={id} />
+        </div>
       </div>
 
+      {/* Disease Status - Always visible */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h4 className="text-sm font-semibold text-gray-900">Disease Status</h4>
+        </div>
+        <div className="p-4">
+          <DiseaseStatusSection placeId={place.place_id} onStatusChange={fetchPlace} />
+        </div>
+      </div>
+
+      {/* Site Stats / TNR Progress */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h4 className="text-sm font-semibold text-gray-900">TNR Progress</h4>
+        </div>
+        <div className="p-4">
+          <SiteStatsCard placeId={place.place_id} />
+        </div>
+      </div>
+
+      {/* Location Info */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h4 className="text-sm font-semibold text-gray-900">Location</h4>
+        </div>
+        <div className="p-4">
+          <StatRow label="City" value={place.locality || "Unknown"} />
+          <StatRow label="ZIP" value={place.postal_code || "—"} />
+          <StatRow label="Geocoded" value={place.is_address_backed ? "Yes" : "Approx"} />
+          {place.coordinates && (
+            <div className="text-xs text-gray-500 mt-2 font-mono">
+              {place.coordinates.lat.toFixed(5)}, {place.coordinates.lng.toFixed(5)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Verification */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h4 className="text-sm font-semibold text-gray-900">Verification</h4>
+        </div>
+        <div className="p-4">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <VerificationBadge
+              table="places"
+              recordId={place.place_id}
+              verifiedAt={place.verified_at}
+              verifiedBy={place.verified_by_name}
+              onVerify={() => fetchPlace()}
+            />
+            {place.verified_at && (
+              <LastVerified verifiedAt={place.verified_at} verifiedBy={place.verified_by_name} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Record Info */}
+      <div className="bg-white rounded-lg border">
+        <div className="px-4 py-3 border-b">
+          <h4 className="text-sm font-semibold text-gray-900">Record Info</h4>
+        </div>
+        <div className="p-4">
+          <StatRow label="Created" value={formatDateLocal(place.created_at)} />
+          <StatRow label="Updated" value={formatDateLocal(place.updated_at)} />
+          <div className="text-xs text-gray-500 mt-2 font-mono break-all">
+            {place.place_id}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ── Main Content ── */
+  const mainContent = (
+    <div>
       {/* Staff Quick Notes */}
       <QuickNotes
         entityType="place"
@@ -580,7 +729,7 @@ export default function PlaceDetailPage() {
         onNoteAdded={fetchJournal}
       />
 
-      {/* Organization Profile (shown when place is linked to a partner org) */}
+      {/* Partner Org Profile */}
       {place.partner_org && (
         <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem", borderLeft: "4px solid #0dcaf0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
@@ -599,15 +748,9 @@ export default function PlaceDetailPage() {
                   {place.partner_org.org_type.replace(/_/g, " ")}
                 </span>
               )}
-              {place.partner_org.relationship_type && (
-                <span className="badge" style={{ fontSize: "0.7em", background: "#cff4fc", color: "#055160" }}>
-                  {place.partner_org.relationship_type.replace(/_/g, " ")}
-                </span>
-              )}
             </div>
           </div>
 
-          {/* Org stats row */}
           {(place.partner_org.appointments_count || place.partner_org.cats_processed) && (
             <div style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
               {place.partner_org.appointments_count != null && (
@@ -622,52 +765,34 @@ export default function PlaceDetailPage() {
                   <span style={{ color: "var(--muted)", marginLeft: "0.25rem" }}>cats processed</span>
                 </div>
               )}
-              {place.partner_org.first_appointment_date && (
-                <div style={{ color: "var(--muted)" }}>
-                  Since {formatDateLocal(place.partner_org.first_appointment_date)}
-                </div>
-              )}
             </div>
           )}
 
-          {/* Contact info */}
           {(place.partner_org.contact_name || place.partner_org.contact_email || place.partner_org.contact_phone) && (
             <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.85rem", flexWrap: "wrap" }}>
               {place.partner_org.contact_name && (
                 <div><span style={{ color: "var(--muted)" }}>Contact:</span> {place.partner_org.contact_name}</div>
               )}
               {place.partner_org.contact_email && (
-                <div>
-                  <a href={`mailto:${place.partner_org.contact_email}`} style={{ color: "var(--primary)" }}>
-                    {place.partner_org.contact_email}
-                  </a>
-                </div>
+                <a href={`mailto:${place.partner_org.contact_email}`} style={{ color: "var(--primary)" }}>
+                  {place.partner_org.contact_email}
+                </a>
               )}
               {place.partner_org.contact_phone && (
-                <div>
-                  <a href={`tel:${place.partner_org.contact_phone}`} style={{ color: "var(--primary)" }}>
-                    {formatPhone(place.partner_org.contact_phone)}
-                  </a>
-                </div>
+                <a href={`tel:${place.partner_org.contact_phone}`} style={{ color: "var(--primary)" }}>
+                  {formatPhone(place.partner_org.contact_phone)}
+                </a>
               )}
             </div>
           )}
 
           <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
-            <a
-              href={`/admin/partner-orgs/${place.partner_org.org_id}`}
-              style={{ fontSize: "0.8rem", color: "var(--primary)" }}
-            >
+            <a href={`/admin/partner-orgs/${place.partner_org.org_id}`} style={{ fontSize: "0.8rem", color: "var(--primary)" }}>
               View full organization profile
             </a>
           </div>
         </div>
       )}
-
-      {/* Disease Status */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <DiseaseStatusSection placeId={place.place_id} onStatusChange={fetchPlace} />
-      </div>
 
       {/* Hero Gallery */}
       {heroMedia.length > 0 && (
@@ -680,246 +805,35 @@ export default function PlaceDetailPage() {
         </div>
       )}
 
-      {/* Location Details */}
-      <Section
-        title="Location Details"
-        onEdit={startEditing}
-        editMode={editingDetails}
-      >
-        {editingDetails ? (
-          <div>
-            {place.is_address_backed && (
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  background: "#fff3cd",
-                  border: "1px solid #ffc107",
-                  borderRadius: "6px",
-                  marginBottom: "1rem",
-                  color: "#856404",
-                }}
-              >
-                <strong>Note:</strong> This place has a verified Google address. You can change
-                the display name (label) and type, but the underlying address data will remain
-                linked to its geocoded location.
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Display Name / Label
-                </label>
-                <input
-                  type="text"
-                  value={editDisplayName}
-                  onChange={(e) => setEditDisplayName(e.target.value)}
-                  placeholder="e.g., Old Stony Point, OSP, Mrs. Johnson's House"
-                  style={{ width: "100%", maxWidth: "400px" }}
-                />
-                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                  A friendly name for this place. The full address will still be shown.
-                </p>
-              </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Place Type
-                </label>
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                  <select
-                    value={editPlaceKind}
-                    onChange={(e) => setEditPlaceKind(e.target.value)}
-                    style={{ minWidth: "200px" }}
-                  >
-                    {PLACE_KINDS.map((kind) => (
-                      <option key={kind.value} value={kind.value}>
-                        {kind.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`/api/places/${place.place_id}/suggest-type`);
-                        if (!res.ok) return;
-                        const data = await res.json();
-                        if (data.suggested_kind) {
-                          if (confirm(`Suggestion: ${data.suggested_kind.replace(/_/g, " ")} (${Math.round(data.confidence * 100)}% confidence)\n\nReason: ${data.reason}\n\nApply this?`)) {
-                            setEditPlaceKind(data.suggested_kind);
-                          }
-                        } else {
-                          alert("No suggestion available — not enough context tags to infer type.");
-                        }
-                      } catch {
-                        alert("Failed to get suggestion");
-                      }
-                    }}
-                    style={{
-                      padding: "0.25rem 0.75rem",
-                      fontSize: "0.8rem",
-                      background: "transparent",
-                      border: "1px solid var(--border)",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      color: "var(--text-muted)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Suggest Type
-                  </button>
-                </div>
-                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                  Helps categorize locations for filtering and reporting.
-                </p>
-              </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Address
-                </label>
-                <p style={{ margin: 0 }}>
-                  {place.formatted_address || "No address set"}
-                </p>
-                {!editingAddress ? (
-                  <button
-                    onClick={startAddressCorrection}
-                    style={{
-                      marginTop: "0.5rem",
-                      padding: "0.25rem 0.5rem",
-                      fontSize: "0.8rem",
-                      background: "transparent",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    Correct Address
-                  </button>
-                ) : (
-                  <div style={{ marginTop: "0.75rem", padding: "1rem", background: "#fff8f5", border: "1px solid #e65100", borderRadius: "8px" }}>
-                    <p style={{ marginTop: 0, marginBottom: "0.75rem", fontWeight: 500, color: "#e65100" }}>
-                      Address Correction
-                    </p>
-                    <p className="text-sm" style={{ marginBottom: "1rem", color: "#666" }}>
-                      Use this when you discover the cats actually come from a different address (e.g., behind a fence, across a field). The place identity stays the same but the location is corrected.
-                    </p>
-
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
-                        Reason for correction *
-                      </label>
-                      <select
-                        value={changeReason}
-                        onChange={(e) => setChangeReason(e.target.value)}
-                        style={{ width: "100%" }}
-                      >
-                        <option value="">Select a reason...</option>
-                        <option value="location_clarified">Location clarified (cats actually from different spot)</option>
-                        <option value="data_entry_error">Data entry error</option>
-                        <option value="refinement">Address refinement (more specific location)</option>
-                        <option value="correction">General correction</option>
-                      </select>
-                    </div>
-
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
-                        New Address
-                      </label>
-                      <AddressAutocomplete
-                        value={addressInput}
-                        onChange={setAddressInput}
-                        onPlaceSelect={handleAddressSelect}
-                        placeholder="Search for the correct address..."
-                        disabled={saving}
-                      />
-                    </div>
-
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
-                        Notes (optional)
-                      </label>
-                      <textarea
-                        value={changeNotes}
-                        onChange={(e) => setChangeNotes(e.target.value)}
-                        placeholder="Explain what you learned, e.g., 'Cats are fed behind the fence on the adjacent property'"
-                        rows={2}
-                        style={{ width: "100%", resize: "vertical" }}
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button
-                        onClick={() => setEditingAddress(false)}
-                        disabled={saving}
-                        style={{ background: "transparent", border: "1px solid var(--border)" }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {saveError && (
-                <div style={{ color: "#dc3545" }}>{saveError}</div>
-              )}
-
-              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                <button onClick={handleSaveDetails} disabled={saving}>
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-                <button
-                  onClick={cancelEditing}
-                  disabled={saving}
-                  style={{ background: "transparent", border: "1px solid var(--border)" }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+      {/* Cats Section */}
+      <Section title={`Cats${place.cat_count > 0 ? ` (${place.cat_count})` : ""}`} collapsible>
+        {place.cats && place.cats.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+            {place.cats.map((cat) => (
+              <EntityLink
+                key={cat.cat_id}
+                href={`/cats/${cat.cat_id}`}
+                label={cat.cat_name}
+                badge={cat.relationship_type}
+                badgeColor={cat.relationship_type === "residence" || cat.relationship_type === "home" ? "#198754" : "#6c757d"}
+              />
+            ))}
           </div>
         ) : (
-          <div className="detail-grid">
-            <div className="detail-item">
-              <span className="detail-label">Address</span>
-              <span className="detail-value">{place.formatted_address || "Not set"}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">City</span>
-              <span className="detail-value">{place.locality || "Unknown"}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Postal Code</span>
-              <span className="detail-value">{place.postal_code || "Unknown"}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">State</span>
-              <span className="detail-value">{place.state_province || "Unknown"}</span>
-            </div>
-            {place.coordinates && (
-              <div className="detail-item">
-                <span className="detail-label">Coordinates</span>
-                <span className="detail-value" style={{ fontFamily: "monospace" }}>
-                  {place.coordinates.lat.toFixed(6)}, {place.coordinates.lng.toFixed(6)}
-                </span>
-              </div>
-            )}
-            <div className="detail-item">
-              <span className="detail-label">Geocoded</span>
-              <span className="detail-value">
-                {place.is_address_backed ? (
-                  <span style={{ color: "#198754" }}>Yes</span>
-                ) : (
-                  <span style={{ color: "#ffc107" }}>Approximate</span>
-                )}
-              </span>
-            </div>
-          </div>
+          <p className="text-muted">No cats linked to this place.</p>
         )}
       </Section>
 
-      {/* Site Stats */}
-      <SiteStatsCard placeId={place.place_id} />
+      {/* People Section */}
+      <LinkedPeopleSection
+        people={peopleForSection}
+        context="place"
+        title="People"
+        emptyMessage="No people linked to this place."
+      />
+
+      {/* Clinic History */}
+      <ClinicHistorySection placeId={place.place_id} />
 
       {/* Classifications */}
       <div style={{ marginBottom: "1.5rem" }}>
@@ -930,260 +844,380 @@ export default function PlaceDetailPage() {
         />
       </div>
 
-      {/* Activity Summary */}
-      <Section title="Activity Summary">
-        <div className="detail-grid">
-          <div className="detail-item">
-            <span className="detail-label">Cats</span>
-            <span className="detail-value">{place.cat_count}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">People</span>
-            <span className="detail-value">{place.person_count}</span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Cat Activity</span>
-            <span className="detail-value">
-              {place.has_cat_activity ? (
-                <span style={{ color: "#198754" }}>Active</span>
-              ) : (
-                <span className="text-muted">None</span>
-              )}
-            </span>
-          </div>
-        </div>
-      </Section>
-
-      {/* Cats */}
-      <Section title="Cats">
-        {place.cats && place.cats.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {place.cats.map((cat) => (
-              <EntityLink
-                key={cat.cat_id}
-                href={`/cats/${cat.cat_id}`}
-                label={cat.cat_name}
-                badge={cat.relationship_type}
-                badgeColor={cat.relationship_type === "residence" ? "#198754" : "#6c757d"}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">No cats linked to this place.</p>
-        )}
-      </Section>
-
-      {/* Clinic History */}
-      <ClinicHistorySection placeId={place.place_id} />
-
-      {/* People */}
-      <Section title="People">
-        {place.people && place.people.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {place.people.map((person) => (
-              <EntityLink
-                key={person.person_id}
-                href={`/people/${person.person_id}`}
-                label={person.person_name}
-                badge={person.role}
-                badgeColor={person.role === "requester" ? "#0d6efd" : "#6c757d"}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">No people linked to this place.</p>
-        )}
-      </Section>
-
       {/* Linked Places */}
-      <Section title="Linked Places">
+      <Section title="Linked Places" collapsible defaultCollapsed>
         <PlaceLinksSection
           placeId={place.place_id}
           placeName={place.display_name || place.formatted_address || "This place"}
         />
       </Section>
 
-      {/* Journal */}
-      <Section title="Journal">
-        <JournalSection
-          entries={journal}
-          entityType="place"
-          entityId={id}
-          onEntryAdded={fetchJournal}
+      {/* Tabs for Details/Requests/Admin */}
+      <div style={{ marginTop: "2rem" }}>
+        <TabNav
+          tabs={[
+            { id: "details", label: "Details" },
+            { id: "requests", label: "Requests", badge: requests.length },
+            { id: "ecology", label: "Ecology" },
+            { id: "media", label: "Media" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
         />
-      </Section>
 
-      {/* Metadata */}
-      <Section title="Metadata">
-        <div className="detail-grid">
-          <div className="detail-item">
-            <span className="detail-label">Source</span>
-            <span className="detail-value">
-              {place.is_address_backed ? "Geocoded (Google)" : "Manual Entry"}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Created</span>
-            <span className="detail-value">
-              {formatDateLocal(place.created_at)}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Updated</span>
-            <span className="detail-value">
-              {formatDateLocal(place.updated_at)}
-            </span>
-          </div>
-          <div className="detail-item">
-            <span className="detail-label">Verification</span>
-            <span className="detail-value" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <VerificationBadge
-                table="places"
-                recordId={place.place_id}
-                verifiedAt={place.verified_at}
-                verifiedBy={place.verified_by_name}
-                onVerify={() => fetchPlace()}
-              />
-              {place.verified_at && (
-                <LastVerified verifiedAt={place.verified_at} verifiedBy={place.verified_by_name} />
+        {/* Details Tab */}
+        {activeTab === "details" && (
+          <>
+            {/* Location Details Edit */}
+            <Section title="Location Details">
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+                {!editingDetails && (
+                  <button
+                    onClick={startEditing}
+                    style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {editingDetails ? (
+                <div>
+                  {place.is_address_backed && (
+                    <div
+                      style={{
+                        padding: "0.75rem 1rem",
+                        background: "#fff3cd",
+                        border: "1px solid #ffc107",
+                        borderRadius: "6px",
+                        marginBottom: "1rem",
+                        color: "#856404",
+                      }}
+                    >
+                      <strong>Note:</strong> This place has a verified Google address. You can change
+                      the display name and type, but the underlying address data will remain linked.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Display Name / Label
+                      </label>
+                      <input
+                        type="text"
+                        value={editDisplayName}
+                        onChange={(e) => setEditDisplayName(e.target.value)}
+                        placeholder="e.g., Old Stony Point, Mrs. Johnson's House"
+                        style={{ width: "100%", maxWidth: "400px" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Place Type
+                      </label>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <select
+                          value={editPlaceKind}
+                          onChange={(e) => setEditPlaceKind(e.target.value)}
+                          style={{ minWidth: "200px" }}
+                        >
+                          {PLACE_KINDS.map((kind) => (
+                            <option key={kind.value} value={kind.value}>
+                              {kind.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/places/${place.place_id}/suggest-type`);
+                              if (!res.ok) return;
+                              const data = await res.json();
+                              if (data.suggested_kind) {
+                                if (confirm(`Suggestion: ${data.suggested_kind.replace(/_/g, " ")} (${Math.round(data.confidence * 100)}% confidence)\n\nReason: ${data.reason}\n\nApply this?`)) {
+                                  setEditPlaceKind(data.suggested_kind);
+                                }
+                              } else {
+                                alert("No suggestion available.");
+                              }
+                            } catch {
+                              alert("Failed to get suggestion");
+                            }
+                          }}
+                          style={{
+                            padding: "0.25rem 0.75rem",
+                            fontSize: "0.8rem",
+                            background: "transparent",
+                            border: "1px solid var(--border)",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Suggest Type
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                        Address
+                      </label>
+                      <p style={{ margin: 0 }}>
+                        {place.formatted_address || "No address set"}
+                      </p>
+                      {!editingAddress ? (
+                        <button
+                          onClick={startAddressCorrection}
+                          style={{
+                            marginTop: "0.5rem",
+                            padding: "0.25rem 0.5rem",
+                            fontSize: "0.8rem",
+                            background: "transparent",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          Correct Address
+                        </button>
+                      ) : (
+                        <div style={{ marginTop: "0.75rem", padding: "1rem", background: "#fff8f5", border: "1px solid #e65100", borderRadius: "8px" }}>
+                          <p style={{ marginTop: 0, marginBottom: "0.75rem", fontWeight: 500, color: "#e65100" }}>
+                            Address Correction
+                          </p>
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                              Reason for correction *
+                            </label>
+                            <select
+                              value={changeReason}
+                              onChange={(e) => setChangeReason(e.target.value)}
+                              style={{ width: "100%" }}
+                            >
+                              <option value="">Select a reason...</option>
+                              <option value="location_clarified">Location clarified</option>
+                              <option value="data_entry_error">Data entry error</option>
+                              <option value="refinement">Address refinement</option>
+                              <option value="correction">General correction</option>
+                            </select>
+                          </div>
+
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                              New Address
+                            </label>
+                            <AddressAutocomplete
+                              value={addressInput}
+                              onChange={setAddressInput}
+                              onPlaceSelect={handleAddressSelect}
+                              placeholder="Search for the correct address..."
+                              disabled={saving}
+                            />
+                          </div>
+
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>
+                              Notes (optional)
+                            </label>
+                            <textarea
+                              value={changeNotes}
+                              onChange={(e) => setChangeNotes(e.target.value)}
+                              placeholder="Explain what you learned..."
+                              rows={2}
+                              style={{ width: "100%", resize: "vertical" }}
+                            />
+                          </div>
+
+                          <button
+                            onClick={() => setEditingAddress(false)}
+                            disabled={saving}
+                            style={{ background: "transparent", border: "1px solid var(--border)" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {saveError && (
+                      <div style={{ color: "#dc3545" }}>{saveError}</div>
+                    )}
+
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <button onClick={handleSaveDetails} disabled={saving}>
+                        {saving ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        disabled={saving}
+                        style={{ background: "transparent", border: "1px solid var(--border)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Address</span>
+                    <span className="detail-value">{place.formatted_address || "Not set"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">City</span>
+                    <span className="detail-value">{place.locality || "Unknown"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Postal Code</span>
+                    <span className="detail-value">{place.postal_code || "Unknown"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">State</span>
+                    <span className="detail-value">{place.state_province || "Unknown"}</span>
+                  </div>
+                </div>
               )}
-            </span>
-          </div>
-        </div>
-      </Section>
-    </>
-  );
+            </Section>
 
-  /* ── Tab: Requests ── */
-  const requestsTab = (
-    <>
-      {/* Cat Presence Reconciliation */}
-      {place.cats && place.cats.length > 0 && (
-        <CatPresenceReconciliation
-          placeId={place.place_id}
-          onUpdate={() => fetchPlace()}
-        />
-      )}
-
-      {/* Related Requests */}
-      <Section title="Related Requests">
-        {requests.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {requests.map((req) => (
-              <a
-                key={req.request_id}
-                href={`/requests/${req.request_id}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.75rem 1rem",
-                  background: "#f8f9fa",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  color: "inherit",
-                  border: "1px solid #dee2e6",
-                }}
-              >
-                <StatusBadge status={req.status} />
-                <PriorityBadge priority={req.priority} />
-                <span style={{ flex: 1, fontWeight: 500 }}>
-                  {req.summary || "No summary"}
-                </span>
-                <span className="text-muted text-sm">
-                  {formatDateLocal(req.created_at)}
-                </span>
-              </a>
-            ))}
-            {requests.length >= 10 && (
-              <a href={`/requests?place_id=${place.place_id}`} className="text-sm" style={{ marginTop: "0.5rem" }}>
-                View all requests for this place...
-              </a>
-            )}
-          </div>
-        ) : (
-          <div>
-            <p className="text-muted">No requests for this place yet.</p>
-            <a
-              href={`/requests/new?place_id=${place.place_id}`}
-              style={{
-                display: "inline-block",
-                marginTop: "0.5rem",
-                padding: "0.5rem 1rem",
-                background: "var(--foreground)",
-                color: "var(--background)",
-                borderRadius: "6px",
-                textDecoration: "none",
-              }}
-            >
-              + Create Request
-            </a>
-          </div>
+            {/* Journal */}
+            <Section title="Journal">
+              <JournalSection
+                entries={journal}
+                entityType="place"
+                entityId={id}
+                onEntryAdded={fetchJournal}
+              />
+            </Section>
+          </>
         )}
-      </Section>
 
-      {/* Website Submissions */}
-      <Section title="Website Submissions">
-        <SubmissionsSection entityType="place" entityId={id} />
-      </Section>
-    </>
-  );
+        {/* Requests Tab */}
+        {activeTab === "requests" && (
+          <>
+            {/* Cat Presence Reconciliation */}
+            {place.cats && place.cats.length > 0 && (
+              <CatPresenceReconciliation
+                placeId={place.place_id}
+                onUpdate={() => fetchPlace()}
+              />
+            )}
 
-  /* ── Tab: Ecology ── */
-  const ecologyTab = (
-    <>
-      <Section title="Colony Size Estimates">
-        <ColonyEstimates placeId={id} />
-      </Section>
+            {/* Related Requests */}
+            <Section title="Related Requests">
+              {requests.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {requests.map((req) => (
+                    <a
+                      key={req.request_id}
+                      href={`/requests/${req.request_id}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        padding: "0.75rem 1rem",
+                        background: "#f8f9fa",
+                        borderRadius: "8px",
+                        textDecoration: "none",
+                        color: "inherit",
+                        border: "1px solid #dee2e6",
+                      }}
+                    >
+                      <StatusBadge status={req.status} />
+                      <PriorityBadge priority={req.priority} />
+                      <span style={{ flex: 1, fontWeight: 500 }}>
+                        {req.summary || "No summary"}
+                      </span>
+                      <span className="text-muted text-sm">
+                        {formatDateLocal(req.created_at)}
+                      </span>
+                    </a>
+                  ))}
+                  {requests.length >= 10 && (
+                    <a href={`/requests?place_id=${place.place_id}`} className="text-sm" style={{ marginTop: "0.5rem" }}>
+                      View all requests...
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-muted">No requests for this place yet.</p>
+                  <a
+                    href={`/requests/new?place_id=${place.place_id}`}
+                    style={{
+                      display: "inline-block",
+                      marginTop: "0.5rem",
+                      padding: "0.5rem 1rem",
+                      background: "var(--foreground)",
+                      color: "var(--background)",
+                      borderRadius: "6px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    + Create Request
+                  </a>
+                </div>
+              )}
+            </Section>
 
-      <Section title="Population Events">
-        <PopulationTimeline placeId={id} />
-      </Section>
+            {/* Website Submissions */}
+            <Section title="Website Submissions" collapsible defaultCollapsed>
+              <SubmissionsSection entityType="place" entityId={id} />
+            </Section>
+          </>
+        )}
 
-      <Section title="Site Observations">
-        <ObservationsSection
-          placeId={id}
-          placeName={place.display_name || place.formatted_address || 'This location'}
-        />
-      </Section>
+        {/* Ecology Tab */}
+        {activeTab === "ecology" && (
+          <>
+            <Section title="Population Events">
+              <PopulationTimeline placeId={id} />
+            </Section>
 
-      <HistoricalContextCard placeId={id} className="mt-4" />
+            <Section title="Site Observations">
+              <ObservationsSection
+                placeId={id}
+                placeName={place.display_name || place.formatted_address || 'This location'}
+              />
+            </Section>
 
-      <Section title="FFR Activity">
-        <PlaceAlterationHistory placeId={id} />
-      </Section>
+            <HistoricalContextCard placeId={id} className="mt-4" />
 
-      <Section title="Activity Trend">
-        <PopulationTrendChart placeId={id} />
-      </Section>
-    </>
-  );
+            <Section title="FFR Activity" collapsible defaultCollapsed>
+              <PlaceAlterationHistory placeId={id} />
+            </Section>
 
-  /* ── Tab: Media ── */
-  const mediaTab = (
-    <Section title="Photos">
-      <MediaGallery
-        entityType="place"
-        entityId={place.place_id}
-        allowUpload={true}
-        includeRelated={true}
-        defaultMediaType="site_photo"
-        allowedMediaTypes={["site_photo", "evidence"]}
-      />
-    </Section>
+            <Section title="Activity Trend" collapsible defaultCollapsed>
+              <PopulationTrendChart placeId={id} />
+            </Section>
+          </>
+        )}
+
+        {/* Media Tab */}
+        {activeTab === "media" && (
+          <Section title="Photos">
+            <MediaGallery
+              entityType="place"
+              entityId={place.place_id}
+              allowUpload={true}
+              includeRelated={true}
+              defaultMediaType="site_photo"
+              allowedMediaTypes={["site_photo", "evidence"]}
+            />
+          </Section>
+        )}
+      </div>
+    </div>
   );
 
   return (
-    <ProfileLayout
-      header={profileHeader}
-      tabs={[
-        { id: "overview", label: "Overview", content: overviewTab },
-        { id: "requests", label: "Requests", content: requestsTab, badge: requests.length || undefined },
-        { id: "ecology", label: "Ecology", content: ecologyTab },
-        { id: "media", label: "Media", content: mediaTab },
-      ]}
-      defaultTab="overview"
-    >
+    <>
+      <TwoColumnLayout
+        header={headerContent}
+        main={mainContent}
+        sidebar={sidebarContent}
+      />
+
       {/* Edit History Panel */}
       {showHistory && (
         <div style={{
@@ -1219,6 +1253,6 @@ export default function PlaceDetailPage() {
           alert(`Colony "${result.colony_name}" created successfully!`);
         }}
       />
-    </ProfileLayout>
+    </>
   );
 }

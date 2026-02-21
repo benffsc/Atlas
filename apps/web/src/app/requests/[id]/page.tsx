@@ -15,12 +15,17 @@ import { HandoffRequestModal } from "@/components/HandoffRequestModal";
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { CreateColonyModal } from "@/components/CreateColonyModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
-import { ProfileLayout } from "@/components/ProfileLayout";
-import { CaseSummaryTab } from "./tabs/CaseSummaryTab";
+import { TwoColumnLayout, Section, StatsSidebar } from "@/components/layouts";
+import { PropertyTypeBadge, PlaceKindBadge } from "@/components/badges";
+import { LinkedCatsSection } from "@/components/LinkedCatsSection";
+import { NearbyEntities } from "@/components/NearbyEntities";
+import { MediaGallery } from "@/components/MediaGallery";
+import { TrapperAssignments } from "@/components/TrapperAssignments";
+import { ColonyEstimates } from "@/components/ColonyEstimates";
+import { ClassificationSuggestionBanner } from "@/components/ClassificationSuggestionBanner";
+import { formatPhone } from "@/lib/formatters";
 import { DetailsTab } from "./tabs/DetailsTab";
-import { CatsEvidenceTab } from "./tabs/CatsEvidenceTab";
 import { ActivityTab } from "./tabs/ActivityTab";
-import { NearbyTab } from "./tabs/NearbyTab";
 import { LegacyTab } from "./tabs/LegacyTab";
 import type { RequestDetail } from "./types";
 
@@ -42,7 +47,6 @@ const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
 ];
 
-
 function LegacyBadge() {
   return (
     <span
@@ -56,8 +60,60 @@ function LegacyBadge() {
       }}
       title="This request was imported from Airtable"
     >
-      Legacy (Airtable)
+      Legacy
     </span>
+  );
+}
+
+// Tab component for the bottom section
+function TabNav({
+  tabs,
+  activeTab,
+  onTabChange
+}: {
+  tabs: { id: string; label: string; count?: number; show?: boolean }[];
+  activeTab: string;
+  onTabChange: (id: string) => void;
+}) {
+  const visibleTabs = tabs.filter(t => t.show !== false);
+
+  return (
+    <div style={{
+      display: "flex",
+      gap: "0.25rem",
+      borderBottom: "1px solid var(--border)",
+      marginBottom: "1rem",
+    }}>
+      {visibleTabs.map(tab => (
+        <button
+          key={tab.id}
+          onClick={() => onTabChange(tab.id)}
+          style={{
+            padding: "0.75rem 1rem",
+            background: activeTab === tab.id ? "var(--card-bg)" : "transparent",
+            border: "none",
+            borderBottom: activeTab === tab.id ? "2px solid var(--primary)" : "2px solid transparent",
+            color: activeTab === tab.id ? "var(--foreground)" : "var(--muted)",
+            cursor: "pointer",
+            fontWeight: activeTab === tab.id ? 600 : 400,
+            fontSize: "0.9rem",
+          }}
+        >
+          {tab.label}
+          {tab.count !== undefined && tab.count > 0 && (
+            <span style={{
+              marginLeft: "0.5rem",
+              padding: "0.1rem 0.4rem",
+              background: "var(--muted-bg)",
+              borderRadius: "10px",
+              fontSize: "0.75rem",
+            }}>
+              {tab.count}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -98,9 +154,9 @@ export default function RequestDetailPage() {
     cats_returned: "" as number | "",
   });
 
-  // Observation modal state
+  // Modal states
   const [showObservationModal, setShowObservationModal] = useState(false);
-  const [pendingCompletion, setPendingCompletion] = useState(false); // Track if we're completing after observation
+  const [pendingCompletion, setPendingCompletion] = useState(false);
   const [showRedirectModal, setShowRedirectModal] = useState(false);
   const [showHandoffModal, setShowHandoffModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -109,7 +165,7 @@ export default function RequestDetailPage() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showColonyModal, setShowColonyModal] = useState(false);
 
-  // Session/Staff info for auto-fill (used by modals; JournalSection self-resolves)
+  // Session/Staff info
   const { user: currentUser } = useCurrentUser();
   const currentStaffId = currentUser?.staff_id || null;
   const currentStaffName = currentUser?.display_name || null;
@@ -148,6 +204,9 @@ export default function RequestDetailPage() {
   const [editingEmailSummary, setEditingEmailSummary] = useState(false);
   const [emailSummaryDraft, setEmailSummaryDraft] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
+
+  // Tab state for bottom tabs
+  const [activeTab, setActiveTab] = useState("details");
 
   const fetchJournalEntries = useCallback(async () => {
     try {
@@ -214,7 +273,6 @@ export default function RequestDetailPage() {
     fetchJournalEntries();
   }, [requestId, fetchJournalEntries]);
 
-  // Lightweight refresh: updates request data (badges, trapper info) without resetting form state
   const refreshRequest = useCallback(async () => {
     try {
       const response = await fetch(`/api/requests/${requestId}`);
@@ -223,18 +281,16 @@ export default function RequestDetailPage() {
         setRequest(data);
       }
     } catch {
-      // silent — this is a background refresh
+      // silent
     }
   }, [requestId]);
-
-  // Staff info now comes from useCurrentUser() hook (cached, shared across components)
 
   // Fetch map when request has coordinates
   useEffect(() => {
     const fetchMap = async () => {
       if (!request?.place_coordinates) return;
       try {
-        const response = await fetch(`/api/requests/${requestId}/map?width=600&height=300&zoom=15&scale=2`);
+        const response = await fetch(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
         if (response.ok) {
           const data = await response.json();
           setMapUrl(data.map_url);
@@ -247,7 +303,7 @@ export default function RequestDetailPage() {
     fetchMap();
   }, [requestId, request?.place_coordinates]);
 
-  // Pre-fetch nearby counts for tab label
+  // Pre-fetch nearby counts
   useEffect(() => {
     const fetchNearbyCounts = async () => {
       if (!request?.place_coordinates) return;
@@ -303,7 +359,6 @@ export default function RequestDetailPage() {
         return;
       }
 
-      // Reload the request data
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
@@ -362,7 +417,6 @@ export default function RequestDetailPage() {
         return;
       }
 
-      // Update local state
       if (request) {
         setRequest({ ...request, summary: renameValue.trim() });
       }
@@ -405,7 +459,6 @@ export default function RequestDetailPage() {
         return;
       }
 
-      // Reload the request data
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
@@ -445,7 +498,7 @@ export default function RequestDetailPage() {
     }));
   };
 
-  // Ready-to-Email handlers (MIG_605)
+  // Email handlers
   const handleToggleReadyToEmail = async () => {
     if (!request) return;
     setSavingEmail(true);
@@ -457,9 +510,7 @@ export default function RequestDetailPage() {
       const response = await fetch(`/api/requests/${requestId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ready_to_email: newValue,
-        }),
+        body: JSON.stringify({ ready_to_email: newValue }),
       });
 
       if (!response.ok) {
@@ -468,7 +519,6 @@ export default function RequestDetailPage() {
         return;
       }
 
-      // Reload the request data
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
@@ -481,11 +531,6 @@ export default function RequestDetailPage() {
     }
   };
 
-  const handleStartEditEmailSummary = () => {
-    setEmailSummaryDraft(request?.email_summary || "");
-    setEditingEmailSummary(true);
-  };
-
   const handleSaveEmailSummary = async () => {
     setSavingEmail(true);
     setError(null);
@@ -494,9 +539,7 @@ export default function RequestDetailPage() {
       const response = await fetch(`/api/requests/${requestId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email_summary: emailSummaryDraft,
-        }),
+        body: JSON.stringify({ email_summary: emailSummaryDraft }),
       });
 
       if (!response.ok) {
@@ -505,7 +548,6 @@ export default function RequestDetailPage() {
         return;
       }
 
-      // Reload the request data
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
@@ -518,11 +560,6 @@ export default function RequestDetailPage() {
     } finally {
       setSavingEmail(false);
     }
-  };
-
-  const handleCancelEmailSummary = () => {
-    setEmailSummaryDraft(request?.email_summary || "");
-    setEditingEmailSummary(false);
   };
 
   if (loading) {
@@ -549,18 +586,16 @@ export default function RequestDetailPage() {
 
   const isResolved = request.status === "completed" || request.status === "cancelled";
 
-  // Quick status change handler (without entering edit mode)
+  // Quick status change handler
   const handleQuickStatusChange = async (newStatus: string) => {
     if (!request) return;
 
-    // For completed or cancelled, show the CompleteRequestModal
     if (newStatus === "completed" || newStatus === "cancelled") {
       setCompletionTargetStatus(newStatus as "completed" | "cancelled");
       setShowCompleteModal(true);
       return;
     }
 
-    // For on_hold, show the HoldRequestModal
     if (newStatus === "on_hold") {
       setShowHoldModal(true);
       return;
@@ -569,7 +604,6 @@ export default function RequestDetailPage() {
     await executeStatusChange(newStatus);
   };
 
-  // Actually perform the status change (called directly or after observation)
   const executeStatusChange = async (newStatus: string) => {
     if (!request) return;
     const oldStatus = request.status;
@@ -586,9 +620,7 @@ export default function RequestDetailPage() {
         setError(data.error || "Failed to update status");
         return;
       }
-      // Track previous status for undo
       setPreviousStatus(oldStatus);
-      // Reload the request data
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
@@ -602,24 +634,20 @@ export default function RequestDetailPage() {
     }
   };
 
-  // Handle observation modal close (either after logging or skipping)
   const handleObservationModalClose = () => {
     setShowObservationModal(false);
     if (pendingCompletion) {
-      // Proceed with completing the request
       executeStatusChange("completed");
       setPendingCompletion(false);
     }
   };
 
-  // Undo status change
   const handleUndoStatusChange = async () => {
     if (!previousStatus) return;
     await handleQuickStatusChange(previousStatus);
-    setPreviousStatus(null); // Clear after undo
+    setPreviousStatus(null);
   };
 
-  // Get next logical status options based on current status
   const getQuickStatusOptions = () => {
     switch (request.status) {
       case "new":
@@ -662,13 +690,377 @@ export default function RequestDetailPage() {
     }
   };
 
-  return (
-    <div>
+  // Build sidebar content
+  const sidebarContent = (
+    <div className="space-y-4">
+      {/* Quick Stats */}
+      <StatsSidebar
+        stats={[
+          {
+            label: "Colony Size",
+            value: request.colony_size_estimate ?? "Unknown",
+            icon: "🐱",
+          },
+          {
+            label: "Altered",
+            value: request.colony_verified_altered ?? 0,
+            icon: "✂️",
+          },
+          {
+            label: "Remaining",
+            value: request.colony_work_remaining ?? "Unknown",
+            icon: "📋",
+          },
+          {
+            label: "Coverage",
+            value: request.colony_alteration_rate != null
+              ? `${Math.round(request.colony_alteration_rate * 100)}%`
+              : "N/A",
+            icon: "📊",
+          },
+        ]}
+        sections={[
+          // Map preview section
+          ...(request.place_coordinates && mapUrl ? [{
+            title: "Location",
+            content: (
+              <div>
+                <img
+                  src={mapUrl}
+                  alt="Location map"
+                  style={{
+                    width: "100%",
+                    height: "140px",
+                    objectFit: "cover",
+                    borderRadius: "6px",
+                    marginBottom: "0.5rem",
+                  }}
+                />
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${request.place_coordinates.lat},${request.place_coordinates.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-sm"
+                    style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
+                  >
+                    Google Maps
+                  </a>
+                  <a
+                    href={`/map?lat=${request.place_coordinates.lat}&lng=${request.place_coordinates.lng}&zoom=17`}
+                    className="btn btn-sm btn-secondary"
+                    style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
+                  >
+                    Atlas Map
+                  </a>
+                </div>
+              </div>
+            ),
+          }] : []),
+          // Nearby summary
+          ...(nearbyCounts ? [{
+            title: "Nearby",
+            content: (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem" }}>
+                <div>
+                  <span className="text-muted">Requests:</span>{" "}
+                  <strong>{nearbyCounts.requests}</strong>
+                </div>
+                <div>
+                  <span className="text-muted">Places:</span>{" "}
+                  <strong>{nearbyCounts.places}</strong>
+                </div>
+                <div>
+                  <span className="text-muted">People:</span>{" "}
+                  <strong>{nearbyCounts.people}</strong>
+                </div>
+                <div>
+                  <span className="text-muted">Cats:</span>{" "}
+                  <strong>{nearbyCounts.cats}</strong>
+                </div>
+              </div>
+            ),
+          }] : []),
+          // Quick actions
+          {
+            title: "Quick Actions",
+            content: (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <button
+                  onClick={() => setShowObservationModal(true)}
+                  className="btn btn-sm"
+                  style={{ width: "100%", fontSize: "0.85rem" }}
+                >
+                  Log Site Visit
+                </button>
+                {request.requester_email && (
+                  <button
+                    onClick={() => setShowEmailModal(true)}
+                    className="btn btn-sm btn-secondary"
+                    style={{ width: "100%", fontSize: "0.85rem" }}
+                  >
+                    Email Requester
+                  </button>
+                )}
+                {request.place_id && (
+                  <button
+                    onClick={() => setShowColonyModal(true)}
+                    className="btn btn-sm btn-secondary"
+                    style={{ width: "100%", fontSize: "0.85rem" }}
+                  >
+                    Create Colony
+                  </button>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+
+  // Build main content
+  const mainContent = (
+    <>
+      {/* Location Card */}
+      <Section title="Location" className="mb-4">
+        {request.place_id ? (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <a href={`/places/${request.place_id}`} style={{ fontWeight: 500, fontSize: "1.1rem" }}>
+                {request.place_name || request.place_address}
+              </a>
+              {request.place_kind && <PlaceKindBadge kind={request.place_kind} />}
+              {request.property_type && <PropertyTypeBadge type={request.property_type} size="sm" />}
+            </div>
+            {request.place_address && request.place_name !== request.place_address && (
+              <p className="text-muted text-sm" style={{ margin: "0.25rem 0" }}>
+                {request.place_address}
+              </p>
+            )}
+            {request.place_city && (
+              <p className="text-muted text-sm" style={{ margin: "0.25rem 0" }}>
+                {request.place_city}{request.place_postal_code ? `, ${request.place_postal_code}` : ""}
+              </p>
+            )}
+            {request.place_service_zone && (
+              <span className="badge" style={{ background: "#6f42c1", color: "#fff", marginTop: "0.5rem" }}>
+                Zone: {request.place_service_zone}
+              </span>
+            )}
+            {/* Safety concerns */}
+            {(request.place_safety_concerns?.length || request.place_safety_notes) && (
+              <div style={{
+                marginTop: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                background: "rgba(255, 193, 7, 0.15)",
+                border: "1px solid #ffc107",
+                borderRadius: "4px",
+                fontSize: "0.85rem",
+              }}>
+                <span style={{ fontWeight: 500, color: "#856404" }}>Safety: </span>
+                {request.place_safety_concerns?.join(", ").replace(/_/g, " ")}
+                {request.place_safety_notes && ` - ${request.place_safety_notes}`}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-muted">No location linked</p>
+        )}
+      </Section>
+
+      {/* Requester Card */}
+      <Section
+        title="Requester"
+        actions={request.requester_email && (
+          <button
+            onClick={() => setShowEmailModal(true)}
+            className="btn btn-sm btn-secondary"
+            style={{ fontSize: "0.8rem" }}
+          >
+            Email
+          </button>
+        )}
+        className="mb-4"
+      >
+        {request.requester_person_id ? (
+          <div>
+            <a href={`/people/${request.requester_person_id}`} style={{ fontWeight: 500 }}>
+              {request.requester_name}
+            </a>
+            {(request.requester_email || request.requester_phone) && (
+              <div style={{ marginTop: "0.25rem", fontSize: "0.9rem" }}>
+                {request.requester_phone && (
+                  <a href={`tel:${request.requester_phone}`} style={{ color: "var(--foreground)", marginRight: "1rem" }}>
+                    {formatPhone(request.requester_phone)}
+                  </a>
+                )}
+                {request.requester_email && (
+                  <a href={`mailto:${request.requester_email}`} style={{ color: "var(--foreground)" }}>
+                    {request.requester_email}
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-muted">No requester linked</p>
+        )}
+      </Section>
+
+      {/* Assigned Trappers */}
+      <Section title="Assigned Trappers" className="mb-4">
+        <TrapperAssignments requestId={requestId} onAssignmentChange={refreshRequest} />
+      </Section>
+
+      {/* Linked Cats (inline, not a tab) */}
+      <Section
+        title={`Cats${request.linked_cat_count ? ` (${request.linked_cat_count})` : ""}`}
+        className="mb-4"
+      >
+        <LinkedCatsSection
+          cats={request.cats}
+          context="request"
+          emptyMessage="No cats linked to this request yet"
+          showCount={false}
+          title=""
+        />
+      </Section>
+
+      {/* Photos & Media */}
+      <Section title="Photos & Media" className="mb-4" defaultCollapsed>
+        <MediaGallery
+          entityType="request"
+          entityId={requestId}
+          allowUpload={true}
+          includeRelated={true}
+          showCatDescription={true}
+          defaultMediaType="cat_photo"
+          allowedMediaTypes={["cat_photo", "site_photo", "evidence"]}
+        />
+      </Section>
+
+      {/* Colony Status (if place linked) */}
+      {request.place_id && (
+        <Section title="Colony Status" className="mb-4">
+          {request.colony_verified_exceeds_reported && (
+            <div style={{
+              padding: "0.5rem 0.75rem",
+              marginBottom: "0.75rem",
+              background: "var(--info-bg)",
+              border: "1px solid var(--info-border)",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+            }}>
+              <strong style={{ color: "var(--info-text)" }}>Data Reconciled:</strong>{" "}
+              {request.colony_verified_altered} cats altered (exceeds reported {request.total_cats_reported})
+            </div>
+          )}
+          {request.suggested_classification && (
+            <ClassificationSuggestionBanner
+              requestId={request.request_id}
+              placeId={request.place_id}
+              suggestion={{
+                suggested_classification: request.suggested_classification,
+                classification_confidence: request.classification_confidence,
+                classification_signals: request.classification_signals,
+                classification_disposition: request.classification_disposition,
+                classification_reviewed_at: request.classification_reviewed_at,
+                classification_reviewed_by: request.classification_reviewed_by,
+              }}
+              currentPlaceClassification={request.current_place_classification}
+              onUpdate={() => window.location.reload()}
+            />
+          )}
+          <ColonyEstimates placeId={request.place_id} />
+        </Section>
+      )}
+
+      {/* Bottom Tabs: Details | Activity | Admin */}
+      <div className="card" style={{ padding: "1rem", marginTop: "1.5rem" }}>
+        <TabNav
+          tabs={[
+            { id: "details", label: "Details" },
+            { id: "activity", label: "Activity", count: journalEntries.length },
+            { id: "admin", label: "Admin", show: true },
+            { id: "legacy", label: "Legacy", show: !!request.source_system?.startsWith("airtable") },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+
+        {activeTab === "details" && (
+          <DetailsTab
+            request={request}
+            requestId={requestId}
+            editingKittens={editingKittens}
+            savingKittens={savingKittens}
+            kittenForm={kittenForm}
+            onStartEditKittens={() => setEditingKittens(true)}
+            onSaveKittens={handleSaveKittens}
+            onCancelKittens={handleCancelKittens}
+            onKittenFormChange={setKittenForm}
+            onToggleUrgencyFactor={toggleUrgencyFactor}
+            onShowUpgradeWizard={() => setShowUpgradeWizard(true)}
+          />
+        )}
+
+        {activeTab === "activity" && (
+          <ActivityTab
+            requestId={requestId}
+            journalEntries={journalEntries}
+            onEntryAdded={() => {
+              fetch(`/api/requests/${requestId}`)
+                .then((r) => r.ok ? r.json() : null)
+                .then((d) => { if (d) setRequest(d); });
+              fetch(`/api/journal?request_id=${requestId}&include_related=true`)
+                .then((r) => r.ok ? r.json() : null)
+                .then((d) => { if (d) setJournalEntries(d.entries || []); });
+            }}
+          />
+        )}
+
+        {activeTab === "admin" && (
+          <div>
+            <h3 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>Edit History</h3>
+            <EditHistory
+              entityType="request"
+              entityId={requestId}
+              limit={50}
+            />
+
+            {/* Nearby Entities (full version) */}
+            {request.place_coordinates && (
+              <div style={{ marginTop: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>Nearby Entities</h3>
+                <NearbyEntities
+                  requestId={requestId}
+                  onCountsLoaded={setNearbyCounts}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "legacy" && request.source_system?.startsWith("airtable") && (
+          <LegacyTab
+            request={request}
+            onShowUpgradeWizard={() => setShowUpgradeWizard(true)}
+            onSwitchToDetails={() => setActiveTab("details")}
+          />
+        )}
+      </div>
+    </>
+  );
+
+  // Build header
+  const headerContent = (
+    <div style={{ marginBottom: "1.5rem" }}>
       <BackButton fallbackHref="/requests" />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "1rem", marginBottom: "1.5rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "1rem" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
             {renaming ? (
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <input
@@ -684,42 +1076,21 @@ export default function RequestDetailPage() {
                     fontSize: "1.5rem",
                     fontWeight: 700,
                     padding: "0.25rem 0.5rem",
-                    border: "2px solid var(--primary, #0d6efd)",
+                    border: "2px solid var(--primary)",
                     borderRadius: "4px",
                     width: "300px",
                   }}
-                  placeholder="Request name..."
                 />
-                <button
-                  onClick={handleRename}
-                  disabled={savingRename}
-                  style={{
-                    padding: "0.35rem 0.75rem",
-                    background: "var(--primary, #0d6efd)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: savingRename ? "not-allowed" : "pointer",
-                  }}
-                >
+                <button onClick={handleRename} disabled={savingRename} className="btn btn-sm">
                   {savingRename ? "..." : "Save"}
                 </button>
-                <button
-                  onClick={() => setRenaming(false)}
-                  style={{
-                    padding: "0.35rem 0.75rem",
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
+                <button onClick={() => setRenaming(false)} className="btn btn-sm btn-secondary">
                   Cancel
                 </button>
               </div>
             ) : (
               <>
-                <h1 style={{ margin: 0 }}>
+                <h1 style={{ margin: 0, fontSize: "1.75rem" }}>
                   {request.summary || request.place_name || "FFR Request"}
                 </h1>
                 {!editing && (
@@ -730,9 +1101,8 @@ export default function RequestDetailPage() {
                       background: "transparent",
                       border: "none",
                       cursor: "pointer",
-                      padding: "0.25rem",
                       fontSize: "0.9rem",
-                      color: "var(--muted, #6c757d)",
+                      color: "var(--muted)",
                       opacity: 0.7,
                     }}
                   >
@@ -743,16 +1113,19 @@ export default function RequestDetailPage() {
             )}
             {request.source_system?.startsWith("airtable") && <LegacyBadge />}
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
             <StatusBadge status={request.status} size="lg" />
             <PriorityBadge priority={request.priority} />
+            {request.property_type && <PropertyTypeBadge type={request.property_type} />}
             {request.hold_reason && (
               <span className="badge" style={{ background: "#ffc107", color: "#000" }}>
                 Hold: {request.hold_reason.replace(/_/g, " ")}
               </span>
             )}
           </div>
-          {/* Quick Actions - always visible without edit mode */}
+
+          {/* Quick Actions */}
           {!editing && (
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: "0.85rem", color: "var(--muted)", marginRight: "0.25rem" }}>Quick:</span>
@@ -775,7 +1148,6 @@ export default function RequestDetailPage() {
                   {opt.label}
                 </button>
               ))}
-              {/* Undo button - shows when there's a previous status to revert to */}
               {previousStatus && previousStatus !== request.status && (
                 <button
                   onClick={handleUndoStatusChange}
@@ -788,10 +1160,7 @@ export default function RequestDetailPage() {
                     border: "1px dashed #6c757d",
                     borderRadius: "4px",
                     cursor: saving ? "not-allowed" : "pointer",
-                    opacity: saving ? 0.6 : 1,
-                    marginLeft: "0.5rem",
                   }}
-                  title={`Undo: revert to "${previousStatus.replace(/_/g, " ")}"`}
                 >
                   ↩ Undo
                 </button>
@@ -799,80 +1168,45 @@ export default function RequestDetailPage() {
             </div>
           )}
         </div>
+
         {!editing && (
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <a
               href={`/requests/${request.request_id}/print`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                padding: "0.5rem 1rem",
-                background: "transparent",
-                color: "inherit",
-                border: "1px solid var(--border)",
-                borderRadius: "6px",
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
+              className="btn btn-secondary"
+              style={{ fontSize: "0.85rem" }}
             >
               Print
             </a>
             <button
               onClick={() => setShowHistory(!showHistory)}
-              style={{
-                padding: "0.5rem 1rem",
-                background: showHistory ? "var(--primary)" : "transparent",
-                color: showHistory ? "white" : "inherit",
-                border: showHistory ? "none" : "1px solid var(--border)",
-              }}
+              className={showHistory ? "btn" : "btn btn-secondary"}
+              style={{ fontSize: "0.85rem" }}
             >
               History
             </button>
-            <button onClick={() => setEditing(true)} style={{ padding: "0.5rem 1rem" }}>
+            <button onClick={() => setEditing(true)} className="btn" style={{ fontSize: "0.85rem" }}>
               Edit
             </button>
             {request.status !== "redirected" && request.status !== "handed_off" && request.status !== "completed" && request.status !== "cancelled" && (
               <>
                 <button
                   onClick={() => setShowRedirectModal(true)}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    background: "transparent",
-                    color: "#6f42c1",
-                    border: "1px solid #6f42c1",
-                  }}
-                  title="Redirect this request to a new address/contact"
+                  className="btn btn-secondary"
+                  style={{ fontSize: "0.85rem", color: "#6f42c1", borderColor: "#6f42c1" }}
                 >
                   Redirect
                 </button>
                 <button
                   onClick={() => setShowHandoffModal(true)}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    background: "transparent",
-                    color: "#0d9488",
-                    border: "1px solid #0d9488",
-                  }}
-                  title="Hand off to a new caretaker at a different location"
+                  className="btn btn-secondary"
+                  style={{ fontSize: "0.85rem", color: "#0d9488", borderColor: "#0d9488" }}
                 >
                   Hand Off
                 </button>
               </>
-            )}
-            {request.place_id && (
-              <button
-                onClick={() => setShowColonyModal(true)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  background: "transparent",
-                  color: "#059669",
-                  border: "1px solid #059669",
-                }}
-                title="Create a colony from this request location"
-              >
-                Create Colony
-              </button>
             )}
           </div>
         )}
@@ -880,17 +1214,15 @@ export default function RequestDetailPage() {
 
       {/* Redirect/Handoff Banners */}
       {request.redirected_to_request_id && request.transfer_type === 'handoff' && (
-        <div
-          style={{
-            padding: "12px 16px",
-            background: "#d1fae5",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
+        <div style={{
+          padding: "12px 16px",
+          background: "#d1fae5",
+          borderRadius: "8px",
+          marginTop: "1rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}>
           <span style={{ fontSize: "1.25rem" }}>🤝</span>
           <div>
             <strong style={{ color: "#065f46" }}>This request was handed off</strong>
@@ -905,17 +1237,15 @@ export default function RequestDetailPage() {
       )}
 
       {request.redirected_to_request_id && request.transfer_type !== 'handoff' && (
-        <div
-          style={{
-            padding: "12px 16px",
-            background: "#e8daff",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
+        <div style={{
+          padding: "12px 16px",
+          background: "#e8daff",
+          borderRadius: "8px",
+          marginTop: "1rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}>
           <span style={{ fontSize: "1.25rem" }}>↪️</span>
           <div>
             <strong>This request was redirected</strong>
@@ -929,47 +1259,23 @@ export default function RequestDetailPage() {
         </div>
       )}
 
-      {request.redirected_from_request_id && request.transfer_type === 'handoff' && (
-        <div
-          style={{
-            padding: "12px 16px",
-            background: "#ccfbf1",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <span style={{ fontSize: "1.25rem" }}>🔄</span>
+      {request.redirected_from_request_id && (
+        <div style={{
+          padding: "12px 16px",
+          background: request.transfer_type === 'handoff' ? "#ccfbf1" : "#f0f0f0",
+          borderRadius: "8px",
+          marginTop: "1rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}>
+          <span style={{ fontSize: "1.25rem" }}>{request.transfer_type === 'handoff' ? '🔄' : '↩️'}</span>
           <div>
-            <strong style={{ color: "#0f766e" }}>Continuation from previous caretaker</strong>
-            <p style={{ margin: "4px 0 0", fontSize: "0.9rem", color: "#115e59" }}>
-              <a href={`/requests/${request.redirected_from_request_id}`} style={{ color: "#0d9488" }}>
-                ← View the original request
-              </a>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {request.redirected_from_request_id && request.transfer_type !== 'handoff' && (
-        <div
-          style={{
-            padding: "12px 16px",
-            background: "#f0f0f0",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <span style={{ fontSize: "1.25rem" }}>↩️</span>
-          <div>
-            <strong>This request was created from a redirect</strong>
+            <strong style={{ color: request.transfer_type === 'handoff' ? "#0f766e" : "inherit" }}>
+              {request.transfer_type === 'handoff' ? 'Continuation from previous caretaker' : 'Created from a redirect'}
+            </strong>
             <p style={{ margin: "4px 0 0", fontSize: "0.9rem" }}>
-              <a href={`/requests/${request.redirected_from_request_id}`} style={{ color: "#6f42c1" }}>
+              <a href={`/requests/${request.redirected_from_request_id}`} style={{ color: request.transfer_type === 'handoff' ? "#0d9488" : "#6f42c1" }}>
                 ← View the original request
               </a>
             </p>
@@ -978,24 +1284,26 @@ export default function RequestDetailPage() {
       )}
 
       {error && (
-        <div style={{ color: "#dc3545", marginBottom: "1rem", padding: "0.75rem", background: "#f8d7da", borderRadius: "6px" }}>
+        <div style={{ color: "#dc3545", marginTop: "1rem", padding: "0.75rem", background: "#f8d7da", borderRadius: "6px" }}>
           {error}
         </div>
       )}
+    </div>
+  );
 
+  // If in editing mode, show the edit form instead of the two-column layout
+  if (editing) {
+    return (
+      <div>
+        {headerContent}
 
-
-
-      {editing ? (
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div className="card" style={{ padding: "1.5rem" }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Edit Request</h2>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Status
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Status</label>
                 <select
                   value={editForm.status}
                   onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
@@ -1006,11 +1314,8 @@ export default function RequestDetailPage() {
                   ))}
                 </select>
               </div>
-
               <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Priority
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Priority</label>
                 <select
                   value={editForm.priority}
                   onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
@@ -1024,9 +1329,7 @@ export default function RequestDetailPage() {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Request Title
-              </label>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Request Title</label>
               <input
                 type="text"
                 value={editForm.summary}
@@ -1038,12 +1341,7 @@ export default function RequestDetailPage() {
 
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 150px" }}>
-                <label
-                  style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}
-                  title="Adult cats still needing spay/neuter at this location (not kittens, not total colony)"
-                >
-                  Adult Cats Needing TNR
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Adult Cats Needing TNR</label>
                 <input
                   type="number"
                   min="0"
@@ -1051,15 +1349,9 @@ export default function RequestDetailPage() {
                   onChange={(e) => setEditForm({ ...editForm, estimated_cat_count: e.target.value ? parseInt(e.target.value) : "" })}
                   style={{ width: "100%" }}
                 />
-                <div style={{ fontSize: "0.7rem", color: "#666", marginTop: "4px" }}>
-                  Adults only - kittens tracked separately
-                </div>
               </div>
-
               <div style={{ flex: "1 1 150px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Kittens
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Kittens</label>
                 <input
                   type="number"
                   min="0"
@@ -1074,15 +1366,9 @@ export default function RequestDetailPage() {
                   }}
                   style={{ width: "100%" }}
                 />
-                <div style={{ fontSize: "0.7rem", color: "#666", marginTop: "4px" }}>
-                  Under 8 weeks
-                </div>
               </div>
-
               <div style={{ flex: "1 1 150px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Assigned To
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Assigned To</label>
                 <input
                   type="text"
                   value={editForm.assigned_to}
@@ -1101,7 +1387,6 @@ export default function RequestDetailPage() {
                 />
                 Has kittens
               </label>
-
               <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
                 <span>Cats friendly?</span>
                 <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
@@ -1136,9 +1421,7 @@ export default function RequestDetailPage() {
 
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Scheduled Date
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Scheduled Date</label>
                 <input
                   type="date"
                   value={editForm.scheduled_date}
@@ -1146,11 +1429,8 @@ export default function RequestDetailPage() {
                   style={{ width: "100%" }}
                 />
               </div>
-
               <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Time Range
-                </label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Time Range</label>
                 <input
                   type="text"
                   value={editForm.scheduled_time_range}
@@ -1162,9 +1442,7 @@ export default function RequestDetailPage() {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Notes
-              </label>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Notes</label>
               <textarea
                 value={editForm.notes}
                 onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
@@ -1176,9 +1454,7 @@ export default function RequestDetailPage() {
             {(editForm.status === "completed" || editForm.status === "cancelled") && (
               <>
                 <div>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Resolution Notes
-                  </label>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Resolution Notes</label>
                   <textarea
                     value={editForm.resolution_notes}
                     onChange={(e) => setEditForm({ ...editForm, resolution_notes: e.target.value })}
@@ -1186,12 +1462,9 @@ export default function RequestDetailPage() {
                     style={{ width: "100%", resize: "vertical" }}
                   />
                 </div>
-
                 <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 150px" }}>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                      Cats Trapped
-                    </label>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Cats Trapped</label>
                     <input
                       type="number"
                       min="0"
@@ -1200,11 +1473,8 @@ export default function RequestDetailPage() {
                       style={{ width: "100%" }}
                     />
                   </div>
-
                   <div style={{ flex: "1 1 150px" }}>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                      Cats Returned
-                    </label>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Cats Returned</label>
                     <input
                       type="number"
                       min="0"
@@ -1219,134 +1489,28 @@ export default function RequestDetailPage() {
           </div>
 
           <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
-            <button onClick={handleSave} disabled={saving}>
+            <button onClick={handleSave} disabled={saving} className="btn">
               {saving ? "Saving..." : "Save Changes"}
             </button>
-            <button
-              type="button"
-              onClick={handleCancel}
-              style={{ background: "transparent", border: "1px solid var(--border)", color: "inherit" }}
-            >
+            <button type="button" onClick={handleCancel} className="btn btn-secondary">
               Cancel
             </button>
           </div>
         </div>
-      ) : (
-        <ProfileLayout
-          header={null}
-          tabs={[
-            {
-              id: "summary",
-              label: "Case Summary",
-              content: (
-                <CaseSummaryTab
-                  request={request}
-                  requestId={requestId}
-                  mapUrl={mapUrl}
-                  mapNearbyCount={mapNearbyCount}
-                  onLogSiteVisit={() => setShowObservationModal(true)}
-                  onShowEmail={() => setShowEmailModal(true)}
-                  editingEmailSummary={editingEmailSummary}
-                  emailSummaryDraft={emailSummaryDraft}
-                  savingEmail={savingEmail}
-                  onToggleReadyToEmail={handleToggleReadyToEmail}
-                  onStartEditEmailSummary={() => {
-                    setEmailSummaryDraft(request.email_summary || "");
-                    setEditingEmailSummary(true);
-                  }}
-                  onSaveEmailSummary={handleSaveEmailSummary}
-                  onCancelEmailSummary={handleCancelEmailSummary}
-                  onEmailSummaryChange={setEmailSummaryDraft}
-                  onAssignmentChange={refreshRequest}
-                />
-              ),
-            },
-            {
-              id: "details",
-              label: "Details",
-              content: (
-                <DetailsTab
-                  request={request}
-                  requestId={requestId}
-                  editingKittens={editingKittens}
-                  savingKittens={savingKittens}
-                  kittenForm={kittenForm}
-                  onStartEditKittens={() => setEditingKittens(true)}
-                  onSaveKittens={handleSaveKittens}
-                  onCancelKittens={handleCancelKittens}
-                  onKittenFormChange={setKittenForm}
-                  onToggleUrgencyFactor={toggleUrgencyFactor}
-                  onShowUpgradeWizard={() => setShowUpgradeWizard(true)}
-                />
-              ),
-            },
-            {
-              id: "cats",
-              label: `Cats & Evidence${request.linked_cat_count ? ` (${request.linked_cat_count})` : ""}`,
-              content: (
-                <CatsEvidenceTab
-                  requestId={requestId}
-                  cats={request.cats}
-                />
-              ),
-            },
-            {
-              id: "activity",
-              label: `Activity${journalEntries.length ? ` (${journalEntries.length})` : ""}`,
-              content: (
-                <ActivityTab
-                  requestId={requestId}
-                  journalEntries={journalEntries}
-                  onEntryAdded={() => {
-                    fetch(`/api/requests/${requestId}`)
-                      .then((r) => r.ok ? r.json() : null)
-                      .then((d) => { if (d) setRequest(d); });
-                    fetch(`/api/journal?request_id=${requestId}&include_related=true`)
-                      .then((r) => r.ok ? r.json() : null)
-                      .then((d) => { if (d) setJournalEntries(d.entries || []); });
-                  }}
-                />
-              ),
-            },
-            {
-              id: "actions",
-              label: "Actions",
-              content: (
-                <EditHistory
-                  entityType="request"
-                  entityId={requestId}
-                  limit={100}
-                />
-              ),
-            },
-            {
-              id: "nearby",
-              label: `Nearby${nearbyCounts ? ` (${nearbyCounts.requests + nearbyCounts.places + nearbyCounts.people + nearbyCounts.cats})` : ""}`,
-              show: !!request.place_coordinates,
-              content: (
-                <NearbyTab
-                  requestId={requestId}
-                  onCountsLoaded={setNearbyCounts}
-                />
-              ),
-            },
-            {
-              id: "legacy",
-              label: "Legacy Info (Airtable)",
-              show: !!request.source_system?.startsWith("airtable"),
-              content: (
-                <LegacyTab
-                  request={request}
-                  onShowUpgradeWizard={() => setShowUpgradeWizard(true)}
-                  onSwitchToDetails={() => {/* ProfileLayout handles tab switching via URL */}}
-                />
-              ),
-            },
-          ]}
-          defaultTab="summary"
-        />
-      )}
+      </div>
+    );
+  }
 
+  return (
+    <div>
+      <TwoColumnLayout
+        header={headerContent}
+        main={mainContent}
+        sidebar={sidebarContent}
+        sidebarWidth="35%"
+        stickyHeader={false}
+        stickySidebar={true}
+      />
 
       {/* Edit History Panel */}
       {showHistory && (
@@ -1385,7 +1549,6 @@ export default function RequestDetailPage() {
           }}
           onComplete={(newRequestId) => {
             setShowUpgradeWizard(false);
-            // Navigate to the new request
             router.push(`/requests/${newRequestId}`);
           }}
           onCancel={() => setShowUpgradeWizard(false)}
@@ -1419,7 +1582,6 @@ export default function RequestDetailPage() {
         targetStatus={completionTargetStatus}
         onSuccess={() => {
           setShowCompleteModal(false);
-          // Reload request data
           fetch(`/api/requests/${requestId}`)
             .then((res) => res.ok ? res.json() : null)
             .then((data) => {
@@ -1439,7 +1601,6 @@ export default function RequestDetailPage() {
         staffName={currentStaffName || undefined}
         onSuccess={() => {
           setShowHoldModal(false);
-          // Reload request data
           fetch(`/api/requests/${requestId}`)
             .then((res) => res.ok ? res.json() : null)
             .then((data) => {
@@ -1497,13 +1658,10 @@ export default function RequestDetailPage() {
         onClose={() => setShowColonyModal(false)}
         requestId={request.request_id}
         placeId={request.place_id || undefined}
-        staffName={undefined} // TODO: Get from session
+        staffName={undefined}
         onSuccess={(result) => {
           setShowColonyModal(false);
-          // Show success notification
           alert(`Colony "${result.colony_name}" created successfully!`);
-          // Optionally navigate to colony page
-          // router.push(`/colonies/${result.colony_id}`);
         }}
       />
     </div>

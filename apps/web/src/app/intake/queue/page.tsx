@@ -1009,7 +1009,14 @@ function IntakeQueueContent() {
   };
 
   return (
-    <div>
+    <div style={{ display: "flex", height: "calc(100vh - 60px)" }}>
+      {/* Main Queue Panel */}
+      <div style={{
+        flex: selectedSubmission ? "0 0 45%" : "1",
+        overflow: "auto",
+        padding: "0 1rem 1rem 0",
+        transition: "flex 0.2s ease-in-out",
+      }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Intake Queue</h1>
         <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -1697,36 +1704,41 @@ function IntakeQueueContent() {
         </div>
         );
       })()}
+      </div>
+      {/* End Queue Panel */}
 
-      {/* Detail Modal */}
+      {/* Detail Side Panel */}
       {selectedSubmission && (
         <div
           style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
+            flex: "0 0 55%",
+            borderLeft: "1px solid var(--border)",
+            background: "var(--background)",
+            overflow: "auto",
+            padding: "1.5rem",
+            position: "relative",
           }}
-          onClick={() => setSelectedSubmission(null)}
         >
-          <div
+          {/* Close button */}
+          <button
+            onClick={() => setSelectedSubmission(null)}
             style={{
-              background: "var(--background)",
-              borderRadius: "12px",
-              padding: "1.5rem",
-              maxWidth: "700px",
-              width: "90%",
-              maxHeight: "85vh",
-              overflow: "auto",
+              position: "absolute",
+              top: "1rem",
+              right: "1rem",
+              background: "transparent",
+              border: "none",
+              fontSize: "1.5rem",
+              cursor: "pointer",
+              color: "var(--muted)",
+              padding: "0.25rem 0.5rem",
+              lineHeight: 1,
             }}
-            onClick={(e) => e.stopPropagation()}
+            title="Close panel (Esc)"
           >
+            ×
+          </button>
+          <div>
             {/* Header with Contact Editing */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "1rem" }}>
               <div style={{ flex: 1 }}>
