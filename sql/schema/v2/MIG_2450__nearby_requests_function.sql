@@ -61,7 +61,6 @@ BEGIN
     FROM ops.requests r
     JOIN sot.places p ON p.place_id = r.place_id
     WHERE p.location IS NOT NULL
-      AND r.merged_into_request_id IS NULL  -- INV-8: Merge-aware query
       AND ST_DWithin(p.location, v_center, p_radius_meters)  -- Uses GIST index
       AND (p_exclude_request_id IS NULL OR r.request_id != p_exclude_request_id)
       AND r.status NOT IN ('cancelled', 'completed')
