@@ -57,8 +57,17 @@ function PeoplePageContent() {
     try {
       const response = await fetch(`/api/people?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch people");
-      const result: PeopleResponse = await response.json();
-      setData(result);
+      const result = await response.json();
+      if (result.success) {
+        setData({
+          people: result.data.people || [],
+          total: result.meta?.total || 0,
+          limit: result.meta?.limit || limit,
+          offset: result.meta?.offset || 0,
+        });
+      } else {
+        throw new Error(result.error?.message || "Failed to fetch people");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {

@@ -604,8 +604,12 @@ export default function CatDetailPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch cat details");
       }
-      const result: CatDetail = await response.json();
-      setCat(result);
+      const result = await response.json();
+      if (result.success) {
+        setCat(result.data);
+      } else {
+        throw new Error(result.error?.message || "Failed to fetch cat details");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     }

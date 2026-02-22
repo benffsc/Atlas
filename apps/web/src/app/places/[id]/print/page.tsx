@@ -49,8 +49,12 @@ export default function PlacePrintPage() {
       try {
         const response = await fetch(`/api/places/${id}`);
         if (!response.ok) throw new Error("Failed to load place");
-        const data = await response.json();
-        setPlace(data);
+        const result = await response.json();
+        if (result.success) {
+          setPlace(result.data);
+        } else {
+          throw new Error(result.error?.message || "Failed to load place");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading place");
       } finally {

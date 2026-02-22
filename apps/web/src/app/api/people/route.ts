@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { parsePagination } from "@/lib/api-validation";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface PersonListRow {
   person_id: string;
@@ -22,8 +24,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
   const q = searchParams.get("q") || null;
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams);
   const deepSearch = searchParams.get("deep_search") === "true";
 
   const conditions: string[] = [];
@@ -85,17 +86,10 @@ export async function GET(request: NextRequest) {
       query(countSql, params.slice(0, -2)),
     ]);
 
-    return NextResponse.json({
-      people: dataResult,
-      total: parseInt(countResult.rows[0]?.total || "0", 10),
-      limit,
-      offset,
-    });
+    const total = parseInt(countResult.rows[0]?.total || "0", 10);
+    return apiSuccess({ people: dataResult }, { total, limit, offset });
   } catch (error) {
     console.error("Error fetching people:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch people" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch people");
   }
 }

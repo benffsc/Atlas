@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
+import { requireValidUUID } from "@/lib/api-validation";
+import {
+  REQUEST_STATUS,
+  REQUEST_PRIORITY,
+  HOLD_REASON,
+  TRAPPER_TYPE,
+  NO_TRAPPER_REASON,
+} from "@/lib/enums";
+import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface CurrentTrapper {
   trapper_person_id: string;
@@ -139,34 +148,14 @@ interface RequestDetailRow {
   assignment_status: string;
 }
 
-// Validate UUID format
-function isValidUUID(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
-  }
-
-  // Validate UUID format before querying - legacy Airtable IDs (recXXX) are not valid
-  if (!isValidUUID(id)) {
-    return NextResponse.json(
-      { error: "Request not found", details: "Invalid request ID format" },
-      { status: 404 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "request");
     // Query request with V2 schema columns
     // V2: Many V1 columns don't exist, so we use defaults/NULLs
     const sql = `
@@ -332,10 +321,7 @@ export async function GET(
     const requestDetail = await queryOne<RequestDetailRow>(sql, [id]);
 
     if (!requestDetail) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Request", id);
     }
 
     // Fetch status history
@@ -381,7 +367,7 @@ export async function GET(
       // Table might not exist yet or query error
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       ...requestDetail,
       status_history: statusHistory,
       // Current trappers from the proper assignment system (source of truth)
@@ -389,54 +375,16 @@ export async function GET(
       // Note: assigned_to field is deprecated, use current_trappers instead
     });
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching request detail:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch request detail" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch request detail");
   }
 }
 
-// Valid status and priority values (including new ones from MIG_182)
-const VALID_STATUSES = [
-  "new",
-  "needs_review",
-  "triaged",
-  "scheduled",
-  "in_progress",
-  "active",
-  "on_hold",
-  "completed",
-  "partial",
-  "cancelled",
-  "redirected",
-];
-const VALID_PRIORITIES = ["urgent", "high", "normal", "low"];
-const VALID_HOLD_REASONS = [
-  "weather",
-  "callback_pending",
-  "access_issue",
-  "resource_constraint",
-  "client_unavailable",
-  "scheduling_conflict",
-  "trap_shy",
-  "other",
-];
-const VALID_TRAPPER_TYPES = [
-  "coordinator",
-  "head_trapper",
-  "ffsc_trapper",
-  "community_trapper",
-  "volunteer",
-];
-// SC_004: Valid no_trapper_reason values (matches CHECK constraint on sot_requests)
-const VALID_NO_TRAPPER_REASONS = [
-  "client_trapping",
-  "has_community_help",
-  "not_needed",
-  "pending_assignment",
-  "no_capacity",
-];
+// INV-48: Enum constants imported from @/lib/enums
 
 interface UpdateRequestBody {
   status?: string;
@@ -495,22 +443,13 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "request");
     const body: UpdateRequestBody = await request.json();
 
-    // Validate status if provided
-    if (body.status && !VALID_STATUSES.includes(body.status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` },
-        { status: 400 }
-      );
+    // Validate status if provided (INV-48: uses central enum registry)
+    if (body.status && !REQUEST_STATUS.includes(body.status as typeof REQUEST_STATUS[number])) {
+      return apiBadRequest(`Invalid status. Must be one of: ${REQUEST_STATUS.join(", ")}`);
     }
 
     // Check for trip report requirement when completing a request
@@ -557,37 +496,25 @@ export async function PATCH(
       }
     }
 
-    // Validate priority if provided
-    if (body.priority && !VALID_PRIORITIES.includes(body.priority)) {
-      return NextResponse.json(
-        { error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(", ")}` },
-        { status: 400 }
-      );
+    // Validate priority if provided (INV-48: uses central enum registry)
+    if (body.priority && !REQUEST_PRIORITY.includes(body.priority as typeof REQUEST_PRIORITY[number])) {
+      return apiBadRequest(`Invalid priority. Must be one of: ${REQUEST_PRIORITY.join(", ")}`);
     }
 
-    // Validate hold_reason if provided
-    if (body.hold_reason && !VALID_HOLD_REASONS.includes(body.hold_reason)) {
-      return NextResponse.json(
-        { error: `Invalid hold_reason. Must be one of: ${VALID_HOLD_REASONS.join(", ")}` },
-        { status: 400 }
-      );
+    // Validate hold_reason if provided (INV-48: uses central enum registry)
+    if (body.hold_reason && !HOLD_REASON.includes(body.hold_reason as typeof HOLD_REASON[number])) {
+      return apiBadRequest(`Invalid hold_reason. Must be one of: ${HOLD_REASON.join(", ")}`);
     }
 
-    // Validate trapper type if provided
-    if (body.assigned_trapper_type && !VALID_TRAPPER_TYPES.includes(body.assigned_trapper_type)) {
-      return NextResponse.json(
-        { error: `Invalid assigned_trapper_type. Must be one of: ${VALID_TRAPPER_TYPES.join(", ")}` },
-        { status: 400 }
-      );
+    // Validate trapper type if provided (INV-48: uses central enum registry)
+    if (body.assigned_trapper_type && !TRAPPER_TYPE.includes(body.assigned_trapper_type as typeof TRAPPER_TYPE[number])) {
+      return apiBadRequest(`Invalid assigned_trapper_type. Must be one of: ${TRAPPER_TYPE.join(", ")}`);
     }
 
-    // SC_004: Validate no_trapper_reason if provided (non-null)
+    // SC_004: Validate no_trapper_reason if provided (INV-48: uses central enum registry)
     if (body.no_trapper_reason !== undefined && body.no_trapper_reason !== null
-        && !VALID_NO_TRAPPER_REASONS.includes(body.no_trapper_reason)) {
-      return NextResponse.json(
-        { error: `Invalid no_trapper_reason. Must be one of: ${VALID_NO_TRAPPER_REASONS.join(", ")}` },
-        { status: 400 }
-      );
+        && !NO_TRAPPER_REASON.includes(body.no_trapper_reason as typeof NO_TRAPPER_REASON[number])) {
+      return apiBadRequest(`Invalid no_trapper_reason. Must be one of: ${NO_TRAPPER_REASON.join(", ")}`);
     }
 
     // Get current request data for audit comparison
@@ -627,7 +554,7 @@ export async function PATCH(
     }>(currentSql, [id]);
 
     if (!current) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      return apiNotFound("Request", id);
     }
 
     // Track changes for audit logging
@@ -928,10 +855,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     // Add updated_at
@@ -963,10 +887,7 @@ export async function PATCH(
     }>(sql, values);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Request", id);
     }
 
     // If request was completed/partial with observation data, record observation with feedback loop (MIG_563)
@@ -1053,17 +974,17 @@ export async function PATCH(
     revalidatePath("/requests"); // Requests list
     revalidatePath(`/requests/${id}`); // Request detail
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       request: result,
       observation_created: observationCreated,
       chapman_estimate: chapmanEstimate,
     });
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error updating request:", error);
-    return NextResponse.json(
-      { error: "Failed to update request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update request");
   }
 }

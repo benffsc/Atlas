@@ -106,8 +106,12 @@ export default function RequestPrintPage() {
       try {
         const response = await fetch(`/api/requests/${id}`);
         if (!response.ok) throw new Error("Failed to load request");
-        const data = await response.json();
-        setRequest(data);
+        const result = await response.json();
+        if (result.success) {
+          setRequest(result.data);
+        } else {
+          throw new Error(result.error?.message || "Failed to load request");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading request");
       } finally {

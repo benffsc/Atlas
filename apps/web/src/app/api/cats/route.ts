@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { parsePagination } from "@/lib/api-validation";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface CatListRow {
   cat_id: string;
@@ -20,6 +22,7 @@ interface CatListRow {
   created_at: string;
   last_appointment_date: string | null;
   appointment_count: number;
+  source_system: string | null;
 }
 
 // Valid sort options
@@ -34,8 +37,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
   const q = searchParams.get("q") || null;
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams);
   const hasPlace = searchParams.get("has_place");
   const sex = searchParams.get("sex");
   const alteredStatus = searchParams.get("altered_status");
@@ -132,7 +134,8 @@ export async function GET(request: NextRequest) {
         has_place,
         created_at,
         last_visit_date::TEXT AS last_appointment_date,
-        visit_count AS appointment_count
+        visit_count AS appointment_count,
+        source_system
       FROM sot.v_cat_list
       ${whereClause}
       ORDER BY ${orderBy}
@@ -152,17 +155,10 @@ export async function GET(request: NextRequest) {
       query(countSql, params.slice(0, -2)),
     ]);
 
-    return NextResponse.json({
-      cats: dataResult,
-      total: parseInt(countResult.rows[0]?.total || "0", 10),
-      limit,
-      offset,
-    });
+    const total = parseInt(countResult.rows[0]?.total || "0", 10);
+    return apiSuccess({ cats: dataResult }, { total, limit, offset });
   } catch (error) {
     console.error("Error fetching cats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch cats");
   }
 }

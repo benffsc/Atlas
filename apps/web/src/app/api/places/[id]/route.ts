@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
+import { requireValidUUID } from "@/lib/api-validation";
+import { PLACE_KIND } from "@/lib/enums";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface PlaceDetailRow {
   place_id: string;
@@ -61,14 +64,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "place");
     // First check if this place was merged into another
     const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
       `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
@@ -160,10 +157,7 @@ export async function GET(
     }
 
     if (!place) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
     // Fetch verification info from places table
@@ -214,35 +208,25 @@ export async function GET(
 
     // Include redirect info if the original ID was merged
     if (mergeCheck?.merged_into_place_id) {
-      return NextResponse.json({
+      return apiSuccess({
         ...response,
         _merged_from: id,
         _canonical_id: placeId,
       });
     }
 
-    return NextResponse.json(response);
+    return apiSuccess(response);
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching place detail:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch place detail" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place detail");
   }
 }
 
-// Valid place kinds matching the database enum
-const VALID_PLACE_KINDS = [
-  "unknown",
-  "residential_house",
-  "apartment_unit",
-  "apartment_building",
-  "business",
-  "clinic",
-  "neighborhood",
-  "outdoor_site",
-  "mobile_home_space",
-] as const;
+// INV-48: Place kinds imported from @/lib/enums
 
 interface UpdatePlaceBody {
   display_name?: string | null;
@@ -266,25 +250,17 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "place");
+
     const body: UpdatePlaceBody = await request.json();
     const changed_by = body.changed_by || "web_user";
     const change_reason = body.change_reason || "manual_update";
     const change_notes = body.change_notes || null;
 
-    // Validate place_kind if provided
-    if (body.place_kind && !VALID_PLACE_KINDS.includes(body.place_kind as typeof VALID_PLACE_KINDS[number])) {
-      return NextResponse.json(
-        { error: `Invalid place_kind. Must be one of: ${VALID_PLACE_KINDS.join(", ")}` },
-        { status: 400 }
-      );
+    // Validate place_kind if provided (INV-48: uses central enum registry)
+    if (body.place_kind && !PLACE_KIND.includes(body.place_kind as typeof PLACE_KIND[number])) {
+      return apiBadRequest(`Invalid place_kind. Must be one of: ${PLACE_KIND.join(", ")}`);
     }
 
     // Validate display_name if provided (null clears the label, empty string rejected)
@@ -456,21 +432,16 @@ export async function PATCH(
     }>(sql, values);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
-    return NextResponse.json({
-      success: true,
-      place: result,
-    });
+    return apiSuccess({ place: result });
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error updating place:", error);
-    return NextResponse.json(
-      { error: "Failed to update place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update place");
   }
 }

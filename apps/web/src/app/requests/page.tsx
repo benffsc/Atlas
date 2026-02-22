@@ -554,8 +554,10 @@ function RequestsPageContent() {
       params.set("limit", "100");
       const response = await fetch(`/api/requests?${params.toString()}`);
       if (response.ok) {
-        const data = await response.json();
-        setRequests(data.requests || []);
+        const result = await response.json();
+        if (result.success) {
+          setRequests(result.data.requests || []);
+        }
       }
     } catch (err) {
       alert("Error updating requests");
@@ -624,8 +626,10 @@ function RequestsPageContent() {
 
         const response = await fetch(`/api/requests?${params.toString()}`);
         if (response.ok) {
-          const data = await response.json();
-          setRequests(data.requests || []);
+          const result = await response.json();
+          if (result.success) {
+            setRequests(result.data.requests || []);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch requests:", err);

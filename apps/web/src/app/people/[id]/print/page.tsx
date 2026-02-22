@@ -45,8 +45,12 @@ export default function PersonPrintPage() {
       try {
         const response = await fetch(`/api/people/${id}`);
         if (!response.ok) throw new Error("Failed to load person");
-        const data = await response.json();
-        setPerson(data);
+        const result = await response.json();
+        if (result.success) {
+          setPerson(result.data);
+        } else {
+          throw new Error(result.error?.message || "Failed to load person");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading person");
       } finally {

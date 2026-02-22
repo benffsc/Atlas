@@ -90,13 +90,15 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
       try {
         const response = await fetch(`/api/places?q=${encodeURIComponent(searchQuery)}&limit=10`);
         if (response.ok) {
-          const data = await response.json();
-          // Filter out the current place and already linked places
-          const linkedPlaceIds = new Set(edges.map(e => e.related_place_id));
-          const filtered = (data.places || []).filter(
-            (p: PlaceSearchResult) => p.place_id !== placeId && !linkedPlaceIds.has(p.place_id)
-          );
-          setSearchResults(filtered);
+          const result = await response.json();
+          if (result.success) {
+            // Filter out the current place and already linked places
+            const linkedPlaceIds = new Set(edges.map(e => e.related_place_id));
+            const filtered = (result.data.places || []).filter(
+              (p: PlaceSearchResult) => p.place_id !== placeId && !linkedPlaceIds.has(p.place_id)
+            );
+            setSearchResults(filtered);
+          }
         }
       } catch (err) {
         console.error("Search error:", err);

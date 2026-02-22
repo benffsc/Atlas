@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -9,10 +10,14 @@ interface NearbyRequest {
   request_id: string;
   latitude: number;
   longitude: number;
+  distance_meters: number;  // Industry standard: return distance
   estimated_cat_count: number | null;
   marker_size: string;
   status: string;
 }
+
+// Industry standard: radius in meters (~5 miles)
+const FIVE_MILES_METERS = 8047;
 
 interface RequestCoords {
   latitude: number;
@@ -61,26 +66,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   );
 
   if (!requestData || !requestData.latitude || !requestData.longitude) {
-    return NextResponse.json(
-      { error: "Request not found or has no coordinates" },
-      { status: 404 }
-    );
+    return apiNotFound("Request", id);
   }
 
-  // Get nearby requests
+  // Get nearby requests (industry standard: meters, not degrees)
   const nearby = await queryRows<NearbyRequest>(
-    `SELECT * FROM ops.nearby_requests($1, $2, 0.07, $3)`,
-    [requestData.latitude, requestData.longitude, id]
+    `SELECT * FROM ops.nearby_requests($1, $2, $3, $4, $5)`,
+    [requestData.latitude, requestData.longitude, FIVE_MILES_METERS, id, 50]
   );
 
   // Build Google Static Maps URL
   // Try multiple possible env var names for the Google API key
   const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      { error: "Google Maps API key not configured (set GOOGLE_MAPS_API_KEY or GOOGLE_PLACES_API_KEY)" },
-      { status: 500 }
-    );
+    return apiServerError("Google Maps API key not configured");
   }
 
   const baseUrl = "https://maps.googleapis.com/maps/api/staticmap";
@@ -127,7 +126,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const mapUrl = `${baseUrl}?${params_list.join("&")}`;
 
   // Return the data with cache headers
-  return NextResponse.json({
+  const response = apiSuccess({
     map_url: mapUrl,
     center: {
       latitude: requestData.latitude,
@@ -140,10 +139,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       small: markerGroups.small.length,
       tiny: markerGroups.tiny.length,
     },
-  }, {
-    headers: {
-      // Cache map URLs for 1 hour (coordinates don't change often)
-      "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
-    },
   });
+
+  // Add cache headers (coordinates don't change often)
+  response.headers.set(
+    "Cache-Control",
+    "public, max-age=3600, stale-while-revalidate=86400"
+  );
+
+  return response;
 }

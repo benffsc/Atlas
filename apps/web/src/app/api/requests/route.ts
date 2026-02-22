@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { queryRows, queryOne } from "@/lib/db";
+import { parsePagination } from "@/lib/api-validation";
+import {
+  REQUEST_STATUS,
+  REQUEST_PRIORITY,
+  PERMISSION_STATUS,
+  COLONY_DURATION,
+  COUNT_CONFIDENCE,
+  EARTIP_ESTIMATE,
+  PROPERTY_TYPE,
+} from "@/lib/enums";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface RequestListRow {
   request_id: string;
@@ -49,8 +60,7 @@ export async function GET(request: NextRequest) {
   const trapperFilter = searchParams.get("trapper"); // SC_002: has_trapper, needs_trapper, client_trapping
   const sortBy = searchParams.get("sort_by") || "status"; // status, created, priority
   const sortOrder = searchParams.get("sort_order") || "asc"; // asc, desc
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams, { defaultLimit: 200, maxLimit: 500 });
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -201,33 +211,22 @@ export async function GET(request: NextRequest) {
 
     const requests = await queryRows<RequestListRow>(sql, params);
 
-    return NextResponse.json({
-      requests,
-      limit,
-      offset,
-    }, {
-      headers: {
-        // Cache for 30 seconds, revalidated when edits are made
-        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
-      },
-    });
+    const response = apiSuccess({ requests }, { limit, offset });
+
+    // Add cache headers
+    response.headers.set(
+      "Cache-Control",
+      "private, max-age=30, stale-while-revalidate=60"
+    );
+
+    return response;
   } catch (error) {
     console.error("Error fetching requests:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch requests" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch requests");
   }
 }
 
-// Valid status and priority values
-const VALID_STATUSES = ["new", "triaged", "scheduled", "in_progress", "completed", "cancelled", "on_hold"];
-const VALID_PRIORITIES = ["urgent", "high", "normal", "low"];
-const VALID_PERMISSION_STATUSES = ["yes", "no", "pending", "not_needed", "unknown"];
-const VALID_COLONY_DURATIONS = ["under_1_month", "1_to_6_months", "6_to_24_months", "over_2_years", "unknown"];
-const VALID_COUNT_CONFIDENCES = ["exact", "good_estimate", "rough_guess", "unknown"];
-const VALID_EARTIP_ESTIMATES = ["none", "few", "some", "most", "all", "unknown"];
-const VALID_PROPERTY_TYPES = ["private_home", "apartment_complex", "mobile_home_park", "business", "farm_ranch", "public_park", "industrial", "other"];
+// INV-48: Enum constants imported from @/lib/enums
 
 interface CreateRequestBody {
   // Request Purpose
@@ -314,19 +313,13 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON in request body" },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid JSON in request body");
   }
 
   try {
     // Basic client-side validation (real validation happens in normalizer)
     if (!body.place_id && !body.raw_address && !body.summary) {
-      return NextResponse.json(
-        { error: "Either place, address, or summary is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Either place, address, or summary is required");
     }
 
     // Step 1: Write to raw_intake_request (append-only)
@@ -441,10 +434,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!rawResult) {
-      return NextResponse.json(
-        { error: "Failed to save request intake" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to save request intake");
     }
 
     // Step 1.5: Log contact info changes if updating existing person
@@ -577,15 +567,9 @@ export async function POST(request: NextRequest) {
     // Check for missing table - this is a deployment issue that must be fixed
     if (errorMessage.includes("raw_intake_request") || errorMessage.includes("does not exist")) {
       console.error("CRITICAL: raw_intake_request table missing - run migrations");
-      return NextResponse.json(
-        { error: "Database not properly configured. Please contact administrator." },
-        { status: 500 }
-      );
+      return apiServerError("Database not properly configured. Please contact administrator.");
     }
 
-    return NextResponse.json(
-      { error: "Failed to create request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create request");
   }
 }

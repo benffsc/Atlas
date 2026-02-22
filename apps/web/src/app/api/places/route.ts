@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, query, queryOne } from "@/lib/db";
+import { parsePagination } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface PlaceListRow {
   place_id: string;
@@ -20,8 +22,7 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("q") || null;
   const placeKind = searchParams.get("place_kind");
   const hasCats = searchParams.get("has_cats");
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams);
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -83,18 +84,11 @@ export async function GET(request: NextRequest) {
       query(countSql, params.slice(0, -2)),
     ]);
 
-    return NextResponse.json({
-      places: dataResult,
-      total: parseInt(countResult.rows[0]?.total || "0", 10),
-      limit,
-      offset,
-    });
+    const total = parseInt(countResult.rows[0]?.total || "0", 10);
+    return apiSuccess({ places: dataResult }, { total, limit, offset });
   } catch (error) {
     console.error("Error fetching places:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch places" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch places");
   }
 }
 
@@ -129,10 +123,7 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!body.place_kind) {
-      return NextResponse.json(
-        { error: "place_kind is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("place_kind is required");
     }
 
     // Extract lat/lng from either direct props or location object
@@ -145,19 +136,13 @@ export async function POST(request: NextRequest) {
     // For geocoded locations, we need coordinates
     if (locationType === "geocoded") {
       if (!lat || !lng) {
-        return NextResponse.json(
-          { error: "lat and lng are required for geocoded locations" },
-          { status: 400 }
-        );
+        return apiBadRequest("lat and lng are required for geocoded locations");
       }
     }
 
     // For described locations, we need a description
     if (locationType === "described" && !body.location_description && !body.formatted_address) {
-      return NextResponse.json(
-        { error: "location_description or formatted_address is required for described locations" },
-        { status: 400 }
-      );
+      return apiBadRequest("location_description or formatted_address is required for described locations");
     }
 
     // Use centralized function for place creation/deduplication
@@ -218,23 +203,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create place" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create place");
     }
 
     return NextResponse.json({
       place_id: result.place_id,
       display_name: body.display_name,
       formatted_address: body.formatted_address,
-      success: true,
     });
   } catch (error) {
     console.error("Error creating place:", error);
-    return NextResponse.json(
-      { error: "Failed to create place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create place");
   }
 }

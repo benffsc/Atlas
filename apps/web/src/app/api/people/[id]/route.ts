@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits, logFieldEdit, detectChanges, type FieldChange } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
+import { requireValidUUID } from "@/lib/api-validation";
+import { PERSON_ENTITY_TYPE, TRAPPING_SKILL } from "@/lib/enums";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface PartnerOrg {
   org_id: string;
@@ -53,14 +56,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
     // V2: Use v_person_detail view with correct column names
     const sql = `
       SELECT
@@ -186,38 +183,21 @@ export async function GET(
     const person = await queryOne<PersonDetailRow>(sql, [id]);
 
     if (!person) {
-      return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person", id);
     }
 
-    return NextResponse.json(person);
+    return apiSuccess(person);
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching person detail:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch person detail" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch person detail");
   }
 }
 
-// Valid entity types for a person
-const VALID_ENTITY_TYPES = [
-  "individual",
-  "household",
-  "organization",
-  "clinic",
-  "rescue",
-] as const;
-
-// Valid trapping skill levels
-const VALID_TRAPPING_SKILLS = [
-  "novice",
-  "intermediate",
-  "experienced",
-  "expert",
-] as const;
+// INV-48: Entity types and trapping skills imported from @/lib/enums
 
 interface UpdatePersonBody {
   display_name?: string;
@@ -242,35 +222,24 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const body: UpdatePersonBody = await request.json();
     const changed_by = body.changed_by || "web_user";
     const change_reason = body.change_reason || "manual_update";
 
-    // Validate entity_type if provided
+    // Validate entity_type if provided (INV-48: uses central enum registry)
     if (body.entity_type !== undefined) {
-      if (body.entity_type !== null && !VALID_ENTITY_TYPES.includes(body.entity_type as typeof VALID_ENTITY_TYPES[number])) {
-        return NextResponse.json(
-          { error: `Invalid entity_type. Must be one of: ${VALID_ENTITY_TYPES.join(", ")}` },
-          { status: 400 }
-        );
+      if (body.entity_type !== null && !PERSON_ENTITY_TYPE.includes(body.entity_type as typeof PERSON_ENTITY_TYPE[number])) {
+        return apiBadRequest(`Invalid entity_type. Must be one of: ${PERSON_ENTITY_TYPE.join(", ")}`);
       }
     }
 
-    // Validate trapping_skill if provided
+    // Validate trapping_skill if provided (INV-48: uses central enum registry)
     if (body.trapping_skill !== undefined) {
-      if (body.trapping_skill !== null && !VALID_TRAPPING_SKILLS.includes(body.trapping_skill as typeof VALID_TRAPPING_SKILLS[number])) {
-        return NextResponse.json(
-          { error: `Invalid trapping_skill. Must be one of: ${VALID_TRAPPING_SKILLS.join(", ")}` },
-          { status: 400 }
-        );
+      if (body.trapping_skill !== null && !TRAPPING_SKILL.includes(body.trapping_skill as typeof TRAPPING_SKILL[number])) {
+        return apiBadRequest(`Invalid trapping_skill. Must be one of: ${TRAPPING_SKILL.join(", ")}`);
       }
     }
 
@@ -294,7 +263,7 @@ export async function PATCH(
     const current = await queryOne<CurrentPersonData>(currentSql, [id]);
 
     if (!current) {
-      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+      return apiNotFound("Person", id);
     }
 
     // Build dynamic update query
@@ -432,21 +401,16 @@ export async function PATCH(
     }>(sql, values);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person", id);
     }
 
-    return NextResponse.json({
-      success: true,
-      person: result,
-    });
+    return apiSuccess({ person: result });
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error updating person:", error);
-    return NextResponse.json(
-      { error: "Failed to update person" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update person");
   }
 }

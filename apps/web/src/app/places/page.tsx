@@ -66,8 +66,17 @@ function PlacesPageContent() {
     try {
       const response = await fetch(`/api/places?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch places");
-      const result: PlacesResponse = await response.json();
-      setData(result);
+      const result = await response.json();
+      if (result.success) {
+        setData({
+          places: result.data.places || [],
+          total: result.meta?.total || 0,
+          limit: result.meta?.limit || limit,
+          offset: result.meta?.offset || 0,
+        });
+      } else {
+        throw new Error(result.error?.message || "Failed to fetch places");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {

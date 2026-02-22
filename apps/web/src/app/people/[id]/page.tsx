@@ -373,8 +373,12 @@ export default function PersonDetailPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch person details");
       }
-      const result: PersonDetail = await response.json();
-      setPerson(result);
+      const result = await response.json();
+      if (result.success) {
+        setPerson(result.data);
+      } else {
+        throw new Error(result.error?.message || "Failed to fetch person details");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     }
@@ -396,8 +400,10 @@ export default function PersonDetailPage() {
     try {
       const response = await fetch(`/api/requests?person_id=${id}&limit=10`);
       if (response.ok) {
-        const data = await response.json();
-        setRequests(data.requests || []);
+        const result = await response.json();
+        if (result.success) {
+          setRequests(result.data.requests || []);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch requests:", err);

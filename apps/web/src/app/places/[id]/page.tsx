@@ -288,8 +288,12 @@ export default function PlaceDetailPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch place details");
       }
-      const result: PlaceDetail = await response.json();
-      setPlace(result);
+      const result = await response.json();
+      if (result.success) {
+        setPlace(result.data);
+      } else {
+        throw new Error(result.error?.message || "Failed to fetch place details");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     }
@@ -311,8 +315,10 @@ export default function PlaceDetailPage() {
     try {
       const response = await fetch(`/api/requests?place_id=${id}&limit=10`);
       if (response.ok) {
-        const data = await response.json();
-        setRequests(data.requests || []);
+        const result = await response.json();
+        if (result.success) {
+          setRequests(result.data.requests || []);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch requests:", err);

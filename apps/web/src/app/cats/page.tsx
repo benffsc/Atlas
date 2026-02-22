@@ -73,8 +73,17 @@ function CatsPageContent() {
     try {
       const response = await fetch(`/api/cats?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch cats");
-      const result: CatsResponse = await response.json();
-      setData(result);
+      const result = await response.json();
+      if (result.success) {
+        setData({
+          cats: result.data.cats || [],
+          total: result.meta?.total || 0,
+          limit: result.meta?.limit || limit,
+          offset: result.meta?.offset || 0,
+        });
+      } else {
+        throw new Error(result.error?.message || "Failed to fetch cats");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {

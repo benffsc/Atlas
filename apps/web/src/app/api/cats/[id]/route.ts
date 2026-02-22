@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryRows, query } from "@/lib/db";
-import { logFieldEdits, detectChanges } from "@/lib/audit";
+import { logFieldEdits } from "@/lib/audit";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiError, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface CatDetailRow {
   cat_id: string;
@@ -152,14 +154,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
     // Primary query using v_cat_detail view
     // V2: Fixed column names to match actual view columns
     const sql = `
@@ -248,10 +244,7 @@ export async function GET(
     }
 
     if (!cat) {
-      return NextResponse.json(
-        { error: "Cat not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Cat", id);
     }
 
     // Log if we used fallback for debugging
@@ -673,7 +666,7 @@ export async function GET(
     // Extract field sources from result
     const fieldSourcesData = fieldSourcesRows[0] || null;
 
-    return NextResponse.json({
+    return apiSuccess({
       ...cat,
       clinic_history: clinicHistory,
       vitals,
@@ -698,16 +691,12 @@ export async function GET(
       field_source_count: fieldSourcesData?.source_count || 0,
     });
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching cat detail:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      {
-        error: "Failed to fetch cat detail",
-        details: errorMessage,
-        cat_id: id
-      },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch cat detail");
   }
 }
 
@@ -731,14 +720,8 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
     const body: UpdateCatBody = await request.json();
     const changed_by = body.changed_by || "web_user";
     const change_reason = body.change_reason || "manual_update";
@@ -759,7 +742,7 @@ export async function PATCH(
     }>(currentSql, [id]);
 
     if (!current) {
-      return NextResponse.json({ error: "Cat not found" }, { status: 404 });
+      return apiNotFound("Cat", id);
     }
 
     const updates: string[] = [];
@@ -864,18 +847,16 @@ export async function PATCH(
     }>(sql, values);
 
     if (!result) {
-      return NextResponse.json({ error: "Cat not found" }, { status: 404 });
+      return apiNotFound("Cat", id);
     }
 
-    return NextResponse.json({
-      success: true,
-      cat: result,
-    });
+    return apiSuccess({ cat: result });
   } catch (error) {
+    // Handle validation errors from requireValidUUID
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error updating cat:", error);
-    return NextResponse.json(
-      { error: "Failed to update cat" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update cat");
   }
 }

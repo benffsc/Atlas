@@ -57,8 +57,12 @@ export default function CatPrintPage() {
       try {
         const response = await fetch(`/api/cats/${id}`);
         if (!response.ok) throw new Error("Failed to load cat");
-        const data = await response.json();
-        setCat(data);
+        const result = await response.json();
+        if (result.success) {
+          setCat(result.data);
+        } else {
+          throw new Error(result.error?.message || "Failed to load cat");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading cat");
       } finally {

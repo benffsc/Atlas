@@ -232,7 +232,12 @@ export default function RequestDetailPage() {
           }
           return;
         }
-        const data = await response.json();
+        const result = await response.json();
+        if (!result.success) {
+          setError(result.error?.message || "Failed to load request");
+          return;
+        }
+        const data = result.data;
         setRequest(data);
         // Initialize edit form
         setEditForm({
@@ -277,8 +282,10 @@ export default function RequestDetailPage() {
     try {
       const response = await fetch(`/api/requests/${requestId}`);
       if (response.ok) {
-        const data = await response.json();
-        setRequest(data);
+        const result = await response.json();
+        if (result.success) {
+          setRequest(result.data);
+        }
       }
     } catch {
       // silent
@@ -361,8 +368,10 @@ export default function RequestDetailPage() {
 
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setRequest(data);
+        const result = await refreshResponse.json();
+        if (result.success) {
+          setRequest(result.data);
+        }
       }
 
       setEditing(false);
@@ -461,8 +470,10 @@ export default function RequestDetailPage() {
 
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setRequest(data);
+        const result = await refreshResponse.json();
+        if (result.success) {
+          setRequest(result.data);
+        }
       }
 
       setEditingKittens(false);
@@ -521,8 +532,10 @@ export default function RequestDetailPage() {
 
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setRequest(data);
+        const result = await refreshResponse.json();
+        if (result.success) {
+          setRequest(result.data);
+        }
       }
     } catch {
       setError("Failed to update ready to email");
@@ -550,8 +563,10 @@ export default function RequestDetailPage() {
 
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setRequest(data);
+        const result = await refreshResponse.json();
+        if (result.success) {
+          setRequest(result.data);
+        }
       }
 
       setEditingEmailSummary(false);
@@ -623,9 +638,11 @@ export default function RequestDetailPage() {
       setPreviousStatus(oldStatus);
       const refreshResponse = await fetch(`/api/requests/${requestId}`);
       if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setRequest(data);
-        setEditForm(prev => ({ ...prev, status: data.status }));
+        const result = await refreshResponse.json();
+        if (result.success) {
+          setRequest(result.data);
+          setEditForm(prev => ({ ...prev, status: result.data.status }));
+        }
       }
     } catch (err) {
       setError("Failed to update status");
@@ -1012,7 +1029,7 @@ export default function RequestDetailPage() {
             onEntryAdded={() => {
               fetch(`/api/requests/${requestId}`)
                 .then((r) => r.ok ? r.json() : null)
-                .then((d) => { if (d) setRequest(d); });
+                .then((result) => { if (result?.success) setRequest(result.data); });
               fetch(`/api/journal?request_id=${requestId}&include_related=true`)
                 .then((r) => r.ok ? r.json() : null)
                 .then((d) => { if (d) setJournalEntries(d.entries || []); });
@@ -1584,10 +1601,10 @@ export default function RequestDetailPage() {
           setShowCompleteModal(false);
           fetch(`/api/requests/${requestId}`)
             .then((res) => res.ok ? res.json() : null)
-            .then((data) => {
-              if (data) {
-                setRequest(data);
-                setEditForm(prev => ({ ...prev, status: data.status }));
+            .then((result) => {
+              if (result?.success) {
+                setRequest(result.data);
+                setEditForm(prev => ({ ...prev, status: result.data.status }));
               }
             });
         }}
@@ -1603,10 +1620,10 @@ export default function RequestDetailPage() {
           setShowHoldModal(false);
           fetch(`/api/requests/${requestId}`)
             .then((res) => res.ok ? res.json() : null)
-            .then((data) => {
-              if (data) {
-                setRequest(data);
-                setEditForm(prev => ({ ...prev, status: data.status }));
+            .then((result) => {
+              if (result?.success) {
+                setRequest(result.data);
+                setEditForm(prev => ({ ...prev, status: result.data.status }));
               }
             });
         }}
