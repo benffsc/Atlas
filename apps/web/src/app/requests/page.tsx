@@ -196,10 +196,11 @@ interface NearbyData {
 // Map caching is handled by HTTP Cache-Control headers (stale-while-revalidate)
 // This avoids sessionStorage limitations (no cross-tab sync, manual TTL management)
 
-function RequestMapPreview({ requestId, latitude, longitude }: {
+function RequestMapPreview({ requestId, latitude, longitude, address }: {
   requestId: string;
   latitude: number | null;
   longitude: number | null;
+  address?: string | null;
 }) {
   const [mapUrl, setMapUrl] = useState<string | null>(null);
   const [nearbyData, setNearbyData] = useState<NearbyData | null>(null);
@@ -238,16 +239,31 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
         style={{
           width: "100%",
           height: "180px",
-          background: "var(--card-border)",
+          background: "linear-gradient(135deg, var(--card-border) 0%, var(--bg-secondary) 100%)",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           borderRadius: "8px",
           color: "var(--text-muted)",
-          fontSize: "0.875rem",
+          fontSize: "0.75rem",
+          padding: "12px",
+          textAlign: "center",
         }}
       >
-        No location
+        <span style={{ fontSize: "1.5rem", marginBottom: "4px" }}>📍</span>
+        {address ? (
+          <>
+            <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>
+              Pending geocode
+            </span>
+            <span style={{ fontSize: "0.7rem", marginTop: "4px", opacity: 0.8, maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {address}
+            </span>
+          </>
+        ) : (
+          <span>No location set</span>
+        )}
       </div>
     );
   }
@@ -290,13 +306,22 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
   }
   const tooltip = tooltipParts.join(" · ");
 
-  // Badge text: show disease count if any, otherwise total
-  const hasDiseaseNearby = (nearbyData?.places.by_style.disease || 0) > 0;
-  const badgeText = hasDiseaseNearby
-    ? `⚠ ${nearbyData?.places.by_style.disease} disease · ${nearbyData?.count} nearby`
-    : nearbyData?.count
-      ? `${nearbyData.count} nearby`
-      : null;
+  // Badge text: only show disease warning if meaningful (3+ nearby)
+  // 1-2 disease sites is background noise in an area with many cats
+  // 3+ indicates a cluster worth noting
+  // 10+ is high risk
+  const diseaseCount = nearbyData?.places.by_style.disease || 0;
+  const isHighRisk = diseaseCount >= 10;
+  const isModerateRisk = diseaseCount >= 3;
+
+  let badgeText: string | null = null;
+  if (isHighRisk) {
+    badgeText = `⚠ ${diseaseCount} disease · ${nearbyData?.count} nearby`;
+  } else if (isModerateRisk) {
+    badgeText = `${diseaseCount} disease · ${nearbyData?.count} nearby`;
+  } else if (nearbyData?.count) {
+    badgeText = `${nearbyData.count} nearby`;
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -317,8 +342,12 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
             position: "absolute",
             bottom: "8px",
             right: "8px",
-            background: hasDiseaseNearby ? "rgba(220, 38, 38, 0.9)" : "rgba(0,0,0,0.7)",
-            color: "#fff",
+            background: isHighRisk
+              ? "rgba(220, 38, 38, 0.95)"  // Red for high risk (10+)
+              : isModerateRisk
+                ? "rgba(234, 179, 8, 0.9)"  // Yellow/amber for moderate (3-9)
+                : "rgba(0,0,0,0.7)",         // Gray for no concern
+            color: isModerateRisk && !isHighRisk ? "#000" : "#fff",
             padding: "2px 8px",
             borderRadius: "4px",
             fontSize: "0.75rem",
@@ -369,6 +398,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
           requestId={request.request_id}
           latitude={request.latitude}
           longitude={request.longitude}
+          address={request.place_address}
         />
 
         {/* Card Content */}
