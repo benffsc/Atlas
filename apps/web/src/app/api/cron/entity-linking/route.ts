@@ -24,6 +24,30 @@ interface LinkingResult {
   count: number;
 }
 
+// MIG_2432 changed run_all_entity_linking() to return JSONB with validation
+interface EntityLinkingJsonResult {
+  step1_total_appointments?: number;
+  step1_with_inferred_place?: number;
+  step1_coverage_pct?: number;
+  step2_cats_linked?: number;
+  step2_cats_skipped?: number;
+  step3_cats_linked?: number;
+  total_cats?: number;
+  cats_with_place_link?: number;
+  cat_coverage_pct?: number;
+  duration_ms?: number;
+  run_id?: number;
+  warnings?: string[];
+  status?: string;
+}
+
+// Preflight check result type
+interface PreflightCheck {
+  check_name: string;
+  status: "PASS" | "WARN" | "FAIL";
+  details: string;
+}
+
 export async function GET(request: NextRequest) {
   // Verify this is from Vercel Cron or has valid secret
   const authHeader = request.headers.get("authorization");
@@ -36,9 +60,52 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // MIG_2442: PREFLIGHT CHECK - Fail loudly if critical functions are missing
+    // This prevents silent data loss from missing V1→V2 function migrations
+    let preflightPassed = true;
+    let preflightResults: PreflightCheck[] = [];
+
+    try {
+      preflightResults = await queryRows<PreflightCheck>(
+        "SELECT * FROM ops.preflight_entity_linking()"
+      );
+
+      const failures = preflightResults.filter((p) => p.status === "FAIL");
+      if (failures.length > 0) {
+        preflightPassed = false;
+        console.error(
+          "Entity linking preflight FAILED:",
+          failures.map((f) => f.details).join("; ")
+        );
+      }
+    } catch (preflightError) {
+      // If preflight function doesn't exist yet, log warning but continue
+      // This allows the cron to work before MIG_2442 is applied
+      console.warn(
+        "Preflight check skipped (MIG_2442 not applied yet):",
+        preflightError instanceof Error ? preflightError.message : "Unknown"
+      );
+    }
+
+    // FAIL LOUDLY if critical functions are missing
+    if (!preflightPassed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Preflight check failed - critical functions missing",
+          preflight: preflightResults,
+          message:
+            "CRITICAL: Entity linking aborted. Apply missing migrations (MIG_2441, etc.) to fix.",
+          duration_ms: Date.now() - startTime,
+        },
+        { status: 500 }
+      );
+    }
+
     // Step 1: Catch-up processing for any unprocessed ClinicHQ records
     // This is the safety net — ensures data gets processed even if job queue missed it
     const catchup: Record<string, unknown> = {};
+    const criticalErrors: string[] = [];
 
     try {
       const catInfo = await queryOne(
@@ -56,6 +123,21 @@ export async function GET(request: NextRequest) {
       catchup.owner_info = ownerInfo;
     } catch (e) {
       catchup.owner_info_error = e instanceof Error ? e.message : "Unknown";
+    }
+
+    // Step 1b2: Process ALL addresses (MIG_2443)
+    // Creates places for addresses even when should_be_person() returns FALSE
+    // (orgs, address-as-names, etc.) - fixes gap where TS route created places
+    // but SQL processor didn't
+    try {
+      const addresses = await queryOne(
+        "SELECT * FROM ops.process_clinichq_addresses(500)"
+      );
+      if (addresses && (addresses as { places_created: number }).places_created > 0) {
+        catchup.addresses = addresses;
+      }
+    } catch (e) {
+      catchup.addresses_error = e instanceof Error ? e.message : "Unknown";
     }
 
     // Step 1c: Process unchipped cats (MIG_891)
@@ -110,17 +192,34 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 2: Run all entity linking operations
-    const results = await queryRows<LinkingResult>(
-      "SELECT * FROM sot.run_all_entity_linking()"
+    // MIG_2432: Function now returns JSONB with validation metrics
+    const linkingResult = await queryOne<{ run_all_entity_linking: EntityLinkingJsonResult }>(
+      "SELECT sot.run_all_entity_linking() as run_all_entity_linking"
     );
 
-    // Build summary
-    const summary: Record<string, number> = {};
+    // Build summary from JSONB result
+    const summary: Record<string, number | string | string[] | undefined> = {};
     let totalLinked = 0;
 
-    for (const row of results) {
-      summary[row.operation] = row.count;
-      totalLinked += row.count;
+    if (linkingResult?.run_all_entity_linking) {
+      const r = linkingResult.run_all_entity_linking;
+
+      // Extract counts for summary
+      summary.step1_appointments_with_place = r.step1_with_inferred_place;
+      summary.step1_coverage_pct = r.step1_coverage_pct;
+      summary.step2_cats_via_appointments = r.step2_cats_linked;
+      summary.step2_cats_skipped = r.step2_cats_skipped;
+      summary.step3_cats_via_person_chain = r.step3_cats_linked;
+      summary.cat_coverage_pct = r.cat_coverage_pct;
+      summary.run_id = r.run_id;
+      summary.status = r.status;
+
+      if (r.warnings && r.warnings.length > 0) {
+        summary.warnings = r.warnings;
+      }
+
+      // Total linked = cats linked via both methods
+      totalLinked = (r.step2_cats_linked || 0) + (r.step3_cats_linked || 0);
     }
 
     // Step 3: Run disease status computation and sync flags

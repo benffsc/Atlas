@@ -858,3 +858,916 @@ FROM v1.trapper.places;
 - CLAUDE.md #36: Database Migrations MUST Preserve Entity UUIDs
 - CLAUDE.md #37: Database Migrations MUST Include All Columns
 - CLAUDE.md #38: No "Simple Fixes" for Schema Migrations
+
+---
+
+## DATA_GAP_032: Cat Entity Deduplication System
+
+**Status:** FIXED (MIG_2340, MIG_2341)
+
+**Problem:** Three duplicate cat scenarios were causing data integrity issues:
+
+| Scenario | Example | Root Cause |
+|----------|---------|------------|
+| **Microchip backfill** | Cat "Chip" visited without chip, returned with chip | Cat created on first visit, new cat created on chipped return |
+| **Different ClinicHQ IDs** | "Pixie" had two records (26-386 and 26-616) | Staff created new Animal record in ClinicHQ instead of finding existing |
+| **Microchip typos** | Chips differ by 1-2 characters | Data entry errors during microchip scanning |
+
+**Evidence (before fix):**
+```sql
+-- Pixie: Same name, same owner (John Reiche), different cat_ids
+-- One record had no chip, other had chip 981020053843999
+SELECT cat_id, name, microchip, clinichq_animal_id
+FROM sot.cats WHERE name ILIKE 'pixie%'
+AND merged_into_cat_id IS NULL;
+-- Result: 2 different cat_ids for same physical cat
+```
+
+**Fix Applied:**
+
+### MIG_2340: Import-Time Backfill
+- `find_or_create_cat_by_microchip()` now checks `clinichq_animal_id` as fallback
+- If found by ID, adds microchip to existing cat instead of creating duplicate
+- Created `ops.v_cats_awaiting_microchip` monitoring view
+
+### MIG_2341: Batch Detection & Resolution
+1. **Confidence column** added to `sot.cat_identifiers` (1.0 = gold standard microchip)
+
+2. **Common name blocking** via `ops.common_cat_names`:
+   - 292 names tracked (>5 occurrences)
+   - 16 names blocked (>50 occurrences, e.g., "Shadow", "Tiger")
+   - "Unknown" explicitly excluded from all name-based matching
+
+3. **Three detection views** (split for performance):
+   | View | Detects | Current Count |
+   |------|---------|---------------|
+   | `ops.v_cat_dedup_same_owner` | Same name + same owner + one chipped | 8 |
+   | `ops.v_cat_dedup_chip_typos` | Microchip edit distance 1-2 | 606 |
+   | `ops.v_cat_dedup_duplicate_ids` | Same microchip or clinichq_id | 0 |
+
+4. **Merge function** `sot.merge_cats(loser_id, winner_id, reason, changed_by)`:
+   - Reassigns appointments
+   - Moves all identifiers, relationships
+   - Logs to `entity_edits` for audit trail
+   - Marks loser with `merged_into_cat_id`
+
+5. **Weekly scan function** `ops.run_cat_dedup_scan()`:
+   - Refreshes common names table
+   - Returns candidate counts by category
+
+**False Positive Prevention:**
+| Safeguard | Implementation |
+|-----------|---------------|
+| No name-only matching | Requires same owner OR microchip similarity |
+| Common name blocking | >50 occurrences = blocked from name matching |
+| Sex/color blocking | Only compare cats with same sex OR color |
+| Sequential chip exclusion | Chips within 5 of each other numerically are excluded (legitimate batch) |
+| "Unknown" exclusion | 11,749 "Unknown" cats never matched by name |
+
+**Confidence Scoring:**
+| Match Type | Confidence | Action |
+|------------|------------|--------|
+| Exact microchip | 1.0 | Auto-merge (data integrity issue) |
+| Same clinichq_animal_id | 0.95 | Auto-merge (data integrity issue) |
+| Same name + owner + one chipped | 0.85 | Review queue |
+| Microchip edit distance = 1 | 0.80 | Review queue |
+| Microchip edit distance = 2 | 0.65 | Review queue |
+
+**Manual Merges Completed (2026-02-18):**
+- Pixie (John Reiche) - 26-386 → 26-616
+- Mordecai - duplicate merged
+- Cali - duplicate merged
+- Zepher - duplicate merged
+
+**Ongoing Monitoring:**
+```sql
+-- Weekly scan
+SELECT * FROM ops.run_cat_dedup_scan();
+
+-- Review high-confidence same-owner candidates (likely duplicates)
+SELECT * FROM ops.v_cat_dedup_same_owner;
+
+-- Review chip typos (verify before merge)
+SELECT * FROM ops.v_cat_dedup_chip_typos LIMIT 20;
+
+-- Check for data integrity issues (should be 0)
+SELECT * FROM ops.v_cat_dedup_duplicate_ids;
+```
+
+**Future Enhancement:** Staff review UI at `/admin/cat-dedup` for processing the queue.
+
+**Related Invariants:**
+- CLAUDE.md: Never match cats by name alone
+- CLAUDE.md: Microchip is gold standard identifier
+
+---
+
+## DATA_GAP_033: Business Names Not Classified as Organizations
+
+**Status:** FIXED (MIG_2373 - 2026-02-19)
+
+**Problem:** `classify_owner_name()` function returned "likely_person" for business names that didn't match existing hardcoded patterns.
+
+**Root Cause:** The function used hardcoded regex patterns which:
+1. Missed business service words like "Carpets", "Surgery", "Market"
+2. Couldn't detect "World Of X" naming pattern
+3. Falsely classified occupation surnames (Carpenter, Baker) as businesses
+
+**Fix Applied (MIG_2373):**
+
+1. **Reference Data Integration:**
+   - US Census surnames (162,254 records) → `ref.census_surnames`
+   - SSA baby names (104,819 records) → `ref.first_names`
+   - Business keywords (136 curated) → `ref.business_keywords`
+
+2. **Updated `sot.classify_owner_name()`:**
+   - Now uses gazetteer lookups instead of hardcoded regex
+   - Business score calculation from `ref.get_business_score()`
+   - First name + census surname validation for person detection
+   - FFSC site patterns (Ranch, Farm, Winery) prioritized before business score
+
+3. **Helper Functions Added:**
+   - `ref.is_common_first_name(name, threshold)` - SSA validation
+   - `ref.is_census_surname(name)` - Census validation
+   - `ref.get_business_score(name)` - Business keyword scoring
+   - `ref.is_occupation_surname(name)` - Occupation surname safelist
+   - `sot.explain_name_classification(name)` - Debug helper
+
+**Verification:**
+```sql
+-- All tests now pass
+SELECT sot.classify_owner_name('John Carpenter');     -- likely_person ✓
+SELECT sot.classify_owner_name('Atlas Tree Surgery'); -- organization ✓
+SELECT sot.classify_owner_name('World Of Carpets');   -- organization ✓
+SELECT sot.classify_owner_name('Silveira Ranch');     -- site_name ✓
+SELECT sot.classify_owner_name('Bob''s Plumbing');    -- organization ✓
+```
+
+**Related:** INV-43, INV-44, INV-45 in CLAUDE.md
+
+---
+
+## DATA_GAP_034: World Of Carpets Place Missing from Atlas
+
+**Status:** OPEN (Investigation Complete)
+
+**Problem:** Keri Howard traps cats at "World Of Carpets" (3023 Santa Rosa Ave, Santa Rosa, CA 95407), but this address doesn't exist in sot.places.
+
+**Evidence:**
+```sql
+-- Raw ClinicHQ data shows 2 records for this address:
+SELECT payload->>'Owner Address', payload->>'Owner First Name', payload->>'Owner Last Name'
+FROM source.clinichq_raw
+WHERE payload->>'Owner Address' ILIKE '%3023%santa%rosa%';
+-- Result: "World Of Carpets Santa Rosa" / "FFSC" at 3023 Santa Rosa Ave
+
+-- But place doesn't exist:
+SELECT * FROM sot.places
+WHERE formatted_address ILIKE '%3023%santa%rosa%';
+-- (0 rows)
+```
+
+**Root Cause Analysis:**
+
+1. **Booking Account Structure:** The "World Of Carpets" records have NO appointment data:
+   - Empty appointment number
+   - Empty microchip
+   - Empty cat name
+   - Empty animal ID
+
+   These are ClinicHQ "booking accounts" (contact records), not actual appointments.
+
+2. **Why Place Wasn't Created:** The ingest pipeline only creates places from records with actual appointment data. Since these records have no appointments, no place was created.
+
+3. **Where Did the Cat Go?** The one cat from this location (appt 24-3232) got linked to:
+   - Person: "Atlas Tree Surgery" (WRONG - should be World Of Carpets or the trapper)
+   - Place: "1544 Ludwig Ave, Santa Rosa, CA 95407" (WRONG address)
+
+   This suggests the appointment data had different owner info than the booking account.
+
+**Impact:**
+- World Of Carpets site has cats but no Atlas place record
+- Beacon won't show this colony location
+- Colony estimates won't include this site
+
+**Proposed Fix:**
+
+1. **Manual place creation** (if cats will continue coming from this location):
+```sql
+SELECT sot.find_or_create_place_deduped(
+  '3023 Santa Rosa Ave, Santa Rosa, CA 95407',
+  'World Of Carpets',
+  NULL, NULL,
+  'atlas_ui'
+);
+```
+
+2. **Re-link cats** to the correct place after verifying which cats actually came from there.
+
+3. **Long-term:** Add a pattern to detect when ClinicHQ booking accounts exist but aren't creating places, and flag them for manual review.
+
+**Related:** DATA_GAP_033 (business name classification)
+
+---
+
+## DATA_GAP_035: Request Edge Cases (4 Records)
+
+**Status:** KNOWN LIMITATION
+
+**Problem:** 4 airtable requests cannot have requester_person_id linked due to edge cases:
+- Organization names used as requester
+- Soft-blacklisted emails (org emails)
+- "Dr." prefix edge cases
+
+**Impact:** 1.8% of requests (4/291) without requester link. Acceptable.
+
+---
+
+## DATA_GAP_036: Ear Tip Recording Rate Declining (Historical)
+
+**Status:** MONITORING ADDED (2026-02-20)
+
+**Discovered:** 2026-02-19
+**Monitoring Added:** 2026-02-20
+
+**Problem:** Ear tip recording rates for community cats have declined from 80% to 53% between 2019-2025, even before the Jan 2026 export issue.
+
+**Monitoring Added:**
+- `ops.appointments.has_ear_tip` column added (MIG_2412)
+- `ops.v_ear_tip_rate_by_year` view tracks annual trends
+- `ops.v_ear_tip_rate_by_period` view tracks monthly trends
+- `ops.v_ear_tip_rate_recent` view for dashboard (30/90 day, YTD)
+
+**Evidence:**
+| Year | Community Cat Surgeries | Ear Tips Recorded | Rate |
+|------|------------------------|-------------------|------|
+| 2019 | 785 | 633 | 80.6% |
+| 2020 | 1,486 | 935 | 62.9% |
+| 2021 | 2,112 | 1,611 | 76.3% |
+| 2022 | 2,444 | 1,735 | 71.0% |
+| 2023 | 2,687 | 1,483 | 55.2% |
+| 2024 | 3,175 | 1,723 | 54.3% |
+| 2025 | 3,022 | 1,607 | 53.2% |
+
+**Possible Root Causes:**
+1. More cats returning already ear-tipped (previous TNR)
+2. Staff not consistently adding "Ear Tip" service to appointments
+3. Some cats genuinely not ear-tipped (medical reasons, owned cats)
+4. Different data entry practices over time
+
+**Required Analysis:**
+1. Check if cats without ear tip service had previous appointments with ear tip
+2. Review whether "already ear tipped" is recorded anywhere in ClinicHQ
+3. Staff training on consistent ear tip service recording
+4. Consider adding "Already Ear Tipped" checkbox to ClinicHQ workflow
+
+**Impact:** Medium - Cannot accurately report on new vs returning TNR cats.
+
+---
+
+## DATA_GAP_037: ClinicHQ Service Lines Missing Since Jan 12, 2026
+
+**Status:** FIXED (2026-02-20)
+
+**Discovered:** 2026-02-19
+**Fixed:** 2026-02-20
+
+**Problem:** Starting January 12, 2026, ClinicHQ exports dropped from ~13 service lines per appointment to ~5. Only primary procedures (Cat Spay/Neuter) are being exported. All ancillary services are missing.
+
+**Fix Applied:**
+1. FFSC provided corrected export files (report_813a*.xlsx, report_0812c*.xlsx, report_6607b*.xlsx)
+2. Ingested 11,738 rows (9,430 service lines + 1,154 cat + 1,154 owner records)
+3. Created `ops.v_clinichq_export_health` monitoring view (MIG_2410)
+4. Added `has_ear_tip` column to appointments (MIG_2412)
+5. Created ear tip rate monitoring views (MIG_2413)
+
+**Results After Fix:**
+- Services per appointment: 8.7 (was 4.8)
+- Ear tips recovered: 434 (was 5-7)
+- Microchips recovered: 943 (was 0)
+- Revolution recovered: 990 (was 0)
+
+**Ongoing Monitoring:**
+- `ops.v_clinichq_export_health` shows health status per week
+- `ops.check_clinichq_export_health()` returns current health status
+- Alert if services_per_appt < 6 or microchips = 0
+
+**Evidence:**
+```sql
+-- Service lines per appointment by week
+Week        | Avg Services | Appointments
+2026-01-05  | 12.5         | 115 (normal)
+2026-01-12  | 4.8          | 114 (BROKEN - 62% DROP)
+2026-01-19  | 5.0          | 129 (still broken)
+2026-02-09  | 5.1          | 91  (still broken)
+```
+
+**Missing Services Comparison (Jan 5-11 vs Jan 12+):**
+| Service | Jan 5-11 | Jan 12+ | Drop |
+|---------|----------|---------|------|
+| Microchip | 91 | 0 | 100% |
+| Revolution | 102 | 0 | 100% |
+| Subcutaneous Fluids | 101 | 0 | 100% |
+| FVRCP vaccine | 102 | 9 | 91% |
+| TTD | 100 | 6 | 94% |
+| Ear Tip | 41 | 5 | 88% |
+| Buprenorphine | 96 | 6 | 94% |
+
+**Root Cause:** ClinicHQ export configuration changed on or around January 12, 2026. The export is no longer including the full service/subsidy breakdown.
+
+**Required Fix:**
+1. **FFSC Staff Action:** Check ClinicHQ export settings - ensure "Service / Subsidy" includes ALL service lines, not just primary procedure
+2. **Re-export:** Re-export all appointments from Jan 12, 2026 to present with full service data
+3. **Re-ingest:** Process the corrected export through Atlas ingest pipeline
+4. **Verification:** Confirm avg services/appointment returns to ~13
+
+**Affected Records:** ~500+ appointments (Jan 12, 2026 - present)
+
+**Impact:**
+- Ear tip rate shows 10% when it should be ~50%
+- Microchip data missing for 500+ cats
+- Vaccine records incomplete
+- Medication records incomplete
+- Cannot report on ancillary services
+
+**Workaround:** Until fixed, cannot accurately report on ear tips, microchips, vaccines, or medication usage for appointments after Jan 12, 2026.
+
+---
+
+## DATA_GAP_038: ClinicHQ Billing Data Never Exported
+
+**Status:** CRITICAL - HISTORICAL
+
+**Discovered:** 2026-02-19
+
+**Problem:** The `Total Invoiced` and `Sub Value` fields in ClinicHQ exports have NEVER contained actual billing data. All values are either 0 or NULL across all 400k+ records since 2013.
+
+**Evidence:**
+```sql
+-- Non-zero invoices by year (out of 400k+ records)
+Year | Total Rows | Has Non-Zero Invoice
+2013 |     10     | 0
+2014 | 10,053     | 0
+...
+2019 | 37,759     | 73 (only year with any data!)
+2020 | 22,774     | 91 (only year with any data!)
+2021 | 43,047     | 0
+...
+2026 |  4,324     | 0
+```
+
+Only 164 records out of 400k+ have ever had non-zero invoice data (all in 2019-2020).
+
+**Root Cause Options:**
+1. ClinicHQ export has never been configured to include billing data
+2. Billing is tracked in a separate system (QuickBooks, Square, etc.)
+3. FFSC uses a different ClinicHQ module for billing that isn't in the export
+
+**Required Fix:**
+1. **FFSC Staff Action:** Determine where billing data lives:
+   - Is it in ClinicHQ? If so, configure export to include it
+   - Is it in QuickBooks/Square/other? Create integration
+2. **Schema:** May need new `ops.appointment_billing` table for financial data
+3. **Backfill:** If historical billing data exists elsewhere, import it
+
+**Impact:**
+- Cannot calculate revenue per appointment
+- Cannot report on subsidy utilization
+- Cannot distinguish paid vs subsidized services
+- Cannot calculate cost per cat fixed
+- Cannot answer "How much did we charge for community cats?"
+
+**Workaround:** None - billing data must come from wherever FFSC tracks it.
+
+---
+
+## DATA_GAP_039: Mega-Place - Invalid V2 Migration cat_place Links
+
+**Status:** FIXED (MIG_2419)
+
+**Discovered:** 2026-02-21
+
+**Problem:** 217 Healdsburg Ave (Healdsburg Chamber of Commerce) had 2,387 cats linked via `evidence_type = 'person_relationship'`, but only 7 cats were actually booked there. 2,347 of these cat_place relationships had NO backing person_cat relationships.
+
+**Root Cause:** V2 migration from V1 incorrectly created cat_place relationships with `evidence_type = 'person_relationship'` for cats that had no actual person_cat relationships. This was orphaned/garbage data from the migration.
+
+**Evidence:**
+```sql
+-- Before fix: 217 Healdsburg Ave
+relationship_type | evidence_type       | source_system  | cnt
+home              | person_relationship | entity_linking | 2375
+appointment_site  | appointment         | atlas          | 6
+home              | appointment         | atlas          | 6
+
+-- 2,346 of 2,375 had NO person_cat backing:
+SELECT COUNT(*) FROM sot.cat_place cp
+WHERE cp.place_id = '9420ddb8-...'
+AND cp.evidence_type = 'person_relationship'
+AND NOT EXISTS (SELECT 1 FROM sot.person_cat pc WHERE pc.cat_id = cp.cat_id);
+-- Result: 2346
+```
+
+**Fix Applied (MIG_2419):**
+1. Archived 2,347 invalid cat_place relationships to `ops.archived_invalid_cat_place`
+2. Deleted the invalid relationships
+3. Blacklisted Healdsburg Chamber of Commerce as non-residential trapping site
+4. Updated place_kind to 'business'
+
+**Result After Fix:**
+- Cat count: 2,387 → 35 (legitimate links only)
+- All remaining links have valid backing (person_cat or appointment)
+- Place correctly classified and blacklisted
+
+**Prevention:** Added audit query to detect places with invalid person_relationship links (no backing person_cat). Run periodically:
+```sql
+SELECT p.place_id, p.display_name, COUNT(*)
+FROM sot.cat_place cp
+JOIN sot.places p ON p.place_id = cp.place_id
+WHERE cp.evidence_type = 'person_relationship'
+AND NOT EXISTS (SELECT 1 FROM sot.person_cat pc WHERE pc.cat_id = cp.cat_id)
+GROUP BY p.place_id, p.display_name
+HAVING COUNT(*) > 10;
+```
+
+**Verified:** No other mega-places found with this issue.
+
+---
+
+## DATA_GAP_040: Entity Linking Function Fragility
+
+**Status:** OPEN (Audit Complete - Fortification Needed)
+
+**Discovered:** 2026-02-21
+
+**Problem:** Several entity linking functions have fragile patterns that can cause silent data loss or incorrect links. Identified through comprehensive code audit.
+
+### Critical Fragility (Risk Level: CRITICAL/HIGH)
+
+| Function | Risk | Fragile Pattern | Impact |
+|----------|------|-----------------|--------|
+| `sot.link_appointments_to_places()` | CRITICAL | Subquery may return NULL silently | Appointments get `place_id = NULL` if subquery fails |
+| `sot.link_cats_to_appointment_places()` | HIGH | `COALESCE(a.inferred_place_id, a.place_id)` fallback | Falls back to clinic address when `inferred_place_id` is NULL |
+| `sot.link_cats_to_places()` | HIGH | LATERAL join with NULL returns | Creates incomplete relationships when person_place not found |
+| `sot.run_all_entity_linking()` | HIGH | Order-dependent execution without validation | Later steps may run on incomplete data from failed earlier steps |
+| `sot.link_cat_to_place()` | MEDIUM | String comparison of confidence values | `'high' > 'medium'` works but is fragile; use CASE WHEN |
+
+### Detailed Analysis
+
+**1. `link_appointments_to_places()` - Silent NULL Updates**
+```sql
+-- FRAGILE: If subquery returns NULL, appointment gets NULL place_id
+UPDATE ops.appointments a
+SET place_id = (
+    SELECT p.place_id
+    FROM sot.places p
+    WHERE normalize_address(p.formatted_address) = normalize_address(...)
+    LIMIT 1
+)
+WHERE a.place_id IS NULL;
+
+-- SAFER: Use explicit join with validation
+WITH matched AS (
+    SELECT a.appointment_id, p.place_id
+    FROM ops.appointments a
+    JOIN sot.places p ON normalize_address(p.formatted_address) = ...
+    WHERE a.place_id IS NULL
+)
+UPDATE ops.appointments a
+SET place_id = m.place_id
+FROM matched m
+WHERE a.appointment_id = m.appointment_id;
+```
+
+**2. `link_cats_to_appointment_places()` - Clinic Fallback**
+```sql
+-- CURRENT (MIG_2010:410): Falls back to clinic when inferred_place_id NULL
+INSERT INTO sot.cat_place (cat_id, place_id, ...)
+SELECT DISTINCT ON (a.cat_id)
+    a.cat_id,
+    COALESCE(a.inferred_place_id, a.place_id),  -- <-- Fallback to clinic
+    ...
+FROM ops.appointments a
+WHERE a.cat_id IS NOT NULL;
+
+-- ISSUE: If inferred_place_id is NULL, cat gets linked to clinic (845 Todd, 1814/1820 Empire Industrial)
+```
+
+**Evidence of Clinic Leakage:**
+- `QRY_050__cat_place_audit.sql` Section 5 checks for cats linked to clinic addresses
+- Places with `place_kind = 'clinic'` or address matching clinic should NOT have residential cat links
+
+**3. `run_all_entity_linking()` - Order Dependency**
+```sql
+-- CURRENT (MIG_2010): Steps run sequentially with no validation
+PERFORM sot.link_appointments_to_places();      -- Step 1
+PERFORM sot.link_cats_to_appointment_places();  -- Step 2 (depends on Step 1)
+PERFORM sot.link_cats_to_places();              -- Step 3 (depends on person_cat)
+-- No verification between steps!
+```
+
+**Proposed Fortifications:**
+
+1. **Add step validation in orchestrator:**
+```sql
+CREATE OR REPLACE FUNCTION sot.run_all_entity_linking() RETURNS JSONB AS $$
+DECLARE
+    v_result JSONB := '{}'::jsonb;
+    v_step1_success INT;
+    v_step2_success INT;
+BEGIN
+    -- Step 1 with validation
+    PERFORM sot.link_appointments_to_places();
+    SELECT COUNT(*) INTO v_step1_success
+    FROM ops.appointments WHERE place_id IS NOT NULL;
+    v_result := v_result || jsonb_build_object('step1_places', v_step1_success);
+
+    IF v_step1_success = 0 THEN
+        RAISE WARNING 'Step 1 produced no results - aborting';
+        RETURN v_result || '{"status": "aborted", "reason": "step1_failed"}'::jsonb;
+    END IF;
+
+    -- Continue with remaining steps...
+    RETURN v_result || '{"status": "completed"}'::jsonb;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+2. **Replace COALESCE fallback with explicit NULL filtering:**
+```sql
+-- Only process appointments with valid inferred_place_id
+WHERE a.cat_id IS NOT NULL
+  AND a.inferred_place_id IS NOT NULL  -- Don't fallback!
+```
+
+3. **Add confidence filter validation:**
+```sql
+-- Add to sot.cat_place table constraint
+ALTER TABLE sot.cat_place ADD CONSTRAINT valid_confidence
+CHECK (confidence IN ('high', 'medium', 'low') OR confidence IS NULL);
+```
+
+### Audit Query Created
+
+`/sql/queries/QRY_050__cat_place_audit.sql` - Comprehensive audit that checks:
+1. Overview statistics (cats with appointments vs place links)
+2. Relationship type distribution
+3. Cats with appointments but no place link (breakdown by reason)
+4. COALESCE fallback audit (where `inferred_place_id` was NULL)
+5. Clinic place leakage check
+6. Appointment vs cat_place consistency
+7. Person-chain vs appointment link conflicts
+8. Fragile function indicators (NULL checks)
+
+**Proposed Fix Priority:**
+1. HIGH: Remove COALESCE fallback to clinic in `link_cats_to_appointment_places()`
+2. HIGH: Add validation between steps in `run_all_entity_linking()`
+3. MEDIUM: Convert string confidence to enum/numeric in `cat_place`
+4. LOW: Refactor subqueries to explicit JOINs
+
+**Related:**
+- MIG_2010: Original entity linking functions
+- MIG_2305: Fixed 'appointment_site' → 'home' relationship type
+- MIG_889: Added LIMIT 1 + staff exclusion to `link_cats_to_places()`
+- INV-26, INV-28: Cat-place linking invariants
+
+---
+
+## DATA_GAP_041: MIG_2421 Confidence Helper Function Adoption
+
+**Status:** OPEN (Migration Created)
+
+**Discovered:** 2026-02-21
+
+**Problem:** Confidence filter (`>= 0.5`) for `person_identifiers` is duplicated in 50+ places across views and routes. PetLink emails are fabricated and have low confidence (0.1-0.2). Per INV-19/INV-21, all queries must filter these out.
+
+**Current State:**
+- Filter duplicated as inline `AND confidence >= 0.5` in:
+  - Multiple API routes (`/api/people/search`, `/api/requests/[id]`, `/api/cats/[id]`, etc.)
+  - Views (`v_person_list_v3`, etc.)
+  - SQL functions (`data_engine_score_candidates()`)
+
+**Fix Created:**
+`MIG_2421__confidence_helper_function.sql` - Creates centralized helper functions:
+
+| Function | Purpose |
+|----------|---------|
+| `sot.get_high_confidence_identifier(person_id, id_type, min_confidence)` | Get best identifier of type |
+| `sot.get_email(person_id)` | Convenience for email (default 0.5) |
+| `sot.get_phone(person_id)` | Convenience for phone (default 0.5) |
+| `sot.has_high_confidence_identifier(person_id, id_type, min_confidence)` | Boolean check |
+| `sot.get_all_identifiers(person_id, min_confidence)` | JSONB array for API responses |
+
+**Adoption Required:**
+1. Apply MIG_2421 to create functions
+2. Update views to use `sot.get_email(person_id)` instead of inline subqueries
+3. Update API routes to use helper functions
+4. Remove duplicated confidence filter logic
+
+**Example Refactor:**
+```sql
+-- BEFORE (duplicated in 50+ places):
+(SELECT pi.id_value_norm FROM sot.person_identifiers pi
+ WHERE pi.person_id = r.requester_person_id
+   AND pi.id_type = 'email'
+   AND pi.confidence >= 0.5
+ ORDER BY pi.confidence DESC LIMIT 1) AS requester_email
+
+-- AFTER (single source of truth):
+sot.get_email(r.requester_person_id) AS requester_email
+```
+
+**Impact:** Medium - improves maintainability and reduces risk of missing confidence filter.
+
+**Related:**
+- INV-19: PetLink Emails Are Fabricated
+- INV-21: Confidence >= 0.5 Filter Must Be Consistent
+- MIG_887: Original PetLink email classification
+
+---
+
+## DATA_GAP_042: System Cohesiveness Gaps
+
+**Status:** IN PROGRESS (Critical bugs fixed)
+
+**Discovered:** 2026-02-21
+
+**Problem:** Comprehensive audit of automated systems revealed several cohesiveness gaps preventing automatic processing.
+
+### Critical Bugs Found (FIXED)
+
+**1. Entity Linking Cron Return Type Mismatch**
+
+MIG_2432 changed `sot.run_all_entity_linking()` to return JSONB, but the cron expected `TABLE(operation, count)`.
+
+**Fix:** Updated `/api/cron/entity-linking/route.ts` to parse JSONB response.
+
+**2. VolunteerHub Cron Not Configured**
+
+The route `/api/cron/volunteerhub-sync` existed but was NOT in `vercel.json`.
+
+**Fix:** Added to vercel.json: `{ "path": "/api/cron/volunteerhub-sync", "schedule": "0 7 * * *" }`
+
+### Pending Record Types Explained
+
+| Record Type | Count | Why Pending | Automatic? |
+|-------------|-------|-------------|------------|
+| Places without geocode | 623 | Queue processes 50/30min (2,400/day). Clears in ~6h. Some have permanent failures. | ✅ YES (rate-limited) |
+| Suspicious people | 79 | Conflicting identifiers require manual review via `/admin/person-dedup` | ❌ Manual REQUIRED |
+| Cats without appointments | 5,624 | PetLink-only (956), ShelterLuv unprocessed, ClinicHQ no contact | ⚠️ Structural ceiling |
+| Cats without place/person | 9,802 | No identifiers to link | ⚠️ Structural ceiling |
+
+### Automated Systems Audit
+
+| System | Schedule | Purpose | Status |
+|--------|----------|---------|--------|
+| Geocoding | Every 30 min | Address → coordinates | ✅ Running |
+| Entity Linking | Every 15 min | Link cats/people/places | ✅ Fixed (MIG_2432 compat) |
+| Process Uploads | Every 10 min | ClinicHQ/SL file processing | ✅ Running |
+| ShelterLuv Sync | Every 6 hours | Animals, people, events | ✅ Running |
+| Airtable Sync | Daily 6 AM | Intake submissions | ✅ Running |
+| VolunteerHub Sync | Daily 7 AM | Volunteers, roles | ✅ Fixed (added to vercel.json) |
+| Data Quality Check | Every 6 hours | Monitoring metrics | ✅ Running |
+
+### New Monitoring Added
+
+**MIG_2440:** Created `ops.check_system_cohesiveness()` function that checks:
+- Geocoding queue size and failures
+- Entity linking run frequency
+- Staged records backlog
+- Stuck file uploads
+- Data engine review queue
+- Source sync freshness
+- Overall cat-place coverage
+
+**Usage:**
+```sql
+-- Show all issues
+SELECT * FROM ops.check_system_cohesiveness() WHERE status != 'OK';
+
+-- Summary by system
+SELECT * FROM ops.v_system_health_summary;
+```
+
+### Action Items
+
+1. **Manual Review Required:** 79 people flagged for identity conflicts → `/admin/person-dedup`
+2. **Apply MIG_2440:** For comprehensive monitoring
+3. **Deploy vercel.json:** To enable VolunteerHub sync
+4. **Deploy entity-linking route fix:** For JSONB compatibility
+
+**Related:**
+- DATA_GAP_040: Entity Linking Function Fragility
+- MIG_2432: Orchestrator Validation
+- MIG_2440: System Cohesiveness Check
+
+---
+
+## DATA_GAP_043: V1→V2 Function Migration Gap (CRITICAL)
+
+**Status:** IN PROGRESS (Core functions created)
+
+**Discovered:** 2026-02-21
+
+**Problem:** Multiple critical processing functions were never migrated from V1 (`trapper.*`) to V2 (`ops.*`/`sot.*`). The entity-linking cron calls these functions but they don't exist, causing silent failures.
+
+### Missing Functions Found
+
+| V1 Function | V2 Function | Status | Impact |
+|-------------|-------------|--------|--------|
+| `trapper.process_clinichq_unchipped_cats` | `ops.process_clinichq_unchipped_cats` | ✅ CREATED | Cats without microchips not being processed |
+| `trapper.process_clinichq_cat_info` | `ops.process_clinichq_cat_info` | ✅ CREATED | Cat catch-up processing broken |
+| `trapper.process_clinichq_owner_info` | `ops.process_clinichq_owner_info` | ✅ CREATED | Owner catch-up processing broken |
+| `trapper.process_clinic_euthanasia` (MIG_892) | `ops.process_clinic_euthanasia` | ⚠️ STUB | Euthanized cats not being marked |
+| `trapper.process_embedded_microchips_in_animal_names` (MIG_911) | `ops.process_embedded_microchips_in_animal_names` | ⚠️ STUB | Microchips in names not extracted |
+| `trapper.retry_unmatched_master_list_entries` (MIG_900) | `ops.retry_unmatched_master_list_entries` | ⚠️ STUB | Master list matching not retrying |
+
+### Root Cause
+
+The V2 database migration copied table data but didn't migrate all SQL functions. The entity-linking cron (`/api/cron/entity-linking/route.ts`) was updated to call `ops.*` functions, but the functions were never created.
+
+### Why This Caused 9,800+ Unlinked Cats
+
+1. **Unchipped cats dropped silently**: `process_clinichq_unchipped_cats` creates cats from Animal ID when no microchip exists
+2. **No catch-up processing**: When appointments are uploaded before cats, the catch-up functions link them later
+3. **Appointments orphaned**: Without cat records, appointments have `cat_id = NULL` permanently
+
+### Fix Applied (MIG_2441)
+
+1. Created `ops.process_clinichq_unchipped_cats()` - Full implementation
+2. Created `ops.process_clinichq_cat_info()` - Full implementation
+3. Created `ops.process_clinichq_owner_info()` - Full implementation
+4. Created stub functions for others to prevent cron crash
+5. Linked orphaned appointments by microchip and clinichq_animal_id
+
+### Verification
+
+After applying MIG_2441:
+```sql
+-- Check appointment linking
+SELECT
+    EXTRACT(YEAR FROM appointment_date) as year,
+    COUNT(*) as total,
+    COUNT(*) FILTER (WHERE cat_id IS NULL) as no_cat,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE cat_id IS NULL) / COUNT(*), 1) as pct_no_cat
+FROM ops.appointments
+GROUP BY 1
+ORDER BY 1 DESC;
+
+-- Test unchipped cat processing
+SELECT * FROM ops.process_clinichq_unchipped_cats(1000);
+```
+
+### TODO
+
+1. Fully migrate `ops.process_clinic_euthanasia` from V1 MIG_892
+2. Fully migrate `ops.process_embedded_microchips_in_animal_names` from V1 MIG_911
+3. Fully migrate `ops.retry_unmatched_master_list_entries` from V1 MIG_900
+
+**Related:**
+- MIG_891: Original V1 unchipped cat processing
+- MIG_892: Original V1 euthanasia processing
+- MIG_911: Original V1 embedded microchip extraction
+- MIG_900: Original V1 master list retry
+
+---
+
+## DATA_GAP_044: ClinicHQ Place Creation Skipped for Non-Person Addresses
+
+**Status:** FIXED (MIG_2443)
+
+**Discovered:** 2026-02-21
+
+**Problem:** `process_clinichq_owner_info()` only creates places inside the person-creation loop. When `should_be_person()` returns FALSE (orgs, address-as-names, etc.), the address is skipped and NO PLACE is created.
+
+### Evidence
+
+```sql
+-- 319 addresses in ClinicHQ with no corresponding place
+SELECT COUNT(DISTINCT TRIM(sr.payload->>'Owner Address')) as addresses_no_place
+FROM ops.staged_records sr
+WHERE sr.source_system = 'clinichq'
+  AND sr.source_table = 'owner_info'
+  AND sr.payload->>'Owner Address' IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM sot.places p
+      WHERE p.normalized_address = sot.normalize_address(TRIM(sr.payload->>'Owner Address'))
+  );
+```
+
+### Root Cause
+
+The TS ingest route (`/api/ingest/process/[id]/route.ts`) correctly creates places for ALL addresses in Step 2. But the SQL processor (`process_clinichq_owner_info`) used by the entity-linking cron catch-up only creates places when creating people.
+
+### Fix Applied (MIG_2443)
+
+Created `ops.process_clinichq_addresses()` function that:
+1. Creates places for ALL owner_info addresses regardless of `should_be_person()`
+2. Links appointments to newly created places
+3. Is called by entity-linking cron after `process_clinichq_owner_info()`
+
+### Result
+
+- 319 places created
+- 1,593 appointments linked to places
+
+---
+
+## DATA_GAP_045: ShelterLuv Data Engine Does NOT Create Places
+
+**Status:** FIXED (MIG_2444)
+
+**Discovered:** 2026-02-21
+
+**Problem:** ShelterLuv processing uses the Data Engine (`data_engine_resolve_identity`) which creates/matches PEOPLE but does NOT create PLACES. This leaves:
+- 2,540 ShelterLuv people with addresses but NO place link (97.8% coverage gap)
+- 3,875 ShelterLuv cats with NO person link
+- 1,985 animals with AssociatedPerson (foster) data not being used
+
+### Evidence
+
+```sql
+-- ShelterLuv people have addresses but no places
+SELECT 
+    COUNT(*) as total_with_address,
+    COUNT(*) FILTER (WHERE EXISTS (
+        SELECT 1 FROM sot.person_place pp WHERE pp.person_id = sr.resulting_entity_id
+    )) as has_place_link
+FROM ops.staged_records sr
+WHERE sr.source_system = 'shelterluv'
+  AND sr.source_table = 'people'
+  AND sr.payload->>'Street' IS NOT NULL
+  AND sr.resulting_entity_id IS NOT NULL;
+-- Result: 2,597 with address, only 57 with place link!
+
+-- ShelterLuv cats have AssociatedPerson data not being used
+SELECT COUNT(*) FROM ops.staged_records sr
+WHERE sr.source_system = 'shelterluv'
+  AND sr.source_table = 'animals'
+  AND sr.payload->'AssociatedPerson'->>'FirstName' IS NOT NULL;
+-- Result: 1,985 records with foster relationships
+```
+
+### Root Cause
+
+The ShelterLuv ingest creates people via the Data Engine but:
+1. Data Engine only handles identity (person matching/creation)
+2. Data Engine does NOT create places from person addresses
+3. ShelterLuv cat import doesn't link cats to their AssociatedPerson (foster/adopter)
+
+### Fix Applied (MIG_2444)
+
+1. Create places from ShelterLuv person addresses using `find_or_create_place_deduped()`
+2. Link ShelterLuv people to their places via `person_place`
+3. Link ShelterLuv cats to their associated persons (foster/adopter/caretaker) via `person_cat`
+4. Run entity linking to propagate cat-place links
+
+### Key Field Mappings
+
+- Cats: `shelterluv_animal_id` matches staged_records `payload->>'Internal-ID'`
+- People: Match by `FirstName`/`LastName` (capital N in ShelterLuv)
+- Addresses: `Street`, `City`, `State`, `Zip` in staged_records payload
+
+### Result
+
+- 3,177 places created
+- 2,710 person-place links created
+- 435 person-cat links created (foster/adopter relationships)
+- 358 cat-place links propagated via entity linking
+- ShelterLuv people coverage: 2.2% → 99.5%
+- Overall cat-place coverage: 80.0% → 80.8%
+
+### Remaining Gaps (Historical)
+
+- 478 ShelterLuv cats have `FFSC-A-XXXX` ID format that doesn't match numeric IDs in staged_records
+- These are from earlier imports with different ID format - not a current pipeline issue
+
+---
+
+## DATA_GAP_046: PetLink Cats Have No Address Data
+
+**Status:** WONT FIX
+
+**Discovered:** 2026-02-21
+
+**Problem:** 1,691 PetLink cats have no place links.
+
+### Root Cause
+
+PetLink cats were bulk imported via microchip registry data. The import contains ONLY microchip information - no addresses or owner contacts. These cats exist in the microchip registry but were never seen at FFSC clinic or ShelterLuv.
+
+### Why WONT FIX
+
+This is not a bug or pipeline issue. PetLink is an external microchip registry that only contains:
+- Microchip number
+- Cat name
+- Sometimes owner name (but no address)
+
+There is no source address data to create places from. If these cats ever show up at FFSC clinic or ShelterLuv, they will be linked via microchip matching.
+
+### Verification
+
+```sql
+-- No staged_records for PetLink
+SELECT COUNT(*) FROM ops.staged_records WHERE source_system = 'petlink';
+-- Result: 0 (cats were bulk imported, not via staged_records)
+```
