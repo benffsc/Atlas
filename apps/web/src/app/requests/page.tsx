@@ -202,9 +202,11 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
       try {
         const response = await fetch(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
         if (response.ok) {
-          const data = await response.json();
-          setMapUrl(data.map_url);
-          setNearbyCount(data.nearby_count);
+          const result = await response.json();
+          if (result.success) {
+            setMapUrl(result.data.map_url);
+            setNearbyCount(result.data.nearby_count);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch map:", err);
