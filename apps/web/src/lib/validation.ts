@@ -15,6 +15,32 @@ const GARBAGE_PATTERNS = [
   /^remove$/i,
 ];
 
+// UUID validation regex (v1-v5 UUIDs)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate that a string is a valid UUID.
+ * Use this in API routes to prevent SQL errors from malformed IDs.
+ */
+export function isValidUUID(id: string): boolean {
+  return UUID_REGEX.test(id);
+}
+
+/**
+ * Validate pagination parameters and return safe values.
+ * Prevents negative values and enforces reasonable limits.
+ */
+export function validatePagination(
+  limitStr: string | null,
+  offsetStr: string | null,
+  maxLimit = 100,
+  defaultLimit = 50
+): { limit: number; offset: number } {
+  const limit = Math.max(1, Math.min(parseInt(limitStr || String(defaultLimit), 10) || defaultLimit, maxLimit));
+  const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
+  return { limit, offset };
+}
+
 export function validatePersonName(name: string): { valid: boolean; error?: string; warning?: string } {
   const trimmed = name.trim();
 
