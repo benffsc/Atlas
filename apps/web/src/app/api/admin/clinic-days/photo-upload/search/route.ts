@@ -64,6 +64,17 @@ export async function GET(request: NextRequest) {
         WHERE a.appointment_date = $2
           AND a.cat_id IS NOT NULL
       ),
+      -- Get only the first appointment per cat for the selected date (avoid duplicates)
+      first_appointment AS (
+        SELECT DISTINCT ON (cat_id)
+          cat_id,
+          appointment_id,
+          appointment_date,
+          clinic_day_number
+        FROM ops.appointments
+        WHERE appointment_date = $2
+        ORDER BY cat_id, appointment_number NULLS LAST, created_at
+      ),
       -- Deduplicated cat results with proper sorting
       cat_results AS (
         SELECT
@@ -124,20 +135,19 @@ export async function GET(request: NextRequest) {
           NULL AS photo_url,
           -- Check if from selected clinic day
           (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
-          -- Get appointment info for selected date
-          a_day.appointment_id,
-          a_day.appointment_date,
+          -- Get appointment info for selected date (using deduplicated first_appointment)
+          fa.appointment_id,
+          fa.appointment_date,
           -- Only show clinic_day_number if explicitly assigned (no auto-generation)
-          a_day.clinic_day_number,
+          fa.clinic_day_number,
           -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
           CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
           CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
         FROM sot.cats c
         LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
         LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
-        -- Get appointment for selected date
-        LEFT JOIN ops.appointments a_day ON a_day.cat_id = c.cat_id
-          AND a_day.appointment_date = $2
+        -- Get FIRST appointment for selected date (avoids duplicates if cat has multiple appointments)
+        LEFT JOIN first_appointment fa ON fa.cat_id = c.cat_id
         WHERE c.merged_into_cat_id IS NULL
           AND (
             c.name ILIKE $1
@@ -201,6 +211,18 @@ export async function GET(request: NextRequest) {
           WHERE a.appointment_date = $2
             AND a.cat_id IS NOT NULL
         ),
+        -- Get only the first appointment per cat for the selected date (avoid duplicates)
+        first_appointment AS (
+          SELECT DISTINCT ON (cat_id)
+            cat_id,
+            appointment_id,
+            appointment_date,
+            clinic_day_number,
+            appointment_number
+          FROM ops.appointments
+          WHERE appointment_date = $2
+          ORDER BY cat_id, appointment_number NULLS LAST, created_at
+        ),
         cat_results AS (
           SELECT
             c.cat_id,
@@ -239,11 +261,11 @@ export async function GET(request: NextRequest) {
             ) AS place_address,
             NULL AS photo_url,
             (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
-            a_day.appointment_id,
-            a_day.appointment_date,
-            -- Use stored clinic_day_number, fallback to ROW_NUMBER if not assigned
-            COALESCE(a_day.clinic_day_number,
-              ROW_NUMBER() OVER (PARTITION BY a_day.appointment_date ORDER BY a_day.appointment_number NULLS LAST, c.name NULLS LAST)::INT
+            fa.appointment_id,
+            fa.appointment_date,
+            -- Use stored clinic_day_number, fallback to row number based on appointment_number
+            COALESCE(fa.clinic_day_number,
+              ROW_NUMBER() OVER (PARTITION BY fa.appointment_date ORDER BY fa.appointment_number NULLS LAST, c.name NULLS LAST)::INT
             ) AS clinic_day_number,
             -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
             CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
@@ -251,7 +273,8 @@ export async function GET(request: NextRequest) {
           FROM sot.cats c
           LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
           LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
-          LEFT JOIN ops.appointments a_day ON a_day.cat_id = c.cat_id AND a_day.appointment_date = $2
+          -- Get FIRST appointment for selected date (avoids duplicates if cat has multiple appointments)
+          LEFT JOIN first_appointment fa ON fa.cat_id = c.cat_id
           WHERE c.merged_into_cat_id IS NULL
             AND (
               c.name ILIKE $1

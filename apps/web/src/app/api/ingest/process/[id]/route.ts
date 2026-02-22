@@ -737,7 +737,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         a.cat_id,
         a.person_id,
         'caretaker',
-        'high',
+        0.8,
         'clinichq',
         'owner_info'
       FROM ops.appointments a
@@ -772,10 +772,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.orphaned_appointments_linked_pre = orphanedLinked.rowCount || 0;
 
-    // Step 1: Create sot_appointments from staged_records
+    // Step 1: Create or update appointments from staged_records
     // Uses get_canonical_cat_id to handle merged cats
     // Includes all enriched columns (health flags, FeLV/FIV, financial, etc.)
-    await saveProgress('Creating appointments...');
+    // MIG_2455: Uses proper UPSERT with unique constraint on (appointment_number, appointment_date)
+    await saveProgress('Creating/updating appointments...');
     const newAppointments = await query(`
       INSERT INTO ops.appointments (
         cat_id, appointment_date, appointment_number, service_type,
@@ -788,6 +789,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         -- Misc flags
         has_polydactyl, has_bradycardia, has_too_young_for_rabies,
         has_cryptorchid, has_hernia, has_pyometra,
+        -- Ear tip (from aggregated service lines)
+        has_ear_tip,
         -- Text fields
         felv_fiv_result, body_composition_score, no_surgery_reason,
         -- Financial
@@ -831,6 +834,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         sot.is_positive_value(sr.payload->>'Cryptorchid'),
         sot.is_positive_value(sr.payload->>'Hernia'),
         sot.is_positive_value(sr.payload->>'Pyometra'),
+        -- Ear tip detection from aggregated service lines
+        COALESCE(sr.payload->>'All Services', sr.payload->>'Service / Subsidy') ILIKE '%ear tip%',
         -- Text fields
         NULLIF(TRIM(sr.payload->>'FeLV/FIV (SNAP test, in-house)'), ''),
         NULLIF(TRIM(sr.payload->>'Body Composition Score'), ''),
@@ -843,7 +848,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
              THEN REPLACE(sr.payload->>'Sub Value', '$', '')::NUMERIC(10,2)
              ELSE NULL END,
         -- Unique ID: date_microchip for joining to raw data
-        TO_CHAR(TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'), 'YYYY-MM-DD') || '_' || sr.payload->>'Microchip Number',
+        TO_CHAR(TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'), 'YYYY-MM-DD') || '_' || (sr.payload->>'Microchip Number'),
         'clinichq', 'clinichq', sr.source_row_id, sr.row_hash
       FROM ops.staged_records sr
       LEFT JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
@@ -852,12 +857,49 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         AND sr.source_table = 'appointment_info'
         AND sr.file_upload_id = $1
         AND sr.payload->>'Date' IS NOT NULL AND sr.payload->>'Date' != ''
-        AND NOT EXISTS (
-          SELECT 1 FROM ops.appointments a
-          WHERE a.appointment_number = sr.payload->>'Number'
-            AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
-        )
-      ON CONFLICT DO NOTHING
+        AND sr.payload->>'Number' IS NOT NULL AND sr.payload->>'Number' != ''
+      ON CONFLICT (appointment_number, appointment_date)
+        WHERE appointment_number IS NOT NULL
+      DO UPDATE SET
+        -- Update cat_id if we now have a match (cat may have been created after appointment)
+        cat_id = COALESCE(EXCLUDED.cat_id, ops.appointments.cat_id),
+        -- Merge service types (append if different)
+        service_type = CASE
+          WHEN ops.appointments.service_type IS NULL THEN EXCLUDED.service_type
+          WHEN EXCLUDED.service_type IS NOT NULL
+               AND ops.appointments.service_type NOT ILIKE '%' || EXCLUDED.service_type || '%'
+          THEN ops.appointments.service_type || '; ' || EXCLUDED.service_type
+          ELSE ops.appointments.service_type
+        END,
+        -- Health flags: OR together (true wins)
+        has_uri = ops.appointments.has_uri OR EXCLUDED.has_uri,
+        has_dental_disease = ops.appointments.has_dental_disease OR EXCLUDED.has_dental_disease,
+        has_ear_issue = ops.appointments.has_ear_issue OR EXCLUDED.has_ear_issue,
+        has_eye_issue = ops.appointments.has_eye_issue OR EXCLUDED.has_eye_issue,
+        has_skin_issue = ops.appointments.has_skin_issue OR EXCLUDED.has_skin_issue,
+        has_mouth_issue = ops.appointments.has_mouth_issue OR EXCLUDED.has_mouth_issue,
+        has_fleas = ops.appointments.has_fleas OR EXCLUDED.has_fleas,
+        has_ticks = ops.appointments.has_ticks OR EXCLUDED.has_ticks,
+        has_tapeworms = ops.appointments.has_tapeworms OR EXCLUDED.has_tapeworms,
+        has_ear_mites = ops.appointments.has_ear_mites OR EXCLUDED.has_ear_mites,
+        has_ringworm = ops.appointments.has_ringworm OR EXCLUDED.has_ringworm,
+        has_polydactyl = ops.appointments.has_polydactyl OR EXCLUDED.has_polydactyl,
+        has_bradycardia = ops.appointments.has_bradycardia OR EXCLUDED.has_bradycardia,
+        has_too_young_for_rabies = ops.appointments.has_too_young_for_rabies OR EXCLUDED.has_too_young_for_rabies,
+        has_cryptorchid = ops.appointments.has_cryptorchid OR EXCLUDED.has_cryptorchid,
+        has_hernia = ops.appointments.has_hernia OR EXCLUDED.has_hernia,
+        has_pyometra = ops.appointments.has_pyometra OR EXCLUDED.has_pyometra,
+        has_ear_tip = ops.appointments.has_ear_tip OR EXCLUDED.has_ear_tip,
+        -- Fill-only fields (don't overwrite existing)
+        felv_fiv_result = COALESCE(ops.appointments.felv_fiv_result, EXCLUDED.felv_fiv_result),
+        body_composition_score = COALESCE(ops.appointments.body_composition_score, EXCLUDED.body_composition_score),
+        no_surgery_reason = COALESCE(ops.appointments.no_surgery_reason, EXCLUDED.no_surgery_reason),
+        total_invoiced = COALESCE(ops.appointments.total_invoiced, EXCLUDED.total_invoiced),
+        subsidy_value = COALESCE(ops.appointments.subsidy_value, EXCLUDED.subsidy_value),
+        clinichq_appointment_id = COALESCE(ops.appointments.clinichq_appointment_id, EXCLUDED.clinichq_appointment_id),
+        -- Always update source tracking
+        source_row_hash = EXCLUDED.source_row_hash,
+        updated_at = NOW()
     `, [uploadId]);
     results.new_appointments = newAppointments.rowCount || 0;
 
@@ -999,9 +1041,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         'felv_fiv_combo',
         a.appointment_date,
         CASE
-          WHEN a.felv_fiv_result ILIKE '%positive%' THEN 'positive'::ops.test_result_enum
-          WHEN a.felv_fiv_result ILIKE '%negative%' THEN 'negative'::ops.test_result_enum
-          ELSE 'inconclusive'::ops.test_result_enum
+          WHEN a.felv_fiv_result ILIKE '%positive%' THEN 'positive'::ops.test_result
+          WHEN a.felv_fiv_result ILIKE '%negative%' THEN 'negative'::ops.test_result
+          ELSE 'inconclusive'::ops.test_result
         END,
         a.felv_fiv_result,
         -- Parse FeLV status (first part before /)
@@ -1115,20 +1157,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // automatically linked to any active request at their place
     await saveProgress('Linking cats to requests...');
     const catRequestLinks = await query(`
-      INSERT INTO ops.request_cats (request_id, cat_id, link_purpose, link_notes, linked_by)
+      INSERT INTO ops.request_cats (request_id, cat_id, link_type, evidence_type, source_system)
       SELECT DISTINCT
         r.request_id,
         a.cat_id,
         CASE
-          WHEN cp.is_spay = TRUE OR cp.is_neuter = TRUE THEN 'tnr_target'
-          ELSE 'wellness'
+          WHEN proc.is_spay = TRUE OR proc.is_neuter = TRUE THEN 'attributed'
+          ELSE 'attributed'
         END,
-        'Auto-linked: clinic visit ' || a.appointment_date::text || ' within request attribution window',
-        'ingest_auto'
+        'appointment',
+        'clinichq'
       FROM ops.appointments a
-      JOIN sot.cat_place cp ON cp.cat_id = a.cat_id
-      JOIN ops.requests r ON r.place_id = cp.place_id
-      LEFT JOIN ops.cat_procedures cp ON cp.appointment_id = a.appointment_id
+      JOIN sot.cat_place catpl ON catpl.cat_id = a.cat_id
+      JOIN ops.requests r ON r.place_id = catpl.place_id
+      LEFT JOIN ops.cat_procedures proc ON proc.appointment_id = a.appointment_id
       WHERE a.cat_id IS NOT NULL
         -- Attribution window logic (from MIG_208):
         -- Active requests: created up to 6 months ago, or closed up to 3 months ago

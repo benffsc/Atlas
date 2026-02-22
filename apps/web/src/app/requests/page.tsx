@@ -193,37 +193,8 @@ interface NearbyData {
   places: { count: number; by_style: { disease: number; watch_list: number; active: number } };
 }
 
-// Cache map data in sessionStorage (persists across page refreshes, clears on tab close)
-const MAP_CACHE_PREFIX = "atlas_map_preview_";
-const MAP_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-function getCachedMapData(requestId: string): { mapUrl: string; nearbyData: NearbyData } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const cached = sessionStorage.getItem(MAP_CACHE_PREFIX + requestId);
-    if (!cached) return null;
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp > MAP_CACHE_TTL) {
-      sessionStorage.removeItem(MAP_CACHE_PREFIX + requestId);
-      return null;
-    }
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function setCachedMapData(requestId: string, mapUrl: string, nearbyData: NearbyData) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(MAP_CACHE_PREFIX + requestId, JSON.stringify({
-      data: { mapUrl, nearbyData },
-      timestamp: Date.now(),
-    }));
-  } catch {
-    // Ignore storage errors (quota exceeded, etc.)
-  }
-}
+// Map caching is handled by HTTP Cache-Control headers (stale-while-revalidate)
+// This avoids sessionStorage limitations (no cross-tab sync, manual TTL management)
 
 function RequestMapPreview({ requestId, latitude, longitude }: {
   requestId: string;
@@ -236,16 +207,9 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
   useEffect(() => {
     if (!latitude || !longitude) return;
 
-    // Check cache first
-    const cached = getCachedMapData(requestId);
-    if (cached) {
-      setMapUrl(cached.mapUrl);
-      setNearbyData(cached.nearbyData);
-      return;
-    }
-
     const fetchMap = async () => {
       try {
+        // HTTP Cache-Control handles caching (stale-while-revalidate)
         const response = await fetch(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
         if (response.ok) {
           const result = await response.json();
@@ -258,8 +222,6 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
             };
             setMapUrl(url);
             setNearbyData(nearby);
-            // Cache the result
-            setCachedMapData(requestId, url, nearby);
           }
         }
       } catch (err) {

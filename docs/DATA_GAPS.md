@@ -1771,3 +1771,423 @@ There is no source address data to create places from. If these cats ever show u
 SELECT COUNT(*) FROM ops.staged_records WHERE source_system = 'petlink';
 -- Result: 0 (cats were bulk imported, not via staged_records)
 ```
+
+---
+
+## DATA_GAP_047: Disease Data Inconsistency Between Atlas Map and Request Cards
+
+**Status:** FIXED (MIG_2454)
+
+**Discovered:** 2026-02-22
+
+**Problem:** Request card map previews showed "⚠ 5 disease nearby" but Atlas Map showed NO disease pins at the same location. This inconsistency confused users about actual disease presence.
+
+### Root Cause
+
+Two different functions used different disease status filters:
+
+| Component | Filter | Includes |
+|-----------|--------|----------|
+| `ops.nearby_places()` (MIG_2453) | `status IN ('confirmed_active', 'suspected')` | Unverified AI-extracted mentions |
+| `ops.v_place_disease_summary` | `status IN ('confirmed_active', 'perpetual')` | Only test-verified disease |
+
+The `suspected` status is for AI-extracted disease mentions (from Google Maps notes) that have NOT been test-confirmed. These should NOT trigger disease warnings in the UI.
+
+### Evidence
+
+```sql
+-- Check disease status distribution
+SELECT status, COUNT(*) FROM ops.place_disease_status
+WHERE status IN ('confirmed_active', 'suspected', 'perpetual')
+GROUP BY status;
+-- Result: 'suspected' has many more records than 'confirmed_active'
+```
+
+### Fix Applied (MIG_2454)
+
+1. Changed `ops.nearby_places()` to use `('confirmed_active', 'perpetual')` filter
+2. Added optional `p_disease_lookback_months` parameter for time filtering
+3. Added GIST index on `sot.places.location` for performance
+4. Updated API route to pass disease lookback parameter
+
+### Verification
+
+```sql
+-- After fix: nearby_places should match Atlas Map disease pins
+SELECT pin_style, COUNT(*)
+FROM ops.nearby_places(38.4051, -122.7147, 5000, NULL, 100, NULL)
+WHERE disease_risk = TRUE
+GROUP BY pin_style;
+-- Should only return 'disease' style pins that also appear in Atlas Map
+```
+
+---
+
+## DATA_GAP_048: Duplicate Appointments for Same Cat on Same Day
+
+**Status:** FIXED (MIG_2455, ingest route update)
+
+**Discovered:** 2026-02-22
+
+**Problem:** Cat with microchip 981020053833542 appeared twice in the photo upload search because it has 2 appointments on the same clinic day (Feb 9, 2026).
+
+### Root Cause Analysis (Comprehensive Audit)
+
+**Primary Root Cause:** Missing unique constraint on `ops.appointments` table
+
+The deduplication check in `/apps/web/src/app/api/ingest/process/[id]/route.ts` (lines 859-863):
+```sql
+AND NOT EXISTS (
+  SELECT 1 FROM ops.appointments a
+  WHERE a.appointment_number = sr.payload->>'Number'
+    AND a.appointment_date = TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY')
+)
+```
+
+**Why this fails:**
+1. ClinicHQ can export the SAME appointment with updated content (notes, services added)
+2. Each re-export creates new `row_hash` (content changed) but same `appointment_number`
+3. The `NOT EXISTS` check passes because it only compares appointment_number + date
+4. `ON CONFLICT DO NOTHING` (line 864) has NO constraint to conflict on - it's defensive code with no enforcement
+
+**Missing Constraints:**
+```sql
+-- Current: NO unique constraint on ops.appointments
+-- Should have: Option A, B, or C
+
+-- Option A: Prevent same appointment number on same day (RECOMMENDED)
+CREATE UNIQUE INDEX idx_appointments_number_date_unique
+    ON ops.appointments(appointment_number, appointment_date)
+    WHERE appointment_number IS NOT NULL;
+
+-- Option B: Prevent same source record (most precise)
+CREATE UNIQUE INDEX idx_appointments_source_unique
+    ON ops.appointments(source_system, source_record_id)
+    WHERE source_record_id IS NOT NULL;
+
+-- Option C: Prevent same cat same day (most restrictive - may break legitimate re-bookings)
+CREATE UNIQUE INDEX idx_appointments_cat_date_unique
+    ON ops.appointments(cat_id, appointment_date)
+    WHERE cat_id IS NOT NULL;
+```
+
+### Evidence Queries
+
+```sql
+-- 1. Count cats with multiple appointments on same day (SCOPE CHECK)
+SELECT
+  COUNT(*) as total_duplicate_pairs,
+  SUM(appt_count) as total_duplicate_appointments
+FROM (
+  SELECT cat_id, appointment_date, COUNT(*) as appt_count
+  FROM ops.appointments
+  WHERE cat_id IS NOT NULL
+  GROUP BY cat_id, appointment_date
+  HAVING COUNT(*) > 1
+) dup;
+
+-- 2. Distribution of duplicates
+SELECT appt_count, COUNT(*) as instances
+FROM (
+  SELECT cat_id, appointment_date, COUNT(*) as appt_count
+  FROM ops.appointments
+  WHERE cat_id IS NOT NULL
+  GROUP BY cat_id, appointment_date
+  HAVING COUNT(*) > 1
+) dup
+GROUP BY appt_count
+ORDER BY appt_count;
+
+-- 3. Examine specific duplicate (microchip 981020053833542)
+SELECT
+  a.appointment_id, a.appointment_number, a.appointment_date,
+  a.service_type, a.is_spay, a.is_neuter,
+  a.source_record_id, a.created_at
+FROM ops.appointments a
+LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+WHERE c.microchip = '981020053833542'
+  AND a.appointment_date = '2026-02-09'
+ORDER BY a.created_at;
+
+-- 4. Find duplicate appointment numbers (data issue)
+SELECT appointment_number, appointment_date, COUNT(*)
+FROM ops.appointments
+WHERE appointment_number IS NOT NULL
+GROUP BY appointment_number, appointment_date
+HAVING COUNT(*) > 1;
+```
+
+### UI Mitigation Applied
+
+Photo upload search now uses `DISTINCT ON (cat_id)` to show only one result per cat. This is a DISPLAY fix - underlying duplicate data still exists.
+
+### Comprehensive Fix Plan
+
+**Step 1: Scope the Problem (RUN QUERIES ABOVE)**
+- Determine total duplicate count
+- Identify if duplicates are identical (re-import) or different (legitimate re-bookings)
+
+**Step 2: Classify Duplicates**
+```sql
+-- For each duplicate set, compare all fields to determine if identical or different
+WITH duplicates AS (
+  SELECT cat_id, appointment_date
+  FROM ops.appointments
+  WHERE cat_id IS NOT NULL
+  GROUP BY cat_id, appointment_date
+  HAVING COUNT(*) > 1
+)
+SELECT
+  a1.appointment_id as appt1_id,
+  a2.appointment_id as appt2_id,
+  a1.appointment_number = a2.appointment_number as same_number,
+  a1.service_type = a2.service_type as same_service,
+  a1.medical_notes IS DISTINCT FROM a2.medical_notes as notes_differ
+FROM duplicates d
+JOIN ops.appointments a1 ON a1.cat_id = d.cat_id AND a1.appointment_date = d.appointment_date
+JOIN ops.appointments a2 ON a2.cat_id = d.cat_id AND a2.appointment_date = d.appointment_date
+  AND a1.appointment_id < a2.appointment_id;
+```
+
+**Step 3: Create Migration (MIG_2455__deduplicate_appointments.sql)**
+```sql
+-- Part 1: Quarantine duplicates (preserve audit trail)
+INSERT INTO quarantine.appointments_duplicates
+SELECT * FROM ops.appointments
+WHERE appointment_id IN (
+  SELECT appointment_id FROM (
+    SELECT appointment_id,
+      ROW_NUMBER() OVER (
+        PARTITION BY appointment_number, appointment_date
+        ORDER BY created_at DESC  -- Keep newest
+      ) as rn
+    FROM ops.appointments
+    WHERE appointment_number IS NOT NULL
+  ) ranked
+  WHERE rn > 1
+);
+
+-- Part 2: Delete duplicates from source
+DELETE FROM ops.appointments
+WHERE appointment_id IN (SELECT appointment_id FROM quarantine.appointments_duplicates);
+
+-- Part 3: Add unique constraint (prevents future duplicates)
+CREATE UNIQUE INDEX idx_appointments_number_date_unique
+    ON ops.appointments(appointment_number, appointment_date)
+    WHERE appointment_number IS NOT NULL AND appointment_number != '';
+```
+
+**Step 4: Update Ingest Route**
+Update deduplication to use `ON CONFLICT (appointment_number, appointment_date) DO UPDATE` for upsert behavior instead of silent insert.
+
+### CLAUDE.md Invariant Affected
+
+**INV-2 (Manual > AI):** If staff manually marks an appointment as completed/verified, a re-import could create a duplicate with conflicting data. The unique constraint prevents this.
+
+### Fix Applied (2026-02-22)
+
+**MIG_2455__fix_duplicate_appointments.sql:**
+1. Created `ops.quarantined_appointments` table for audit trail
+2. Quarantined duplicate appointments (keeping earliest created)
+3. Merged service data from duplicates into surviving appointments
+4. Added unique index `idx_appointments_number_date_unique` on `(appointment_number, appointment_date)`
+5. Data from duplicates preserved for potential recovery
+
+**Ingest route update:**
+- Changed from `NOT EXISTS` check to proper `ON CONFLICT ... DO UPDATE`
+- Handles re-imports gracefully by merging service lines
+- Health flags use OR logic (TRUE wins)
+- Text fields use fill-only (don't overwrite existing)
+
+**Photo upload search fix:**
+- Added `DISTINCT ON (cat_id)` to prevent duplicate display
+- Orders by `appointment_number NULLS LAST, created_at` to get first appointment
+
+### Status: FIXED - MIG_2455 + Ingest Route Update
+
+---
+
+## DATA_GAP_049: Entity Linking Function Vulnerabilities
+
+**Status:** MIGRATIONS CREATED - PENDING DEPLOYMENT (MIG_2430-2435)
+
+**Discovered:** 2026-02-21 (Comprehensive audit)
+
+**Problem:** Entity linking functions have critical vulnerabilities that cause silent data loss and clinic address pollution.
+
+### P0 Vulnerabilities (Critical - Silent Data Loss)
+
+#### P0-1: Clinic Fallback Pollution (`link_cats_to_appointment_places`)
+
+**Location:** MIG_2010, line 125
+```sql
+COALESCE(a.inferred_place_id, a.place_id)  -- Falls back to clinic!
+```
+
+**Impact:**
+- When owner address is unknown (NULL), falls back to clinic address
+- Cats incorrectly linked to FFSC clinic (1814 Empire Industrial)
+- Pollutes disease computation (clinic marked as having FeLV when cats are TREATED there)
+- **Violates INV-41** (Disease is ecological - should exclude clinics)
+
+**Fix:** MIG_2430 - Removed COALESCE fallback, only links when `inferred_place_id IS NOT NULL`
+
+#### P0-2: Silent NULL Updates (`link_appointments_to_places`)
+
+**Location:** MIG_2010, line 120-126
+```sql
+UPDATE ops.appointments a
+SET place_id = (SELECT p.place_id FROM sot.places p WHERE ...)
+WHERE a.place_id IS NULL;
+-- If subquery returns NULL, place_id stays NULL (no error!)
+```
+
+**Impact:**
+- UPDATE with scalar subquery can set to NULL without error
+- Appointments lose place_id without logging
+- Cascades to downstream linking (cats can't infer place)
+
+**Fix:** MIG_2431 - Changed to CTE + explicit JOIN, prevents NULL assignment
+
+### P1 Vulnerabilities (High - Incomplete Data)
+
+#### P1-1: No Step Validation (`run_all_entity_linking`)
+
+**Problem:** Orchestrator runs all steps sequentially with no validation
+- Step 1 fails silently → Step 2 runs on bad data
+- No monitoring of coverage drop
+
+**Fix:** MIG_2432 - Validates step coverage (must be ≥90%), logs to `ops.entity_linking_runs`
+
+#### P1-2: LATERAL Join NULL Returns (`link_cats_to_places`)
+
+**Problem:** LATERAL join with no rows = outer row dropped
+```sql
+JOIN LATERAL (
+    SELECT pp.place_id FROM sot.person_place pp
+    WHERE pp.person_id = pc.person_id ...
+    LIMIT 1
+) best_place ON TRUE
+```
+
+**Impact:** Cats with person relationships but no person-place links silently skipped
+
+**Fix:** MIG_2433 - Logs skipped cats to `ops.entity_linking_skipped`
+
+### P2 Vulnerabilities (Medium - Maintainability)
+
+#### P2-1: String Confidence Fragility
+
+**Problem:** `confidence` column is TEXT ('high', 'medium', 'low') - string comparison fragile
+
+**Fix:** MIG_2434 (planned) - Add `confidence_level` ENUM type
+
+#### P2-2: Duplicated Confidence Filters
+
+**Problem:** Confidence >= 0.5 filter repeated in 50+ API routes/views - no central enforcement
+
+**Fix:** MIG_2421 - Confidence helper functions created, adoption pending
+
+### Monitoring Infrastructure Created
+
+| Component | Purpose | Migration |
+|-----------|---------|-----------|
+| `ops.entity_linking_skipped` | Track skipped entities | MIG_2430 |
+| `ops.entity_linking_runs` | Audit each linking run | MIG_2432 |
+| `ops.v_clinic_leakage` | Detect clinic fallback regression | MIG_2435 |
+| `ops.v_cats_without_places` | Monitor unlinked cats | MIG_2435 |
+| `ops.v_entity_linking_skipped_summary` | Summarize skip reasons | MIG_2435 |
+
+### Verification Queries (Run After Migration)
+
+```sql
+-- 1. Clinic leakage (should be 0 rows)
+SELECT * FROM ops.v_clinic_leakage;
+
+-- 2. Entity linking history
+SELECT * FROM ops.v_entity_linking_history LIMIT 5;
+
+-- 3. Skip summary
+SELECT * FROM ops.v_entity_linking_skipped_summary;
+
+-- 4. Cats without places
+SELECT COUNT(*) FROM ops.v_cats_without_places;
+```
+
+### Status: MIGRATIONS CREATED - PENDING DEPLOYMENT
+
+**Migrations ready:**
+- MIG_2430: Remove clinic fallback
+- MIG_2431: Fix silent NULL updates
+- MIG_2432: Orchestrator validation
+- MIG_2433: Fix LATERAL join NULLs
+- MIG_2435: Monitoring views
+
+**Priority:** **CRITICAL** - Apply before production Beacon launch
+
+---
+
+## DATA_GAP_050: Disease Data Audit Verification
+
+**Status:** ARCHITECTURE SOUND - VERIFICATION NEEDED
+
+**Discovered:** 2026-02-22
+
+**Problem:** Need to verify disease data quality after MIG_2454 fix.
+
+### Architecture Status (All Pass)
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| **INV-41: Disease is Ecological** | ✅ | Only residential cat-place relationships |
+| **Gated Creation** | ✅ | `should_compute_disease_for_place()` |
+| **Clinic Addresses Blacklisted** | ✅ | 1814/1820 Empire Industrial in soft_blacklist |
+| **Relationship Type Filtering** | ✅ | Transient types excluded |
+| **Decay Windows** | ✅ | 36/24/12 month windows per disease |
+| **Map/Nearby Places Alignment** | ✅ | Both use confirmed_active + perpetual |
+
+### Verification Queries (Run on Production)
+
+```sql
+-- 1. Disease status distribution
+SELECT status, evidence_source, COUNT(*)
+FROM ops.place_disease_status
+GROUP BY status, evidence_source
+ORDER BY COUNT(*) DESC;
+
+-- 2. Suspected records should NOT have 'computed' source
+SELECT COUNT(*) as bad_suspected_count
+FROM ops.place_disease_status
+WHERE status = 'suspected' AND evidence_source = 'computed';
+-- Expected: 0
+
+-- 3. confirmed_active should have test result backing
+SELECT COUNT(*) as unverified_active
+FROM ops.place_disease_status pds
+WHERE pds.status = 'confirmed_active'
+  AND pds.evidence_source IN ('computed', 'test_result')
+  AND NOT EXISTS (
+    SELECT 1 FROM ops.cat_test_results ctr
+    JOIN sot.cat_place cp ON cp.cat_id = ctr.cat_id
+    WHERE cp.place_id = pds.place_id AND ctr.result = 'positive'
+  );
+-- Expected: 0
+
+-- 4. Clinic addresses should NOT have disease status
+SELECT pds.*, p.formatted_address
+FROM ops.place_disease_status pds
+JOIN sot.places p ON p.place_id = pds.place_id
+WHERE p.formatted_address ILIKE '%Empire Industrial%';
+-- Expected: 0 rows
+
+-- 5. Cat-place pollution check (cats at 10+ places)
+SELECT cat_id, relationship_type, COUNT(DISTINCT place_id) as places
+FROM sot.cat_place
+GROUP BY cat_id, relationship_type
+HAVING COUNT(DISTINCT place_id) > 5;
+-- Expected: Few rows (staff cats, legitimate colonies)
+```
+
+### Status: ARCHITECTURE VERIFIED - Run queries to confirm data quality
+
+Priority: **MEDIUM** - Architecture is sound, verification confirms no data issues

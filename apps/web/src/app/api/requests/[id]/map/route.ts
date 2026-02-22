@@ -32,6 +32,10 @@ interface NearbyPlace {
 const FIVE_MILES_METERS = 8047;
 const NEARBY_PLACES_RADIUS = 5000; // 5km for places (tighter radius)
 
+// Disease lookback: only show disease within this window (36 months = 3 years)
+// This matches the default decay_window_months in ops.disease_types
+const DISEASE_LOOKBACK_MONTHS = 36;
+
 interface RequestCoords {
   place_id: string;
   latitude: number;
@@ -108,8 +112,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [requestData.latitude, requestData.longitude, FIVE_MILES_METERS, id, 50]
     ),
     queryRows<NearbyPlace>(
-      `SELECT * FROM ops.nearby_places($1, $2, $3, $4, $5)`,
-      [requestData.latitude, requestData.longitude, NEARBY_PLACES_RADIUS, requestData.place_id, 30]
+      // Pass disease lookback months (6th param) to filter by time
+      `SELECT * FROM ops.nearby_places($1, $2, $3, $4, $5, $6)`,
+      [requestData.latitude, requestData.longitude, NEARBY_PLACES_RADIUS, requestData.place_id, 30, DISEASE_LOOKBACK_MONTHS]
     ),
   ]);
 
@@ -223,6 +228,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       medium: requestGroups.medium.length,
       small: requestGroups.small.length,
       tiny: requestGroups.tiny.length,
+    },
+    // Metadata for staleness tracking
+    metadata: {
+      computed_at: new Date().toISOString(),
+      disease_lookback_months: DISEASE_LOOKBACK_MONTHS,
+      max_age_seconds: 3600, // 1 hour
     },
   });
 
