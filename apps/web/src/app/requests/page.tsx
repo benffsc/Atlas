@@ -187,13 +187,19 @@ function DataQualityFlags({
   );
 }
 
+interface NearbyData {
+  count: number;
+  requests: { count: number; by_size: { large: number; medium: number; small: number; tiny: number } };
+  places: { count: number; by_style: { disease: number; watch_list: number; active: number } };
+}
+
 function RequestMapPreview({ requestId, latitude, longitude }: {
   requestId: string;
   latitude: number | null;
   longitude: number | null;
 }) {
   const [mapUrl, setMapUrl] = useState<string | null>(null);
-  const [nearbyCount, setNearbyCount] = useState<number>(0);
+  const [nearbyData, setNearbyData] = useState<NearbyData | null>(null);
 
   useEffect(() => {
     if (!latitude || !longitude) return;
@@ -205,7 +211,11 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
           const result = await response.json();
           if (result.success) {
             setMapUrl(result.data.map_url);
-            setNearbyCount(result.data.nearby_count);
+            setNearbyData({
+              count: result.data.nearby_count || 0,
+              requests: result.data.nearby_requests || { count: 0, by_size: { large: 0, medium: 0, small: 0, tiny: 0 } },
+              places: result.data.nearby_places || { count: 0, by_style: { disease: 0, watch_list: 0, active: 0 } },
+            });
           }
         }
       } catch (err) {
@@ -254,6 +264,34 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
     );
   }
 
+  // Build tooltip with detailed breakdown
+  const tooltipParts: string[] = [];
+  if (nearbyData?.requests.count) {
+    tooltipParts.push(`${nearbyData.requests.count} requests`);
+  }
+  if (nearbyData?.places.count) {
+    const placeDetails: string[] = [];
+    if (nearbyData.places.by_style.disease > 0) {
+      placeDetails.push(`${nearbyData.places.by_style.disease} disease`);
+    }
+    if (nearbyData.places.by_style.watch_list > 0) {
+      placeDetails.push(`${nearbyData.places.by_style.watch_list} watch list`);
+    }
+    if (nearbyData.places.by_style.active > 0) {
+      placeDetails.push(`${nearbyData.places.by_style.active} with cats`);
+    }
+    tooltipParts.push(`${nearbyData.places.count} places (${placeDetails.join(", ")})`);
+  }
+  const tooltip = tooltipParts.join(" · ");
+
+  // Badge text: show disease count if any, otherwise total
+  const hasDiseaseNearby = (nearbyData?.places.by_style.disease || 0) > 0;
+  const badgeText = hasDiseaseNearby
+    ? `⚠ ${nearbyData?.places.by_style.disease} disease · ${nearbyData?.count} nearby`
+    : nearbyData?.count
+      ? `${nearbyData.count} nearby`
+      : null;
+
   return (
     <div style={{ position: "relative" }}>
       <img
@@ -266,20 +304,22 @@ function RequestMapPreview({ requestId, latitude, longitude }: {
           borderRadius: "8px",
         }}
       />
-      {nearbyCount > 0 && (
+      {badgeText && (
         <div
+          title={tooltip}
           style={{
             position: "absolute",
             bottom: "8px",
             right: "8px",
-            background: "rgba(0,0,0,0.7)",
+            background: hasDiseaseNearby ? "rgba(220, 38, 38, 0.9)" : "rgba(0,0,0,0.7)",
             color: "#fff",
             padding: "2px 8px",
             borderRadius: "4px",
             fontSize: "0.75rem",
+            cursor: "help",
           }}
         >
-          {nearbyCount} nearby
+          {badgeText}
         </div>
       )}
     </div>

@@ -10,39 +10,70 @@ interface NearbyRequest {
   request_id: string;
   latitude: number;
   longitude: number;
-  distance_meters: number;  // Industry standard: return distance
+  distance_meters: number;
   estimated_cat_count: number | null;
   marker_size: string;
   status: string;
 }
 
-// Industry standard: radius in meters (~5 miles)
+interface NearbyPlace {
+  place_id: string;
+  latitude: number;
+  longitude: number;
+  distance_meters: number;
+  cat_count: number;
+  disease_risk: boolean;
+  watch_list: boolean;
+  active_request_count: number;
+  pin_style: string;
+}
+
+// Industry standard: radius in meters
 const FIVE_MILES_METERS = 8047;
+const NEARBY_PLACES_RADIUS = 5000; // 5km for places (tighter radius)
 
 interface RequestCoords {
+  place_id: string;
   latitude: number;
   longitude: number;
   summary: string;
 }
 
-// Marker colors based on colony size
-const MARKER_COLORS = {
+// Marker colors for requests (by colony size)
+const REQUEST_MARKER_COLORS = {
   tiny: "gray",    // < 2 cats
   small: "blue",   // 2-6 cats
   medium: "orange", // 7-19 cats
   large: "red",    // 20+ cats
 };
 
-const MARKER_SIZES = {
+const REQUEST_MARKER_SIZES = {
   tiny: "tiny",
   small: "small",
   medium: "mid",
   large: "normal",
 };
 
+// Marker colors for places (by pin style)
+const PLACE_MARKER_COLORS = {
+  disease: "0xdc2626",     // Red for disease risk
+  watch_list: "0x7c3aed",  // Purple for watch list
+  active: "0x16a34a",      // Green for active (has cats)
+  active_requests: "0x0d9488", // Teal for active requests
+  minimal: "0x6b7280",     // Gray for minimal
+};
+
+const PLACE_MARKER_SIZES = {
+  disease: "small",
+  watch_list: "small",
+  active: "tiny",
+  active_requests: "tiny",
+  minimal: "tiny",
+};
+
 /**
  * GET /api/requests/[id]/map
- * Returns a Google Static Maps URL with nearby request markers
+ * Returns a Google Static Maps URL with nearby request AND place markers
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -53,9 +84,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const height = parseInt(searchParams.get("height") || "250");
   const zoom = parseInt(searchParams.get("zoom") || "14");
 
-  // Get request coordinates (join with places to get coordinates)
+  // Get request coordinates and place_id (join with places to get coordinates)
   const requestData = await queryOne<RequestCoords>(
     `SELECT
+       r.place_id::text as place_id,
        ST_Y(p.location::geometry) as latitude,
        ST_X(p.location::geometry) as longitude,
        r.summary
@@ -69,14 +101,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return apiNotFound("Request", id);
   }
 
-  // Get nearby requests (industry standard: meters, not degrees)
-  const nearby = await queryRows<NearbyRequest>(
-    `SELECT * FROM ops.nearby_requests($1, $2, $3, $4, $5)`,
-    [requestData.latitude, requestData.longitude, FIVE_MILES_METERS, id, 50]
-  );
+  // Fetch both nearby requests AND nearby places in parallel
+  const [nearbyRequests, nearbyPlaces] = await Promise.all([
+    queryRows<NearbyRequest>(
+      `SELECT * FROM ops.nearby_requests($1, $2, $3, $4, $5)`,
+      [requestData.latitude, requestData.longitude, FIVE_MILES_METERS, id, 50]
+    ),
+    queryRows<NearbyPlace>(
+      `SELECT * FROM ops.nearby_places($1, $2, $3, $4, $5)`,
+      [requestData.latitude, requestData.longitude, NEARBY_PLACES_RADIUS, requestData.place_id, 30]
+    ),
+  ]);
 
   // Build Google Static Maps URL
-  // Try multiple possible env var names for the Google API key
   const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     return apiServerError("Google Maps API key not configured");
@@ -92,32 +129,60 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     `key=${apiKey}`,
   ];
 
-  // Add center marker (the current request) - always visible, larger
+  // Add center marker (the current request) - always visible, larger, green with X label
   params_list.push(
     `markers=color:green%7Csize:mid%7Clabel:X%7C${requestData.latitude},${requestData.longitude}`
   );
 
-  // Group nearby requests by marker size for efficiency
-  const markerGroups: Record<string, { lat: number; lng: number }[]> = {
+  // Group nearby places by pin_style (disease/watch_list get priority)
+  const placeGroups: Record<string, { lat: number; lng: number }[]> = {
+    disease: [],
+    watch_list: [],
+    active: [],
+    active_requests: [],
+    minimal: [],
+  };
+
+  for (const place of nearbyPlaces) {
+    const style = place.pin_style as keyof typeof placeGroups;
+    if (placeGroups[style]) {
+      placeGroups[style].push({ lat: place.latitude, lng: place.longitude });
+    }
+  }
+
+  // Add place markers (disease and watch_list first - they're most important)
+  for (const style of ["disease", "watch_list", "active"] as const) {
+    const locations = placeGroups[style];
+    if (locations.length === 0) continue;
+
+    const color = PLACE_MARKER_COLORS[style];
+    const markerSize = PLACE_MARKER_SIZES[style];
+    const coords = locations.map((l) => `${l.lat},${l.lng}`).join("%7C");
+
+    params_list.push(`markers=color:${color}%7Csize:${markerSize}%7C${coords}`);
+  }
+
+  // Group nearby requests by marker size
+  const requestGroups: Record<string, { lat: number; lng: number }[]> = {
     large: [],
     medium: [],
     small: [],
     tiny: [],
   };
 
-  for (const req of nearby) {
-    const size = req.marker_size as keyof typeof markerGroups;
-    if (markerGroups[size]) {
-      markerGroups[size].push({ lat: req.latitude, lng: req.longitude });
+  for (const req of nearbyRequests) {
+    const size = req.marker_size as keyof typeof requestGroups;
+    if (requestGroups[size]) {
+      requestGroups[size].push({ lat: req.latitude, lng: req.longitude });
     }
   }
 
-  // Add markers for each group
-  for (const [size, locations] of Object.entries(markerGroups)) {
+  // Add request markers (large colonies are most important)
+  for (const [size, locations] of Object.entries(requestGroups)) {
     if (locations.length === 0) continue;
 
-    const color = MARKER_COLORS[size as keyof typeof MARKER_COLORS];
-    const markerSize = MARKER_SIZES[size as keyof typeof MARKER_SIZES];
+    const color = REQUEST_MARKER_COLORS[size as keyof typeof REQUEST_MARKER_COLORS];
+    const markerSize = REQUEST_MARKER_SIZES[size as keyof typeof REQUEST_MARKER_SIZES];
     const coords = locations.map((l) => `${l.lat},${l.lng}`).join("%7C");
 
     params_list.push(`markers=color:${color}%7Csize:${markerSize}%7C${coords}`);
@@ -132,12 +197,32 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       latitude: requestData.latitude,
       longitude: requestData.longitude,
     },
-    nearby_count: nearby.length,
+    // Combined count for backward compatibility
+    nearby_count: nearbyRequests.length + nearbyPlaces.length,
+    // Detailed breakdown
+    nearby_requests: {
+      count: nearbyRequests.length,
+      by_size: {
+        large: requestGroups.large.length,
+        medium: requestGroups.medium.length,
+        small: requestGroups.small.length,
+        tiny: requestGroups.tiny.length,
+      },
+    },
+    nearby_places: {
+      count: nearbyPlaces.length,
+      by_style: {
+        disease: placeGroups.disease.length,
+        watch_list: placeGroups.watch_list.length,
+        active: placeGroups.active.length,
+      },
+    },
+    // Legacy field for backward compatibility
     nearby_by_size: {
-      large: markerGroups.large.length,
-      medium: markerGroups.medium.length,
-      small: markerGroups.small.length,
-      tiny: markerGroups.tiny.length,
+      large: requestGroups.large.length,
+      medium: requestGroups.medium.length,
+      small: requestGroups.small.length,
+      tiny: requestGroups.tiny.length,
     },
   });
 
