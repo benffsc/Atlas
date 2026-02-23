@@ -64,7 +64,7 @@ BEGIN
         ST_X(p.location::geometry) as longitude,
         r.summary,
         r.map_preview_url as current_preview_url,
-        EXTRACT(EPOCH FROM (NOW() - r.map_preview_updated_at)) / 3600 as preview_age_hours
+        (EXTRACT(EPOCH FROM (NOW() - r.map_preview_updated_at)) / 3600)::DOUBLE PRECISION as preview_age_hours
     FROM ops.requests r
     JOIN sot.places p ON r.place_id = p.place_id
     WHERE p.location IS NOT NULL
