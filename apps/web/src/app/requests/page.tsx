@@ -187,11 +187,31 @@ function DataQualityFlags({
   );
 }
 
+interface DiseaseDetail {
+  places: number;
+  cats: number;
+  nearest_meters: number;
+}
+
 interface NearbyData {
   count: number;
   requests: { count: number; by_size: { large: number; medium: number; small: number; tiny: number } };
-  places: { count: number; by_style: { disease: number; watch_list: number; active: number } };
+  places: {
+    count: number;
+    by_style: { disease: number; watch_list: number; active: number };
+    disease_detail?: Record<string, DiseaseDetail>;
+    total_positive_cats?: number;
+  };
 }
+
+// Disease display names for UI
+const DISEASE_LABELS: Record<string, string> = {
+  felv: "FeLV",
+  fiv: "FIV",
+  ringworm: "Ringworm",
+  heartworm: "Heartworm",
+  panleukopenia: "Panleuk",
+};
 
 // Map caching is handled by HTTP Cache-Control headers (stale-while-revalidate)
 // This avoids sessionStorage limitations (no cross-tab sync, manual TTL management)
@@ -286,39 +306,64 @@ function RequestMapPreview({ requestId, latitude, longitude, address }: {
     );
   }
 
-  // Build tooltip with detailed breakdown
-  const tooltipParts: string[] = [];
-  if (nearbyData?.requests.count) {
-    tooltipParts.push(`${nearbyData.requests.count} requests`);
-  }
-  if (nearbyData?.places.count) {
-    const placeDetails: string[] = [];
-    if (nearbyData.places.by_style.disease > 0) {
-      placeDetails.push(`${nearbyData.places.by_style.disease} disease`);
-    }
-    if (nearbyData.places.by_style.watch_list > 0) {
-      placeDetails.push(`${nearbyData.places.by_style.watch_list} watch list`);
-    }
-    if (nearbyData.places.by_style.active > 0) {
-      placeDetails.push(`${nearbyData.places.by_style.active} with cats`);
-    }
-    tooltipParts.push(`${nearbyData.places.count} places (${placeDetails.join(", ")})`);
-  }
-  const tooltip = tooltipParts.join(" · ");
+  // Extract disease types present nearby (sorted by severity)
+  const diseaseDetail = nearbyData?.places.disease_detail || {};
+  const diseaseTypes = Object.keys(diseaseDetail).sort((a, b) => {
+    // FeLV > FIV > others (severity order)
+    const order: Record<string, number> = { felv: 0, fiv: 1, ringworm: 2, panleukopenia: 3, heartworm: 4 };
+    return (order[a] ?? 99) - (order[b] ?? 99);
+  });
 
-  // Badge text: only show disease warning if meaningful (3+ nearby)
-  // 1-2 disease sites is background noise in an area with many cats
-  // 3+ indicates a cluster worth noting
-  // 10+ is high risk
-  const diseaseCount = nearbyData?.places.by_style.disease || 0;
-  const isHighRisk = diseaseCount >= 10;
-  const isModerateRisk = diseaseCount >= 3;
+  // Build tooltip with detailed breakdown (now shows cat counts per disease)
+  const tooltipParts: string[] = [];
+  if (diseaseTypes.length > 0) {
+    const diseaseParts = diseaseTypes.map((key) => {
+      const detail = diseaseDetail[key];
+      const label = DISEASE_LABELS[key] || key;
+      const nearest = detail.nearest_meters < 1000
+        ? `${detail.nearest_meters}m`
+        : `${(detail.nearest_meters / 1000).toFixed(1)}km`;
+      return `${detail.cats} ${label} cat${detail.cats !== 1 ? "s" : ""} at ${detail.places} place${detail.places !== 1 ? "s" : ""} (nearest: ${nearest})`;
+    });
+    tooltipParts.push(diseaseParts.join("\n"));
+  }
+  if (nearbyData?.requests.count) {
+    tooltipParts.push(`${nearbyData.requests.count} requests nearby`);
+  }
+  if (nearbyData?.places.by_style.watch_list) {
+    tooltipParts.push(`${nearbyData.places.by_style.watch_list} watch list`);
+  }
+  const tooltip = tooltipParts.join("\n");
+
+  // Badge text: show disease TYPES instead of confusing place counts
+  // - FeLV only → "⚠ FeLV nearby"
+  // - FeLV + FIV → "⚠ FeLV/FIV nearby"
+  // - Multiple diseases (3+) → "⚠ Disease risk"
+  // - No disease → "37 nearby"
+  const hasDiseaseNearby = diseaseTypes.length > 0;
+  const hasFelv = diseaseTypes.includes("felv");
+  const hasFiv = diseaseTypes.includes("fiv");
 
   let badgeText: string | null = null;
-  if (isHighRisk) {
-    badgeText = `⚠ ${diseaseCount} disease · ${nearbyData?.count} nearby`;
-  } else if (isModerateRisk) {
-    badgeText = `${diseaseCount} disease · ${nearbyData?.count} nearby`;
+  let isHighRisk = false;
+  let isModerateRisk = false;
+
+  if (hasDiseaseNearby) {
+    isHighRisk = hasFelv; // FeLV is always high risk
+    isModerateRisk = !hasFelv && hasFiv; // FIV without FeLV is moderate
+
+    if (diseaseTypes.length === 1) {
+      // Single disease type
+      const label = DISEASE_LABELS[diseaseTypes[0]] || diseaseTypes[0];
+      badgeText = `⚠ ${label} nearby · ${nearbyData?.places.count} places`;
+    } else if (diseaseTypes.length === 2) {
+      // Two disease types
+      const labels = diseaseTypes.map((k) => DISEASE_LABELS[k] || k).join("/");
+      badgeText = `⚠ ${labels} nearby · ${nearbyData?.places.count} places`;
+    } else {
+      // 3+ disease types
+      badgeText = `⚠ Disease risk · ${nearbyData?.places.count} places`;
+    }
   } else if (nearbyData?.count) {
     badgeText = `${nearbyData.count} nearby`;
   }
@@ -343,11 +388,13 @@ function RequestMapPreview({ requestId, latitude, longitude, address }: {
             bottom: "8px",
             right: "8px",
             background: isHighRisk
-              ? "rgba(220, 38, 38, 0.95)"  // Red for high risk (10+)
+              ? "rgba(220, 38, 38, 0.95)"  // Red for FeLV (highly contagious)
               : isModerateRisk
-                ? "rgba(234, 179, 8, 0.9)"  // Yellow/amber for moderate (3-9)
-                : "rgba(0,0,0,0.7)",         // Gray for no concern
-            color: isModerateRisk && !isHighRisk ? "#000" : "#fff",
+                ? "rgba(234, 179, 8, 0.9)"  // Amber for FIV (less contagious)
+                : hasDiseaseNearby
+                  ? "rgba(202, 138, 4, 0.85)"  // Yellow for Ringworm/other
+                  : "rgba(0,0,0,0.7)",         // Gray for no disease
+            color: (isModerateRisk || (hasDiseaseNearby && !isHighRisk)) ? "#000" : "#fff",
             padding: "2px 8px",
             borderRadius: "4px",
             fontSize: "0.75rem",

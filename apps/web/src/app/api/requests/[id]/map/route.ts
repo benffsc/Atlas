@@ -16,6 +16,11 @@ interface NearbyRequest {
   status: string;
 }
 
+interface DiseaseSummary {
+  positive_cats: number;
+  last_positive: string | null;
+}
+
 interface NearbyPlace {
   place_id: string;
   latitude: number;
@@ -23,9 +28,17 @@ interface NearbyPlace {
   distance_meters: number;
   cat_count: number;
   disease_risk: boolean;
+  disease_summary: Record<string, DiseaseSummary> | null;  // NEW: Per-disease breakdown
   watch_list: boolean;
   active_request_count: number;
   pin_style: string;
+}
+
+// Disease detail aggregation for response
+interface DiseaseDetail {
+  places: number;
+  cats: number;
+  nearest_meters: number;
 }
 
 // Industry standard: radius in meters
@@ -148,11 +161,40 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     minimal: [],
   };
 
+  // Aggregate disease details by disease type (felv, fiv, ringworm, etc.)
+  const diseaseDetail: Record<string, DiseaseDetail> = {};
+  let totalPositiveCats = 0;
+
   for (const place of nearbyPlaces) {
     const style = place.pin_style as keyof typeof placeGroups;
     if (placeGroups[style]) {
       placeGroups[style].push({ lat: place.latitude, lng: place.longitude });
     }
+
+    // Aggregate disease data if this place has any
+    if (place.disease_risk && place.disease_summary) {
+      for (const [diseaseKey, diseaseData] of Object.entries(place.disease_summary)) {
+        if (!diseaseDetail[diseaseKey]) {
+          diseaseDetail[diseaseKey] = {
+            places: 0,
+            cats: 0,
+            nearest_meters: Infinity,
+          };
+        }
+        diseaseDetail[diseaseKey].places += 1;
+        diseaseDetail[diseaseKey].cats += diseaseData.positive_cats || 0;
+        diseaseDetail[diseaseKey].nearest_meters = Math.min(
+          diseaseDetail[diseaseKey].nearest_meters,
+          place.distance_meters
+        );
+        totalPositiveCats += diseaseData.positive_cats || 0;
+      }
+    }
+  }
+
+  // Round nearest_meters to integers
+  for (const detail of Object.values(diseaseDetail)) {
+    detail.nearest_meters = Math.round(detail.nearest_meters);
   }
 
   // Add place markers (disease and watch_list first - they're most important)
@@ -221,6 +263,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         watch_list: placeGroups.watch_list.length,
         active: placeGroups.active.length,
       },
+      // NEW: Per-disease breakdown (felv, fiv, ringworm, etc.)
+      disease_detail: diseaseDetail,
+      total_positive_cats: totalPositiveCats,
     },
     // Legacy field for backward compatibility
     nearby_by_size: {
