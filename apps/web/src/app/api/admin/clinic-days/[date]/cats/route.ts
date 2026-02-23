@@ -211,7 +211,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       cats,
     };
 
-    return NextResponse.json(response);
+    // Prevent caching to ensure fresh data after updates
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error("Clinic day cats fetch error:", error);
     return NextResponse.json(

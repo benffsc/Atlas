@@ -145,6 +145,8 @@ function toCatCardData(cat: ClinicDayCat): CatCardData {
     place_address: cat.place_address,
     owner_name: cat.owner_name,
     trapper_name: cat.trapper_name,
+    // For inline editing
+    appointment_id: cat.appointment_id,
   };
 }
 
@@ -300,7 +302,7 @@ export default function ClinicDaysPage() {
 
       // Load cat gallery data
       setLoadingCats(true);
-      fetch(`/api/admin/clinic-days/${selectedDate}/cats`)
+      fetch(`/api/admin/clinic-days/${selectedDate}/cats`, { cache: 'no-store' })
         .then((res) => {
           if (res.ok) return res.json();
           return { cats: [], total_cats: 0, chipped_count: 0, unchipped_count: 0, unlinked_count: 0 };
@@ -485,6 +487,30 @@ export default function ClinicDaysPage() {
     }
   };
 
+  // Update clinic day number for a cat (inline edit from gallery)
+  const handleUpdateClinicDayNumber = async (appointmentId: string, number: number | null) => {
+    const res = await fetch(`/api/appointments/${appointmentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clinic_day_number: number }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to update");
+    }
+
+    // Update local state to reflect the change immediately
+    setClinicCats((prev) =>
+      prev.map((cat) =>
+        cat.appointment_id === appointmentId
+          ? { ...cat, clinic_day_number: number }
+          : cat
+      )
+    );
+  };
+
   // Open edit modal with current day data
   const openEditModal = () => {
     if (selectedDay) {
@@ -646,7 +672,7 @@ export default function ClinicDaysPage() {
   const handleUploadComplete = () => {
     setUploadSuccess(true);
     // Reload cat gallery data
-    fetch(`/api/admin/clinic-days/${selectedDate}/cats`)
+    fetch(`/api/admin/clinic-days/${selectedDate}/cats`, { cache: 'no-store' })
       .then((res) => res.ok ? res.json() : { cats: [] })
       .then((data) => {
         setClinicCats(data.cats || []);
@@ -1462,7 +1488,11 @@ export default function ClinicDaysPage() {
                                 gap: "16px",
                               }}>
                                 {cats.map((cat) => (
-                                  <CatCard key={cat.appointment_id} cat={toCatCardData(cat)} />
+                                  <CatCard
+                                    key={cat.appointment_id}
+                                    cat={toCatCardData(cat)}
+                                    onUpdateClinicDayNumber={handleUpdateClinicDayNumber}
+                                  />
                                 ))}
                               </div>
                             </div>
@@ -1478,7 +1508,11 @@ export default function ClinicDaysPage() {
                         gap: "16px",
                       }}>
                         {filteredCats.map((cat) => (
-                          <CatCard key={cat.appointment_id} cat={toCatCardData(cat)} />
+                          <CatCard
+                            key={cat.appointment_id}
+                            cat={toCatCardData(cat)}
+                            onUpdateClinicDayNumber={handleUpdateClinicDayNumber}
+                          />
                         ))}
                       </div>
                     );
@@ -1890,7 +1924,7 @@ export default function ClinicDaysPage() {
                               setUploadSearchQuery("");
                               setUploadSearchResults([]);
                               // Reload cat gallery to reflect changes
-                              fetch(`/api/admin/clinic-days/${selectedDate}/cats`)
+                              fetch(`/api/admin/clinic-days/${selectedDate}/cats`, { cache: 'no-store' })
                                 .then((res) => res.ok ? res.json() : { cats: [] })
                                 .then((data) => {
                                   setClinicCats(data.cats || []);
