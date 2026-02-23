@@ -39,7 +39,7 @@ interface MediaGalleryProps {
   defaultToGroupView?: boolean;
   availableCats?: Cat[];
   onClinicDayNumber?: (appointmentId: string, num: number) => void;
-  appointmentOptions?: Array<{ appointment_id: string; appointment_date: string }>;
+  appointmentOptions?: Array<{ appointment_id: string; appointment_date: string; clinic_day_number?: number | null }>;
 }
 
 export function MediaGallery({

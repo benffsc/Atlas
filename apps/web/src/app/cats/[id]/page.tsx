@@ -892,6 +892,7 @@ export default function CatDetailPage() {
               appointmentOptions={cat.appointments?.map((a) => ({
                 appointment_id: a.appointment_id,
                 appointment_date: a.appointment_date,
+                clinic_day_number: a.clinic_day_number,
               }))}
             />
           </div>

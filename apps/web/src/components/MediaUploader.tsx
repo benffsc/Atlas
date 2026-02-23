@@ -46,7 +46,7 @@ interface MediaUploaderProps {
   autoGroupMultiple?: boolean;
   defaultConfidence?: ConfidenceLevel;
   onClinicDayNumber?: (appointmentId: string, num: number) => void;
-  appointmentOptions?: Array<{ appointment_id: string; appointment_date: string }>;
+  appointmentOptions?: Array<{ appointment_id: string; appointment_date: string; clinic_day_number?: number | null }>;
 }
 
 export function MediaUploader({
@@ -76,9 +76,14 @@ export function MediaUploader({
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [clinicDayNum, setClinicDayNum] = useState("");
   const [uploadedMedia, setUploadedMedia] = useState<MediaItem[] | null>(null);
   const [selectedApptId, setSelectedApptId] = useState(appointmentOptions[0]?.appointment_id || "");
+  // Default clinic day number to the selected appointment's existing value (if any)
+  const getDefaultClinicDayNum = (apptId: string) => {
+    const appt = appointmentOptions.find(a => a.appointment_id === apptId);
+    return appt?.clinic_day_number != null ? String(appt.clinic_day_number) : "";
+  };
+  const [clinicDayNum, setClinicDayNum] = useState(() => getDefaultClinicDayNum(appointmentOptions[0]?.appointment_id || ""));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -454,7 +459,11 @@ export function MediaUploader({
               </label>
               <select
                 value={selectedApptId}
-                onChange={(e) => setSelectedApptId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedApptId(e.target.value);
+                  // Update clinic day number to the selected appointment's existing value
+                  setClinicDayNum(getDefaultClinicDayNum(e.target.value));
+                }}
                 style={{
                   width: "100%",
                   padding: "0.375rem 0.5rem",
