@@ -52,6 +52,14 @@ These rules apply to ALL API routes in `/apps/web/src/app/api/`:
 
 ## Entity Linking Rules
 
+**Cat-Request Attribution Window** (MIG_2480):
+Cats are linked to requests based on appointment date relative to request lifecycle:
+- **6 months BEFORE request**: People often fix cats before requesting trapper help
+- **DURING request**: From creation until resolution
+- **3 months AFTER resolution**: Grace period for late arrivals
+- Uses `COALESCE(source_created_at, created_at)` for legacy Airtable dates
+- Function: `sot.link_cats_to_requests_attribution()`
+
 **Cat-Place Linking** (MIG_889/892):
 - `link_cats_to_appointment_places()` — uses `inferred_place_id` (highest priority)
 - `link_cats_to_places()` — uses LIMIT 1 per person + staff exclusion
