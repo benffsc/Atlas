@@ -34,7 +34,7 @@ SELECT
   (SELECT pi.id_value_norm FROM sot.person_identifiers pi WHERE pi.person_id = per.person_id AND pi.id_type = 'phone' AND pi.confidence >= 0.5 ORDER BY pi.confidence DESC LIMIT 1) AS requester_phone,
   ST_Y(p.location::geometry) AS latitude,
   ST_X(p.location::geometry) AS longitude,
-  0::int AS linked_cat_count,
+  COALESCE((SELECT COUNT(*) FROM ops.request_cats rc WHERE rc.request_id = r.request_id), 0)::int AS linked_cat_count,
   r.source_system = 'airtable' AS is_legacy_request,
   COALESCE((SELECT COUNT(*) FROM ops.request_trapper_assignments rta WHERE rta.request_id = r.request_id AND rta.status = 'active'), 0)::int AS active_trapper_count,
   p.location IS NOT NULL AS place_has_location,

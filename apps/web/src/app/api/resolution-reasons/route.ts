@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
 
     let query = `
       SELECT
-        reason_code,
+        reason_key as reason_code,
         reason_label,
-        reason_description,
+        NULL::text as reason_description,
         applies_to_status,
         requires_notes,
         display_order
