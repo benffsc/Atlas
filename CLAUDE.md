@@ -138,7 +138,29 @@ See `docs/CENTRALIZED_FUNCTIONS.md` for full signatures.
 
 Use **"Cats Needing TNR"** in UI labels.
 
-**Trapper Types**: `coordinator`, `head_trapper`, `ffsc_trapper` (FFSC). `community_trapper` (not FFSC).
+## Trapper Classification (Three Tiers)
+
+**This is an important distinction that affects attribution, permissions, and representation:**
+
+| Tier | Type | Database Value | Represents FFSC? | Description |
+|------|------|----------------|------------------|-------------|
+| **Tier 1: FFSC Trappers** | Staff Coordinator | `coordinator` | ✅ Yes | FFSC staff who coordinate trapping operations |
+| | Head Trapper | `head_trapper` | ✅ Yes | FFSC senior volunteer trappers |
+| | FFSC Volunteer Trapper | `ffsc_trapper` | ✅ Yes | Completed full volunteer orientation process. Most "official" trappers. |
+| **Tier 2: Community Trappers** | Contract Community | `community_trapper` | ❌ No | Signed contract limiting them to SPECIFIC AREAS ONLY. Help their community but limited scope. |
+| **Tier 3: Unofficial/Legacy** | Informal Helper | `community_trapper` | ❌ No | Remnants of old informal processes (e.g., Toni Price). No formal contract. |
+| **Special** | Rescue Operator | `rescue_operator` | Varies | Runs a home-based rescue (e.g., Katie Moore's "Cat Rescue of Cloverdale") |
+| | Colony Caretaker | `colony_caretaker` | ❌ No | Long-term steward of specific colony location |
+
+**Key Distinctions:**
+- **FFSC Trappers** (Tier 1) go through VolunteerHub volunteer process and represent FFSC officially
+- **Community Trappers** (Tier 2) sign contracts limiting them to specific areas — they do NOT represent FFSC
+- **Unofficial Trappers** (Tier 3) are historical/legacy — we track them but they have no formal relationship
+
+**Service Territories** (MIG_2485/2486):
+- `sot.trapper_profiles` — Extended trapper info (type, rescue name, rescue location)
+- `sot.trapper_service_places` — Links trappers to places they regularly work
+- `sot.find_trappers_for_place()` — Find who services a given location
 
 ## Map & Search
 
