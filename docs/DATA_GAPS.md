@@ -2191,3 +2191,141 @@ HAVING COUNT(DISTINCT place_id) > 5;
 ### Status: ARCHITECTURE VERIFIED - Run queries to confirm data quality
 
 Priority: **MEDIUM** - Architecture is sound, verification confirms no data issues
+
+---
+
+## DATA_GAP_051: No-Microchip Cats Not Processed by Ingest Pipeline
+
+**Status:** FIXED (2026-02-22)
+
+**Problem:** Cats without microchips in ClinicHQ were not being processed by the ingest pipeline. The `cat_info` and `appointment_info` staged records remained `is_processed = FALSE` with no resulting entity.
+
+**Example Case:**
+- **26-691 (Tux)**: Elisha Togneri's cat, 9.48 lbs, euthanized on 02/18/2026
+- Source data complete: owner info, cat info, appointment info all present
+- No microchip in ClinicHQ (common for euthanasia cases - cat never gets chipped)
+- Cat and appointment never created in canonical tables
+
+**Root Cause:** Pipeline logic prioritized microchip-based cat creation/matching. When no microchip existed, the pipeline either:
+1. Skipped cat creation entirely, OR
+2. Failed to find the cat for appointment linking
+
+**Fix Applied:**
+
+1. **TypeScript Ingest Route** (`/apps/web/src/app/api/ingest/process/[id]/route.ts`):
+   - Step 1c: Creates cats without microchips using `clinichq_animal_id`
+   - Step 3b: Links appointments to cats via `clinichq_animal_id`
+   - Appointment query: Joins on both microchip AND clinichq_animal_id
+
+2. **SQL Function** (MIG_2460):
+   - `sot.find_or_create_cat_by_clinichq_id()` for batch processing
+
+3. **Manual Fix** for historical case (26-691 Tux):
+   - Created cat, appointment, mortality event
+   - Linked to owner via household email
+
+**Downstream Impact:** None - all downstream systems (map, search, entity linking, colony estimates, disease computation) use `cat_id`, not microchip.
+
+**Verification Queries:**
+```sql
+-- No-microchip cats created recently
+SELECT cat_id, name, clinichq_animal_id, microchip, created_at
+FROM sot.cats
+WHERE microchip IS NULL
+  AND clinichq_animal_id IS NOT NULL
+  AND created_at > NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC;
+
+-- Appointments linked via clinichq_animal_id
+SELECT a.appointment_date, a.appointment_number, c.name, c.clinichq_animal_id
+FROM ops.appointments a
+JOIN sot.cats c ON c.cat_id = a.cat_id
+WHERE c.microchip IS NULL
+  AND c.clinichq_animal_id IS NOT NULL
+ORDER BY a.appointment_date DESC
+LIMIT 20;
+```
+
+**Related:** Euthanized cats often don't get microchipped because the outcome is known before the procedure would happen.
+
+---
+
+## DATA_GAP_052: Recheck Appointments Creating Duplicate Cats
+
+**Status:** FIXED (2026-02-22)
+
+**Problem:** When a cat returned for a recheck/vaccination visit, ClinicHQ created a new animal number. Staff sometimes entered the microchip in the "Animal Name" field as a reference. The ingest pipeline didn't recognize this pattern and created a duplicate cat record.
+
+**Example Case:**
+- **25-2472**: Original cat, microchip 981020053545766, altered 7/23/2025
+- **26-580**: Recheck visit on 02/09/2026 for same cat
+  - Animal Name field: "981020053545766" (the microchip!)
+  - Medical Notes: "Already altered - done 7/23/2025"
+  - Services: Examination, Brief / Revolution / Rabies / FVRCP
+  - No microchip in Microchip Number field
+
+**Root Cause:**
+1. Staff entered microchip in Animal Name as reference for returning cats
+2. Pipeline created new cat with name "981020053545766" (should be "Unknown")
+3. No logic to detect microchip pattern in name field and match to existing cat
+
+**Fix Applied:**
+
+1. **TypeScript Ingest Route** (`/apps/web/src/app/api/ingest/process/[id]/route.ts`):
+   - Step 1b: Detects 15-digit microchip pattern in Animal Name field
+   - Matches to existing cat via that microchip
+   - Adds new `clinichq_animal_id` to existing cat's identifiers
+   - Does NOT create duplicate cat
+
+2. **SQL Monitoring View** (MIG_2461):
+   - `ops.v_potential_recheck_duplicates`: Shows unhandled cases
+   - `ops.v_unhandled_recheck_duplicates`: Alert view (should be empty)
+
+3. **Manual Fix** for historical case (26-580):
+   - Merged into 25-2472
+   - Updated appointment cat_id
+   - Added 26-580 as identifier on real cat
+
+**Verification Queries:**
+```sql
+-- Check for unhandled recheck duplicates (should be 0)
+SELECT COUNT(*) FROM ops.v_unhandled_recheck_duplicates;
+
+-- View recheck summary
+SELECT * FROM ops.v_recheck_duplicate_summary;
+
+-- Cats with multiple clinichq_animal_ids (rechecks properly linked)
+SELECT c.cat_id, c.name, c.microchip,
+       array_agg(ci.id_value) as animal_ids
+FROM sot.cats c
+JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'clinichq_animal_id'
+GROUP BY c.cat_id, c.name, c.microchip
+HAVING COUNT(*) > 1
+ORDER BY COUNT(*) DESC;
+```
+
+**Manual Fix Applied:**
+```sql
+-- Merged 26-580 (duplicate) into 25-2472 (real cat)
+-- Updated appointment to point to real cat
+-- Added 26-580 as additional clinichq_animal_id on real cat
+-- 02/09 now shows 38 cats (correct)
+```
+
+**Proposed Pipeline Fix:**
+1. Add regex check for microchip pattern in Animal Name field: `^\d{15}$`
+2. If detected, look up existing cat by that microchip
+3. Link new appointment to existing cat instead of creating duplicate
+4. Add new clinichq_animal_id to existing cat for future matching
+
+**Detection Query:**
+```sql
+-- Find recheck appointments with microchip in name field
+SELECT payload->>'Number', payload->>'Animal Name', payload->>'Date'
+FROM ops.staged_records
+WHERE source_table = 'cat_info'
+  AND payload->>'Animal Name' ~ '^\d{15}$'
+  AND (payload->>'Microchip Number' IS NULL OR payload->>'Microchip Number' = '');
+```
+
+---

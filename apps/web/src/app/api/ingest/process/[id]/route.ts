@@ -429,6 +429,117 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.sex_updates = sexUpdates.rowCount || 0;
 
+    // Step 1b: Handle recheck cases - microchip in Animal Name field
+    // DATA_GAP_052: Staff sometimes enters microchip in Animal Name for returning cats
+    // Pattern: Animal Name is 15 digits (microchip), Microchip Number is empty
+    await saveProgress('Matching recheck cats via name-embedded microchip...');
+    const recheckMatches = await query(`
+      WITH recheck_data AS (
+        SELECT
+          ci.payload->>'Number' as clinichq_animal_id,
+          ci.payload->>'Animal Name' as embedded_microchip
+        FROM ops.staged_records ci
+        WHERE ci.source_system = 'clinichq'
+          AND ci.source_table = 'cat_info'
+          AND ci.file_upload_id = $1
+          -- No microchip in microchip field
+          AND (ci.payload->>'Microchip Number' IS NULL OR TRIM(ci.payload->>'Microchip Number') = '')
+          -- But Animal Name looks like a microchip (15 digits)
+          AND ci.payload->>'Animal Name' ~ '^[0-9]{15}$'
+      )
+      -- Add the new clinichq_animal_id to existing cat
+      INSERT INTO sot.cat_identifiers (cat_id, id_type, id_value, source_system, created_at)
+      SELECT DISTINCT ON (rd.clinichq_animal_id)
+        existing_ci.cat_id,
+        'clinichq_animal_id',
+        rd.clinichq_animal_id,
+        'clinichq',
+        NOW()
+      FROM recheck_data rd
+      JOIN sot.cat_identifiers existing_ci ON existing_ci.id_value = rd.embedded_microchip AND existing_ci.id_type = 'microchip'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM sot.cat_identifiers ci2
+        WHERE ci2.id_value = rd.clinichq_animal_id AND ci2.id_type = 'clinichq_animal_id'
+      )
+      ON CONFLICT DO NOTHING
+    `, [uploadId]);
+    results.recheck_cats_matched = recheckMatches.rowCount || 0;
+
+    // Step 1c: Create cats WITHOUT microchips using clinichq_animal_id
+    // DATA_GAP_051: Cats without microchips (euthanasia cases, etc.) were being skipped
+    // These cats still need records - use clinichq_animal_id as the deduplication key
+    await saveProgress('Creating cats without microchips...');
+    const catsWithoutChip = await query(`
+      WITH no_chip_cats AS (
+        SELECT DISTINCT ON (ci.payload->>'Number')
+          NULLIF(TRIM(ci.payload->>'Number'), '') as clinichq_animal_id,
+          NULLIF(TRIM(ci.payload->>'Animal Name'), '') as name,
+          NULLIF(TRIM(ci.payload->>'Sex'), '') as sex,
+          NULLIF(TRIM(ci.payload->>'Breed'), '') as breed,
+          NULLIF(TRIM(ci.payload->>'Primary Color'), '') as color,
+          NULLIF(TRIM(ci.payload->>'Secondary Color'), '') as secondary_color,
+          -- Normalize ownership_type
+          CASE TRIM(oi.payload->>'Ownership')
+            WHEN 'Community Cat (Feral)' THEN 'feral'
+            WHEN 'Community Cat (Friendly)' THEN 'community'
+            WHEN 'Owned' THEN 'owned'
+            WHEN 'Foster' THEN 'foster'
+            ELSE NULL
+          END as ownership_type
+        FROM ops.staged_records ci
+        LEFT JOIN ops.staged_records oi ON
+          oi.source_system = 'clinichq'
+          AND oi.source_table = 'owner_info'
+          AND oi.payload->>'Number' = ci.payload->>'Number'
+          AND oi.file_upload_id = $1
+        WHERE ci.source_system = 'clinichq'
+          AND ci.source_table = 'cat_info'
+          AND ci.file_upload_id = $1
+          -- No microchip
+          AND (ci.payload->>'Microchip Number' IS NULL OR TRIM(ci.payload->>'Microchip Number') = '')
+          -- Animal Name is NOT a microchip (recheck case handled above)
+          AND NOT (ci.payload->>'Animal Name' ~ '^[0-9]{15}$')
+          -- Has a clinichq_animal_id (Number field)
+          AND ci.payload->>'Number' IS NOT NULL
+          AND TRIM(ci.payload->>'Number') != ''
+          -- Doesn't already exist by this animal_id
+          AND NOT EXISTS (
+            SELECT 1 FROM sot.cat_identifiers existing
+            WHERE existing.id_value = ci.payload->>'Number'
+              AND existing.id_type = 'clinichq_animal_id'
+          )
+        ORDER BY ci.payload->>'Number', ci.created_at DESC
+      ),
+      inserted_cats AS (
+        INSERT INTO sot.cats (
+          cat_id, name, sex, breed, primary_color, secondary_color,
+          clinichq_animal_id, ownership_type, source_system, source_record_id,
+          created_at, updated_at
+        )
+        SELECT
+          gen_random_uuid(),
+          ncc.name,
+          LOWER(ncc.sex),
+          ncc.breed,
+          ncc.color,
+          ncc.secondary_color,
+          ncc.clinichq_animal_id,
+          ncc.ownership_type,
+          'clinichq',
+          ncc.clinichq_animal_id,
+          NOW(),
+          NOW()
+        FROM no_chip_cats ncc
+        RETURNING cat_id, clinichq_animal_id
+      )
+      -- Also create cat_identifier for the clinichq_animal_id
+      INSERT INTO sot.cat_identifiers (cat_id, id_type, id_value, source_system, created_at)
+      SELECT ic.cat_id, 'clinichq_animal_id', ic.clinichq_animal_id, 'clinichq', NOW()
+      FROM inserted_cats ic
+      ON CONFLICT DO NOTHING
+    `, [uploadId]);
+    results.cats_created_without_chip = catsWithoutChip.rowCount || 0;
+
     // Step 3: Link orphaned appointments to cats via microchip
     // Appointments may have been created before cats existed
     // NOTE: We match on payload->>'Number' because source_row_id is a composite (Number_Date)
@@ -447,6 +558,19 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         AND TRIM(sr.payload->>'Microchip Number') != ''
     `);
     results.orphaned_appointments_linked = appointmentsLinked.rowCount || 0;
+
+    // Step 3b: Link orphaned appointments to cats via clinichq_animal_id
+    // For cats without microchips, use the Number field to match
+    await saveProgress('Linking appointments to cats via animal ID...');
+    const appointmentsLinkedByAnimalId = await query(`
+      UPDATE ops.appointments a
+      SET cat_id = sot.get_canonical_cat_id(ci.cat_id)
+      FROM sot.cat_identifiers ci
+      WHERE ci.id_value = a.appointment_number
+        AND ci.id_type = 'clinichq_animal_id'
+        AND a.cat_id IS NULL
+    `);
+    results.appointments_linked_by_animal_id = appointmentsLinkedByAnimalId.rowCount || 0;
 
     // Step 4: Extract weight from cat_info into cat_vitals
     // This ensures weight data is captured during real-time ingest, not just via migrations
@@ -849,10 +973,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
              ELSE NULL END,
         -- Unique ID: date_microchip for joining to raw data
         TO_CHAR(TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'), 'YYYY-MM-DD') || '_' || (sr.payload->>'Microchip Number'),
-        'clinichq', 'clinichq', sr.source_row_id, sr.row_hash
+        'clinichq', 'clinichq',
+        -- source_record_id: {Number}_{M-D-YYYY} format for deduplication
+        (sr.payload->>'Number') || '_' ||
+          EXTRACT(MONTH FROM TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'))::INT || '-' ||
+          EXTRACT(DAY FROM TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'))::INT || '-' ||
+          EXTRACT(YEAR FROM TO_DATE(sr.payload->>'Date', 'MM/DD/YYYY'))::INT,
+        sr.row_hash
       FROM ops.staged_records sr
-      LEFT JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
-      LEFT JOIN sot.cats c ON c.cat_id = ci.cat_id
+      -- Match by microchip first
+      LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.id_value = sr.payload->>'Microchip Number' AND ci_mc.id_type = 'microchip'
+      -- Also match by clinichq_animal_id (Number field) for cats without microchips
+      LEFT JOIN sot.cat_identifiers ci_aid ON ci_aid.id_value = sr.payload->>'Number' AND ci_aid.id_type = 'clinichq_animal_id'
+      -- Use microchip match if available, otherwise animal_id match
+      LEFT JOIN sot.cats c ON c.cat_id = COALESCE(ci_mc.cat_id, ci_aid.cat_id)
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'appointment_info'
         AND sr.file_upload_id = $1

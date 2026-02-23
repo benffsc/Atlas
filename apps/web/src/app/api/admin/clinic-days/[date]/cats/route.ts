@@ -26,6 +26,8 @@ interface ClinicDayCat {
   owner_name: string | null;
   trapper_name: string | null;
   place_address: string | null;
+  // Weight
+  weight_lbs: number | null;
   // Deceased and health status fields
   is_deceased: boolean;
   deceased_date: string | null;
@@ -83,22 +85,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           c.breed AS cat_breed,
           c.primary_color AS cat_color,
           c.secondary_color AS cat_secondary_color,
-          FALSE AS needs_microchip,
+          -- needs_microchip: TRUE if cat had spay/neuter but no microchip
+          -- Cats that get altered should typically be microchipped
+          CASE WHEN (a.is_spay OR a.is_neuter) AND COALESCE(ci_mc.id_value, c.microchip) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
           -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
           COALESCE(ci_mc.id_value, c.microchip) AS microchip,
           COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
-          -- Get first photo from storage for this cat
+          -- Get photo for this cat with priority: 1) hero (main photo), 2) most recent
           (
-            SELECT 'https://afxpboxisgoxttyrbtpw.supabase.co/storage/v1/object/public/request-media/' || so.name
-            FROM storage.objects so
-            WHERE so.bucket_id = 'request-media'
-              AND so.name LIKE 'cats/' || c.cat_id::text || '/%'
-            ORDER BY so.created_at DESC
+            SELECT rm.storage_path
+            FROM ops.request_media rm
+            WHERE rm.cat_id = c.cat_id
+              AND rm.is_archived = FALSE
+            ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
             LIMIT 1
           ) AS photo_url,
           per.display_name AS owner_name,
           pl.formatted_address AS place_address,
           NULL AS trapper_name,
+          a.cat_weight_lbs AS weight_lbs,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
           c.deceased_at AS deceased_date,
           (
@@ -157,22 +162,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           c.breed AS cat_breed,
           c.primary_color AS cat_color,
           c.secondary_color AS cat_secondary_color,
-          FALSE AS needs_microchip,
+          -- needs_microchip: TRUE if cat had spay/neuter but no microchip
+          -- Cats that get altered should typically be microchipped
+          CASE WHEN (a.is_spay OR a.is_neuter) AND COALESCE(ci_mc.id_value, c.microchip) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
           -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
           COALESCE(ci_mc.id_value, c.microchip) AS microchip,
           COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
-          -- Get first photo from storage for this cat (fallback query)
+          -- Get photo for this cat with priority: 1) hero (main photo), 2) most recent
           (
-            SELECT 'https://afxpboxisgoxttyrbtpw.supabase.co/storage/v1/object/public/request-media/' || so.name
-            FROM storage.objects so
-            WHERE so.bucket_id = 'request-media'
-              AND so.name LIKE 'cats/' || c.cat_id::text || '/%'
-            ORDER BY so.created_at DESC
+            SELECT rm.storage_path
+            FROM ops.request_media rm
+            WHERE rm.cat_id = c.cat_id
+              AND rm.is_archived = FALSE
+            ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
             LIMIT 1
           ) AS photo_url,
           per.display_name AS owner_name,
           pl.formatted_address AS place_address,
           NULL AS trapper_name,
+          a.cat_weight_lbs AS weight_lbs,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
           c.deceased_at AS deceased_date,
           (

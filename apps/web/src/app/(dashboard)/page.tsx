@@ -132,9 +132,11 @@ export default function Home() {
       .finally(() => {
         // 2. Active requests
         fetch("/api/requests?limit=8")
-          .then(res => res.ok ? res.json() : { requests: [] })
-          .then(data => {
-            const active = (data.requests || []).filter(
+          .then(res => res.ok ? res.json() : { data: { requests: [] } })
+          .then(response => {
+            // Handle both old format (data.requests) and new apiSuccess format (data.data.requests)
+            const requests = response.data?.requests || response.requests || [];
+            const active = requests.filter(
               (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
             );
             setRequests(active.slice(0, 6));

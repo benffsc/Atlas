@@ -280,10 +280,10 @@ export default function ClinicDaysPage() {
   useEffect(() => {
     fetch("/api/places?limit=100")
       .then((res) => res.json())
-      .then((data) => {
-        if (data.places) {
-          setPlaces(data.places);
-        }
+      .then((response) => {
+        // Handle apiSuccess format: { success: true, data: { places: [...] } }
+        const places = response.data?.places || response.places || [];
+        setPlaces(places);
       });
   }, []);
 
