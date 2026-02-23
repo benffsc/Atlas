@@ -55,6 +55,14 @@
     {
       "path": "/api/cron/google-entry-linking",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/volunteerhub-sync",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/map-previews",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

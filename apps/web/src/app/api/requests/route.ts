@@ -46,6 +46,9 @@ interface RequestListRow {
   primary_trapper_name: string | null;
   // SC_004: Assignment status (maintained field)
   assignment_status: string;
+  // Map preview caching (MIG_2470)
+  map_preview_url: string | null;
+  map_preview_updated_at: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -200,7 +203,9 @@ export async function GET(request: NextRequest) {
         data_quality_flags,
         no_trapper_reason,
         primary_trapper_name,
-        assignment_status
+        assignment_status,
+        map_preview_url,
+        map_preview_updated_at
       FROM ops.v_request_list
       ${whereClause}
       ORDER BY ${buildOrderBy()}

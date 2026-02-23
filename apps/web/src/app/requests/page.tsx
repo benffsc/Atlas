@@ -34,6 +34,9 @@ interface Request {
   primary_trapper_name: string | null;
   // SC_004: Assignment status (maintained field)
   assignment_status: string;
+  // Map preview caching (MIG_2470)
+  map_preview_url: string | null;
+  map_preview_updated_at: string | null;
 }
 
 
@@ -216,17 +219,20 @@ const DISEASE_LABELS: Record<string, string> = {
 // Map caching is handled by HTTP Cache-Control headers (stale-while-revalidate)
 // This avoids sessionStorage limitations (no cross-tab sync, manual TTL management)
 
-function RequestMapPreview({ requestId, latitude, longitude, address }: {
+function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapUrl }: {
   requestId: string;
   latitude: number | null;
   longitude: number | null;
   address?: string | null;
+  cachedMapUrl?: string | null;
 }) {
-  const [mapUrl, setMapUrl] = useState<string | null>(null);
+  const [mapUrl, setMapUrl] = useState<string | null>(cachedMapUrl || null);
   const [nearbyData, setNearbyData] = useState<NearbyData | null>(null);
 
   useEffect(() => {
-    if (!latitude || !longitude) return;
+    // If we have a cached URL, use it immediately (already set in initial state)
+    // Only fetch dynamically if no cached URL AND we have coordinates
+    if (cachedMapUrl || !latitude || !longitude) return;
 
     const fetchMap = async () => {
       try {
@@ -251,7 +257,7 @@ function RequestMapPreview({ requestId, latitude, longitude, address }: {
     };
 
     fetchMap();
-  }, [requestId, latitude, longitude]);
+  }, [requestId, latitude, longitude, cachedMapUrl]);
 
   if (!latitude || !longitude) {
     return (
@@ -446,6 +452,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
           latitude={request.latitude}
           longitude={request.longitude}
           address={request.place_address}
+          cachedMapUrl={request.map_preview_url}
         />
 
         {/* Card Content */}
