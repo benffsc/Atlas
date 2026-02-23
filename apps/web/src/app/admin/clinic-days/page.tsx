@@ -83,6 +83,13 @@ interface ClinicDayCat {
   fiv_status: string | null;
 }
 
+// Appointment info for date selection
+interface AppointmentInfo {
+  appointment_id: string;
+  appointment_date: string;
+  clinic_day_number: number | null;
+}
+
 // Search result for photo upload
 interface CatSearchResult {
   cat_id: string;
@@ -104,6 +111,7 @@ interface CatSearchResult {
   fiv_status: string | null;
   needs_microchip: boolean;
   is_from_clinic_day: boolean;
+  all_appointments: AppointmentInfo[];
 }
 
 // Clinic type config
@@ -239,6 +247,10 @@ export default function ClinicDaysPage() {
   const [uploadSearching, setUploadSearching] = useState(false);
   const [selectedCatForUpload, setSelectedCatForUpload] = useState<CatSearchResult | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  // Selected appointment for upload (when cat has multiple appointments)
+  const [selectedUploadAppointment, setSelectedUploadAppointment] = useState<AppointmentInfo | null>(null);
+  // Local state for clinic day number input (prevents flickering from async updates)
+  const [clinicDayNumInput, setClinicDayNumInput] = useState<string>("");
 
   // Load clinic days list
   useEffect(() => {
@@ -594,7 +606,8 @@ export default function ClinicDaysPage() {
     setUploadSearching(true);
     try {
       const res = await fetch(
-        `/api/admin/clinic-days/photo-upload/search?q=${encodeURIComponent(query)}&date=${selectedDate}`
+        `/api/admin/clinic-days/photo-upload/search?q=${encodeURIComponent(query)}&date=${selectedDate}`,
+        { cache: 'no-store' }
       );
       if (res.ok) {
         const data = await res.json();
@@ -604,6 +617,28 @@ export default function ClinicDaysPage() {
       console.error("Search error:", err);
     } finally {
       setUploadSearching(false);
+    }
+  };
+
+  // Handle selecting a cat for upload - auto-select first appointment
+  const handleSelectCatForUpload = (cat: CatSearchResult) => {
+    setSelectedCatForUpload(cat);
+    // Auto-select the first appointment (most recent)
+    if (cat.all_appointments && cat.all_appointments.length > 0) {
+      const firstAppt = cat.all_appointments[0];
+      setSelectedUploadAppointment(firstAppt);
+      setClinicDayNumInput(firstAppt.clinic_day_number?.toString() || "");
+    } else if (cat.appointment_id) {
+      // Fallback to legacy single appointment
+      setSelectedUploadAppointment({
+        appointment_id: cat.appointment_id,
+        appointment_date: cat.appointment_date || "",
+        clinic_day_number: cat.clinic_day_number,
+      });
+      setClinicDayNumInput(cat.clinic_day_number?.toString() || "");
+    } else {
+      setSelectedUploadAppointment(null);
+      setClinicDayNumInput("");
     }
   };
 
@@ -625,6 +660,8 @@ export default function ClinicDaysPage() {
     // Reset after a moment
     setTimeout(() => {
       setSelectedCatForUpload(null);
+      setSelectedUploadAppointment(null);
+      setClinicDayNumInput("");
       setUploadSuccess(false);
       setUploadSearchQuery("");
       setUploadSearchResults([]);
@@ -1540,7 +1577,7 @@ export default function ClinicDaysPage() {
                   {uploadSearchResults.map((cat, idx) => (
                     <div
                       key={cat.cat_id}
-                      onClick={() => setSelectedCatForUpload(cat)}
+                      onClick={() => handleSelectCatForUpload(cat)}
                       style={{
                         padding: "12px 16px",
                         display: "flex",
@@ -1680,7 +1717,7 @@ export default function ClinicDaysPage() {
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedCatForUpload(cat);
+                          handleSelectCatForUpload(cat);
                         }}
                       >
                         Select
@@ -1740,7 +1777,11 @@ export default function ClinicDaysPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => setSelectedCatForUpload(null)}
+                      onClick={() => {
+                        setSelectedCatForUpload(null);
+                        setSelectedUploadAppointment(null);
+                        setClinicDayNumInput("");
+                      }}
                       style={{
                         padding: "6px 12px",
                         background: "none",
@@ -1755,57 +1796,141 @@ export default function ClinicDaysPage() {
                     </button>
                   </div>
 
-                  {/* Clinic Day Number Input */}
-                  {selectedCatForUpload.appointment_id && (
+                  {/* Appointment Date Selector (when cat has appointments) */}
+                  {selectedCatForUpload.all_appointments && selectedCatForUpload.all_appointments.length > 0 && (
                     <div style={{
                       padding: "12px 16px",
                       marginBottom: "16px",
                       background: "var(--section-bg)",
                       borderRadius: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
                     }}>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 500, whiteSpace: "nowrap" }}>
-                        Clinic Day #:
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="999"
-                        placeholder="e.g. 15"
-                        defaultValue={selectedCatForUpload.clinic_day_number || ""}
-                        onChange={async (e) => {
-                          const value = e.target.value ? parseInt(e.target.value, 10) : null;
-                          if (value !== null && (value < 1 || value > 999)) return;
-                          try {
-                            await fetch(`/api/appointments/${selectedCatForUpload.appointment_id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ clinic_day_number: value }),
-                            });
-                            // Update local state so CatCard reflects new number
-                            setSelectedCatForUpload({
-                              ...selectedCatForUpload,
-                              clinic_day_number: value,
-                            });
-                          } catch (err) {
-                            console.error("Failed to update clinic day number:", err);
-                          }
-                        }}
-                        style={{
-                          width: "80px",
-                          padding: "6px 10px",
-                          border: "1px solid var(--card-border)",
-                          borderRadius: "4px",
-                          background: "var(--card-bg)",
-                          color: "var(--foreground)",
-                          fontSize: "0.9rem",
-                        }}
-                      />
-                      <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                        (1-999, from clinic waiver)
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: selectedUploadAppointment ? "12px" : "0" }}>
+                        <label style={{ fontSize: "0.85rem", fontWeight: 500, whiteSpace: "nowrap" }}>
+                          Clinic Date:
+                        </label>
+                        <select
+                          value={selectedUploadAppointment?.appointment_id || ""}
+                          onChange={(e) => {
+                            const appt = selectedCatForUpload.all_appointments.find(a => a.appointment_id === e.target.value);
+                            setSelectedUploadAppointment(appt || null);
+                            setClinicDayNumInput(appt?.clinic_day_number?.toString() || "");
+                          }}
+                          style={{
+                            padding: "6px 10px",
+                            border: "1px solid var(--card-border)",
+                            borderRadius: "4px",
+                            background: "var(--card-bg)",
+                            color: "var(--foreground)",
+                            fontSize: "0.9rem",
+                            minWidth: "180px",
+                          }}
+                        >
+                          {selectedCatForUpload.all_appointments.map((appt) => (
+                            <option key={appt.appointment_id} value={appt.appointment_id}>
+                              {formatDisplayDate(appt.appointment_date, { weekday: "short", month: "short", day: "numeric" })}
+                              {appt.clinic_day_number ? ` (#${appt.clinic_day_number})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Clinic Day Number Input */}
+                      {selectedUploadAppointment && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          <label style={{ fontSize: "0.85rem", fontWeight: 500, whiteSpace: "nowrap" }}>
+                            Clinic Day #:
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="999"
+                            placeholder="e.g. 15"
+                            value={clinicDayNumInput}
+                            onChange={(e) => {
+                              // Just update local state - no async calls
+                              setClinicDayNumInput(e.target.value);
+                            }}
+                            onBlur={async (e) => {
+                              // Save on blur (when user finishes typing)
+                              const value = e.target.value ? parseInt(e.target.value, 10) : null;
+                              if (value !== null && (value < 1 || value > 999)) return;
+                              try {
+                                await fetch(`/api/appointments/${selectedUploadAppointment.appointment_id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ clinic_day_number: value }),
+                                });
+                                // Update parent state after successful save
+                                setSelectedUploadAppointment({
+                                  ...selectedUploadAppointment,
+                                  clinic_day_number: value,
+                                });
+                              } catch (err) {
+                                console.error("Failed to update clinic day number:", err);
+                              }
+                            }}
+                            style={{
+                              width: "80px",
+                              padding: "6px 10px",
+                              border: "1px solid var(--card-border)",
+                              borderRadius: "4px",
+                              background: "var(--card-bg)",
+                              color: "var(--foreground)",
+                              fontSize: "0.9rem",
+                            }}
+                          />
+                          <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                            (1-999, from clinic waiver)
+                          </span>
+                          {/* Done button - save number without uploading */}
+                          <button
+                            onClick={() => {
+                              setSelectedCatForUpload(null);
+                              setSelectedUploadAppointment(null);
+                              setClinicDayNumInput("");
+                              setUploadSearchQuery("");
+                              setUploadSearchResults([]);
+                              // Reload cat gallery to reflect changes
+                              fetch(`/api/admin/clinic-days/${selectedDate}/cats`)
+                                .then((res) => res.ok ? res.json() : { cats: [] })
+                                .then((data) => {
+                                  setClinicCats(data.cats || []);
+                                  setCatGalleryStats({
+                                    total_cats: data.total_cats || 0,
+                                    chipped_count: data.chipped_count || 0,
+                                    unchipped_count: data.unchipped_count || 0,
+                                    unlinked_count: data.unlinked_count || 0,
+                                  });
+                                });
+                            }}
+                            style={{
+                              marginLeft: "auto",
+                              padding: "6px 16px",
+                              background: "var(--success-bg)",
+                              color: "var(--success-text)",
+                              border: "1px solid var(--success-text)",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "0.85rem",
+                              fontWeight: 500,
+                            }}
+                          >
+                            Done (No Photo)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* No appointments message */}
+                  {(!selectedCatForUpload.all_appointments || selectedCatForUpload.all_appointments.length === 0) && (
+                    <div style={{
+                      padding: "12px 16px",
+                      marginBottom: "16px",
+                      background: "var(--warning-bg)",
+                      borderRadius: "8px",
+                      color: "var(--warning-text)",
+                      fontSize: "0.85rem",
+                    }}>
+                      No recent clinic appointments found for this cat (last 90 days)
                     </div>
                   )}
 
@@ -1817,7 +1942,7 @@ export default function ClinicDaysPage() {
                     allowedMediaTypes={["cat_photo"]}
                     allowMultiple={true}
                     onUploadComplete={handleUploadComplete}
-                    onCancel={() => setSelectedCatForUpload(null)}
+                    onCancel={() => { setSelectedCatForUpload(null); setSelectedUploadAppointment(null); setClinicDayNumInput(""); }}
                   />
                 </div>
               )}

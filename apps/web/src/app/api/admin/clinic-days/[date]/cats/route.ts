@@ -134,7 +134,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
         WHERE a.appointment_date = $1
-        ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST
+        ORDER BY a.clinic_day_number NULLS LAST, a.appointment_number NULLS LAST, c.name NULLS LAST
         `,
         [date]
       );
@@ -190,7 +190,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
         WHERE a.appointment_date = $1
-        ORDER BY a.appointment_number NULLS LAST, c.name NULLS LAST
+        ORDER BY a.clinic_day_number NULLS LAST, a.appointment_number NULLS LAST, c.name NULLS LAST
         `,
         [date]
       );

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
+interface AppointmentInfo {
+  appointment_id: string;
+  appointment_date: string;
+  clinic_day_number: number | null;
+}
+
 interface SearchResult {
   cat_id: string;
   display_name: string | null;
@@ -22,6 +28,8 @@ interface SearchResult {
   fiv_status: string | null;
   needs_microchip: boolean;
   is_from_clinic_day: boolean;
+  // NEW: All recent appointments for this cat (for date selection)
+  all_appointments: AppointmentInfo[];
 }
 
 /**
@@ -140,6 +148,19 @@ export async function GET(request: NextRequest) {
           fa.appointment_date,
           -- Only show clinic_day_number if explicitly assigned (no auto-generation)
           fa.clinic_day_number,
+          -- ALL recent appointments for this cat (last 90 days)
+          (
+            SELECT COALESCE(JSONB_AGG(
+              JSONB_BUILD_OBJECT(
+                'appointment_id', a.appointment_id,
+                'appointment_date', a.appointment_date::TEXT,
+                'clinic_day_number', a.clinic_day_number
+              ) ORDER BY a.appointment_date DESC
+            ), '[]'::JSONB)
+            FROM ops.appointments a
+            WHERE a.cat_id = c.cat_id
+              AND a.appointment_date >= CURRENT_DATE - INTERVAL '90 days'
+          ) AS all_appointments,
           -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
           CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
           CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
@@ -186,7 +207,8 @@ export async function GET(request: NextRequest) {
         is_from_clinic_day,
         appointment_id,
         appointment_date,
-        clinic_day_number
+        clinic_day_number,
+        all_appointments
       FROM cat_results
       ORDER BY
         -- Cats from selected clinic day first
@@ -267,6 +289,19 @@ export async function GET(request: NextRequest) {
             COALESCE(fa.clinic_day_number,
               ROW_NUMBER() OVER (PARTITION BY fa.appointment_date ORDER BY fa.appointment_number NULLS LAST, c.name NULLS LAST)::INT
             ) AS clinic_day_number,
+            -- ALL recent appointments for this cat (last 90 days)
+            (
+              SELECT COALESCE(JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                  'appointment_id', a.appointment_id,
+                  'appointment_date', a.appointment_date::TEXT,
+                  'clinic_day_number', a.clinic_day_number
+                ) ORDER BY a.appointment_date DESC
+              ), '[]'::JSONB)
+              FROM ops.appointments a
+              WHERE a.cat_id = c.cat_id
+                AND a.appointment_date >= CURRENT_DATE - INTERVAL '90 days'
+            ) AS all_appointments,
             -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
             CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
             CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
@@ -296,7 +331,8 @@ export async function GET(request: NextRequest) {
           cat_id, display_name, sex, primary_color, is_deceased, deceased_date,
           death_cause, needs_microchip, felv_status, fiv_status, microchip,
           clinichq_animal_id, owner_name, place_address, photo_url,
-          is_from_clinic_day, appointment_id, appointment_date, clinic_day_number
+          is_from_clinic_day, appointment_id, appointment_date, clinic_day_number,
+          all_appointments
         FROM cat_results
         ORDER BY is_from_clinic_day DESC, microchip_exact_match, name_match, display_name NULLS LAST
         LIMIT 50
@@ -305,7 +341,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ cats });
+    return NextResponse.json({ cats }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error("Photo upload search error:", error);
     return NextResponse.json(
