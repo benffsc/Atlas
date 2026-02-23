@@ -140,27 +140,41 @@ Use **"Cats Needing TNR"** in UI labels.
 
 ## Trapper Classification (Three Tiers)
 
-**This is an important distinction that affects attribution, permissions, and representation:**
+**This is an important distinction that affects attribution, permissions, and representation.**
 
-| Tier | Type | Database Value | Represents FFSC? | Description |
-|------|------|----------------|------------------|-------------|
-| **Tier 1: FFSC Trappers** | Staff Coordinator | `coordinator` | ✅ Yes | FFSC staff who coordinate trapping operations |
-| | Head Trapper | `head_trapper` | ✅ Yes | FFSC senior volunteer trappers |
-| | FFSC Volunteer Trapper | `ffsc_trapper` | ✅ Yes | Completed full volunteer orientation process. Most "official" trappers. |
-| **Tier 2: Community Trappers** | Contract Community | `community_trapper` | ❌ No | Signed contract limiting them to SPECIFIC AREAS ONLY. Help their community but limited scope. |
-| **Tier 3: Unofficial/Legacy** | Informal Helper | `community_trapper` | ❌ No | Remnants of old informal processes (e.g., Toni Price). No formal contract. |
-| **Special** | Rescue Operator | `rescue_operator` | Varies | Runs a home-based rescue (e.g., Katie Moore's "Cat Rescue of Cloverdale") |
-| | Colony Caretaker | `colony_caretaker` | ❌ No | Long-term steward of specific colony location |
+### Source Authority Rules (CRITICAL)
 
-**Key Distinctions:**
-- **FFSC Trappers** (Tier 1) go through VolunteerHub volunteer process and represent FFSC officially
-- **Community Trappers** (Tier 2) sign contracts limiting them to specific areas — they do NOT represent FFSC
-- **Unofficial Trappers** (Tier 3) are historical/legacy — we track them but they have no formal relationship
+| Tier | Source System | How Identified |
+|------|---------------|----------------|
+| **Tier 1: FFSC Trappers** | VolunteerHub ONLY | Must be in "Approved Trappers" group |
+| **Tier 2: Community Trappers** | Airtable ONLY | Signed community trapper contract |
+| **Tier 3: Unofficial/Legacy** | Data patterns | Detected via `sot.detect_unofficial_trappers()` |
 
-**Service Territories** (MIG_2485/2486):
-- `sot.trapper_profiles` — Extended trapper info (type, rescue name, rescue location)
+### Tier Details
+
+| Tier | Database Value | Represents FFSC? | Description |
+|------|----------------|------------------|-------------|
+| **Tier 1** | `ffsc_staff`, `ffsc_volunteer` | ✅ Yes | Went through full VolunteerHub volunteer process. Most "official" trappers. |
+| **Tier 2** | `community_trapper` + `has_signed_contract=TRUE` | ❌ No | Signed contract limiting them to SPECIFIC AREAS ONLY. Do NOT represent FFSC. |
+| **Tier 3** | `community_trapper` + `is_legacy_informal=TRUE` | ❌ No | Remnants of old informal processes (e.g., Toni Price). No formal contract. |
+
+### Key Distinctions
+- **FFSC Trappers** (Tier 1): VolunteerHub → "Approved Trappers" group. Represent FFSC officially.
+- **Community Trappers** (Tier 2): Airtable trappers list. Signed contract. Limited to specific areas. Do NOT represent FFSC.
+- **Unofficial Trappers** (Tier 3): Derived from data patterns (frequent appointments from multiple places without VH/Airtable status).
+
+### Rescues vs Trappers
+A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdale" at her home). This is tracked via:
+- `rescue_name` on `sot.trapper_profiles` — The rescue name (if any)
+- `rescue_place_id` — Where the rescue operates
+- The trapper's `trapper_type` remains their actual tier (e.g., `community_trapper`), NOT `rescue_operator`
+
+### Database Schema (MIG_2485-2488)
+- `sot.trapper_profiles` — Extended trapper info (type, rescue name, contract status)
 - `sot.trapper_service_places` — Links trappers to places they regularly work
-- `sot.find_trappers_for_place()` — Find who services a given location
+- `sot.v_trapper_tiers` — View showing tier classification
+- `sot.find_trappers_for_place()` — Find who services a location
+- `sot.detect_unofficial_trappers()` — Find Tier 3 candidates from data patterns
 
 ## Map & Search
 
