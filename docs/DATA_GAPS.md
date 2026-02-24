@@ -2329,3 +2329,75 @@ WHERE source_table = 'cat_info'
 ```
 
 ---
+
+## DATA_GAP_053: ClinicHQ Accounts Not Tracked Separately from People
+
+**Status:** OPEN
+
+**Problem:** When appointments are processed, the ClinicHQ client name (e.g., "Elisha Togneri") is lost because identity resolution matches on shared email/phone and links to a different person (e.g., "Michael Togneri"). We should be tracking ClinicHQ accounts as distinct entities, separate from person identity resolution.
+
+**Example Case - Cat 26-691 (Tux):**
+- **ClinicHQ Booking Info:**
+  - Client Name: **Elisha Togneri**
+  - Cell Phone: 707-620-3412
+  - Email: michaeltogneri@yahoo.com
+  - Address: 1406 Barlow Ln, Sebastopol, CA 95472
+  - Quick Notes: "Client is Michael Togneri's wife, this is his contact information, this is a separate property"
+
+- **What Atlas Shows:**
+  - Email: michaeltagneri@yahoo.com (typo from somewhere)
+  - Phone: (707) 620-3412
+  - No record that this was Elisha's ClinicHQ account
+
+**Root Cause:**
+1. Shared household email/phone causes identity resolution to merge into one person
+2. ClinicHQ "Owner First Name" / "Owner Last Name" not preserved as account info
+3. We have no `clinic_owner_accounts` tracking for legitimate ClinicHQ accounts (only pseudo-profiles like addresses/orgs)
+4. The relationship is: ClinicHQ Account → Person (may be different from account holder)
+
+**Business Context:**
+- Spouses/family members often share contact info
+- Each ClinicHQ account is a distinct client record
+- Staff notes on ClinicHQ accounts contain important context ("this is his wife", "separate property")
+- We need to preserve WHO booked the appointment, not just WHOSE contact info was used
+
+**Impact:**
+- Loss of original client name when shared identifiers match another person
+- Staff notes from ClinicHQ Quick Notes not preserved
+- Cannot track which ClinicHQ account brought in which cats
+- Historical trapper relationships may be wrong due to shared household identifiers
+
+**Proposed Fix:**
+1. Create `source.clinichq_accounts` table to track ClinicHQ client records distinctly
+2. Link appointments to `clinichq_account_id` in addition to `person_id`
+3. Store original client name, contact info, and Quick Notes from ClinicHQ
+4. Identity resolution links account to person but preserves account as distinct entity
+5. UI shows "Booked under: Elisha Togneri (ClinicHQ Account)" even if linked to Michael Togneri person
+
+**Related:**
+- DATA_GAP_009: FFSC Organizational Email Pollution (email-based cross-linking)
+- INV-12: Phone COALESCE Must Prefer Owner Phone (shared phone issue)
+- INV-24: Shared Identifiers Create Orphan Duplicates
+
+**Evidence Query:**
+```sql
+-- Find appointments where owner name differs from linked person name
+SELECT
+  a.appointment_id,
+  a.appointment_date,
+  a.owner_info->>'first_name' as clinichq_first_name,
+  a.owner_info->>'last_name' as clinichq_last_name,
+  p.display_name as linked_person_name,
+  a.owner_info->>'email' as owner_email,
+  a.owner_info->>'phone' as owner_phone
+FROM ops.appointments a
+JOIN sot.people p ON p.person_id = a.person_id
+WHERE a.owner_info IS NOT NULL
+  AND LOWER(a.owner_info->>'last_name') != LOWER(COALESCE(p.last_name, ''))
+  AND a.owner_info->>'last_name' IS NOT NULL
+  AND a.owner_info->>'last_name' != ''
+ORDER BY a.appointment_date DESC
+LIMIT 20;
+```
+
+---
