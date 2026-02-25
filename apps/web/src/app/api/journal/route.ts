@@ -275,6 +275,15 @@ export async function GET(request: NextRequest) {
         total: parseInt(countResult.rows[0]?.total || "0", 10),
         limit,
         offset,
+        // Debug info - remove after fixing
+        _debug: {
+          path: "crossRef",
+          entityType,
+          entityId,
+          includeArchived,
+          sqlPreview: sql.substring(0, 500),
+          params: params.slice(0, -2),
+        },
       });
     } catch (error) {
       console.error("Error fetching cross-ref journal entries:", error);
