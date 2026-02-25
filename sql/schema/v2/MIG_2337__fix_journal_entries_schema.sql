@@ -161,11 +161,46 @@ BEGIN
 END;
 $$;
 
+-- Make entry_type nullable since we now use entry_kind
+ALTER TABLE ops.journal_entries ALTER COLUMN entry_type DROP NOT NULL;
+
+\echo 'Made entry_type nullable'
+
+-- Create trigger to sync entry_kind/entry_type and body/content
+CREATE OR REPLACE FUNCTION ops.journal_sync_entry_type()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Sync entry_kind to entry_type
+    IF NEW.entry_kind IS NOT NULL AND NEW.entry_type IS NULL THEN
+        NEW.entry_type = NEW.entry_kind;
+    ELSIF NEW.entry_type IS NOT NULL AND NEW.entry_kind IS NULL THEN
+        NEW.entry_kind = NEW.entry_type;
+    END IF;
+
+    -- Sync body to content
+    IF NEW.body IS NOT NULL AND NEW.content IS NULL THEN
+        NEW.content = NEW.body;
+    ELSIF NEW.content IS NOT NULL AND NEW.body IS NULL THEN
+        NEW.body = NEW.content;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_journal_sync_fields ON ops.journal_entries;
+CREATE TRIGGER trg_journal_sync_fields
+    BEFORE INSERT OR UPDATE ON ops.journal_entries
+    FOR EACH ROW
+    EXECUTE FUNCTION ops.journal_sync_entry_type();
+
+\echo 'Created field sync trigger for entry_kind/entry_type and body/content'
+
 \echo ''
 \echo '=== MIG_2337 complete ==='
 \echo 'Journal entries table now has:'
 \echo '  - id (synced with entry_id)'
-\echo '  - body (synced from content)'
-\echo '  - entry_kind (synced from entry_type)'
+\echo '  - body (synced with content)'
+\echo '  - entry_kind (synced with entry_type)'
 \echo '  - title, primary_*, is_archived, is_pinned, tags, occurred_at'
 \echo ''
