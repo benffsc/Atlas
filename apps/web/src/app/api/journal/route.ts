@@ -228,12 +228,13 @@ function buildCrossRefQuery(
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
-  const catId = searchParams.get("cat_id");
-  const personId = searchParams.get("person_id");
-  const placeId = searchParams.get("place_id");
-  const requestId = searchParams.get("request_id");
-  const submissionId = searchParams.get("submission_id");
-  const annotationId = searchParams.get("annotation_id");
+  // Trim whitespace/newlines from all ID params (URL encoding can introduce artifacts)
+  const catId = searchParams.get("cat_id")?.replace(/\s/g, "") || null;
+  const personId = searchParams.get("person_id")?.replace(/\s/g, "") || null;
+  const placeId = searchParams.get("place_id")?.replace(/\s/g, "") || null;
+  const requestId = searchParams.get("request_id")?.replace(/\s/g, "") || null;
+  const submissionId = searchParams.get("submission_id")?.replace(/\s/g, "") || null;
+  const annotationId = searchParams.get("annotation_id")?.replace(/\s/g, "") || null;
   const entryKind = searchParams.get("entry_kind");
   const includeArchived = searchParams.get("include_archived") === "true";
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
