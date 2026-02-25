@@ -2417,7 +2417,7 @@ ORDER BY a.appointment_date DESC LIMIT 10;
 
 ## DATA_GAP_054: Address-Type Clinic Accounts Missing Place Extraction
 
-**Status:** FIX READY (MIG_2496, MIG_2497, MIG_2498)
+**Status:** FIXED (MIG_2496, MIG_2497, MIG_2498 applied 2026-02-24)
 
 **Problem:** Cats booked under address-like names in ClinicHQ (e.g., "Old Stony Pt Rd", "5403 San Antonio Road") are not appearing on the map because no place is extracted from the address-type clinic account.
 

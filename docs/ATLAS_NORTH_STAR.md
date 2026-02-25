@@ -796,6 +796,44 @@ When creating 'home' cat_place_relationships via person-based fallback, filter b
 
 **Related:** MIG_972 (one-time fix), MIG_975 (prevention), RISK_005
 
+### INV-29: ClinicHQ Ground Truth Is Places + Cats, Not People (2026-02-24)
+
+**Data Reliability Analysis:**
+Only **28.5%** of ClinicHQ person links reliably indicate where a cat lives:
+- **28.5%** Reliable (person linked = where cat lives)
+- **25.0%** Uncertain (moderate volume, could be either)
+- **46.5%** Unreliable (person brought cat from elsewhere: trappers, caretakers, FFSC staff)
+
+**Core principle: PLACES are ground truth. PEOPLE are contacts.**
+
+**Industry Best Practices Applied:**
+- ASM (Animal Shelter Manager) separates `BroughtInByOwnerID` from `OriginalOwnerID`
+- Cat Stats (Neighborhood Cats) uses colony-centric model (places are primary entities)
+- Shelter Animals Count distinguishes "caretaker" from "owner"
+
+**Solution (DATA_GAP_053/054, MIG_2489-2498):**
+1. `ops.clinic_accounts` now stores ALL ClinicHQ owners (not just pseudo-profiles)
+2. Every appointment has `owner_account_id` set (who booked)
+3. `appointment.person_id` = identity resolution result (may differ from booker)
+4. `appointment.inferred_place_id` = where cat was (ground truth for map)
+5. Address-type accounts have `resolved_place_id` for place extraction
+
+**Key Separations:**
+| Entity | Purpose | Source |
+|--------|---------|--------|
+| `clinic_accounts` | WHO booked the appointment | ClinicHQ Owner Name |
+| `places` | WHERE the cat was found/lives | ClinicHQ Owner Address |
+| `people` | Contact for communication | Email/phone resolution |
+| `cats` | Individual animals | Microchip, procedures |
+
+**When designing features:**
+1. Show cats at PLACES (via `inferred_place_id` or `sot.cat_place`)
+2. NOT filtered through person→place→cat chains (only 28% reliable)
+3. Person links are for COMMUNICATION, not location determination
+4. Use `clinic_accounts.account_type` to distinguish residents from trappers
+
+**Related:** DATA_GAP_053, DATA_GAP_054, MIG_2489-2498, FINAL_DATA_REMEDIATION_PLAN.md
+
 ---
 
 ## Data Zones
