@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { formatRelativeDate } from "@/lib/formatters";
 
 interface StaffMember {
   staff_id: string;
@@ -87,27 +88,8 @@ function getInitials(name: string | null): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-// Format date for display
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return "Today";
-  } else if (diffDays === 1) {
-    return "Yesterday";
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
-  } else {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined
-    });
-  }
-}
+// Use centralized formatRelativeDate from @/lib/formatters
+const formatDate = formatRelativeDate;
 
 // Entry kind colors and labels
 const ENTRY_KIND_STYLES: Record<string, { bg: string; label: string }> = {
@@ -168,6 +150,7 @@ export default function JournalSection({
   const [addingNote, setAddingNote] = useState(false);
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Communication logging state
   const [entryMode, setEntryMode] = useState<"note" | "communication">("note");
@@ -198,16 +181,27 @@ export default function JournalSection({
     }
   }, [isStaffAutoFilled]);
 
-  // Keep selectedStaffId in sync with effective staff
+  // Keep selectedStaffId in sync with effective staff - fix race condition
   useEffect(() => {
     const id = currentStaffId || user?.staff_id;
-    if (id) {
+    if (id && !selectedStaffId) {
       setSelectedStaffId(id);
     }
-  }, [currentStaffId, user?.staff_id]);
+  }, [currentStaffId, user?.staff_id, selectedStaffId]);
 
   const handleAddEntry = async () => {
-    if (!newNote.trim() || !selectedStaffId) return;
+    // Clear previous error
+    setErrorMessage(null);
+
+    // Validate with user feedback
+    if (!newNote.trim()) {
+      setErrorMessage("Please enter a note");
+      return;
+    }
+    if (!selectedStaffId) {
+      setErrorMessage("Staff not loaded. Please refresh the page.");
+      return;
+    }
 
     // Use effective name if auto-filled, otherwise look up from list
     const displayName = isStaffAutoFilled
@@ -243,10 +237,15 @@ export default function JournalSection({
 
       if (response.ok) {
         setNewNote("");
+        setErrorMessage(null);
         onEntryAdded();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setErrorMessage(data.error || `Failed to save (${response.status})`);
       }
     } catch (err) {
       console.error("Failed to add entry:", err);
+      setErrorMessage("Network error - please try again");
     } finally {
       setAddingNote(false);
     }
@@ -368,7 +367,7 @@ export default function JournalSection({
               cursor: "pointer",
             }}
           >
-            Log Communication
+            Communication
           </button>
         </div>
 
@@ -408,18 +407,42 @@ export default function JournalSection({
 
         <textarea
           value={newNote}
-          onChange={(e) => setNewNote(e.target.value)}
+          onChange={(e) => {
+            setNewNote(e.target.value);
+            if (errorMessage) setErrorMessage(null);
+          }}
           placeholder={isCommunication ? "Describe the communication..." : "Add a note..."}
           rows={2}
           style={{ width: "100%", resize: "vertical" }}
         />
-        <button
-          onClick={handleAddEntry}
-          disabled={addingNote || !newNote.trim() || !selectedStaffId}
-          style={{ marginTop: "0.5rem" }}
-        >
-          {addingNote ? "Saving..." : isCommunication ? "Log Communication" : "Add Note"}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.5rem" }}>
+          <button
+            onClick={handleAddEntry}
+            disabled={addingNote || !newNote.trim()}
+            style={{
+              opacity: addingNote ? 0.7 : 1,
+            }}
+          >
+            {addingNote ? "Saving..." : isCommunication ? "Save Communication" : "Add Note"}
+          </button>
+          {!selectedStaffId && !addingNote && (
+            <span style={{ fontSize: "0.75rem", color: "#dc3545" }}>
+              Loading staff...
+            </span>
+          )}
+        </div>
+        {errorMessage && (
+          <div style={{
+            marginTop: "0.5rem",
+            padding: "0.5rem 0.75rem",
+            background: "#f8d7da",
+            color: "#721c24",
+            borderRadius: "4px",
+            fontSize: "0.85rem",
+          }}>
+            {errorMessage}
+          </div>
+        )}
       </div>
 
       {/* Entries list */}
