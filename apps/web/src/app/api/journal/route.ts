@@ -241,6 +241,9 @@ export async function GET(request: NextRequest) {
 
   const includeRelated = searchParams.get("include_related") === "true";
 
+  // Debug: log all params
+  const debugParams = { catId, personId, placeId, requestId, submissionId, annotationId, includeRelated, includeArchived };
+
   // Cross-entity linking: when include_related=true with a single entity filter,
   // also fetch entries from linked entities within a 2-month attribution window.
   const singleEntityForCrossRef =
@@ -252,7 +255,7 @@ export async function GET(request: NextRequest) {
     const entityType = requestId ? "request" : personId ? "person" : "cat";
     const entityId = (requestId || personId || catId)!;
     if (!isValidUUID(entityId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "invalidUUID", entityId, ...debugParams } });
     }
 
     try {
@@ -303,6 +306,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Standard single-entity query (no cross-referencing)
+  // Debug: we're in standard path
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
@@ -313,7 +317,7 @@ export async function GET(request: NextRequest) {
 
   if (catId) {
     if (!isValidUUID(catId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidCatId", ...debugParams } });
     }
     conditions.push(`je.primary_cat_id = $${paramIndex}`);
     params.push(catId);
@@ -322,7 +326,7 @@ export async function GET(request: NextRequest) {
 
   if (personId) {
     if (!isValidUUID(personId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidPersonId", ...debugParams } });
     }
     conditions.push(`je.primary_person_id = $${paramIndex}`);
     params.push(personId);
@@ -331,7 +335,7 @@ export async function GET(request: NextRequest) {
 
   if (placeId) {
     if (!isValidUUID(placeId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidPlaceId", ...debugParams } });
     }
     conditions.push(`je.primary_place_id = $${paramIndex}`);
     params.push(placeId);
@@ -340,7 +344,7 @@ export async function GET(request: NextRequest) {
 
   if (requestId) {
     if (!isValidUUID(requestId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidRequestId", ...debugParams } });
     }
     conditions.push(`je.primary_request_id = $${paramIndex}`);
     params.push(requestId);
@@ -349,7 +353,7 @@ export async function GET(request: NextRequest) {
 
   if (submissionId) {
     if (!isValidUUID(submissionId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidSubmissionId", ...debugParams } });
     }
     conditions.push(`je.primary_submission_id = $${paramIndex}`);
     params.push(submissionId);
@@ -358,7 +362,7 @@ export async function GET(request: NextRequest) {
 
   if (annotationId) {
     if (!isValidUUID(annotationId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidAnnotationId", ...debugParams } });
     }
     conditions.push(`je.primary_annotation_id = $${paramIndex}`);
     params.push(annotationId);
@@ -439,15 +443,18 @@ export async function GET(request: NextRequest) {
       offset,
       // Debug info - remove after fixing
       _debug: {
+        path: "standard",
         whereClause,
         params: params.slice(0, -2),
         conditionsCount: conditions.length,
+        singleEntityForCrossRef,
+        ...debugParams,
       },
     });
   } catch (error) {
     console.error("Error fetching journal entries:", error);
     return NextResponse.json(
-      { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error), _debug: { path: "standard_error", ...debugParams } },
       { status: 500 }
     );
   }
