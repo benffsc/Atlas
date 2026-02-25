@@ -211,9 +211,11 @@ export default function RequestDetailPage() {
   const fetchJournalEntries = useCallback(async () => {
     try {
       const response = await fetch(`/api/journal?request_id=${requestId}&include_related=true`);
+      const data = await response.json();
       if (response.ok) {
-        const data = await response.json();
         setJournalEntries(data.entries || []);
+      } else {
+        console.error("Journal API error:", response.status, data);
       }
     } catch (err) {
       console.error("Failed to fetch journal entries:", err);
@@ -1196,6 +1198,15 @@ export default function RequestDetailPage() {
               style={{ fontSize: "0.85rem" }}
             >
               Print
+            </a>
+            <a
+              href={`/requests/${request.request_id}/trapper-sheet`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+              style={{ fontSize: "0.85rem", color: "#166534", borderColor: "#166534" }}
+            >
+              Trapper Sheet
             </a>
             <button
               onClick={() => setShowHistory(!showHistory)}

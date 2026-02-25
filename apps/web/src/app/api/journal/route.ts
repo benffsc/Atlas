@@ -279,7 +279,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("Error fetching cross-ref journal entries:", error);
       return NextResponse.json(
-        { error: "Failed to fetch journal entries" },
+        { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error) },
         { status: 500 }
       );
     }
@@ -424,7 +424,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching journal entries:", error);
     return NextResponse.json(
-      { error: "Failed to fetch journal entries" },
+      { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
