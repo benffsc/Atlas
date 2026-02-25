@@ -57,7 +57,7 @@ const ENTITY_NAME_JOINS = `
 `;
 
 const ENTITY_NAME_COLS = `
-  c.display_name AS cat_name,
+  c.name AS cat_name,
   p.display_name AS person_name,
   pl.display_name AS place_name,
   sub.first_name || ' ' || sub.last_name AS submission_name,
@@ -242,9 +242,6 @@ export async function GET(request: NextRequest) {
 
   const includeRelated = searchParams.get("include_related") === "true";
 
-  // Debug: log all params
-  const debugParams = { catId, personId, placeId, requestId, submissionId, annotationId, includeRelated, includeArchived };
-
   // Cross-entity linking: when include_related=true with a single entity filter,
   // also fetch entries from linked entities within a 2-month attribution window.
   const singleEntityForCrossRef =
@@ -256,7 +253,7 @@ export async function GET(request: NextRequest) {
     const entityType = requestId ? "request" : personId ? "person" : "cat";
     const entityId = (requestId || personId || catId)!;
     if (!isValidUUID(entityId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "invalidUUID", entityId, ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
 
     try {
@@ -269,14 +266,6 @@ export async function GET(request: NextRequest) {
         offset,
       );
 
-      // Also run a simple diagnostic query
-      const diagResult = await queryRows<{ cnt: string; db: string }>(
-        `SELECT COUNT(*)::text as cnt, current_database() as db
-         FROM ops.journal_entries
-         WHERE primary_request_id = $1`,
-        [entityId]
-      );
-
       const [dataResult, countResult] = await Promise.all([
         queryRows<JournalEntryRow>(sql, params),
         query(countSql, params.slice(0, -2)),
@@ -287,15 +276,6 @@ export async function GET(request: NextRequest) {
         total: parseInt(countResult.rows[0]?.total || "0", 10),
         limit,
         offset,
-        // Debug info - remove after fixing
-        _debug: {
-          path: "crossRef",
-          entityType,
-          entityId,
-          directCount: diagResult[0]?.cnt,
-          database: diagResult[0]?.db,
-          entriesReturned: dataResult.length,
-        },
       });
     } catch (error) {
       console.error("Error fetching cross-ref journal entries:", error);
@@ -307,7 +287,6 @@ export async function GET(request: NextRequest) {
   }
 
   // Standard single-entity query (no cross-referencing)
-  // Debug: we're in standard path
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIndex = 1;
@@ -318,7 +297,7 @@ export async function GET(request: NextRequest) {
 
   if (catId) {
     if (!isValidUUID(catId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidCatId", ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_cat_id = $${paramIndex}`);
     params.push(catId);
@@ -327,7 +306,7 @@ export async function GET(request: NextRequest) {
 
   if (personId) {
     if (!isValidUUID(personId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidPersonId", ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_person_id = $${paramIndex}`);
     params.push(personId);
@@ -336,7 +315,7 @@ export async function GET(request: NextRequest) {
 
   if (placeId) {
     if (!isValidUUID(placeId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidPlaceId", ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_place_id = $${paramIndex}`);
     params.push(placeId);
@@ -345,7 +324,7 @@ export async function GET(request: NextRequest) {
 
   if (requestId) {
     if (!isValidUUID(requestId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidRequestId", ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_request_id = $${paramIndex}`);
     params.push(requestId);
@@ -354,7 +333,7 @@ export async function GET(request: NextRequest) {
 
   if (submissionId) {
     if (!isValidUUID(submissionId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidSubmissionId", ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_submission_id = $${paramIndex}`);
     params.push(submissionId);
@@ -363,7 +342,7 @@ export async function GET(request: NextRequest) {
 
   if (annotationId) {
     if (!isValidUUID(annotationId)) {
-      return NextResponse.json({ entries: [], total: 0, _debug: { path: "std_invalidAnnotationId", ...debugParams } });
+      return NextResponse.json({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_annotation_id = $${paramIndex}`);
     params.push(annotationId);
@@ -405,7 +384,7 @@ export async function GET(request: NextRequest) {
         je.edit_count,
         je.tags,
         NULL::TEXT AS cross_ref_source,
-        c.display_name AS cat_name,
+        c.name AS cat_name,
         p.display_name AS person_name,
         pl.display_name AS place_name,
         sub.first_name || ' ' || sub.last_name AS submission_name,
@@ -442,20 +421,11 @@ export async function GET(request: NextRequest) {
       total: parseInt(countResult.rows[0]?.total || "0", 10),
       limit,
       offset,
-      // Debug info - remove after fixing
-      _debug: {
-        path: "standard",
-        whereClause,
-        params: params.slice(0, -2),
-        conditionsCount: conditions.length,
-        singleEntityForCrossRef,
-        ...debugParams,
-      },
     });
   } catch (error) {
     console.error("Error fetching journal entries:", error);
     return NextResponse.json(
-      { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error), _debug: { path: "standard_error", ...debugParams } },
+      { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
