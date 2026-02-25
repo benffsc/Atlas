@@ -155,9 +155,11 @@ export default function GlobalSearch() {
   };
 
   const getMatchBadge = (reason: string) => {
+    if (reason === "alias_match") return "Alias";
     if (reason.startsWith("exact")) return "Exact";
     if (reason.startsWith("prefix")) return "Prefix";
     if (reason.startsWith("similar")) return "Similar";
+    if (reason.startsWith("expanded")) return "Expanded";
     return null;
   };
 
