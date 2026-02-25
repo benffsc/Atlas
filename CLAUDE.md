@@ -15,6 +15,29 @@ These apply to ALL changes across ALL layers:
 7. **Merge-Aware Queries** — All queries MUST filter `merged_into_*_id IS NULL`
 8. **Active Flows Are Sacred** — Staff-facing changes require Safety Gate validation (`docs/ACTIVE_FLOW_SAFETY_GATE.md`)
 9. **Cat Identity Fallback Chain** — Match cats by: microchip first, then `clinichq_animal_id`. Cats without microchips (euthanasia, kittens died) still need records. Staff may enter microchip in Animal Name field for rechecks (15-digit pattern detection).
+10. **Explore Data Before Accepting Low Coverage** — When a migration or script produces unexpectedly low coverage (<50%), ALWAYS explore the source/raw data tables first. Check `source.clinichq_raw`, `ops.*`, and related tables to verify data exists in another form. Data often exists in different columns (e.g., `owner_first_name`/`owner_last_name` vs `client_name`) or different tables that can be bridged. Never accept low coverage without investigation.
+
+11. **ClinicHQ Ground Truth Is CATS + PLACES, Not People** — ClinicHQ bookings provide verified data about CATS (microchip, procedures, dates) and PLACES (addresses where cats live). Person links via email/phone indicate **WHO BOOKED**, not where cat lives:
+
+    **Data Analysis (2026-02-24):**
+    - **28.5%** - Reliable (person linked = where cat lives)
+    - **25.0%** - Uncertain (moderate volume, could be either)
+    - **46.5%** - Unreliable (person brought cat from elsewhere: trappers, caretakers, FFSC staff)
+
+    **Why person links are unreliable:**
+    - Trappers' contact info on colony accounts (they brought the cat, but don't live there)
+    - High-volume users (>10 cats) are likely caretakers, not pet owners (43.5% of "resident" appointments)
+    - Shared household phones (Cell Phone field shared by family members)
+    - Family members using one email for all bookings
+    - Org emails used for individual bookings
+
+    **Implications:**
+    - **Place is the anchor** — Show cats on map via `inferred_place_id`, NOT via person→place chain
+    - **Person links are for contact** — Use email/phone for communication, NOT for determining cat location
+    - **Address extraction from names** — When `Owner First Name` contains an address (e.g., "Old Stony Pt Rd"), extract a place from it
+    - **clinic_accounts preserve original** — ALWAYS create a clinic_account for ALL bookings (not just pseudo-profiles)
+
+    See `docs/DATA_RELIABILITY_ANALYSIS.md` for full methodology. See DATA_GAP_054, MIG_2496 for place extraction fix.
 
 ## API Route Invariants
 
@@ -121,6 +144,83 @@ See `docs/CENTRALIZED_FUNCTIONS.md` for full signatures.
 | No | No | Place (directly) |
 
 **Cat Animal IDs**: ClinicHQ `Number` → `clinichq_animal_id`. ShelterLuv ID → `shelterluv_animal_id`. Critical for cross-system linkage.
+
+## Client & Account Tracking (DATA_GAP_053 Fix)
+
+**Problem**: ClinicHQ bookings may use one family member's name/email (e.g., "Elisha Togneri" using `michaeltogneri@yahoo.com`), but identity resolution matches to the email owner (Michael Togneri). The original client name is lost.
+
+**Solution**: Three-layer architecture separating SOURCE from IDENTITY:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ SOURCE LAYER: ops.clinic_accounts                       │
+│ "Who the source system said booked this"                │
+│ - Preserves original ClinicHQ client name               │
+│ - Does NOT do identity resolution                       │
+└─────────────────────────────────────────────────────────┘
+                    ↓ resolved_person_id
+┌─────────────────────────────────────────────────────────┐
+│ IDENTITY LAYER: sot.people                              │
+│ "Who this resolves to via email/phone"                  │
+│ - Canonical identity via Data Engine (INV-5)            │
+│ - Multiple accounts can resolve to same person          │
+└─────────────────────────────────────────────────────────┘
+                    ↓ household_id
+┌─────────────────────────────────────────────────────────┐
+│ RELATIONSHIP LAYER: sot.households                      │
+│ "Family/property relationships"                         │
+│ - Groups accounts with shared identifiers               │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Key Tables
+
+| Table | Purpose |
+|-------|---------|
+| `ops.clinic_accounts` | Source tracking - ALL ClinicHQ owners (not just pseudo-profiles) |
+| `sot.households` | Family grouping - shared email/phone detection |
+| `ops.trapper_contracts` | Atlas-native community trapper contracts (replacing Airtable) |
+
+### Appointment Linking
+
+| Column | Meaning |
+|--------|---------|
+| `appointment.owner_account_id` | Who booked (Elisha's account) - ALWAYS set |
+| `appointment.person_id` | Who resolved to (Michael) - set by Data Engine |
+
+### Account Types
+
+| Type | Description |
+|------|-------------|
+| `resident` | Regular resident/owner (real person) |
+| `colony_caretaker` | Manages a colony |
+| `community_trapper` | Community trapper (Tier 2/3) |
+| `rescue_operator` | Runs a home-based rescue |
+| `organization` | Known org (shelter, rescue, vet clinic) |
+| `site_name` | Trapping site name (Silveira Ranch) |
+| `address` | Address as name (5403 San Antonio Road) |
+
+### Key Functions
+
+| Function | Purpose |
+|----------|---------|
+| `ops.upsert_clinic_account_for_owner()` | Create/update account for ClinicHQ owner |
+| `sot.classify_owner_name()` | Classify name as person/org/address |
+| `sot.should_be_person()` | Gate: determines if owner should create a person record |
+
+### Ingest Pipeline Flow (MIG_2489/2490)
+
+```
+owner_info →
+  1. ALWAYS create ops.clinic_accounts (preserves original name)
+  2. Call should_be_person()
+     ├─ FALSE → account.resolved_person_id = NULL (pseudo-profile)
+     └─ TRUE → Call data_engine_resolve_identity()
+               Set account.resolved_person_id = person_id
+  3. Link appointment:
+     - owner_account_id = account_id (ALWAYS)
+     - person_id = account.resolved_person_id (if resolved)
+```
 
 ## Beacon / Ground Truth
 

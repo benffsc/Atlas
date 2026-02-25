@@ -2332,7 +2332,7 @@ WHERE source_table = 'cat_info'
 
 ## DATA_GAP_053: ClinicHQ Accounts Not Tracked Separately from People
 
-**Status:** OPEN
+**Status:** FIXED (MIG_2489, MIG_2490, ingest route update)
 
 **Problem:** When appointments are processed, the ClinicHQ client name (e.g., "Elisha Togneri") is lost because identity resolution matches on shared email/phone and links to a different person (e.g., "Michael Togneri"). We should be tracking ClinicHQ accounts as distinct entities, separate from person identity resolution.
 
@@ -2344,15 +2344,20 @@ WHERE source_table = 'cat_info'
   - Address: 1406 Barlow Ln, Sebastopol, CA 95472
   - Quick Notes: "Client is Michael Togneri's wife, this is his contact information, this is a separate property"
 
-- **What Atlas Shows:**
+- **What Atlas Shows (BEFORE):**
   - Email: michaeltagneri@yahoo.com (typo from somewhere)
   - Phone: (707) 620-3412
   - No record that this was Elisha's ClinicHQ account
 
+- **What Atlas Shows (AFTER FIX):**
+  - appointment.owner_account_id → ops.clinic_accounts (Elisha Togneri)
+  - appointment.person_id → sot.people (Michael Togneri - via Data Engine)
+  - UI can show "Booked by: Elisha Togneri" separately from "Linked to: Michael Togneri"
+
 **Root Cause:**
 1. Shared household email/phone causes identity resolution to merge into one person
 2. ClinicHQ "Owner First Name" / "Owner Last Name" not preserved as account info
-3. We have no `clinic_owner_accounts` tracking for legitimate ClinicHQ accounts (only pseudo-profiles like addresses/orgs)
+3. We had `ops.clinic_accounts` but only used for pseudo-profiles (addresses/orgs), not real people
 4. The relationship is: ClinicHQ Account → Person (may be different from account holder)
 
 **Business Context:**
@@ -2361,43 +2366,150 @@ WHERE source_table = 'cat_info'
 - Staff notes on ClinicHQ accounts contain important context ("this is his wife", "separate property")
 - We need to preserve WHO booked the appointment, not just WHOSE contact info was used
 
-**Impact:**
-- Loss of original client name when shared identifiers match another person
-- Staff notes from ClinicHQ Quick Notes not preserved
-- Cannot track which ClinicHQ account brought in which cats
-- Historical trapper relationships may be wrong due to shared household identifiers
+**Solution Applied:**
+1. **MIG_2489**: Extended `ops.clinic_accounts` to store ALL ClinicHQ owners (not just pseudo-profiles)
+   - Added `merged_into_account_id`, `source_record_id`, `household_id` columns
+   - Added account_types: `resident`, `colony_caretaker`, `community_trapper`, `rescue_operator`
+   - Created `sot.households` table for family grouping
+   - Created `ops.trapper_contracts` table (replacing Airtable)
+   - Created `ops.upsert_clinic_account_for_owner()` function
 
-**Proposed Fix:**
-1. Create `source.clinichq_accounts` table to track ClinicHQ client records distinctly
-2. Link appointments to `clinichq_account_id` in addition to `person_id`
-3. Store original client name, contact info, and Quick Notes from ClinicHQ
-4. Identity resolution links account to person but preserves account as distinct entity
-5. UI shows "Booked under: Elisha Togneri (ClinicHQ Account)" even if linked to Michael Togneri person
+2. **MIG_2490**: Backfilled clinic_accounts for all existing appointments
+   - Created accounts from appointment owner data
+   - Linked ALL appointments via `owner_account_id`
+   - Detected households from shared email/phone
+
+3. **Ingest Route Update**: Now creates accounts for ALL owners during ingest
+   - Step 0: Create clinic_accounts for ALL owners (not just pseudo-profiles)
+   - Step 1: Identity resolution → sets `account.resolved_person_id`
+   - Step 4b: Links ALL appointments to accounts via `owner_account_id`
+
+**Result:**
+- `appointment.owner_account_id` = "Who booked" (original client name)
+- `appointment.person_id` = "Who this resolved to" (via Data Engine)
+- Multiple accounts can resolve to same person (household/shared email)
+- `sot.households` groups accounts with shared identifiers
+
+**Verification Query:**
+```sql
+-- Check appointments where booked-by differs from resolved-to
+SELECT
+  a.appointment_date,
+  a.client_name as booked_as,
+  ca.display_name as account_name,
+  ca.account_type,
+  p.display_name as resolved_to,
+  h.display_name as household
+FROM ops.appointments a
+LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id
+LEFT JOIN sot.people p ON p.person_id = a.person_id
+LEFT JOIN sot.households h ON h.household_id = ca.household_id
+WHERE a.client_name ILIKE '%Togneri%'
+ORDER BY a.appointment_date DESC LIMIT 10;
+```
 
 **Related:**
 - DATA_GAP_009: FFSC Organizational Email Pollution (email-based cross-linking)
 - INV-12: Phone COALESCE Must Prefer Owner Phone (shared phone issue)
 - INV-24: Shared Identifiers Create Orphan Duplicates
 
-**Evidence Query:**
-```sql
--- Find appointments where owner name differs from linked person name
-SELECT
-  a.appointment_id,
-  a.appointment_date,
-  a.owner_info->>'first_name' as clinichq_first_name,
-  a.owner_info->>'last_name' as clinichq_last_name,
-  p.display_name as linked_person_name,
-  a.owner_info->>'email' as owner_email,
-  a.owner_info->>'phone' as owner_phone
-FROM ops.appointments a
-JOIN sot.people p ON p.person_id = a.person_id
-WHERE a.owner_info IS NOT NULL
-  AND LOWER(a.owner_info->>'last_name') != LOWER(COALESCE(p.last_name, ''))
-  AND a.owner_info->>'last_name' IS NOT NULL
-  AND a.owner_info->>'last_name' != ''
-ORDER BY a.appointment_date DESC
-LIMIT 20;
+---
+
+## DATA_GAP_054: Address-Type Clinic Accounts Missing Place Extraction
+
+**Status:** FIX READY (MIG_2496, MIG_2497, MIG_2498)
+
+**Problem:** Cats booked under address-like names in ClinicHQ (e.g., "Old Stony Pt Rd", "5403 San Antonio Road") are not appearing on the map because no place is extracted from the address-type clinic account.
+
+**Root Cause:**
+1. ClinicHQ `Owner First Name` contains an address/location name
+2. `classify_owner_name()` correctly classifies as `'address'`
+3. `ops.clinic_accounts` record is created with `account_type = 'address'`
+4. **BUT** `resolved_place_id` is never set (V1 MIG_909 logic not ported to V2)
+5. Therefore `appointment.inferred_place_id` stays NULL
+6. Therefore `sot.link_cats_to_appointment_places()` cannot link cats to places
+
+**Example: Old Stony Pt Rd Colony**
 ```
+ClinicHQ raw data:
+- Owner First Name: "Old Stony Pt Rd"
+- Owner Last Name: ""
+- Owner Address: "2384 Stony Point Rd, Santa Rosa, CA 94952"
+
+Atlas result (BEFORE):
+- clinic_account EXISTS: display_name = "Old Stony Point Rd Old Stony Point Rd"
+- clinic_account.account_type = 'address'
+- clinic_account.resolved_place_id = NULL ← ROOT CAUSE
+- Cats booked under this account: 16
+- Cats visible on map at this place: 0
+
+Atlas result (AFTER):
+- clinic_account.resolved_place_id → place_id (2384 Stony Point Rd)
+- appointment.inferred_place_id = place_id
+- cat_place links created
+- Cats visible on map: 16 ✓
+```
+
+**Scope of Impact (QRY_054 audit):**
+- 1,503 address-type accounts, ALL missing `resolved_place_id`
+- 1,709 site_name accounts, ALL missing `resolved_place_id`
+- 794 cats affected by address-type accounts
+- 1,031 cats affected by site_name accounts
+
+**Architectural Context (INV-11):**
+ClinicHQ provides CATS + PLACES as ground truth. Person links are ~30% unreliable because:
+- Trappers' contact info ends up on colony accounts (they brought the cat, not where they live)
+- Shared household phones
+- Family members sharing email for all bookings
+
+**Solution:**
+
+1. **MIG_2497**: Add missing business keywords
+   - "generation" (fixes "Grow Generation" → organization)
+   - ~45 other keywords (gardens, nursery, supply, dental, restaurant, etc.)
+
+2. **MIG_2498**: Fix classification edge cases
+   - 3+ word names with site keywords (Ranch/Farm/Estate/Vineyard/Winery) → always site_name
+   - Word-based garbage detection (rebooking, placeholder, duplicate)
+
+3. **MIG_2496**: Extract places for address-type accounts
+   - Update `ops.upsert_clinic_account_for_owner()` to set `resolved_place_id`
+   - Backfill existing address-type accounts
+   - Link appointments to places via `clinic_accounts.resolved_place_id`
+   - Re-run `sot.link_cats_to_appointment_places()`
+
+**Migration Order:**
+```
+MIG_2497 (Keywords)     → Fixes classification
+MIG_2498 (Edge Cases)   → Fixes site_name and garbage patterns
+MIG_2489 (Schema)       → Extends clinic_accounts
+MIG_2490 (Backfill)     → Creates accounts for all appointments
+MIG_2491 (Robustness)   → Indexes, race condition fix
+MIG_2496 (Places)       → Extracts places for address-type accounts
+run_all_entity_linking() → Links cats to new places
+```
+
+**Verification Query:**
+```sql
+-- After migrations, address-type accounts should have places
+SELECT
+  COUNT(*) as total_address_accounts,
+  COUNT(*) FILTER (WHERE resolved_place_id IS NOT NULL) as with_place,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE resolved_place_id IS NOT NULL) / COUNT(*), 1) as pct
+FROM ops.clinic_accounts
+WHERE account_type = 'address'
+  AND merged_into_account_id IS NULL;
+
+-- Old Stony Pt Rd should now have place link
+SELECT ca.display_name, ca.resolved_place_id, p.formatted_address
+FROM ops.clinic_accounts ca
+LEFT JOIN sot.places p ON p.place_id = ca.resolved_place_id
+WHERE ca.display_name ILIKE '%stony%';
+```
+
+**Related:**
+- DATA_GAP_053: ClinicHQ Accounts Not Tracked Separately from People
+- INV-11: ClinicHQ Ground Truth Is CATS + PLACES, Not People
+- MIG_909 (V1): Original place extraction logic
 
 ---

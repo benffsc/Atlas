@@ -610,9 +610,59 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   }
 
   if (sourceTable === 'owner_info') {
+    // Step 0: Create clinic_accounts for ALL owners (DATA_GAP_053 fix)
+    // This creates a SOURCE TRACKING record for every owner, preserving original name
+    // Real people: account_type = 'resident', resolved_person_id will be set in Step 1
+    // Pseudo-profiles: account_type = 'organization'/'site_name'/'address', resolved_person_id = NULL
+    await saveProgress('Creating clinic accounts for all owners...');
+    const allAccountsCreated = await query(`
+      WITH all_owners AS (
+        SELECT DISTINCT ON (
+          COALESCE(LOWER(TRIM(payload->>'Owner First Name')), '') || '|' ||
+          COALESCE(LOWER(TRIM(payload->>'Owner Last Name')), '') || '|' ||
+          COALESCE(LOWER(TRIM(payload->>'Owner Email')), '') || '|' ||
+          COALESCE(sot.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone')), '')
+        )
+          payload->>'Owner First Name' as first_name,
+          payload->>'Owner Last Name' as last_name,
+          NULLIF(LOWER(TRIM(payload->>'Owner Email')), '') as email,
+          sot.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone')) as phone,
+          NULLIF(TRIM(payload->>'Owner Address'), '') as address,
+          payload->>'Number' as appointment_number
+        FROM ops.staged_records
+        WHERE source_system = 'clinichq'
+          AND source_table = 'owner_info'
+          AND file_upload_id = $1
+          AND (payload->>'Owner First Name' IS NOT NULL AND TRIM(payload->>'Owner First Name') != '')
+        ORDER BY
+          COALESCE(LOWER(TRIM(payload->>'Owner First Name')), '') || '|' ||
+          COALESCE(LOWER(TRIM(payload->>'Owner Last Name')), '') || '|' ||
+          COALESCE(LOWER(TRIM(payload->>'Owner Email')), '') || '|' ||
+          COALESCE(sot.norm_phone_us(COALESCE(payload->>'Owner Cell Phone', payload->>'Owner Phone')), ''),
+          (payload->>'Date')::date DESC NULLS LAST
+      ),
+      created_accounts AS (
+        SELECT
+          ao.*,
+          ops.upsert_clinic_account_for_owner(
+            ao.first_name,
+            ao.last_name,
+            ao.email,
+            ao.phone,
+            ao.address,
+            ao.appointment_number,
+            NULL  -- resolved_person_id will be set in Step 1
+          ) as account_id
+        FROM all_owners ao
+      )
+      SELECT COUNT(*) as cnt FROM created_accounts WHERE account_id IS NOT NULL
+    `, [uploadId]);
+    results.clinic_accounts_created = parseInt(allAccountsCreated.rows?.[0]?.cnt || '0');
+
     // Step 1: Create REAL PEOPLE using find_or_create_person SQL function
     // MIG_888/INV-22: Mirrors SQL processor (MIG_573) — only process records
     // where should_be_person() returns TRUE (has contact info + person-like name)
+    // Also updates clinic_account.resolved_person_id for these owners
     await saveProgress('Creating people from owner records...');
     const peopleCreated = await query(`
       WITH owner_data AS (
@@ -660,42 +710,27 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           ) as created_person_id
         FROM owner_data od
         WHERE od.first_name IS NOT NULL
+      ),
+      -- Update clinic_accounts with resolved_person_id (DATA_GAP_053 fix)
+      updated_accounts AS (
+        UPDATE ops.clinic_accounts ca
+        SET resolved_person_id = cp.created_person_id,
+            account_type = 'resident',
+            updated_at = NOW()
+        FROM created_people cp
+        WHERE ca.owner_first_name = cp.first_name
+          AND ca.owner_last_name = cp.last_name
+          AND (
+            (cp.email IS NOT NULL AND ca.owner_email = cp.email)
+            OR (cp.phone IS NOT NULL AND ca.owner_phone = cp.phone)
+          )
+          AND ca.merged_into_account_id IS NULL
+          AND cp.created_person_id IS NOT NULL
+        RETURNING ca.account_id
       )
       SELECT COUNT(*) as cnt FROM created_people WHERE created_person_id IS NOT NULL
     `, [uploadId]);
     results.people_created_or_matched = parseInt(peopleCreated.rows?.[0]?.cnt || '0');
-
-    // Step 1b: Route pseudo-profiles to clinic_owner_accounts
-    // INV-25: ClinicHQ pseudo-profiles (addresses, orgs, apartments) are NOT people
-    await saveProgress('Routing pseudo-profiles to clinic accounts...');
-    const accountsCreated = await query(`
-      WITH pseudo_profiles AS (
-        SELECT DISTINCT ON (TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')))
-          TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')) as display_name
-        FROM ops.staged_records
-        WHERE source_system = 'clinichq'
-          AND source_table = 'owner_info'
-          AND file_upload_id = $1
-          AND NOT sot.should_be_person(
-            payload->>'Owner First Name',
-            payload->>'Owner Last Name',
-            NULLIF(LOWER(TRIM(payload->>'Owner Email')), ''),
-            sot.norm_phone_us(COALESCE(NULLIF(payload->>'Owner Cell Phone', ''), payload->>'Owner Phone'))
-          )
-          AND (payload->>'Owner First Name' IS NOT NULL AND TRIM(payload->>'Owner First Name') != '')
-        ORDER BY TRIM(COALESCE(payload->>'Owner First Name', '') || ' ' || COALESCE(payload->>'Owner Last Name', '')),
-                 (payload->>'Date')::date DESC NULLS LAST
-      ),
-      created_accounts AS (
-        SELECT
-          pp.*,
-          sot.find_or_create_clinic_account(pp.display_name, NULL, NULL, 'clinichq') as account_id
-        FROM pseudo_profiles pp
-        WHERE pp.display_name IS NOT NULL AND pp.display_name != ''
-      )
-      SELECT COUNT(*) as cnt FROM created_accounts WHERE account_id IS NOT NULL
-    `, [uploadId]);
-    results.clinic_accounts_created = parseInt(accountsCreated.rows?.[0]?.cnt || '0');
 
     // Step 2: Create places from owner addresses using find_or_create_place_deduped
     // This auto-queues for geocoding
@@ -830,24 +865,31 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.owner_fields_backfilled = ownerFieldsBackfill.rowCount || 0;
 
-    // Step 4b: Link pseudo-profiles to appointments via owner_account_id
-    // INV-22: Mirrors SQL processor Step 7 — appointments with no person_id
-    // get linked to clinic_owner_accounts instead
-    await saveProgress('Linking pseudo-profile appointments...');
+    // Step 4b: Link ALL appointments to clinic_accounts via owner_account_id
+    // DATA_GAP_053 fix: Now links ALL appointments (not just pseudo-profiles)
+    // - appointment.owner_account_id = "Who booked" (original client)
+    // - appointment.person_id = "Who this resolved to" (via Data Engine)
+    await saveProgress('Linking ALL appointments to clinic accounts...');
     const accountLinks = await query(`
       UPDATE ops.appointments a
-      SET owner_account_id = coa.account_id
+      SET owner_account_id = ca.account_id
       FROM ops.staged_records sr
-      JOIN ops.clinic_accounts coa ON (
-        LOWER(coa.display_name) = LOWER(TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')))
-        OR LOWER(TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')))
-          = ANY(SELECT LOWER(unnest(coa.source_display_names)))
+      JOIN ops.clinic_accounts ca ON (
+        ca.owner_first_name = sr.payload->>'Owner First Name'
+        AND ca.owner_last_name = sr.payload->>'Owner Last Name'
+        AND (
+          (sr.payload->>'Owner Email' IS NOT NULL AND ca.owner_email = LOWER(TRIM(sr.payload->>'Owner Email')))
+          OR (sr.payload->>'Owner Phone' IS NOT NULL AND ca.owner_phone = sot.norm_phone_us(sr.payload->>'Owner Phone'))
+          OR (sr.payload->>'Owner Cell Phone' IS NOT NULL AND ca.owner_phone = sot.norm_phone_us(sr.payload->>'Owner Cell Phone'))
+          OR (sr.payload->>'Owner Email' IS NULL AND sr.payload->>'Owner Phone' IS NULL AND sr.payload->>'Owner Cell Phone' IS NULL
+              AND ca.owner_email IS NULL AND ca.owner_phone IS NULL)
+        )
+        AND ca.merged_into_account_id IS NULL
       )
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
         AND sr.file_upload_id = $1
         AND a.appointment_number = sr.payload->>'Number'
-        AND a.person_id IS NULL
         AND a.owner_account_id IS NULL
     `, [uploadId]);
     results.appointments_linked_to_accounts = accountLinks.rowCount || 0;
