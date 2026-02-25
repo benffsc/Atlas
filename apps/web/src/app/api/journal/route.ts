@@ -265,6 +265,14 @@ export async function GET(request: NextRequest) {
         offset,
       );
 
+      // Also run a simple diagnostic query
+      const diagResult = await queryRows<{ cnt: string; db: string }>(
+        `SELECT COUNT(*)::text as cnt, current_database() as db
+         FROM ops.journal_entries
+         WHERE primary_request_id = $1`,
+        [entityId]
+      );
+
       const [dataResult, countResult] = await Promise.all([
         queryRows<JournalEntryRow>(sql, params),
         query(countSql, params.slice(0, -2)),
@@ -280,9 +288,9 @@ export async function GET(request: NextRequest) {
           path: "crossRef",
           entityType,
           entityId,
-          includeArchived,
-          sqlPreview: sql.substring(0, 500),
-          params: params.slice(0, -2),
+          directCount: diagResult[0]?.cnt,
+          database: diagResult[0]?.db,
+          entriesReturned: dataResult.length,
         },
       });
     } catch (error) {
