@@ -33,22 +33,22 @@ export async function GET(
   try {
     // Fetch from journal entries (unified communication log)
     // This includes both contact_attempt and note entries
-    // Using V2 column names: id, body, entry_kind, primary_submission_id, occurred_at
+    // Check both primary_submission_id (V2) and submission_id (V1) for backwards compatibility
     const journalLogs = await queryRows<CommunicationLog>(`
       SELECT
         je.id::text AS log_id,
-        je.primary_submission_id AS submission_id,
+        COALESCE(je.primary_submission_id, je.submission_id) AS submission_id,
         je.contact_method,
         je.contact_result,
-        je.body AS notes,
+        COALESCE(je.body, je.content) AS notes,
         COALESCE(je.occurred_at, je.created_at) AS contacted_at,
         je.created_by AS contacted_by,
-        je.entry_kind AS entry_kind,
+        COALESCE(je.entry_kind, je.entry_type) AS entry_kind,
         s.display_name AS created_by_staff_name,
         s.role AS created_by_staff_role
       FROM ops.journal_entries je
       LEFT JOIN ops.staff s ON s.staff_id = je.created_by_staff_id
-      WHERE je.primary_submission_id = $1
+      WHERE je.primary_submission_id = $1 OR je.submission_id = $1
       ORDER BY COALESCE(je.occurred_at, je.created_at) DESC
     `, [id]);
 

@@ -80,8 +80,8 @@ function buildCrossRefQuery(
   limit: number,
   offset: number,
 ): { sql: string; countSql: string; params: unknown[] } {
-  const archivedFilter = includeArchived ? "" : "AND je.is_archived = FALSE";
-  const crossRefArchived = "AND je.is_archived = FALSE";
+  const archivedFilter = includeArchived ? "" : "AND (je.is_archived IS NOT TRUE)";
+  const crossRefArchived = "AND (je.is_archived IS NOT TRUE)";
   const noQuickNotes = "AND NOT (je.tags @> ARRAY['quick_note'])";
 
   const params: unknown[] = [entityId];
@@ -291,7 +291,7 @@ export async function GET(request: NextRequest) {
   let paramIndex = 1;
 
   if (!includeArchived) {
-    conditions.push("je.is_archived = FALSE");
+    conditions.push("(je.is_archived IS NOT TRUE)");
   }
 
   if (catId) {

@@ -69,6 +69,10 @@ ALTER TABLE ops.journal_entries
 ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
 
+-- Backfill is_archived and is_pinned for existing entries
+UPDATE ops.journal_entries SET is_archived = FALSE WHERE is_archived IS NULL;
+UPDATE ops.journal_entries SET is_pinned = FALSE WHERE is_pinned IS NULL;
+
 -- Add edit tracking columns
 ALTER TABLE ops.journal_entries
 ADD COLUMN IF NOT EXISTS edit_count INTEGER DEFAULT 0,
