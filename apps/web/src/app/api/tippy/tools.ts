@@ -2150,18 +2150,18 @@ async function logFieldEvent(
       );
     }
 
-    // Also log to journal_entries for audit trail
+    // Also log to journal_entries for audit trail (V2 column names)
     await queryOne(
       `
       INSERT INTO ops.journal_entries (
-        entry_type,
-        entry_date,
-        place_id,
-        content,
-        source_system,
-        created_by
-      ) VALUES ($1, NOW(), $2, $3, 'tippy_event', 'tippy_ai')
-      RETURNING entry_id
+        entry_kind,
+        occurred_at,
+        primary_place_id,
+        body,
+        created_by,
+        tags
+      ) VALUES ($1, NOW(), $2, $3, 'tippy_ai', '{}')
+      RETURNING id
       `,
       [
         eventType,
@@ -2207,18 +2207,18 @@ async function logFieldEvent(
     );
   }
 
-  // Log to journal_entries for audit trail
+  // Log to journal_entries for audit trail (V2 column names)
   await queryOne(
     `
     INSERT INTO ops.journal_entries (
-      entry_type,
-      entry_date,
-      place_id,
-      content,
-      source_system,
-      created_by
-    ) VALUES ($1, NOW(), $2, $3, 'tippy_event', 'tippy_ai')
-    RETURNING entry_id
+      entry_kind,
+      occurred_at,
+      primary_place_id,
+      body,
+      created_by,
+      tags
+    ) VALUES ($1, NOW(), $2, $3, 'tippy_ai', '{}')
+    RETURNING id
     `,
     [
       eventType,

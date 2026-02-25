@@ -33,22 +33,23 @@ export async function GET(
   try {
     // Fetch from journal entries (unified communication log)
     // This includes both contact_attempt and note entries
+    // Using V2 column names: id, body, entry_kind, primary_submission_id, occurred_at
     const journalLogs = await queryRows<CommunicationLog>(`
       SELECT
-        je.entry_id::text AS log_id,
-        je.submission_id AS submission_id,
+        je.id::text AS log_id,
+        je.primary_submission_id AS submission_id,
         je.contact_method,
         je.contact_result,
-        je.content AS notes,
-        COALESCE(je.entry_date::timestamp, je.created_at) AS contacted_at,
+        je.body AS notes,
+        COALESCE(je.occurred_at, je.created_at) AS contacted_at,
         je.created_by AS contacted_by,
-        je.entry_type AS entry_kind,
+        je.entry_kind AS entry_kind,
         s.display_name AS created_by_staff_name,
         s.role AS created_by_staff_role
       FROM ops.journal_entries je
       LEFT JOIN ops.staff s ON s.staff_id = je.created_by_staff_id
-      WHERE je.submission_id = $1
-      ORDER BY COALESCE(je.entry_date::timestamp, je.created_at) DESC
+      WHERE je.primary_submission_id = $1
+      ORDER BY COALESCE(je.occurred_at, je.created_at) DESC
     `, [id]);
 
     // Also fetch from legacy communication_logs table for backwards compatibility
@@ -151,21 +152,20 @@ export async function POST(
     const entryKind = is_journal_only ? "note" : "contact_attempt";
 
     // Create journal entry (unified communication log)
-    const result = await queryOne<{ entry_id: string }>(`
+    // Using V2 column names: body, entry_kind, primary_submission_id, occurred_at
+    const result = await queryOne<{ id: string }>(`
       INSERT INTO ops.journal_entries (
-        content,
-        entry_type,
-        submission_id,
+        body,
+        entry_kind,
+        primary_submission_id,
         contact_method,
         contact_result,
         created_by,
         created_by_staff_id,
-        source_system,
-        entry_date,
-        created_at,
-        updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'atlas_ui', CURRENT_DATE, NOW(), NOW())
-      RETURNING entry_id
+        occurred_at,
+        tags
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), '{}')
+      RETURNING id
     `, [
       notes || "",
       entryKind,
@@ -199,7 +199,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      log_id: result.entry_id,
+      log_id: result.id,
     });
   } catch (err) {
     console.error("Error creating communication log:", err);
