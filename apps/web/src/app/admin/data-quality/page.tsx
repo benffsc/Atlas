@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+type TabType = "dashboard" | "alerts" | "trends";
+
 interface DashboardMetrics {
   total_cats: number;
   cats_with_places: number;
@@ -62,6 +64,45 @@ interface DataQualityResponse {
   };
 }
 
+interface Alert {
+  alert_type: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  count: number;
+  message: string;
+  checked_at: string;
+}
+
+interface AlertsResponse {
+  success: boolean;
+  status: string;
+  summary: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    total: number;
+  };
+  alerts: Alert[];
+  checked_at: string;
+}
+
+interface TrendData {
+  metric_date: string;
+  active_cats: number;
+  active_people: number;
+  active_places: number;
+  garbage_cats: number;
+  needs_review_cats: number;
+  verified_person_place: number;
+  alert_count: number;
+}
+
+interface TrendResponse {
+  success: boolean;
+  days: number;
+  data: TrendData[];
+}
+
 const STATUS_COLORS = {
   healthy: { bg: "#ecfdf5", border: "#10b981", text: "#059669" },
   warning: { bg: "#fef3c7", border: "#f59e0b", text: "#d97706" },
@@ -69,7 +110,10 @@ const STATUS_COLORS = {
 };
 
 export default function DataQualityPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [data, setData] = useState<DataQualityResponse | null>(null);
+  const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
+  const [trends, setTrends] = useState<TrendResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -88,11 +132,38 @@ export default function DataQualityPage() {
     }
   }, []);
 
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/data-quality/alerts");
+      if (!response.ok) return;
+      const result = await response.json();
+      setAlerts(result);
+    } catch {
+      // Alerts endpoint may not exist if MIG_2515 not applied
+    }
+  }, []);
+
+  const fetchTrends = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/data-quality/history?days=30");
+      if (!response.ok) return;
+      const result = await response.json();
+      setTrends(result);
+    } catch {
+      // Trends endpoint may not exist if MIG_2515 not applied
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000); // Refresh every minute
+    fetchAlerts();
+    fetchTrends();
+    const interval = setInterval(() => {
+      fetchData();
+      fetchAlerts();
+    }, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, fetchAlerts, fetchTrends]);
 
   const takeSnapshot = async () => {
     setSnapshotLoading(true);
@@ -133,6 +204,12 @@ export default function DataQualityPage() {
   const { dashboard, problems, summary, status } = data;
   const statusStyle = STATUS_COLORS[status];
 
+  const tabs: { key: TabType; label: string; badge?: number }[] = [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "alerts", label: "Alerts", badge: alerts?.summary?.total || 0 },
+    { key: "trends", label: "Trends" },
+  ];
+
   return (
     <div>
       {/* Header */}
@@ -141,7 +218,7 @@ export default function DataQualityPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "1.5rem",
+          marginBottom: "1rem",
         }}
       >
         <div>
@@ -165,6 +242,59 @@ export default function DataQualityPage() {
           {snapshotLoading ? "Taking..." : "Take Snapshot"}
         </button>
       </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginBottom: "1.5rem",
+          borderBottom: "1px solid var(--border)",
+          paddingBottom: "0.5rem",
+        }}
+      >
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              padding: "0.5rem 1rem",
+              background: activeTab === tab.key ? "var(--accent)" : "transparent",
+              color: activeTab === tab.key ? "#fff" : "inherit",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontWeight: activeTab === tab.key ? 600 : 400,
+            }}
+          >
+            {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span
+                style={{
+                  background: activeTab === tab.key ? "rgba(255,255,255,0.2)" : "#ef4444",
+                  color: activeTab === tab.key ? "#fff" : "#fff",
+                  fontSize: "0.75rem",
+                  padding: "0.125rem 0.375rem",
+                  borderRadius: "9999px",
+                  fontWeight: 600,
+                }}
+              >
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "alerts" && <AlertsPanel alerts={alerts} />}
+      {activeTab === "trends" && <TrendsPanel trends={trends} />}
+      {activeTab !== "dashboard" && <div style={{ marginBottom: "2rem" }} />}
+      {activeTab !== "dashboard" ? null : (
+        <>
 
       {/* Overall Status */}
       <div
@@ -445,6 +575,8 @@ export default function DataQualityPage() {
           <StatItem label="DE Decisions" value={dashboard.de_decisions_24h} />
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
@@ -541,6 +673,297 @@ function StatItem({
         }}
       >
         {typeof value === "number" ? value.toLocaleString() : value}
+      </div>
+    </div>
+  );
+}
+
+const SEVERITY_COLORS = {
+  CRITICAL: { bg: "#fef2f2", border: "#ef4444", text: "#dc2626" },
+  HIGH: { bg: "#fef3c7", border: "#f59e0b", text: "#d97706" },
+  MEDIUM: { bg: "#fefce8", border: "#eab308", text: "#ca8a04" },
+  LOW: { bg: "#f0fdf4", border: "#22c55e", text: "#16a34a" },
+};
+
+function AlertsPanel({ alerts }: { alerts: AlertsResponse | null }) {
+  if (!alerts) {
+    return (
+      <div className="card" style={{ padding: "1.5rem", textAlign: "center" }}>
+        <p className="text-muted">
+          Alerts view not available. Apply MIG_2515 to enable.
+        </p>
+      </div>
+    );
+  }
+
+  if (alerts.alerts.length === 0) {
+    return (
+      <div className="card" style={{ padding: "1.5rem", textAlign: "center", background: "#ecfdf5" }}>
+        <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>+</div>
+        <h3 style={{ margin: 0, color: "#059669" }}>All Clear</h3>
+        <p className="text-muted" style={{ margin: "0.5rem 0 0 0" }}>
+          No data quality alerts at this time
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Summary Cards */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "1rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <SummaryCard label="Critical" value={alerts.summary.critical} severity="CRITICAL" />
+        <SummaryCard label="High" value={alerts.summary.high} severity="HIGH" />
+        <SummaryCard label="Medium" value={alerts.summary.medium} severity="MEDIUM" />
+        <SummaryCard label="Low" value={alerts.summary.low} severity="LOW" />
+      </div>
+
+      {/* Alert List */}
+      <div className="card" style={{ padding: "1.25rem" }}>
+        <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>Active Alerts</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {alerts.alerts.map((alert, idx) => {
+            const style = SEVERITY_COLORS[alert.severity];
+            return (
+              <div
+                key={`${alert.alert_type}-${idx}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  padding: "0.75rem 1rem",
+                  background: style.bg,
+                  borderRadius: "8px",
+                  borderLeft: `4px solid ${style.border}`,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    padding: "0.125rem 0.5rem",
+                    borderRadius: "4px",
+                    background: style.border,
+                    color: "#fff",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {alert.severity}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500 }}>{alert.message}</div>
+                  <code
+                    style={{
+                      fontSize: "0.75rem",
+                      background: "rgba(0,0,0,0.05)",
+                      padding: "0.125rem 0.25rem",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    {alert.alert_type}
+                  </code>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: "1.25rem", color: style.text }}>
+                  {alert.count.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  severity,
+}: {
+  label: string;
+  value: number;
+  severity: keyof typeof SEVERITY_COLORS;
+}) {
+  const style = SEVERITY_COLORS[severity];
+  return (
+    <div
+      className="card"
+      style={{
+        padding: "1rem",
+        textAlign: "center",
+        background: value > 0 ? style.bg : undefined,
+        borderLeft: `4px solid ${value > 0 ? style.border : "var(--border)"}`,
+      }}
+    >
+      <div style={{ fontSize: "1.75rem", fontWeight: 700, color: value > 0 ? style.text : undefined }}>
+        {value}
+      </div>
+      <div className="text-muted text-sm">{label}</div>
+    </div>
+  );
+}
+
+function TrendsPanel({ trends }: { trends: TrendResponse | null }) {
+  if (!trends || !trends.success || trends.data.length === 0) {
+    return (
+      <div className="card" style={{ padding: "1.5rem", textAlign: "center" }}>
+        <p className="text-muted">
+          {!trends
+            ? "Trends view not available. Apply MIG_2515 to enable."
+            : "No historical data available. Take daily snapshots to build trend data."}
+        </p>
+      </div>
+    );
+  }
+
+  // Get latest and oldest for comparison
+  const latest = trends.data[0];
+  const oldest = trends.data[trends.data.length - 1];
+
+  const calculateChange = (current: number, previous: number) => {
+    if (previous === 0) return { value: current, direction: "up" as const };
+    const change = current - previous;
+    return {
+      value: Math.abs(change),
+      direction: change >= 0 ? ("up" as const) : ("down" as const),
+      pct: Math.round((Math.abs(change) / previous) * 100),
+    };
+  };
+
+  const metrics = [
+    { key: "active_cats", label: "Active Cats", good: "up" },
+    { key: "active_people", label: "Active People", good: "up" },
+    { key: "active_places", label: "Active Places", good: "up" },
+    { key: "garbage_cats", label: "Garbage Cats", good: "down" },
+    { key: "needs_review_cats", label: "Needs Review", good: "down" },
+    { key: "verified_person_place", label: "Verified Links", good: "up" },
+  ] as const;
+
+  return (
+    <div>
+      {/* Trend Summary */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "1rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        {metrics.map((metric) => {
+          const latestVal = latest[metric.key];
+          const oldestVal = oldest[metric.key];
+          const change = calculateChange(latestVal, oldestVal);
+          const isGood =
+            (metric.good === "up" && change.direction === "up") ||
+            (metric.good === "down" && change.direction === "down");
+
+          return (
+            <div
+              key={metric.key}
+              className="card"
+              style={{
+                padding: "1rem",
+                borderLeft: `4px solid ${isGood ? "#10b981" : change.value === 0 ? "var(--border)" : "#f59e0b"}`,
+              }}
+            >
+              <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>
+                {metric.label}
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {latestVal.toLocaleString()}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.875rem",
+                  color: isGood ? "#059669" : change.value === 0 ? "var(--muted)" : "#d97706",
+                  marginTop: "0.25rem",
+                }}
+              >
+                {change.value === 0 ? (
+                  "No change"
+                ) : (
+                  <>
+                    {change.direction === "up" ? "^" : "v"} {change.value.toLocaleString()}
+                    {change.pct !== undefined && ` (${change.pct}%)`}
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Historical Data Table */}
+      <div className="card" style={{ padding: "1.25rem" }}>
+        <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
+          Last {trends.days} Days
+        </h2>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                  Date
+                </th>
+                <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                  Cats
+                </th>
+                <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                  People
+                </th>
+                <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                  Places
+                </th>
+                <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                  Verified
+                </th>
+                <th style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                  Alerts
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {trends.data.slice(0, 14).map((row) => (
+                <tr key={row.metric_date}>
+                  <td style={{ padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                    {new Date(row.metric_date).toLocaleDateString()}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                    {row.active_cats.toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                    {row.active_people.toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                    {row.active_places.toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
+                    {row.verified_person_place.toLocaleString()}
+                  </td>
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "0.5rem",
+                      borderBottom: "1px solid var(--border)",
+                      color: row.alert_count > 0 ? "#dc2626" : undefined,
+                      fontWeight: row.alert_count > 0 ? 600 : undefined,
+                    }}
+                  >
+                    {row.alert_count}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -439,7 +439,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Step 6: Log to ingest_runs
+    // Step 6: Enrich skeleton people (MIG_2516)
+    let enrichment: { enriched_count: number; skipped_count: number; error_count: number } | null = null;
+    try {
+      const enrichResult = await queryOne<{
+        enriched_count: number;
+        skipped_count: number;
+        error_count: number;
+      }>(
+        `SELECT enriched_count, skipped_count, error_count FROM sot.enrich_skeleton_people()`
+      );
+      if (enrichResult) {
+        enrichment = enrichResult;
+        console.log(
+          `Skeleton enrichment: ${enrichment.enriched_count} enriched, ${enrichment.skipped_count} skipped, ${enrichment.error_count} errors`
+        );
+      }
+    } catch (enrichErr) {
+      console.error(
+        "Skeleton enrichment error:",
+        enrichErr instanceof Error ? enrichErr.message : enrichErr
+      );
+    }
+
+    // Step 7: Log to ingest_runs
     const durationMs = Date.now() - startTime;
     try {
       await execute(
@@ -469,6 +492,13 @@ export async function GET(request: NextRequest) {
             reconciliation: reconciliation
               ? { roles_deactivated: reconciliation.deactivated }
               : null,
+            enrichment: enrichment
+              ? {
+                  enriched: enrichment.enriched_count,
+                  skipped: enrichment.skipped_count,
+                  errors: enrichment.error_count,
+                }
+              : null,
           }),
         ]
       );
@@ -495,6 +525,13 @@ export async function GET(request: NextRequest) {
       },
       reconciliation: reconciliation
         ? { roles_deactivated: reconciliation.deactivated }
+        : null,
+      enrichment: enrichment
+        ? {
+            enriched: enrichment.enriched_count,
+            skipped: enrichment.skipped_count,
+            errors: enrichment.error_count,
+          }
         : null,
       duration_ms: durationMs,
     });

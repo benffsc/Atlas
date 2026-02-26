@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
+import { queryOne, query } from "@/lib/db";
 
 // Data Quality Check Cron Job
 //
@@ -9,6 +9,7 @@ import { queryOne } from "@/lib/db";
 // - Pending reviews > 100
 // - Geocoding queue > 100
 // - Invalid people created in 24h > 10
+// - ClinicHQ export broken (services_per_appt < 8)
 //
 // Vercel Cron: "0 */6 * * *" (every 6 hours)
 
@@ -30,6 +31,11 @@ interface DataQualityMetrics {
   total_appointments: number;
   appointments_with_person: number;
   appointments_with_trapper: number;
+  // ClinicHQ export health (DATA_GAP_037)
+  export_services_per_appt: number | null;
+  export_health_status: string | null;
+  export_microchips: number | null;
+  export_ear_tips: number | null;
 }
 
 interface Alert {
@@ -99,7 +105,22 @@ export async function GET(request: NextRequest) {
         -- Appointment linking
         (SELECT COUNT(*) FROM ops.appointments) as total_appointments,
         (SELECT COUNT(*) FROM ops.appointments WHERE person_id IS NOT NULL) as appointments_with_person,
-        (SELECT COUNT(*) FROM ops.appointments WHERE trapper_person_id IS NOT NULL) as appointments_with_trapper
+        (SELECT COUNT(*) FROM ops.appointments WHERE trapper_person_id IS NOT NULL) as appointments_with_trapper,
+
+        -- ClinicHQ export health (DATA_GAP_037)
+        -- Uses ops.v_clinichq_export_health view created in MIG_2410
+        (SELECT services_per_appt FROM ops.v_clinichq_export_health
+         WHERE week >= CURRENT_DATE - INTERVAL '14 days'
+         ORDER BY week DESC LIMIT 1) as export_services_per_appt,
+        (SELECT health_status FROM ops.v_clinichq_export_health
+         WHERE week >= CURRENT_DATE - INTERVAL '14 days'
+         ORDER BY week DESC LIMIT 1) as export_health_status,
+        (SELECT microchips FROM ops.v_clinichq_export_health
+         WHERE week >= CURRENT_DATE - INTERVAL '14 days'
+         ORDER BY week DESC LIMIT 1) as export_microchips,
+        (SELECT ear_tips FROM ops.v_clinichq_export_health
+         WHERE week >= CURRENT_DATE - INTERVAL '14 days'
+         ORDER BY week DESC LIMIT 1) as export_ear_tips
     `);
 
     if (!metrics) {
@@ -164,8 +185,28 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Critical: ClinicHQ export broken (DATA_GAP_037)
+    if (metrics.export_health_status === "CRITICAL") {
+      alerts.push({
+        level: "critical",
+        metric: "clinichq_export_health",
+        current: metrics.export_services_per_appt || 0,
+        threshold: 8,
+        message: `ClinicHQ export is BROKEN: ${metrics.export_services_per_appt} services/appt (expected ~10). Missing microchips: ${metrics.export_microchips === 0 ? "YES" : "no"}, ear tips: ${metrics.export_ear_tips || 0}. Check ClinicHQ export settings immediately.`,
+      });
+    }
+
     const hasAlerts = alerts.length > 0;
     const hasCritical = alerts.some((a) => a.level === "critical");
+
+    // Take daily snapshot using MIG_2515 function (if available)
+    let snapshotTaken = false;
+    try {
+      await query("SELECT ops.snapshot_data_quality_metrics()");
+      snapshotTaken = true;
+    } catch {
+      // MIG_2515 may not be applied yet - ignore
+    }
 
     return NextResponse.json({
       success: true,
@@ -185,9 +226,15 @@ export async function GET(request: NextRequest) {
         appointment_trapper_pct: Math.round(
           (100 * metrics.appointments_with_trapper) / metrics.total_appointments
         ),
+        // ClinicHQ export health (DATA_GAP_037)
+        export_services_per_appt: metrics.export_services_per_appt,
+        export_health_status: metrics.export_health_status,
+        export_microchips: metrics.export_microchips,
+        export_ear_tips: metrics.export_ear_tips,
       },
       alerts,
       alert_count: alerts.length,
+      snapshot_taken: snapshotTaken,
       duration_ms: Date.now() - startTime,
     });
   } catch (error) {
