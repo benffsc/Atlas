@@ -55,7 +55,7 @@ export async function GET(
         je.is_pinned,
         je.edit_count,
         je.tags,
-        c.display_name AS cat_name,
+        c.name AS cat_name,
         p.display_name AS person_name,
         pl.display_name AS place_name,
         ma.label AS annotation_label
@@ -191,27 +191,85 @@ export async function PATCH(
   }
 }
 
+// Valid archive reasons
+const ARCHIVE_REASONS = [
+  "duplicate",     // Entry duplicates another journal note
+  "error",         // Data entry error (requires notes)
+  "irrelevant",    // No longer relevant
+  "wrong_entity",  // Attached to wrong cat/person/place (requires notes)
+  "test_data",     // Created for testing
+  "merged",        // Entity was merged, entry redundant
+  "other",         // Other reason (requires notes)
+] as const;
+
+type ArchiveReason = typeof ARCHIVE_REASONS[number];
+
+// Reasons that require notes for context
+const REASONS_REQUIRING_NOTES: ArchiveReason[] = ["error", "wrong_entity", "other"];
+
+interface ArchiveBody {
+  reason: ArchiveReason;
+  notes?: string;
+}
+
 // DELETE /api/journal/[id] - Archive a journal entry (soft delete)
+// Requires reason in request body for accountability
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-
-  // Get optional reason from query params
-  const reason = request.nextUrl.searchParams.get("reason");
   const user = getCurrentUser(request);
-  const archivedBy = request.nextUrl.searchParams.get("archived_by") || user.displayName;
 
   try {
+    // Parse request body for archive reason
+    let body: ArchiveBody;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Request body required with archive reason" },
+        { status: 400 }
+      );
+    }
+
+    // Validate reason is provided
+    if (!body.reason) {
+      return NextResponse.json(
+        { error: "Archive reason is required", validReasons: ARCHIVE_REASONS },
+        { status: 400 }
+      );
+    }
+
+    // Validate reason is from predefined list
+    if (!ARCHIVE_REASONS.includes(body.reason)) {
+      return NextResponse.json(
+        { error: `Invalid archive reason. Must be one of: ${ARCHIVE_REASONS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // Validate notes are provided for reasons that require them
+    if (REASONS_REQUIRING_NOTES.includes(body.reason) && !body.notes?.trim()) {
+      return NextResponse.json(
+        { error: `Notes are required when archive reason is "${body.reason}"` },
+        { status: 400 }
+      );
+    }
+
     const result = await queryOne<{ id: string }>(
       `UPDATE ops.journal_entries
        SET is_archived = TRUE,
-           updated_by = $2,
+           archived_at = NOW(),
+           archived_by_staff_id = $2,
+           archive_reason = $3,
+           archive_notes = $4,
+           updated_by = $5,
+           updated_at = NOW(),
            meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object('archive_reason', $3::TEXT)
-       WHERE id = $1 AND is_archived = FALSE
+       WHERE id = $1 AND is_archived IS NOT TRUE
        RETURNING id`,
-      [id, archivedBy, reason]
+      [id, user.staffId, body.reason, body.notes?.trim() || null, user.displayName]
     );
 
     if (!result) {
@@ -239,6 +297,7 @@ export async function DELETE(
     return NextResponse.json({
       id,
       archived: true,
+      reason: body.reason,
       success: true,
     });
   } catch (error) {

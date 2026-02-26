@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { formatRelativeDate } from "@/lib/formatters";
+import ArchiveJournalModal from "@/components/modals/ArchiveJournalModal";
 
 interface StaffMember {
   staff_id: string;
@@ -156,6 +157,20 @@ export default function JournalSection({
   const [entryMode, setEntryMode] = useState<"note" | "communication">("note");
   const [contactMethod, setContactMethod] = useState("phone");
   const [contactResult, setContactResult] = useState("answered");
+
+  // Archive modal state
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [actionMenuEntry, setActionMenuEntry] = useState<string | null>(null);
+
+  // Close action menu when clicking outside
+  useEffect(() => {
+    if (!actionMenuEntry) return;
+
+    const handleClickOutside = () => setActionMenuEntry(null);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [actionMenuEntry]);
 
   // Fetch staff list on mount (only needed if no auto-fill)
   useEffect(() => {
@@ -589,10 +604,73 @@ export default function JournalSection({
                   {/* Linked entities */}
                   {renderLinkedEntities(entry)}
 
+                  {/* Spacer to push action menu to right */}
+                  <span style={{ marginLeft: "auto" }} />
+
+                  {/* Action menu */}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActionMenuEntry(actionMenuEntry === entry.id ? null : entry.id);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        fontSize: "1rem",
+                        color: "var(--muted)",
+                        lineHeight: 1,
+                      }}
+                      title="Actions"
+                    >
+                      ⋮
+                    </button>
+                    {actionMenuEntry === entry.id && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: 0,
+                          top: "100%",
+                          background: "var(--card-bg, #fff)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "6px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                          zIndex: 100,
+                          minWidth: "120px",
+                          overflow: "hidden",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={() => {
+                            setSelectedEntry(entry);
+                            setArchiveModalOpen(true);
+                            setActionMenuEntry(null);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            padding: "8px 12px",
+                            background: "none",
+                            border: "none",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            fontSize: "0.85rem",
+                            color: "#dc3545",
+                          }}
+                        >
+                          Archive
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Expand indicator */}
                   {isLong && (
                     <span style={{
-                      marginLeft: "auto",
                       fontSize: "0.7rem",
                       color: "var(--muted)"
                     }}>
@@ -650,6 +728,23 @@ export default function JournalSection({
       ) : (
         <p className="text-muted">No journal entries yet.</p>
       )}
+
+      {/* Archive Modal */}
+      <ArchiveJournalModal
+        isOpen={archiveModalOpen}
+        onClose={() => {
+          setArchiveModalOpen(false);
+          setSelectedEntry(null);
+        }}
+        entryId={selectedEntry?.id || ""}
+        entryPreview={selectedEntry?.body || ""}
+        staffName={effectiveStaffName}
+        onSuccess={() => {
+          setArchiveModalOpen(false);
+          setSelectedEntry(null);
+          onEntryAdded(); // Refresh the list
+        }}
+      />
     </div>
   );
 }

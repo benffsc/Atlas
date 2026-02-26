@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 
 // POST /api/journal/[id]/restore - Restore an archived journal entry
 export async function POST(
@@ -7,13 +8,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const restoredBy = request.nextUrl.searchParams.get("restored_by") || "app_user";
+  const user = getCurrentUser(request);
+  const restoredBy = request.nextUrl.searchParams.get("restored_by") || user.displayName;
 
   try {
     const result = await queryOne<{ id: string }>(
       `UPDATE ops.journal_entries
        SET is_archived = FALSE,
+           archived_at = NULL,
+           archived_by_staff_id = NULL,
+           archive_reason = NULL,
+           archive_notes = NULL,
            updated_by = $2,
+           updated_at = NOW(),
            meta = meta - 'archive_reason'
        WHERE id = $1 AND is_archived = TRUE
        RETURNING id`,
