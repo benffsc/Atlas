@@ -29,15 +29,16 @@ import { ActivityTab } from "./tabs/ActivityTab";
 import { LegacyTab } from "./tabs/LegacyTab";
 import type { RequestDetail } from "./types";
 
+// MIG_2530: Simplified 4-state status system
 const STATUS_OPTIONS = [
+  // Primary statuses
   { value: "new", label: "New" },
-  { value: "triaged", label: "Triaged" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "in_progress", label: "In Progress" },
+  { value: "working", label: "Working" },
+  { value: "paused", label: "Paused" },
   { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "on_hold", label: "On Hold" },
+  // Special statuses
   { value: "redirected", label: "Redirected" },
+  { value: "handed_off", label: "Handed Off" },
 ];
 
 const PRIORITY_OPTIONS = [
@@ -152,6 +153,25 @@ export default function RequestDetailPage() {
     resolution_notes: "",
     cats_trapped: "" as number | "",
     cats_returned: "" as number | "",
+    // MIG_2532: Beacon-critical fields
+    peak_count: "" as number | "",
+    awareness_duration: "",
+    county: "",
+    // MIG_2531: Feeding info
+    feeding_location: "",
+    feeding_time: "",
+    // MIG_2531: Medical/emergency
+    is_emergency: null as boolean | null,
+    has_medical_concerns: false,
+    medical_description: "",
+    // MIG_2522: Third-party reporter
+    is_third_party_report: null as boolean | null,
+    third_party_relationship: "",
+    // MIG_2532: Trapping logistics
+    dogs_on_site: "",
+    trap_savvy: "",
+    previous_tnr: "",
+    best_trapping_time: "",
   });
 
   // Modal states
@@ -257,6 +277,25 @@ export default function RequestDetailPage() {
           resolution_notes: data.resolution_notes || "",
           cats_trapped: data.cats_trapped ?? "",
           cats_returned: data.cats_returned ?? "",
+          // MIG_2532: Beacon-critical fields
+          peak_count: data.peak_count ?? "",
+          awareness_duration: data.awareness_duration || "",
+          county: data.county || "",
+          // MIG_2531: Feeding info
+          feeding_location: data.feeding_location || "",
+          feeding_time: data.feeding_time || "",
+          // MIG_2531: Medical/emergency
+          is_emergency: data.is_emergency,
+          has_medical_concerns: data.has_medical_concerns ?? false,
+          medical_description: data.medical_description || "",
+          // MIG_2522: Third-party reporter
+          is_third_party_report: data.is_third_party_report,
+          third_party_relationship: data.third_party_relationship || "",
+          // MIG_2532: Trapping logistics
+          dogs_on_site: data.dogs_on_site || "",
+          trap_savvy: data.trap_savvy || "",
+          previous_tnr: data.previous_tnr || "",
+          best_trapping_time: data.best_trapping_time || "",
         });
         // Initialize kitten form
         setKittenForm({
@@ -359,6 +398,25 @@ export default function RequestDetailPage() {
           resolution_notes: editForm.resolution_notes || null,
           cats_trapped: editForm.cats_trapped || null,
           cats_returned: editForm.cats_returned || null,
+          // MIG_2532: Beacon-critical fields
+          peak_count: editForm.peak_count || null,
+          awareness_duration: editForm.awareness_duration || null,
+          county: editForm.county || null,
+          // MIG_2531: Feeding info
+          feeding_location: editForm.feeding_location || null,
+          feeding_time: editForm.feeding_time || null,
+          // MIG_2531: Medical/emergency
+          is_emergency: editForm.is_emergency,
+          has_medical_concerns: editForm.has_medical_concerns,
+          medical_description: editForm.medical_description || null,
+          // MIG_2522: Third-party reporter
+          is_third_party_report: editForm.is_third_party_report,
+          third_party_relationship: editForm.third_party_relationship || null,
+          // MIG_2532: Trapping logistics
+          dogs_on_site: editForm.dogs_on_site || null,
+          trap_savvy: editForm.trap_savvy || null,
+          previous_tnr: editForm.previous_tnr || null,
+          best_trapping_time: editForm.best_trapping_time || null,
         }),
       });
 
@@ -401,6 +459,25 @@ export default function RequestDetailPage() {
         resolution_notes: request.resolution_notes || "",
         cats_trapped: request.cats_trapped ?? "",
         cats_returned: request.cats_returned ?? "",
+        // MIG_2532: Beacon-critical fields
+        peak_count: request.peak_count ?? "",
+        awareness_duration: request.awareness_duration || "",
+        county: request.county || "",
+        // MIG_2531: Feeding info
+        feeding_location: request.feeding_location || "",
+        feeding_time: request.feeding_time || "",
+        // MIG_2531: Medical/emergency
+        is_emergency: request.is_emergency,
+        has_medical_concerns: request.has_medical_concerns ?? false,
+        medical_description: request.medical_description || "",
+        // MIG_2522: Third-party reporter
+        is_third_party_report: request.is_third_party_report,
+        third_party_relationship: request.third_party_relationship || "",
+        // MIG_2532: Trapping logistics
+        dogs_on_site: request.dogs_on_site || "",
+        trap_savvy: request.trap_savvy || "",
+        previous_tnr: request.previous_tnr || "",
+        best_trapping_time: request.best_trapping_time || "",
       });
     }
     setEditing(false);
@@ -603,17 +680,19 @@ export default function RequestDetailPage() {
 
   const isResolved = request.status === "completed" || request.status === "cancelled";
 
-  // Quick status change handler
+  // Quick status change handler (MIG_2530 simplified system)
   const handleQuickStatusChange = async (newStatus: string) => {
     if (!request) return;
 
-    if (newStatus === "completed" || newStatus === "cancelled") {
-      setCompletionTargetStatus(newStatus as "completed" | "cancelled");
+    // Completion modal for completed status
+    if (newStatus === "completed") {
+      setCompletionTargetStatus("completed");
       setShowCompleteModal(true);
       return;
     }
 
-    if (newStatus === "on_hold") {
+    // Hold modal for paused status (and legacy on_hold)
+    if (newStatus === "paused" || newStatus === "on_hold") {
       setShowHoldModal(true);
       return;
     }
@@ -667,42 +746,50 @@ export default function RequestDetailPage() {
     setPreviousStatus(null);
   };
 
+  // MIG_2530: Simplified 4-state status system
+  // Flow: new → working ↔ paused → completed (with reopen to new)
   const getQuickStatusOptions = () => {
     switch (request.status) {
       case "new":
         return [
-          { value: "triaged", label: "Triage", color: "#6610f2" },
-          { value: "scheduled", label: "Schedule", color: "#198754" },
-          { value: "cancelled", label: "Cancel", color: "#6c757d" },
+          { value: "working", label: "Start Working", color: "#f59e0b" },
+          { value: "paused", label: "Pause", color: "#ec4899" },
+          { value: "completed", label: "Complete", color: "#10b981" },
         ];
+      case "working":
+        return [
+          { value: "completed", label: "Complete", color: "#10b981" },
+          { value: "paused", label: "Pause", color: "#ec4899" },
+        ];
+      case "paused":
+        return [
+          { value: "working", label: "Resume", color: "#f59e0b" },
+          { value: "completed", label: "Complete", color: "#10b981" },
+        ];
+      case "completed":
+        return [
+          { value: "new", label: "Reopen", color: "#3b82f6" },
+        ];
+      // Legacy statuses (display options that transition to new system)
       case "triaged":
         return [
-          { value: "scheduled", label: "Schedule", color: "#198754" },
-          { value: "in_progress", label: "Start", color: "#fd7e14" },
-          { value: "on_hold", label: "Hold", color: "#ffc107" },
+          { value: "working", label: "Start Working", color: "#f59e0b" },
+          { value: "completed", label: "Complete", color: "#10b981" },
         ];
       case "scheduled":
-        return [
-          { value: "in_progress", label: "Start", color: "#fd7e14" },
-          { value: "on_hold", label: "Hold", color: "#ffc107" },
-          { value: "completed", label: "Complete", color: "#20c997" },
-        ];
       case "in_progress":
         return [
-          { value: "completed", label: "Complete", color: "#20c997" },
-          { value: "on_hold", label: "Hold", color: "#ffc107" },
-          { value: "partial", label: "Partial", color: "#17a2b8" },
+          { value: "completed", label: "Complete", color: "#10b981" },
+          { value: "paused", label: "Pause", color: "#ec4899" },
         ];
       case "on_hold":
         return [
-          { value: "triaged", label: "Resume", color: "#6610f2" },
-          { value: "in_progress", label: "Start", color: "#fd7e14" },
-          { value: "cancelled", label: "Cancel", color: "#6c757d" },
+          { value: "working", label: "Resume", color: "#f59e0b" },
+          { value: "completed", label: "Complete", color: "#10b981" },
         ];
-      case "completed":
       case "cancelled":
         return [
-          { value: "new", label: "Reopen", color: "#0d6efd" },
+          { value: "new", label: "Reopen", color: "#3b82f6" },
         ];
       default:
         return [];
@@ -888,9 +975,9 @@ export default function RequestDetailPage() {
         )}
       </Section>
 
-      {/* Requester Card */}
+      {/* Contact Info - Requestor & Site Contact */}
       <Section
-        title="Requester"
+        title="Contacts"
         actions={request.requester_email && (
           <button
             onClick={() => setShowEmailModal(true)}
@@ -902,29 +989,117 @@ export default function RequestDetailPage() {
         )}
         className="mb-4"
       >
-        {request.requester_person_id ? (
-          <div>
-            <a href={`/people/${request.requester_person_id}`} style={{ fontWeight: 500 }}>
-              {request.requester_name}
-            </a>
-            {(request.requester_email || request.requester_phone) && (
-              <div style={{ marginTop: "0.25rem", fontSize: "0.9rem" }}>
-                {request.requester_phone && (
-                  <a href={`tel:${request.requester_phone}`} style={{ color: "var(--foreground)", marginRight: "1rem" }}>
-                    {formatPhone(request.requester_phone)}
-                  </a>
+        <div style={{ display: "grid", gridTemplateColumns: request.site_contact_person_id && !request.requester_is_site_contact ? "1fr 1fr" : "1fr", gap: "1rem" }}>
+          {/* Requestor */}
+          <div style={{
+            padding: "0.75rem",
+            background: "var(--muted-bg)",
+            borderRadius: "8px",
+            borderLeft: "3px solid #6366f1"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6366f1", textTransform: "uppercase" }}>
+                Requestor
+              </span>
+              {request.requester_role_at_submission && request.requester_role_at_submission !== "unknown" && (
+                <span style={{
+                  fontSize: "0.65rem",
+                  padding: "0.15rem 0.4rem",
+                  background: request.requester_role_at_submission.includes("trapper") ? "#fef3c7" : "#e0e7ff",
+                  color: request.requester_role_at_submission.includes("trapper") ? "#92400e" : "#3730a3",
+                  borderRadius: "4px",
+                  fontWeight: 500,
+                }}>
+                  {request.requester_role_at_submission.replace(/_/g, " ").toUpperCase()}
+                </span>
+              )}
+            </div>
+            {request.requester_person_id ? (
+              <div>
+                <a href={`/people/${request.requester_person_id}`} style={{ fontWeight: 500, fontSize: "1rem" }}>
+                  {request.requester_name}
+                </a>
+                {(request.requester_email || request.requester_phone) && (
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.85rem" }}>
+                    {request.requester_phone && (
+                      <div>
+                        <a href={`tel:${request.requester_phone}`} style={{ color: "var(--foreground)" }}>
+                          {formatPhone(request.requester_phone)}
+                        </a>
+                      </div>
+                    )}
+                    {request.requester_email && (
+                      <div style={{ color: "var(--muted)", fontSize: "0.8rem" }}>
+                        {request.requester_email}
+                      </div>
+                    )}
+                  </div>
                 )}
-                {request.requester_email && (
-                  <a href={`mailto:${request.requester_email}`} style={{ color: "var(--foreground)" }}>
-                    {request.requester_email}
-                  </a>
+                {request.requester_is_site_contact && (
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#059669" }}>
+                    Also the site contact
+                  </div>
                 )}
               </div>
+            ) : (
+              <p className="text-muted" style={{ margin: 0 }}>No requester linked</p>
             )}
           </div>
-        ) : (
-          <p className="text-muted">No requester linked</p>
-        )}
+
+          {/* Site Contact - only show if different from requestor */}
+          {request.site_contact_person_id && !request.requester_is_site_contact && (
+            <div style={{
+              padding: "0.75rem",
+              background: "var(--muted-bg)",
+              borderRadius: "8px",
+              borderLeft: "3px solid #10b981"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#10b981", textTransform: "uppercase" }}>
+                  Site Contact
+                </span>
+              </div>
+              <div>
+                <a href={`/people/${request.site_contact_person_id}`} style={{ fontWeight: 500, fontSize: "1rem" }}>
+                  {request.site_contact_name}
+                </a>
+                {(request.site_contact_email || request.site_contact_phone) && (
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.85rem" }}>
+                    {request.site_contact_phone && (
+                      <div>
+                        <a href={`tel:${request.site_contact_phone}`} style={{ color: "var(--foreground)" }}>
+                          {formatPhone(request.site_contact_phone)}
+                        </a>
+                      </div>
+                    )}
+                    {request.site_contact_email && (
+                      <div style={{ color: "var(--muted)", fontSize: "0.8rem" }}>
+                        {request.site_contact_email}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* No site contact yet - prompt to set one */}
+          {!request.site_contact_person_id && !request.requester_is_site_contact && request.requester_role_at_submission?.includes("trapper") && (
+            <div style={{
+              padding: "0.75rem",
+              background: "#fef3c7",
+              borderRadius: "8px",
+              borderLeft: "3px solid #f59e0b"
+            }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#92400e", textTransform: "uppercase", marginBottom: "0.25rem" }}>
+                Site Contact
+              </div>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#78350f" }}>
+                Requester is a trapper - who is the actual resident/caretaker?
+              </p>
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* Assigned Trappers */}
@@ -1477,6 +1652,229 @@ export default function RequestDetailPage() {
                 rows={4}
                 style={{ width: "100%", resize: "vertical" }}
               />
+            </div>
+
+            {/* MIG_2532: Beacon-Critical Colony Data */}
+            <div style={{
+              marginTop: "1rem",
+              padding: "1rem",
+              background: "rgba(59, 130, 246, 0.05)",
+              borderRadius: "8px",
+              border: "1px solid rgba(59, 130, 246, 0.2)"
+            }}>
+              <h3 style={{ margin: "0 0 0.75rem 0", fontSize: "0.95rem", color: "#3b82f6" }}>
+                Colony Data (Beacon)
+              </h3>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Peak Count
+                    <span style={{ color: "#6b7280", fontWeight: 400 }}> (max seen)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.peak_count}
+                    onChange={(e) => setEditForm({ ...editForm, peak_count: e.target.value ? parseInt(e.target.value) : "" })}
+                    placeholder="e.g., 8"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 180px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Awareness Duration
+                  </label>
+                  <select
+                    value={editForm.awareness_duration}
+                    onChange={(e) => setEditForm({ ...editForm, awareness_duration: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Select...</option>
+                    <option value="less_than_1_month">Less than 1 month</option>
+                    <option value="1_to_6_months">1-6 months</option>
+                    <option value="6_months_to_2_years">6 months - 2 years</option>
+                    <option value="more_than_2_years">More than 2 years</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 150px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    County
+                  </label>
+                  <select
+                    value={editForm.county}
+                    onChange={(e) => setEditForm({ ...editForm, county: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Select...</option>
+                    <option value="Sonoma">Sonoma</option>
+                    <option value="Marin">Marin</option>
+                    <option value="Napa">Napa</option>
+                    <option value="Mendocino">Mendocino</option>
+                    <option value="Lake">Lake</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* MIG_2531: Trapping Logistics */}
+            <div style={{
+              marginTop: "1rem",
+              padding: "1rem",
+              background: "rgba(16, 185, 129, 0.05)",
+              borderRadius: "8px",
+              border: "1px solid rgba(16, 185, 129, 0.2)"
+            }}>
+              <h3 style={{ margin: "0 0 0.75rem 0", fontSize: "0.95rem", color: "#10b981" }}>
+                Trapping Logistics
+              </h3>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Dogs on Site?
+                  </label>
+                  <select
+                    value={editForm.dogs_on_site}
+                    onChange={(e) => setEditForm({ ...editForm, dogs_on_site: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                    <option value="contained">Yes, but contained</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Trap Savvy?
+                  </label>
+                  <select
+                    value={editForm.trap_savvy}
+                    onChange={(e) => setEditForm({ ...editForm, trap_savvy: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes (hard to trap)</option>
+                    <option value="no">No</option>
+                    <option value="some">Some cats are</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Previous TNR?
+                  </label>
+                  <select
+                    value={editForm.previous_tnr}
+                    onChange={(e) => setEditForm({ ...editForm, previous_tnr: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Unknown</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Best Trapping Time
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.best_trapping_time}
+                    onChange={(e) => setEditForm({ ...editForm, best_trapping_time: e.target.value })}
+                    placeholder="e.g., evening, after 5pm"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Feeding Location
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.feeding_location}
+                    onChange={(e) => setEditForm({ ...editForm, feeding_location: e.target.value })}
+                    placeholder="e.g., back porch, garage"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Feeding Time
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.feeding_time}
+                    onChange={(e) => setEditForm({ ...editForm, feeding_time: e.target.value })}
+                    placeholder="e.g., 7am and 5pm"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* MIG_2531: Medical/Emergency */}
+            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginTop: "1rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_emergency === true}
+                  onChange={(e) => setEditForm({ ...editForm, is_emergency: e.target.checked ? true : null })}
+                />
+                <span style={{ color: "#dc2626", fontWeight: 500 }}>Emergency</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={editForm.has_medical_concerns}
+                  onChange={(e) => setEditForm({ ...editForm, has_medical_concerns: e.target.checked })}
+                />
+                Has medical concerns
+              </label>
+            </div>
+            {editForm.has_medical_concerns && (
+              <div style={{ marginTop: "0.5rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                  Medical Details
+                </label>
+                <textarea
+                  value={editForm.medical_description}
+                  onChange={(e) => setEditForm({ ...editForm, medical_description: e.target.value })}
+                  rows={2}
+                  placeholder="Describe medical concerns..."
+                  style={{ width: "100%", resize: "vertical" }}
+                />
+              </div>
+            )}
+
+            {/* MIG_2522: Third-Party Reporter */}
+            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginTop: "1rem", alignItems: "center" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={editForm.is_third_party_report === true}
+                  onChange={(e) => setEditForm({ ...editForm, is_third_party_report: e.target.checked ? true : null })}
+                />
+                Third-party report
+              </label>
+              {editForm.is_third_party_report && (
+                <div style={{ flex: "1 1 200px" }}>
+                  <select
+                    value={editForm.third_party_relationship}
+                    onChange={(e) => setEditForm({ ...editForm, third_party_relationship: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">Select relationship...</option>
+                    <option value="neighbor">Neighbor</option>
+                    <option value="friend_family">Friend/Family</option>
+                    <option value="concerned_citizen">Concerned Citizen</option>
+                    <option value="trapper">Trapper</option>
+                    <option value="volunteer">Volunteer</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {(editForm.status === "completed" || editForm.status === "cancelled") && (
