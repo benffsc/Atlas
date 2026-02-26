@@ -1,6 +1,6 @@
 # Request Overhaul: Final Implementation Plan
 
-**Status:** Phase 3 DB Complete | ✅ Phase A Frontend Complete | Integration 40%
+**Status:** Phase 3 DB Complete | ✅ Phase A Frontend Complete | ✅ Phase B Complete | Integration 80%
 **Created:** 2026-02-26
 **Updated:** 2026-02-26 (Phase A frontend compatibility completed)
 **Purpose:** Consolidate all gaps and define remaining work for request/intake standardization
@@ -423,15 +423,15 @@ Extract from request:
 | `src/components/timeline/StatusPipeline.tsx` | Update to 4-state system with legacy support | ✅ Done |
 | `src/components/SidebarLayout.tsx` | Update nav links to new statuses | ✅ Done |
 
-### High Priority (This Week)
+### High Priority (This Week) — ✅ COMPLETE
 
 | File | Change | Status |
 |------|--------|--------|
-| `src/app/requests/[id]/page.tsx` | Add editForm fields | ⬜ |
-| `src/app/requests/[id]/tabs/DetailsTab.tsx` | Add requestor/site contact section | ⬜ |
-| `src/app/api/requests/[id]/route.ts` | Accept new fields in PATCH | ⬜ |
-| `src/app/api/intake/[id]/convert/route.ts` | Create endpoint | ⬜ |
-| `src/app/api/requests/[id]/enrich/route.ts` | Create endpoint | ⬜ |
+| `src/app/requests/[id]/page.tsx` | Add editForm fields (16 new fields) | ✅ Done |
+| `src/app/requests/[id]/page.tsx` | Requestor vs Site Contact section (already in page) | ✅ Done |
+| `src/app/api/requests/[id]/route.ts` | Accept 30+ new fields in PATCH | ✅ Done |
+| `src/app/api/intake/convert/route.ts` | Endpoint exists (verified) | ✅ Done |
+| `src/app/api/requests/[id]/enrich/route.ts` | Created endpoint | ✅ Done |
 
 ### Medium Priority (Next Week)
 
