@@ -437,10 +437,28 @@ Extract from request:
 
 | File | Change | Status |
 |------|--------|--------|
+| `src/app/requests/page.tsx` | **Rework list UI**: Group by status, show active prominently | ⬜ |
 | `src/components/requests/CreateRequestWizard.tsx` | Pre-fill from intake | ⬜ |
 | `src/components/intake/DeclineModal.tsx` | Create component | ⬜ |
 | `sql/schema/v2/MIG_2534__decline_reasons.sql` | Create table | ⬜ |
 | `src/app/admin/request-upgrades/page.tsx` | Create dashboard | ⬜ |
+
+### UI Rework Details (requests/page.tsx)
+
+**Problem:** Current list mixes all statuses together, making it hard to see what needs attention.
+
+**Solution:**
+1. **Group by status visually** - Show sections: New → Working → Paused (active statuses first)
+2. **Status headers** - Clear colored headers with counts: "New (12)" "Working (55)" etc.
+3. **Collapse completed** - Show completed section collapsed by default or at bottom
+4. **Focus on active** - Default filter to active statuses only (new, working, paused)
+5. **Larger status badges** - Make status more prominent on cards
+
+**Current active request breakdown:**
+- New: 12 requests
+- Working: 55 requests
+- Paused: 15 requests
+- **Total Active: 82 requests**
 
 ---
 
