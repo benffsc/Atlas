@@ -61,6 +61,13 @@ const PRESET_FILTERS: SavedFilter[] = [
     isPreset: true,
   },
   {
+    id: "needs-trapper",
+    name: "Needs Trapper",
+    // Active requests without an assigned trapper
+    filters: { trapperStatus: "pending", status: expandStatusFilter(["new", "working", "paused"]) },
+    isPreset: true,
+  },
+  {
     id: "with-kittens",
     name: "Has Kittens",
     filters: { hasKittens: true },

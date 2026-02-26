@@ -63,6 +63,21 @@ interface IntakeSubmission {
   last_contacted_at: string | null;
   contact_attempt_count: number | null;
   is_test: boolean;
+  // MIG_2531/2532: Additional intake fields for request conversion
+  county: string | null;
+  peak_count: number | null;
+  awareness_duration: string | null;
+  medical_description: string | null;
+  feeding_location: string | null;
+  feeding_time: string | null;
+  dogs_on_site: boolean | null;
+  preferred_appointment_time: string | null;
+  trap_savvy: boolean | null;
+  cats_captured_before: boolean | null;
+  how_long_feeding: string | null;
+  previous_tnr: boolean | null;
+  kitten_age_estimate: string | null;
+  kitten_behavior: string | null;
 }
 
 interface CommunicationLog {

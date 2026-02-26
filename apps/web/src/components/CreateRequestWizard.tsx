@@ -25,6 +25,20 @@ interface IntakeSubmission {
   geo_longitude: number | null;
   is_legacy: boolean;
   legacy_notes: string | null;
+  // MIG_2531/2532: Additional intake fields
+  county: string | null;
+  peak_count: number | null;
+  awareness_duration: string | null;
+  has_medical_concerns: boolean | null;
+  medical_description: string | null;
+  feeding_location: string | null;
+  feeding_time: string | null;
+  dogs_on_site: boolean | null;
+  trap_savvy: boolean | null;
+  previous_tnr: boolean | null;
+  third_party_relationship: string | null;
+  kitten_age_estimate: string | null;
+  kitten_behavior: string | null;
 }
 
 interface CreateRequestWizardProps {
@@ -128,6 +142,21 @@ export default function CreateRequestWizard({
           submission_id: submission.submission_id,
           ...formData,
           converted_by: "web_user",
+          // Pass through MIG_2531/2532 fields from intake
+          county: submission.county,
+          peak_count: submission.peak_count,
+          awareness_duration: submission.awareness_duration,
+          has_medical_concerns: submission.has_medical_concerns,
+          medical_description: submission.medical_description,
+          feeding_location: submission.feeding_location,
+          feeding_time: submission.feeding_time,
+          dogs_on_site: submission.dogs_on_site,
+          trap_savvy: submission.trap_savvy,
+          previous_tnr: submission.previous_tnr,
+          is_third_party_report: submission.is_third_party_report,
+          third_party_relationship: submission.third_party_relationship,
+          kitten_age_estimate: submission.kitten_age_estimate,
+          kitten_behavior: submission.kitten_behavior,
         }),
       });
 
@@ -201,31 +230,106 @@ export default function CreateRequestWizard({
 
         {/* Content */}
         <div style={{ padding: "1.5rem" }}>
-          {/* Submission summary (always visible) */}
+          {/* Captured Intake Data (always visible) */}
           <div
             style={{
-              background: "var(--card-bg, rgba(0,0,0,0.05))",
+              background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)",
               borderRadius: "8px",
               padding: "1rem",
               marginBottom: "1.5rem",
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
+              border: "1px solid rgba(16, 185, 129, 0.3)",
             }}
           >
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <span style={{ fontWeight: 600, color: "#10b981", fontSize: "0.8rem", textTransform: "uppercase" }}>
+                From Intake Submission
+              </span>
+              <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#e5e7eb", padding: "2px 8px", borderRadius: "10px" }}>
+                Pre-filled
+              </span>
+            </div>
+
+            {/* Contact & Location */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
               <div>
-                <strong>{submission.submitter_name}</strong>
-                <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                <div style={{ fontWeight: 600 }}>{submission.submitter_name}</div>
+                <div style={{ color: "#6b7280", fontSize: "0.8rem" }}>
                   {submission.phone ? formatPhone(submission.phone) : submission.email}
                 </div>
+                {submission.is_third_party_report && (
+                  <span style={{ fontSize: "0.7rem", background: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px" }}>
+                    Third-party: {submission.third_party_relationship || "unknown"}
+                  </span>
+                )}
               </div>
-              <div style={{ flex: 1 }}>
-                <div>{submission.geo_formatted_address || submission.cats_address}</div>
-                <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
-                  ~{submission.cat_count_estimate || "?"} cats
-                  {submission.has_kittens && " + kittens"}
-                </div>
+              <div>
+                <div style={{ fontWeight: 500 }}>{submission.geo_formatted_address || submission.cats_address}</div>
+                {submission.county && <div style={{ color: "#6b7280", fontSize: "0.8rem" }}>{submission.county} County</div>}
               </div>
             </div>
+
+            {/* Colony Data (Beacon fields) */}
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                <span style={{ fontWeight: 500 }}>Cats:</span>
+                <span>{submission.cat_count_estimate || "?"}</span>
+                {submission.peak_count && <span style={{ color: "#6b7280" }}>(peak: {submission.peak_count})</span>}
+              </div>
+              {submission.has_kittens && (
+                <span style={{ background: "#fed7aa", color: "#9a3412", padding: "1px 6px", borderRadius: "4px", fontWeight: 500 }}>
+                  +{submission.kitten_count || "?"} kittens {submission.kitten_age_estimate && `(${submission.kitten_age_estimate})`}
+                </span>
+              )}
+              {submission.awareness_duration && (
+                <div style={{ color: "#6b7280" }}>Known: {submission.awareness_duration.replace(/_/g, " ")}</div>
+              )}
+            </div>
+
+            {/* Trapping Logistics */}
+            {(submission.dogs_on_site || submission.trap_savvy || submission.previous_tnr || submission.feeding_location) && (
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                {submission.dogs_on_site && (
+                  <span style={{ fontSize: "0.75rem", background: "#fecaca", color: "#991b1b", padding: "1px 6px", borderRadius: "4px" }}>
+                    Dogs on site
+                  </span>
+                )}
+                {submission.trap_savvy && (
+                  <span style={{ fontSize: "0.75rem", background: "#e0e7ff", color: "#3730a3", padding: "1px 6px", borderRadius: "4px" }}>
+                    Trap savvy
+                  </span>
+                )}
+                {submission.previous_tnr && (
+                  <span style={{ fontSize: "0.75rem", background: "#d1fae5", color: "#065f46", padding: "1px 6px", borderRadius: "4px" }}>
+                    Previous TNR
+                  </span>
+                )}
+                {submission.feeding_location && (
+                  <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                    Fed at: {submission.feeding_location} {submission.feeding_time && `@ ${submission.feeding_time}`}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Medical Concerns */}
+            {(submission.is_emergency || submission.has_medical_concerns) && (
+              <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(239, 68, 68, 0.1)", borderRadius: "4px" }}>
+                {submission.is_emergency && (
+                  <span style={{ color: "#dc2626", fontWeight: 600 }}>EMERGENCY </span>
+                )}
+                {submission.has_medical_concerns && (
+                  <span style={{ color: "#dc2626" }}>Medical concerns{submission.medical_description && `: ${submission.medical_description}`}</span>
+                )}
+              </div>
+            )}
+
+            {/* Situation Description */}
+            {submission.situation_description && (
+              <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(0,0,0,0.05)", borderRadius: "4px", fontStyle: "italic", color: "#4b5563" }}>
+                "{submission.situation_description.substring(0, 200)}{submission.situation_description.length > 200 ? "..." : ""}"
+              </div>
+            )}
           </div>
 
           {error && (

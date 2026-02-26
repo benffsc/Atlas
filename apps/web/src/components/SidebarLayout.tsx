@@ -339,27 +339,81 @@ export function MainSidebar({ children }: { children: React.ReactNode }) {
  * - paused: On hold
  * - completed: Finished
  */
+interface RequestCounts {
+  new: number;
+  working: number;
+  paused: number;
+  completed: number;
+  needs_trapper: number;
+  urgent: number;
+}
+
 export function RequestsSidebar({ children }: { children: React.ReactNode }) {
+  const [counts, setCounts] = useState<RequestCounts | null>(null);
+
+  // Fetch request counts on mount
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const response = await fetch("/api/requests/counts");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setCounts(data.data);
+          }
+        }
+      } catch {
+        // Silently fail - counts are optional enhancement
+      }
+    };
+    fetchCounts();
+    // Refresh counts every 60 seconds
+    const interval = setInterval(fetchCounts, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatCount = (count: number | undefined) => {
+    if (count === undefined || count === 0) return "";
+    return ` (${count})`;
+  };
+
   const sections: NavSection[] = [
     {
-      title: "Requests",
+      title: "Quick Actions",
       items: [
-        { label: "All Requests", href: "/requests", icon: "📋" },
+        { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "📞" },
+        { label: "Print Call Sheet", href: "/requests/print/full", icon: "🖨️" },
         { label: "New Request", href: "/requests/new", icon: "➕" },
       ],
     },
     {
-      title: "Quick Filters",
+      title: "By Status",
       items: [
-        { label: "New", href: "/requests?status=new", icon: "🆕" },
-        { label: "Working", href: "/requests?status=working", icon: "🔄" },
-        { label: "Paused", href: "/requests?status=paused", icon: "⏸️" },
-        { label: "Completed", href: "/requests?status=completed", icon: "✅" },
+        { label: `New${formatCount(counts?.new)}`, href: "/requests?status=new", icon: "🆕" },
+        { label: `Working${formatCount(counts?.working)}`, href: "/requests?status=working", icon: "🔄" },
+        { label: `Paused${formatCount(counts?.paused)}`, href: "/requests?status=paused", icon: "⏸️" },
+        { label: `Completed${formatCount(counts?.completed)}`, href: "/requests?status=completed", icon: "✅" },
+      ],
+    },
+    {
+      title: "By Assignment",
+      items: [
+        { label: `Needs Trapper${formatCount(counts?.needs_trapper)}`, href: "/requests?trapper=pending", icon: "🪤" },
+        { label: "My Assigned", href: "/requests?trapper=mine", icon: "👤" },
+        { label: "Client Trapping", href: "/requests?trapper=client_trapping", icon: "🏠" },
+      ],
+    },
+    {
+      title: "Priority",
+      items: [
+        { label: `Urgent${formatCount(counts?.urgent)}`, href: "/requests?priority=urgent", icon: "🚨" },
+        { label: "Has Kittens", href: "/requests?kittens=true", icon: "🐱" },
       ],
     },
     {
       title: "Related",
       items: [
+        { label: "All Requests", href: "/requests", icon: "📋" },
         { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
         { label: "Trappers", href: "/trappers", icon: "🪤" },
       ],
