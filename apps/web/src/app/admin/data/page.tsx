@@ -45,6 +45,11 @@ interface QueueSummary {
     reproduction: number;
     mortality: number;
   };
+  owner_changes: {
+    total: number;
+    transfers: number;
+    household: number;
+  };
 }
 
 interface SourceStatus {
@@ -84,7 +89,7 @@ interface RuleEffectiveness {
 // ============================================================================
 
 function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
-  const [activeSubTab, setActiveSubTab] = useState<"identity" | "places" | "quality" | "ai">("identity");
+  const [activeSubTab, setActiveSubTab] = useState<"identity" | "places" | "quality" | "ai" | "owner">("identity");
 
   if (!data) {
     return <p className="text-muted">Loading review queues...</p>;
@@ -95,41 +100,53 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
     { id: "places" as const, label: "Places", count: data.places.total },
     { id: "quality" as const, label: "Quality", count: data.quality.total },
     { id: "ai" as const, label: "AI-Parsed", count: data.ai_parsed.total },
+    { id: "owner" as const, label: "Owner Changes", count: data.owner_changes?.total || 0, highlight: true },
   ];
 
   return (
     <div>
       {/* Sub-tabs with counts */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-        {subTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveSubTab(tab.id)}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: activeSubTab === tab.id ? "2px solid #3b82f6" : "1px solid #e5e7eb",
-              background: activeSubTab === tab.id ? "#eff6ff" : "white",
-              cursor: "pointer",
-              fontWeight: activeSubTab === tab.id ? 600 : 400,
-            }}
-          >
-            {tab.label}
-            <span
+        {subTabs.map((tab) => {
+          const isHighlight = "highlight" in tab && tab.highlight && tab.count > 0;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
               style={{
-                marginLeft: "0.5rem",
-                padding: "0.15rem 0.5rem",
-                borderRadius: "9999px",
-                background: tab.count > 0 ? "#fef3c7" : "#f3f4f6",
-                color: tab.count > 0 ? "#92400e" : "#6b7280",
-                fontSize: "0.75rem",
-                fontWeight: 600,
+                padding: "0.5rem 1rem",
+                borderRadius: "6px",
+                border: activeSubTab === tab.id
+                  ? "2px solid #3b82f6"
+                  : isHighlight
+                    ? "2px solid #f59e0b"
+                    : "1px solid #e5e7eb",
+                background: activeSubTab === tab.id
+                  ? "#eff6ff"
+                  : isHighlight
+                    ? "#fffbeb"
+                    : "white",
+                cursor: "pointer",
+                fontWeight: activeSubTab === tab.id ? 600 : 400,
               }}
             >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+              {tab.label}
+              <span
+                style={{
+                  marginLeft: "0.5rem",
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "9999px",
+                  background: isHighlight ? "#fef3c7" : tab.count > 0 ? "#fef3c7" : "#f3f4f6",
+                  color: isHighlight ? "#d97706" : tab.count > 0 ? "#92400e" : "#6b7280",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                }}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Identity sub-tab content */}
@@ -260,6 +277,61 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               AI Classification Review
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* Owner Changes sub-tab content (MIG_2504) */}
+      {activeSubTab === "owner" && (
+        <div>
+          {data.owner_changes?.total === 0 ? (
+            <div style={{
+              padding: "2rem",
+              textAlign: "center",
+              background: "#f0fdf4",
+              borderRadius: "0.5rem",
+              border: "1px solid #bbf7d0",
+            }}>
+              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>No pending reviews</div>
+              <p style={{ color: "#6b7280", margin: 0 }}>All owner changes have been resolved</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+                <StatCard
+                  label="Ownership Transfers"
+                  value={data.owner_changes?.transfers || 0}
+                  href="/admin/owner-changes?type=transfer"
+                  color="#dc2626"
+                />
+                <StatCard
+                  label="Household Changes"
+                  value={data.owner_changes?.household || 0}
+                  href="/admin/owner-changes?type=household"
+                  color="#f59e0b"
+                />
+                <StatCard
+                  label="Total Pending"
+                  value={data.owner_changes?.total || 0}
+                  href="/admin/owner-changes"
+                  color="#3b82f6"
+                />
+              </div>
+              <div style={{
+                padding: "0.75rem 1rem",
+                background: "#fef3c7",
+                borderRadius: "0.375rem",
+                border: "1px solid #fcd34d",
+                marginBottom: "1rem",
+                fontSize: "0.875rem",
+              }}>
+                <strong>What to review:</strong> When ClinicHQ account names change (e.g., "Jill Manning" → "Kathleen Sartori"),
+                review whether it's the same person updating their info or a different person taking over cat care.
+              </div>
+            </>
+          )}
+          <Link href="/admin/owner-changes" className="btn btn-primary">
+            Review Owner Changes
+          </Link>
         </div>
       )}
     </div>

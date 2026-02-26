@@ -89,6 +89,15 @@ interface PublicIntakeSubmission {
   cat_count_text?: string;
   fixed_status?: string;
 
+  // MIG_2531: Structured fields (previously dumped into text)
+  cat_name?: string;
+  cat_description?: string;
+  feeding_situation?: string;
+  count_confidence?: string;  // exact, good_estimate, rough_guess, unknown
+  colony_duration?: string;   // under_1_month, 1_to_6_months, 6_to_24_months, over_2_years, unknown
+  feeding_frequency?: string; // daily, few_times_week, occasionally, rarely
+  feeding_duration?: string;  // just_started, few_weeks, few_months, over_year
+
   // Kittens (conditional - only if has_kittens is true)
   has_kittens?: boolean;
   kitten_count?: number;
@@ -248,6 +257,7 @@ export async function POST(request: NextRequest) {
                        null;
 
     // Insert into web_intake_submissions (correct table)
+    // MIG_2531: Now includes structured columns instead of dumping to text
     // Triggers will auto-compute triage score
     const result = await queryOne<{
       submission_id: string;
@@ -267,7 +277,10 @@ export async function POST(request: NextRequest) {
         is_emergency, cats_being_fed, feeder_info,
         has_property_access, access_notes, is_property_owner,
         situation_description, referral_source,
-        ip_address, status, submission_status
+        ip_address, status, submission_status,
+        -- MIG_2531: New structured columns
+        cat_name, cat_description, feeding_situation,
+        count_confidence, colony_duration, feeding_frequency, feeding_duration
       ) VALUES (
         'web', 'public_api', $1, $2, $3, $4,
         $5, $6, $7, $8, $9,
@@ -275,7 +288,8 @@ export async function POST(request: NextRequest) {
         $14, $15, $16, $17,
         $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
         $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
-        $39, 'new', 'new'
+        $39, 'new', 'new',
+        $40, $41, $42, $43, $44, $45, $46
       )
       RETURNING submission_id, triage_category::TEXT, triage_score`,
       [
@@ -318,6 +332,14 @@ export async function POST(request: NextRequest) {
         data.situation_description || null,
         data.referral_source || null,
         ip_address,
+        // MIG_2531: New structured columns
+        data.cat_name || null,
+        data.cat_description || null,
+        data.feeding_situation || null,
+        data.count_confidence || null,
+        data.colony_duration || null,
+        data.feeding_frequency || null,
+        data.feeding_duration || null,
       ]
     );
 

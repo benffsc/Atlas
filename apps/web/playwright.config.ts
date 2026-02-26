@@ -8,13 +8,22 @@ dotenv.config({ path: '.env.local' });
  * Playwright E2E Test Configuration for Atlas
  *
  * Run tests:
- *   npm run test:e2e           - Run all tests
- *   npm run test:e2e:ui        - Run with UI mode
- *   npm run test:e2e:headed    - Run with browser visible
+ *   npm run test:e2e                    - Run all tests (skips @real-api)
+ *   npm run test:e2e:ui                 - Run with UI mode
+ *   npm run test:e2e:headed             - Run with browser visible
+ *   INCLUDE_REAL_API=1 npm run test:e2e - Run ALL tests including @real-api
  *
  * Debug:
  *   npm run test:e2e -- --debug
+ *
+ * Cost control:
+ *   Tests tagged with @real-api call the actual Anthropic API and cost money.
+ *   By default, these are SKIPPED to prevent accidental API credit burn.
+ *   Set INCLUDE_REAL_API=1 to run them (e.g., for weekly capability checks).
  */
+
+// Skip @real-api tests by default to avoid burning Anthropic API credits
+const grepInvert = process.env.INCLUDE_REAL_API ? undefined : /@real-api/;
 
 export default defineConfig({
   testDir: './e2e',
@@ -26,6 +35,9 @@ export default defineConfig({
     ['html', { open: 'never' }],
     ['list'],
   ],
+
+  // Skip @real-api tests by default
+  grepInvert,
 
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',

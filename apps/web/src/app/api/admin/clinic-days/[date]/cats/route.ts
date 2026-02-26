@@ -24,6 +24,8 @@ interface ClinicDayCat {
   is_spay: boolean;
   is_neuter: boolean;
   owner_name: string | null;
+  // DATA_GAP_053: Original booking name from ClinicHQ (may differ from owner_name)
+  booked_as: string | null;
   trapper_name: string | null;
   place_address: string | null;
   // Weight
@@ -101,6 +103,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             LIMIT 1
           ) AS photo_url,
           per.display_name AS owner_name,
+          -- DATA_GAP_053: Original booking name from clinic_accounts (may differ from resolved owner_name)
+          ca.display_name AS booked_as,
           pl.formatted_address AS place_address,
           NULL AS trapper_name,
           a.cat_weight_lbs AS weight_lbs,
@@ -137,6 +141,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
         LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
         LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
+        LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
         WHERE a.appointment_date = $1
         ORDER BY a.clinic_day_number NULLS LAST, a.appointment_number NULLS LAST, c.name NULLS LAST
@@ -178,6 +183,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             LIMIT 1
           ) AS photo_url,
           per.display_name AS owner_name,
+          -- DATA_GAP_053: Original booking name from clinic_accounts (may differ from resolved owner_name)
+          ca.display_name AS booked_as,
           pl.formatted_address AS place_address,
           NULL AS trapper_name,
           a.cat_weight_lbs AS weight_lbs,
@@ -196,6 +203,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
         LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
         LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
+        LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
         WHERE a.appointment_date = $1
         ORDER BY a.clinic_day_number NULLS LAST, a.appointment_number NULLS LAST, c.name NULLS LAST

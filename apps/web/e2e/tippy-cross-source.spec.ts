@@ -1,3 +1,4 @@
+// @real-api - This test file calls the real Anthropic API
 /**
  * Tippy Cross-Source Deduction Tests
  *
@@ -8,7 +9,7 @@
  * Tests are READ-ONLY - they query but don't modify data.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import {
   PERSON_CROSS_SOURCE_QUESTIONS,
   CAT_JOURNEY_QUESTIONS,
@@ -17,59 +18,21 @@ import {
   BEACON_QUESTIONS,
   type CrossSourceQuestion,
 } from "./fixtures/tippy-questions";
+import { askTippyAuthenticated } from "./helpers/auth-api";
 
-// Access code for PasswordGate
-const ACCESS_CODE = process.env.ATLAS_ACCESS_CODE || "ffsc2024";
-
-// Helper to pass PasswordGate if needed
-async function ensureAccess(request: ReturnType<typeof test.step>) {
-  // For API tests, we include the access header or cookie
-  return {
-    headers: {
-      "x-access-code": ACCESS_CODE,
-    },
-  };
-}
-
-// Helper to send a message to Tippy chat API
-async function askTippy(
-  request: ReturnType<typeof test.step>,
-  question: string,
-  conversationId?: string
-) {
-  const response = await request.post("/api/tippy/chat", {
-    data: {
-      messages: [{ role: "user", content: question }],
-      conversationId: conversationId || `e2e-test-${Date.now()}`,
-    },
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  return response;
-}
-
-// Generic test runner for cross-source questions
+// Generic test runner for cross-source questions using authenticated page context
 async function runCrossSourceTest(
-  request: ReturnType<typeof test.step>,
+  page: Page,
   question: CrossSourceQuestion
 ) {
-  const response = await askTippy(request, question.question);
-
-  // Should get successful response
-  expect(response.ok()).toBeTruthy();
-
-  const data = await response.json();
+  const data = await askTippyAuthenticated(page, question.question);
 
   // Verify we got a response
   expect(data).toBeDefined();
-  expect(data.error).toBeUndefined();
+  expect(data.message).toBeTruthy();
 
   // Check response has content
-  const responseText =
-    typeof data === "string" ? data : data.response || data.content || JSON.stringify(data);
-
+  const responseText = data.message;
   expect(responseText.length).toBeGreaterThan(10);
 
   // Run validation if response is substantial
@@ -90,7 +53,7 @@ async function runCrossSourceTest(
 // ============================================================================
 
 test.describe("Tippy Cross-Source: Person Questions", () => {
-  test("Person: comprehensive lookup returns data", async ({ request }) => {
+  test("Person: comprehensive lookup returns data", async ({ page }) => {
     const question = PERSON_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "person-complete-lookup"
     );
@@ -99,17 +62,16 @@ test.describe("Tippy Cross-Source: Person Questions", () => {
       return;
     }
 
-    const response = await askTippy(
-      request,
+    const data = await askTippyAuthenticated(
+      page,
       "Tell me everything about any staff member"
     );
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
     expect(data).toBeDefined();
+    expect(data.message).toBeTruthy();
   });
 
-  test("Person: volunteer + trapper detection", async ({ request }) => {
+  test("Person: volunteer + trapper detection", async ({ page }) => {
     const question = PERSON_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "person-volunteer-trapper"
     );
@@ -118,10 +80,10 @@ test.describe("Tippy Cross-Source: Person Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Person: hours and foster correlation", async ({ request }) => {
+  test("Person: hours and foster correlation", async ({ page }) => {
     const question = PERSON_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "person-hours-foster"
     );
@@ -130,10 +92,10 @@ test.describe("Tippy Cross-Source: Person Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Person: requester became trapper", async ({ request }) => {
+  test("Person: requester became trapper", async ({ page }) => {
     const question = PERSON_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "person-requester-trapper-same"
     );
@@ -142,7 +104,7 @@ test.describe("Tippy Cross-Source: Person Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 });
 
@@ -151,7 +113,7 @@ test.describe("Tippy Cross-Source: Person Questions", () => {
 // ============================================================================
 
 test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
-  test("Cat: microchip trace returns history", async ({ request }) => {
+  test("Cat: microchip trace returns history", async ({ page }) => {
     const question = CAT_JOURNEY_QUESTIONS.find(
       (q) => q.id === "cat-microchip-trace"
     );
@@ -160,10 +122,10 @@ test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Cat: full journey (trap-alter-adopt)", async ({ request }) => {
+  test("Cat: full journey (trap-alter-adopt)", async ({ page }) => {
     const question = CAT_JOURNEY_QUESTIONS.find(
       (q) => q.id === "cat-full-journey"
     );
@@ -172,10 +134,10 @@ test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Cat: colony repeat visits", async ({ request }) => {
+  test("Cat: colony repeat visits", async ({ page }) => {
     const question = CAT_JOURNEY_QUESTIONS.find(
       (q) => q.id === "cat-colony-repeat-visits"
     );
@@ -184,7 +146,7 @@ test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
   test("Cat: cross-source matching (ShelterLuv + ClinicHQ)", async ({
@@ -198,7 +160,7 @@ test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 });
 
@@ -207,7 +169,7 @@ test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
 // ============================================================================
 
 test.describe("Tippy Cross-Source: Place Questions", () => {
-  test("Place: activity history by address", async ({ request }) => {
+  test("Place: activity history by address", async ({ page }) => {
     const question = PLACE_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "place-activity-history"
     );
@@ -216,10 +178,10 @@ test.describe("Tippy Cross-Source: Place Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Place: trapper + alteration rate correlation", async ({ request }) => {
+  test("Place: trapper + alteration rate correlation", async ({ page }) => {
     const question = PLACE_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "place-trapper-alteration"
     );
@@ -228,10 +190,10 @@ test.describe("Tippy Cross-Source: Place Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Place: estimate comparison across sources", async ({ request }) => {
+  test("Place: estimate comparison across sources", async ({ page }) => {
     const question = PLACE_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "place-estimate-comparison"
     );
@@ -240,10 +202,10 @@ test.describe("Tippy Cross-Source: Place Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Place: requester is trapper detection", async ({ request }) => {
+  test("Place: requester is trapper detection", async ({ page }) => {
     const question = PLACE_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "place-requester-trapper-same"
     );
@@ -252,7 +214,7 @@ test.describe("Tippy Cross-Source: Place Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 });
 
@@ -261,7 +223,7 @@ test.describe("Tippy Cross-Source: Place Questions", () => {
 // ============================================================================
 
 test.describe("Tippy Cross-Source: Data Quality Questions", () => {
-  test("Data Quality: check_data_quality for person", async ({ request }) => {
+  test("Data Quality: check_data_quality for person", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-person-check"
     );
@@ -270,10 +232,10 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Data Quality: check_data_quality for cat", async ({ request }) => {
+  test("Data Quality: check_data_quality for cat", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-cat-check"
     );
@@ -282,10 +244,10 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Data Quality: find_potential_duplicates", async ({ request }) => {
+  test("Data Quality: find_potential_duplicates", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-duplicates-person"
     );
@@ -294,10 +256,10 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Data Quality: query_merge_history", async ({ request }) => {
+  test("Data Quality: query_merge_history", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-merge-history"
     );
@@ -306,10 +268,10 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Data Quality: query_data_lineage", async ({ request }) => {
+  test("Data Quality: query_data_lineage", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-data-lineage"
     );
@@ -318,10 +280,10 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Data Quality: query_volunteerhub_data", async ({ request }) => {
+  test("Data Quality: query_volunteerhub_data", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-volunteerhub-data"
     );
@@ -330,7 +292,7 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 });
 
@@ -339,7 +301,7 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
 // ============================================================================
 
 test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
-  test("Beacon: overall impact metrics", async ({ request }) => {
+  test("Beacon: overall impact metrics", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(
       (q) => q.id === "beacon-overall-impact"
     );
@@ -348,10 +310,10 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Beacon: year-over-year comparison", async ({ request }) => {
+  test("Beacon: year-over-year comparison", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(
       (q) => q.id === "beacon-yoy-comparison"
     );
@@ -360,10 +322,10 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Beacon: stale estimates detection", async ({ request }) => {
+  test("Beacon: stale estimates detection", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(
       (q) => q.id === "beacon-stale-estimates"
     );
@@ -372,10 +334,10 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Beacon: kitten surge prediction", async ({ request }) => {
+  test("Beacon: kitten surge prediction", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(
       (q) => q.id === "beacon-kitten-surge"
     );
@@ -384,10 +346,10 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Beacon: completion forecast", async ({ request }) => {
+  test("Beacon: completion forecast", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(
       (q) => q.id === "beacon-completion-forecast"
     );
@@ -396,17 +358,17 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 
-  test("Beacon: immigration vs birth detection", async ({ request }) => {
+  test("Beacon: immigration vs birth detection", async ({ page }) => {
     const question = BEACON_QUESTIONS.find((q) => q.id === "beacon-immigration");
     if (!question) {
       test.skip();
       return;
     }
 
-    await runCrossSourceTest(request, question);
+    await runCrossSourceTest(page, question);
   });
 });
 
@@ -416,40 +378,37 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
 
 test.describe("Tippy Comprehensive Lookups", () => {
   test("comprehensive_person_lookup returns multi-source data", async ({
-    request,
+    page,
   }) => {
-    const response = await askTippy(
-      request,
+    const data = await askTippyAuthenticated(
+      page,
       "Get complete information about any active trapper"
     );
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
     expect(data).toBeDefined();
+    expect(data.message).toBeTruthy();
   });
 
-  test("comprehensive_cat_lookup returns journey data", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("comprehensive_cat_lookup returns journey data", async ({ page }) => {
+    const data = await askTippyAuthenticated(
+      page,
       "What is the complete history of any cat with a microchip?"
     );
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
     expect(data).toBeDefined();
+    expect(data.message).toBeTruthy();
   });
 
   test("comprehensive_place_lookup returns activity data", async ({
-    request,
+    page,
   }) => {
-    const response = await askTippy(
-      request,
+    const data = await askTippyAuthenticated(
+      page,
       "Show me everything about any active colony location"
     );
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
     expect(data).toBeDefined();
+    expect(data.message).toBeTruthy();
   });
 });
 
@@ -458,33 +417,33 @@ test.describe("Tippy Comprehensive Lookups", () => {
 // ============================================================================
 
 test.describe("Tippy Error Handling", () => {
-  test("Handles empty question gracefully", async ({ request }) => {
-    const response = await askTippy(request, "");
+  test("Handles empty question gracefully", async ({ page }) => {
+    // Empty message should get a validation error, not a 500
+    const response = await page.request.post("/api/tippy/chat", {
+      data: { message: "" },
+    });
 
-    // Should still respond (might ask for clarification)
+    // Should return 400 for validation error, not 500
     expect(response.status()).toBeLessThan(500);
   });
 
-  test("Handles non-existent entity lookup gracefully", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Handles non-existent entity lookup gracefully", async ({ page }) => {
+    const data = await askTippyAuthenticated(
+      page,
       "Find person with email nonexistent12345@fake.com"
     );
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
-    // Should indicate not found rather than error
-    expect(data.error).toBeUndefined();
+    // Should return a message (not found) rather than error
+    expect(data.message).toBeTruthy();
   });
 
-  test("Handles invalid microchip lookup gracefully", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Handles invalid microchip lookup gracefully", async ({ page }) => {
+    const data = await askTippyAuthenticated(
+      page,
       "Trace cat with microchip 000000000000000"
     );
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
-    expect(data.error).toBeUndefined();
+    // Should return a message rather than error
+    expect(data.message).toBeTruthy();
   });
 });

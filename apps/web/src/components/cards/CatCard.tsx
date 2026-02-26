@@ -36,8 +36,11 @@ export interface CatCardData {
   clinichq_animal_id?: string | null;
   place_address?: string | null;
   owner_name?: string | null;
+  // DATA_GAP_053: Original booking name from ClinicHQ (may differ from owner_name)
+  booked_as?: string | null;
   trapper_name?: string | null;
   last_seen?: string | null;
+  weight_lbs?: number | null;
   // Atlas Cat ID System (MIG_976)
   atlas_cat_id?: string | null;
   atlas_cat_id_type?: "microchip" | "hash" | null;
@@ -54,6 +57,12 @@ interface CatCardProps {
   // Callback for inline editing clinic_day_number
   onUpdateClinicDayNumber?: (appointmentId: string, number: number | null) => Promise<void>;
 }
+
+// Fix 9: Normalize strings for case-insensitive comparison
+// Handles: "JOHN SMITH" vs "John Smith", extra whitespace, etc.
+const normalizeForComparison = (name: string | null | undefined): string => {
+  return (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+};
 
 // Color gradient helper for placeholder photos
 const getColorGradient = (color: string | null | undefined): string => {
@@ -421,6 +430,12 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
         )}
         {sex && color && <span style={{ color: "var(--card-border)" }}>•</span>}
         {color && <span>{color}</span>}
+        {cat.weight_lbs && (
+          <>
+            <span style={{ color: "var(--card-border)" }}>•</span>
+            <span>{cat.weight_lbs} lbs</span>
+          </>
+        )}
       </div>
 
       {/* Atlas Cat ID Badge */}
@@ -488,17 +503,41 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
         </div>
       )}
 
-      {/* Owner Name */}
-      {showOwner && cat.owner_name && (
+      {/* Owner Name - DATA_GAP_053: Show both booked_as and owner_name when they differ */}
+      {showOwner && (cat.owner_name || cat.booked_as) && (
         <div style={{
           fontSize: compact ? "0.7rem" : "0.75rem",
           color: "var(--muted)",
           marginTop: "4px",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
         }}>
-          👤 {cat.owner_name}
+          {/* Show both names when they differ (Fix 9: case-insensitive comparison) */}
+          {cat.booked_as && cat.owner_name && normalizeForComparison(cat.booked_as) !== normalizeForComparison(cat.owner_name) ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <div style={{
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}>
+                📋 Booked as: {cat.booked_as}
+              </div>
+              <div style={{
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                color: "var(--primary)",
+              }}>
+                👤 Resolved to: {cat.owner_name}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}>
+              👤 {cat.owner_name || cat.booked_as}
+            </div>
+          )}
         </div>
       )}
 

@@ -1,3 +1,4 @@
+// @real-api - This test file calls the real Anthropic API
 /**
  * Tippy Capability Tests
  *
@@ -16,30 +17,7 @@ import {
   BEACON_QUESTIONS,
   type CrossSourceQuestion,
 } from "./fixtures/tippy-questions";
-
-// ============================================================================
-// HELPER: Send message to Tippy and get response
-// ============================================================================
-
-interface TippyResponse {
-  message: string;
-  conversationId?: string;
-}
-
-async function askTippy(
-  request: { post: (url: string, options: { data: unknown }) => Promise<{ ok: () => boolean; json: () => Promise<TippyResponse> }> },
-  question: string
-): Promise<TippyResponse> {
-  const response = await request.post("/api/tippy/chat", {
-    data: { message: question },
-  });
-
-  if (!response.ok()) {
-    return { message: "ERROR: Request failed" };
-  }
-
-  return response.json();
-}
+import { askTippyAuthenticated, TippyResponse } from "./helpers/auth-api";
 
 // ============================================================================
 // POINT-IN-TIME LOOKUP CAPABILITIES
@@ -47,9 +25,9 @@ async function askTippy(
 // ============================================================================
 
 test.describe("Tippy: Point-in-Time Lookups", () => {
-  test("Can answer 'How many cats at [address]?'", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can answer 'How many cats at [address]?'", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "How many cats do we have recorded at any Santa Rosa address?"
     );
 
@@ -64,9 +42,9 @@ test.describe("Tippy: Point-in-Time Lookups", () => {
     ).toBeTruthy();
   });
 
-  test("Can lookup person by email", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can lookup person by email", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "What do we know about anyone with a forgottenfelines.org email?"
     );
 
@@ -74,9 +52,9 @@ test.describe("Tippy: Point-in-Time Lookups", () => {
     expect(response.message.length).toBeGreaterThan(30);
   });
 
-  test("Can query colony status", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query colony status", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "What's the colony status at any address in Santa Rosa?"
     );
 
@@ -90,9 +68,9 @@ test.describe("Tippy: Point-in-Time Lookups", () => {
     ).toBeTruthy();
   });
 
-  test("Can query trapper career stats", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query trapper career stats", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Who are our top trappers by total cats trapped?"
     );
 
@@ -105,9 +83,9 @@ test.describe("Tippy: Point-in-Time Lookups", () => {
     ).toBeTruthy();
   });
 
-  test("Can query FFR impact metrics", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query FFR impact metrics", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "What's our overall FFR impact in Sonoma County?"
     );
 
@@ -127,9 +105,9 @@ test.describe("Tippy: Point-in-Time Lookups", () => {
 // ============================================================================
 
 test.describe("Tippy: Comprehensive Lookups", () => {
-  test("comprehensive_person_lookup works", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("comprehensive_person_lookup works", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Tell me everything about any person who has submitted a request"
     );
 
@@ -137,9 +115,9 @@ test.describe("Tippy: Comprehensive Lookups", () => {
     expect(response.message.length).toBeGreaterThan(50);
   });
 
-  test("comprehensive_place_lookup works", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("comprehensive_place_lookup works", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Tell me everything about any place that has cat activity"
     );
 
@@ -147,9 +125,9 @@ test.describe("Tippy: Comprehensive Lookups", () => {
     expect(response.message.length).toBeGreaterThan(50);
   });
 
-  test("query_cat_journey traces full history", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("query_cat_journey traces full history", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Trace the journey of any cat with a microchip through our system"
     );
 
@@ -170,9 +148,9 @@ test.describe("Tippy: Comprehensive Lookups", () => {
 // ============================================================================
 
 test.describe("Tippy: Data Quality Tools", () => {
-  test("Can check entity data quality", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can check entity data quality", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Check the data quality for any person record"
     );
 
@@ -186,27 +164,27 @@ test.describe("Tippy: Data Quality Tools", () => {
     ).toBeTruthy();
   });
 
-  test("Can find potential duplicates", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can find potential duplicates", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Are there any potential duplicate person records for the name Smith?"
     );
 
     expect(response.message).toBeTruthy();
   });
 
-  test("Can query merge history", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query merge history", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Show me the merge history for any merged records"
     );
 
     expect(response.message).toBeTruthy();
   });
 
-  test("Can trace data lineage", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can trace data lineage", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "Where did the data for any cat come from? What was the original source?"
     );
 
@@ -227,9 +205,9 @@ test.describe("Tippy: Data Quality Tools", () => {
 // ============================================================================
 
 test.describe("Tippy: Beacon Analytics", () => {
-  test("Can query overall alteration rate", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query overall alteration rate", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "What's our overall alteration rate across all colonies?"
     );
 
@@ -242,9 +220,9 @@ test.describe("Tippy: Beacon Analytics", () => {
     ).toBeTruthy();
   });
 
-  test("Can query colony status breakdown", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query colony status breakdown", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "How many colonies are managed vs need attention?"
     );
 
@@ -258,9 +236,9 @@ test.describe("Tippy: Beacon Analytics", () => {
     ).toBeTruthy();
   });
 
-  test("Can query regional stats", async ({ request }) => {
-    const response = await askTippy(
-      request,
+  test("Can query regional stats", async ({ page }) => {
+    const response = await askTippyAuthenticated(
+      page,
       "What are the FFR stats for Santa Rosa area?"
     );
 
@@ -280,8 +258,8 @@ test.describe("Tippy: Person Cross-Source Questions (Easy)", () => {
   );
 
   for (const question of easyQuestions) {
-    test(question.id, async ({ request }) => {
-      const response = await askTippy(request, question.question);
+    test(question.id, async ({ page }) => {
+      const response = await askTippyAuthenticated(page, question.question);
 
       expect(response.message).toBeTruthy();
       expect(response.message.length).toBeGreaterThan(30);
@@ -299,8 +277,8 @@ test.describe("Tippy: Cat Journey Questions (Easy)", () => {
   );
 
   for (const question of easyQuestions) {
-    test(question.id, async ({ request }) => {
-      const response = await askTippy(request, question.question);
+    test(question.id, async ({ page }) => {
+      const response = await askTippyAuthenticated(page, question.question);
 
       expect(response.message).toBeTruthy();
       expect(response.message.length).toBeGreaterThan(30);
@@ -317,8 +295,8 @@ test.describe("Tippy: Place Questions (Easy)", () => {
   );
 
   for (const question of easyQuestions) {
-    test(question.id, async ({ request }) => {
-      const response = await askTippy(request, question.question);
+    test(question.id, async ({ page }) => {
+      const response = await askTippyAuthenticated(page, question.question);
 
       expect(response.message).toBeTruthy();
       expect(response.message.length).toBeGreaterThan(30);
@@ -335,8 +313,8 @@ test.describe("Tippy: Data Quality Questions (Easy)", () => {
   );
 
   for (const question of easyQuestions) {
-    test(question.id, async ({ request }) => {
-      const response = await askTippy(request, question.question);
+    test(question.id, async ({ page }) => {
+      const response = await askTippyAuthenticated(page, question.question);
 
       expect(response.message).toBeTruthy();
       expect(response.message.length).toBeGreaterThan(30);
@@ -353,8 +331,8 @@ test.describe("Tippy: Beacon Questions (Easy)", () => {
   );
 
   for (const question of easyQuestions) {
-    test(question.id, async ({ request }) => {
-      const response = await askTippy(request, question.question);
+    test(question.id, async ({ page }) => {
+      const response = await askTippyAuthenticated(page, question.question);
 
       expect(response.message).toBeTruthy();
       expect(response.message.length).toBeGreaterThan(30);
@@ -371,28 +349,26 @@ test.describe("Tippy: Beacon Questions (Easy)", () => {
 // ============================================================================
 
 test.describe("Tippy: Conversation Context", () => {
-  test("Maintains conversation ID", async ({ request }) => {
-    const response1 = await askTippy(
-      request,
+  test("Maintains conversation ID", async ({ page }) => {
+    const response1 = await askTippyAuthenticated(
+      page,
       "How many cats are in our system?"
     );
 
     expect(response1.conversationId).toBeTruthy();
 
     // Second message with same conversation
-    const response2 = await request.post("/api/tippy/chat", {
-      data: {
-        message: "And how many are altered?",
-        conversationId: response1.conversationId,
-        history: [
-          { role: "user", content: "How many cats are in our system?" },
-          { role: "assistant", content: response1.message },
-        ],
-      },
-    });
+    const response2 = await askTippyAuthenticated(
+      page,
+      "And how many are altered?",
+      response1.conversationId,
+      [
+        { role: "user", content: "How many cats are in our system?" },
+        { role: "assistant", content: response1.message },
+      ]
+    );
 
-    expect(response2.ok()).toBeTruthy();
-    const data2 = await response2.json();
-    expect(data2.message).toBeTruthy();
+    expect(response2.message).toBeTruthy();
+    expect(response2.message.length).toBeGreaterThan(10);
   });
 });

@@ -1,20 +1,56 @@
 /**
  * Shared StatusBadge, PriorityBadge, and PriorityDot components.
  * Single source of truth for status/priority colors across the app.
+ *
+ * Status System (MIG_2530):
+ * - Primary: new, working, paused, completed
+ * - Special: redirected, handed_off
+ * - Legacy (mapped): triaged→new, scheduled→working, in_progress→working, on_hold→paused
  */
 
 const STATUS_COLORS: Record<string, { bg: string; color: string; softBg: string; softColor: string }> = {
-  new:         { bg: "#0d6efd", color: "#fff", softBg: "#dbeafe", softColor: "#1e40af" },
-  triaged:     { bg: "#6610f2", color: "#fff", softBg: "#f3e8ff", softColor: "#6b21a8" },
-  scheduled:   { bg: "#198754", color: "#fff", softBg: "#dcfce7", softColor: "#166534" },
-  in_progress: { bg: "#fd7e14", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },
-  complete:    { bg: "#20c997", color: "#000", softBg: "#ccfbf1", softColor: "#115e59" },
-  completed:   { bg: "#20c997", color: "#000", softBg: "#ccfbf1", softColor: "#115e59" },
-  cancelled:   { bg: "#6c757d", color: "#fff", softBg: "#f3f4f6", softColor: "#4b5563" },
-  on_hold:     { bg: "#ffc107", color: "#000", softBg: "#fef9c3", softColor: "#854d0e" },
-  redirected:  { bg: "#9ca3af", color: "#fff", softBg: "#f3f4f6", softColor: "#6b7280" },
-  handed_off:  { bg: "#0d9488", color: "#fff", softBg: "#ccfbf1", softColor: "#115e59" },
+  // PRIMARY STATUSES (new simplified system)
+  new:         { bg: "#3b82f6", color: "#fff", softBg: "#dbeafe", softColor: "#1e40af" },  // Blue
+  working:     { bg: "#f59e0b", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },  // Amber
+  paused:      { bg: "#ec4899", color: "#fff", softBg: "#fce7f3", softColor: "#9d174d" },  // Pink
+  completed:   { bg: "#10b981", color: "#fff", softBg: "#d1fae5", softColor: "#065f46" },  // Emerald
+
+  // SPECIAL STATUSES
+  redirected:  { bg: "#9ca3af", color: "#fff", softBg: "#f3f4f6", softColor: "#6b7280" },  // Gray
+  handed_off:  { bg: "#0d9488", color: "#fff", softBg: "#ccfbf1", softColor: "#115e59" },  // Teal
+
+  // LEGACY STATUSES (for backward compatibility - display as primary equivalent)
+  triaged:     { bg: "#3b82f6", color: "#fff", softBg: "#dbeafe", softColor: "#1e40af" },  // → new
+  scheduled:   { bg: "#f59e0b", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },  // → working
+  in_progress: { bg: "#f59e0b", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },  // → working
+  on_hold:     { bg: "#ec4899", color: "#fff", softBg: "#fce7f3", softColor: "#9d174d" },  // → paused
+  cancelled:   { bg: "#6b7280", color: "#fff", softBg: "#f3f4f6", softColor: "#4b5563" },  // → completed (gray)
+  complete:    { bg: "#10b981", color: "#fff", softBg: "#d1fae5", softColor: "#065f46" },  // → completed
+  partial:     { bg: "#6b7280", color: "#fff", softBg: "#f3f4f6", softColor: "#4b5563" },  // → completed (gray)
   archived:    { bg: "#adb5bd", color: "#000", softBg: "#f3f4f6", softColor: "#6b7280" },
+};
+
+/**
+ * Maps legacy status values to their display labels.
+ * Legacy statuses show their new equivalent name.
+ */
+const STATUS_LABELS: Record<string, string> = {
+  // Primary statuses
+  new: "New",
+  working: "Working",
+  paused: "Paused",
+  completed: "Completed",
+  // Special statuses
+  redirected: "Redirected",
+  handed_off: "Handed Off",
+  // Legacy → display as new equivalent
+  triaged: "New",
+  scheduled: "Working",
+  in_progress: "Working",
+  on_hold: "Paused",
+  cancelled: "Completed",
+  partial: "Completed",
+  complete: "Completed",
 };
 
 const PRIORITY_COLORS: Record<string, { bg: string; color: string }> = {
@@ -51,7 +87,7 @@ export function StatusBadge({ status, variant = "solid", size = "md", label }: S
     lg: { fontSize: "0.9rem", padding: "0.5rem 1rem" },
   };
 
-  const displayLabel = label || status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const displayLabel = label || STATUS_LABELS[status] || status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
   return (
     <span

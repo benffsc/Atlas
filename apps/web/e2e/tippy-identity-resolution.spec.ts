@@ -1,3 +1,4 @@
+// @real-api - This test file calls the real Anthropic API
 /**
  * Tippy Identity Resolution E2E Tests
  *

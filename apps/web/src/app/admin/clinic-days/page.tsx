@@ -73,6 +73,8 @@ interface ClinicDayCat {
   is_spay: boolean;
   is_neuter: boolean;
   owner_name: string | null;
+  // DATA_GAP_053: Original booking name from ClinicHQ (may differ from owner_name)
+  booked_as: string | null;
   trapper_name: string | null;
   place_address: string | null;
   // Deceased and health status fields
@@ -97,6 +99,8 @@ interface CatSearchResult {
   microchip: string | null;
   clinichq_animal_id: string | null;
   owner_name: string | null;
+  // DATA_GAP_053: Original booking name from ClinicHQ (may differ from owner_name)
+  booked_as: string | null;
   place_address: string | null;
   sex: string | null;
   primary_color: string | null;
@@ -144,6 +148,8 @@ function toCatCardData(cat: ClinicDayCat): CatCardData {
     clinichq_animal_id: cat.clinichq_animal_id,
     place_address: cat.place_address,
     owner_name: cat.owner_name,
+    // DATA_GAP_053: Original booking name from ClinicHQ
+    booked_as: cat.booked_as,
     trapper_name: cat.trapper_name,
     // For inline editing
     appointment_id: cat.appointment_id,

@@ -49,6 +49,10 @@ interface RequestListRow {
   // Map preview caching (MIG_2470)
   map_preview_url: string | null;
   map_preview_updated_at: string | null;
+  // MIG_2522: Requestor intelligence
+  requester_role_at_submission: string | null;
+  requester_is_site_contact: boolean | null;
+  site_contact_name: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -155,17 +159,22 @@ export async function GET(request: NextRequest) {
         return `is_legacy_request ${dir}, ${effectiveCreatedAt} DESC NULLS LAST`;
       case "status":
       default:
-        // Default: native first, then status order, then by creation date (newest first)
+        // MIG_2530: Simplified 4-state system with legacy status compatibility
+        // Order: new → working → paused → completed
         return `
           ${nativeFirst},
           CASE status
             WHEN 'new' THEN 1
-            WHEN 'triaged' THEN 2
-            WHEN 'scheduled' THEN 3
-            WHEN 'in_progress' THEN 4
-            WHEN 'on_hold' THEN 5
-            WHEN 'completed' THEN 6
-            WHEN 'cancelled' THEN 7
+            WHEN 'triaged' THEN 1
+            WHEN 'working' THEN 2
+            WHEN 'scheduled' THEN 2
+            WHEN 'in_progress' THEN 2
+            WHEN 'paused' THEN 3
+            WHEN 'on_hold' THEN 3
+            WHEN 'completed' THEN 4
+            WHEN 'cancelled' THEN 4
+            WHEN 'redirected' THEN 5
+            WHEN 'handed_off' THEN 5
           END ${dir},
           ${effectiveCreatedAt} DESC NULLS LAST
         `;
@@ -205,7 +214,11 @@ export async function GET(request: NextRequest) {
         primary_trapper_name,
         assignment_status,
         map_preview_url,
-        map_preview_updated_at
+        map_preview_updated_at,
+        -- MIG_2522: Requestor intelligence (will be NULL until migration applied)
+        requester_role_at_submission,
+        requester_is_site_contact,
+        site_contact_name
       FROM ops.v_request_list
       ${whereClause}
       ORDER BY ${buildOrderBy()}

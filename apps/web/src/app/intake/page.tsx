@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import PlaceResolver from "@/components/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+import { shouldBePerson } from "@/lib/guards";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
   HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
@@ -650,6 +651,29 @@ function IntakeForm() {
         newErrors.email = "Email or phone required";
       } else if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
         newErrors.email = "Invalid email format";
+      }
+
+      // Run shouldBePerson guard for name/email/phone validation (mirrors SQL should_be_person())
+      const personCheck = shouldBePerson(
+        formData.first_name.trim(),
+        formData.last_name.trim(),
+        formData.email.trim() || null,
+        formData.phone.trim() || null
+      );
+
+      if (!personCheck.valid) {
+        // Map guard rejection to appropriate field
+        if (personCheck.reason.includes("organization") || personCheck.reason.includes("business")) {
+          newErrors.first_name = personCheck.reason;
+        } else if (personCheck.reason.includes("address") || personCheck.reason.includes("site")) {
+          newErrors.first_name = personCheck.reason;
+        } else if (personCheck.reason.includes("email")) {
+          newErrors.email = personCheck.reason;
+        } else if (personCheck.reason.includes("phone")) {
+          newErrors.phone = personCheck.reason;
+        } else if (personCheck.reason.includes("placeholder") || personCheck.reason.includes("not valid")) {
+          newErrors.first_name = personCheck.reason;
+        }
       }
     }
 

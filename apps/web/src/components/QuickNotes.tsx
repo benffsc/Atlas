@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { formatRelativeDate } from "@/lib/formatters";
 import type { JournalEntry } from "@/components/JournalSection";
 
 interface QuickNotesProps {
@@ -36,21 +37,8 @@ function getInitials(name: string | null): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-  });
-}
+// Use centralized formatRelativeDate from @/lib/formatters
+const formatDate = formatRelativeDate;
 
 function getNoteLevel(tags: string[] | undefined): NoteLevel {
   if (tags?.includes("warning")) return "warning";

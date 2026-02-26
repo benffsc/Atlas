@@ -31,6 +31,11 @@ interface QueueSummary {
     reproduction: number;
     mortality: number;
   };
+  owner_changes: {
+    total: number;
+    transfers: number;
+    household: number;
+  };
   priority_items: Array<{
     id: string;
     type: string;
@@ -100,6 +105,21 @@ export async function GET() {
       FROM sot.people
       WHERE data_quality = 'needs_review'
         AND merged_into_person_id IS NULL
+    `, []);
+
+    // Get owner change review counts (MIG_2504)
+    const ownerChangeStats = await queryOne<{
+      total: number;
+      transfers: number;
+      household: number;
+    }>(`
+      SELECT
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE review_type = 'owner_transfer')::int as transfers,
+        COUNT(*) FILTER (WHERE review_type = 'owner_household')::int as household
+      FROM ops.review_queue
+      WHERE status = 'pending'
+        AND review_type IN ('owner_change', 'owner_transfer', 'owner_household')
     `, []);
 
     // Get AI-parsed items needing verification
@@ -214,6 +234,11 @@ export async function GET() {
         colony_estimates: aiStats?.colony_estimates || 0,
         reproduction: aiStats?.reproduction || 0,
         mortality: aiStats?.mortality || 0,
+      },
+      owner_changes: {
+        total: ownerChangeStats?.total || 0,
+        transfers: ownerChangeStats?.transfers || 0,
+        household: ownerChangeStats?.household || 0,
       },
       priority_items: priorityItems.map((item) => ({
         ...item,

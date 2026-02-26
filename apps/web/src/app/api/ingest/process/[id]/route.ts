@@ -916,6 +916,25 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       ON CONFLICT DO NOTHING
     `);
     results.cat_person_links = catPersonLinks.rowCount || 0;
+
+    // Step 6: Detect owner changes (MIG_2504)
+    // Compares incoming owner data against existing appointments
+    // Queues significant changes for staff review
+    await saveProgress('Detecting owner changes...');
+    try {
+      const ownerChanges = await query(`
+        SELECT * FROM ops.detect_owner_changes($1)
+      `, [uploadId]);
+      if (ownerChanges.rows?.[0]) {
+        results.owner_changes_detected = ownerChanges.rows[0].changes_detected || 0;
+        results.owner_changes_auto = ownerChanges.rows[0].auto_processed || 0;
+        results.owner_changes_queued = ownerChanges.rows[0].queued_for_review || 0;
+      }
+    } catch (err) {
+      // Non-fatal - detection is supplementary to the import
+      console.error('Owner change detection failed (non-fatal):', err);
+      results.owner_change_detection_error = err instanceof Error ? err.message : String(err);
+    }
   }
 
   if (sourceTable === 'appointment_info') {

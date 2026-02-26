@@ -29,6 +29,7 @@ interface ProcessingStats {
   totalServiceItems: number;  // Total service item rows
   droppedRows: number;        // Rows dropped (no date AND no identifier)
   pendingMicrochipCount: number; // Visits using appointment number fallback (need microchip)
+  ownerChangesDetected: number; // Owner changes requiring review (MIG_2504)
   files: {
     cat_info: number;
     owner_info: number;
@@ -318,6 +319,122 @@ async function resolvePersonIdentity(params: {
     isNew,
     decision: personId ? (isNew ? "new_entity" : "auto_match") : "rejected",
   };
+}
+
+/**
+ * Detect and queue owner changes when resolved person has different identifiers
+ * MIG_2504: Inline detection for V2 ingest flow
+ */
+async function detectOwnerChange(params: {
+  personId: string;
+  appointmentNumber: string | null;
+  newFirstName?: string | null;
+  newLastName?: string | null;
+  newEmail: string | null;
+  newPhone: string | null;
+  newAddress?: string | null;
+}): Promise<boolean> {
+  // Get existing person's identifiers
+  const existingPerson = await queryOne<{
+    display_name: string;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+  }>(`
+    SELECT
+      p.display_name,
+      (SELECT id_value FROM sot.person_identifiers WHERE person_id = p.person_id AND id_type = 'email' AND confidence >= 0.5 LIMIT 1) as email,
+      (SELECT id_value_norm FROM sot.person_identifiers WHERE person_id = p.person_id AND id_type = 'phone' LIMIT 1) as phone,
+      pl.formatted_address as address
+    FROM sot.people p
+    LEFT JOIN sot.places pl ON pl.place_id = p.primary_address_id
+    WHERE p.person_id = $1
+  `, [params.personId]);
+
+  if (!existingPerson) return false;
+
+  const newName = [params.newFirstName, params.newLastName].filter(Boolean).join(' ').trim();
+  const oldEmail = existingPerson.email?.toLowerCase() || null;
+  const oldPhone = existingPerson.phone || null;
+  const newEmail = params.newEmail?.toLowerCase() || null;
+  const newPhone = params.newPhone || null;
+
+  // Same email = same person, no change needed
+  if (newEmail && oldEmail && newEmail === oldEmail) {
+    return false;
+  }
+
+  // Same phone + similar name = same person
+  if (newPhone && oldPhone && newPhone === oldPhone) {
+    // Check name similarity - if similar, it's the same person
+    const similarity = await queryOne<{ similarity: number }>(`
+      SELECT COALESCE(sot.name_similarity($1, $2), 0.5) as similarity
+    `, [existingPerson.display_name || '', newName]);
+
+    if ((similarity?.similarity || 0) >= 0.5) {
+      return false; // Same person, no need to queue
+    }
+  }
+
+  // Different identifiers or significantly different name = queue for review
+  if ((newEmail && oldEmail && newEmail !== oldEmail) ||
+      (newPhone && oldPhone && newPhone !== oldPhone) ||
+      (newEmail && !oldEmail) ||
+      (newPhone && !oldPhone)) {
+
+    // Get affected cats
+    const catsResult = await query(`
+      SELECT ARRAY_AGG(cat_id) as cats FROM sot.person_cat WHERE person_id = $1
+    `, [params.personId]);
+    const catsAffected = catsResult.rows?.[0]?.cats || [];
+
+    // Determine review type
+    const isDifferentIdentifiers = (newEmail && oldEmail && newEmail !== oldEmail) &&
+                                    (newPhone && oldPhone && newPhone !== oldPhone);
+    const reviewType = isDifferentIdentifiers ? 'owner_transfer' : 'owner_change';
+    const confidence = isDifferentIdentifiers ? 0.40 : 0.70;
+    const priority = isDifferentIdentifiers ? 10 : 5;
+
+    // Queue for review
+    await query(`
+      INSERT INTO ops.review_queue (
+        entity_type, entity_id, review_type, priority, status, notes,
+        old_person_id, match_confidence, change_context, cats_affected,
+        source_system, source_record_id
+      ) VALUES (
+        'person', $1, $2, $3, 'pending',
+        $4,
+        $1, $5,
+        $6::JSONB, $7,
+        'clinichq', $8
+      )
+      ON CONFLICT DO NOTHING
+    `, [
+      params.personId,
+      reviewType,
+      priority,
+      `Owner info change detected: ${existingPerson.display_name} → ${newName}`,
+      confidence,
+      JSON.stringify({
+        old_name: existingPerson.display_name,
+        new_name: newName,
+        old_email: oldEmail,
+        new_email: newEmail,
+        old_phone: oldPhone,
+        new_phone: newPhone,
+        old_address: existingPerson.address,
+        new_address: params.newAddress,
+        appointment_number: params.appointmentNumber,
+        detection_decision: reviewType === 'owner_transfer' ? 'queue_ownership_transfer' : 'queue_review'
+      }),
+      catsAffected,
+      params.appointmentNumber
+    ]);
+
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -1005,6 +1122,22 @@ async function processMergedRecord(
           stats.personsCreated++;
         } else if (personId) {
           stats.personsMatched++;
+
+          // MIG_2504: Detect owner changes when matching existing person
+          // Get appointment number for context
+          const appointmentNumber = getString(visit.mergedData || {}, "Number", "Appointment Number");
+          const ownerChanged = await detectOwnerChange({
+            personId,
+            appointmentNumber: appointmentNumber || null,
+            newFirstName: ownerFirstName,
+            newLastName: ownerLastName,
+            newEmail: ownerEmail,
+            newPhone: ownerPhone,
+            newAddress: ownerAddress,
+          });
+          if (ownerChanged) {
+            stats.ownerChangesDetected++;
+          }
         }
 
         // Create/find place using centralized function
@@ -1204,6 +1337,7 @@ export async function POST(request: NextRequest) {
       totalServiceItems,
       droppedRows,
       pendingMicrochipCount,
+      ownerChangesDetected: 0,
       files: {
         cat_info: catInfoRows.length,
         owner_info: ownerInfoRows.length,

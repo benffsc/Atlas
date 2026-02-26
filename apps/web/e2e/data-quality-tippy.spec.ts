@@ -1,3 +1,4 @@
+// @real-api - This test file calls the real Anthropic API
 import { test, expect, Page } from '@playwright/test';
 
 /**

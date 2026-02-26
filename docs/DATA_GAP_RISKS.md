@@ -15,6 +15,7 @@
 | RISK_003 | Shared Household Phone | Same phone, different names | Use household feature, review queue |
 | RISK_004 | Same Person, Multiple ClinicHQ Accounts | Same email/phone, different addresses | Keep separate, link via household |
 | RISK_005 | Work Address Pollution | Home cats appearing at work address | Delete polluted links, keep appt-based |
+| RISK_006 | ClinicHQ Account Renamed (Referrer→Resident) | Same cats, different owner name | Delete old person_cat links, use Hand Off |
 
 ---
 
@@ -302,6 +303,128 @@ Copy this when adding a new risk:
 
 **Related:** [Links to migrations, other risks]
 ```
+
+---
+
+### RISK_006: ClinicHQ Account Renamed After Initial Import (Referrer vs Resident Correction)
+
+**Reported:** 2026-02-25
+**Status:** Active - Requires manual cleanup after import
+**Tags:** clinichq, owner-correction, referrer, resident, import, person-cat-links
+
+**Scenario:**
+Staff discovers the person who originally booked cats is NOT the actual resident/caretaker. They correct the ClinicHQ account name. Example:
+
+- **Original booking:** "Jill Manning" (daughter-in-law who called in)
+- **Actual resident:** "Kathleen Sartori" (mother-in-law at the address)
+- **Staff action:** Renamed ClinicHQ account from "Jill Manning" → "Kathleen Sartori"
+- **Address:** Same (3301 Tomales-Petaluma Rd, Tomales, CA 94971)
+- **Phone:** Different (Jill: 415-298-3307, Kathleen: 707-878-2462)
+
+**Data Pattern:**
+
+*Before import (in Atlas):*
+```
+Person: Jill Manning (person_id: 4e815b2c-...)
+  Phone: 415-298-3307
+  └── 6 cats linked (relationship_type: owner)
+      26-601, 26-602, 26-609, 26-630, 26-634, 26-636
+```
+
+*In new ClinicHQ export:*
+```
+Owner: Kathleen Sartori
+Phone: 707-878-2462
+Address: 3301 Tomales-Petaluma Rd, Tomales, CA 94971
+Cats: 26-601, 26-602, 26-609, 26-630, 26-634, 26-636
+```
+
+*After import (PROBLEM):*
+```
+Person: Jill Manning (person_id: 4e815b2c-...)
+  └── 6 cats linked (NOT DELETED!)
+
+Person: Kathleen Sartori (NEW person_id)
+  Phone: 707-878-2462
+  └── 6 cats linked (NEW relationships)
+
+Result: Cats appear to belong to BOTH people
+```
+
+**Risk:**
+1. **Duplicate cat ownership:** Cats show under both Jill AND Kathleen in searches/reports
+2. **Inflated person stats:** Both people appear to have 6 cats
+3. **Confusing handoff:** Request still linked to Jill, cats now linked to Kathleen
+4. **Historical pollution:** Old relationships persist indefinitely
+
+**Why This Happens:**
+
+The import pipeline uses `ON CONFLICT DO NOTHING` for person_cat relationships:
+- ✅ Creates NEW person record for Kathleen
+- ✅ Creates NEW person_cat relationships (Kathleen → 6 cats)
+- ❌ **Does NOT delete** old person_cat relationships (Jill → 6 cats)
+- ❌ No change detection to identify this pattern
+
+**Detection Signals:**
+
+| Signal | Jill vs Kathleen | System Interpretation |
+|--------|------------------|----------------------|
+| Same email | No (neither has email) | Can't auto-detect |
+| Same phone | No (415 vs 707) | Different person |
+| Same address | Yes | Maybe correction? |
+| Name similarity | 0.2 (very low) | Different person |
+
+**Handling (MANUAL WORKFLOW):**
+
+1. **Before Import:**
+   - Note which cats are affected (by Number/animal_id)
+   - Note the old owner's person_id: `4e815b2c-0d1b-4e84-949d-fac256697519`
+
+2. **After Import:**
+   - Verify Kathleen Sartori was created with correct phone (707-878-2462)
+   - Verify cats have NEW relationships to Kathleen
+   - **Delete old relationships:**
+     ```sql
+     DELETE FROM sot.person_cat
+     WHERE person_id = '4e815b2c-0d1b-4e84-949d-fac256697519'  -- Jill
+       AND cat_id IN (
+         '53779aa0-8bb3-4508-b47a-cb01a81a3d98',  -- 26-630
+         'e9e74d61-5e11-47c5-bdab-c1cdbe661bb7',  -- 26-636
+         '580a27d5-ea1f-482c-9c77-8851d98b3953',  -- 26-634
+         '88c5a61d-91be-4470-880a-dd0d1a53892d',  -- 26-609
+         '9deea0e2-6976-4fd3-b36e-61e39fa9dab8',  -- 26-601
+         '02ba9c84-b159-471d-abe4-124f078faee3'   -- 26-602
+       );
+     ```
+
+3. **Use Hand Off on Request:**
+   - Go to request `e699d432-e9f1-4034-b2c9-29e5584b92ff`
+   - Click "Hand Off" button
+   - Enter Kathleen Sartori's info
+   - Reason: "Original caller was daughter-in-law, not actual resident"
+
+4. **Document:**
+   - Add note to request: "Corrected owner from Jill Manning (referrer) to Kathleen Sartori (actual resident)"
+   - Keep Jill's record (she's a real person who may call again)
+
+**Industry Best Practice Applied:**
+- **Don't merge** Jill and Kathleen - they are different people
+- **Jill = Referrer** (reported the cats, may be listed as contact)
+- **Kathleen = Resident/Caretaker** (actual person at address, owns cats)
+- **Preserve audit trail** - document why correction was made
+
+**System Considerations:**
+
+Future enhancement should add **Import Change Detection UI** that:
+1. Detects when same cat (by microchip/Number) has different owner name
+2. Shows side-by-side comparison: "Was: Jill Manning → Now: Kathleen Sartori"
+3. Prompts staff with three options:
+   - "Update owner info (same person, corrected name)" - auto-cleanup
+   - "Transfer to new owner (different person)" - hand off flow
+   - "Skip this change" - defer decision
+4. For transfers, automatically deletes old person_cat relationships
+
+**Related:** RISK_002 (trapper at colony), RISK_004 (multi-account), Hand Off flow (MIG_530, MIG_2503)
 
 ---
 

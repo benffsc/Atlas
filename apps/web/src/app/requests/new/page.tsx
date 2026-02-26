@@ -155,11 +155,20 @@ function NewRequestForm() {
 
   // About the Cats
   const [estimatedCatCount, setEstimatedCatCount] = useState<number | "">("");
+  const [peakCount, setPeakCount] = useState<number | "">("");  // MIG_2532: Beacon critical
   const [countConfidence, setCountConfidence] = useState("unknown");
   const [colonyDuration, setColonyDuration] = useState("unknown");
+  const [awarenessDuration, setAwarenessDuration] = useState("unknown");  // MIG_2532: How long requester aware
   const [eartipCount, setEartipCount] = useState<number | "">("");
   const [eartipEstimate, setEartipEstimate] = useState("unknown");
   const [catsAreFriendly, setCatsAreFriendly] = useState<boolean | null>(null);
+
+  // MIG_2532: Third-party tracking (affects requester intelligence)
+  const [isThirdPartyReport, setIsThirdPartyReport] = useState(false);
+  const [thirdPartyRelationship, setThirdPartyRelationship] = useState("");
+
+  // MIG_2532: Service area
+  const [county, setCounty] = useState("Sonoma");
 
   // Kittens
   const [hasKittens, setHasKittens] = useState(false);
@@ -178,6 +187,8 @@ function NewRequestForm() {
   const [isBeingFed, setIsBeingFed] = useState<boolean | null>(null);
   const [feederName, setFeederName] = useState("");
   const [feedingSchedule, setFeedingSchedule] = useState("");
+  const [feedingLocation, setFeedingLocation] = useState("");  // MIG_2532: Where cats are fed
+  const [feedingTime, setFeedingTime] = useState("");  // MIG_2532: What time fed
   const [bestTimesSeen, setBestTimesSeen] = useState("");
 
   // Urgency
@@ -456,12 +467,19 @@ function NewRequestForm() {
           access_without_contact: accessWithoutContact,
           // About the Cats
           estimated_cat_count: estimatedCatCount || null,
+          peak_count: peakCount || null,  // MIG_2532: Beacon critical
           wellness_cat_count: hasWellness ? (wellnessCatCount || null) : null,
           count_confidence: countConfidence,
           colony_duration: colonyDuration,
+          awareness_duration: awarenessDuration,  // MIG_2532
           eartip_count: showExactEartipCount ? (eartipCount || null) : null,
           eartip_estimate: !showExactEartipCount ? eartipEstimate : null,
           cats_are_friendly: catsAreFriendly,
+          // MIG_2532: Third-party tracking
+          is_third_party_report: isThirdPartyReport,
+          third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
+          // MIG_2532: Service area
+          county: county || "Sonoma",
           // Kittens
           has_kittens: hasKittens,
           kitten_count: hasKittens ? (kittenCount || null) : null,
@@ -478,6 +496,8 @@ function NewRequestForm() {
           is_being_fed: isBeingFed,
           feeder_name: isBeingFed ? (feederName || null) : null,
           feeding_schedule: isBeingFed ? (feedingSchedule || null) : null,
+          feeding_location: isBeingFed ? (feedingLocation || null) : null,  // MIG_2532
+          feeding_time: isBeingFed ? (feedingTime || null) : null,  // MIG_2532
           best_times_seen: bestTimesSeen || null,
           // Urgency
           urgency_reasons: urgencyReasons.length > 0 ? urgencyReasons : null,
@@ -797,6 +817,24 @@ function NewRequestForm() {
           />
 
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 150px" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                County
+              </label>
+              <select
+                value={county}
+                onChange={(e) => setCounty(e.target.value)}
+                style={{ width: "100%" }}
+              >
+                <option value="Sonoma">Sonoma</option>
+                <option value="Marin">Marin</option>
+                <option value="Napa">Napa</option>
+                <option value="Mendocino">Mendocino</option>
+                <option value="Lake">Lake</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
             <div style={{ flex: "1 1 200px" }}>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 Property Type
@@ -1203,6 +1241,57 @@ function NewRequestForm() {
               style={{ width: "100%" }}
             />
           </div>
+
+          {/* Third-party report tracking */}
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                cursor: "pointer",
+                marginBottom: isThirdPartyReport ? "0.75rem" : "0",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isThirdPartyReport}
+                onChange={(e) => setIsThirdPartyReport(e.target.checked)}
+              />
+              <span>Requestor is NOT the site contact (third-party report)</span>
+            </label>
+
+            {isThirdPartyReport && (
+              <div
+                style={{
+                  marginLeft: "1.5rem",
+                  padding: "0.75rem",
+                  background: "var(--bg-muted)",
+                  borderRadius: "6px",
+                }}
+              >
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                  Relationship to site
+                </label>
+                <select
+                  value={thirdPartyRelationship}
+                  onChange={(e) => setThirdPartyRelationship(e.target.value)}
+                  style={{ width: "100%", maxWidth: "300px" }}
+                >
+                  <option value="">Select...</option>
+                  <option value="neighbor">Neighbor</option>
+                  <option value="friend_family">Friend/Family of resident</option>
+                  <option value="concerned_citizen">Concerned citizen</option>
+                  <option value="property_manager">Property manager</option>
+                  <option value="business_employee">Business employee</option>
+                  <option value="other">Other</option>
+                </select>
+                <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
+                  Helps us know who can authorize trapping and who to contact for updates
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* SECTION 3: Permission & Access */}
@@ -1361,60 +1450,103 @@ function NewRequestForm() {
 
           {/* TNR / Relocation / Rescue - Cats needing work */}
           {(hasTnr || hasRelocation || hasRescue) && (
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-              <div style={{ flex: "1 1 140px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  {hasTnr ? "Cats needing FFR" : "Cats to trap"}
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={estimatedCatCount}
-                  onChange={(e) =>
-                    setEstimatedCatCount(e.target.value ? parseInt(e.target.value) : "")
-                  }
-                  placeholder="0"
-                  style={{ width: "100%" }}
-                />
-                <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                  {hasTnr ? "Unfixed cats" : "Total to trap"}
-                </p>
+            <>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    {hasTnr ? "Cats needing FFR" : "Cats to trap"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={estimatedCatCount}
+                    onChange={(e) =>
+                      setEstimatedCatCount(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="0"
+                    style={{ width: "100%" }}
+                  />
+                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                    {hasTnr ? "Unfixed cats" : "Total to trap"}
+                  </p>
+                </div>
+
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Peak count observed
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={peakCount}
+                    onChange={(e) =>
+                      setPeakCount(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="0"
+                    style={{ width: "100%" }}
+                  />
+                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                    Most cats seen at once
+                  </p>
+                </div>
+
+                <div style={{ flex: "1 1 180px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    How confident is this count?
+                  </label>
+                  <select
+                    value={countConfidence}
+                    onChange={(e) => setCountConfidence(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    {COUNT_CONFIDENCE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div style={{ flex: "1 1 180px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  How confident is this count?
-                </label>
-                <select
-                  value={countConfidence}
-                  onChange={(e) => setCountConfidence(e.target.value)}
-                  style={{ width: "100%" }}
-                >
-                  {COUNT_CONFIDENCE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    How long have cats been here?
+                  </label>
+                  <select
+                    value={colonyDuration}
+                    onChange={(e) => setColonyDuration(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    {COLONY_DURATION_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  How long have cats been here?
-                </label>
-                <select
-                  value={colonyDuration}
-                  onChange={(e) => setColonyDuration(e.target.value)}
-                  style={{ width: "100%" }}
-                >
-                  {COLONY_DURATION_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    How long has requester known?
+                  </label>
+                  <select
+                    value={awarenessDuration}
+                    onChange={(e) => setAwarenessDuration(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    {COLONY_DURATION_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                    Helps assess colony stability
+                  </p>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* Wellness - Altered cats to check */}
@@ -1807,33 +1939,66 @@ function NewRequestForm() {
           </div>
 
           {isBeingFed && (
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-              <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Who feeds them?
-                </label>
-                <input
-                  type="text"
-                  value={feederName}
-                  onChange={(e) => setFeederName(e.target.value)}
-                  placeholder="Name of feeder"
-                  style={{ width: "100%" }}
-                />
+            <>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Who feeds them?
+                  </label>
+                  <input
+                    type="text"
+                    value={feederName}
+                    onChange={(e) => setFeederName(e.target.value)}
+                    placeholder="Name of feeder"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Feeding schedule
+                  </label>
+                  <input
+                    type="text"
+                    value={feedingSchedule}
+                    onChange={(e) => setFeedingSchedule(e.target.value)}
+                    placeholder="e.g., daily, twice daily, weekdays..."
+                    style={{ width: "100%" }}
+                  />
+                </div>
               </div>
 
-              <div style={{ flex: "1 1 200px" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Feeding schedule
-                </label>
-                <input
-                  type="text"
-                  value={feedingSchedule}
-                  onChange={(e) => setFeedingSchedule(e.target.value)}
-                  placeholder="e.g., 7am and 5pm daily"
-                  style={{ width: "100%" }}
-                />
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <div style={{ flex: "1 1 250px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Where are they fed?
+                  </label>
+                  <input
+                    type="text"
+                    value={feedingLocation}
+                    onChange={(e) => setFeedingLocation(e.target.value)}
+                    placeholder="e.g., back porch, by the shed, parking lot..."
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div style={{ flex: "1 1 180px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    What time(s)?
+                  </label>
+                  <input
+                    type="text"
+                    value={feedingTime}
+                    onChange={(e) => setFeedingTime(e.target.value)}
+                    placeholder="e.g., 7am and 5pm"
+                    style={{ width: "100%" }}
+                  />
+                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                    Helps trappers plan visits
+                  </p>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           <div>

@@ -16,7 +16,6 @@ import {
   createAtlasPinMarker,
   createReferencePinMarker,
   createAnnotationMarker,
-  generateLegendPinSvg,
 } from "@/lib/map-markers";
 import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
 import {
@@ -27,12 +26,36 @@ import {
   buildClinicClientPopup,
   buildZonePopup,
   escapeHtml,
-} from "@/components/map/MapPopup";
-import { PlaceDetailDrawer } from "@/components/map/PlaceDetailDrawer";
-import { AnnotationDetailDrawer } from "@/components/map/AnnotationDetailDrawer";
-import { PersonDetailDrawer } from "@/components/map/PersonDetailDrawer";
-import { CatDetailDrawer } from "@/components/map/CatDetailDrawer";
-import { PlacementPanel } from "@/components/map/PlacementPanel";
+  PlaceDetailDrawer,
+  AnnotationDetailDrawer,
+  PersonDetailDrawer,
+  CatDetailDrawer,
+  PlacementPanel,
+  MapLegend,
+  MapControls,
+  PRIMARY_LAYER_CONFIGS,
+  LEGACY_LAYER_CONFIGS,
+  LAYER_CONFIGS,
+  SERVICE_ZONES,
+} from "@/components/map";
+import type {
+  Place,
+  GooglePin,
+  TnrPriorityPlace,
+  Zone,
+  Volunteer,
+  ClinicClient,
+  HistoricalSource,
+  DataCoverageZone,
+  AtlasPin,
+  MapSummary,
+  PlacePrediction,
+  AtlasSearchResult,
+  NavigatedLocation,
+  Annotation,
+  RiskFilter,
+  DataFilter,
+} from "@/components/map";
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
@@ -45,223 +68,7 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// Types for map data
-interface Place {
-  id: string;
-  address: string;
-  lat: number;
-  lng: number;
-  cat_count: number;
-  priority: string;
-  has_observation: boolean;
-  service_zone: string;
-  primary_person_name?: string | null;
-  person_count?: number;
-}
-
-interface GooglePin {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  notes: string;
-  entry_type: string;
-  signals?: string[];
-  cat_count?: number | null;
-  ai_meaning?: string | null;
-  display_label?: string;
-  display_color?: string;
-  staff_alert?: boolean;
-  ai_confidence?: number | null;
-  disease_mentions?: string[] | null;
-  safety_concerns?: string[] | null;
-}
-
-interface TnrPriorityPlace {
-  id: string;
-  address: string;
-  lat: number;
-  lng: number;
-  cat_count: number;
-  altered_count: number;
-  alteration_rate: number;
-  tnr_priority: string;
-  has_observation: boolean;
-  service_zone: string;
-}
-
-interface Zone {
-  zone_id: string;
-  zone_code: string;
-  anchor_lat: number;
-  anchor_lng: number;
-  places_count: number;
-  total_cats: number;
-  observation_status: string;
-  boundary?: string;
-}
-
-interface Volunteer {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  role: string;
-  role_label: string;
-  service_zone: string | null;
-  is_active: boolean;
-}
-
-interface ClinicClient {
-  id: string;
-  address: string;
-  lat: number;
-  lng: number;
-  appointment_count: number;
-  cat_count: number;
-  last_visit: string;
-  service_zone: string;
-}
-
-// Google Places API types
-interface PlacePrediction {
-  place_id: string;
-  description: string;
-  structured_formatting: {
-    main_text: string;
-    secondary_text: string;
-  };
-}
-
-// Search result from Atlas search API
-interface AtlasSearchResult {
-  entity_type: string;
-  entity_id: string;
-  display_name: string;
-  subtitle: string | null;
-  metadata?: {
-    lat?: number;
-    lng?: number;
-  };
-}
-
-// Navigated location for addresses not in Atlas
-interface NavigatedLocation {
-  lat: number;
-  lng: number;
-  address: string;
-}
-
-interface HistoricalSource {
-  place_id: string;
-  address: string;
-  lat: number;
-  lng: number;
-  condition_type: string;
-  display_label: string;
-  display_color: string;
-  severity: string;
-  valid_from: string;
-  valid_to: string | null;
-  peak_cat_count: number | null;
-  ecological_impact: string | null;
-  description: string | null;
-  opacity: number;
-}
-
-interface DataCoverageZone {
-  zone_id: string;
-  zone_name: string;
-  google_maps_entries: number;
-  airtable_requests: number;
-  clinic_appointments: number;
-  intake_submissions: number;
-  coverage_level: string;
-}
-
-// NEW: Consolidated Atlas Pin from v_map_atlas_pins view
-interface AtlasPin {
-  id: string;
-  address: string;
-  display_name: string | null;
-  lat: number;
-  lng: number;
-  service_zone: string | null;
-  // For multi-unit clustering
-  parent_place_id: string | null;
-  place_kind: string | null;
-  unit_identifier: string | null;
-  cat_count: number;
-  people: Array<{ name: string; roles: string[]; is_staff: boolean }>;
-  person_count: number;
-  disease_risk: boolean;
-  disease_risk_notes: string | null;
-  disease_badges: Array<{ disease_key: string; short_code: string; color: string; status: string; last_positive: string | null; positive_cats: number }>;
-  disease_count: number;
-  watch_list: boolean;
-  google_entry_count: number;
-  google_summaries: Array<{ summary: string; meaning: string | null; date: string | null }>;
-  request_count: number;
-  active_request_count: number;
-  needs_trapper_count: number;
-  intake_count: number;
-  total_altered: number;
-  last_alteration_at: string | null;
-  pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
-  pin_tier: "active" | "reference";
-}
-
-interface MapSummary {
-  total_places: number;
-  total_cats: number;
-  zones_needing_obs: number;
-}
-
-// Layer configuration
-interface LayerConfig {
-  id: string;
-  label: string;
-  icon: string;
-  color: string;
-  description: string;
-  defaultEnabled: boolean;
-}
-
-// Primary layers (shown by default)
-const PRIMARY_LAYER_CONFIGS: LayerConfig[] = [
-  { id: "atlas_pins", label: "Atlas Data", icon: "📍", color: "#3b82f6", description: "Places, people, cats, and history", defaultEnabled: true },
-];
-
-// Legacy layers (hidden by default, advanced users only)
-const LEGACY_LAYER_CONFIGS: LayerConfig[] = [
-  { id: "places", label: "Cat Locations", icon: "🐱", color: "#3b82f6", description: "Places with verified cat activity", defaultEnabled: false },
-  { id: "google_pins", label: "All Google Pins", icon: "📍", color: "#f59e0b", description: "Google Maps historical data (AI classified)", defaultEnabled: false },
-  { id: "tnr_priority", label: "TNR Priority", icon: "🎯", color: "#dc2626", description: "Targeted TNR priority areas", defaultEnabled: false },
-  { id: "zones", label: "Observation Zones", icon: "📊", color: "#10b981", description: "Mark-recapture sampling zones", defaultEnabled: false },
-  { id: "volunteers", label: "Volunteers", icon: "⭐", color: "#FFD700", description: "FFSC trappers and volunteers", defaultEnabled: false },
-  { id: "clinic_clients", label: "Clinic Clients", icon: "🏥", color: "#8b5cf6", description: "Recent spay/neuter clients", defaultEnabled: false },
-  { id: "historical_sources", label: "Historical Sources", icon: "📜", color: "#9333ea", description: "Significant historical sources", defaultEnabled: false },
-  { id: "data_coverage", label: "Data Coverage", icon: "📊", color: "#059669", description: "Data density by zone", defaultEnabled: false },
-];
-
-// Combined for state initialization
-const LAYER_CONFIGS: LayerConfig[] = [...PRIMARY_LAYER_CONFIGS, ...LEGACY_LAYER_CONFIGS];
-
-// Map branding
-const MAP_TITLE = "Atlas Map";
-
-const SERVICE_ZONES = [
-  "All Zones",
-  "Santa Rosa",
-  "Petaluma",
-  "West County",
-  "North County",
-  "South County",
-  "Sonoma Valley",
-  "Other",
-];
-
-// Colors now imported from map-colors.ts
+// All type definitions and layer configs are now imported from @/components/map
 
 export default function AtlasMap() {
   const isMobile = useIsMobile();
@@ -297,9 +104,9 @@ export default function AtlasMap() {
   const [dataCoverage, setDataCoverage] = useState<DataCoverageZone[]>([]);
   const [summary, setSummary] = useState<MapSummary | null>(null);
 
-  // Filters for atlas_pins layer
-  const [riskFilter, setRiskFilter] = useState<"all" | "disease" | "watch_list" | "needs_tnr" | "needs_trapper">("all");
-  const [dataFilter, setDataFilter] = useState<"all" | "has_atlas" | "has_google" | "has_people">("all");
+  // Filters for atlas_pins layer (types imported from @/components/map)
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
+  const [dataFilter, setDataFilter] = useState<DataFilter>("all");
   const [diseaseFilter, setDiseaseFilter] = useState<string[]>([]);
 
   // Show legacy layers toggle
@@ -332,19 +139,7 @@ export default function AtlasMap() {
   const [pendingClick, setPendingClick] = useState<{ lat: number; lng: number } | null>(null);
   const [showAddPointMenu, setShowAddPointMenu] = useState(false);
 
-  // Annotations state
-  interface Annotation {
-    annotation_id: string;
-    lat: number;
-    lng: number;
-    label: string;
-    note: string | null;
-    photo_url: string | null;
-    annotation_type: string;
-    created_by: string;
-    expires_at: string | null;
-    created_at: string;
-  }
+  // Annotations state (Annotation type imported from @/components/map)
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const annotationLayerRef = useRef<L.LayerGroup | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
@@ -2450,99 +2245,24 @@ export default function AtlasMap() {
       )}
 
       {/* Right side controls */}
-      <div style={{
-        position: "absolute",
-        top: 16,
-        right: 16,
-        zIndex: 1000,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}>
-        {/* Layer control button */}
-        <button
-          onClick={() => setShowLayerPanel(!showLayerPanel)}
-          title="Toggle layers (L)"
-          className="map-control-btn"
-        >
-          <span style={{ fontSize: 18 }}>☰</span>
-          {!isMobile && "Layers"}
-        </button>
-
-        {/* Add Point button */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => {
-              if (addPointMode) {
-                setAddPointMode(null);
-                setPendingClick(null);
-                setShowAddPointMenu(false);
-              } else {
-                setShowAddPointMenu(prev => !prev);
-              }
-            }}
-            title="Add point to map (A)"
-            className={`map-control-btn ${addPointMode ? 'map-control-btn--active' : ''}`}
-          >
-            <span style={{ fontSize: 18 }}>{addPointMode ? "✕" : "+"}</span>
-            {!isMobile && (addPointMode ? "Cancel" : "Add Point")}
-          </button>
-          {showAddPointMenu && !addPointMode && (
-            <div className="map-add-point-menu">
-              <button
-                onClick={() => { setAddPointMode('place'); setShowAddPointMenu(false); }}
-                className="map-add-point-menu__item"
-              >
-                📍 Add Place
-              </button>
-              <button
-                onClick={() => { setAddPointMode('annotation'); setShowAddPointMenu(false); }}
-                className="map-add-point-menu__item"
-              >
-                📝 Add Note
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* My Location button */}
-        <button
-          onClick={handleMyLocation}
-          disabled={locatingUser}
-          title="My location (M)"
-          className="map-control-btn"
-          style={{ opacity: locatingUser ? 0.7 : 1, cursor: locatingUser ? "wait" : "pointer" }}
-        >
-          <span style={{ fontSize: 18 }}>{locatingUser ? "⏳" : "📍"}</span>
-          {!isMobile && (locatingUser ? "Locating..." : "My Location")}
-        </button>
-
-        {/* Satellite toggle */}
-        <button
-          onClick={() => setIsSatellite(!isSatellite)}
-          title={isSatellite ? "Street view" : "Satellite view"}
-          className={`map-control-btn ${isSatellite ? 'map-control-btn--active' : ''}`}
-        >
-          <span style={{ fontSize: 18 }}>{isSatellite ? "🗺️" : "🛰️"}</span>
-          {!isMobile && (isSatellite ? "Street" : "Satellite")}
-        </button>
-
-        {/* Zoom controls */}
-        <div className="map-zoom-controls">
-          <button
-            onClick={() => mapRef.current?.zoomIn()}
-            title="Zoom in (+)"
-          >
-            +
-          </button>
-          <button
-            onClick={() => mapRef.current?.zoomOut()}
-            title="Zoom out (-)"
-          >
-            −
-          </button>
-        </div>
-      </div>
+      <MapControls
+        isMobile={isMobile}
+        showLayerPanel={showLayerPanel}
+        onToggleLayerPanel={() => setShowLayerPanel(!showLayerPanel)}
+        addPointMode={addPointMode}
+        onAddPointModeChange={(mode) => {
+          setAddPointMode(mode);
+          if (mode === null) setPendingClick(null);
+        }}
+        showAddPointMenu={showAddPointMenu}
+        onShowAddPointMenuChange={setShowAddPointMenu}
+        locatingUser={locatingUser}
+        onMyLocation={handleMyLocation}
+        isSatellite={isSatellite}
+        onSatelliteToggle={() => setIsSatellite(!isSatellite)}
+        onZoomIn={() => mapRef.current?.zoomIn()}
+        onZoomOut={() => mapRef.current?.zoomOut()}
+      />
 
       {/* Layer panel */}
       {showLayerPanel && (
@@ -3121,101 +2841,11 @@ export default function AtlasMap() {
       </div>}
 
       {/* Map Legend */}
-      <div className="map-legend" style={{
-        position: "absolute",
-        bottom: 24,
-        left: 16,
-        zIndex: 1002,
-      }}>
-        <button
-          onClick={() => setShowLegend(prev => !prev)}
-          className="map-legend-toggle"
-          title="Toggle legend"
-        >
-          {showLegend ? "Legend \u25BC" : "?"}
-        </button>
-        {showLegend && (
-          <div className="map-legend-panel">
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Active Pins</div>
-            {[
-              { color: "#ea580c", label: "Disease Risk", pinStyle: "disease" },
-              { color: "#8b5cf6", label: "Watch List", pinStyle: "watch_list" },
-              { color: "#22c55e", label: "Verified Cats", pinStyle: "active" },
-              { color: "#14b8a6", label: "Requests Only", pinStyle: "active_requests" },
-            ].map(({ color, label, pinStyle }) => (
-              <div key={label} className="map-legend-item">
-                <span
-                  dangerouslySetInnerHTML={{ __html: generateLegendPinSvg(color, pinStyle, 14) }}
-                  style={{ display: "inline-flex", width: 14, height: 19, flexShrink: 0 }}
-                />
-                <span className="map-legend-label">{label}</span>
-              </div>
-            ))}
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Reference Pins</div>
-            {[
-              { color: "#6366f1", label: "History Only", pinStyle: "has_history" },
-              { color: "#94a3b8", label: "Minimal Data", pinStyle: "minimal" },
-            ].map(({ color, label, pinStyle }) => (
-              <div key={label} className="map-legend-item">
-                <span
-                  dangerouslySetInnerHTML={{ __html: generateLegendPinSvg(color, pinStyle, 12) }}
-                  style={{ display: "inline-flex", width: 12, height: 16, flexShrink: 0, opacity: 0.65 }}
-                />
-                <span className="map-legend-label">{label}</span>
-              </div>
-            ))}
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Pin Badges</div>
-            <div className="map-legend-item">
-              <span style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: 14, height: 14, borderRadius: "50%", background: "#7c3aed", flexShrink: 0,
-              }}>
-                <svg width="8" height="8" viewBox="-3.5 -3.5 7 7">
-                  <polygon points="0,-3.2 1.2,-1 3.4,-1 1.6,0.6 2.4,3 0,1.6 -2.4,3 -1.6,0.6 -3.4,-1 -1.2,-1" fill="white" transform="scale(0.7)" />
-                </svg>
-              </span>
-              <span className="map-legend-label">Volunteer / Staff</span>
-            </div>
-            <div className="map-legend-item">
-              <span style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: 14, height: 14, borderRadius: "50%", background: "#f97316", flexShrink: 0,
-                color: "white", fontSize: 9, fontWeight: 700,
-              }}>
-                T
-              </span>
-              <span className="map-legend-label">Needs Trapper</span>
-            </div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Disease Badges</div>
-            {[
-              { color: "#dc2626", code: "F", label: "FeLV" },
-              { color: "#ea580c", code: "V", label: "FIV" },
-              { color: "#ca8a04", code: "R", label: "Ringworm" },
-              { color: "#7c3aed", code: "H", label: "Heartworm" },
-              { color: "#be185d", code: "P", label: "Panleukopenia" },
-            ].map(({ color, code, label }) => (
-              <div key={code} className="map-legend-item">
-                <span className="map-legend-swatch" style={{
-                  background: color,
-                  borderRadius: "50%",
-                  width: 14,
-                  height: 14,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  fontSize: 8,
-                  fontWeight: 700,
-                }}>{code}</span>
-                <span className="map-legend-label">{label}</span>
-              </div>
-            ))}
-            <div style={{ borderTop: "1px solid #e5e7eb", marginTop: 8, paddingTop: 6, fontSize: 10, color: "#9ca3af" }}>
-              <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3, fontSize: 9 }}>K</kbd> toggle legend
-            </div>
-          </div>
-        )}
-      </div>
+      <MapLegend
+        showLegend={showLegend}
+        onToggle={() => setShowLegend(prev => !prev)}
+        isMobile={isMobile}
+      />
 
       {/* CSS animations are in atlas-map.css */}
 

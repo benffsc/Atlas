@@ -13,9 +13,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call the SQL function to convert to request
+    // Call the SQL function to convert to request (MIG_2531: using ops schema)
     const result = await queryOne<{ request_id: string }>(
-      `SELECT sot.convert_intake_to_request($1, $2) as request_id`,
+      `SELECT ops.convert_intake_to_request($1, $2) as request_id`,
       [submission_id, converted_by]
     );
 

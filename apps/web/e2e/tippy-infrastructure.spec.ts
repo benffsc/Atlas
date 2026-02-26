@@ -1,22 +1,222 @@
 /**
  * Tippy Infrastructure Tests
  *
- * Tests the new Tippy infrastructure from MIG_517-521:
- * - View catalog (MIG_517)
- * - Proposed corrections (MIG_518)
- * - Unanswerable tracking (MIG_519)
- * - View usage analytics (MIG_520)
+ * TIER 1 (Mocked): Tests authentication, error handling, and API plumbing
+ *   - Runs always, no API credits used
+ *   - Fast and reliable
  *
- * All tests are READ-ONLY except for view usage which is safe analytics logging.
- * Tests verify the infrastructure exists and functions, NOT that Tippy writes to it.
+ * TIER 3 (@real-api): Tests actual AI capabilities via MIG_517-521
+ *   - Runs only when INCLUDE_REAL_API=1 or with --grep="@real-api"
+ *   - Uses real Anthropic API credits
+ *
+ * @see docs/E2E_TEST_UPGRADE_PLAN.md for the full testing strategy
  */
 
 import { test, expect } from "@playwright/test";
+import {
+  mockTippyAPI,
+  mockTippyError,
+  mockTippyWithToolResult,
+  askTippyAuthenticated,
+} from "./helpers/auth-api";
 
 // ============================================================================
-// HELPERS
+// TIER 1: MOCKED INFRASTRUCTURE TESTS (Always run, no API credits)
 // ============================================================================
 
+test.describe("Tippy Infrastructure (Mocked)", () => {
+  test.describe("Authentication", () => {
+    test("handles unauthenticated request appropriately", async ({ request }) => {
+      // Use standalone request (no auth cookies)
+      const response = await request.post("/api/tippy/chat", {
+        data: { message: "Hello" },
+      });
+
+      // API should either:
+      // 1. Return an error status (401, 403, etc.)
+      // 2. Return 200 with an access/auth-related message
+      // 3. Return a valid response if anonymous access is allowed
+      // The key is that it responds gracefully without crashing
+      expect(response.status()).toBeLessThan(500);
+      const data = await response.json();
+      expect(data).toHaveProperty("message");
+    });
+
+    test("accepts request with valid session", async ({ page }) => {
+      // Note: page.request bypasses page.route() mocks, so this tests the real API
+      // with authenticated session
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: "Hello" },
+      });
+
+      expect(response.ok()).toBeTruthy();
+      const data = await response.json();
+      expect(data.message).toBeTruthy();
+    });
+  });
+
+  test.describe("Request Validation", () => {
+    test("rejects empty message", async ({ page }) => {
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: "" },
+      });
+
+      expect(response.status()).toBe(400);
+    });
+
+    test("rejects missing message field", async ({ page }) => {
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { wrongField: "test" },
+      });
+
+      expect(response.status()).toBe(400);
+    });
+
+    test("accepts valid message format", async ({ page }) => {
+      await mockTippyAPI(page, "I can help with that!");
+
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: "What time is it?" },
+      });
+
+      expect(response.ok()).toBeTruthy();
+    });
+
+    test("accepts message with conversation history", async ({ page }) => {
+      await mockTippyAPI(page, "Based on our conversation...");
+
+      const response = await page.request.post("/api/tippy/chat", {
+        data: {
+          message: "And what about cats?",
+          history: [
+            { role: "user", content: "Tell me about dogs" },
+            { role: "assistant", content: "Dogs are great pets!" },
+          ],
+          conversationId: "test-conv-123",
+        },
+      });
+
+      expect(response.ok()).toBeTruthy();
+    });
+  });
+
+  test.describe("Response Format", () => {
+    test("returns message field in response", async ({ page }) => {
+      await mockTippyAPI(page, "Test response");
+
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: "Test" },
+      });
+
+      const data = await response.json();
+      expect(data).toHaveProperty("message");
+      expect(typeof data.message).toBe("string");
+    });
+
+    test("returns conversationId for session continuity", async ({ page }) => {
+      await mockTippyAPI(page, "Hello!", { conversationId: "conv-abc-123" });
+
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: "Hello" },
+      });
+
+      const data = await response.json();
+      expect(data).toHaveProperty("conversationId");
+    });
+  });
+
+  test.describe("Error Handling", () => {
+    // Note: page.route() mocks don't intercept page.request calls
+    // These tests use browser-based fetch to enable mocking
+    test("handles rate limiting gracefully", async ({ page, baseURL }) => {
+      // Need to be on a page for browser fetch to work
+      await page.goto("/");
+      await mockTippyError(page, "rate-limit");
+
+      // Use browser fetch which IS intercepted by page.route()
+      const result = await page.evaluate(async (url) => {
+        const res = await fetch(`${url}/api/tippy/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Hello" }),
+        });
+        return { status: res.status, body: await res.json() };
+      }, baseURL);
+
+      expect(result.status).toBe(429);
+    });
+
+    test("returns friendly message on server error", async ({ page, baseURL }) => {
+      await page.goto("/");
+      await mockTippyError(page, "server-error");
+
+      const result = await page.evaluate(async (url) => {
+        const res = await fetch(`${url}/api/tippy/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Hello" }),
+        });
+        return { status: res.status, body: await res.json() };
+      }, baseURL);
+
+      expect(result.body.message).toContain("trouble connecting");
+    });
+  });
+
+  test.describe("Tool Execution Plumbing", () => {
+    test("handles tool responses correctly", async ({ page, baseURL }) => {
+      await page.goto("/");
+      await mockTippyWithToolResult(
+        page,
+        "query_cats_at_place",
+        { cats: [{ name: "Whiskers" }], count: 1 },
+        "I found 1 cat at that location: Whiskers."
+      );
+
+      // Use browser fetch which IS intercepted by page.route()
+      const result = await page.evaluate(async (url) => {
+        const res = await fetch(`${url}/api/tippy/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "How many cats at 123 Main St?" }),
+        });
+        return { status: res.status, body: await res.json() };
+      }, baseURL);
+
+      expect(result.body.message).toContain("Whiskers");
+    });
+  });
+
+  test.describe("Content Security", () => {
+    test("handles special characters in messages", async ({ page }) => {
+      await mockTippyAPI(page, "I understood your question.");
+
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: "What about <script>alert('xss')</script>?" },
+      });
+
+      expect(response.ok()).toBeTruthy();
+    });
+
+    test("handles very long messages", async ({ page }) => {
+      await mockTippyAPI(page, "That's a lot of text!");
+
+      const longMessage = "a".repeat(5000);
+      const response = await page.request.post("/api/tippy/chat", {
+        data: { message: longMessage },
+      });
+
+      expect(response.status()).not.toBe(500);
+    });
+  });
+});
+
+// ============================================================================
+// TIER 3: REAL API TESTS (@real-api - runs only when explicitly requested)
+// These test actual Tippy AI capabilities against real Anthropic API
+// ============================================================================
+
+// Helper for real API tests
 interface TippyResponse {
   message?: string;
   response?: string;
@@ -55,7 +255,7 @@ async function askTippy(
 // Tests the tippy_view_catalog and discovery functions
 // ============================================================================
 
-test.describe("Tippy Infrastructure: View Catalog (MIG_517) @smoke", () => {
+test.describe("Tippy Infrastructure: View Catalog (MIG_517) @real-api", () => {
   test.setTimeout(90000); // 90 seconds for view catalog operations
 
   test("discover_views tool returns available views", async ({ request }) => {
@@ -136,7 +336,7 @@ test.describe("Tippy Infrastructure: View Catalog (MIG_517) @smoke", () => {
 // READ-ONLY: We query existing corrections, don't create new ones
 // ============================================================================
 
-test.describe("Tippy Infrastructure: Proposed Corrections (MIG_518) @smoke", () => {
+test.describe("Tippy Infrastructure: Proposed Corrections (MIG_518) @real-api", () => {
   test.setTimeout(60000);
 
   test("admin API for corrections exists and responds", async ({ request }) => {
@@ -202,7 +402,7 @@ test.describe("Tippy Infrastructure: Proposed Corrections (MIG_518) @smoke", () 
 // READ-ONLY: We verify the tracking exists
 // ============================================================================
 
-test.describe("Tippy Infrastructure: Unanswerable Tracking (MIG_519) @smoke", () => {
+test.describe("Tippy Infrastructure: Unanswerable Tracking (MIG_519) @real-api", () => {
   test.setTimeout(60000);
 
   test("admin API for gaps exists and responds", async ({ request }) => {
@@ -261,7 +461,7 @@ test.describe("Tippy Infrastructure: Unanswerable Tracking (MIG_519) @smoke", ()
 // This DOES write analytics data, which is safe
 // ============================================================================
 
-test.describe("Tippy Infrastructure: View Usage Analytics (MIG_520)", () => {
+test.describe("Tippy Infrastructure: View Usage Analytics (MIG_520) @real-api", () => {
   test.setTimeout(90000); // 90 seconds
 
   test("view usage is tracked after queries", async ({ request }) => {
@@ -294,7 +494,7 @@ test.describe("Tippy Infrastructure: View Usage Analytics (MIG_520)", () => {
 // Tests the comprehensive entity exploration tool
 // ============================================================================
 
-test.describe("Tippy Infrastructure: explore_entity Tool @smoke", () => {
+test.describe("Tippy Infrastructure: explore_entity Tool @real-api", () => {
   test.setTimeout(120000); // 2 minutes for entity exploration
 
   test("explore_entity returns person data", async ({
@@ -350,7 +550,7 @@ test.describe("Tippy Infrastructure: explore_entity Tool @smoke", () => {
 // Tests Tippy's ability to navigate the view schema
 // ============================================================================
 
-test.describe("Tippy Infrastructure: Schema Navigation @smoke", () => {
+test.describe("Tippy Infrastructure: Schema Navigation @real-api", () => {
   test.setTimeout(90000); // 90 seconds
 
   test("can describe available view categories", async ({ request }) => {
@@ -402,7 +602,7 @@ test.describe("Tippy Infrastructure: Schema Navigation @smoke", () => {
 // ERROR HANDLING TESTS
 // ============================================================================
 
-test.describe("Tippy Infrastructure: Error Handling", () => {
+test.describe("Tippy Infrastructure: Error Handling @real-api", () => {
   test.setTimeout(60000);
 
   test("handles malformed view query gracefully", async ({ request }) => {

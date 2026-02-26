@@ -22,6 +22,7 @@ interface ProcessingStats {
   placesCreated: number;
   placesMatched: number;
   errors: number;
+  ownerChangesDetected?: number; // MIG_2504: Owner changes requiring review
   files?: {
     cat_info: number;
     owner_info: number;
@@ -723,6 +724,45 @@ export default function V2IngestPage() {
               color: "var(--error, #dc2626)",
             }}>
               <strong>Errors:</strong> {result.stats.errors} rows failed to process
+            </div>
+          )}
+
+          {/* MIG_2504: Owner changes notification */}
+          {(result.stats.ownerChangesDetected || 0) > 0 && (
+            <div style={{
+              marginTop: "1rem",
+              padding: "1rem",
+              background: "#fef3c7",
+              border: "1px solid #fcd34d",
+              borderRadius: "0.5rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1rem",
+            }}>
+              <div>
+                <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.25rem" }}>
+                  {result.stats.ownerChangesDetected} Owner Change{result.stats.ownerChangesDetected !== 1 ? "s" : ""} Detected
+                </div>
+                <div style={{ fontSize: "0.875rem", color: "#a16207" }}>
+                  Review changes where owner contact info differs from existing records.
+                </div>
+              </div>
+              <Link
+                href="/admin/owner-changes"
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#f59e0b",
+                  color: "white",
+                  borderRadius: "0.375rem",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Review Changes
+              </Link>
             </div>
           )}
         </div>

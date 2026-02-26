@@ -14,6 +14,8 @@ interface SearchResult {
   microchip: string | null;
   clinichq_animal_id: string | null;
   owner_name: string | null;
+  // DATA_GAP_053: Original booking name from ClinicHQ (may differ from owner_name)
+  booked_as: string | null;
   place_address: string | null;
   sex: string | null;
   primary_color: string | null;
@@ -74,14 +76,16 @@ export async function GET(request: NextRequest) {
       ),
       -- Get only the first appointment per cat for the selected date (avoid duplicates)
       first_appointment AS (
-        SELECT DISTINCT ON (cat_id)
-          cat_id,
-          appointment_id,
-          appointment_date,
-          clinic_day_number
-        FROM ops.appointments
-        WHERE appointment_date = $2
-        ORDER BY cat_id, appointment_number NULLS LAST, created_at
+        SELECT DISTINCT ON (a.cat_id)
+          a.cat_id,
+          a.appointment_id,
+          a.appointment_date,
+          a.clinic_day_number,
+          -- DATA_GAP_053: Include owner_account_id for booked_as lookup
+          a.owner_account_id
+        FROM ops.appointments a
+        WHERE a.appointment_date = $2
+        ORDER BY a.cat_id, a.appointment_number NULLS LAST, a.created_at
       ),
       -- Deduplicated cat results with proper sorting
       cat_results AS (
@@ -128,6 +132,14 @@ export async function GET(request: NextRequest) {
             ORDER BY pc.confidence DESC NULLS LAST, pc.created_at DESC
             LIMIT 1
           ) AS owner_name,
+          -- DATA_GAP_053: Original booking name from clinic_accounts (may differ from owner_name)
+          (
+            SELECT ca.display_name
+            FROM ops.clinic_accounts ca
+            WHERE ca.account_id = fa.owner_account_id
+              AND ca.merged_into_account_id IS NULL
+            LIMIT 1
+          ) AS booked_as,
           -- Place address via subquery to avoid cartesian product (one row per cat)
           -- V2: Uses sot.cat_place (not sot.cat_place_relationships)
           (
@@ -139,8 +151,15 @@ export async function GET(request: NextRequest) {
             ORDER BY cp.confidence DESC NULLS LAST, cp.created_at DESC
             LIMIT 1
           ) AS place_address,
-          -- V2: ops.request_media not yet migrated
-          NULL AS photo_url,
+          -- Get photo with priority: 1) hero (main photo), 2) most recent
+          (
+            SELECT rm.storage_path
+            FROM ops.request_media rm
+            WHERE rm.cat_id = c.cat_id
+              AND rm.is_archived = FALSE
+            ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
+            LIMIT 1
+          ) AS photo_url,
           -- Check if from selected clinic day
           (c.cat_id IN (SELECT cat_id FROM clinic_day_cats)) AS is_from_clinic_day,
           -- Get appointment info for selected date (using deduplicated first_appointment)
@@ -202,6 +221,7 @@ export async function GET(request: NextRequest) {
         microchip,
         clinichq_animal_id,
         owner_name,
+        booked_as,
         place_address,
         photo_url,
         is_from_clinic_day,
@@ -235,15 +255,17 @@ export async function GET(request: NextRequest) {
         ),
         -- Get only the first appointment per cat for the selected date (avoid duplicates)
         first_appointment AS (
-          SELECT DISTINCT ON (cat_id)
-            cat_id,
-            appointment_id,
-            appointment_date,
-            clinic_day_number,
-            appointment_number
-          FROM ops.appointments
-          WHERE appointment_date = $2
-          ORDER BY cat_id, appointment_number NULLS LAST, created_at
+          SELECT DISTINCT ON (a.cat_id)
+            a.cat_id,
+            a.appointment_id,
+            a.appointment_date,
+            a.clinic_day_number,
+            a.appointment_number,
+            -- DATA_GAP_053: Include owner_account_id for booked_as lookup
+            a.owner_account_id
+          FROM ops.appointments a
+          WHERE a.appointment_date = $2
+          ORDER BY a.cat_id, a.appointment_number NULLS LAST, a.created_at
         ),
         cat_results AS (
           SELECT
@@ -273,6 +295,14 @@ export async function GET(request: NextRequest) {
               ORDER BY pc.confidence DESC NULLS LAST, pc.created_at DESC
               LIMIT 1
             ) AS owner_name,
+            -- DATA_GAP_053: Original booking name from clinic_accounts (may differ from owner_name)
+            (
+              SELECT ca.display_name
+              FROM ops.clinic_accounts ca
+              WHERE ca.account_id = fa.owner_account_id
+                AND ca.merged_into_account_id IS NULL
+              LIMIT 1
+            ) AS booked_as,
             (
               SELECT pl.formatted_address
               FROM sot.cat_place cp
@@ -330,7 +360,7 @@ export async function GET(request: NextRequest) {
         SELECT
           cat_id, display_name, sex, primary_color, is_deceased, deceased_date,
           death_cause, needs_microchip, felv_status, fiv_status, microchip,
-          clinichq_animal_id, owner_name, place_address, photo_url,
+          clinichq_animal_id, owner_name, booked_as, place_address, photo_url,
           is_from_clinic_day, appointment_id, appointment_date, clinic_day_number,
           all_appointments
         FROM cat_results
