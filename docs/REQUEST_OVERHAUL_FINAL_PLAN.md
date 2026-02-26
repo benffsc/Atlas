@@ -460,6 +460,26 @@ Extract from request:
 - Paused: 15 requests
 - **Total Active: 82 requests**
 
+### Navigation Overhaul (SidebarLayout.tsx - RequestsSidebar)
+
+**Current sidebar has:**
+- Quick Filters: New, Working, Paused, Completed (✅ already updated in code)
+- Links to Intake Queue and Trappers
+
+**Improvements needed:**
+1. **Add assignment filters** - "My Assigned", "Needs Trapper", "Client Trapping"
+2. **Add urgency filter** - "Urgent" quick link
+3. **Add counts to sidebar** - Show "(12)" next to each status
+4. **Highlight attention items** - Badge for requests needing attention
+5. **Quick actions** - "Enter Call Sheet", "Print Call Sheet" in sidebar
+
+**DEPLOYMENT NOTE:** If production is missing these changes, ensure deployment includes:
+- `SidebarLayout.tsx` (RequestsSidebar with new status links)
+- `SavedFilters.tsx` (expandStatusFilter for legacy compatibility)
+- `request-status.ts` (single source of truth)
+- `StatusPipeline.tsx` (4-state system)
+- `QuickActions.tsx` (mapToPrimaryStatus)
+
 ---
 
 ## Success Metrics
