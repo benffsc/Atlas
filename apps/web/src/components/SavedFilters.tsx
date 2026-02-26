@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import {
+  expandStatusFilter,
+  PRESET_STATUS_FILTERS,
+  type PrimaryStatus,
+} from "@/lib/request-status";
 
 export interface RequestFilters {
   status?: string[];
@@ -27,17 +32,26 @@ interface SavedFiltersProps {
   currentStaffId?: string | null;
 }
 
+/**
+ * Preset filters using the simplified 4-state system (MIG_2530).
+ *
+ * Note: expandStatusFilter() is called at query time to include
+ * legacy statuses in database queries for backward compatibility.
+ * E.g., "working" expands to ["working", "scheduled", "in_progress", "active"]
+ */
 const PRESET_FILTERS: SavedFilter[] = [
   {
     id: "all-active",
     name: "All Active",
-    filters: { status: ["new", "triaged", "scheduled", "in_progress", "on_hold"] },
+    // Includes new, working, paused (not completed)
+    filters: { status: expandStatusFilter(["new", "working", "paused"]) },
     isPreset: true,
   },
   {
-    id: "needs-triage",
-    name: "Needs Triage",
-    filters: { status: ["new"] },
+    id: "needs-attention",
+    name: "Needs Attention",
+    // New requests awaiting initial review
+    filters: { status: expandStatusFilter(["new"]) },
     isPreset: true,
   },
   {
@@ -53,21 +67,24 @@ const PRESET_FILTERS: SavedFilter[] = [
     isPreset: true,
   },
   {
-    id: "on-hold",
-    name: "On Hold",
-    filters: { status: ["on_hold"] },
+    id: "paused",
+    name: "Paused",
+    // On hold - waiting for something
+    filters: { status: expandStatusFilter(["paused"]) },
     isPreset: true,
   },
   {
-    id: "scheduled",
-    name: "Scheduled",
-    filters: { status: ["scheduled"] },
+    id: "working",
+    name: "Working",
+    // Actively being handled (includes legacy scheduled, in_progress, active)
+    filters: { status: expandStatusFilter(["working"]) },
     isPreset: true,
   },
   {
-    id: "in-progress",
-    name: "In Progress",
-    filters: { status: ["in_progress"] },
+    id: "completed",
+    name: "Completed",
+    // Finished requests (includes legacy cancelled, partial, redirected, handed_off)
+    filters: { status: expandStatusFilter(["completed"]) },
     isPreset: true,
   },
 ];

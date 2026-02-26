@@ -2,6 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  mapToPrimaryStatus,
+  isTerminalStatus,
+  type RequestStatus,
+} from "@/lib/request-status";
 
 interface QuickAction {
   id: string;
@@ -77,6 +82,17 @@ const variantStyles: Record<string, React.CSSProperties> = {
   },
 };
 
+/**
+ * Get quick actions for a request based on its current status.
+ *
+ * Uses the simplified 4-state system (MIG_2530):
+ * - new: Awaiting initial review
+ * - working: Actively being handled (combines legacy scheduled, in_progress)
+ * - paused: On hold (combines legacy on_hold)
+ * - completed: Finished
+ *
+ * Legacy statuses are mapped to their primary equivalent for action logic.
+ */
 function getRequestActions(
   state: RequestState,
   entityId: string,
@@ -85,26 +101,35 @@ function getRequestActions(
 ): QuickAction[] {
   const actions: QuickAction[] = [];
 
-  // Based on status
-  switch (state.status) {
+  // Map legacy status to primary for action logic
+  const primaryStatus = mapToPrimaryStatus(state.status as RequestStatus);
+  const isTerminal = isTerminalStatus(state.status as RequestStatus);
+
+  // Based on primary status
+  switch (primaryStatus) {
     case "new":
+      // New requests need triage/review
       actions.push({
-        id: "triage",
-        label: "Triage",
-        icon: "📋",
-        onClick: () => {
-          // Scroll to status section or open edit mode
-          const editBtn = document.querySelector("[data-edit-request]");
-          if (editBtn instanceof HTMLButtonElement) {
-            editBtn.click();
+        id: "start_working",
+        label: "Start Working",
+        icon: "▶️",
+        onClick: async () => {
+          try {
+            const response = await fetch(`/api/requests/${entityId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "working" }),
+            });
+            if (response.ok && onComplete) {
+              onComplete();
+            }
+          } catch (err) {
+            console.error("Failed to update status:", err);
           }
         },
         variant: "primary",
-        tooltip: "Review and set priority",
+        tooltip: "Begin working on this request",
       });
-      break;
-
-    case "triaged":
       if (!state.has_trappers) {
         actions.push({
           id: "assign",
@@ -116,63 +141,14 @@ function getRequestActions(
               assignBtn.click();
             }
           },
-          variant: "primary",
+          variant: "secondary",
           tooltip: "Assign a trapper to this request",
         });
       }
-      actions.push({
-        id: "schedule",
-        label: "Schedule",
-        icon: "📅",
-        onClick: () => {
-          const editBtn = document.querySelector("[data-edit-request]");
-          if (editBtn instanceof HTMLButtonElement) {
-            editBtn.click();
-          }
-        },
-        variant: "secondary",
-        tooltip: "Set a scheduled date",
-      });
       break;
 
-    case "scheduled":
-      actions.push({
-        id: "start",
-        label: "Start Work",
-        icon: "▶️",
-        onClick: async () => {
-          try {
-            const response = await fetch(`/api/requests/${entityId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "in_progress" }),
-            });
-            if (response.ok && onComplete) {
-              onComplete();
-            }
-          } catch (err) {
-            console.error("Failed to update status:", err);
-          }
-        },
-        variant: "primary",
-        tooltip: "Mark as in progress",
-      });
-      actions.push({
-        id: "site_visit",
-        label: "Log Visit",
-        icon: "📝",
-        onClick: () => {
-          const visitBtn = document.querySelector("[data-log-visit]");
-          if (visitBtn instanceof HTMLButtonElement) {
-            visitBtn.click();
-          }
-        },
-        variant: "secondary",
-        tooltip: "Log a site visit observation",
-      });
-      break;
-
-    case "in_progress":
+    case "working":
+      // Working requests can log visits or be completed
       actions.push({
         id: "site_visit",
         label: "Log Visit",
@@ -199,9 +175,25 @@ function getRequestActions(
         variant: "success",
         tooltip: "Mark request as completed",
       });
+      if (!state.has_trappers) {
+        actions.push({
+          id: "assign",
+          label: "Assign Trapper",
+          icon: "👤",
+          onClick: () => {
+            const assignBtn = document.querySelector("[data-assign-trapper]");
+            if (assignBtn instanceof HTMLButtonElement) {
+              assignBtn.click();
+            }
+          },
+          variant: "secondary",
+          tooltip: "Assign a trapper to this request",
+        });
+      }
       break;
 
-    case "on_hold":
+    case "paused":
+      // Paused requests can be resumed
       actions.push({
         id: "resume",
         label: "Resume",
@@ -211,7 +203,7 @@ function getRequestActions(
             const response = await fetch(`/api/requests/${entityId}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "triaged", hold_reason: null }),
+              body: JSON.stringify({ status: "working", hold_reason: null }),
             });
             if (response.ok && onComplete) {
               onComplete();
@@ -221,42 +213,61 @@ function getRequestActions(
           }
         },
         variant: "primary",
-        tooltip: "Remove from hold and resume",
+        tooltip: "Remove from hold and resume working",
       });
+      actions.push({
+        id: "complete",
+        label: "Complete",
+        icon: "✅",
+        onClick: () => {
+          const completeBtn = document.querySelector("[data-complete-request]");
+          if (completeBtn instanceof HTMLButtonElement) {
+            completeBtn.click();
+          }
+        },
+        variant: "secondary",
+        tooltip: "Mark request as completed",
+      });
+      break;
+
+    case "completed":
+      // No actions for completed requests
       break;
   }
 
-  // Context-based suggestions
-  if (state.has_kittens && state.status !== "completed" && state.status !== "cancelled") {
-    actions.push({
-      id: "kitten_assess",
-      label: "Assess Kittens",
-      icon: "🐱",
-      onClick: () => {
-        const kittenBtn = document.querySelector("[data-kitten-assessment]");
-        if (kittenBtn instanceof HTMLButtonElement) {
-          kittenBtn.click();
-        }
-      },
-      variant: "warning",
-      tooltip: "Complete kitten assessment",
-    });
-  }
+  // Context-based suggestions (only for active requests)
+  if (!isTerminal) {
+    if (state.has_kittens) {
+      actions.push({
+        id: "kitten_assess",
+        label: "Assess Kittens",
+        icon: "🐱",
+        onClick: () => {
+          const kittenBtn = document.querySelector("[data-kitten-assessment]");
+          if (kittenBtn instanceof HTMLButtonElement) {
+            kittenBtn.click();
+          }
+        },
+        variant: "warning",
+        tooltip: "Complete kitten assessment",
+      });
+    }
 
-  if (!state.has_place) {
-    actions.push({
-      id: "add_place",
-      label: "Add Location",
-      icon: "📍",
-      onClick: () => {
-        const editBtn = document.querySelector("[data-edit-request]");
-        if (editBtn instanceof HTMLButtonElement) {
-          editBtn.click();
-        }
-      },
-      variant: "warning",
-      tooltip: "Request needs a location",
-    });
+    if (!state.has_place) {
+      actions.push({
+        id: "add_place",
+        label: "Add Location",
+        icon: "📍",
+        onClick: () => {
+          const editBtn = document.querySelector("[data-edit-request]");
+          if (editBtn instanceof HTMLButtonElement) {
+            editBtn.click();
+          }
+        },
+        variant: "warning",
+        tooltip: "Request needs a location",
+      });
+    }
   }
 
   return actions;

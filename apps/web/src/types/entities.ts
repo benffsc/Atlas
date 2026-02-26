@@ -8,8 +8,8 @@
  * Always preserve UUIDs when migrating data.
  */
 
+import type { RequestStatus } from '@/lib/request-status';
 import type {
-  RequestStatus,
   DataQuality,
   SourceSystem,
   TrapperType,

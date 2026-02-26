@@ -330,7 +330,15 @@ export function MainSidebar({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Requests section sidebar
+/**
+ * Requests section sidebar.
+ *
+ * Quick filters use the simplified 4-state system (MIG_2530):
+ * - new: Awaiting initial review
+ * - working: Actively being handled
+ * - paused: On hold
+ * - completed: Finished
+ */
 export function RequestsSidebar({ children }: { children: React.ReactNode }) {
   const sections: NavSection[] = [
     {
@@ -343,9 +351,9 @@ export function RequestsSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Quick Filters",
       items: [
-        { label: "Active", href: "/requests?status=active", icon: "🟢" },
-        { label: "Scheduled", href: "/requests?status=scheduled", icon: "📅" },
-        { label: "On Hold", href: "/requests?status=on_hold", icon: "⏸️" },
+        { label: "New", href: "/requests?status=new", icon: "🆕" },
+        { label: "Working", href: "/requests?status=working", icon: "🔄" },
+        { label: "Paused", href: "/requests?status=paused", icon: "⏸️" },
         { label: "Completed", href: "/requests?status=completed", icon: "✅" },
       ],
     },

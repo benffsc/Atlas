@@ -3,14 +3,33 @@
 /**
  * StatusPipeline - Visual request status pipeline
  *
- * Shows the request lifecycle stages with the current position highlighted.
+ * Shows the simplified 4-state request lifecycle with the current position highlighted.
  * Includes progress indicator and days elapsed.
  *
- * Request lifecycle:
- * new → triaged → scheduled → in_progress → completed
- *         ↓
- *      on_hold → cancelled
+ * Request lifecycle (MIG_2530):
+ *   new → working → completed
+ *          ↓  ↑
+ *        paused
+ *
+ * Special terminal statuses: redirected, handed_off
+ *
+ * Legacy statuses are automatically mapped to their primary equivalents
+ * for display (e.g., "scheduled" displays in "working" column).
  */
+
+import {
+  PRIMARY_STATUSES,
+  SPECIAL_STATUSES,
+  mapToPrimaryStatus,
+  getStatusLabel,
+  getStatusColor,
+  isTerminalStatus,
+  isLegacyStatus,
+  STATUS_LABELS_DETAILED,
+  WORKFLOW_DIAGRAM,
+  type RequestStatus,
+  type PrimaryStatus,
+} from "@/lib/request-status";
 
 interface StatusPipelineProps {
   currentStatus: string;
@@ -18,30 +37,11 @@ interface StatusPipelineProps {
   resolvedAt?: string | null;
 }
 
-const MAIN_STATUSES = ["new", "triaged", "scheduled", "in_progress", "completed"];
-const BRANCH_STATUSES = ["on_hold", "cancelled", "redirected"];
+// Main workflow stages in display order
+const MAIN_FLOW: PrimaryStatus[] = ["new", "working", "completed"];
 
-const STATUS_LABELS: Record<string, string> = {
-  new: "New",
-  triaged: "Triaged",
-  scheduled: "Scheduled",
-  in_progress: "In Progress",
-  completed: "Completed",
-  on_hold: "On Hold",
-  cancelled: "Cancelled",
-  redirected: "Redirected",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  new: "#94a3b8",
-  triaged: "#3b82f6",
-  scheduled: "#8b5cf6",
-  in_progress: "#f59e0b",
-  completed: "#22c55e",
-  on_hold: "#f97316",
-  cancelled: "#ef4444",
-  redirected: "#6366f1",
-};
+// Paused is a branch that can return to workflow
+const BRANCH_STATUS: PrimaryStatus = "paused";
 
 function getDaysElapsed(createdAt: string, resolvedAt?: string | null): number {
   const start = new Date(createdAt);
@@ -50,15 +50,33 @@ function getDaysElapsed(createdAt: string, resolvedAt?: string | null): number {
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
-function getProgressPercentage(status: string): number {
-  const mainIndex = MAIN_STATUSES.indexOf(status);
+function getProgressPercentage(status: RequestStatus): number {
+  const primary = mapToPrimaryStatus(status);
+  const mainIndex = MAIN_FLOW.indexOf(primary);
+
   if (mainIndex >= 0) {
-    return ((mainIndex + 1) / MAIN_STATUSES.length) * 100;
+    // Main flow: new=33%, working=66%, completed=100%
+    return ((mainIndex + 1) / MAIN_FLOW.length) * 100;
   }
-  // Branch statuses
-  if (status === "on_hold") return 50;
-  if (status === "cancelled" || status === "redirected") return 100;
+
+  // Paused is between working and completed
+  if (primary === "paused") return 50;
+
+  // Special statuses are terminal
+  if (SPECIAL_STATUSES.includes(status as typeof SPECIAL_STATUSES[number])) {
+    return 100;
+  }
+
   return 0;
+}
+
+/**
+ * Get the main flow index, accounting for legacy status mapping.
+ * Returns -1 if the status is not in the main flow.
+ */
+function getMainFlowIndex(status: RequestStatus): number {
+  const primary = mapToPrimaryStatus(status);
+  return MAIN_FLOW.indexOf(primary);
 }
 
 export function StatusPipeline({
@@ -66,14 +84,36 @@ export function StatusPipeline({
   createdAt,
   resolvedAt,
 }: StatusPipelineProps) {
+  // Map to primary status for display logic
+  const status = currentStatus as RequestStatus;
+  const primaryStatus = mapToPrimaryStatus(status);
+  const isLegacy = isLegacyStatus(status);
+
   const daysElapsed = getDaysElapsed(createdAt, resolvedAt);
-  const progress = getProgressPercentage(currentStatus);
-  const currentIndex = MAIN_STATUSES.indexOf(currentStatus);
-  const isBranch = BRANCH_STATUSES.includes(currentStatus);
-  const isTerminal = ["completed", "cancelled", "redirected"].includes(currentStatus);
+  const progress = getProgressPercentage(status);
+  const currentIndex = getMainFlowIndex(status);
+  const isPaused = primaryStatus === "paused";
+  const isSpecial = SPECIAL_STATUSES.includes(status as typeof SPECIAL_STATUSES[number]);
+  const isTerminal = isTerminalStatus(status);
 
   return (
     <div style={{ marginBottom: 24 }}>
+      {/* Legacy status indicator */}
+      {isLegacy && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "6px 12px",
+            background: "#fef3c7",
+            borderRadius: 6,
+            fontSize: 11,
+            color: "#92400e",
+          }}
+        >
+          Legacy status: <strong>{STATUS_LABELS_DETAILED[status]}</strong> → displayed as <strong>{getStatusLabel(status)}</strong>
+        </div>
+      )}
+
       {/* Main pipeline */}
       <div
         style={{
@@ -84,14 +124,15 @@ export function StatusPipeline({
           position: "relative",
         }}
       >
-        {MAIN_STATUSES.map((status, index) => {
-          const isActive = status === currentStatus;
-          const isPast = currentIndex > index || (isBranch && index <= 1);
+        {MAIN_FLOW.map((flowStatus, index) => {
+          const colors = getStatusColor(flowStatus);
+          const isActive = primaryStatus === flowStatus && !isPaused && !isSpecial;
+          const isPast = currentIndex > index || (isPaused && index < 1) || (isSpecial && index < MAIN_FLOW.length - 1);
           const isFuture = !isPast && !isActive;
 
           return (
             <div
-              key={status}
+              key={flowStatus}
               style={{
                 flex: 1,
                 display: "flex",
@@ -100,7 +141,7 @@ export function StatusPipeline({
                 position: "relative",
               }}
             >
-              {/* Connection line */}
+              {/* Connection line - left half */}
               {index > 0 && (
                 <div
                   style={{
@@ -109,12 +150,13 @@ export function StatusPipeline({
                     left: 0,
                     right: "50%",
                     height: 3,
-                    background: isPast || isActive ? STATUS_COLORS[status] : "#e5e7eb",
+                    background: isPast || isActive ? colors.border : "#e5e7eb",
                     zIndex: 0,
                   }}
                 />
               )}
-              {index < MAIN_STATUSES.length - 1 && (
+              {/* Connection line - right half */}
+              {index < MAIN_FLOW.length - 1 && (
                 <div
                   style={{
                     position: "absolute",
@@ -122,7 +164,7 @@ export function StatusPipeline({
                     left: "50%",
                     right: 0,
                     height: 3,
-                    background: isPast ? STATUS_COLORS[MAIN_STATUSES[index + 1]] : "#e5e7eb",
+                    background: isPast ? getStatusColor(MAIN_FLOW[index + 1]).border : "#e5e7eb",
                     zIndex: 0,
                   }}
                 />
@@ -134,9 +176,9 @@ export function StatusPipeline({
                   width: isActive ? 28 : 24,
                   height: isActive ? 28 : 24,
                   borderRadius: "50%",
-                  background: isPast || isActive ? STATUS_COLORS[status] : "#e5e7eb",
-                  border: isActive ? `3px solid ${STATUS_COLORS[status]}` : "3px solid white",
-                  boxShadow: isActive ? `0 0 0 3px ${STATUS_COLORS[status]}40` : "none",
+                  background: isPast || isActive ? colors.border : "#e5e7eb",
+                  border: isActive ? `3px solid ${colors.border}` : "3px solid white",
+                  boxShadow: isActive ? `0 0 0 3px ${colors.border}40` : "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -156,25 +198,25 @@ export function StatusPipeline({
                   marginTop: 8,
                   fontSize: 11,
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? STATUS_COLORS[status] : isPast ? "#374151" : "#9ca3af",
+                  color: isActive ? colors.color : isPast ? "#374151" : "#9ca3af",
                   textAlign: "center",
                 }}
               >
-                {STATUS_LABELS[status]}
+                {getStatusLabel(flowStatus)}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Branch statuses indicator */}
-      {isBranch && (
+      {/* Branch indicator for paused status */}
+      {isPaused && (
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: 8,
-            marginLeft: "20%",
+            marginLeft: "33%",
             marginBottom: 16,
           }}
         >
@@ -182,7 +224,7 @@ export function StatusPipeline({
             style={{
               width: 2,
               height: 24,
-              background: STATUS_COLORS[currentStatus],
+              background: getStatusColor("paused").border,
             }}
           />
           <div
@@ -191,9 +233,9 @@ export function StatusPipeline({
               alignItems: "center",
               gap: 8,
               padding: "6px 12px",
-              background: `${STATUS_COLORS[currentStatus]}15`,
+              background: getStatusColor("paused").bg,
               borderRadius: 6,
-              border: `1px solid ${STATUS_COLORS[currentStatus]}40`,
+              border: `1px solid ${getStatusColor("paused").border}`,
             }}
           >
             <div
@@ -201,17 +243,76 @@ export function StatusPipeline({
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                background: STATUS_COLORS[currentStatus],
+                background: getStatusColor("paused").border,
               }}
             />
             <span
               style={{
                 fontSize: 12,
                 fontWeight: 500,
-                color: STATUS_COLORS[currentStatus],
+                color: getStatusColor("paused").color,
               }}
             >
-              {STATUS_LABELS[currentStatus]}
+              {getStatusLabel("paused")}
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                color: "#6b7280",
+                marginLeft: 4,
+              }}
+            >
+              (can resume)
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Special status indicator (redirected, handed_off) */}
+      {isSpecial && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginLeft: "66%",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              width: 2,
+              height: 24,
+              background: getStatusColor(status).border,
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              background: getStatusColor(status).bg,
+              borderRadius: 6,
+              border: `1px solid ${getStatusColor(status).border}`,
+            }}
+          >
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: getStatusColor(status).border,
+              }}
+            />
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: getStatusColor(status).color,
+              }}
+            >
+              {getStatusLabel(status)}
             </span>
           </div>
         </div>
@@ -242,8 +343,8 @@ export function StatusPipeline({
                 height: "100%",
                 width: `${progress}%`,
                 background: isTerminal
-                  ? STATUS_COLORS[currentStatus]
-                  : `linear-gradient(90deg, ${STATUS_COLORS.new} 0%, ${STATUS_COLORS[currentStatus]} 100%)`,
+                  ? getStatusColor(status).border
+                  : `linear-gradient(90deg, ${getStatusColor("new").border} 0%, ${getStatusColor(primaryStatus).border} 100%)`,
                 borderRadius: 4,
                 transition: "width 0.3s",
               }}
@@ -259,7 +360,18 @@ export function StatusPipeline({
         >
           {isTerminal ? (
             <span>
-              {currentStatus === "completed" ? "✓ Completed" : currentStatus === "cancelled" ? "✗ Cancelled" : "→ Redirected"} in {daysElapsed} {daysElapsed === 1 ? "day" : "days"}
+              {primaryStatus === "completed"
+                ? "✓ Completed"
+                : status === "redirected"
+                  ? "→ Redirected"
+                  : status === "handed_off"
+                    ? "→ Handed Off"
+                    : "✓ Done"
+              } in {daysElapsed} {daysElapsed === 1 ? "day" : "days"}
+            </span>
+          ) : isPaused ? (
+            <span>
+              Paused • Day {daysElapsed + 1}
             </span>
           ) : (
             <span>
@@ -268,6 +380,20 @@ export function StatusPipeline({
           )}
         </div>
       </div>
+
+      {/* Workflow legend for non-terminal statuses */}
+      {!isTerminal && (
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: 10,
+            color: "#9ca3af",
+            textAlign: "center",
+          }}
+        >
+          Workflow: New → Working → Completed (Paused can resume at any point)
+        </div>
+      )}
     </div>
   );
 }

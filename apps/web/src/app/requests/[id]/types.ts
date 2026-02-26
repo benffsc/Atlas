@@ -1,6 +1,17 @@
+import type { RequestStatus } from "@/lib/request-status";
+
+/**
+ * RequestDetail - Complete request data structure
+ *
+ * Includes fields from:
+ * - MIG_2530: Simplified 4-state status system
+ * - MIG_2531: Intake-request field unification
+ * - MIG_2532: Complete request field coverage (Beacon-critical)
+ * - MIG_2522: Third-party reporter intelligence
+ */
 export interface RequestDetail {
   request_id: string;
-  status: string;
+  status: RequestStatus;
   priority: string;
   summary: string | null;
   notes: string | null;
@@ -25,26 +36,118 @@ export interface RequestDetail {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  // Enhanced intake fields
+
+  // ==========================================================================
+  // MIG_2532: BEACON-CRITICAL FIELDS
+  // These fields enable Chapman mark-recapture population estimation
+  // ==========================================================================
+
+  /** Peak count of cats observed at one time - CRITICAL for Chapman estimation */
+  peak_count: number | null;
+  /** How long requester has known about the colony (e.g., "6 months - 2 years") */
+  awareness_duration: string | null;
+  /** Service area county (Sonoma, Marin, Napa, etc.) */
+  county: string | null;
+
+  // ==========================================================================
+  // MIG_2531: INTAKE-REQUEST UNIFIED FIELDS
+  // Structured data captured from intake submissions
+  // ==========================================================================
+
+  // Property & Access
   permission_status: string | null;
   property_owner_contact: string | null;
   access_notes: string | null;
   traps_overnight_safe: boolean | null;
   access_without_contact: boolean | null;
   property_type: string | null;
+  /** Is the requester the property owner? */
+  is_property_owner: boolean | null;
+  /** Does requester have direct property access? */
+  has_property_access: boolean | null;
+
+  // Colony information
   colony_duration: string | null;
   location_description: string | null;
   eartip_count: number | null;
   eartip_estimate: string | null;
   count_confidence: string | null;
+
+  // Feeding information
   is_being_fed: boolean | null;
   feeder_name: string | null;
   feeding_schedule: string | null;
+  /** Feeding frequency (daily, twice daily, etc.) */
+  feeding_frequency: string | null;
+  /** Where cats are fed (back porch, garage, etc.) */
+  feeding_location: string | null;
+  /** What time cats are typically fed */
+  feeding_time: string | null;
   best_times_seen: string | null;
+
+  // Urgency
   urgency_reasons: string[] | null;
   urgency_deadline: string | null;
   urgency_notes: string | null;
+  /** Is this an emergency situation? */
+  is_emergency: boolean | null;
   best_contact_times: string | null;
+
+  // ==========================================================================
+  // MIG_2531: CAT DESCRIPTION FIELDS
+  // Fields for individual cat descriptions when not linking to cat records
+  // ==========================================================================
+
+  /** Name of cat (if known, for single-cat requests) */
+  cat_name: string | null;
+  /** Physical description of cat(s) */
+  cat_description: string | null;
+
+  // ==========================================================================
+  // MIG_2531: ENHANCED KITTEN TRACKING
+  // Comprehensive kitten assessment and tracking
+  // ==========================================================================
+
+  /** Kitten behavior observation */
+  kitten_behavior: string | null;
+  /** Are kittens contained/secured? */
+  kitten_contained: string | null;
+  /** Is the mother cat present? */
+  mom_present: string | null;
+  /** Is the mother cat fixed? */
+  mom_fixed: string | null;
+  /** Can requester bring kittens in? */
+  can_bring_in: string | null;
+  /** Estimate of kitten age (e.g., "under 4 weeks", "4-8 weeks") */
+  kitten_age_estimate: string | null;
+
+  // ==========================================================================
+  // MIG_2522: THIRD-PARTY REPORTER INTELLIGENCE
+  // Distinguishes between requester and site contact
+  // ==========================================================================
+
+  /** Is this a report from someone other than the site contact? */
+  is_third_party_report: boolean | null;
+  /** Relationship of third-party reporter (neighbor, friend, concerned citizen) */
+  third_party_relationship: string | null;
+
+  // ==========================================================================
+  // MIG_2532: TRAPPING LOGISTICS
+  // Information critical for successful trapping operations
+  // ==========================================================================
+
+  /** Best time for trapping operations */
+  best_trapping_time: string | null;
+
+  // ==========================================================================
+  // TRIAGE FIELDS
+  // Staff categorization and routing
+  // ==========================================================================
+
+  /** Triage category assigned by staff */
+  triage_category: string | null;
+  /** Staff member who received/triaged the request */
+  received_by: string | null;
   // Hold tracking
   hold_reason: string | null;
   hold_reason_notes: string | null;
@@ -68,6 +171,13 @@ export interface RequestDetail {
   requester_name: string | null;
   requester_email: string | null;
   requester_phone: string | null;
+  requester_role_at_submission: string | null;
+  requester_is_site_contact: boolean | null;
+  // Site contact info (MIG_2522 - may be same as requester or different)
+  site_contact_person_id: string | null;
+  site_contact_name: string | null;
+  site_contact_email: string | null;
+  site_contact_phone: string | null;
   // Linked cats & verification
   cats: { cat_id: string; cat_name: string | null; link_purpose: string; microchip: string | null; altered_status: string | null; linked_at: string }[] | null;
   linked_cat_count: number | null;
@@ -118,4 +228,38 @@ export interface RequestDetail {
   classification_reviewed_at: string | null;
   classification_reviewed_by: string | null;
   current_place_classification: string | null;
+  // Source timestamp
+  source_created_at: string | null;
+  // Verification counts
+  unverified_count: number | null;
+  verification_completeness: string | null;
+  // Assignment status (MIG_2495)
+  no_trapper_reason: string | null;
+  assignment_status: string;
+  // Call sheet trapping logistics (MIG_2495)
+  dogs_on_site: string | null;
+  trap_savvy: string | null;
+  previous_tnr: string | null;
+  handleability: string | null;
+  fixed_status: string | null;
+  ownership_status: string | null;
+  has_medical_concerns: boolean;
+  medical_description: string | null;
+  important_notes: string[] | null;
+  // Status history and trappers (from API response)
+  status_history?: Array<{
+    old_status: string | null;
+    new_status: string;
+    changed_by: string | null;
+    changed_at: string;
+    reason: string | null;
+  }>;
+  current_trappers?: Array<{
+    trapper_person_id: string;
+    trapper_name: string;
+    trapper_type: string | null;
+    is_ffsc_trapper: boolean;
+    is_primary: boolean;
+    assigned_at: string;
+  }>;
 }

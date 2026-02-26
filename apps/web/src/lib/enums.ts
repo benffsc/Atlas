@@ -6,6 +6,9 @@
  *
  * DO NOT define VALID_* constants inline in routes - import from here.
  *
+ * For comprehensive status logic (labels, colors, transitions, etc.),
+ * see @/lib/request-status.ts which is the single source of truth.
+ *
  * @example
  * import { ENTITY_ENUMS, type RequestStatus } from "@/lib/enums";
  *
@@ -16,19 +19,12 @@
 // REQUEST ENUMS
 // =============================================================================
 
-export const REQUEST_STATUS = [
-  "new",
-  "needs_review",
-  "triaged",
-  "scheduled",
-  "in_progress",
-  "active",
-  "on_hold",
-  "completed",
-  "partial",
-  "cancelled",
-  "redirected",
-] as const;
+// Import from single source of truth
+import { ALL_STATUSES, type RequestStatus as RequestStatusType } from "./request-status";
+
+// Re-export for API validation
+// See @/lib/request-status.ts for the full status system documentation
+export const REQUEST_STATUS = ALL_STATUSES;
 
 export const REQUEST_PRIORITY = ["urgent", "high", "normal", "low"] as const;
 
@@ -229,7 +225,8 @@ export const ENTITY_ENUMS = {
 // TYPE EXPORTS
 // =============================================================================
 
-export type RequestStatus = (typeof REQUEST_STATUS)[number];
+// Re-export RequestStatus from single source of truth
+export type { RequestStatus } from "./request-status";
 export type RequestPriority = (typeof REQUEST_PRIORITY)[number];
 export type HoldReason = (typeof HOLD_REASON)[number];
 export type NoTrapperReason = (typeof NO_TRAPPER_REASON)[number];

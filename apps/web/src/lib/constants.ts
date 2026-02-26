@@ -1,46 +1,28 @@
 /**
  * Atlas Constants
  *
- * Centralized constants for status enums, soft blacklists, and other shared values.
+ * Centralized constants for soft blacklists, source systems, and other shared values.
  * These mirror SQL definitions in sot.soft_blacklist and ops.* tables.
+ *
+ * NOTE: Request status logic is in @/lib/request-status.ts
+ * That module is the single source of truth for:
+ *   - Status types and values
+ *   - Status transitions
+ *   - Status labels and colors
+ *   - Legacy status mappings
  */
 
 // =============================================================================
-// REQUEST STATUS
+// REQUEST STATUS - MOVED TO @/lib/request-status.ts
 // =============================================================================
-
-export type RequestStatus =
-  | 'new'
-  | 'triaged'
-  | 'scheduled'
-  | 'in_progress'
-  | 'on_hold'
-  | 'completed'
-  | 'cancelled';
-
-/**
- * Valid status transitions for requests.
- * Mirrors the request lifecycle in ops.requests.
- */
-export const VALID_STATUS_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
-  new: ['triaged', 'cancelled'],
-  triaged: ['scheduled', 'on_hold', 'cancelled'],
-  scheduled: ['in_progress', 'on_hold', 'cancelled'],
-  in_progress: ['completed', 'on_hold'],
-  on_hold: ['triaged', 'scheduled', 'in_progress', 'cancelled'],
-  completed: [],
-  cancelled: [],
-};
-
-export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
-  new: 'New',
-  triaged: 'Triaged',
-  scheduled: 'Scheduled',
-  in_progress: 'In Progress',
-  on_hold: 'On Hold',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-};
+// Import from the single source of truth:
+//   import { RequestStatus, STATUS_LABELS, VALID_TRANSITIONS, ... } from "@/lib/request-status";
+//
+// See that module for comprehensive status handling including:
+//   - Primary statuses: new, working, paused, completed
+//   - Special statuses: redirected, handed_off
+//   - Legacy status mappings for backwards compatibility
+// =============================================================================
 
 // =============================================================================
 // DATA QUALITY
