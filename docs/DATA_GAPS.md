@@ -2513,3 +2513,29 @@ WHERE ca.display_name ILIKE '%stony%';
 - MIG_909 (V1): Original place extraction logic
 
 ---
+
+## DATA_GAP_055: Duplicate Place - 1118 Temple Ave Variation
+
+**Status:** FIXED
+
+**Problem:** Two place records existed for the same address with slight variations in display_name:
+- `125b7737...`: "1118 Temple Ave, Santa Rosa, CA 95404" (16 cats, 1 person)
+- `6915732a...`: "1118 Temple Av. , Santa Rosa, CA 95409" (1 cat, 1 person)
+
+**Discovery:** Found via search showing duplicate pins on map.
+
+**Root Cause:** The `display_name` differed ("Av." vs "Ave", wrong zip in display) but `formatted_address` was nearly identical. Dedup function should have caught this.
+
+**Fix Applied:**
+```sql
+SELECT sot.merge_place_into(
+  '6915732a-3c33-4b76-9058-1b5a380a0b41',  -- loser
+  '125b7737-3f3d-4943-8937-455a04b72849',  -- winner
+  'Duplicate place - same address with Av./Ave variation',
+  'Claude'
+);
+```
+
+**Future Prevention:** Consider enhancing `find_or_create_place_deduped()` to normalize street abbreviations ("Av." → "Ave", "St." → "Street", etc.) before dedup matching.
+
+---
