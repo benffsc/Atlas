@@ -26,6 +26,7 @@ import { Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { MediaGallery } from "@/components/MediaGallery";
 import { LinkedCatsSection } from "@/components/LinkedCatsSection";
 import { LinkedPlacesSection } from "@/components/LinkedPlacesSection";
+import { VerificationPanel } from "@/components/verification";
 
 interface Cat {
   cat_id: string;
@@ -1173,6 +1174,14 @@ export default function PersonDetailPage() {
           emptyMessage="No places linked"
           showCount={false}
           title=""
+        />
+      </Section>
+
+      {/* Verification Panel */}
+      <Section title="Verification Status" className="mb-4" defaultCollapsed>
+        <VerificationPanel
+          personId={id}
+          personName={person.display_name}
         />
       </Section>
 

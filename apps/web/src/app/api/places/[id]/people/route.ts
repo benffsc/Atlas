@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne, execute } from "@/lib/db";
+import { queryOne, queryRows, execute } from "@/lib/db";
 
 const VALID_ROLES = [
   "resident",
@@ -283,6 +283,122 @@ export async function DELETE(
     console.error("Error removing person from place:", error);
     return NextResponse.json(
       { error: "Failed to remove person from place" },
+      { status: 500 }
+    );
+  }
+}
+
+interface PersonAtPlace {
+  person_place_id: string;
+  person_id: string;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  relationship_type: string;
+  is_staff_verified: boolean;
+  verified_at: string | null;
+  verification_method: string | null;
+  financial_commitment: string | null;
+  is_primary_contact: boolean;
+  cat_count: number;
+  source_system: string;
+  created_at: string;
+}
+
+/**
+ * GET /api/places/[id]/people
+ *
+ * List all people associated with a place, with verification status.
+ * Uses the sot.get_people_at_place() function from MIG_2514.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: placeId } = await params;
+
+  if (!placeId) {
+    return NextResponse.json(
+      { error: "Place ID is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // Validate place exists
+    const place = await queryOne<{ place_id: string; display_name: string | null; formatted_address: string | null }>(
+      `SELECT place_id, display_name, formatted_address
+       FROM sot.places
+       WHERE place_id = $1 AND merged_into_place_id IS NULL`,
+      [placeId]
+    );
+
+    if (!place) {
+      return NextResponse.json(
+        { error: "Place not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get people at this place using the helper function
+    // Fallback to direct query if function doesn't exist yet
+    let people: PersonAtPlace[];
+    try {
+      people = await queryRows<PersonAtPlace>(
+        `SELECT * FROM sot.get_people_at_place($1)`,
+        [placeId]
+      );
+    } catch {
+      // Fallback: direct query if function doesn't exist
+      people = await queryRows<PersonAtPlace>(
+        `SELECT
+          pp.id as person_place_id,
+          pp.person_id,
+          p.display_name,
+          p.first_name,
+          p.last_name,
+          pp.relationship_type,
+          COALESCE(pp.is_staff_verified, FALSE) as is_staff_verified,
+          pp.verified_at::text,
+          pp.verification_method,
+          ppd.financial_commitment,
+          COALESCE(ppd.is_primary_contact, FALSE) as is_primary_contact,
+          (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = pp.person_id)::int as cat_count,
+          pp.source_system,
+          pp.created_at::text
+        FROM sot.person_place pp
+        JOIN sot.people p ON p.person_id = pp.person_id AND p.merged_into_person_id IS NULL
+        LEFT JOIN sot.person_place_details ppd ON ppd.person_place_id = pp.id
+        WHERE pp.place_id = $1
+        ORDER BY
+          COALESCE(ppd.is_primary_contact, FALSE) DESC,
+          COALESCE(pp.is_staff_verified, FALSE) DESC,
+          pp.created_at DESC`,
+        [placeId]
+      );
+    }
+
+    // Count by verification status
+    const verifiedCount = people.filter(p => p.is_staff_verified).length;
+    const unverifiedCount = people.length - verifiedCount;
+
+    return NextResponse.json({
+      place: {
+        place_id: place.place_id,
+        display_name: place.display_name,
+        formatted_address: place.formatted_address,
+      },
+      people,
+      summary: {
+        total: people.length,
+        verified: verifiedCount,
+        unverified: unverifiedCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching people at place:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch people at place" },
       { status: 500 }
     );
   }

@@ -31,6 +31,7 @@ import DiseaseStatusSection from "@/components/DiseaseStatusSection";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { LinkedPeopleSection } from "@/components/LinkedPeopleSection";
+import { AssociatedPeopleCard } from "@/components/verification";
 
 interface Cat {
   cat_id: string;
@@ -837,6 +838,14 @@ export default function PlaceDetailPage() {
         title="People"
         emptyMessage="No people linked to this place."
       />
+
+      {/* People Verification */}
+      <Section title="People Verification" collapsible defaultCollapsed className="mb-4">
+        <AssociatedPeopleCard
+          placeId={place.place_id}
+          placeName={place.display_name || place.formatted_address || undefined}
+        />
+      </Section>
 
       {/* Clinic History */}
       <ClinicHistorySection placeId={place.place_id} />
