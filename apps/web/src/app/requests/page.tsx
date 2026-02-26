@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { SavedFilters, RequestFilters } from "@/components/SavedFilters";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
+import { KanbanBoard, KanbanBoardMobile } from "@/components/KanbanBoard";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -37,6 +38,10 @@ interface Request {
   // Map preview caching (MIG_2470)
   map_preview_url: string | null;
   map_preview_updated_at: string | null;
+  // MIG_2522: Requestor intelligence
+  requester_role_at_submission: string | null;
+  requester_is_site_contact: boolean | null;
+  site_contact_name: string | null;
 }
 
 
@@ -525,17 +530,62 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
             </div>
           )}
 
-          {/* Requester & Date */}
+          {/* Contacts Row - shows requestor and site contact */}
+          <div
+            style={{
+              fontSize: "0.75rem",
+              marginTop: "8px",
+              padding: "6px 8px",
+              background: "var(--muted-bg)",
+              borderRadius: "6px",
+            }}
+          >
+            {/* Requestor */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ color: "#6366f1", fontWeight: 500 }}>Requestor:</span>
+              <span style={{ color: "var(--text-secondary)" }}>
+                {request.requester_name || "Unknown"}
+              </span>
+              {request.requester_role_at_submission && request.requester_role_at_submission !== "unknown" && (
+                <span style={{
+                  fontSize: "0.6rem",
+                  padding: "1px 4px",
+                  background: request.requester_role_at_submission.includes("trapper") ? "#fef3c7" : "#e0e7ff",
+                  color: request.requester_role_at_submission.includes("trapper") ? "#92400e" : "#3730a3",
+                  borderRadius: "3px",
+                  fontWeight: 500,
+                }}>
+                  {request.requester_role_at_submission.replace(/_/g, " ").replace("ffsc ", "").toUpperCase()}
+                </span>
+              )}
+            </div>
+            {/* Site Contact - only if different from requester */}
+            {request.site_contact_name && !request.requester_is_site_contact && (
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                <span style={{ color: "#10b981", fontWeight: 500 }}>Site:</span>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  {request.site_contact_name}
+                </span>
+              </div>
+            )}
+            {/* Warning when trapper is requestor but no site contact */}
+            {!request.site_contact_name && !request.requester_is_site_contact && request.requester_role_at_submission?.includes("trapper") && (
+              <div style={{ color: "#92400e", fontSize: "0.65rem", marginTop: "2px" }}>
+                Site contact needed
+              </div>
+            )}
+          </div>
+
+          {/* Date */}
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              fontSize: "0.75rem",
+              justifyContent: "flex-end",
+              fontSize: "0.7rem",
               color: "var(--text-muted)",
               marginTop: "4px",
             }}
           >
-            <span>{request.requester_name || "Unknown requester"}</span>
             <span>{formatDateLocal(request.source_created_at || request.created_at)}</span>
           </div>
         </div>
@@ -550,6 +600,210 @@ const SORT_MAP: Record<string, { by: string; order: string }> = {
   oldest: { by: "created", order: "asc" },
   priority: { by: "priority", order: "asc" },
 };
+
+// Status grouping configuration for visual display
+const STATUS_GROUPS = [
+  { status: "new", label: "New", color: "#3b82f6", bgColor: "#eff6ff", description: "Awaiting initial review" },
+  { status: "working", label: "Working", color: "#f59e0b", bgColor: "#fffbeb", description: "Actively being handled" },
+  { status: "paused", label: "Paused", color: "#ec4899", bgColor: "#fdf2f8", description: "On hold" },
+  { status: "completed", label: "Completed", color: "#10b981", bgColor: "#ecfdf5", description: "Finished" },
+] as const;
+
+// Helper to normalize legacy statuses to primary statuses for grouping
+function getPrimaryStatus(status: string): string {
+  const mapping: Record<string, string> = {
+    triaged: "new",
+    scheduled: "working",
+    in_progress: "working",
+    active: "working",
+    on_hold: "paused",
+    cancelled: "completed",
+    partial: "completed",
+    redirected: "completed",
+    handed_off: "completed",
+  };
+  return mapping[status] || status;
+}
+
+function StatusGroupedCards({
+  requests,
+  onTrapperAction,
+  actionMenuId,
+  onToggleMenu,
+  showCompleted = false,
+}: {
+  requests: Request[];
+  onTrapperAction?: (requestId: string, reason: string) => void;
+  actionMenuId?: string | null;
+  onToggleMenu?: (id: string | null) => void;
+  showCompleted?: boolean;
+}) {
+  const [completedExpanded, setCompletedExpanded] = useState(showCompleted);
+
+  // Group requests by primary status
+  const grouped = requests.reduce((acc, req) => {
+    const primaryStatus = getPrimaryStatus(req.status);
+    if (!acc[primaryStatus]) acc[primaryStatus] = [];
+    acc[primaryStatus].push(req);
+    return acc;
+  }, {} as Record<string, Request[]>);
+
+  // Active statuses (always show)
+  const activeGroups = STATUS_GROUPS.filter(g => g.status !== "completed");
+  // Completed group (collapsible)
+  const completedGroup = STATUS_GROUPS.find(g => g.status === "completed")!;
+  const completedRequests = grouped["completed"] || [];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* Active status groups */}
+      {activeGroups.map((group) => {
+        const groupRequests = grouped[group.status] || [];
+        if (groupRequests.length === 0) return null;
+
+        return (
+          <div key={group.status}>
+            {/* Status header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                marginBottom: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                background: group.bgColor,
+                borderRadius: "8px",
+                borderLeft: `4px solid ${group.color}`,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 600,
+                  color: group.color,
+                }}
+              >
+                {group.label}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  padding: "0.15rem 0.5rem",
+                  background: group.color,
+                  color: "white",
+                  borderRadius: "12px",
+                }}
+              >
+                {groupRequests.length}
+              </span>
+              <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                {group.description}
+              </span>
+            </div>
+
+            {/* Cards grid */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(max(240px, calc((100% - 3rem) / 5)), 1fr))",
+                gap: "1rem",
+              }}
+            >
+              {groupRequests.map((req) => (
+                <RequestCard
+                  key={req.request_id}
+                  request={req}
+                  onTrapperAction={onTrapperAction}
+                  actionMenuId={actionMenuId}
+                  onToggleMenu={onToggleMenu}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Completed section (collapsible) */}
+      {completedRequests.length > 0 && (
+        <div>
+          <button
+            onClick={() => setCompletedExpanded(!completedExpanded)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              width: "100%",
+              padding: "0.5rem 0.75rem",
+              background: completedExpanded ? completedGroup.bgColor : "#f9fafb",
+              borderRadius: "8px",
+              borderLeft: `4px solid ${completedExpanded ? completedGroup.color : "#d1d5db"}`,
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: "1rem", color: "#6b7280" }}>
+              {completedExpanded ? "▼" : "▶"}
+            </span>
+            <span
+              style={{
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                color: completedExpanded ? completedGroup.color : "#6b7280",
+              }}
+            >
+              {completedGroup.label}
+            </span>
+            <span
+              style={{
+                fontSize: "0.9rem",
+                fontWeight: 600,
+                padding: "0.15rem 0.5rem",
+                background: completedExpanded ? completedGroup.color : "#9ca3af",
+                color: "white",
+                borderRadius: "12px",
+              }}
+            >
+              {completedRequests.length}
+            </span>
+            <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+              {completedExpanded ? completedGroup.description : "Click to expand"}
+            </span>
+          </button>
+
+          {completedExpanded && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(max(240px, calc((100% - 3rem) / 5)), 1fr))",
+                gap: "1rem",
+                marginTop: "0.75rem",
+              }}
+            >
+              {completedRequests.map((req) => (
+                <RequestCard
+                  key={req.request_id}
+                  request={req}
+                  onTrapperAction={onTrapperAction}
+                  actionMenuId={actionMenuId}
+                  onToggleMenu={onToggleMenu}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty state for when all groups are empty */}
+      {Object.values(grouped).every(g => g.length === 0) && (
+        <div className="empty">
+          <p>No requests found</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const FILTER_DEFAULTS = {
   status: "",
@@ -889,13 +1143,14 @@ function RequestsPageContent() {
             label: "Status",
             options: [
               { value: "", label: "Status" },
+              // Primary statuses (MIG_2530 simplified system)
               { value: "new", label: "New" },
-              { value: "triaged", label: "Triaged" },
-              { value: "scheduled", label: "Scheduled" },
-              { value: "in_progress", label: "In Progress" },
+              { value: "working", label: "Working" },
+              { value: "paused", label: "Paused" },
               { value: "completed", label: "Completed" },
-              { value: "cancelled", label: "Cancelled" },
-              { value: "on_hold", label: "On Hold" },
+              // Special statuses
+              { value: "redirected", label: "Redirected" },
+              { value: "handed_off", label: "Handed Off" },
             ],
           },
           {
@@ -967,6 +1222,20 @@ function RequestsPageContent() {
             Cards
           </button>
           <button
+            onClick={() => setFilter("view", "kanban")}
+            style={{
+              padding: "0.3rem 0.6rem",
+              fontSize: "0.75rem",
+              border: "1px solid var(--card-border)",
+              borderLeft: "none",
+              background: filters.view === "kanban" ? "var(--foreground)" : "transparent",
+              color: filters.view === "kanban" ? "var(--background)" : "inherit",
+              cursor: "pointer",
+            }}
+          >
+            Kanban
+          </button>
+          <button
             onClick={() => setFilter("view", "table")}
             style={{
               padding: "0.3rem 0.6rem",
@@ -1009,13 +1278,11 @@ function RequestsPageContent() {
               style={{ minWidth: "140px", padding: "0.4rem 0.5rem", fontSize: "0.875rem" }}
             >
               <option value="">Change status to...</option>
+              {/* Primary statuses (MIG_2530 simplified system) */}
               <option value="new">New</option>
-              <option value="triaged">Triaged</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In Progress</option>
-              <option value="on_hold">On Hold</option>
+              <option value="working">Working</option>
+              <option value="paused">Paused</option>
               <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
             </select>
             <button
               onClick={handleBulkStatusUpdate}
@@ -1073,23 +1340,51 @@ function RequestsPageContent() {
           <a href="/requests/new">Create your first request</a>
         </div>
       ) : filters.view === "cards" ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(max(240px, calc((100% - 3rem) / 5)), 1fr))",
-            gap: "1rem",
-          }}
-        >
-          {requests.map((req) => (
-            <RequestCard
-              key={req.request_id}
-              request={req}
-              onTrapperAction={handleQuickTrapperAction}
-              actionMenuId={actionMenuId}
-              onToggleMenu={setActionMenuId}
-            />
-          ))}
-        </div>
+        <StatusGroupedCards
+          requests={requests}
+          onTrapperAction={handleQuickTrapperAction}
+          actionMenuId={actionMenuId}
+          onToggleMenu={setActionMenuId}
+          showCompleted={filters.status === "completed"}
+        />
+      ) : filters.view === "kanban" ? (
+        isMobile ? (
+          <KanbanBoardMobile
+            requests={requests}
+            onStatusChange={async (requestId, newStatus) => {
+              try {
+                const response = await fetch(`/api/requests/${requestId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: newStatus }),
+                });
+                if (response.ok) {
+                  setRefreshTrigger((n) => n + 1);
+                }
+              } catch (err) {
+                console.error("Failed to update status:", err);
+              }
+            }}
+          />
+        ) : (
+          <KanbanBoard
+            requests={requests}
+            onStatusChange={async (requestId, newStatus) => {
+              try {
+                const response = await fetch(`/api/requests/${requestId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: newStatus }),
+                });
+                if (response.ok) {
+                  setRefreshTrigger((n) => n + 1);
+                }
+              } catch (err) {
+                console.error("Failed to update status:", err);
+              }
+            }}
+          />
+        )
       ) : (
         <div className="table-container">
           <table>
