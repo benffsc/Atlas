@@ -473,12 +473,40 @@ Extract from request:
 4. **Highlight attention items** - Badge for requests needing attention
 5. **Quick actions** - "Enter Call Sheet", "Print Call Sheet" in sidebar
 
-**DEPLOYMENT NOTE:** If production is missing these changes, ensure deployment includes:
-- `SidebarLayout.tsx` (RequestsSidebar with new status links)
-- `SavedFilters.tsx` (expandStatusFilter for legacy compatibility)
-- `request-status.ts` (single source of truth)
-- `StatusPipeline.tsx` (4-state system)
-- `QuickActions.tsx` (mapToPrimaryStatus)
+### Filter Bar Improvements (SavedFilters.tsx)
+
+**Current preset filters (first 4 show as chips):**
+1. My Assigned (if logged in)
+2. All Active (new + working + paused)
+3. Needs Attention (new only)
+4. Urgent (priority: urgent)
+5. Has Kittens (in More dropdown)
+6. Paused (in More dropdown)
+7. Working (in More dropdown)
+8. Completed (in More dropdown)
+
+**Improvements needed:**
+1. **Add "Needs Trapper"** - `trapperStatus: "pending"` filter
+2. **Add "Stale (30+ days)"** - requests not updated in 30 days
+3. **Reorder chips** - Most useful first: My Assigned, Needs Attention, All Active, Urgent
+4. **Add counts** - Show "(12)" next to filter names
+
+---
+
+## CRITICAL: Deployment Checklist
+
+**Key commit:** `8813bbe` (Phase A frontend status overhaul)
+
+If production is missing these changes, ensure deployment includes:
+- `src/lib/request-status.ts` (single source of truth) **NEW FILE**
+- `src/lib/constants.ts` (removed duplicate RequestStatus)
+- `src/lib/enums.ts` (imports from request-status)
+- `src/types/entities.ts` (imports from request-status)
+- `src/app/requests/[id]/types.ts` (35+ new fields)
+- `src/components/SavedFilters.tsx` (expandStatusFilter for legacy compat)
+- `src/components/QuickActions.tsx` (mapToPrimaryStatus)
+- `src/components/timeline/StatusPipeline.tsx` (4-state system)
+- `src/components/SidebarLayout.tsx` (new status links)
 
 ---
 
