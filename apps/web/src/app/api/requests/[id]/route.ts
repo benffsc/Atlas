@@ -111,6 +111,13 @@ interface RequestDetailRow {
   requester_name: string | null;
   requester_email: string | null;
   requester_phone: string | null;
+  requester_role_at_submission: string | null;
+  requester_is_site_contact: boolean | null;
+  // Site contact info (MIG_2522)
+  site_contact_person_id: string | null;
+  site_contact_name: string | null;
+  site_contact_email: string | null;
+  site_contact_phone: string | null;
   // Verified counts (computed from ClinicHQ linkage)
   linked_cat_count: number | null;
   verified_altered_count: number | null;
@@ -146,6 +153,16 @@ interface RequestDetailRow {
   // SC_004: Assignment status (maintained field)
   no_trapper_reason: string | null;
   assignment_status: string;
+  // Call sheet trapping logistics (MIG_2495)
+  dogs_on_site: string | null;
+  trap_savvy: string | null;
+  previous_tnr: string | null;
+  handleability: string | null;
+  fixed_status: string | null;
+  ownership_status: string | null;
+  has_medical_concerns: boolean;
+  medical_description: string | null;
+  important_notes: string[] | null;
 }
 
 export async function GET(
@@ -168,19 +185,19 @@ export async function GET(
         r.estimated_cat_count,
         r.total_cats_reported,
         r.cat_count_semantic::TEXT,
-        FALSE AS has_kittens,
-        NULL::BOOLEAN AS cats_are_friendly,
-        NULL::TEXT AS preferred_contact_method,
-        NULL::TEXT AS assigned_to,
-        NULL::TEXT AS assigned_trapper_type,
-        NULL::TIMESTAMPTZ AS assigned_at,
-        NULL::TEXT AS assignment_notes,
-        NULL::DATE AS scheduled_date,
-        NULL::TEXT AS scheduled_time_range,
+        COALESCE(r.has_kittens, FALSE) AS has_kittens,
+        r.cats_are_friendly,
+        r.preferred_contact_method,
+        r.assigned_to,
+        r.assigned_trapper_type,
+        r.assigned_at,
+        r.assignment_notes,
+        r.scheduled_date::TEXT,
+        r.scheduled_time_range,
         r.resolved_at,
-        r.resolution AS resolution_notes,
-        NULL::INT AS cats_trapped,
-        NULL::INT AS cats_returned,
+        COALESCE(r.resolution_notes, r.resolution) AS resolution_notes,
+        r.cats_trapped,
+        r.cats_returned,
         r.source_system AS data_source,
         r.source_system,
         r.source_record_id,
@@ -188,49 +205,49 @@ export async function GET(
         NULL::TEXT AS created_by,
         r.created_at,
         r.updated_at,
-        -- Enhanced intake fields (V2: not present, use defaults)
-        NULL::TEXT AS permission_status,
-        NULL::TEXT AS property_owner_contact,
-        NULL::TEXT AS access_notes,
-        NULL::BOOLEAN AS traps_overnight_safe,
-        NULL::BOOLEAN AS access_without_contact,
-        NULL::TEXT AS property_type,
-        NULL::TEXT AS colony_duration,
-        NULL::TEXT AS location_description,
-        NULL::INT AS eartip_count,
-        NULL::TEXT AS eartip_estimate,
-        NULL::TEXT AS count_confidence,
-        NULL::INT AS kitten_count,
-        NULL::INT AS kitten_age_weeks,
-        NULL::TEXT AS kitten_assessment_status,
-        NULL::TEXT AS kitten_assessment_outcome,
-        NULL::TEXT AS kitten_foster_readiness,
-        NULL::TEXT[] AS kitten_urgency_factors,
-        NULL::TEXT AS kitten_assessment_notes,
-        NULL::TEXT AS not_assessing_reason,
-        NULL::TEXT AS kitten_assessed_by,
-        NULL::TIMESTAMPTZ AS kitten_assessed_at,
-        NULL::BOOLEAN AS is_being_fed,
-        NULL::TEXT AS feeder_name,
-        NULL::TEXT AS feeding_schedule,
-        NULL::TEXT AS best_times_seen,
-        NULL::TEXT[] AS urgency_reasons,
-        NULL::TEXT AS urgency_deadline,
-        NULL::TEXT AS urgency_notes,
-        NULL::TEXT AS best_contact_times,
+        -- Enhanced intake fields (MIG_2495)
+        r.permission_status,
+        r.property_owner_contact,
+        r.access_notes,
+        r.traps_overnight_safe,
+        r.access_without_contact,
+        p.place_kind AS property_type,
+        r.colony_duration,
+        r.location_description,
+        r.eartip_count,
+        r.eartip_estimate,
+        r.count_confidence,
+        r.kitten_count,
+        r.kitten_age_weeks,
+        r.kitten_assessment_status,
+        r.kitten_assessment_outcome,
+        r.kitten_foster_readiness,
+        r.kitten_urgency_factors,
+        r.kitten_assessment_notes,
+        r.not_assessing_reason,
+        r.kitten_assessed_by,
+        r.kitten_assessed_at,
+        r.is_being_fed,
+        r.feeder_name,
+        r.feeding_schedule,
+        r.best_times_seen,
+        r.urgency_reasons,
+        r.urgency_deadline,
+        r.urgency_notes,
+        r.best_contact_times,
         -- Hold tracking
         r.hold_reason::TEXT,
-        NULL::TEXT AS hold_reason_notes,
-        NULL::TIMESTAMPTZ AS hold_started_at,
+        r.hold_reason_notes,
+        r.hold_started_at,
         -- Activity tracking
         r.last_activity_at,
-        NULL::TEXT AS last_activity_type,
-        -- Redirect/Handoff fields (V2: not present)
-        NULL::UUID AS redirected_to_request_id,
-        NULL::UUID AS redirected_from_request_id,
-        NULL::TEXT AS redirect_reason,
-        NULL::TIMESTAMPTZ AS redirect_at,
-        NULL::TEXT AS transfer_type,
+        r.last_activity_type,
+        -- Redirect/Handoff fields (MIG_2495)
+        r.redirected_to_request_id,
+        r.redirected_from_request_id,
+        r.redirect_reason,
+        r.redirect_at,
+        r.transfer_type,
         -- Place info (use address if place name matches requester name)
         r.place_id,
         CASE
@@ -263,6 +280,19 @@ export async function GET(
          WHERE pi.person_id = r.requester_person_id AND pi.id_type = 'phone'
            AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_phone,
+        r.requester_role_at_submission,
+        r.requester_is_site_contact,
+        -- Site contact info (MIG_2522 - may be same as requester or different)
+        r.site_contact_person_id,
+        sc.display_name AS site_contact_name,
+        (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM sot.person_identifiers pi
+         WHERE pi.person_id = r.site_contact_person_id AND pi.id_type = 'email'
+           AND pi.confidence >= 0.5
+         ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS site_contact_email,
+        (SELECT COALESCE(pi.id_value_raw, pi.id_value_norm) FROM sot.person_identifiers pi
+         WHERE pi.person_id = r.site_contact_person_id AND pi.id_type = 'phone'
+           AND pi.confidence >= 0.5
+         ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS site_contact_phone,
         -- Linked cats (V2: uses request_cats table, not request_cat_links)
         (SELECT jsonb_agg(jsonb_build_object(
             'cat_id', COALESCE(c.merged_into_cat_id, c.cat_id),
@@ -294,10 +324,10 @@ export async function GET(
         CASE WHEN pcs.verified_altered_count > COALESCE(r.total_cats_reported, 0)
              AND r.total_cats_reported IS NOT NULL
         THEN TRUE ELSE FALSE END AS colony_verified_exceeds_reported,
-        -- Email batching (V2: not present)
-        FALSE AS ready_to_email,
-        NULL::TEXT AS email_summary,
-        NULL::UUID AS email_batch_id,
+        -- Email batching (MIG_2495)
+        COALESCE(r.ready_to_email, FALSE) AS ready_to_email,
+        r.email_summary,
+        r.email_batch_id,
         -- Classification suggestion (V2: not present)
         NULL::TEXT AS suggested_classification,
         NULL::NUMERIC AS classification_confidence,
@@ -309,11 +339,22 @@ export async function GET(
         NULL::TEXT AS current_place_classification,
         -- SC_004: Assignment status (maintained field)
         r.no_trapper_reason,
-        r.assignment_status::TEXT
+        r.assignment_status::TEXT,
+        -- Call sheet trapping logistics (MIG_2495)
+        r.dogs_on_site,
+        r.trap_savvy,
+        r.previous_tnr,
+        r.handleability,
+        r.fixed_status,
+        r.ownership_status,
+        COALESCE(r.has_medical_concerns, FALSE) AS has_medical_concerns,
+        r.medical_description,
+        r.important_notes
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
       LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
+      LEFT JOIN sot.people sc ON sc.person_id = r.site_contact_person_id
       LEFT JOIN sot.v_place_colony_status pcs ON pcs.place_id = r.place_id
       WHERE r.request_id = $1
     `;
@@ -435,6 +476,59 @@ interface UpdateRequestBody {
   email_summary?: string;
   // SC_004: No trapper reason (syncs assignment_status)
   no_trapper_reason?: string | null;
+
+  // ==========================================================================
+  // MIG_2531/2532: New fields for Beacon-critical data and intake unification
+  // ==========================================================================
+
+  // Beacon-critical fields
+  peak_count?: number | null;
+  awareness_duration?: string | null;
+  county?: string | null;
+
+  // Property/Access
+  is_property_owner?: boolean | null;
+  has_property_access?: boolean | null;
+  property_type?: string | null;
+  colony_duration?: string | null;
+
+  // Feeding
+  is_being_fed?: boolean | null;
+  feeder_name?: string | null;
+  feeding_frequency?: string | null;
+  feeding_location?: string | null;
+  feeding_time?: string | null;
+
+  // Medical/Emergency
+  is_emergency?: boolean | null;
+  has_medical_concerns?: boolean | null;
+  medical_description?: string | null;
+
+  // Cat description (for single-cat requests)
+  cat_name?: string | null;
+  cat_description?: string | null;
+
+  // Enhanced kitten tracking
+  kitten_behavior?: string | null;
+  kitten_contained?: string | null;
+  mom_present?: string | null;
+  mom_fixed?: string | null;
+  can_bring_in?: string | null;
+  kitten_age_estimate?: string | null;
+
+  // Third-party reporter (MIG_2522)
+  is_third_party_report?: boolean | null;
+  third_party_relationship?: string | null;
+
+  // Trapping logistics
+  best_trapping_time?: string | null;
+  dogs_on_site?: string | null;
+  trap_savvy?: string | null;
+  previous_tnr?: string | null;
+
+  // Triage
+  triage_category?: string | null;
+  received_by?: string | null;
 }
 
 export async function PATCH(
@@ -571,12 +665,12 @@ export async function PATCH(
       values.push(body.status);
       paramIndex++;
 
-      // If moving to on_hold, set hold_started_at
-      if (body.status === "on_hold") {
+      // MIG_2530: If moving to paused (or legacy on_hold), set hold_started_at
+      if (body.status === "paused" || body.status === "on_hold") {
         updates.push(`hold_started_at = COALESCE(hold_started_at, NOW())`);
       }
-      // If moving out of on_hold, clear hold fields
-      if (body.status !== "on_hold") {
+      // If moving out of paused/on_hold, clear hold fields
+      if (body.status !== "paused" && body.status !== "on_hold") {
         updates.push(`hold_started_at = NULL`);
         updates.push(`hold_reason = NULL`);
         updates.push(`hold_reason_notes = NULL`);
@@ -847,6 +941,205 @@ export async function PATCH(
         oldValue: null, // We don't fetch old value here; audit captures the change
         newValue: body.no_trapper_reason,
       });
+    }
+
+    // ==========================================================================
+    // MIG_2531/2532: New fields for Beacon-critical data and intake unification
+    // ==========================================================================
+
+    // Beacon-critical fields
+    if (body.peak_count !== undefined) {
+      updates.push(`peak_count = $${paramIndex}`);
+      values.push(body.peak_count);
+      paramIndex++;
+    }
+
+    if (body.awareness_duration !== undefined) {
+      updates.push(`awareness_duration = $${paramIndex}`);
+      values.push(body.awareness_duration);
+      paramIndex++;
+    }
+
+    if (body.county !== undefined) {
+      updates.push(`county = $${paramIndex}`);
+      values.push(body.county);
+      paramIndex++;
+    }
+
+    // Property/Access
+    if (body.is_property_owner !== undefined) {
+      updates.push(`is_property_owner = $${paramIndex}`);
+      values.push(body.is_property_owner);
+      paramIndex++;
+    }
+
+    if (body.has_property_access !== undefined) {
+      updates.push(`has_property_access = $${paramIndex}`);
+      values.push(body.has_property_access);
+      paramIndex++;
+    }
+
+    if (body.property_type !== undefined) {
+      updates.push(`property_type = $${paramIndex}`);
+      values.push(body.property_type);
+      paramIndex++;
+    }
+
+    if (body.colony_duration !== undefined) {
+      updates.push(`colony_duration = $${paramIndex}`);
+      values.push(body.colony_duration);
+      paramIndex++;
+    }
+
+    // Feeding
+    if (body.is_being_fed !== undefined) {
+      updates.push(`is_being_fed = $${paramIndex}`);
+      values.push(body.is_being_fed);
+      paramIndex++;
+    }
+
+    if (body.feeder_name !== undefined) {
+      updates.push(`feeder_name = $${paramIndex}`);
+      values.push(body.feeder_name);
+      paramIndex++;
+    }
+
+    if (body.feeding_frequency !== undefined) {
+      updates.push(`feeding_frequency = $${paramIndex}`);
+      values.push(body.feeding_frequency);
+      paramIndex++;
+    }
+
+    if (body.feeding_location !== undefined) {
+      updates.push(`feeding_location = $${paramIndex}`);
+      values.push(body.feeding_location);
+      paramIndex++;
+    }
+
+    if (body.feeding_time !== undefined) {
+      updates.push(`feeding_time = $${paramIndex}`);
+      values.push(body.feeding_time);
+      paramIndex++;
+    }
+
+    // Medical/Emergency
+    if (body.is_emergency !== undefined) {
+      updates.push(`is_emergency = $${paramIndex}`);
+      values.push(body.is_emergency);
+      paramIndex++;
+    }
+
+    if (body.has_medical_concerns !== undefined) {
+      updates.push(`has_medical_concerns = $${paramIndex}`);
+      values.push(body.has_medical_concerns);
+      paramIndex++;
+    }
+
+    if (body.medical_description !== undefined) {
+      updates.push(`medical_description = $${paramIndex}`);
+      values.push(body.medical_description);
+      paramIndex++;
+    }
+
+    // Cat description
+    if (body.cat_name !== undefined) {
+      updates.push(`cat_name = $${paramIndex}`);
+      values.push(body.cat_name);
+      paramIndex++;
+    }
+
+    if (body.cat_description !== undefined) {
+      updates.push(`cat_description = $${paramIndex}`);
+      values.push(body.cat_description);
+      paramIndex++;
+    }
+
+    // Enhanced kitten tracking
+    if (body.kitten_behavior !== undefined) {
+      updates.push(`kitten_behavior = $${paramIndex}`);
+      values.push(body.kitten_behavior);
+      paramIndex++;
+    }
+
+    if (body.kitten_contained !== undefined) {
+      updates.push(`kitten_contained = $${paramIndex}`);
+      values.push(body.kitten_contained);
+      paramIndex++;
+    }
+
+    if (body.mom_present !== undefined) {
+      updates.push(`mom_present = $${paramIndex}`);
+      values.push(body.mom_present);
+      paramIndex++;
+    }
+
+    if (body.mom_fixed !== undefined) {
+      updates.push(`mom_fixed = $${paramIndex}`);
+      values.push(body.mom_fixed);
+      paramIndex++;
+    }
+
+    if (body.can_bring_in !== undefined) {
+      updates.push(`can_bring_in = $${paramIndex}`);
+      values.push(body.can_bring_in);
+      paramIndex++;
+    }
+
+    if (body.kitten_age_estimate !== undefined) {
+      updates.push(`kitten_age_estimate = $${paramIndex}`);
+      values.push(body.kitten_age_estimate);
+      paramIndex++;
+    }
+
+    // Third-party reporter (MIG_2522)
+    if (body.is_third_party_report !== undefined) {
+      updates.push(`is_third_party_report = $${paramIndex}`);
+      values.push(body.is_third_party_report);
+      paramIndex++;
+    }
+
+    if (body.third_party_relationship !== undefined) {
+      updates.push(`third_party_relationship = $${paramIndex}`);
+      values.push(body.third_party_relationship);
+      paramIndex++;
+    }
+
+    // Trapping logistics
+    if (body.best_trapping_time !== undefined) {
+      updates.push(`best_trapping_time = $${paramIndex}`);
+      values.push(body.best_trapping_time);
+      paramIndex++;
+    }
+
+    if (body.dogs_on_site !== undefined) {
+      updates.push(`dogs_on_site = $${paramIndex}`);
+      values.push(body.dogs_on_site);
+      paramIndex++;
+    }
+
+    if (body.trap_savvy !== undefined) {
+      updates.push(`trap_savvy = $${paramIndex}`);
+      values.push(body.trap_savvy);
+      paramIndex++;
+    }
+
+    if (body.previous_tnr !== undefined) {
+      updates.push(`previous_tnr = $${paramIndex}`);
+      values.push(body.previous_tnr);
+      paramIndex++;
+    }
+
+    // Triage
+    if (body.triage_category !== undefined) {
+      updates.push(`triage_category = $${paramIndex}`);
+      values.push(body.triage_category);
+      paramIndex++;
+    }
+
+    if (body.received_by !== undefined) {
+      updates.push(`received_by = $${paramIndex}`);
+      values.push(body.received_by);
+      paramIndex++;
     }
 
     // Handle status changes that trigger resolved_at
