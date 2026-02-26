@@ -437,7 +437,7 @@ Extract from request:
 
 | File | Change | Status |
 |------|--------|--------|
-| `src/app/requests/page.tsx` | **Rework list UI**: Group by status, show active prominently | ⬜ |
+| `src/app/requests/page.tsx` | **Rework list UI**: Group by status, show active prominently | ✅ Done |
 | `src/components/requests/CreateRequestWizard.tsx` | Pre-fill from intake | ⬜ |
 | `src/components/intake/DeclineModal.tsx` | Create component | ⬜ |
 | `sql/schema/v2/MIG_2534__decline_reasons.sql` | Create table | ⬜ |
