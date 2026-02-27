@@ -3923,14 +3923,15 @@ async function sendStaffMessage(
 
 /**
  * Comprehensive person lookup - traces ALL data sources
+ * V2: Uses ops.comprehensive_person_lookup(search_term) which returns JSONB array
  */
 async function comprehensivePersonLookup(
   identifier: string,
-  identifierType: string | undefined
+  _identifierType: string | undefined // Kept for API compatibility but unused in V2
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT ops.comprehensive_person_lookup($1, $2) as result`,
-    [identifier, identifierType || "auto"]
+    `SELECT ops.comprehensive_person_lookup($1) as result`,
+    [identifier]
   );
 
   if (!result) {
@@ -3944,32 +3945,41 @@ async function comprehensivePersonLookup(
     ? JSON.parse(result.result)
     : result.result;
 
-  if (!parsed.found) {
+  // V2: Function returns array, not object with 'found' property
+  if (!parsed || (Array.isArray(parsed) && parsed.length === 0)) {
     return {
       success: true,
       data: {
         found: false,
-        message: parsed.message || `No person found matching "${identifier}"`,
+        message: `No person found matching "${identifier}"`,
       },
     };
   }
 
   return {
     success: true,
-    data: parsed,
+    data: {
+      found: true,
+      people: Array.isArray(parsed) ? parsed : [parsed],
+      count: Array.isArray(parsed) ? parsed.length : 1,
+      summary: Array.isArray(parsed) && parsed.length > 0
+        ? `Found ${parsed.length} person(s) matching "${identifier}"`
+        : undefined,
+    },
   };
 }
 
 /**
  * Comprehensive cat lookup - traces ALL data sources
+ * V2: Uses ops.comprehensive_cat_lookup(search_term) which returns JSONB array
  */
 async function comprehensiveCatLookup(
   identifier: string,
-  identifierType: string | undefined
+  _identifierType: string | undefined // Kept for API compatibility but unused in V2
 ): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
-    `SELECT ops.comprehensive_cat_lookup($1, $2) as result`,
-    [identifier, identifierType || "auto"]
+    `SELECT ops.comprehensive_cat_lookup($1::TEXT) as result`,
+    [identifier]
   );
 
   if (!result) {
@@ -3983,24 +3993,33 @@ async function comprehensiveCatLookup(
     ? JSON.parse(result.result)
     : result.result;
 
-  if (!parsed.found) {
+  // V2: Function returns array, not object with 'found' property
+  if (!parsed || (Array.isArray(parsed) && parsed.length === 0)) {
     return {
       success: true,
       data: {
         found: false,
-        message: parsed.message || `No cat found matching "${identifier}"`,
+        message: `No cat found matching "${identifier}"`,
       },
     };
   }
 
   return {
     success: true,
-    data: parsed,
+    data: {
+      found: true,
+      cats: Array.isArray(parsed) ? parsed : [parsed],
+      count: Array.isArray(parsed) ? parsed.length : 1,
+      summary: Array.isArray(parsed) && parsed.length > 0
+        ? `Found ${parsed.length} cat(s) matching "${identifier}"`
+        : undefined,
+    },
   };
 }
 
 /**
  * Comprehensive place lookup - traces ALL activity at a location
+ * V2: Uses ops.comprehensive_place_lookup(search_term) which returns JSONB array
  */
 async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
   const result = await queryOne<{ result: unknown }>(
@@ -4019,19 +4038,27 @@ async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
     ? JSON.parse(result.result)
     : result.result;
 
-  if (!parsed.found) {
+  // V2: Function returns array, not object with 'found' property
+  if (!parsed || (Array.isArray(parsed) && parsed.length === 0)) {
     return {
       success: true,
       data: {
         found: false,
-        message: parsed.message || `No place found matching "${address}"`,
+        message: `No place found matching "${address}"`,
       },
     };
   }
 
   return {
     success: true,
-    data: parsed,
+    data: {
+      found: true,
+      places: Array.isArray(parsed) ? parsed : [parsed],
+      count: Array.isArray(parsed) ? parsed.length : 1,
+      summary: Array.isArray(parsed) && parsed.length > 0
+        ? `Found ${parsed.length} place(s) matching "${address}"`
+        : undefined,
+    },
   };
 }
 
@@ -4778,24 +4805,18 @@ async function discoverViews(
 
 /**
  * Execute a dynamic query against a cataloged view
+ * V2: Uses ops.tippy_query_view(view_name, filters, limit) which returns JSONB array
  */
 async function queryViewDynamic(
   viewName: string,
   filters?: Array<{ column_name: string; operator: string; value: string }>,
-  columns?: string[],
+  _columns?: string[], // Kept for API compatibility but unused in V2
   limit?: number
 ): Promise<ToolResult> {
   try {
-    const result = await queryOne<{
-      success: boolean;
-      view: string;
-      total_rows: number;
-      returned_rows: number;
-      data: unknown[];
-      error?: string;
-    }>(
-      `SELECT * FROM ops.tippy_query_view($1, $2, $3, $4)`,
-      [viewName, JSON.stringify(filters || []), Math.min(limit || 50, 200), columns || null]
+    const result = await queryOne<{ result: unknown }>(
+      `SELECT ops.tippy_query_view($1, $2::JSONB, $3) as result`,
+      [viewName, JSON.stringify(filters || []), Math.min(limit || 50, 200)]
     );
 
     if (!result) {
@@ -4805,24 +4826,30 @@ async function queryViewDynamic(
       };
     }
 
-    if (!result.success) {
+    const parsed = typeof result.result === "string"
+      ? JSON.parse(result.result)
+      : result.result;
+
+    // V2: Function returns JSONB array or error object
+    if (parsed && typeof parsed === "object" && "error" in parsed) {
       return {
         success: false,
-        error: result.error || "Query failed",
+        error: parsed.error as string,
       };
     }
+
+    const rows = Array.isArray(parsed) ? parsed : [];
 
     return {
       success: true,
       data: {
-        view: result.view,
-        total_rows: result.total_rows,
-        returned_rows: result.returned_rows,
-        rows: result.data,
+        view: viewName,
+        returned_rows: rows.length,
+        rows: rows,
         message:
-          result.total_rows === 0
+          rows.length === 0
             ? `No rows found in ${viewName} with the given filters`
-            : `Returned ${result.returned_rows} of ${result.total_rows} rows from ${viewName}`,
+            : `Returned ${rows.length} rows from ${viewName}`,
       },
     };
   } catch (error) {
