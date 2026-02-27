@@ -178,7 +178,7 @@ export function expandRegion(region: string): string[] {
   const normalized = region.toLowerCase().trim();
   const regionCities =
     SONOMA_GEOGRAPHY.regions[normalized as keyof typeof SONOMA_GEOGRAPHY.regions];
-  if (regionCities) return regionCities;
+  if (regionCities) return [...regionCities];
 
   // Check if it's a major city
   const matchedCity = SONOMA_GEOGRAPHY.major_cities.find(
