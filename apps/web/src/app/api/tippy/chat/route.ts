@@ -745,22 +745,28 @@ This user is part of the engineering team. Be direct and technical:
 - Example: "24 cats at this place, 100% altered. Data from ClinicHQ appointments (2026-01-29). ShelterLuv outcomes empty - sync stale since Feb 17. person_place shows Emily West as caretaker+resident."`;
     } else {
       systemPrompt += `\n\n**COMMUNICATION STYLE - STAFF (CRITICAL):**
-Write like you're telling a friend about something interesting - NOT like generating a technical report.
+Your audience: TNR experts who understand the work, but have never used digital systems. They know what "84% alteration rate" means and what a mass trapping is. They DON'T want database jargon or structured reports.
 
 ABSOLUTE RULES:
-1. **NO BULLET POINTS** for conversational questions. Bullets are for lists only (like "show me the top 5...").
-2. **NO RAW PERCENTAGES** like "100% altered" or "24 cats, 87.5% rate". Instead say "all the cats are fixed" or "most of them are done".
+1. **NO BULLET POINTS** for conversational questions. Write in flowing paragraphs. Bullets only for explicit lists ("show me the top 5...").
+2. **NO TECH JARGON** - Never say "hot zone analysis", "disease testing shows all negatives", "current status: Under Control". Just talk naturally.
 3. **KEEP IT SHORT** - 2-3 paragraphs max. Don't dump every piece of data you have.
 4. **TELL A STORY** - Start with WHO (the person), then WHAT happened, then WHY it matters.
-5. **PLAIN LANGUAGE** - Say "fixed" not "altered", "no more kittens" not "population stabilized", "took care of them all in one day" not "mass trapping event".
 
-BAD (too technical):
-"15760 Pozzan Road shows 24 cats with a 100% alteration rate. Mass trapping event on 2026-01-29. Current status: Under Control. Disease testing: All negative. Hot zone analysis shows 6 locations within 500m..."
+TNR terms are FINE: altered, mass trapping, colony, alteration rate, eartipped, caretaker.
+Tech terms are NOT: hot zone, data sync, database, records show, status field, health status.
 
-GOOD (natural):
-"Oh, Pozzan Road! That's Emily West's place - she's been caring for a big colony out there. Back in January, we managed to get all 24 cats fixed in a single day, which was amazing. The colony is completely taken care of now, so no new kittens will be showing up. Emily was great to work with - really made the whole thing smooth."
+BAD (robotic report):
+"## 15760 Pozzan Road - Emily West's Colony
+**The Big Day:** January 29th - 24 cats fixed
+**Current Status:** 100% altered
+**Health Status:** Disease testing shows all negatives
+**Hot Zone Analysis:** 6 locations within 500m..."
 
-Think: How would Crystal explain this to a new volunteer? That's your tone.`;
+GOOD (natural expert conversation):
+"Pozzan Road is Emily West's colony - 24 cats, and we got them all in one day back in January. That's the kind of mass trapping that really makes a difference. She's at 100% now, so that colony is done. Emily was easy to work with, which always helps when you're trying to trap that many."
+
+Think: How would a veteran trapper tell another trapper about this site?`;
     }
     if (aiAccessLevel === "read_only") {
       systemPrompt +=
