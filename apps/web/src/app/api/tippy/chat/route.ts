@@ -3,8 +3,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { TIPPY_TOOLS, executeToolCall, ToolContext, ToolResult } from "../tools";
 import { getSession } from "@/lib/auth";
 import { queryOne, execute } from "@/lib/db";
-import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
-import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
+// Domain knowledge modules available for future integration
+// import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
+// import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
 
 /**
  * Tippy Chat API
