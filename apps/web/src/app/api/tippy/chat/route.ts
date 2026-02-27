@@ -413,8 +413,9 @@ interface ChatRequest {
 // Note: lookup_cat_appointment is READ-ONLY (moved out of this list)
 const WRITE_TOOLS = ["log_field_event", "create_reminder", "save_lookup", "log_site_observation", "send_staff_message", "create_draft_request"];
 
-// Tools that require full access only
-const ADMIN_TOOLS: string[] = [];
+// Tools that require full access only (admin/engineer level)
+// run_sql allows dynamic SQL queries - powerful but requires understanding of the schema
+const ADMIN_TOOLS: string[] = ["run_sql"];
 
 /**
  * Filter tools based on user's AI access level
