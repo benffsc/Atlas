@@ -529,7 +529,8 @@ const WRITE_TOOLS = ["log_field_event", "create_reminder", "save_lookup", "log_s
 
 // Tools that require full access only (admin/engineer level)
 // run_sql allows dynamic SQL queries - powerful but requires understanding of the schema
-const ADMIN_TOOLS: string[] = ["run_sql"];
+// TEMPORARY: run_sql available to all users for presentation demo
+const ADMIN_TOOLS: string[] = []; // ["run_sql"] - temporarily disabled restriction
 
 /**
  * Filter tools based on user's AI access level
