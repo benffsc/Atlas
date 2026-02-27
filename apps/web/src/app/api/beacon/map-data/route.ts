@@ -293,7 +293,7 @@ export async function GET(req: NextRequest) {
             last_alteration_at::text,
             pin_style,
             pin_tier
-          FROM ops.v_map_atlas_pins
+          FROM ops.v_map_atlas_pins_with_gm
           WHERE 1=1
             ${zone ? `AND service_zone = '${zone}'` : ""}
             ${boundsCondition}

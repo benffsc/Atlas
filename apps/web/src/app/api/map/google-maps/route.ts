@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
     params.push(limit);
     const limitParam = paramIndex;
 
+    // Use ops.google_map_entries - the canonical schema with up-to-date linking
     const sql = `
       SELECT
         g.entry_id,
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
         g.nearest_place_id,
         g.nearest_place_distance_m,
         p.display_name as nearest_place_name
-      FROM source.google_map_entries g
+      FROM ops.google_map_entries g
       LEFT JOIN sot.places p ON p.place_id = g.nearest_place_id
       WHERE ${conditions.join(" AND ")}
       ORDER BY g.parsed_date DESC NULLS LAST
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
       SELECT
         COALESCE(ai_classification->>'primary_meaning', 'unclassified') as classification,
         COUNT(*)::INT as count
-      FROM source.google_map_entries
+      FROM ops.google_map_entries
       WHERE linked_place_id IS NULL AND lat IS NOT NULL
       GROUP BY ai_classification->>'primary_meaning'
       ORDER BY count DESC
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
     // Total unattached count
     const totalCount = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::INT as count
-      FROM source.google_map_entries
+      FROM ops.google_map_entries
       WHERE linked_place_id IS NULL AND lat IS NOT NULL
     `);
 

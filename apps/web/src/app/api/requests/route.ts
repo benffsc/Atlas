@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
         assignment_status,
         map_preview_url,
         map_preview_updated_at,
-        -- MIG_2522: Requestor intelligence (will be NULL until migration applied)
+        -- MIG_2522: Requestor intelligence
         requester_role_at_submission,
         requester_is_site_contact,
         site_contact_name
