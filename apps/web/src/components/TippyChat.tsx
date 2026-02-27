@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from "react";
+import ReactMarkdown from "react-markdown";
 import { TippyFeedbackModal } from "./TippyFeedbackModal";
 
 interface Message {
@@ -320,6 +321,7 @@ export function TippyChat() {
               }}
             >
               <div
+                className={msg.role === "assistant" ? "tippy-markdown" : ""}
                 style={{
                   maxWidth: "85%",
                   padding: "10px 14px",
@@ -336,7 +338,11 @@ export function TippyChat() {
                   lineHeight: 1.5,
                 }}
               >
-                {msg.content}
+                {msg.role === "assistant" ? (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
               {/* Feedback button for assistant messages */}
               {msg.role === "assistant" && (
@@ -437,7 +443,7 @@ export function TippyChat() {
         </button>
       </form>
 
-      <style jsx>{`
+      <style jsx global>{`
         @keyframes typing {
           0%,
           100% {
@@ -446,6 +452,37 @@ export function TippyChat() {
           50% {
             opacity: 0.5;
           }
+        }
+
+        .tippy-markdown p {
+          margin: 0 0 0.5em 0;
+        }
+        .tippy-markdown p:last-child {
+          margin-bottom: 0;
+        }
+        .tippy-markdown h1, .tippy-markdown h2, .tippy-markdown h3 {
+          font-size: 1em;
+          font-weight: 600;
+          margin: 0.75em 0 0.25em 0;
+        }
+        .tippy-markdown h1:first-child, .tippy-markdown h2:first-child, .tippy-markdown h3:first-child {
+          margin-top: 0;
+        }
+        .tippy-markdown ul, .tippy-markdown ol {
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
+        .tippy-markdown li {
+          margin: 0.25em 0;
+        }
+        .tippy-markdown strong {
+          font-weight: 600;
+        }
+        .tippy-markdown code {
+          background: rgba(0,0,0,0.1);
+          padding: 0.1em 0.3em;
+          border-radius: 3px;
+          font-size: 0.9em;
         }
       `}</style>
 
