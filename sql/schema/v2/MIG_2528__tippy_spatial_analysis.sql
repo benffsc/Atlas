@@ -4,7 +4,7 @@
 -- Purpose: Give Tippy geospatial reasoning capabilities
 -- When searching for an address:
 --   1. Check if we have data at that exact address
---   2. If not, look for nearby places (50m, 100m, 500m, 1km)
+--   2. If not, use word-by-word matching to find nearby location
 --   3. Identify hot zones (clusters of activity)
 --   4. Report nearest known location and distance
 
@@ -28,12 +28,11 @@ DECLARE
     v_place_id UUID;
     v_exact_match JSONB;
     v_nearby_places JSONB;
-    v_hot_zones JSONB;
     v_nearest JSONB;
-    v_result JSONB;
+    v_search_words TEXT[];
 BEGIN
     -- Step 1: Try to find exact address match
-    SELECT place_id INTO v_place_id
+    SELECT p.place_id INTO v_place_id
     FROM sot.places p
     LEFT JOIN sot.addresses a ON a.address_id = p.sot_address_id
     WHERE p.merged_into_place_id IS NULL
@@ -49,15 +48,13 @@ BEGIN
         (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id) DESC
     LIMIT 1;
 
-    -- If exact match found, return full report
+    -- If exact match found, return full report with nearby context
     IF v_place_id IS NOT NULL THEN
         SELECT ops.tippy_place_full_report(p_address) INTO v_exact_match;
 
-        -- Get the location for nearby search
-        SELECT location INTO v_search_point
-        FROM sot.places WHERE place_id = v_place_id;
+        SELECT p.location INTO v_search_point
+        FROM sot.places p WHERE p.place_id = v_place_id;
 
-        -- Also find nearby places for context
         SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
             'place_id', p.place_id,
             'display_name', p.display_name,
@@ -65,8 +62,7 @@ BEGIN
             'cat_count', (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id),
             'has_active_request', EXISTS (
                 SELECT 1 FROM ops.requests r
-                WHERE r.place_id = p.place_id
-                AND r.status NOT IN ('completed', 'cancelled')
+                WHERE r.place_id = p.place_id AND r.status NOT IN ('completed', 'cancelled')
             )
         ) ORDER BY ST_Distance(p.location, v_search_point)), '[]'::JSONB)
         INTO v_nearby_places
@@ -74,7 +70,7 @@ BEGIN
         WHERE p.place_id != v_place_id
         AND p.merged_into_place_id IS NULL
         AND p.location IS NOT NULL
-        AND ST_DWithin(p.location, v_search_point, 500)  -- Within 500m
+        AND ST_DWithin(p.location, v_search_point, 500)
         AND EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id);
 
         RETURN JSONB_BUILD_OBJECT(
@@ -99,57 +95,44 @@ BEGIN
         );
     END IF;
 
-    -- Step 2: No exact match - try to geocode or use provided coordinates
+    -- Step 2: No exact match - try coordinates or word-by-word partial match
     IF p_lat IS NOT NULL AND p_lng IS NOT NULL THEN
         v_search_point := ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography;
     ELSE
-        -- Try to find any partial match to get coordinates
-        SELECT location INTO v_search_point
-        FROM sot.places p
-        LEFT JOIN sot.addresses a ON a.address_id = p.sot_address_id
-        WHERE p.merged_into_place_id IS NULL
-        AND p.location IS NOT NULL
-        AND (
-            -- Match city or street name
-            a.city ILIKE '%' || p_address || '%'
-            OR p.display_name ILIKE '%' || p_address || '%'
-        )
-        LIMIT 1;
+        -- Split address into words and try to find any matching place
+        v_search_words := regexp_split_to_array(p_address, '[,\s]+');
+
+        -- Try each word (prioritize city names which are usually 1 word)
+        FOR i IN 1..array_length(v_search_words, 1) LOOP
+            IF length(v_search_words[i]) > 3 THEN  -- Skip short words
+                SELECT p.location INTO v_search_point
+                FROM sot.places p
+                LEFT JOIN sot.addresses a ON a.address_id = p.sot_address_id
+                WHERE p.merged_into_place_id IS NULL
+                AND p.location IS NOT NULL
+                AND (
+                    a.city ILIKE v_search_words[i]
+                    OR p.display_name ILIKE '%' || v_search_words[i] || '%'
+                )
+                LIMIT 1;
+
+                EXIT WHEN v_search_point IS NOT NULL;
+            END IF;
+        END LOOP;
     END IF;
 
     IF v_search_point IS NULL THEN
         RETURN JSONB_BUILD_OBJECT(
             'search_type', 'no_match',
             'found_at_address', false,
-            'message', 'Could not find or geocode address: ' || p_address,
-            'suggestion', 'Try a more specific address or provide coordinates'
+            'searched_address', p_address,
+            'message', 'Could not find or locate address: ' || p_address,
+            'suggestion', 'Try a city name, street name, or provide coordinates'
         );
     END IF;
 
-    -- Step 3: Find nearby places at different radii
+    -- Step 3: Build nearby places result
     SELECT JSONB_BUILD_OBJECT(
-        'within_50m', (
-            SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
-                'place_id', p.place_id,
-                'display_name', p.display_name,
-                'distance_meters', ROUND(ST_Distance(p.location, v_search_point)::NUMERIC, 0),
-                'cat_count', (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id),
-                'alteration_rate', (
-                    SELECT ROUND(
-                        COUNT(*) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'altered'))::NUMERIC
-                        / NULLIF(COUNT(*), 0) * 100, 1
-                    )
-                    FROM sot.cat_place cp
-                    JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
-                    WHERE cp.place_id = p.place_id
-                )
-            ) ORDER BY ST_Distance(p.location, v_search_point)), '[]'::JSONB)
-            FROM sot.places p
-            WHERE p.merged_into_place_id IS NULL
-            AND p.location IS NOT NULL
-            AND ST_DWithin(p.location, v_search_point, 50)
-            AND EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
-        ),
         'within_100m', (
             SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
                 'place_id', p.place_id,
@@ -158,10 +141,8 @@ BEGIN
                 'cat_count', (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
             ) ORDER BY ST_Distance(p.location, v_search_point)), '[]'::JSONB)
             FROM sot.places p
-            WHERE p.merged_into_place_id IS NULL
-            AND p.location IS NOT NULL
+            WHERE p.merged_into_place_id IS NULL AND p.location IS NOT NULL
             AND ST_DWithin(p.location, v_search_point, 100)
-            AND NOT ST_DWithin(p.location, v_search_point, 50)  -- Exclude already counted
             AND EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
         ),
         'within_500m', (
@@ -172,29 +153,14 @@ BEGIN
                 'cat_count', (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
             ) ORDER BY ST_Distance(p.location, v_search_point)), '[]'::JSONB)
             FROM sot.places p
-            WHERE p.merged_into_place_id IS NULL
-            AND p.location IS NOT NULL
+            WHERE p.merged_into_place_id IS NULL AND p.location IS NOT NULL
             AND ST_DWithin(p.location, v_search_point, 500)
             AND NOT ST_DWithin(p.location, v_search_point, 100)
-            AND EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
-        ),
-        'within_1km', (
-            SELECT COALESCE(JSONB_AGG(JSONB_BUILD_OBJECT(
-                'place_id', p.place_id,
-                'display_name', p.display_name,
-                'distance_meters', ROUND(ST_Distance(p.location, v_search_point)::NUMERIC, 0),
-                'cat_count', (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
-            ) ORDER BY ST_Distance(p.location, v_search_point)), '[]'::JSONB)
-            FROM sot.places p
-            WHERE p.merged_into_place_id IS NULL
-            AND p.location IS NOT NULL
-            AND ST_DWithin(p.location, v_search_point, 1000)
-            AND NOT ST_DWithin(p.location, v_search_point, 500)
             AND EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
         )
     ) INTO v_nearby_places;
 
-    -- Step 4: Find nearest place with cats (regardless of distance)
+    -- Find nearest
     SELECT JSONB_BUILD_OBJECT(
         'place_id', p.place_id,
         'display_name', p.display_name,
@@ -203,34 +169,28 @@ BEGIN
             WHEN ST_Distance(p.location, v_search_point) < 100 THEN 'very close (under 100m)'
             WHEN ST_Distance(p.location, v_search_point) < 500 THEN 'nearby (under 500m)'
             WHEN ST_Distance(p.location, v_search_point) < 1000 THEN 'in the area (under 1km)'
-            WHEN ST_Distance(p.location, v_search_point) < 5000 THEN 'in the neighborhood (under 5km)'
             ELSE 'distant (' || ROUND(ST_Distance(p.location, v_search_point)::NUMERIC / 1000, 1) || 'km away)'
         END,
         'cat_count', (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
     ) INTO v_nearest
     FROM sot.places p
-    WHERE p.merged_into_place_id IS NULL
-    AND p.location IS NOT NULL
+    WHERE p.merged_into_place_id IS NULL AND p.location IS NOT NULL
     AND EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id)
     ORDER BY ST_Distance(p.location, v_search_point)
     LIMIT 1;
 
-    -- Calculate total nearby activity
+    -- Calculate totals
     DECLARE
         v_total_nearby INT;
         v_total_cats INT;
         v_zone_assessment TEXT;
     BEGIN
-        v_total_nearby := JSONB_ARRAY_LENGTH(v_nearby_places->'within_50m') +
-                          JSONB_ARRAY_LENGTH(v_nearby_places->'within_100m') +
+        v_total_nearby := JSONB_ARRAY_LENGTH(v_nearby_places->'within_100m') +
                           JSONB_ARRAY_LENGTH(v_nearby_places->'within_500m');
 
-        -- Sum cats within 500m
         SELECT COALESCE(SUM((item->>'cat_count')::INT), 0) INTO v_total_cats
         FROM (
-            SELECT jsonb_array_elements(v_nearby_places->'within_50m') as item
-            UNION ALL
-            SELECT jsonb_array_elements(v_nearby_places->'within_100m')
+            SELECT jsonb_array_elements(v_nearby_places->'within_100m') as item
             UNION ALL
             SELECT jsonb_array_elements(v_nearby_places->'within_500m')
         ) x;
@@ -255,18 +215,10 @@ BEGIN
             ),
             'interpretation_hints', ARRAY[
                 CASE v_zone_assessment
-                    WHEN 'hot_zone' THEN 'This is a HOT ZONE with ' || v_total_nearby || ' locations and ' || v_total_cats || ' cats within 500m. High likelihood of cat activity in this area.'
-                    WHEN 'active_area' THEN 'There is nearby activity - ' || v_total_nearby || ' location(s) within 500m. Cats in the area may roam to this address.'
-                    WHEN 'some_nearby_activity' THEN 'Limited nearby activity. One location with cats within 500m.'
-                    ELSE 'No cat activity within 500m of this address. The nearest known location is ' ||
-                         COALESCE((v_nearest->>'distance_description'), 'unknown') || '.'
-                END,
-                CASE
-                    WHEN (v_nearest->>'distance_meters')::INT > 5000
-                    THEN 'The nearest known location is over 5km away. This appears to be a new area with no prior TNR history.'
-                    WHEN (v_nearest->>'distance_meters')::INT > 1000
-                    THEN 'Nearest activity is ' || (v_nearest->>'distance_meters') || 'm away. This location may be unrelated to nearby colonies.'
-                    ELSE NULL
+                    WHEN 'hot_zone' THEN 'HOT ZONE: ' || v_total_nearby || ' locations with ' || v_total_cats || ' cats within 500m'
+                    WHEN 'active_area' THEN 'Active area: ' || v_total_nearby || ' location(s) within 500m'
+                    WHEN 'some_nearby_activity' THEN 'Some nearby activity within 500m'
+                    ELSE 'No activity within 500m. Nearest: ' || COALESCE(v_nearest->>'display_name', 'unknown')
                 END
             ]
         );
@@ -275,7 +227,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION ops.tippy_spatial_analysis(TEXT, DOUBLE PRECISION, DOUBLE PRECISION) IS
-'Geospatial analysis for Tippy - finds nearby activity, hot zones, and nearest known locations';
+'Geospatial analysis for Tippy - finds nearby activity, hot zones, nearest locations. Uses word-by-word matching for partial addresses.';
 
 \echo ''
 \echo '=============================================='
@@ -283,12 +235,16 @@ COMMENT ON FUNCTION ops.tippy_spatial_analysis(TEXT, DOUBLE PRECISION, DOUBLE PR
 \echo '=============================================='
 \echo ''
 
-\echo 'Testing with known address (should find exact match)...'
-SELECT jsonb_pretty(ops.tippy_spatial_analysis('15760 Pozzan')->'nearby_activity');
+\echo 'Test 1: Exact match (15760 Pozzan)...'
+SELECT ops.tippy_spatial_analysis('15760 Pozzan')->>'search_type' as result;
 
 \echo ''
-\echo 'Testing search type detection...'
-SELECT ops.tippy_spatial_analysis('15760 Pozzan')->>'search_type' as search_type;
+\echo 'Test 2: Spatial search (15700 Pozzan, Healdsburg - does not exist)...'
+SELECT
+    r->>'search_type' as search_type,
+    r->'summary'->>'zone_assessment' as zone,
+    r->'summary'->>'places_within_500m' as nearby
+FROM (SELECT ops.tippy_spatial_analysis('15700 Pozzan, Healdsburg') as r) x;
 
 \echo ''
 \echo '=============================================='
