@@ -7,6 +7,9 @@ import { queryOne, execute } from "@/lib/db";
 // import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
 // import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
 
+// Extend Vercel function timeout for multi-turn tool calls
+export const maxDuration = 60;
+
 /**
  * Tippy Chat API
  *
