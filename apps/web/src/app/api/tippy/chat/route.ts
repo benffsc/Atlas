@@ -926,16 +926,54 @@ Think: How would a veteran coordinator give an honest assessment?`;
     }
 
     // If the loop exited because we hit max iterations but Claude still wants tools,
-    // make one final call WITHOUT tools to force a text summary of the tool results.
+    // we must still execute those tool calls and provide results (API requirement),
+    // then make one final call WITHOUT tools to force a text summary.
     if (response.stop_reason === "tool_use" && iterations >= maxIterations) {
+      // Find and execute the pending tool calls
+      const pendingToolUseBlocks = response.content.filter(
+        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+      );
+
+      // Track these tools as well
+      pendingToolUseBlocks.forEach((toolUse) => {
+        if (!toolsUsedInThisRequest.includes(toolUse.name)) {
+          toolsUsedInThisRequest.push(toolUse.name);
+        }
+      });
+
+      // Execute the pending tool calls
+      const pendingToolResults = await Promise.all(
+        pendingToolUseBlocks.map(async (toolUse) => {
+          const result = await executeToolCall(
+            toolUse.name,
+            toolUse.input as Record<string, unknown>,
+            toolContext
+          );
+          recentToolResults.push(result);
+          return {
+            type: "tool_result" as const,
+            tool_use_id: toolUse.id,
+            content: JSON.stringify(result),
+          };
+        })
+      );
+
+      // Add assistant's response with tool_use blocks
       messages.push({
         role: "assistant",
         content: response.content,
       });
-      // Add a synthetic user message nudging Claude to summarize
+
+      // Add tool results followed by a request to summarize (in same user message)
       messages.push({
         role: "user",
-        content: "Please summarize what you found from the tool results above. Do not call any more tools.",
+        content: [
+          ...pendingToolResults,
+          {
+            type: "text" as const,
+            text: "Please summarize what you found from all the tool results above. Do not call any more tools.",
+          },
+        ],
       });
 
       response = await client.messages.create({
