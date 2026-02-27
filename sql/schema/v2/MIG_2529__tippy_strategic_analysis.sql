@@ -10,48 +10,8 @@
 \echo '=============================================='
 \echo ''
 
--- Helper function to extract city from display_name
--- Display names are in format: "123 Main St, City, CA 95XXX"
-CREATE OR REPLACE FUNCTION ops.extract_city_from_display_name(p_display_name TEXT)
-RETURNS TEXT
-LANGUAGE plpgsql
-IMMUTABLE
-AS $$
-DECLARE
-    v_parts TEXT[];
-    v_city TEXT;
-BEGIN
-    IF p_display_name IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    -- Split by comma and look for the city part (usually before "CA" or state abbreviation)
-    v_parts := regexp_split_to_array(p_display_name, ',\s*');
-
-    -- Iterate backwards to find city (usually 2nd-to-last or 3rd-to-last part)
-    FOR i IN REVERSE array_length(v_parts, 1)..1 LOOP
-        v_city := TRIM(v_parts[i]);
-        -- Skip ZIP codes (5 digits), state abbreviations (2 letters), and state+zip combos
-        IF v_city ~ '^\d{5}' OR v_city ~ '^[A-Z]{2}\s*\d{5}' OR v_city ~ '^CA$' THEN
-            CONTINUE;
-        END IF;
-        -- Skip parts that start with numbers (addresses)
-        IF v_city ~ '^\d' THEN
-            CONTINUE;
-        END IF;
-        -- Skip very short parts
-        IF length(v_city) < 4 THEN
-            CONTINUE;
-        END IF;
-        -- Found a likely city name
-        RETURN v_city;
-    END LOOP;
-
-    RETURN NULL;
-END;
-$$;
-
 -- City-level metrics with TNR coverage analysis
+-- Uses addresses.city which is now properly populated by MIG_2530 trigger
 CREATE OR REPLACE FUNCTION ops.tippy_city_analysis()
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -64,7 +24,7 @@ BEGIN
     INTO v_result
     FROM (
         SELECT JSONB_BUILD_OBJECT(
-            'city', extracted_city,
+            'city', a.city,
             'total_places', COUNT(DISTINCT p.place_id),
             'places_with_cats', COUNT(DISTINCT p.place_id) FILTER (WHERE cat_stats.cat_count > 0),
             'total_cats', COALESCE(SUM(cat_stats.cat_count), 0),
@@ -87,18 +47,16 @@ BEGIN
             'median_income', (
                 SELECT ROUND(AVG(d.median_income), 0)
                 FROM ops.sonoma_zip_demographics d
-                WHERE d.city ILIKE extracted_city
+                WHERE d.city ILIKE a.city
             ),
             'rural_classification', (
                 SELECT STRING_AGG(DISTINCT d.rural_classification, ', ')
                 FROM ops.sonoma_zip_demographics d
-                WHERE d.city ILIKE extracted_city
+                WHERE d.city ILIKE a.city
             )
         ) as city_data
         FROM sot.places p
-        CROSS JOIN LATERAL (
-            SELECT ops.extract_city_from_display_name(p.display_name) as extracted_city
-        ) city_extract
+        JOIN sot.addresses a ON a.address_id = p.sot_address_id
         LEFT JOIN ops.requests r ON r.place_id = p.place_id
         LEFT JOIN LATERAL (
             SELECT
@@ -110,8 +68,8 @@ BEGIN
             WHERE cp.place_id = p.place_id
         ) cat_stats ON true
         WHERE p.merged_into_place_id IS NULL
-        AND extracted_city IS NOT NULL
-        GROUP BY extracted_city
+        AND a.city IS NOT NULL
+        GROUP BY a.city
         HAVING COUNT(DISTINCT p.place_id) > 0
     ) subq;
 
