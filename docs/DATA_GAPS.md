@@ -2539,3 +2539,85 @@ SELECT sot.merge_place_into(
 **Future Prevention:** Consider enhancing `find_or_create_place_deduped()` to normalize street abbreviations ("Av." → "Ave", "St." → "Street", etc.) before dedup matching.
 
 ---
+
+## DATA_GAP_056: Shared Phone Cross-Links Wrong Person to Place
+
+**Status:** FIXED (Instance) / ONGOING RISK
+
+**Problem:** Samantha Spaletta (949 Chileno Valley Rd) was incorrectly linked to 1170 Walker Rd, which actually belongs to Samantha Tresch. The search for "1170 Walker" returned Spaletta as the resident, causing confusion for staff.
+
+**Discovery:** User reported when testing Tippy's `tippy_place_summary('1170 Walker')` - it showed "Samantha Spaletta" instead of "Samantha Tresch".
+
+**Evidence:**
+```sql
+-- ClinicHQ data clearly shows different owners for each address:
+-- 1170 Walker = Samantha Tresch (59 appointments)
+SELECT owner_first, owner_last, COUNT(*) as appts
+FROM ops.clinichq_raw_appointments
+WHERE inferred_address ILIKE '%1170%Walker%'
+GROUP BY owner_first, owner_last;
+-- Samantha | Tresch | 59
+
+-- 949 Chileno Valley = Samantha Spaletta (37 appointments)  
+SELECT owner_first, owner_last, COUNT(*) as appts
+FROM ops.clinichq_raw_appointments
+WHERE inferred_address ILIKE '%949%Chileno%'
+GROUP BY owner_first, owner_last;
+-- Samantha | Spaletta | 37
+```
+
+**Root Cause:** Shared phone number (7072178913) caused identity cross-linking. When appointments were processed:
+1. Spaletta's record was created first with this phone
+2. Tresch appointments tried to create/match a person but the phone was already taken
+3. System matched Tresch's appointments to Spaletta based on phone number
+4. Result: Spaletta incorrectly linked to both addresses
+
+This is a violation of CLAUDE.md invariant #12: "Phone COALESCE Must Prefer Owner Phone Over Cell Phone — Cell phones are shared within households (spouses, family) and cause cross-linking when used as primary identity signal."
+
+**Fix Applied:**
+```sql
+-- 1. Create correct person record for Samantha Tresch
+INSERT INTO sot.people (person_id, first_name, last_name, display_name, created_at)
+VALUES (
+  'e2f3a4b5-c6d7-4e8f-9a0b-1c2d3e4f5a6b',
+  'Samantha', 'Tresch', 'Samantha Tresch', NOW()
+);
+
+-- 2. Remove wrong Spaletta → 1170 Walker link
+DELETE FROM sot.person_place pp
+WHERE pp.person_id = (SELECT person_id FROM sot.people WHERE display_name = 'Samantha Spaletta' LIMIT 1)
+AND pp.place_id = (SELECT place_id FROM sot.places WHERE display_name ILIKE '%1170%Walker%' LIMIT 1);
+
+-- 3. Add correct Tresch → 1170 Walker link
+INSERT INTO sot.person_place (person_id, place_id, relationship_type, confidence, created_at)
+SELECT 
+  'e2f3a4b5-c6d7-4e8f-9a0b-1c2d3e4f5a6b',
+  place_id,
+  'resident',
+  0.9,
+  NOW()
+FROM sot.places WHERE display_name ILIKE '%1170%Walker%' LIMIT 1;
+
+-- 4. Lower shared phone confidence to prevent future cross-linking
+UPDATE sot.person_identifiers 
+SET confidence = 0.3
+WHERE id_value_norm = '7072178913' AND id_type = 'phone';
+```
+
+**Verification:**
+```sql
+SELECT ops.tippy_place_summary('1170 Walker');
+-- Now correctly shows: "Samantha Tresch (resident)"
+```
+
+**Prevention:**
+1. **Confidence filtering**: All identity matching queries MUST filter `pi.confidence >= 0.5` (CLAUDE.md invariant #19)
+2. **Shared phone detection**: When a phone appears in 3+ person_place contexts, consider soft-blacklisting
+3. **ClinicHQ owner name matching**: Use `(owner_first, owner_last)` as primary signal, phone as secondary confirmation
+
+**Related:**
+- CLAUDE.md invariant #12 (Phone COALESCE order)
+- CLAUDE.md invariant #19 (PetLink confidence filter)
+- DATA_GAP_RISKS.md: Edge cases for shared household phones
+
+---
