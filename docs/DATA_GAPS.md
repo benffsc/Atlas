@@ -2665,3 +2665,61 @@ SELECT COUNT(*) FROM source.shelterluv_outcome_history;
 Tippy should acknowledge when ShelterLuv data might be stale and explain the limitation.
 
 ---
+
+## DATA_GAP_058: Places Without Address Links (V2 Migration Gap)
+
+**Status:** OPEN
+
+**Problem:** 3,497 places (32%) have no linked `sot_address_id` despite having `formatted_address` text. These places have address data in string form but aren't connected to the structured `sot.addresses` table.
+
+**Breakdown by source:**
+| Source | Count |
+|--------|-------|
+| ShelterLuv | 2,422 |
+| ClinicHQ | 837 |
+| Airtable | 90 |
+| Atlas | 66 |
+| VolunteerHub | 50 |
+| Web Intake | 28 |
+| Others | 4 |
+
+**Discovery:** While investigating city-level analysis, found that `addresses.city` was used for grouping but many places had no linked address, causing them to be excluded from city stats.
+
+**Verification Query:**
+```sql
+-- Count places without address links
+SELECT
+    (SELECT COUNT(*) FROM sot.places WHERE sot_address_id IS NOT NULL AND merged_into_place_id IS NULL) as with_address,
+    (SELECT COUNT(*) FROM sot.places WHERE sot_address_id IS NULL AND merged_into_place_id IS NULL) as without_address;
+
+-- Breakdown by source
+SELECT source_system, COUNT(*) as count
+FROM sot.places
+WHERE sot_address_id IS NULL AND merged_into_place_id IS NULL
+GROUP BY source_system
+ORDER BY count DESC;
+
+-- These places DO have formatted_address, just no link
+SELECT display_name, formatted_address, source_system
+FROM sot.places
+WHERE sot_address_id IS NULL AND merged_into_place_id IS NULL
+AND formatted_address IS NOT NULL
+LIMIT 5;
+```
+
+**Root Cause:** V2 migration created places from various sources but didn't create corresponding address records or link them. The `find_or_create_place_deduped()` function creates places but doesn't create/link addresses.
+
+**Impact:**
+- City-level analysis incomplete (only 68% of places included)
+- Structured address components (street_number, city, zip) not available for these places
+- Geographic aggregations may undercount
+
+**Fix Required:**
+1. Create addresses for places that have `formatted_address` but no `sot_address_id`
+2. Update `find_or_create_place_deduped()` to create/link addresses
+3. Ensure ingest pipelines create address links
+
+**Workaround:**
+MIG_2530 added a trigger to extract city directly from `display_name`/`formatted_address` for analysis purposes. This works but doesn't fix the underlying linkage gap.
+
+---

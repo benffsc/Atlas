@@ -2,158 +2,134 @@
 
 **For FFSC Board Presentation - February 2026**
 
-These 20 questions are designed to demonstrate Tippy's strategic reasoning capabilities for TNR operations. Each question showcases a different aspect of AI-assisted data analysis.
+These 20 questions use REAL data from Atlas. Each demonstrates Tippy's reasoning capabilities.
+
+**Current Data Snapshot:**
+- 42,487 cats in system
+- 35,867 altered (84.4% overall)
+- 10,906 places tracked
+- 291 active/completed requests
 
 ---
 
-## Strategic Resource Allocation
+## Strategic Overview
 
-### 1. "Which city in Sonoma County has the most unaltered cats, and what does that tell us?"
-*Demonstrates: City-level analysis with nuanced interpretation*
+### 1. "How many cats has FFSC helped, and what's our overall alteration rate?"
+*Expected: ~42,000 cats, 84% altered - above the 70% stabilization threshold*
 
-Expected reasoning: Tippy will identify the city with highest counts but caveat that cities with NO data might actually be worse - they could be completely unserved.
+### 2. "Which city in Sonoma County has the most cats in our system?"
+*Expected: Santa Rosa with 13,134 cats, followed by Petaluma (6,213) and Sebastopol (2,893)*
 
-### 2. "If we had to choose between focusing on Santa Rosa or Petaluma next month, which should we prioritize and why?"
-*Demonstrates: Multi-factor decision analysis*
-
-Expected reasoning: Tippy will compare alteration rates, active requests, untrapped potential, and density to make a data-driven recommendation.
-
-### 3. "Where are we likely to find cats that we don't know about yet?"
-*Demonstrates: Predictive reasoning about hidden populations*
-
-Expected reasoning: Tippy will identify places with 0 verified cats but surrounded by high-activity neighbors, areas with active requests showing reported > verified counts, and recent kitten reports.
+### 3. "What percentage of cats in Santa Rosa are altered?"
+*Expected: ~93% - well above the 70% threshold for population stabilization*
 
 ---
 
-## Geographic & Spatial Analysis
+## Success Stories
 
-### 4. "What's the situation in the Roseland area of Santa Rosa?"
-*Demonstrates: Neighborhood-level analysis*
+### 4. "Tell me about 175 Scenic Avenue in Santa Rosa"
+*Expected: 164 cats, 94.5% altered - a stabilized colony. Great success story.*
 
-Expected insight: Roseland (95407 zip) is one of the highest-density TNR areas with 500+ cats within 500m of some locations.
+### 5. "What happened at 15760 Pozzan Road in Healdsburg?"
+*Expected: Emily West's location, 24 cats all done in one day (Jan 29, 2026) - mass trapping success*
 
-### 5. "Are there any areas where cats from one location might be roaming to nearby locations?"
-*Demonstrates: Spatial colony connection reasoning*
+### 6. "Show me our biggest mass trapping events"
+*Expected: 1814 Empire Industrial Ct (26 cats), 15760 Pozzan (24 cats), 1315 Tomales Rd (21 cats)*
 
-Expected reasoning: Tippy will identify high-density clusters where locations are within 50-100m and discuss colony interconnection.
-
-### 6. "If someone calls about cats at an address we've never seen before, how would you assess whether it's likely a real cat problem?"
-*Demonstrates: Spatial context for new reports*
-
-Expected reasoning: Check nearby activity - if it's in a hot zone with many locations within 500m, very likely. If nearest known location is 3km away, might be a new isolated population.
+### 7. "What are some of our most successful colonies - places with 90%+ alteration rates?"
+*Expected: 1406 Barlow Ln (96.4%), 3820 Selvage Rd (95%), 175 Scenic Ave (94.5%)*
 
 ---
 
-## Trend & Progress Analysis
+## Current Priorities
 
-### 7. "How are we doing overall? Are we making progress on the cat population in Sonoma County?"
-*Demonstrates: High-level progress assessment*
+### 8. "What location needs the most attention right now?"
+*Expected: 1688 Jennings Way - 187 cats but only 5.9% altered. Significant work needed.*
 
-Expected reasoning: Tippy will analyze overall alteration rates, compare to 70% stabilization threshold, and discuss trends.
+### 9. "Are there any active requests where we know there are more cats than we've trapped?"
+*Expected: 36855 Annapolis Rd (45 reported, 22 verified), Armstrong Woods Rd (30 reported, 5 verified)*
 
-### 8. "What does our data tell us about the effectiveness of mass trapping events?"
-*Demonstrates: Intervention analysis*
-
-Expected reasoning: Identify locations where mass trapping (10+ cats/day) occurred and their current alteration rates to show impact.
-
-### 9. "Which colonies have we successfully stabilized, and what made them successful?"
-*Demonstrates: Success pattern analysis*
-
-Expected insight: Colonies at 90%+ alteration rate with engaged caretakers and completed follow-up.
+### 10. "What locations have less than 70% alteration rate?"
+*Expected: 1688 Jennings Way (5.9%), 9700 UVA Dr (54.7%), 680 Mecham Rd (53.3%)*
 
 ---
 
-## Operational Intelligence
+## Geographic Analysis
 
-### 10. "What locations have active requests where we know there are more cats than we've trapped?"
-*Demonstrates: Work queue prioritization*
+### 11. "What's the situation in the Roseland area - zip code 95407?"
+*Expected: 1,075 places with 5,331 cats - one of our highest-density TNR areas*
 
-Expected reasoning: Query requests where estimated_cat_count > verified cats to show untrapped potential.
+### 12. "Compare Santa Rosa and Petaluma - where are we doing better?"
+*Expected: Both above 90% altered. Santa Rosa has more volume, similar success rates.*
 
-### 11. "Are there any signs of new breeding activity we should be concerned about?"
-*Demonstrates: Early warning detection*
-
-Expected reasoning: Look for requests with has_kittens=true, recent kitten sightings, or places where unaltered cats remain.
-
-### 12. "If a trapper has limited time next week, where would they have the most impact?"
-*Demonstrates: Efficiency optimization*
-
-Expected reasoning: Balance factors like untrapped count, accessibility, density (more cats = more efficient), and urgency.
+### 13. "How does Healdsburg compare to the larger cities?"
+*Expected: ~1,000 cats, 93% altered - smaller scale but equally successful*
 
 ---
 
-## Data Quality & Transparency
+## Operational Questions
 
-### 13. "What don't we know? Where are our data gaps?"
-*Demonstrates: Honest assessment of limitations*
+### 14. "If we had limited trapping resources next month, where should we focus?"
+*Expected: 1688 Jennings Way (187 cats, 5.9% altered) or active requests with untrapped potential*
 
-Expected reasoning: Tippy will discuss cities with little data, areas where outreach hasn't reached, and the difference between "no data" and "no cats."
+### 15. "What's our most efficient trapping day ever?"
+*Expected: 1814 Empire Industrial Ct - 26 cats in one day (July 2017)*
 
-### 14. "How reliable are our cat counts? What's the difference between estimates and verified numbers?"
-*Demonstrates: Data source transparency*
-
-Expected reasoning: Explain colony estimates vs verified clinic data, how discrepancies arise, and what each number means.
-
-### 15. "Why might our numbers look different from what a caretaker reports?"
-*Demonstrates: Stakeholder communication*
-
-Expected reasoning: Explain that our data reflects cats that came through the clinic, not all cats at a location. New arrivals, outdoor/indoor cats, and timing of observations affect counts.
+### 16. "How many places have we helped that have more than 100 cats?"
+*Expected: Several including Jennings Way (187), Scenic Ave (164), Mill Creek Rd (143)*
 
 ---
 
-## Comparative Analysis
+## Data Transparency
 
-### 16. "Compare the TNR progress at 15760 Pozzan Rd versus 1170 Walker Rd"
-*Demonstrates: Place-to-place comparison*
+### 17. "What don't we know about the cat population in Sonoma County?"
+*Expected: Honest answer about data limitations - we only know cats that came through clinic or were reported*
 
-Expected reasoning: Side-by-side analysis of cat counts, alteration rates, caretaker engagement, and current status.
+### 18. "Why might our numbers be different from what a caretaker reports?"
+*Expected: We track verified clinic data; caretakers may see cats we haven't processed yet*
 
-### 17. "How does our work in rural areas compare to urban areas?"
-*Demonstrates: Geographic segment analysis*
-
-Expected reasoning: Compare metrics between rural vs urban zip codes, discuss different challenges and densities.
-
-### 18. "What's the profile of our most successful colonies versus ones still needing work?"
-*Demonstrates: Pattern recognition*
-
-Expected reasoning: Analyze characteristics of 90%+ colonies vs <70% colonies - caretaker presence, mass trapping history, etc.
+### 19. "Are there areas where we probably have cats but no data?"
+*Expected: Cities/areas with few places in our system may have unreported populations*
 
 ---
 
-## Forward-Looking
+## Forward Looking
 
-### 19. "Based on our current pace and where cats remain, what areas should be our focus for the next year?"
-*Demonstrates: Strategic planning support*
-
-Expected reasoning: Identify high-impact opportunities based on untrapped potential, alteration gaps, and operational efficiency.
-
-### 20. "If we could only do one thing to have the biggest impact on the cat population, what would it be?"
-*Demonstrates: Prioritization reasoning*
-
-Expected reasoning: Synthesize all data to recommend highest-impact action - might be focusing on a specific high-density area, improving follow-up on existing requests, or expanding outreach to underserved areas.
-
----
-
-## Tips for the Presentation
-
-1. **Ask follow-up questions** - Tippy can dig deeper. After any answer, ask "Why?" or "Tell me more about..."
-
-2. **Be specific when possible** - "Tell me about Roseland" works better than "Tell me about Santa Rosa"
-
-3. **Tippy will caveat appropriately** - This shows sophistication, not uncertainty. Low data may mean lack of outreach, not lack of cats.
-
-4. **The reasoning matters** - Watch HOW Tippy approaches the question, not just the answer. It will explain its thinking.
-
-5. **Real-time queries** - Tippy is querying live data, so numbers reflect current state of Atlas.
+### 20. "Based on our data, what should FFSC prioritize to have the biggest impact?"
+*Expected: Focus on 1688 Jennings Way (187 cats, 5.9% altered) and other <70% locations*
 
 ---
 
 ## Quick Demo Sequence (5 minutes)
 
-If time is limited, these 5 questions give a good overview:
+For a fast demo, use these 5:
 
-1. **Q3** - "Where are we likely to find cats we don't know about?" (Predictive)
-2. **Q10** - "What locations have more cats than we've trapped?" (Operational)
-3. **Q7** - "How are we doing overall?" (Progress)
-4. **Q13** - "What don't we know?" (Transparency)
-5. **Q20** - "What one thing would have the biggest impact?" (Strategic)
+1. **Q1** - "How many cats has FFSC helped?" (Impact)
+2. **Q5** - "Tell me about 15760 Pozzan Road" (Recent success)
+3. **Q8** - "What location needs the most attention?" (Current priority)
+4. **Q11** - "What's happening in Roseland/95407?" (Geographic density)
+5. **Q20** - "What should we prioritize?" (Strategic)
+
+---
+
+## Real Addresses for Live Demo
+
+These addresses have interesting data:
+
+| Address | Story |
+|---------|-------|
+| 1688 Jennings Way, Santa Rosa | 187 cats, needs work (5.9% altered) |
+| 175 Scenic Avenue, Santa Rosa | 164 cats, success (94.5% altered) |
+| 15760 Pozzan Rd, Healdsburg | Emily West, 24 cats mass trapped Jan 2026 |
+| 2551 Mill Creek Rd, Healdsburg | 143 cats, success (92.3% altered) |
+| 36855 Annapolis Rd | Active request: 45 reported, 22 verified |
+| 14861 Armstrong Woods Rd | Active request: 30 reported, 5 verified |
+
+---
+
+## Tips
+
+- **Tippy queries live data** - numbers reflect current Atlas state
+- **Follow up naturally** - "Tell me more" or "Why?" works great
+- **Caveats show sophistication** - Tippy will note when data is limited
+- **The reasoning matters** - Watch HOW Tippy thinks, not just answers
