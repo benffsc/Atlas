@@ -591,6 +591,41 @@ export const TIPPY_TOOLS = [
       required: ["address"],
     },
   },
+  // === STRATEGIC ANALYSIS (MIG_2529) ===
+  {
+    name: "strategic_city_analysis",
+    description:
+      "Strategic analysis of cat problem by city. Use for 'which city has the worst cat problem?', 'where should we focus resources?', 'which areas need the most help?'. Returns cities ranked by unaltered cats, alteration rates, request counts, and includes DATA CAVEATS about limitations (low numbers may mean lack of outreach, not lack of cats).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        question: {
+          type: "string",
+          description: "The strategic question being asked (for context)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "compare_places",
+    description:
+      "Compare two addresses/places across multiple dimensions: cat counts, alteration rates, disease testing, requests, urgency. Use for 'compare X and Y', 'which is worse, X or Y?', 'should we prioritize X or Y?'. Returns side-by-side comparison with recommendation.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address1: {
+          type: "string",
+          description: "First address to compare",
+        },
+        address2: {
+          type: "string",
+          description: "Second address to compare",
+        },
+      },
+      required: ["address1", "address2"],
+    },
+  },
   // === STAFF INFO TOOL (MIG_789) ===
   {
     name: "query_staff_info",
@@ -1173,6 +1208,15 @@ export async function executeToolCall(
           toolInput.address as string,
           toolInput.lat as number | undefined,
           toolInput.lng as number | undefined
+        );
+
+      case "strategic_city_analysis":
+        return await strategicCityAnalysis(toolInput.question as string | undefined);
+
+      case "compare_places":
+        return await comparePlaces(
+          toolInput.address1 as string,
+          toolInput.address2 as string
         );
 
       // === STAFF INFO TOOL (MIG_789) ===
@@ -4302,6 +4346,189 @@ async function analyzeSpatialContext(
     data: {
       ...analysis,
       interpretation_hints: interpretations,
+    },
+  };
+}
+
+// ============================================================================
+// STRATEGIC ANALYSIS TOOLS (MIG_2529)
+// City-level analysis, resource allocation, and place comparison
+// ============================================================================
+
+/**
+ * Strategic city-level analysis with data caveats
+ */
+async function strategicCityAnalysis(
+  question?: string
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT ops.tippy_strategic_analysis($1) as result`,
+    [question || "overview"]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Strategic analysis failed",
+    };
+  }
+
+  const analysis = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  // Add actionable interpretations
+  const interpretations: string[] = [];
+
+  // Worst affected city
+  if (analysis.worst_affected) {
+    const worst = analysis.worst_affected;
+    interpretations.push(
+      `${worst.city} has the highest known unaltered cat count (${worst.unaltered_cats}), but remember: cities with zero data may actually be worse - they could be completely unserved.`
+    );
+  }
+
+  // Hot spots needing attention
+  if (analysis.needs_immediate_attention && analysis.needs_immediate_attention.length > 0) {
+    const hotSpots = analysis.needs_immediate_attention.slice(0, 3);
+    const hotSpotNames = hotSpots.map((h: { city: string }) => h.city).join(", ");
+    interpretations.push(
+      `Cities needing immediate attention (alteration rate <70%): ${hotSpotNames}. These have known cats that haven't been fixed.`
+    );
+  }
+
+  // Underserved areas
+  if (analysis.underserved_areas && analysis.underserved_areas.length > 0) {
+    const underserved = analysis.underserved_areas.slice(0, 3);
+    const underservedNames = underserved.map((u: { city: string }) => u.city).join(", ");
+    interpretations.push(
+      `Potentially underserved areas (few requests despite having places): ${underservedNames}. Consider outreach - low numbers may mean lack of awareness, not lack of cats.`
+    );
+  }
+
+  // Economic context
+  const citiesWithIncome = (analysis.city_rankings || []).filter(
+    (c: { median_income: number | null }) => c.median_income !== null
+  );
+  if (citiesWithIncome.length > 0) {
+    const lowestIncome = citiesWithIncome.sort(
+      (a: { median_income: number }, b: { median_income: number }) => a.median_income - b.median_income
+    )[0];
+    if (lowestIncome) {
+      interpretations.push(
+        `${lowestIncome.city} has the lowest median income (${lowestIncome.median_income?.toLocaleString()}) in our data - may have less access to TNR resources and could benefit from targeted outreach.`
+      );
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      ...analysis,
+      actionable_insights: interpretations,
+      summary: `Analysis covers ${(analysis.city_rankings || []).length} cities. ${
+        analysis.worst_affected
+          ? `Highest unaltered count: ${analysis.worst_affected.city} (${analysis.worst_affected.unaltered_cats} cats).`
+          : "No city data available."
+      }`,
+    },
+  };
+}
+
+/**
+ * Multi-dimensional comparison of two places
+ */
+async function comparePlaces(
+  address1: string,
+  address2: string
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT ops.tippy_compare_places($1, $2) as result`,
+    [address1, address2]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Comparison failed",
+    };
+  }
+
+  const comparison = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  // Generate narrative comparison
+  const place1 = comparison.place1 || {};
+  const place2 = comparison.place2 || {};
+  const comp = comparison.comparison || {};
+
+  const narratives: string[] = [];
+
+  // Check if both places were found
+  if (place1.found === "false" || place1.found === false) {
+    narratives.push(`Could not find "${address1}" in our records.`);
+  }
+  if (place2.found === "false" || place2.found === false) {
+    narratives.push(`Could not find "${address2}" in our records.`);
+  }
+
+  // Cat count comparison
+  const cats1 = parseInt(place1.total_cats) || 0;
+  const cats2 = parseInt(place2.total_cats) || 0;
+  if (cats1 > 0 || cats2 > 0) {
+    if (cats1 > cats2) {
+      narratives.push(
+        `${place1.address || address1} has more cats (${cats1} vs ${cats2}).`
+      );
+    } else if (cats2 > cats1) {
+      narratives.push(
+        `${place2.address || address2} has more cats (${cats2} vs ${cats1}).`
+      );
+    } else {
+      narratives.push(`Both locations have ${cats1} cats.`);
+    }
+  }
+
+  // Alteration rate comparison
+  const rate1 = parseFloat(place1.alteration_rate) || 0;
+  const rate2 = parseFloat(place2.alteration_rate) || 0;
+  if (rate1 > 0 || rate2 > 0) {
+    if (rate1 < 70 && rate2 >= 70) {
+      narratives.push(
+        `${place1.address || address1} needs more work (${rate1}% altered vs ${rate2}% at ${place2.address || address2}).`
+      );
+    } else if (rate2 < 70 && rate1 >= 70) {
+      narratives.push(
+        `${place2.address || address2} needs more work (${rate2}% altered vs ${rate1}% at ${place1.address || address1}).`
+      );
+    } else if (rate1 < 70 && rate2 < 70) {
+      narratives.push(
+        `Both locations need attention - alteration rates are ${rate1}% and ${rate2}% respectively.`
+      );
+    } else {
+      narratives.push(
+        `Both locations are well-managed with alteration rates of ${rate1}% and ${rate2}%.`
+      );
+    }
+  }
+
+  // Urgency
+  const unaltered1 = parseInt(place1.total_cats) - parseInt(place1.altered_cats) || 0;
+  const unaltered2 = parseInt(place2.total_cats) - parseInt(place2.altered_cats) || 0;
+  if (unaltered1 > 5 || unaltered2 > 5) {
+    const moreUrgent = unaltered1 > unaltered2
+      ? `${place1.address || address1} (${unaltered1} unaltered)`
+      : `${place2.address || address2} (${unaltered2} unaltered)`;
+    narratives.push(`For immediate impact, prioritize ${moreUrgent}.`);
+  }
+
+  return {
+    success: true,
+    data: {
+      ...comparison,
+      narrative_comparison: narratives,
+      bottom_line: comparison.recommendation || "Both locations appear similar in terms of TNR needs.",
     },
   };
 }
