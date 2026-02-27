@@ -502,10 +502,42 @@ export async function POST(request: NextRequest) {
     // Initialize Anthropic client
     const client = new Anthropic({ apiKey });
 
-    // Customize system prompt based on access level
+    // Customize system prompt based on access level and user type
     let systemPrompt = SYSTEM_PROMPT;
+
+    // Detect if user is an engineer/admin vs regular staff
+    const engineerNames = ["ben", "daniel", "sophie", "evan", "dominique", "benmisdiaz", "ben misdiaz"];
+    const isEngineer = userName && engineerNames.some(name =>
+      userName.toLowerCase().includes(name)
+    );
+
     if (userName) {
       systemPrompt += `\n\nYou are speaking with ${userName}.`;
+    }
+
+    // Add audience-specific communication style
+    if (isEngineer) {
+      systemPrompt += `\n\n**COMMUNICATION STYLE - ENGINEER/ADMIN:**
+This user is part of the engineering team. Be direct and technical:
+- Lead with the data: numbers, percentages, counts
+- Reference table names, column names, data sources directly
+- Mention data quality issues and gaps explicitly
+- Skip the narrative - they want facts
+- Include technical context: "This comes from ops.appointments joined to sot.cat_place"
+- Acknowledge sync status, missing data, schema issues directly
+- If something is broken or incomplete, say so plainly
+- Example: "24 cats at this place, 100% altered. Data from ClinicHQ appointments (2026-01-29). ShelterLuv outcomes empty - sync stale since Feb 17. person_place shows Emily West as caretaker+resident."`;
+    } else {
+      systemPrompt += `\n\n**COMMUNICATION STYLE - STAFF:**
+This user is FFSC staff. Use storytelling and context:
+- Start with the person/place as the subject of a story
+- Use "likely", "probably", "it seems" when inferring
+- Explain what the numbers MEAN, not just what they are
+- Make it relatable: "Emily has been caring for these cats..."
+- Use analogies: "Think of it like a neighborhood that's been fully vaccinated"
+- Guide them to action: "You might want to follow up with..."
+- Soften technical details: "Our records show..." instead of "The database returns..."
+- Example: "Emily West has been caring for the colony at 15760 Pozzan. It looks like there was a big trapping day back in January where all 24 cats got fixed in one shot - that's a real success story! The colony is now stable, which means we shouldn't see new kittens appearing."`;
     }
     if (aiAccessLevel === "read_only") {
       systemPrompt +=
