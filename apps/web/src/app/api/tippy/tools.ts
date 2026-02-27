@@ -1071,6 +1071,88 @@ Example queries:
       required: ["address", "summary", "reasoning"],
     },
   },
+  // === DEMO QUESTION TOOLS (Pre-built for reliable presentation answers) ===
+  {
+    name: "demo_pozzan_road",
+    description: "Get comprehensive data about Pozzan Road in Healdsburg (Emily West's colony). Use when user asks about Pozzan Road.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_scenic_avenue",
+    description: "Get comprehensive data about 175 Scenic Avenue in Santa Rosa. Use when user asks about Scenic Avenue or the Dalley property.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_silveira_ranch",
+    description: "Get comprehensive data about Silveira Ranch. Use when user asks about Silveira Ranch.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_city_comparison",
+    description: "Compare Santa Rosa and Petaluma TNR statistics. Use when user asks to compare cities or asks about Santa Rosa vs Petaluma.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_roseland_95407",
+    description: "Get comprehensive data about the Roseland area (zip code 95407). Use when user asks about Roseland or 95407.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_trapping_priorities",
+    description: "Get current trapping priorities and focus areas. Use when user asks where to focus resources or what needs attention.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_west_county",
+    description: "Get TNR activity data for West County (Sebastopol, Guerneville, Forestville, etc.). Use when user asks about West County.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_russian_river",
+    description: "Get TNR activity data for Russian River area. Use when user asks about Russian River, Guerneville, Monte Rio, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "demo_coverage_gaps",
+    description: "Get areas with cats but limited data/outreach. Use when user asks about gaps, underserved areas, or where we might be missing cats.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 /**
@@ -1376,6 +1458,34 @@ export async function executeToolCall(
           context
         );
 
+      // === DEMO QUESTION TOOLS ===
+      case "demo_pozzan_road":
+        return await callDemoFunction("ops.tippy_demo_pozzan_road()");
+
+      case "demo_scenic_avenue":
+        return await callDemoFunction("ops.tippy_demo_scenic_avenue()");
+
+      case "demo_silveira_ranch":
+        return await callDemoFunction("ops.tippy_demo_silveira_ranch()");
+
+      case "demo_city_comparison":
+        return await callDemoFunction("ops.tippy_demo_city_comparison()");
+
+      case "demo_roseland_95407":
+        return await callDemoFunction("ops.tippy_demo_roseland_95407()");
+
+      case "demo_trapping_priorities":
+        return await callDemoFunction("ops.tippy_demo_trapping_priorities()");
+
+      case "demo_west_county":
+        return await callDemoFunction("ops.tippy_demo_west_county()");
+
+      case "demo_russian_river":
+        return await callDemoFunction("ops.tippy_demo_russian_river()");
+
+      case "demo_coverage_gaps":
+        return await callDemoFunction("ops.tippy_demo_coverage_gaps()");
+
       default:
         return { success: false, error: `Unknown tool: ${toolName}` };
     }
@@ -1397,6 +1507,28 @@ export async function executeToolCall(
  * Execute a read-only SQL query
  * Security: Only SELECT queries are allowed
  */
+// ============================================================================
+// DEMO QUESTION TOOLS
+// Pre-built functions for reliable presentation answers
+// ============================================================================
+
+async function callDemoFunction(functionCall: string): Promise<ToolResult> {
+  try {
+    const result = await queryOne<{ result: unknown }>(
+      `SELECT ${functionCall} as result`
+    );
+    return {
+      success: true,
+      data: result?.result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Demo function failed",
+    };
+  }
+}
+
 async function runReadOnlySql(
   sql: string,
   reasoning: string

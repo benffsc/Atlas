@@ -38,6 +38,19 @@ CRITICAL DISTINCTION - STAFF vs TRAPPERS:
 - When asked about "staff", NEVER use query_trapper_stats. Use query_staff_info.
 
 Tool selection guide:
+
+**DEMO QUESTIONS (Use these FIRST for reliable answers):**
+- "Pozzan Road" or "Emily West" → use demo_pozzan_road
+- "175 Scenic Avenue" or "Scenic Avenue" → use demo_scenic_avenue
+- "Silveira Ranch" → use demo_silveira_ranch
+- "Santa Rosa vs Petaluma" or "compare cities" → use demo_city_comparison
+- "Roseland" or "95407" → use demo_roseland_95407
+- "Where to focus" or "trapping priorities" or "what needs attention" → use demo_trapping_priorities
+- "West County" or "Sebastopol" → use demo_west_county
+- "Russian River" or "Guerneville" → use demo_russian_river
+- "coverage gaps" or "missing data" or "where might have cats" → use demo_coverage_gaps
+
+**General tool selection:**
 - "What's going on at [address]?" → use analyze_place_situation (PREFERRED - returns data with interpretation hints)
 - "Tell me about [address]" → use analyze_place_situation
 - "Situation at [address]" → use analyze_place_situation
