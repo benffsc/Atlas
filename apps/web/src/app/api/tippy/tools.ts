@@ -551,6 +551,22 @@ export const TIPPY_TOOLS = [
       required: ["address"],
     },
   },
+  // === INTELLIGENT PLACE ANALYSIS (MIG_2527) ===
+  {
+    name: "analyze_place_situation",
+    description:
+      "PREFERRED TOOL for place questions. Analyzes a place and returns data WITH interpretation guidance. Use for 'what's going on at [address]?', 'tell me about [location]', 'situation at [place]'. Returns people (with combined roles), cat statistics, alteration rates, mass trapping events, disease testing, request history, ShelterLuv outcomes, and status assessment with interpretation hints so you can explain what the data means in plain language.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address: {
+          type: "string",
+          description: "Address or place name to analyze",
+        },
+      },
+      required: ["address"],
+    },
+  },
   // === STAFF INFO TOOL (MIG_789) ===
   {
     name: "query_staff_info",
@@ -1124,6 +1140,9 @@ export async function executeToolCall(
 
       case "comprehensive_place_lookup":
         return await comprehensivePlaceLookup(toolInput.address as string);
+
+      case "analyze_place_situation":
+        return await analyzePlaceSituation(toolInput.address as string);
 
       // === STAFF INFO TOOL (MIG_789) ===
       case "query_staff_info":
@@ -4058,6 +4077,129 @@ async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
       summary: Array.isArray(parsed) && parsed.length > 0
         ? `Found ${parsed.length} place(s) matching "${address}"`
         : undefined,
+    },
+  };
+}
+
+/**
+ * Intelligent Place Analysis (MIG_2527)
+ * Returns comprehensive data WITH interpretation guidance
+ * so Tippy can reason about what the data means and explain it naturally
+ */
+async function analyzePlaceSituation(address: string): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT ops.tippy_place_full_report($1) as result`,
+    [address]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Analysis failed - could not query database",
+    };
+  }
+
+  const report = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  if (!report || report.found === false) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        message: report?.message || `No place found matching "${address}"`,
+        suggestion: "Try a partial address (e.g., '1170 Walker' instead of full address)",
+      },
+    };
+  }
+
+  // Extract key metrics for interpretation
+  const catStats = report.cat_statistics || {};
+  const alterationRate = catStats.alteration_rate || 0;
+  const totalCats = catStats.total_cats || 0;
+  const unalteredCats = catStats.unaltered_cats || 0;
+  const timeline = report.appointment_timeline || [];
+  const massTrappingEvents = timeline.filter((t: { is_mass_trapping: boolean }) => t.is_mass_trapping);
+  const diseases = report.disease_testing || [];
+  const people = report.people || [];
+  const requestHistory = report.request_history || {};
+  const shelterLuvOutcomes = report.shelterluv_outcomes || [];
+
+  // Build interpretation hints based on the data
+  const interpretationHints: string[] = [];
+
+  // Status interpretation
+  if (report.status_assessment === "under_control") {
+    interpretationHints.push(`STATUS: This colony is UNDER CONTROL with ${alterationRate}% alteration rate (≥90% threshold met). Population should be stable.`);
+  } else if (report.status_assessment === "good_progress") {
+    interpretationHints.push(`STATUS: Good progress at ${alterationRate}% alteration rate, but ${unalteredCats} cats still need to be fixed to reach the 90% stability threshold.`);
+  } else if (report.status_assessment === "needs_attention") {
+    interpretationHints.push(`STATUS: Needs attention - only ${alterationRate}% altered. ${unalteredCats} unaltered cats means the population could still grow.`);
+  } else if (report.status_assessment === "early_stages") {
+    interpretationHints.push(`STATUS: Early stages of TNR work here. Only ${alterationRate}% altered so far. This colony needs continued trapping effort.`);
+  }
+
+  // Mass trapping detection
+  if (massTrappingEvents.length > 0) {
+    const events = massTrappingEvents.map((e: { date: string; cats_done: number }) => `${e.date} (${e.cats_done} cats)`).join(", ");
+    interpretationHints.push(`MASS TRAPPING: This location had ${massTrappingEvents.length} mass trapping event(s): ${events}. Mass trapping (10+ cats in one day) indicates a coordinated effort.`);
+  }
+
+  // People context
+  if (people.length > 0) {
+    const roles = people.map((p: { name: string; roles: string }) => `${p.name} (${p.roles})`).join(", ");
+    interpretationHints.push(`PEOPLE: ${roles}. A "caretaker" feeds the colony regularly. A "resident" lives at the address.`);
+  }
+
+  // Disease context
+  if (diseases.length > 0) {
+    const hasPositives = diseases.some((d: { positive: number }) => d.positive > 0);
+    if (hasPositives) {
+      interpretationHints.push(`DISEASE ALERT: Some cats tested positive. Check the disease_testing array for details. Positive FIV/FeLV cats require special handling.`);
+    } else {
+      interpretationHints.push(`DISEASE: All disease tests were negative. This is a healthy colony.`);
+    }
+  }
+
+  // ShelterLuv outcomes
+  if (shelterLuvOutcomes.length > 0) {
+    const fosters = shelterLuvOutcomes.filter((o: { outcome_type: string }) => o.outcome_type === "Foster");
+    const adoptions = shelterLuvOutcomes.filter((o: { outcome_type: string }) => o.outcome_type === "Adoption");
+    if (fosters.length > 0) {
+      interpretationHints.push(`FOSTER: ${fosters.length} cat(s) from this location were placed in foster care.`);
+    }
+    if (adoptions.length > 0) {
+      interpretationHints.push(`ADOPTION: ${adoptions.length} cat(s) from this location were adopted.`);
+    }
+  }
+
+  // Request history
+  if (requestHistory.active > 0) {
+    interpretationHints.push(`ACTIVE REQUEST: There is ${requestHistory.active} active request for this location. Work is ongoing.`);
+  }
+  if (requestHistory.completed > 0) {
+    interpretationHints.push(`HISTORY: ${requestHistory.completed} completed request(s) at this location.`);
+  }
+
+  return {
+    success: true,
+    data: {
+      found: true,
+      place: report.place,
+      people: report.people,
+      cat_statistics: report.cat_statistics,
+      status_assessment: report.status_assessment,
+      appointment_timeline: report.appointment_timeline,
+      disease_testing: report.disease_testing,
+      request_history: report.request_history,
+      colony_estimate: report.colony_estimate,
+      shelterluv_outcomes: report.shelterluv_outcomes,
+      related_places: report.related_places,
+      // KEY: Interpretation hints for Tippy to use when explaining
+      interpretation_hints: interpretationHints,
+      // Plain language summary
+      summary: `${report.place?.display_name}: ${totalCats} cats, ${alterationRate}% altered. Status: ${(report.status_assessment || "unknown").replace("_", " ").toUpperCase()}.`,
     },
   };
 }

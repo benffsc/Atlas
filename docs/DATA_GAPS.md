@@ -2621,3 +2621,47 @@ SELECT ops.tippy_place_summary('1170 Walker');
 - DATA_GAP_RISKS.md: Edge cases for shared household phones
 
 ---
+
+## DATA_GAP_057: ShelterLuv Sync Stale - Foster/Adoption Outcomes Missing
+
+**Status:** OPEN
+
+**Problem:** ShelterLuv data sync is stale, causing missing foster/adoption outcomes:
+- `animals` last synced: 2026-02-17
+- `people` last synced: 2026-02-04  
+- `events` last synced: 2026-01-23
+- `intakes` and `outcomes` show 0 records
+
+Cats placed in foster or adopted from locations (like 15760 Pozzan Rd) don't show up in `shelterluv_outcome_history`, so Tippy can't report foster placements.
+
+**Discovery:** User asked "what's going on at 15760 Pozzan Rd" expecting to see cats pulled into foster, but ShelterLuv outcomes were empty.
+
+**Verification Query:**
+```sql
+-- Check ShelterLuv sync status
+SELECT * FROM ops.v_shelterluv_sync_status;
+
+-- Check if outcome history has any records
+SELECT COUNT(*) FROM source.shelterluv_outcome_history;
+```
+
+**Root Cause:** ShelterLuv sync jobs either:
+1. Not running regularly
+2. API rate limits causing failures
+3. Outcome/intake sync disabled or broken
+
+**Impact:**
+- Foster placements not visible in place analysis
+- Adoption outcomes not linked to origin places
+- Cat journey incomplete (can't show "this cat was fostered/adopted from this location")
+
+**Fix Required:**
+1. Investigate why sync jobs aren't running
+2. Fix the outcome/intake sync specifically
+3. Backfill outcomes from ShelterLuv API
+4. Set up monitoring for sync health
+
+**Workaround:**
+Tippy should acknowledge when ShelterLuv data might be stale and explain the limitation.
+
+---
