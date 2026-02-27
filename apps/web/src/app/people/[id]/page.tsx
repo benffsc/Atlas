@@ -21,6 +21,7 @@ import { formatDateLocal, formatPhone, isValidPhone, extractPhones } from "@/lib
 import { SendEmailModal } from "@/components/SendEmailModal";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
+import ClinicNotesSection from "@/components/ClinicNotesSection";
 import { TwoColumnLayout } from "@/components/layouts";
 import { Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { MediaGallery } from "@/components/MediaGallery";
@@ -1213,6 +1214,9 @@ export default function PersonDetailPage() {
             <>
               {/* Clinic History */}
               <ClinicHistorySection personId={id} />
+
+              {/* ClinicHQ Notes */}
+              <ClinicNotesSection personId={id} />
 
               {/* Location Context */}
               <PersonPlaceGoogleContext personId={id} className="mt-4" />

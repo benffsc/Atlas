@@ -29,6 +29,7 @@ import { PlaceContextEditor } from "@/components/PlaceContextEditor";
 import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
 import DiseaseStatusSection from "@/components/DiseaseStatusSection";
 import ClinicHistorySection from "@/components/ClinicHistorySection";
+import ClinicNotesSection from "@/components/ClinicNotesSection";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { LinkedPeopleSection } from "@/components/LinkedPeopleSection";
 import { AssociatedPeopleCard } from "@/components/verification";
@@ -849,6 +850,9 @@ export default function PlaceDetailPage() {
 
       {/* Clinic History */}
       <ClinicHistorySection placeId={place.place_id} />
+
+      {/* ClinicHQ Notes */}
+      <ClinicNotesSection placeId={place.place_id} />
 
       {/* Classifications */}
       <div style={{ marginBottom: "1.5rem" }}>
