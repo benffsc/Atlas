@@ -30,6 +30,38 @@ export interface ToolContext {
  * Tool definitions for Claude's tool use feature
  */
 export const TIPPY_TOOLS = [
+  // === DYNAMIC SQL TOOL (Primary reasoning tool) ===
+  {
+    name: "run_sql",
+    description: `Execute a read-only SQL query against the Atlas database. Use this to investigate data dynamically.
+
+IMPORTANT: Only SELECT queries are allowed. The query will be rejected if it contains INSERT, UPDATE, DELETE, DROP, etc.
+
+Use this tool to:
+- Explore data patterns you're curious about
+- Test hypotheses about the data
+- Answer questions that don't fit pre-built tools
+- Follow up on initial findings with deeper investigation
+
+Example queries:
+- "SELECT COUNT(*) FROM sot.cats WHERE altered_status = 'intact'"
+- "SELECT city, COUNT(*) FROM sot.addresses GROUP BY city ORDER BY count DESC LIMIT 10"
+- "SELECT p.display_name, COUNT(cp.cat_id) FROM sot.places p LEFT JOIN sot.cat_place cp ON cp.place_id = p.place_id GROUP BY p.place_id ORDER BY count DESC LIMIT 5"`,
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        sql: {
+          type: "string",
+          description: "The SELECT query to execute",
+        },
+        reasoning: {
+          type: "string",
+          description: "Brief explanation of what you're trying to find out (for audit trail)",
+        },
+      },
+      required: ["sql", "reasoning"],
+    },
+  },
   {
     name: "query_cats_at_place",
     description:
@@ -1052,6 +1084,13 @@ export async function executeToolCall(
 ): Promise<ToolResult> {
   try {
     switch (toolName) {
+      // === DYNAMIC SQL TOOL ===
+      case "run_sql":
+        return await runReadOnlySql(
+          toolInput.sql as string,
+          toolInput.reasoning as string
+        );
+
       case "query_cats_at_place":
         return await queryCatsAtPlace(toolInput.address_search as string);
 
@@ -1345,6 +1384,71 @@ export async function executeToolCall(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Database query failed",
+    };
+  }
+}
+
+// ============================================================================
+// DYNAMIC SQL TOOL
+// Enables Tippy to reason about data like Claude Code does
+// ============================================================================
+
+/**
+ * Execute a read-only SQL query
+ * Security: Only SELECT queries are allowed
+ */
+async function runReadOnlySql(
+  sql: string,
+  reasoning: string
+): Promise<ToolResult> {
+  // Security: Only allow SELECT queries
+  const normalizedSql = sql.trim().toLowerCase();
+
+  // Block dangerous operations
+  const dangerousPatterns = [
+    /^(insert|update|delete|drop|alter|create|truncate|grant|revoke)/i,
+    /;\s*(insert|update|delete|drop|alter|create|truncate)/i,
+    /into\s+.*\s+select/i,  // INSERT INTO ... SELECT
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(normalizedSql)) {
+      return {
+        success: false,
+        error: "Only SELECT queries are allowed. This query appears to modify data.",
+      };
+    }
+  }
+
+  // Must start with SELECT or WITH (for CTEs)
+  if (!normalizedSql.startsWith("select") && !normalizedSql.startsWith("with")) {
+    return {
+      success: false,
+      error: "Query must start with SELECT or WITH. Only read operations are allowed.",
+    };
+  }
+
+  try {
+    const results = await queryRows(sql, []);
+
+    // Limit results to prevent huge responses
+    const limitedResults = Array.isArray(results) ? results.slice(0, 100) : results;
+    const wasLimited = Array.isArray(results) && results.length > 100;
+
+    return {
+      success: true,
+      data: {
+        results: limitedResults,
+        row_count: Array.isArray(results) ? results.length : 1,
+        limited: wasLimited,
+        reasoning: reasoning,
+        note: wasLimited ? "Results limited to first 100 rows. Add LIMIT to your query for specific counts." : undefined,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `SQL error: ${error instanceof Error ? error.message : "Query failed"}`,
     };
   }
 }
