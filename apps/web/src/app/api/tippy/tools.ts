@@ -567,6 +567,30 @@ export const TIPPY_TOOLS = [
       required: ["address"],
     },
   },
+  // === SPATIAL ANALYSIS (MIG_2528) ===
+  {
+    name: "analyze_spatial_context",
+    description:
+      "Geospatial analysis - USE THIS when asking about an address we may not have data for, or to understand nearby activity. Checks: 1) Exact match at address, 2) Nearby places within 50m/100m/500m/1km, 3) Hot zones (clusters of activity), 4) Nearest known location with distance. Returns interpretation hints like 'hot zone with 5 locations nearby' or 'no activity within 500m, nearest is 2km away'. Use for 'any cats near [address]?', 'what's happening around [location]?', 'is there activity in this area?', or when analyze_place_situation returns no results.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address: {
+          type: "string",
+          description: "Address to analyze spatially",
+        },
+        lat: {
+          type: "number",
+          description: "Optional latitude if known (improves accuracy)",
+        },
+        lng: {
+          type: "number",
+          description: "Optional longitude if known (improves accuracy)",
+        },
+      },
+      required: ["address"],
+    },
+  },
   // === STAFF INFO TOOL (MIG_789) ===
   {
     name: "query_staff_info",
@@ -1143,6 +1167,13 @@ export async function executeToolCall(
 
       case "analyze_place_situation":
         return await analyzePlaceSituation(toolInput.address as string);
+
+      case "analyze_spatial_context":
+        return await analyzeSpatialContext(
+          toolInput.address as string,
+          toolInput.lat as number | undefined,
+          toolInput.lng as number | undefined
+        );
 
       // === STAFF INFO TOOL (MIG_789) ===
       case "query_staff_info":
@@ -4200,6 +4231,77 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
       interpretation_hints: interpretationHints,
       // Plain language summary
       summary: `${report.place?.display_name}: ${totalCats} cats, ${alterationRate}% altered. Status: ${(report.status_assessment || "unknown").replace("_", " ").toUpperCase()}.`,
+    },
+  };
+}
+
+/**
+ * Spatial Context Analysis (MIG_2528)
+ * Geospatial reasoning - finds nearby activity, hot zones, nearest known locations
+ */
+async function analyzeSpatialContext(
+  address: string,
+  lat?: number,
+  lng?: number
+): Promise<ToolResult> {
+  const result = await queryOne<{ result: unknown }>(
+    `SELECT ops.tippy_spatial_analysis($1, $2, $3) as result`,
+    [address, lat || null, lng || null]
+  );
+
+  if (!result) {
+    return {
+      success: false,
+      error: "Spatial analysis failed",
+    };
+  }
+
+  const analysis = typeof result.result === "string"
+    ? JSON.parse(result.result)
+    : result.result;
+
+  // Add additional interpretation based on search type
+  const interpretations: string[] = analysis.interpretation_hints || [];
+
+  if (analysis.search_type === "exact_match") {
+    // We found the exact address
+    if (analysis.nearby_activity?.interpretation === "hot_zone") {
+      interpretations.push(
+        `This address is in a HOT ZONE - there are ${analysis.nearby_activity.count} other locations with cats within 500m. Cat populations in this area are likely connected.`
+      );
+    } else if (analysis.nearby_activity?.count > 0) {
+      interpretations.push(
+        `There are ${analysis.nearby_activity.count} other location(s) with cats nearby. Consider these when planning trapping.`
+      );
+    }
+  } else if (analysis.search_type === "spatial_search") {
+    // No exact match, but we have spatial context
+    const summary = analysis.summary || {};
+    if (summary.zone_assessment === "hot_zone") {
+      interpretations.unshift(
+        `No data at this exact address, BUT this is a HOT ZONE with ${summary.places_within_500m} locations and ${summary.total_cats_nearby} cats within 500m. Very likely cats roam through this area.`
+      );
+    } else if (summary.zone_assessment === "active_area") {
+      interpretations.unshift(
+        `No data at this exact address, but there are ${summary.places_within_500m} nearby location(s) within 500m. Cats may be present but unrecorded.`
+      );
+    } else if (analysis.nearest_known_location) {
+      const nearest = analysis.nearest_known_location;
+      interpretations.unshift(
+        `No data at this address. Nearest known location is ${nearest.display_name} (${nearest.distance_description}) with ${nearest.cat_count} cats. ${
+          nearest.distance_meters > 1000
+            ? "This appears to be a new area - unlikely to be related to nearby colonies."
+            : "These cats may occasionally roam to the searched address."
+        }`
+      );
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      ...analysis,
+      interpretation_hints: interpretations,
     },
   };
 }

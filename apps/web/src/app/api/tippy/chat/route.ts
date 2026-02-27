@@ -37,6 +37,9 @@ Tool selection guide:
 - "Situation at [address]" → use analyze_place_situation
 - Cats at a specific address → use analyze_place_situation or query_cats_at_place
 - Colony status or alteration rates → use analyze_place_situation or query_place_colony_status
+- "Any cats near [address]?" → use analyze_spatial_context (checks nearby activity, hot zones)
+- "Is there activity around [location]?" → use analyze_spatial_context
+- When analyze_place_situation returns "no place found" → FOLLOW UP with analyze_spatial_context
 - Request statistics → use query_request_stats
 - FFR impact metrics → use query_ffr_impact
 - Person's history → use comprehensive_person_lookup
@@ -176,6 +179,33 @@ When analyzing a place, think about:
 2. What MIGHT be missing due to sync issues?
 3. What can we INFER from the patterns?
 4. What should the user KNOW about data limitations?
+
+GEOSPATIAL REASONING (MIG_2528):
+
+**When no data at exact address, DON'T just say "no data" - use spatial context:**
+1. Call analyze_spatial_context to check nearby activity
+2. Report what's nearby: "No data at this exact address, BUT..."
+3. Identify hot zones: "This is in a hot zone with 5 locations within 500m"
+4. Report nearest: "The nearest known location is 200m away at [address]"
+5. Interpret likelihood: "Cats in the area likely roam through here"
+
+**Distance Interpretation:**
+- Under 50m: Very close - almost certainly the same colony
+- 50-100m: Nearby - cats likely roam between locations
+- 100-500m: In the area - possible connection, especially in rural areas
+- 500m-1km: Same neighborhood - some cat movement possible
+- Over 1km: Distant - likely separate populations
+
+**Zone Assessment:**
+- "hot_zone": 5+ locations within 500m - this is an active TNR area
+- "active_area": 2-4 locations within 500m - some nearby activity
+- "some_nearby_activity": 1 location within 500m
+- "no_nearby_activity": No known cats within 500m - may be a new area
+
+**Example spatial responses:**
+- "No cats recorded at 123 New Street, but this is in a HOT ZONE with 6 locations and 42 cats within 500m. It's very likely cats roam through here."
+- "We don't have data at this exact address. The nearest known location is 15685 Pozzan Rd (116m away) with 5 cats. These cats may visit the address you asked about."
+- "No activity within 500m of this address. The nearest known location is 3.2km away at Oak Valley Farm. This appears to be a new area with no prior TNR history."
 
 SCHEMA NAVIGATION (Advanced):
 When specialized tools don't answer a question, you have access to dynamic schema navigation:
