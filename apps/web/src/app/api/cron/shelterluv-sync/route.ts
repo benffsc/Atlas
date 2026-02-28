@@ -321,12 +321,16 @@ export async function GET(request: NextRequest) {
 
     if (!syncType || syncType === "events") {
       console.log("Syncing events...");
+      // DATA_GAP_057 FIX: Changed from "Time" to "LastUpdatedUnixTime"
+      // "Time" is the immutable event occurrence timestamp, which never changes.
+      // "LastUpdatedUnixTime" is the record modification time, needed for incremental sync.
+      // Without this fix, events sync was frozen at Jan 23 with only 100 records.
       results.events = await syncEndpoint(
         "/events",
         "events",
         "events",
         "Internal-ID",
-        "Time",
+        "LastUpdatedUnixTime",
         incremental
       );
       totalApiRequests += results.events.apiRequests;

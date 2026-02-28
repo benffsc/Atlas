@@ -73,6 +73,10 @@ These rules apply to ALL API routes in `/apps/web/src/app/api/`:
 
 **TS/SQL Parity**: `/api/ingest/process/[id]/route.ts` must mirror SQL processor (MIG_573): `should_be_person()`, `clinic_owner_accounts`, soft blacklist filters.
 
+**Phone Matching Requires Address Check** (MIG_2548, MIG_2560): Never match people by phone alone across different addresses. Same phone + different address = household members, not same person. Phone matching must verify address similarity (>0.5) or unknown. See DATA_GAP_056.
+
+**Places MUST Link to sot.addresses** (MIG_2562-2565): Every place with `formatted_address` MUST have `sot_address_id` set. Use `sot.find_or_create_address()` for address creation. `find_or_create_place_deduped()` now ensures this automatically.
+
 ## Entity Linking Rules
 
 **Cat-Request Attribution Window** (MIG_2480):

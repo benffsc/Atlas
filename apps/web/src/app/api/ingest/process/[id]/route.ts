@@ -801,6 +801,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 4: Link REAL people to appointments via email/phone match
     // MIG_888/INV-26: Respects data_engine_soft_blacklist — soft-blacklisted
     // identifiers are skipped to prevent shared org identifiers from matching wrong person
+    // MIG_2560/DATA_GAP_056: Phone matching now requires address similarity check
+    // to prevent cross-linking household members who share a phone
     await saveProgress('Linking appointments to people...');
     const personLinks = await query(`
       UPDATE ops.appointments a
@@ -819,6 +821,24 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
          AND NOT EXISTS (
            SELECT 1 FROM sot.data_engine_soft_blacklist sbl
            WHERE sbl.identifier_norm = pi.id_value_norm AND sbl.identifier_type = 'phone'
+         )
+         -- DATA_GAP_056 FIX: Only match by phone if addresses are similar or unknown
+         -- Prevents cross-linking household members at different addresses who share a phone
+         AND (
+           sr.payload->>'Owner Address' IS NULL
+           OR sr.payload->>'Owner Address' = ''
+           OR EXISTS (
+             SELECT 1 FROM sot.people p2
+             JOIN sot.places pl ON pl.place_id = p2.primary_address_id
+             WHERE p2.person_id = pi.person_id
+               AND pl.formatted_address IS NOT NULL
+               AND similarity(LOWER(pl.formatted_address), LOWER(sr.payload->>'Owner Address')) > 0.5
+           )
+           OR NOT EXISTS (
+             SELECT 1 FROM sot.people p3
+             WHERE p3.person_id = pi.person_id
+               AND p3.primary_address_id IS NOT NULL
+           )
          )
         )
       )

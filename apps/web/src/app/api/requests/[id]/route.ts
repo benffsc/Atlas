@@ -7,7 +7,6 @@ import {
   REQUEST_STATUS,
   REQUEST_PRIORITY,
   HOLD_REASON,
-  TRAPPER_TYPE,
   NO_TRAPPER_REASON,
 } from "@/lib/enums";
 import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
@@ -174,7 +173,8 @@ export async function GET(
   try {
     requireValidUUID(id, "request");
     // Query request with V2 schema columns
-    // V2: Many V1 columns don't exist, so we use defaults/NULLs
+    // V2: Uses only columns that exist in ops.requests after MIG cleanup
+    // Columns that don't exist return NULL for frontend compatibility
     const sql = `
       SELECT
         r.request_id,
@@ -186,18 +186,19 @@ export async function GET(
         r.total_cats_reported,
         r.cat_count_semantic::TEXT,
         COALESCE(r.has_kittens, FALSE) AS has_kittens,
-        r.cats_are_friendly,
-        r.preferred_contact_method,
-        r.assigned_to,
-        r.assigned_trapper_type,
-        r.assigned_at,
-        r.assignment_notes,
-        r.scheduled_date::TEXT,
-        r.scheduled_time_range,
+        -- V1 columns now return NULL (dropped in V2)
+        NULL::BOOLEAN AS cats_are_friendly,
+        NULL::TEXT AS preferred_contact_method,
+        NULL::TEXT AS assigned_to,
+        NULL::TEXT AS assigned_trapper_type,
+        NULL::TIMESTAMPTZ AS assigned_at,
+        NULL::TEXT AS assignment_notes,
+        NULL::TEXT AS scheduled_date,
+        NULL::TEXT AS scheduled_time_range,
         r.resolved_at,
-        COALESCE(r.resolution_notes, r.resolution) AS resolution_notes,
-        r.cats_trapped,
-        r.cats_returned,
+        r.resolution AS resolution_notes,
+        NULL::INT AS cats_trapped,
+        NULL::INT AS cats_returned,
         r.source_system AS data_source,
         r.source_system,
         r.source_record_id,
@@ -205,48 +206,48 @@ export async function GET(
         NULL::TEXT AS created_by,
         r.created_at,
         r.updated_at,
-        -- Enhanced intake fields (MIG_2495)
-        r.permission_status,
-        r.property_owner_contact,
+        -- V2 intake fields (MIG_2531/2532)
+        NULL::TEXT AS permission_status,
+        NULL::TEXT AS property_owner_contact,
         r.access_notes,
-        r.traps_overnight_safe,
-        r.access_without_contact,
-        p.place_kind AS property_type,
+        NULL::BOOLEAN AS traps_overnight_safe,
+        NULL::BOOLEAN AS access_without_contact,
+        r.property_type,
         r.colony_duration,
-        r.location_description,
-        r.eartip_count,
-        r.eartip_estimate,
+        NULL::TEXT AS location_description,
+        r.eartip_count_observed AS eartip_count,
+        NULL::TEXT AS eartip_estimate,
         r.count_confidence,
         r.kitten_count,
-        r.kitten_age_weeks,
-        r.kitten_assessment_status,
-        r.kitten_assessment_outcome,
-        r.kitten_foster_readiness,
-        r.kitten_urgency_factors,
-        r.kitten_assessment_notes,
-        r.not_assessing_reason,
-        r.kitten_assessed_by,
-        r.kitten_assessed_at,
+        NULL::INT AS kitten_age_weeks,
+        NULL::TEXT AS kitten_assessment_status,
+        NULL::TEXT AS kitten_assessment_outcome,
+        NULL::TEXT AS kitten_foster_readiness,
+        NULL::TEXT[] AS kitten_urgency_factors,
+        NULL::TEXT AS kitten_assessment_notes,
+        NULL::TEXT AS not_assessing_reason,
+        NULL::TEXT AS kitten_assessed_by,
+        NULL::TIMESTAMPTZ AS kitten_assessed_at,
         r.is_being_fed,
         r.feeder_name,
-        r.feeding_schedule,
-        r.best_times_seen,
-        r.urgency_reasons,
-        r.urgency_deadline,
-        r.urgency_notes,
-        r.best_contact_times,
+        r.feeding_frequency AS feeding_schedule,
+        NULL::TEXT AS best_times_seen,
+        NULL::TEXT[] AS urgency_reasons,
+        NULL::TEXT AS urgency_deadline,
+        NULL::TEXT AS urgency_notes,
+        NULL::TEXT AS best_contact_times,
         -- Hold tracking
         r.hold_reason::TEXT,
-        r.hold_reason_notes,
-        r.hold_started_at,
+        NULL::TEXT AS hold_reason_notes,
+        NULL::TIMESTAMPTZ AS hold_started_at,
         -- Activity tracking
         r.last_activity_at,
-        r.last_activity_type,
-        -- Redirect/Handoff fields (MIG_2495)
-        r.redirected_to_request_id,
-        r.redirected_from_request_id,
-        r.redirect_reason,
-        r.redirect_at,
+        NULL::TEXT AS last_activity_type,
+        -- Redirect/Handoff fields (V2: not tracked separately)
+        NULL::UUID AS redirected_to_request_id,
+        NULL::UUID AS redirected_from_request_id,
+        NULL::TEXT AS redirect_reason,
+        NULL::TIMESTAMPTZ AS redirect_at,
         r.transfer_type,
         -- Place info (use address if place name matches requester name)
         r.place_id,
@@ -293,7 +294,7 @@ export async function GET(
          WHERE pi.person_id = r.site_contact_person_id AND pi.id_type = 'phone'
            AND pi.confidence >= 0.5
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS site_contact_phone,
-        -- Linked cats (V2: uses request_cats table, not request_cat_links)
+        -- Linked cats (V2: uses request_cats table)
         (SELECT jsonb_agg(jsonb_build_object(
             'cat_id', COALESCE(c.merged_into_cat_id, c.cat_id),
             'cat_name', COALESCE(canonical_cat.name, c.name),
@@ -324,10 +325,10 @@ export async function GET(
         CASE WHEN pcs.verified_altered_count > COALESCE(r.total_cats_reported, 0)
              AND r.total_cats_reported IS NOT NULL
         THEN TRUE ELSE FALSE END AS colony_verified_exceeds_reported,
-        -- Email batching (MIG_2495)
-        COALESCE(r.ready_to_email, FALSE) AS ready_to_email,
-        r.email_summary,
-        r.email_batch_id,
+        -- Email batching (V2: not present)
+        FALSE AS ready_to_email,
+        NULL::TEXT AS email_summary,
+        NULL::UUID AS email_batch_id,
         -- Classification suggestion (V2: not present)
         NULL::TEXT AS suggested_classification,
         NULL::NUMERIC AS classification_confidence,
@@ -340,16 +341,37 @@ export async function GET(
         -- SC_004: Assignment status (maintained field)
         r.no_trapper_reason,
         r.assignment_status::TEXT,
-        -- Call sheet trapping logistics (MIG_2495)
+        -- Call sheet trapping logistics (V2 columns)
         r.dogs_on_site,
         r.trap_savvy,
         r.previous_tnr,
         r.handleability,
         r.fixed_status,
-        r.ownership_status,
+        NULL::TEXT AS ownership_status,
         COALESCE(r.has_medical_concerns, FALSE) AS has_medical_concerns,
         r.medical_description,
-        r.important_notes
+        NULL::TEXT[] AS important_notes,
+        -- V2 Beacon-critical fields (MIG_2532)
+        r.peak_count,
+        r.awareness_duration,
+        r.county,
+        r.is_property_owner,
+        r.has_property_access,
+        r.feeding_location,
+        r.feeding_time,
+        r.is_emergency,
+        r.cat_name,
+        r.cat_description,
+        r.kitten_behavior,
+        r.kitten_contained,
+        r.mom_present,
+        r.mom_fixed,
+        r.can_bring_in,
+        r.kitten_age_estimate,
+        r.is_third_party_report,
+        r.third_party_relationship,
+        r.triage_category,
+        r.received_by
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
@@ -600,10 +622,8 @@ export async function PATCH(
       return apiBadRequest(`Invalid hold_reason. Must be one of: ${HOLD_REASON.join(", ")}`);
     }
 
-    // Validate trapper type if provided (INV-48: uses central enum registry)
-    if (body.assigned_trapper_type && !TRAPPER_TYPE.includes(body.assigned_trapper_type as typeof TRAPPER_TYPE[number])) {
-      return apiBadRequest(`Invalid assigned_trapper_type. Must be one of: ${TRAPPER_TYPE.join(", ")}`);
-    }
+    // assigned_trapper_type is a V1 column that was dropped
+    // Trapper assignment now uses /api/requests/[id]/trappers endpoint
 
     // SC_004: Validate no_trapper_reason if provided (INV-48: uses central enum registry)
     if (body.no_trapper_reason !== undefined && body.no_trapper_reason !== null
@@ -611,14 +631,11 @@ export async function PATCH(
       return apiBadRequest(`Invalid no_trapper_reason. Must be one of: ${NO_TRAPPER_REASON.join(", ")}`);
     }
 
-    // Get current request data for audit comparison
+    // Get current request data for audit comparison (V2 columns only)
     const currentSql = `
       SELECT status::TEXT, priority::TEXT, summary, notes, estimated_cat_count,
-             has_kittens, cats_are_friendly, assigned_to, assigned_trapper_type::TEXT,
-             scheduled_date::TEXT, scheduled_time_range, hold_reason::TEXT, hold_reason_notes,
-             cats_trapped, cats_returned, resolution_notes, permission_status::TEXT,
-             access_notes, traps_overnight_safe, access_without_contact,
-             kitten_count, kitten_age_weeks, kitten_assessment_status
+             has_kittens, hold_reason::TEXT, resolution, access_notes,
+             kitten_count, no_trapper_reason
       FROM ops.requests WHERE request_id = $1
     `;
     const current = await queryOne<{
@@ -628,23 +645,11 @@ export async function PATCH(
       notes: string | null;
       estimated_cat_count: number | null;
       has_kittens: boolean | null;
-      cats_are_friendly: boolean | null;
-      assigned_to: string | null;
-      assigned_trapper_type: string | null;
-      scheduled_date: string | null;
-      scheduled_time_range: string | null;
       hold_reason: string | null;
-      hold_reason_notes: string | null;
-      cats_trapped: number | null;
-      cats_returned: number | null;
-      resolution_notes: string | null;
-      permission_status: string | null;
+      resolution: string | null;
       access_notes: string | null;
-      traps_overnight_safe: boolean | null;
-      access_without_contact: boolean | null;
       kitten_count: number | null;
-      kitten_age_weeks: number | null;
-      kitten_assessment_status: string | null;
+      no_trapper_reason: string | null;
     }>(currentSql, [id]);
 
     if (!current) {
@@ -665,15 +670,10 @@ export async function PATCH(
       values.push(body.status);
       paramIndex++;
 
-      // MIG_2530: If moving to paused (or legacy on_hold), set hold_started_at
-      if (body.status === "paused" || body.status === "on_hold") {
-        updates.push(`hold_started_at = COALESCE(hold_started_at, NOW())`);
-      }
-      // If moving out of paused/on_hold, clear hold fields
+      // If moving out of paused/on_hold, clear hold_reason
+      // (hold_started_at and hold_reason_notes are V1 columns, not in V2)
       if (body.status !== "paused" && body.status !== "on_hold") {
-        updates.push(`hold_started_at = NULL`);
         updates.push(`hold_reason = NULL`);
-        updates.push(`hold_reason_notes = NULL`);
       }
     }
 
@@ -708,88 +708,16 @@ export async function PATCH(
       paramIndex++;
     }
 
-    if (body.cats_are_friendly !== undefined) {
-      updates.push(`cats_are_friendly = $${paramIndex}`);
-      values.push(body.cats_are_friendly);
-      paramIndex++;
-    }
+    // V1 columns that were dropped are silently ignored:
+    // - cats_are_friendly, preferred_contact_method, assigned_to, assigned_trapper_type
+    // - assignment_notes, scheduled_date, scheduled_time_range, resolution_notes
+    // - resolution_reason, cats_trapped, cats_returned, hold_reason_notes
+    // - permission_status, traps_overnight_safe, access_without_contact
+    // - urgency_reasons, urgency_deadline, urgency_notes, kitten_age_weeks
+    // - kitten_assessment_status, kitten_assessment_outcome
+    // Use POST /api/requests/[id]/trappers for trapper assignment
 
-    if (body.preferred_contact_method !== undefined) {
-      updates.push(`preferred_contact_method = $${paramIndex}`);
-      values.push(body.preferred_contact_method || null);
-      paramIndex++;
-    }
-
-    // DEPRECATED: Use POST /api/requests/[id]/trappers instead
-    // This field is kept for backward compatibility with legacy data
-    // New code should use the request_trapper_assignments table
-    if (body.assigned_to !== undefined && body.assigned_to !== current.assigned_to) {
-      auditChanges.push({ field: "assigned_to", oldValue: current.assigned_to, newValue: body.assigned_to || null });
-      updates.push(`assigned_to = $${paramIndex}`);
-      values.push(body.assigned_to || null);
-      paramIndex++;
-      // Set assigned_at when assigning
-      if (body.assigned_to) {
-        updates.push(`assigned_at = COALESCE(assigned_at, NOW())`);
-      } else {
-        updates.push(`assigned_at = NULL`);
-      }
-    }
-
-    if (body.assigned_trapper_type !== undefined && body.assigned_trapper_type !== current.assigned_trapper_type) {
-      auditChanges.push({ field: "assigned_trapper_type", oldValue: current.assigned_trapper_type, newValue: body.assigned_trapper_type || null });
-      updates.push(`assigned_trapper_type = $${paramIndex}`);
-      values.push(body.assigned_trapper_type || null);
-      paramIndex++;
-    }
-
-    if (body.assignment_notes !== undefined) {
-      updates.push(`assignment_notes = $${paramIndex}`);
-      values.push(body.assignment_notes || null);
-      paramIndex++;
-    }
-
-    if (body.scheduled_date !== undefined && body.scheduled_date !== current.scheduled_date) {
-      auditChanges.push({ field: "scheduled_date", oldValue: current.scheduled_date, newValue: body.scheduled_date || null });
-      updates.push(`scheduled_date = $${paramIndex}`);
-      values.push(body.scheduled_date || null);
-      paramIndex++;
-    }
-
-    if (body.scheduled_time_range !== undefined && body.scheduled_time_range !== current.scheduled_time_range) {
-      auditChanges.push({ field: "scheduled_time_range", oldValue: current.scheduled_time_range, newValue: body.scheduled_time_range || null });
-      updates.push(`scheduled_time_range = $${paramIndex}`);
-      values.push(body.scheduled_time_range || null);
-      paramIndex++;
-    }
-
-    if (body.resolution_notes !== undefined) {
-      updates.push(`resolution_notes = $${paramIndex}`);
-      values.push(body.resolution_notes || null);
-      paramIndex++;
-    }
-
-    if (body.resolution_reason !== undefined) {
-      updates.push(`resolution_reason = $${paramIndex}`);
-      values.push(body.resolution_reason || null);
-      paramIndex++;
-    }
-
-    if (body.cats_trapped !== undefined && body.cats_trapped !== current.cats_trapped) {
-      auditChanges.push({ field: "cats_trapped", oldValue: current.cats_trapped, newValue: body.cats_trapped });
-      updates.push(`cats_trapped = $${paramIndex}`);
-      values.push(body.cats_trapped);
-      paramIndex++;
-    }
-
-    if (body.cats_returned !== undefined && body.cats_returned !== current.cats_returned) {
-      auditChanges.push({ field: "cats_returned", oldValue: current.cats_returned, newValue: body.cats_returned });
-      updates.push(`cats_returned = $${paramIndex}`);
-      values.push(body.cats_returned);
-      paramIndex++;
-    }
-
-    // Hold management
+    // Hold management (hold_reason exists in V2)
     if (body.hold_reason !== undefined && body.hold_reason !== current.hold_reason) {
       auditChanges.push({ field: "hold_reason", oldValue: current.hold_reason, newValue: body.hold_reason });
       if (body.hold_reason === null) {
@@ -801,117 +729,23 @@ export async function PATCH(
       }
     }
 
-    if (body.hold_reason_notes !== undefined) {
-      updates.push(`hold_reason_notes = $${paramIndex}`);
-      values.push(body.hold_reason_notes || null);
-      paramIndex++;
-    }
-
-    // Enhanced intake fields that might be updated
-    if (body.permission_status !== undefined) {
-      updates.push(`permission_status = $${paramIndex}`);
-      values.push(body.permission_status);
-      paramIndex++;
-    }
-
+    // V2 columns that exist
     if (body.access_notes !== undefined) {
       updates.push(`access_notes = $${paramIndex}`);
       values.push(body.access_notes || null);
       paramIndex++;
     }
 
-    if (body.traps_overnight_safe !== undefined) {
-      updates.push(`traps_overnight_safe = $${paramIndex}`);
-      values.push(body.traps_overnight_safe);
-      paramIndex++;
-    }
-
-    if (body.access_without_contact !== undefined) {
-      updates.push(`access_without_contact = $${paramIndex}`);
-      values.push(body.access_without_contact);
-      paramIndex++;
-    }
-
-    if (body.urgency_reasons !== undefined) {
-      updates.push(`urgency_reasons = $${paramIndex}`);
-      values.push(body.urgency_reasons);
-      paramIndex++;
-    }
-
-    if (body.urgency_deadline !== undefined) {
-      updates.push(`urgency_deadline = $${paramIndex}`);
-      values.push(body.urgency_deadline || null);
-      paramIndex++;
-    }
-
-    if (body.urgency_notes !== undefined) {
-      updates.push(`urgency_notes = $${paramIndex}`);
-      values.push(body.urgency_notes || null);
-      paramIndex++;
-    }
-
-    // Kitten assessment fields
+    // Kitten count (V2 column)
     if (body.kitten_count !== undefined) {
       updates.push(`kitten_count = $${paramIndex}`);
       values.push(body.kitten_count);
       paramIndex++;
     }
 
-    if (body.kitten_age_weeks !== undefined) {
-      updates.push(`kitten_age_weeks = $${paramIndex}`);
-      values.push(body.kitten_age_weeks);
-      paramIndex++;
-    }
-
-    if (body.kitten_assessment_status !== undefined) {
-      updates.push(`kitten_assessment_status = $${paramIndex}`);
-      values.push(body.kitten_assessment_status);
-      paramIndex++;
-    }
-
-    if (body.kitten_assessment_outcome !== undefined) {
-      updates.push(`kitten_assessment_outcome = $${paramIndex}`);
-      values.push(body.kitten_assessment_outcome);
-      paramIndex++;
-    }
-
-    if (body.kitten_foster_readiness !== undefined) {
-      updates.push(`kitten_foster_readiness = $${paramIndex}`);
-      values.push(body.kitten_foster_readiness);
-      paramIndex++;
-    }
-
-    if (body.kitten_urgency_factors !== undefined) {
-      updates.push(`kitten_urgency_factors = $${paramIndex}`);
-      values.push(body.kitten_urgency_factors);
-      paramIndex++;
-    }
-
-    if (body.kitten_assessment_notes !== undefined) {
-      updates.push(`kitten_assessment_notes = $${paramIndex}`);
-      values.push(body.kitten_assessment_notes);
-      paramIndex++;
-    }
-
-    // MIG_610: not_assessing_reason
-    if (body.not_assessing_reason !== undefined) {
-      updates.push(`not_assessing_reason = $${paramIndex}`);
-      values.push(body.not_assessing_reason);
-      paramIndex++;
-    }
-
-    // Email batching (MIG_605)
-    if (body.ready_to_email !== undefined) {
-      updates.push(`ready_to_email = $${paramIndex}`);
-      values.push(body.ready_to_email);
-      paramIndex++;
-    }
-
-    if (body.email_summary !== undefined) {
-      updates.push(`email_summary = $${paramIndex}`);
-      values.push(body.email_summary || null);
-      paramIndex++;
-    }
+    // V1 kitten assessment columns dropped (kitten_foster_readiness, kitten_urgency_factors,
+    // kitten_assessment_notes, not_assessing_reason, ready_to_email, email_summary)
+    // These were never populated in V2 schema
 
     // SC_004: no_trapper_reason with assignment_status sync
     if (body.no_trapper_reason !== undefined) {

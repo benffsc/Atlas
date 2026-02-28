@@ -2542,7 +2542,7 @@ SELECT sot.merge_place_into(
 
 ## DATA_GAP_056: Shared Phone Cross-Links Wrong Person to Place
 
-**Status:** FIXED (Instance) / ONGOING RISK
+**Status:** FIXED (Comprehensive - MIG_2548, MIG_2560, TypeScript routes)
 
 **Problem:** Samantha Spaletta (949 Chileno Valley Rd) was incorrectly linked to 1170 Walker Rd, which actually belongs to Samantha Tresch. The search for "1170 Walker" returned Spaletta as the resident, causing confusion for staff.
 
@@ -2615,16 +2615,33 @@ SELECT ops.tippy_place_summary('1170 Walker');
 2. **Shared phone detection**: When a phone appears in 3+ person_place contexts, consider soft-blacklisting
 3. **ClinicHQ owner name matching**: Use `(owner_first, owner_last)` as primary signal, phone as secondary confirmation
 
+**Comprehensive Fix (2026-02-27):**
+The root cause was that phone matching didn't consider address differences. Fixed at multiple layers:
+
+1. **MIG_2548**: `classify_identity_change()` now checks address similarity in TIER 2 (phone match):
+   - Same phone + different address (similarity < 0.4) → `household_member`, `auto_process=FALSE`
+   - Same phone + same address (similarity > 0.7) → auto-process as before
+
+2. **MIG_2560**: `find_similar_people()` now scores phone matches by address:
+   - Same phone + same address → 1.0 (confident match)
+   - Same phone + no address → 0.85 (can't verify)
+   - Same phone + different address → 0.6 (likely household members)
+
+3. **TypeScript route** (`/api/ingest/process/[id]/route.ts` Step 4):
+   - Added address similarity check to phone matching
+   - Only matches by phone if addresses are similar (>0.5) or unknown
+
 **Related:**
 - CLAUDE.md invariant #12 (Phone COALESCE order)
 - CLAUDE.md invariant #19 (PetLink confidence filter)
+- CLAUDE.md invariant #46 (Phone Matching Requires Address Check) - NEW
 - DATA_GAP_RISKS.md: Edge cases for shared household phones
 
 ---
 
 ## DATA_GAP_057: ShelterLuv Sync Stale - Foster/Adoption Outcomes Missing
 
-**Status:** OPEN
+**Status:** FIXED (MIG_2561 + TypeScript fix)
 
 **Problem:** ShelterLuv data sync is stale, causing missing foster/adoption outcomes:
 - `animals` last synced: 2026-02-17
@@ -2645,30 +2662,39 @@ SELECT * FROM ops.v_shelterluv_sync_status;
 SELECT COUNT(*) FROM source.shelterluv_outcome_history;
 ```
 
-**Root Cause:** ShelterLuv sync jobs either:
-1. Not running regularly
-2. API rate limits causing failures
-3. Outcome/intake sync disabled or broken
+**Root Cause:** ShelterLuv events sync used the wrong timestamp field:
+- Events used `"Time"` (immutable event occurrence timestamp)
+- Animals/People use `"LastUpdatedUnixTime"` (record modification timestamp)
+
+Since `Time` never changes for existing events, incremental sync saw no "new" records after initial import.
 
 **Impact:**
 - Foster placements not visible in place analysis
 - Adoption outcomes not linked to origin places
 - Cat journey incomplete (can't show "this cat was fostered/adopted from this location")
 
-**Fix Required:**
-1. Investigate why sync jobs aren't running
-2. Fix the outcome/intake sync specifically
-3. Backfill outcomes from ShelterLuv API
-4. Set up monitoring for sync health
+**Fix Applied (2026-02-27):**
 
-**Workaround:**
-Tippy should acknowledge when ShelterLuv data might be stale and explain the limitation.
+1. **MIG_2561**: Reset events sync state to trigger full re-fetch
+   ```sql
+   UPDATE source.shelterluv_sync_state
+   SET last_sync_timestamp = NULL, records_synced = 0
+   WHERE sync_type = 'events';
+   ```
+
+2. **TypeScript fix** (`/api/cron/shelterluv-sync/route.ts` line 329):
+   ```typescript
+   // Changed from "Time" to "LastUpdatedUnixTime"
+   results.events = await syncEndpoint(..., "LastUpdatedUnixTime", ...);
+   ```
+
+**Verification:** After next cron run, events should increase from 100 to ~3,348.
 
 ---
 
 ## DATA_GAP_058: Places Without Address Links (V2 Migration Gap)
 
-**Status:** OPEN
+**Status:** FIXED (MIG_2562-2565)
 
 **Problem:** 3,497 places (32%) have no linked `sot_address_id` despite having `formatted_address` text. These places have address data in string form but aren't connected to the structured `sot.addresses` table.
 
@@ -2714,12 +2740,105 @@ LIMIT 5;
 - Structured address components (street_number, city, zip) not available for these places
 - Geographic aggregations may undercount
 
-**Fix Required:**
-1. Create addresses for places that have `formatted_address` but no `sot_address_id`
-2. Update `find_or_create_place_deduped()` to create/link addresses
-3. Ensure ingest pipelines create address links
+**Fix Applied (2026-02-27):**
+
+Four migrations applied in order:
+
+1. **MIG_2562**: Created `sot.find_or_create_address()` function
+   - Single entry point for address creation/deduplication
+   - Dedupes by `raw_input` exact match, then `formatted_address`
+
+2. **MIG_2563**: Fixed `find_or_create_place_deduped()`
+   - Now calls `find_or_create_address()` when returning existing places
+   - Ensures all places with `formatted_address` get linked to addresses
+
+3. **MIG_2564**: Fixed `ops.record_reverse_geocoding_result()`
+   - When upgrading coordinate-only places with Google address, now creates address link
+
+4. **MIG_2565**: Backfill existing places
+   - Created 3,373 new address records
+   - Linked 3,747 places to their addresses
+   - **Result:** 0 places missing address links (was 3,747 / 33.6%)
+
+**Verification:**
+```sql
+-- All places now have address links
+SELECT
+    COUNT(*) FILTER (WHERE sot_address_id IS NULL AND formatted_address IS NOT NULL) as missing,
+    COUNT(*) FILTER (WHERE sot_address_id IS NOT NULL) as linked
+FROM sot.places WHERE merged_into_place_id IS NULL;
+-- missing: 0, linked: 11,150
+```
+
+**Prevention:** CLAUDE.md invariant #47 added: "Places MUST Link to sot.addresses"
+
+---
+
+## DATA_GAP_059: NULL Altered Status Creates Misleading Alteration Rates
+
+**Status:** OPEN (Documentation - may be unfixable for legacy data)
+
+**Problem:** Many cats have `altered_status = NULL` which means "unknown" but is often calculated as "unaltered" in percentage calculations. This creates misleading alteration rates like "5.9% altered" when the reality is "5.9% of known status are altered."
+
+**Example - 1688 Jennings Way:**
+- 187 total cats
+- 176 have `altered_status = NULL` (unknown)
+- Only 11 have recorded status
+- Shows as "5.9% altered" but really means "5.9% have recorded altered status"
+
+**Discovery:** While preparing showcase questions for FFSC board presentation, the 5.9% rate at 1688 Jennings Way was flagged as suspicious - a colony that large would be a massive priority if truly only 5.9% altered.
+
+**Verification Query:**
+```sql
+-- Check altered_status distribution at a place
+SELECT
+    p.display_name,
+    COUNT(*) as total_cats,
+    COUNT(*) FILTER (WHERE c.altered_status IS NULL) as null_status,
+    COUNT(*) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'altered')) as altered,
+    COUNT(*) FILTER (WHERE c.altered_status = 'intact') as intact
+FROM sot.places p
+JOIN sot.cat_place cp ON cp.place_id = p.place_id
+JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+WHERE p.display_name ILIKE '%1688 Jennings%'
+GROUP BY p.display_name;
+
+-- Find places where NULL status dominates
+SELECT
+    p.display_name,
+    COUNT(*) as total,
+    COUNT(*) FILTER (WHERE c.altered_status IS NULL) as null_ct,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE c.altered_status IS NULL) / COUNT(*), 1) as null_pct
+FROM sot.places p
+JOIN sot.cat_place cp ON cp.place_id = p.place_id
+JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+WHERE p.merged_into_place_id IS NULL
+GROUP BY p.display_name, p.place_id
+HAVING COUNT(*) > 50
+AND COUNT(*) FILTER (WHERE c.altered_status IS NULL) > COUNT(*) * 0.5
+ORDER BY null_pct DESC;
+```
+
+**Root Cause:** Legacy ClinicHQ data imports didn't consistently capture altered_status. The field was either:
+1. Not tracked in the original ClinicHQ records
+2. Not mapped during import
+3. Lost in data migration
+
+**Impact:**
+- Alteration rate calculations are unreliable for places with many NULL-status cats
+- Staff might prioritize places that are actually fine (just missing data)
+- Board presentations could cite misleading statistics
+
+**Fix Assessment:**
+This may be unfixable for legacy data - we can't retroactively determine if a cat was altered when we have no record. Options:
+1. **Display fix**: Show "X% of known status" rather than "X% altered" when NULL is high
+2. **Query fix**: Tippy should check NULL count before reporting rates
+3. **Future prevention**: Ensure new cat records always have altered_status
 
 **Workaround:**
-MIG_2530 added a trigger to extract city directly from `display_name`/`formatted_address` for analysis purposes. This works but doesn't fix the underlying linkage gap.
+Tippy's system prompt and showcase questions now emphasize:
+- Distinguish between NULL (unknown) vs intact (confirmed unaltered)
+- Active requests with "untrapped potential" are clearer priorities
+- When reporting low rates, check if it's real or just data gaps
 
 ---

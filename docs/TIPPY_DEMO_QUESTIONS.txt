@@ -1,0 +1,105 @@
+TIPPY DEMO QUESTIONS FOR PIP
+============================
+
+These questions are designed to showcase Tippy's ability to tell stories from 
+our data - not just report numbers, but explain what they mean and highlight 
+the human element behind our work.
+
+Note: Tippy will add appropriate caveats about data limitations (e.g., "100% of 
+cats we've seen" rather than claiming absolute completeness).
+
+
+SUCCESS STORIES
+---------------
+
+1. What do we know about Pozzan Road in Healdsburg?
+   (Emily West's 24-cat mass trapping - our showcase success story)
+
+2. Tell me about 175 Scenic Avenue in Santa Rosa
+   (Large established colony with high alteration rate)
+
+3. What happened at the Silveira Ranch?
+   (Farm/ranch TNR operation)
+
+4. Show me our biggest single-day trapping events
+   (Mass trapping highlights - demonstrates coordinated effort)
+
+5. Who are our most active caretakers?
+   (Human stories behind the numbers)
+
+
+IMPACT & OVERVIEW
+-----------------
+
+6. How many cats has FFSC helped overall?
+   (Big picture impact - 36,000+ cats, 88% alteration rate)
+
+7. Which city in Sonoma County has the most cats in our system?
+   (Geographic breakdown - Santa Rosa leads)
+
+8. What's our alteration rate across all colonies?
+   (Scientific context - above 70% threshold means population stabilization)
+
+9. How does Santa Rosa compare to Petaluma?
+   (City comparison showing consistent impact)
+
+10. What do we know about the Roseland area - zip code 95407?
+    (Underserved community, high density work)
+
+
+PRIORITY & ACTION
+-----------------
+
+11. What locations need attention right now?
+    (Active requests with untrapped cats remaining)
+
+12. Are there places where caretakers reported more cats than we've trapped?
+    (Gap between reported and verified - clear priorities)
+
+13. Which colonies have the lowest alteration rates?
+    (With caveat about data quality - NULL status vs confirmed intact)
+
+14. Where should we focus trapping resources next month?
+    (Strategic prioritization based on evidence)
+
+15. Are there any active requests that have been waiting a long time?
+    (Overdue requests needing attention)
+
+
+GEOGRAPHIC CLUSTERS
+-------------------
+
+16. Tell me about TNR activity in West County
+    (Sebastopol, Forestville, Guerneville area)
+
+17. What's happening in the Russian River area?
+    (Guerneville, Monte Rio - seasonal population challenges)
+
+18. Are there any hot zones we should know about?
+    (Clusters of activity like Pozzan Road area)
+
+19. Which areas might have cats but little data?
+    (Transparency about coverage gaps - rural, wealthy areas)
+
+
+DATA TRANSPARENCY
+-----------------
+
+20. What don't we know about cats in Sonoma County?
+    (Honest assessment of limitations - we only know what comes through 
+    our clinic, actual population is likely higher)
+
+
+TIPS FOR THE DEMO
+-----------------
+
+- Start with #1 (Pozzan Road) - it's the strongest story
+- Follow with #6 (overall impact) for the big picture
+- Use #11 or #12 to show operational value
+- End with #20 to demonstrate honest, trustworthy AI
+
+Tippy will:
+- Tell stories, not just report numbers
+- Add context about what the numbers mean
+- Include honest caveats about data limitations
+- Sound like a knowledgeable colleague, not a robot
