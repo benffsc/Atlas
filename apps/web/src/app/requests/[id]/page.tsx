@@ -1068,7 +1068,7 @@ export default function RequestDetailPage() {
               ACTIVITY / JOURNAL
               ───────────────────────────────────────────────────────────────────── */}
           <CaseSection title={`Activity (${journalEntries.length})`} icon="📝" color="#0ea5e9" collapsed={sectionsCollapsed.activity} onToggle={() => toggleSection("activity")}>
-            <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshRequest(); fetchJournalEntries(); }} showForm={true} />
+            <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshRequest(); fetchJournalEntries(); }} />
           </CaseSection>
         </div>
 
