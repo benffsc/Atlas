@@ -188,8 +188,9 @@ export async function findRealEntity(
     try {
       const res = await request.get(`/api/${type}?limit=1`, { timeout: 15000 });
       if (!res.ok()) return null;
-      const data = await res.json();
-      const items = data[type];
+      const json = await res.json();
+      // Handle both { data: { [type]: [...] } } and { [type]: [...] } formats
+      const items = json.data?.[type] || json[type];
       if (!items?.length) return null;
       return items[0][idFields[type]];
     } catch {
