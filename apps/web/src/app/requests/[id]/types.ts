@@ -230,6 +230,12 @@ export interface RequestDetail {
   current_place_classification: string | null;
   // Source timestamp
   source_created_at: string | null;
+  // Archive fields (MIG_2580)
+  is_archived: boolean;
+  archived_at: string | null;
+  archived_by: string | null;
+  archive_reason: string | null;
+  archive_notes: string | null;
   // Verification counts
   unverified_count: number | null;
   verification_completeness: string | null;

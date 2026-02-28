@@ -39,6 +39,7 @@ interface RequestListRow {
   requester_role_at_submission: string | null;
   requester_is_site_contact: boolean | null;
   site_contact_name: string | null;
+  is_archived: boolean;
 }
 
 export async function GET(request: NextRequest) {
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
   const searchQuery = searchParams.get("q");
   const assignedToPersonId = searchParams.get("assigned_to_person");
   const trapperFilter = searchParams.get("trapper");
+  const includeArchived = searchParams.get("include_archived") === "true";
   const sortBy = searchParams.get("sort_by") || "status";
   const sortOrder = searchParams.get("sort_order") || "asc";
   const { limit, offset } = parsePagination(searchParams, { defaultLimit: 200, maxLimit: 500 });
@@ -59,32 +61,37 @@ export async function GET(request: NextRequest) {
   const params: unknown[] = [];
   let paramIndex = 1;
 
+  // By default, exclude archived requests unless explicitly requested
+  if (!includeArchived) {
+    conditions.push("(r.is_archived IS NOT TRUE)");
+  }
+
   if (status) {
-    conditions.push(`status = $${paramIndex}`);
+    conditions.push(`vrl.status = $${paramIndex}`);
     params.push(status);
     paramIndex++;
   }
 
   if (priority) {
-    conditions.push(`priority = $${paramIndex}`);
+    conditions.push(`vrl.priority = $${paramIndex}`);
     params.push(priority);
     paramIndex++;
   }
 
   if (placeId) {
-    conditions.push(`place_id = $${paramIndex}`);
+    conditions.push(`vrl.place_id = $${paramIndex}`);
     params.push(placeId);
     paramIndex++;
   }
 
   if (personId) {
-    conditions.push(`requester_person_id = $${paramIndex}`);
+    conditions.push(`vrl.requester_person_id = $${paramIndex}`);
     params.push(personId);
     paramIndex++;
   }
 
   if (assignedToPersonId) {
-    conditions.push(`request_id IN (
+    conditions.push(`vrl.request_id IN (
       SELECT rta.request_id FROM ops.request_trapper_assignments rta
       WHERE rta.trapper_person_id = $${paramIndex} AND rta.unassigned_at IS NULL
     )`);
@@ -93,20 +100,20 @@ export async function GET(request: NextRequest) {
   }
 
   if (trapperFilter === "has_trapper" || trapperFilter === "assigned") {
-    conditions.push(`assignment_status = 'assigned'`);
+    conditions.push(`vrl.assignment_status = 'assigned'`);
   } else if (trapperFilter === "needs_trapper" || trapperFilter === "pending") {
-    conditions.push(`assignment_status = 'pending'`);
+    conditions.push(`vrl.assignment_status = 'pending'`);
   } else if (trapperFilter === "client_trapping") {
-    conditions.push(`assignment_status = 'client_trapping'`);
+    conditions.push(`vrl.assignment_status = 'client_trapping'`);
   }
 
   if (searchQuery && searchQuery.trim()) {
     conditions.push(`(
-      summary ILIKE $${paramIndex}
-      OR place_name ILIKE $${paramIndex}
-      OR place_address ILIKE $${paramIndex}
-      OR place_city ILIKE $${paramIndex}
-      OR requester_name ILIKE $${paramIndex}
+      vrl.summary ILIKE $${paramIndex}
+      OR vrl.place_name ILIKE $${paramIndex}
+      OR vrl.place_address ILIKE $${paramIndex}
+      OR vrl.place_city ILIKE $${paramIndex}
+      OR vrl.requester_name ILIKE $${paramIndex}
     )`);
     params.push(`%${searchQuery.trim()}%`);
     paramIndex++;
@@ -114,11 +121,11 @@ export async function GET(request: NextRequest) {
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const nativeFirst = `is_legacy_request ASC`;
+  const nativeFirst = `vrl.is_legacy_request ASC`;
 
   const buildOrderBy = () => {
     const dir = sortOrder === "desc" ? "DESC" : "ASC";
-    const effectiveCreatedAt = `COALESCE(source_created_at, created_at)`;
+    const effectiveCreatedAt = `COALESCE(vrl.source_created_at, vrl.created_at)`;
 
     switch (sortBy) {
       case "created":
@@ -126,7 +133,7 @@ export async function GET(request: NextRequest) {
       case "priority":
         return `
           ${nativeFirst},
-          CASE priority
+          CASE vrl.priority
             WHEN 'urgent' THEN 1
             WHEN 'high' THEN 2
             WHEN 'normal' THEN 3
@@ -135,12 +142,12 @@ export async function GET(request: NextRequest) {
           ${effectiveCreatedAt} DESC NULLS LAST
         `;
       case "type":
-        return `is_legacy_request ${dir}, ${effectiveCreatedAt} DESC NULLS LAST`;
+        return `vrl.is_legacy_request ${dir}, ${effectiveCreatedAt} DESC NULLS LAST`;
       case "status":
       default:
         return `
           ${nativeFirst},
-          CASE status
+          CASE vrl.status
             WHEN 'new' THEN 1
             WHEN 'triaged' THEN 1
             WHEN 'working' THEN 2
@@ -161,41 +168,43 @@ export async function GET(request: NextRequest) {
   try {
     const sql = `
       SELECT
-        request_id,
-        status,
-        priority,
-        summary,
-        estimated_cat_count,
-        has_kittens,
-        scheduled_date,
-        assigned_to,
-        created_at,
-        updated_at,
-        source_created_at,
-        place_id,
-        place_name,
-        place_address,
-        place_city,
-        requester_person_id,
-        requester_name,
-        requester_email,
-        requester_phone,
-        latitude,
-        longitude,
-        linked_cat_count,
-        is_legacy_request,
-        active_trapper_count,
-        place_has_location,
-        data_quality_flags,
-        no_trapper_reason,
-        primary_trapper_name,
-        assignment_status,
-        map_preview_url,
-        map_preview_updated_at,
-        requester_role_at_submission,
-        requester_is_site_contact,
-        site_contact_name
-      FROM ops.v_request_list
+        vrl.request_id,
+        vrl.status,
+        vrl.priority,
+        vrl.summary,
+        vrl.estimated_cat_count,
+        vrl.has_kittens,
+        vrl.scheduled_date,
+        vrl.assigned_to,
+        vrl.created_at,
+        vrl.updated_at,
+        vrl.source_created_at,
+        vrl.place_id,
+        vrl.place_name,
+        vrl.place_address,
+        vrl.place_city,
+        vrl.requester_person_id,
+        vrl.requester_name,
+        vrl.requester_email,
+        vrl.requester_phone,
+        vrl.latitude,
+        vrl.longitude,
+        vrl.linked_cat_count,
+        vrl.is_legacy_request,
+        vrl.active_trapper_count,
+        vrl.place_has_location,
+        vrl.data_quality_flags,
+        vrl.no_trapper_reason,
+        vrl.primary_trapper_name,
+        vrl.assignment_status,
+        vrl.map_preview_url,
+        vrl.map_preview_updated_at,
+        vrl.requester_role_at_submission,
+        vrl.requester_is_site_contact,
+        vrl.site_contact_name,
+        COALESCE(r.is_archived, FALSE) AS is_archived
+      FROM ops.v_request_list vrl
+      JOIN ops.requests r ON r.request_id = vrl.request_id
       ${whereClause}
       ORDER BY ${buildOrderBy()}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

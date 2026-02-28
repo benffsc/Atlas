@@ -42,6 +42,8 @@ interface Request {
   requester_role_at_submission: string | null;
   requester_is_site_contact: boolean | null;
   site_contact_name: string | null;
+  // MIG_2580: Archive
+  is_archived: boolean;
 }
 
 
@@ -463,7 +465,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
         {/* Card Content */}
         <div style={{ padding: "12px" }}>
           {/* Status & Priority Row */}
-          <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
             <StatusBadge status={request.status} />
             <PriorityBadge priority={request.priority} />
             <ColonySizeBadge count={request.estimated_cat_count} />
@@ -473,6 +475,14 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
                 style={{ background: "#fd7e14", color: "#000", fontSize: "0.7rem" }}
               >
                 +kittens
+              </span>
+            )}
+            {request.is_archived && (
+              <span
+                className="badge"
+                style={{ background: "#6b7280", color: "#fff", fontSize: "0.7rem" }}
+              >
+                Archived
               </span>
             )}
           </div>
@@ -811,6 +821,7 @@ const FILTER_DEFAULTS = {
   q: "",
   sort: "status",
   view: "cards",
+  showArchived: "false",
 };
 
 function RequestsPageContent() {
@@ -1005,6 +1016,7 @@ function RequestsPageContent() {
         if (filters.status) params.set("status", filters.status);
         if (filters.trapper) params.set("trapper", filters.trapper);
         if (filters.q) params.set("q", filters.q);
+        if (filters.showArchived === "true") params.set("include_archived", "true");
         const sortConfig = SORT_MAP[filters.sort] || SORT_MAP.status;
         params.set("sort_by", sortConfig.by);
         params.set("sort_order", sortConfig.order);
@@ -1025,7 +1037,7 @@ function RequestsPageContent() {
     };
 
     fetchRequests();
-  }, [filters.status, filters.trapper, filters.q, filters.sort, refreshTrigger]);
+  }, [filters.status, filters.trapper, filters.q, filters.sort, filters.showArchived, refreshTrigger]);
 
   return (
     <div>
@@ -1204,6 +1216,17 @@ function RequestsPageContent() {
             </select>
           );
         })}
+
+        {/* Show Archived Toggle */}
+        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem", color: "var(--muted)", cursor: "pointer", marginLeft: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={filters.showArchived === "true"}
+            onChange={(e) => setFilter("showArchived", e.target.checked ? "true" : "false")}
+            style={{ cursor: "pointer" }}
+          />
+          Show Archived
+        </label>
 
         {/* View Toggle */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>

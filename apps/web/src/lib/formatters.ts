@@ -302,3 +302,91 @@ export function formatNumber(num: number | null | undefined): string {
   if (num === null || num === undefined) return "";
   return new Intl.NumberFormat("en-US").format(num);
 }
+
+/**
+ * Format an address for display, preferring Google's formatted_address.
+ *
+ * This provides consistent address formatting across the app:
+ * - Priority 1: Use `formatted_address` from Google Geocoding (canonical format)
+ * - Priority 2: Construct from components (city, state, zip)
+ *
+ * @param place - Object with address fields
+ * @param options - Formatting options
+ *   - short: If true, returns only the street portion for compact displays
+ * @returns Formatted address string
+ *
+ * @example
+ * formatAddress({ formatted_address: "123 Main St, Petaluma, CA 94952" })
+ * // "123 Main St, Petaluma, CA 94952"
+ *
+ * formatAddress({ formatted_address: "123 Main St, Petaluma, CA 94952" }, { short: true })
+ * // "123 Main St"
+ *
+ * formatAddress({ place_address: "123 Main St, Petaluma, CA 94952" })
+ * // "123 Main St, Petaluma, CA 94952"
+ *
+ * formatAddress({ city: "Petaluma", state: "CA", postal_code: "94952" })
+ * // "Petaluma, CA 94952"
+ */
+export function formatAddress(
+  place: {
+    formatted_address?: string | null;
+    place_address?: string | null;
+    street?: string | null;
+    city?: string | null;
+    locality?: string | null;
+    state?: string | null;
+    state_province?: string | null;
+    postal_code?: string | null;
+    place_city?: string | null;
+    place_postal_code?: string | null;
+  } | null | undefined,
+  options?: { short?: boolean }
+): string {
+  if (!place) return "Address not available";
+
+  // Priority 1: Use Google's formatted_address when available
+  const formattedAddress = place.formatted_address || place.place_address;
+  if (formattedAddress?.trim()) {
+    if (options?.short) {
+      // Return just the street portion for compact displays
+      return formattedAddress.split(",")[0].trim();
+    }
+    return formattedAddress.trim();
+  }
+
+  // Priority 2: Construct from components
+  const parts: string[] = [];
+
+  if (place.street?.trim()) {
+    parts.push(place.street.trim());
+  }
+
+  const city = place.city || place.locality || place.place_city;
+  if (city?.trim()) {
+    parts.push(city.trim());
+  }
+
+  const state = place.state || place.state_province;
+  const zip = place.postal_code || place.place_postal_code;
+
+  if (state?.trim() && zip?.trim()) {
+    parts.push(`${state.trim()} ${zip.trim()}`);
+  } else if (state?.trim()) {
+    parts.push(state.trim());
+  } else if (zip?.trim()) {
+    parts.push(zip.trim());
+  }
+
+  if (parts.length === 0) {
+    return "Address not available";
+  }
+
+  const fullAddress = parts.join(", ");
+
+  if (options?.short && parts.length > 0) {
+    return parts[0]; // Return just the first part (usually street)
+  }
+
+  return fullAddress;
+}

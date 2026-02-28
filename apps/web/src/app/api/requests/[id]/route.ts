@@ -48,6 +48,12 @@ interface RequestDetailRow {
   source_system: string | null;
   source_record_id: string | null;
   source_created_at: string | null;
+  // Archive fields (MIG_2580)
+  is_archived: boolean;
+  archived_at: string | null;
+  archived_by: string | null;
+  archive_reason: string | null;
+  archive_notes: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -203,6 +209,12 @@ export async function GET(
         r.source_system,
         r.source_record_id,
         r.source_created_at,
+        -- Archive fields (MIG_2580)
+        COALESCE(r.is_archived, FALSE) AS is_archived,
+        r.archived_at,
+        r.archived_by,
+        r.archive_reason,
+        r.archive_notes,
         NULL::TEXT AS created_by,
         r.created_at,
         r.updated_at,
