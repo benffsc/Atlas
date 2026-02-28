@@ -1151,11 +1151,12 @@ export default function RequestDetailPage() {
       {/* ═══════════════════════════════════════════════════════════════════════
           MODALS
           ═══════════════════════════════════════════════════════════════════════ */}
-      {showObservationModal && (
+      {showObservationModal && request.place_id && (
         <LogSiteVisitModal
+          isOpen={true}
           requestId={requestId}
-          placeId={request.place_id || undefined}
-          placeName={request.place_name || undefined}
+          placeId={request.place_id}
+          placeName={request.place_name || ""}
           onClose={() => setShowObservationModal(false)}
           onSuccess={() => { setShowObservationModal(false); refreshRequest(); fetchJournalEntries(); }}
         />
