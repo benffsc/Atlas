@@ -1163,61 +1163,68 @@ export default function RequestDetailPage() {
       )}
       {showCompleteModal && (
         <CompleteRequestModal
+          isOpen={true}
           requestId={requestId}
-          targetStatus={completionTargetStatus}
-          currentCatsTrapped={request.cats_trapped}
-          currentCatsReturned={request.cats_returned}
+          placeId={request.place_id || undefined}
+          placeName={request.place_name || undefined}
           onClose={() => setShowCompleteModal(false)}
-          onComplete={() => { setShowCompleteModal(false); refreshRequest(); }}
+          onSuccess={() => { setShowCompleteModal(false); refreshRequest(); }}
         />
       )}
       {showHoldModal && (
         <HoldRequestModal
+          isOpen={true}
           requestId={requestId}
-          currentReason={request.hold_reason}
-          currentNotes={request.hold_reason_notes}
           onClose={() => setShowHoldModal(false)}
-          onHold={() => { setShowHoldModal(false); refreshRequest(); }}
+          onSuccess={() => { setShowHoldModal(false); refreshRequest(); }}
         />
       )}
       {showRedirectModal && (
         <RedirectRequestModal
+          isOpen={true}
           requestId={requestId}
+          originalSummary={request.summary || ""}
+          originalAddress={request.place_address}
+          originalRequesterName={request.requester_name}
           onClose={() => setShowRedirectModal(false)}
-          onRedirect={() => { setShowRedirectModal(false); refreshRequest(); }}
+          onSuccess={() => { setShowRedirectModal(false); refreshRequest(); }}
         />
       )}
       {showHandoffModal && (
         <HandoffRequestModal
+          isOpen={true}
           requestId={requestId}
+          originalSummary={request.summary || ""}
+          originalAddress={request.place_address}
+          originalRequesterName={request.requester_name}
           onClose={() => setShowHandoffModal(false)}
-          onHandoff={() => { setShowHandoffModal(false); refreshRequest(); }}
+          onSuccess={() => { setShowHandoffModal(false); refreshRequest(); }}
         />
       )}
       {showEmailModal && request.requester_email && (
         <SendEmailModal
+          isOpen={true}
           requestId={requestId}
-          recipientEmail={request.requester_email}
-          recipientName={request.requester_name || undefined}
-          requestSummary={request.summary || request.place_name || undefined}
+          defaultTo={request.requester_email}
+          defaultToName={request.requester_name || undefined}
           onClose={() => setShowEmailModal(false)}
-          onSent={() => { setShowEmailModal(false); refreshRequest(); }}
+          onSuccess={() => { setShowEmailModal(false); refreshRequest(); }}
         />
       )}
       {showColonyModal && request.place_id && (
         <CreateColonyModal
+          isOpen={true}
+          requestId={requestId}
           placeId={request.place_id}
-          placeName={request.place_name || undefined}
-          initialEstimate={request.estimated_cat_count || undefined}
           onClose={() => setShowColonyModal(false)}
-          onCreated={() => { setShowColonyModal(false); refreshRequest(); }}
+          onSuccess={() => { setShowColonyModal(false); refreshRequest(); }}
         />
       )}
       {showUpgradeWizard && (
         <LegacyUpgradeWizard
-          requestId={requestId}
-          onClose={() => setShowUpgradeWizard(false)}
-          onUpgrade={() => { setShowUpgradeWizard(false); refreshRequest(); }}
+          request={request}
+          onComplete={() => { setShowUpgradeWizard(false); refreshRequest(); }}
+          onCancel={() => setShowUpgradeWizard(false)}
         />
       )}
       {showArchiveModal && (
