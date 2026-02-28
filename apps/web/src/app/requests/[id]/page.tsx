@@ -6,7 +6,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { BackButton } from "@/components/BackButton";
 import { EditHistory } from "@/components/EditHistory";
 import { LegacyUpgradeWizard } from "@/components/LegacyUpgradeWizard";
-import { JournalEntry, JournalSection } from "@/components/JournalSection";
+import JournalSection, { JournalEntry } from "@/components/JournalSection";
 import LogSiteVisitModal from "@/components/LogSiteVisitModal";
 import CompleteRequestModal from "@/components/CompleteRequestModal";
 import HoldRequestModal from "@/components/HoldRequestModal";
