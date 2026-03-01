@@ -337,15 +337,18 @@ export async function PATCH(
       }
 
       // V2: locality, postal_code, state_province are on addresses table, not places
-      // These fields require updating the linked address record, which is not yet implemented
-      // For now, log the audit but skip the direct place update
+      // DEFERRED: Address component updates (locality, postal_code, state_province)
+      // Reason: These fields live on sot.addresses, not sot.places. Updating them requires:
+      // 1. Checking if place has a linked sot_address_id
+      // 2. Updating the address record (or creating one if missing)
+      // 3. Handling shared addresses (multiple places pointing to same address)
+      // For now, only audit the requested changes. Use AddressAutocomplete for full corrections.
       if (body.locality !== undefined && body.locality !== current.locality) {
         auditChanges.push({
           field: 'locality',
           oldVal: current.locality,
           newVal: body.locality
         });
-        // TODO: Update sot.addresses where address_id = (SELECT sot_address_id FROM sot.places WHERE place_id = $1)
       }
 
       if (body.postal_code !== undefined && body.postal_code !== current.postal_code) {
@@ -354,7 +357,6 @@ export async function PATCH(
           oldVal: current.postal_code,
           newVal: body.postal_code
         });
-        // TODO: Update sot.addresses
       }
 
       if (body.state_province !== undefined && body.state_province !== current.state_province) {
@@ -363,7 +365,6 @@ export async function PATCH(
           oldVal: current.state_province,
           newVal: body.state_province
         });
-        // TODO: Update sot.addresses
       }
 
       // Update coordinates if provided

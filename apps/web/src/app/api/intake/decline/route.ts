@@ -124,9 +124,10 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    // TODO: If send_notification is true, send email to submitter
-    // This would integrate with the existing email/notification system
-    // For now, we just log that notification was requested
+    // DEFERRED: Email notification not yet implemented
+    // Reason: Email infrastructure (Resend/SendGrid) setup pending.
+    // For now, we log that notification was requested to journal_entries.
+    // When email is ready, this will call the notification service.
     if (send_notification && submission.email) {
       // Log that notification was requested (actual email sending would be here)
       await queryOne(
