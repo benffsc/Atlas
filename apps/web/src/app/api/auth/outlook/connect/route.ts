@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { getAuthUrl, isOutlookConfigured } from "@/lib/outlook";
+import { apiError, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/auth/outlook/connect
@@ -17,9 +18,9 @@ export async function GET(request: NextRequest) {
 
     // Check if Outlook integration is configured
     if (!isOutlookConfigured()) {
-      return NextResponse.json(
-        { error: "Outlook integration is not configured. Please set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, and MICROSOFT_TENANT_ID." },
-        { status: 503 }
+      return apiError(
+        "Outlook integration is not configured. Please set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, and MICROSOFT_TENANT_ID.",
+        503
       );
     }
 
@@ -45,15 +46,9 @@ export async function GET(request: NextRequest) {
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json(
-        { error: authError.message },
-        { status: authError.statusCode }
-      );
+      return apiError(authError.message, authError.statusCode);
     }
 
-    return NextResponse.json(
-      { error: "Failed to initiate Outlook connection" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to initiate Outlook connection");
   }
 }

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,18 +10,15 @@ export async function POST(request: NextRequest) {
 
     if (!correctPassword) {
       console.error("ATLAS_ACCESS_CODE env var not set - authentication disabled");
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
+      return apiServerError("Server configuration error");
     }
 
     if (password === correctPassword) {
-      return NextResponse.json({ success: true });
+      return apiSuccess({ verified: true });
     }
 
-    return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+    return apiUnauthorized("Incorrect password");
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return apiBadRequest("Invalid request");
   }
 }

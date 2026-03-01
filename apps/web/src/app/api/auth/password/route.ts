@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
   getCurrentStaff,
   changePassword,
   setStaffPassword,
-  AuthError,
 } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
  * PUT /api/auth/password
@@ -16,10 +16,7 @@ export async function PUT(request: NextRequest) {
     const staff = await getCurrentStaff(request);
 
     if (!staff) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 }
-      );
+      return apiUnauthorized("Authentication required");
     }
 
     const body = await request.json();
@@ -27,18 +24,12 @@ export async function PUT(request: NextRequest) {
 
     // Validate required fields
     if (!currentPassword || !newPassword) {
-      return NextResponse.json(
-        { success: false, error: "Current password and new password are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Current password and new password are required");
     }
 
     // Validate password strength
     if (newPassword.length < 8) {
-      return NextResponse.json(
-        { success: false, error: "New password must be at least 8 characters" },
-        { status: 400 }
-      );
+      return apiBadRequest("New password must be at least 8 characters");
     }
 
     // Attempt password change
@@ -49,19 +40,13 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!result.success) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: 400 }
-      );
+      return apiBadRequest(result.error || "Password change failed");
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ passwordChanged: true });
   } catch (error) {
     console.error("Password change error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to change password" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to change password");
   }
 }
 
@@ -76,18 +61,12 @@ export async function POST(request: NextRequest) {
     const staff = await getCurrentStaff(request);
 
     if (!staff) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 }
-      );
+      return apiUnauthorized("Authentication required");
     }
 
     // Only admins can set passwords for other users
     if (staff.auth_role !== "admin") {
-      return NextResponse.json(
-        { success: false, error: "Admin access required" },
-        { status: 403 }
-      );
+      return apiForbidden("Admin access required");
     }
 
     const body = await request.json();
@@ -95,36 +74,24 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!staffId || !newPassword) {
-      return NextResponse.json(
-        { success: false, error: "Staff ID and new password are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Staff ID and new password are required");
     }
 
     // Validate password strength
     if (newPassword.length < 8) {
-      return NextResponse.json(
-        { success: false, error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
+      return apiBadRequest("Password must be at least 8 characters");
     }
 
     // Set the password
     const updated = await setStaffPassword(staffId, newPassword);
 
     if (!updated) {
-      return NextResponse.json(
-        { success: false, error: "Staff member not found" },
-        { status: 404 }
-      );
+      return apiNotFound("staff", staffId);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ passwordSet: true });
   } catch (error) {
     console.error("Set password error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to set password" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to set password");
   }
 }

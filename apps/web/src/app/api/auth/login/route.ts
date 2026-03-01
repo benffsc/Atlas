@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { login, setSessionCookie } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/auth/login
@@ -15,10 +16,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!email || !password) {
-      return NextResponse.json(
-        { success: false, error: "Email and password are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Email and password are required");
     }
 
     // Get client info for session
@@ -32,10 +30,7 @@ export async function POST(request: NextRequest) {
     const result = await login(email, password, ipAddress, userAgent);
 
     if (!result.success) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: 401 }
-      );
+      return apiUnauthorized(result.error || "Authentication failed");
     }
 
     // Check if password change is required
@@ -46,8 +41,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Create response with user data
-    const response = NextResponse.json({
-      success: true,
+    const response = apiSuccess({
       staff: {
         staff_id: result.staff!.staff_id,
         display_name: result.staff!.display_name,
@@ -64,21 +58,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Login error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const errorType = error instanceof Error ? error.name : typeof error;
 
     // In development, show more details
     const isDev = process.env.NODE_ENV === "development";
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: isDev
-          ? `Login failed: ${errorMessage}`
-          : "An error occurred during login",
-        // Include debug info in development
-        ...(isDev && { debug: { type: errorType, message: errorMessage } }),
-      },
-      { status: 500 }
+    return apiServerError(
+      isDev ? `Login failed: ${errorMessage}` : "An error occurred during login"
     );
   }
 }

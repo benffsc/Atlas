@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/auth/change-password
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized("Authentication required");
     }
 
     const body = await request.json();
@@ -18,24 +19,15 @@ export async function POST(request: NextRequest) {
 
     // Validate inputs
     if (!current_password || !new_password || !confirm_password) {
-      return NextResponse.json(
-        { error: "All fields are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("All fields are required");
     }
 
     if (new_password !== confirm_password) {
-      return NextResponse.json(
-        { error: "New passwords do not match" },
-        { status: 400 }
-      );
+      return apiBadRequest("New passwords do not match");
     }
 
     if (new_password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
+      return apiBadRequest("Password must be at least 8 characters");
     }
 
     // Get current password hash
@@ -45,19 +37,13 @@ export async function POST(request: NextRequest) {
     );
 
     if (!staff || !staff.password_hash) {
-      return NextResponse.json(
-        { error: "Staff not found or password not set" },
-        { status: 400 }
-      );
+      return apiBadRequest("Staff not found or password not set");
     }
 
     // Verify current password
     const isValid = await verifyPassword(current_password, staff.password_hash);
     if (!isValid) {
-      return NextResponse.json(
-        { error: "Current password is incorrect" },
-        { status: 400 }
-      );
+      return apiBadRequest("Current password is incorrect");
     }
 
     // Hash new password
@@ -75,15 +61,9 @@ export async function POST(request: NextRequest) {
       [newHash, session.staff_id]
     );
 
-    return NextResponse.json({
-      success: true,
-      message: "Password changed successfully",
-    });
+    return apiSuccess({ message: "Password changed successfully" });
   } catch (error) {
     console.error("Change password error:", error);
-    return NextResponse.json(
-      { error: "Failed to change password" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to change password");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/auth/me
@@ -12,13 +13,10 @@ export async function GET(request: NextRequest) {
     const staff = await getSession(request);
 
     if (!staff) {
-      return NextResponse.json(
-        { authenticated: false },
-        { status: 401 }
-      );
+      return apiUnauthorized("Not authenticated");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       authenticated: true,
       staff: {
         staff_id: staff.staff_id,
@@ -31,9 +29,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Auth check error:", error);
-    return NextResponse.json(
-      { authenticated: false, error: "Failed to check authentication" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check authentication");
   }
 }
