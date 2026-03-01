@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Place AI Summary Endpoint
@@ -94,10 +95,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -108,18 +106,12 @@ export async function GET(
     );
 
     if (!result?.get_place_summary) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
-    return NextResponse.json(result.get_place_summary);
+    return apiSuccess(result.get_place_summary);
   } catch (error) {
     console.error("Error fetching place summary:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch place summary" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place summary");
   }
 }

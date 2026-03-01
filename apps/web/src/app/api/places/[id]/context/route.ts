@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/places/[id]/context
@@ -146,10 +147,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -160,28 +158,19 @@ export async function GET(
     );
 
     if (!result || !result.context) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
     // Check if the function returned an error (cast to handle error case)
     const context = result.context as PlaceContext & { error?: string };
     if (context.error) {
-      return NextResponse.json(
-        { error: context.error },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
-    return NextResponse.json(context);
+    return apiSuccess(context);
   } catch (error) {
     console.error("Error fetching place context:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch place context" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place context");
   }
 }
 
@@ -203,10 +192,7 @@ export async function POST(
     const { address } = body;
 
     if (!address) {
-      return NextResponse.json(
-        { error: "Address is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Address is required");
     }
 
     // Use the address lookup function
@@ -216,27 +202,21 @@ export async function POST(
     );
 
     if (!result || !result.context) {
-      return NextResponse.json(
-        {
-          address,
-          error: "No matching place found",
-          context_flags: {
-            has_active_request: false,
-            has_recent_clinic: false,
-            has_google_history: false,
-            has_nearby_activity: false,
-          },
+      return apiSuccess({
+        address,
+        error: "No matching place found",
+        context_flags: {
+          has_active_request: false,
+          has_recent_clinic: false,
+          has_google_history: false,
+          has_nearby_activity: false,
         },
-        { status: 200 } // Return 200 with empty context, not 404
-      );
+      });
     }
 
-    return NextResponse.json(result.context);
+    return apiSuccess(result.context);
   } catch (error) {
     console.error("Error fetching place context by address:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch place context" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place context");
   }
 }

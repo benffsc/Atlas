@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Place Map Details API
@@ -109,7 +110,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json({ error: "Place ID is required" }, { status: 400 });
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -178,7 +179,7 @@ export async function GET(
     );
 
     if (!place) {
-      return NextResponse.json({ error: "Place not found" }, { status: 404 });
+      return apiNotFound("Place", id);
     }
 
     // Get people linked to this place
@@ -387,7 +388,7 @@ export async function GET(
       [placeId]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       ...place,
       people,
       cats,
@@ -399,9 +400,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching place map details:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch place details" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place details");
   }
 }

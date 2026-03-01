@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Place Watchlist API
@@ -27,7 +28,7 @@ export async function PUT(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json({ error: "Place ID is required" }, { status: 400 });
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -35,18 +36,12 @@ export async function PUT(
     const { watch_list, reason } = body;
 
     if (typeof watch_list !== "boolean") {
-      return NextResponse.json(
-        { error: "watch_list must be a boolean" },
-        { status: 400 }
-      );
+      return apiBadRequest("watch_list must be a boolean");
     }
 
     // When adding to watchlist, reason is required
     if (watch_list && (!reason || !reason.trim())) {
-      return NextResponse.json(
-        { error: "Reason is required when adding to watch list" },
-        { status: 400 }
-      );
+      return apiBadRequest("Reason is required when adding to watch list");
     }
 
     // Use the database function which handles validation and audit logging
@@ -56,22 +51,16 @@ export async function PUT(
     );
 
     if (!result?.success) {
-      return NextResponse.json(
-        { error: result?.message || "Failed to update watch list" },
-        { status: 400 }
-      );
+      return apiBadRequest(result?.message || "Failed to update watch list");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: result.message,
       watch_list,
     });
   } catch (error) {
     console.error("Error updating watchlist:", error);
-    return NextResponse.json(
-      { error: "Failed to update watch list" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update watch list");
   }
 }

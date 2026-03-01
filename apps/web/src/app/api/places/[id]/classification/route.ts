@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * GET /api/places/[id]/classification
@@ -12,10 +14,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -50,19 +49,13 @@ export async function GET(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
-    return NextResponse.json(result);
+    return apiSuccess(result);
   } catch (error) {
     console.error("Error fetching classification:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch classification" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch classification");
   }
 }
 
@@ -77,10 +70,7 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -102,21 +92,13 @@ export async function POST(
     ];
 
     if (!classification || !validClassifications.includes(classification)) {
-      return NextResponse.json(
-        {
-          error: `Invalid classification. Must be one of: ${validClassifications.join(", ")}`,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid classification. Must be one of: ${validClassifications.join(", ")}`);
     }
 
     // Validate authoritative_count if provided
     if (authoritative_count !== undefined && authoritative_count !== null) {
       if (typeof authoritative_count !== "number" || authoritative_count < 0) {
-        return NextResponse.json(
-          { error: "Authoritative count must be a non-negative number" },
-          { status: 400 }
-        );
+        return apiBadRequest("Authoritative count must be a non-negative number");
       }
     }
 
@@ -149,7 +131,7 @@ export async function POST(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       place_id: id,
       classification: updated?.colony_classification,
@@ -159,10 +141,7 @@ export async function POST(
   } catch (error) {
     console.error("Error setting classification:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to set classification", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError(`Failed to set classification: ${errorMessage}`);
   }
 }
 
@@ -177,10 +156,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -195,15 +171,12 @@ export async function DELETE(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: "Authoritative count cleared",
     });
   } catch (error) {
     console.error("Error clearing authoritative count:", error);
-    return NextResponse.json(
-      { error: "Failed to clear authoritative count" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to clear authoritative count");
   }
 }

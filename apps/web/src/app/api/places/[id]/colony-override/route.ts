@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface SetOverrideBody {
   count: number;
@@ -21,20 +22,14 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
     const body: SetOverrideBody = await request.json();
 
     if (typeof body.count !== "number" || body.count < 0) {
-      return NextResponse.json(
-        { error: "count must be a non-negative number" },
-        { status: 400 }
-      );
+      return apiBadRequest("count must be a non-negative number");
     }
 
     // Use the set_colony_override function
@@ -55,13 +50,10 @@ export async function POST(
     );
 
     if (!result || !result.success) {
-      return NextResponse.json(
-        { error: result?.message || "Failed to set override" },
-        { status: 400 }
-      );
+      return apiBadRequest(result?.message || "Failed to set override");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: "Colony override set successfully",
       previous_count: result.previous_count,
@@ -69,10 +61,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error setting colony override:", error);
-    return NextResponse.json(
-      { error: "Failed to set colony override" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to set colony override");
   }
 }
 
@@ -84,10 +73,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -104,22 +90,16 @@ export async function DELETE(
     );
 
     if (!result?.clear_colony_override) {
-      return NextResponse.json(
-        { error: "Place not found or override not cleared" },
-        { status: 404 }
-      );
+      return apiNotFound("Place or override", id);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: "Colony override cleared",
     });
   } catch (error) {
     console.error("Error clearing colony override:", error);
-    return NextResponse.json(
-      { error: "Failed to clear colony override" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to clear colony override");
   }
 }
 
@@ -131,10 +111,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -180,7 +157,7 @@ export async function GET(
 
     const history = await queryRows(historySql, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       current: current && current.colony_override_count !== null ? {
         count: current.colony_override_count,
         altered: current.colony_override_altered,
@@ -192,9 +169,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching colony override:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch colony override" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch colony override");
   }
 }

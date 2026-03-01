@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface PopulationEvent {
   event_type: "birth" | "death";
@@ -89,12 +90,9 @@ export async function GET(
       }).length,
     };
 
-    return NextResponse.json({ events, summary });
+    return apiSuccess({ events, summary });
   } catch (error) {
     console.error("Error fetching population events:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch population events" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch population events");
   }
 }

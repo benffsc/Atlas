@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/places/[id]/contexts
@@ -38,10 +39,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -57,7 +55,7 @@ export async function GET(
     );
 
     if (!placeCheck) {
-      return NextResponse.json({ error: "Place not found" }, { status: 404 });
+      return apiNotFound("Place", id);
     }
 
     const placeId = placeCheck.merged_into_place_id || id;
@@ -93,7 +91,7 @@ export async function GET(
       [placeId]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: placeId,
       address: placeCheck.formatted_address,
       contexts: contexts || [],
@@ -101,10 +99,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching place contexts:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch place contexts" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place contexts");
   }
 }
 
@@ -138,20 +133,14 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
     const body: AddContextBody = await request.json();
 
     if (!body.context_type) {
-      return NextResponse.json(
-        { error: "context_type is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("context_type is required");
     }
 
     // Validate context type exists
@@ -162,10 +151,7 @@ export async function POST(
     );
 
     if (!contextTypeCheck) {
-      return NextResponse.json(
-        { error: `Invalid context type: ${body.context_type}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid context type: ${body.context_type}`);
     }
 
     // Check if place exists (and handle merged places)
@@ -179,7 +165,7 @@ export async function POST(
     );
 
     if (!placeCheck) {
-      return NextResponse.json({ error: "Place not found" }, { status: 404 });
+      return apiNotFound("Place", id);
     }
 
     const placeId = placeCheck.merged_into_place_id || id;
@@ -205,10 +191,7 @@ export async function POST(
     );
 
     if (!result?.context_id) {
-      return NextResponse.json(
-        { error: "Failed to create classification" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create classification");
     }
 
     // Fetch the created context to return full details
@@ -238,13 +221,10 @@ export async function POST(
       [result.context_id]
     );
 
-    return NextResponse.json(context, { status: 201 });
+    return apiSuccess(context);
   } catch (error) {
     console.error("Error adding place context:", error);
-    return NextResponse.json(
-      { error: "Failed to add classification" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to add classification");
   }
 }
 
@@ -265,17 +245,11 @@ export async function DELETE(
   const contextType = searchParams.get("type");
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   if (!contextType) {
-    return NextResponse.json(
-      { error: "Context type is required (use ?type=...)" },
-      { status: 400 }
-    );
+    return apiBadRequest("Context type is required (use ?type=...)");
   }
 
   try {
@@ -290,7 +264,7 @@ export async function DELETE(
     );
 
     if (!placeCheck) {
-      return NextResponse.json({ error: "Place not found" }, { status: 404 });
+      return apiNotFound("Place", id);
     }
 
     const placeId = placeCheck.merged_into_place_id || id;
@@ -302,21 +276,15 @@ export async function DELETE(
     );
 
     if (!result?.removed) {
-      return NextResponse.json(
-        { error: "Classification not found or already removed" },
-        { status: 404 }
-      );
+      return apiNotFound("Classification", contextType);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: `Removed ${contextType} classification from place`,
     });
   } catch (error) {
     console.error("Error removing place context:", error);
-    return NextResponse.json(
-      { error: "Failed to remove classification" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove classification");
   }
 }

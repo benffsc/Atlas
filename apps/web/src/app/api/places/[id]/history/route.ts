@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { queryRows } from '@/lib/db';
+import { requireValidUUID } from '@/lib/api-validation';
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from '@/lib/api-response';
 
 /**
  * GET /api/places/[id]/history
@@ -105,7 +107,7 @@ export async function GET(
     );
 
     if (placeResult.length === 0) {
-      return NextResponse.json({ error: 'Place not found' }, { status: 404 });
+      return apiNotFound('Place', placeId);
     }
 
     // Get historical estimates (legacy sources)
@@ -308,13 +310,10 @@ export async function GET(
       google_map_entry_count: googleMapEntries.length,
     };
 
-    return NextResponse.json(response);
+    return apiSuccess(response);
 
   } catch (error) {
     console.error('Error fetching place history:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch historical context' },
-      { status: 500 }
-    );
+    return apiServerError('Failed to fetch historical context');
   }
 }

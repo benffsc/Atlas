@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/places/[id]/colony-sources
@@ -70,10 +71,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -293,7 +291,7 @@ export async function GET(
       quality_level: qualityLevel,
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: id,
       summary,
       sources: formattedSources,
@@ -302,9 +300,6 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching colony sources:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to fetch colony sources", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError(`Failed to fetch colony sources: ${errorMessage}`);
   }
 }

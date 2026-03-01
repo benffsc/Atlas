@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface YearlyBreakdown {
   requests: number;
@@ -31,10 +32,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -63,7 +61,7 @@ export async function GET(
     if (!history) {
       // Place exists but has no requests with alteration data
       // Return empty stats
-      return NextResponse.json({
+      return apiSuccess({
         place_id: id,
         place_name: null,
         formatted_address: null,
@@ -87,7 +85,7 @@ export async function GET(
       ? JSON.parse(history.yearly_breakdown)
       : history.yearly_breakdown || {};
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: history.place_id,
       place_name: history.place_name,
       formatted_address: history.formatted_address,
@@ -106,9 +104,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching place alteration history:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch alteration history" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch alteration history");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/places/[id]/observations
@@ -40,10 +41,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -69,17 +67,14 @@ export async function GET(
 
     const observations = await queryRows<Observation>(sql, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: id,
       observations,
       count: observations.length,
     });
   } catch (error) {
     console.error("Error fetching observations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch observations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch observations");
   }
 }
 
@@ -91,10 +86,7 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -102,41 +94,26 @@ export async function POST(
 
     // Validate required fields
     if (body.cats_seen === undefined || body.cats_seen === null) {
-      return NextResponse.json(
-        { error: "cats_seen is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("cats_seen is required");
     }
 
     if (body.eartips_seen === undefined || body.eartips_seen === null) {
-      return NextResponse.json(
-        { error: "eartips_seen is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("eartips_seen is required");
     }
 
     // Basic validation
     if (body.cats_seen < 0 || body.eartips_seen < 0) {
-      return NextResponse.json(
-        { error: "Counts cannot be negative" },
-        { status: 400 }
-      );
+      return apiBadRequest("Counts cannot be negative");
     }
 
     if (body.eartips_seen > body.cats_seen) {
-      return NextResponse.json(
-        { error: "Ear-tipped cats cannot exceed total cats seen" },
-        { status: 400 }
-      );
+      return apiBadRequest("Ear-tipped cats cannot exceed total cats seen");
     }
 
     // Validate time_of_day if provided
     const validTimes = ["morning", "afternoon", "evening", "night"];
     if (body.time_of_day && !validTimes.includes(body.time_of_day)) {
-      return NextResponse.json(
-        { error: `time_of_day must be one of: ${validTimes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`time_of_day must be one of: ${validTimes.join(", ")}`);
     }
 
     // Verify place exists
@@ -146,10 +123,7 @@ export async function POST(
     );
 
     if (!placeCheck) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", id);
     }
 
     // Insert the observation
@@ -198,10 +172,7 @@ export async function POST(
     ]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create observation" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create observation");
     }
 
     // Calculate what this observation means for Chapman estimation
@@ -231,7 +202,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       observation: result,
       chapman_estimate: chapmanEstimate,
@@ -241,9 +212,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error creating observation:", error);
-    return NextResponse.json(
-      { error: "Failed to create observation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create observation");
   }
 }

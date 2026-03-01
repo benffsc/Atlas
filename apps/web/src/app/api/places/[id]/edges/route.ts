@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiConflict } from "@/lib/api-response";
 
 interface PlaceEdge {
   edge_id: string;
@@ -81,16 +82,13 @@ export async function GET(
       ORDER BY type_label
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       edges,
       relationshipTypes,
     });
   } catch (err) {
     console.error("Error fetching place edges:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch place relationships" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch place relationships");
   }
 }
 
@@ -111,24 +109,15 @@ export async function POST(
   const body: CreateEdgeBody = await request.json();
 
   if (!body.related_place_id) {
-    return NextResponse.json(
-      { error: "related_place_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("related_place_id is required");
   }
 
   if (!body.relationship_type) {
-    return NextResponse.json(
-      { error: "relationship_type is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("relationship_type is required");
   }
 
   if (id === body.related_place_id) {
-    return NextResponse.json(
-      { error: "Cannot link a place to itself" },
-      { status: 400 }
-    );
+    return apiBadRequest("Cannot link a place to itself");
   }
 
   try {
@@ -139,10 +128,7 @@ export async function POST(
     `, [body.relationship_type]);
 
     if (!relType) {
-      return NextResponse.json(
-        { error: `Invalid relationship type: ${body.relationship_type}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid relationship type: ${body.relationship_type}`);
     }
 
     // V2: Check if edge already exists (in either direction) using place_id_from/to
@@ -153,10 +139,7 @@ export async function POST(
     `, [id, body.related_place_id]);
 
     if (existing) {
-      return NextResponse.json(
-        { error: "These places are already linked" },
-        { status: 409 }
-      );
+      return apiConflict("These places are already linked");
     }
 
     // V2: Create the edge using V2 column names
@@ -199,13 +182,10 @@ export async function POST(
       editSource: "web_ui",
     });
 
-    return NextResponse.json({ edge: result }, { status: 201 });
+    return apiSuccess({ edge: result });
   } catch (err) {
     console.error("Error creating place edge:", err);
-    return NextResponse.json(
-      { error: "Failed to create place relationship" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create place relationship");
   }
 }
 
@@ -224,10 +204,7 @@ export async function DELETE(
   const body: DeleteEdgeBody = await request.json();
 
   if (!body.edge_id) {
-    return NextResponse.json(
-      { error: "edge_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("edge_id is required");
   }
 
   try {
@@ -249,10 +226,7 @@ export async function DELETE(
     `, [body.edge_id, id]);
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Edge not found or doesn't involve this place" },
-        { status: 404 }
-      );
+      return apiNotFound("Edge", body.edge_id);
     }
 
     // Delete the edge
@@ -276,12 +250,9 @@ export async function DELETE(
       editSource: "web_ui",
     });
 
-    return NextResponse.json({ success: true, deleted_edge_id: body.edge_id });
+    return apiSuccess({ success: true, deleted_edge_id: body.edge_id });
   } catch (err) {
     console.error("Error deleting place edge:", err);
-    return NextResponse.json(
-      { error: "Failed to delete place relationship" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete place relationship");
   }
 }

@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface SiteStats {
   is_part_of_site: boolean;
@@ -20,10 +22,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -34,7 +33,7 @@ export async function GET(
 
     if (!stats) {
       // Return default stats for place not found in any cluster
-      return NextResponse.json({
+      return apiSuccess({
         is_part_of_site: false,
         cluster_id: id,
         place_count: 1,
@@ -46,14 +45,14 @@ export async function GET(
       });
     }
 
-    return NextResponse.json(stats);
+    return apiSuccess(stats);
   } catch (err) {
     console.error("Error fetching site stats:", err);
 
     // If the function doesn't exist yet (migration not run), return graceful fallback
     const errorMessage = err instanceof Error ? err.message : String(err);
     if (errorMessage.includes("get_site_stats_for_place") || errorMessage.includes("does not exist")) {
-      return NextResponse.json({
+      return apiSuccess({
         is_part_of_site: false,
         cluster_id: id,
         place_count: 1,
@@ -66,9 +65,6 @@ export async function GET(
       });
     }
 
-    return NextResponse.json(
-      { error: "Failed to fetch site stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch site stats");
   }
 }

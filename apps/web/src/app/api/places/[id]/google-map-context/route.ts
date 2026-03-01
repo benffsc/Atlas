@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Place Google Map Context API
@@ -34,7 +35,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json({ error: "Place ID is required" }, { status: 400 });
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -78,16 +79,13 @@ export async function GET(
 
     const entries = await queryRows<GoogleMapEntry>(sql, [placeId]);
 
-    return NextResponse.json({
+    return apiSuccess({
       entries,
       count: entries.length,
       has_ai_summaries: entries.some(e => e.is_ai_summarized),
     });
   } catch (error) {
     console.error("Error fetching Google Map context:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch Google Map context" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch Google Map context");
   }
 }

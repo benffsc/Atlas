@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface CatPresence {
   cat_place_id: string;
@@ -40,10 +42,7 @@ export async function GET(
   const { id: placeId } = await params;
 
   if (!placeId) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -121,17 +120,14 @@ export async function GET(
             (c.explicit_status === "unknown" || !c.explicit_status)
         ));
 
-    return NextResponse.json({
+    return apiSuccess({
       cats,
       summary,
       classification: placeInfo?.colony_classification ?? "unknown",
     });
   } catch (error) {
     console.error("Error fetching cat presence:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch cat presence data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch cat presence data");
   }
 }
 
@@ -143,10 +139,7 @@ export async function POST(
   const { id: placeId } = await params;
 
   if (!placeId) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -154,10 +147,7 @@ export async function POST(
     const { updates, confirmed_by = "staff" } = body;
 
     if (!updates || !Array.isArray(updates) || updates.length === 0) {
-      return NextResponse.json(
-        { error: "Updates array is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Updates array is required");
     }
 
     const results: { cat_id: string; success: boolean; error?: string }[] = [];
@@ -195,16 +185,13 @@ export async function POST(
 
     const allSucceeded = results.every((r) => r.success);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: allSucceeded,
       results,
     });
   } catch (error) {
     console.error("Error updating cat presence:", error);
-    return NextResponse.json(
-      { error: "Failed to update cat presence" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update cat presence");
   }
 }
 
@@ -216,10 +203,7 @@ export async function PATCH(
   const { id: placeId } = await params;
 
   if (!placeId) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -243,7 +227,7 @@ export async function PATCH(
         [placeId, confirmed_by]
       );
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         action: "mark_old_as_departed",
         updated_count: result.rowCount,
@@ -253,22 +237,16 @@ export async function PATCH(
     if (action === "dismiss") {
       // Mark all unconfirmed cats as having been reviewed (no change needed)
       // This just acknowledges that staff looked at them
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         action: "dismiss",
         message: "Reconciliation dismissed for now",
       });
     }
 
-    return NextResponse.json(
-      { error: `Unknown action: ${action}` },
-      { status: 400 }
-    );
+    return apiBadRequest(`Unknown action: ${action}`);
   } catch (error) {
     console.error("Error performing bulk action:", error);
-    return NextResponse.json(
-      { error: "Failed to perform bulk action" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to perform bulk action");
   }
 }

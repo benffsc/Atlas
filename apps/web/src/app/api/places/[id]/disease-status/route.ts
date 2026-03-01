@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -18,10 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -64,13 +62,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       queryRows(diseaseTypesSql),
     ]);
 
-    return NextResponse.json({ statuses, disease_types: diseaseTypes });
+    return apiSuccess({ statuses, disease_types: diseaseTypes });
   } catch (error) {
     console.error("Error fetching place disease statuses:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch disease statuses" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch disease statuses");
   }
 }
 
@@ -78,10 +73,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -94,20 +86,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     };
 
     if (!disease_key || !action) {
-      return NextResponse.json(
-        { error: "disease_key and action are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("disease_key and action are required");
     }
 
     const mappedStatus = ACTION_TO_STATUS[action];
     if (!mappedStatus) {
-      return NextResponse.json(
-        {
-          error: `Invalid action. Must be one of: ${Object.keys(ACTION_TO_STATUS).join(", ")}`,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid action. Must be one of: ${Object.keys(ACTION_TO_STATUS).join(", ")}`);
     }
 
     const result = await queryOne<{ set_place_disease_override: string }>(
@@ -115,15 +99,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       [id, disease_key, mappedStatus, notes || null, staff_id || "staff"]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       status_id: result?.set_place_disease_override ?? null,
     });
   } catch (error) {
     console.error("Error setting disease status override:", error);
-    return NextResponse.json(
-      { error: "Failed to set disease status override" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to set disease status override");
   }
 }

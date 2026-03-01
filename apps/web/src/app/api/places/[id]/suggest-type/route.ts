@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface ContextRow {
   context_type: string;
@@ -44,9 +45,9 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(best || { suggested_kind: null });
+    return apiSuccess(best || { suggested_kind: null });
   } catch (error) {
     console.error("Error suggesting place type:", error);
-    return NextResponse.json({ error: "Failed to suggest type" }, { status: 500 });
+    return apiServerError("Failed to suggest type");
   }
 }

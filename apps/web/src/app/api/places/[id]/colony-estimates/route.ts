@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface ColonyEstimate {
   estimate_id: string;
@@ -56,10 +57,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Place ID is required");
   }
 
   try {
@@ -193,7 +191,7 @@ export async function GET(
       source_label: sourceLabels[e.source_type] || e.source_type,
     }));
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: id,
       estimates: formattedEstimates,
       status: status || {
@@ -236,9 +234,6 @@ export async function GET(
   } catch (error) {
     console.error("Error fetching colony estimates:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to fetch colony estimates", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError(`Failed to fetch colony estimates: ${errorMessage}`);
   }
 }
