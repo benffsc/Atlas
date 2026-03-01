@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { requireValidUUID } from "@/lib/api-validation";
+import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
+import { UpdateJournalEntrySchema } from "@/lib/schemas";
 
 interface JournalEntryRow {
   id: string;
@@ -87,16 +88,6 @@ export async function GET(
 }
 
 // PATCH /api/journal/[id] - Update a journal entry
-interface UpdateEntryBody {
-  body?: string;
-  title?: string;
-  entry_kind?: string;
-  occurred_at?: string;
-  tags?: string[];
-  is_pinned?: boolean;
-  updated_by?: string;
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -106,7 +97,10 @@ export async function PATCH(
   try {
     requireValidUUID(id, "journal entry");
 
-    const data: UpdateEntryBody = await request.json();
+    // Validate request body with Zod schema
+    const parsed = await parseBody(request, UpdateJournalEntrySchema);
+    if ("error" in parsed) return parsed.error;
+    const data = parsed.data;
 
     // Build dynamic update
     const updates: string[] = [];

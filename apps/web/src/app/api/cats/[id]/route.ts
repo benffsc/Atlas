@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
-import { requireValidUUID } from "@/lib/api-validation";
+import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiError, apiNotFound, apiServerError } from "@/lib/api-response";
+import { UpdateCatSchema } from "@/lib/schemas";
 
 interface CatDetailRow {
   cat_id: string;
@@ -701,19 +702,6 @@ export async function GET(
 }
 
 // PATCH - Update cat info with audit tracking
-interface UpdateCatBody {
-  name?: string;
-  sex?: string;
-  is_eartipped?: boolean;
-  color_pattern?: string;
-  breed?: string;
-  notes?: string;
-  // Audit info
-  changed_by?: string;
-  change_reason?: string;
-  change_notes?: string;
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -722,7 +710,11 @@ export async function PATCH(
 
   try {
     requireValidUUID(id, "cat");
-    const body: UpdateCatBody = await request.json();
+
+    // Validate request body with Zod schema
+    const parsed = await parseBody(request, UpdateCatSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
     const changed_by = body.changed_by || "web_user";
     const change_reason = body.change_reason || "manual_update";
     const change_notes = body.change_notes || null;

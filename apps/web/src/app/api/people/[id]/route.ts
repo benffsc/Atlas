@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
-import { logFieldEdits, logFieldEdit, detectChanges, type FieldChange } from "@/lib/audit";
+import { logFieldEdits, type FieldChange } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
-import { requireValidUUID } from "@/lib/api-validation";
-import { PERSON_ENTITY_TYPE, TRAPPING_SKILL } from "@/lib/enums";
+import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
+import { UpdatePersonSchema } from "@/lib/schemas";
 
 interface PartnerOrg {
   org_id: string;
@@ -197,18 +197,6 @@ export async function GET(
   }
 }
 
-// INV-48: Entity types and trapping skills imported from @/lib/enums
-
-interface UpdatePersonBody {
-  display_name?: string;
-  entity_type?: string;
-  trapping_skill?: string;
-  trapping_skill_notes?: string;
-  // Audit info
-  changed_by?: string;
-  change_reason?: string;
-}
-
 interface CurrentPersonData {
   display_name: string | null;
   entity_type: string | null;
@@ -225,23 +213,13 @@ export async function PATCH(
   try {
     requireValidUUID(id, "person");
 
-    const body: UpdatePersonBody = await request.json();
+    // Validate request body with Zod schema
+    const parsed = await parseBody(request, UpdatePersonSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
+
     const changed_by = body.changed_by || "web_user";
     const change_reason = body.change_reason || "manual_update";
-
-    // Validate entity_type if provided (INV-48: uses central enum registry)
-    if (body.entity_type !== undefined) {
-      if (body.entity_type !== null && !PERSON_ENTITY_TYPE.includes(body.entity_type as typeof PERSON_ENTITY_TYPE[number])) {
-        return apiBadRequest(`Invalid entity_type. Must be one of: ${PERSON_ENTITY_TYPE.join(", ")}`);
-      }
-    }
-
-    // Validate trapping_skill if provided (INV-48: uses central enum registry)
-    if (body.trapping_skill !== undefined) {
-      if (body.trapping_skill !== null && !TRAPPING_SKILL.includes(body.trapping_skill as typeof TRAPPING_SKILL[number])) {
-        return apiBadRequest(`Invalid trapping_skill. Must be one of: ${TRAPPING_SKILL.join(", ")}`);
-      }
-    }
 
     // Validate display_name if provided
     if (body.display_name !== undefined) {

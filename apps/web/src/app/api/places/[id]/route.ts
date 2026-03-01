@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
-import { requireValidUUID } from "@/lib/api-validation";
-import { PLACE_KIND } from "@/lib/enums";
+import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
+import { UpdatePlaceSchema } from "@/lib/schemas";
 
 interface PlaceDetailRow {
   place_id: string;
@@ -226,24 +226,6 @@ export async function GET(
   }
 }
 
-// INV-48: Place kinds imported from @/lib/enums
-
-interface UpdatePlaceBody {
-  display_name?: string | null;
-  place_kind?: string;
-  // Address correction fields (with audit tracking)
-  formatted_address?: string;
-  locality?: string;
-  postal_code?: string;
-  state_province?: string;
-  latitude?: number;
-  longitude?: number;
-  // Audit info
-  changed_by?: string;
-  change_reason?: string;
-  change_notes?: string;
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -253,15 +235,14 @@ export async function PATCH(
   try {
     requireValidUUID(id, "place");
 
-    const body: UpdatePlaceBody = await request.json();
+    // Validate request body with Zod schema
+    const parsed = await parseBody(request, UpdatePlaceSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
+
     const changed_by = body.changed_by || "web_user";
     const change_reason = body.change_reason || "manual_update";
     const change_notes = body.change_notes || null;
-
-    // Validate place_kind if provided (INV-48: uses central enum registry)
-    if (body.place_kind && !PLACE_KIND.includes(body.place_kind as typeof PLACE_KIND[number])) {
-      return apiBadRequest(`Invalid place_kind. Must be one of: ${PLACE_KIND.join(", ")}`);
-    }
 
     // Validate display_name if provided (null clears the label, empty string rejected)
     if (body.display_name !== undefined && body.display_name !== null && body.display_name.trim() === "") {

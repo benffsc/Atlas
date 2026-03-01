@@ -2,14 +2,9 @@ import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
-import { requireValidUUID } from "@/lib/api-validation";
-import {
-  REQUEST_STATUS,
-  REQUEST_PRIORITY,
-  HOLD_REASON,
-  NO_TRAPPER_REASON,
-} from "@/lib/enums";
+import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { UpdateRequestSchema } from "@/lib/schemas";
 
 interface CurrentTrapper {
   trapper_person_id: string;
@@ -459,112 +454,6 @@ export async function GET(
   }
 }
 
-// INV-48: Enum constants imported from @/lib/enums
-
-interface UpdateRequestBody {
-  status?: string;
-  priority?: string;
-  summary?: string;
-  notes?: string;
-  estimated_cat_count?: number;
-  has_kittens?: boolean;
-  cats_are_friendly?: boolean;
-  preferred_contact_method?: string;
-  assigned_to?: string;
-  assigned_trapper_type?: string;
-  assignment_notes?: string;
-  scheduled_date?: string;
-  scheduled_time_range?: string;
-  resolution_notes?: string;
-  resolution_reason?: string;
-  cats_trapped?: number;
-  cats_returned?: number;
-  // Hold management
-  hold_reason?: string | null;
-  hold_reason_notes?: string;
-  // Enhanced intake fields
-  permission_status?: string;
-  access_notes?: string;
-  traps_overnight_safe?: boolean;
-  access_without_contact?: boolean;
-  urgency_reasons?: string[];
-  urgency_deadline?: string;
-  urgency_notes?: string;
-  // Kitten assessment fields
-  kitten_count?: number | null;
-  kitten_age_weeks?: number | null;
-  kitten_assessment_status?: string | null;
-  kitten_assessment_outcome?: string | null;
-  kitten_foster_readiness?: string | null;
-  kitten_urgency_factors?: string[] | null;
-  kitten_assessment_notes?: string | null;
-  not_assessing_reason?: string | null;
-  // Observation data (for completing requests)
-  observation_cats_seen?: number | null;
-  observation_eartips_seen?: number | null;
-  observation_notes?: string | null;
-  // Skip trip report check (for completion flow)
-  skip_trip_report_check?: boolean;
-  // Email batching (MIG_605)
-  ready_to_email?: boolean;
-  email_summary?: string;
-  // SC_004: No trapper reason (syncs assignment_status)
-  no_trapper_reason?: string | null;
-
-  // ==========================================================================
-  // MIG_2531/2532: New fields for Beacon-critical data and intake unification
-  // ==========================================================================
-
-  // Beacon-critical fields
-  peak_count?: number | null;
-  awareness_duration?: string | null;
-  county?: string | null;
-
-  // Property/Access
-  is_property_owner?: boolean | null;
-  has_property_access?: boolean | null;
-  property_type?: string | null;
-  colony_duration?: string | null;
-
-  // Feeding
-  is_being_fed?: boolean | null;
-  feeder_name?: string | null;
-  feeding_frequency?: string | null;
-  feeding_location?: string | null;
-  feeding_time?: string | null;
-
-  // Medical/Emergency
-  is_emergency?: boolean | null;
-  has_medical_concerns?: boolean | null;
-  medical_description?: string | null;
-
-  // Cat description (for single-cat requests)
-  cat_name?: string | null;
-  cat_description?: string | null;
-
-  // Enhanced kitten tracking
-  kitten_behavior?: string | null;
-  kitten_contained?: string | null;
-  mom_present?: string | null;
-  mom_fixed?: string | null;
-  can_bring_in?: string | null;
-  kitten_age_estimate?: string | null;
-
-  // Third-party reporter (MIG_2522)
-  is_third_party_report?: boolean | null;
-  third_party_relationship?: string | null;
-
-  // Trapping logistics
-  best_trapping_time?: string | null;
-  dogs_on_site?: string | null;
-  trap_savvy?: string | null;
-  previous_tnr?: string | null;
-
-  // Triage
-  triage_category?: string | null;
-  received_by?: string | null;
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -573,12 +462,11 @@ export async function PATCH(
 
   try {
     requireValidUUID(id, "request");
-    const body: UpdateRequestBody = await request.json();
 
-    // Validate status if provided (INV-48: uses central enum registry)
-    if (body.status && !REQUEST_STATUS.includes(body.status as typeof REQUEST_STATUS[number])) {
-      return apiBadRequest(`Invalid status. Must be one of: ${REQUEST_STATUS.join(", ")}`);
-    }
+    // Validate request body with Zod schema (validates enums, allows passthrough for extra fields)
+    const parsed = await parseBody(request, UpdateRequestSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
 
     // Check for trip report requirement when completing a request
     // Skip this check if the completion flow is providing observation data directly
@@ -615,25 +503,6 @@ export async function PATCH(
       ) {
         return apiBadRequest("Trip report required before completion. Please submit a final site visit observation or use the completion modal to complete this request.");
       }
-    }
-
-    // Validate priority if provided (INV-48: uses central enum registry)
-    if (body.priority && !REQUEST_PRIORITY.includes(body.priority as typeof REQUEST_PRIORITY[number])) {
-      return apiBadRequest(`Invalid priority. Must be one of: ${REQUEST_PRIORITY.join(", ")}`);
-    }
-
-    // Validate hold_reason if provided (INV-48: uses central enum registry)
-    if (body.hold_reason && !HOLD_REASON.includes(body.hold_reason as typeof HOLD_REASON[number])) {
-      return apiBadRequest(`Invalid hold_reason. Must be one of: ${HOLD_REASON.join(", ")}`);
-    }
-
-    // assigned_trapper_type is a V1 column that was dropped
-    // Trapper assignment now uses /api/requests/[id]/trappers endpoint
-
-    // SC_004: Validate no_trapper_reason if provided (INV-48: uses central enum registry)
-    if (body.no_trapper_reason !== undefined && body.no_trapper_reason !== null
-        && !NO_TRAPPER_REASON.includes(body.no_trapper_reason as typeof NO_TRAPPER_REASON[number])) {
-      return apiBadRequest(`Invalid no_trapper_reason. Must be one of: ${NO_TRAPPER_REASON.join(", ")}`);
     }
 
     // Get current request data for audit comparison (V2 columns only)

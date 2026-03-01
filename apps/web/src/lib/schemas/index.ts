@@ -62,17 +62,21 @@ export type UpdatePersonInput = z.infer<typeof UpdatePersonSchema>;
 // =============================================================================
 
 export const UpdateCatSchema = z.object({
+  // Maps to display_name in DB
   name: z.string().min(1).max(100).optional(),
   sex: z.enum(CAT_SEX).optional(),
-  altered_status: z.enum(ALTERED_STATUS).optional(),
+  // Boolean that converts to altered_status Yes/No in DB
+  is_eartipped: z.boolean().optional(),
   is_deceased: z.boolean().optional(),
   microchip: z.string().max(50).nullable().optional(),
-  color: z.string().max(100).nullable().optional(),
+  // Maps to primary_color in DB
+  color_pattern: z.string().max(100).nullable().optional(),
   breed: z.string().max(100).nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
   // Audit info
   changed_by: z.string().optional(),
   change_reason: z.string().optional(),
+  change_notes: z.string().max(2000).nullable().optional(),
 });
 
 export type UpdateCatInput = z.infer<typeof UpdateCatSchema>;
@@ -133,7 +137,7 @@ export const UpdateRequestSchema = z.object({
   observation_eartips_seen: z.number().int().min(0).nullable().optional(),
   observation_notes: z.string().max(2000).nullable().optional(),
   skip_trip_report_check: z.boolean().optional(),
-});
+}).passthrough(); // Allow additional fields (MIG_2531/2532 Beacon fields, etc.)
 
 export type UpdateRequestInput = z.infer<typeof UpdateRequestSchema>;
 
