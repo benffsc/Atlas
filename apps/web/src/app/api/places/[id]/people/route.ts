@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiConflict, apiForbidden } from "@/lib/api-response";
 
 const VALID_ROLES = [
   "resident",
@@ -17,8 +19,6 @@ const VALID_ROLES = [
 
 type PersonPlaceRole = (typeof VALID_ROLES)[number];
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * POST /api/places/[id]/people
@@ -33,14 +33,9 @@ export async function POST(
 ) {
   const { id: placeId } = await params;
 
-  if (!placeId) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(placeId, "place");
+
     const body = await request.json();
     const { person_id, role, note } = body as {
       person_id?: string;
@@ -50,28 +45,15 @@ export async function POST(
 
     // Validate required fields
     if (!person_id || !role) {
-      return NextResponse.json(
-        { error: "Both 'person_id' and 'role' are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Both 'person_id' and 'role' are required");
     }
 
     // Validate person_id is a valid UUID
-    if (!UUID_REGEX.test(person_id)) {
-      return NextResponse.json(
-        { error: "person_id must be a valid UUID" },
-        { status: 400 }
-      );
-    }
+    requireValidUUID(person_id, "person");
 
     // Validate role against enum values
     if (!VALID_ROLES.includes(role as PersonPlaceRole)) {
-      return NextResponse.json(
-        {
-          error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`);
     }
 
     // Validate place exists
@@ -81,10 +63,7 @@ export async function POST(
     );
 
     if (!place) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", placeId);
     }
 
     // Validate person exists
@@ -94,10 +73,7 @@ export async function POST(
     );
 
     if (!person) {
-      return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person", person_id);
     }
 
     // Insert relationship with ON CONFLICT DO NOTHING
@@ -132,10 +108,7 @@ export async function POST(
 
     // If ON CONFLICT fired, the relationship already exists
     if (!relationship) {
-      return NextResponse.json(
-        { error: "This person-place-role relationship already exists" },
-        { status: 409 }
-      );
+      return apiConflict("This person-place-role relationship already exists");
     }
 
     // Log to entity_edits for audit trail
@@ -150,16 +123,13 @@ export async function POST(
       [relationship.relationship_id, role]
     );
 
-    return NextResponse.json({
-      success: true,
-      relationship,
-    });
+    return apiSuccess({ relationship });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error adding person to place:", error);
-    return NextResponse.json(
-      { error: "Failed to add person to place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to add person to place");
   }
 }
 
@@ -175,42 +145,24 @@ export async function DELETE(
 ) {
   const { id: placeId } = await params;
 
-  if (!placeId) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(placeId, "place");
+
     const { searchParams } = new URL(request.url);
     const person_id = searchParams.get("person_id");
     const role = searchParams.get("role");
 
     // Validate required params
     if (!person_id || !role) {
-      return NextResponse.json(
-        { error: "Both 'person_id' and 'role' query parameters are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Both 'person_id' and 'role' query parameters are required");
     }
 
     // Validate person_id is a valid UUID
-    if (!UUID_REGEX.test(person_id)) {
-      return NextResponse.json(
-        { error: "person_id must be a valid UUID" },
-        { status: 400 }
-      );
-    }
+    requireValidUUID(person_id, "person");
 
     // Validate role against enum values
     if (!VALID_ROLES.includes(role as PersonPlaceRole)) {
-      return NextResponse.json(
-        {
-          error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`);
     }
 
     // Validate place exists
@@ -220,10 +172,7 @@ export async function DELETE(
     );
 
     if (!place) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", placeId);
     }
 
     // Find the relationship (only atlas_ui source allowed for deletion)
@@ -239,20 +188,11 @@ export async function DELETE(
     );
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Relationship not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Relationship", `${person_id}/${role}`);
     }
 
     if (existing.source_system !== "atlas_ui") {
-      return NextResponse.json(
-        {
-          error:
-            "Cannot delete automated relationships. Only manually-added (atlas_ui) relationships can be removed.",
-        },
-        { status: 403 }
-      );
+      return apiForbidden("Cannot delete automated relationships. Only manually-added (atlas_ui) relationships can be removed.");
     }
 
     // Log to entity_edits before deleting
@@ -275,16 +215,13 @@ export async function DELETE(
       [existing.relationship_id]
     );
 
-    return NextResponse.json({
-      success: true,
-      deleted_relationship_id: existing.relationship_id,
-    });
+    return apiSuccess({ deleted_relationship_id: existing.relationship_id });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error removing person from place:", error);
-    return NextResponse.json(
-      { error: "Failed to remove person from place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove person from place");
   }
 }
 
@@ -317,14 +254,9 @@ export async function GET(
 ) {
   const { id: placeId } = await params;
 
-  if (!placeId) {
-    return NextResponse.json(
-      { error: "Place ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(placeId, "place");
+
     // Validate place exists
     const place = await queryOne<{ place_id: string; display_name: string | null; formatted_address: string | null }>(
       `SELECT place_id, display_name, formatted_address
@@ -334,10 +266,7 @@ export async function GET(
     );
 
     if (!place) {
-      return NextResponse.json(
-        { error: "Place not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Place", placeId);
     }
 
     // Get people at this place using the helper function
@@ -382,7 +311,7 @@ export async function GET(
     const verifiedCount = people.filter(p => p.is_staff_verified).length;
     const unverifiedCount = people.length - verifiedCount;
 
-    return NextResponse.json({
+    return apiSuccess({
       place: {
         place_id: place.place_id,
         display_name: place.display_name,
@@ -396,10 +325,10 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching people at place:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch people at place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch people at place");
   }
 }

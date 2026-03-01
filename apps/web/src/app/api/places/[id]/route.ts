@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
 import { requireValidUUID } from "@/lib/api-validation";
@@ -265,10 +265,7 @@ export async function PATCH(
 
     // Validate display_name if provided (null clears the label, empty string rejected)
     if (body.display_name !== undefined && body.display_name !== null && body.display_name.trim() === "") {
-      return NextResponse.json(
-        { error: "display_name cannot be empty string. Pass null to clear." },
-        { status: 400 }
-      );
+      return apiBadRequest("display_name cannot be empty string. Pass null to clear.");
     }
 
     // Fields that require audit tracking
@@ -322,7 +319,7 @@ export async function PATCH(
       }>(currentSql, [id]);
 
       if (!current) {
-        return NextResponse.json({ error: "Place not found" }, { status: 404 });
+        return apiNotFound("Place", id);
       }
 
       // Log changes to place_changes table using parameterized queries (prevents SQL injection)
@@ -404,10 +401,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     // Add updated_at
