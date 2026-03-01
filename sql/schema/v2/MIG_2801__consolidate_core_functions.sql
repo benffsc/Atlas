@@ -153,7 +153,7 @@ EXAMPLE USAGE:
 -- Implements: INV-39 (animal IDs passed during ingest)
 
 COMMENT ON FUNCTION sot.find_or_create_cat_by_microchip(
-  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) IS
 'Finds existing cat by microchip or creates new cat record with full provenance.
 
@@ -218,7 +218,7 @@ EXAMPLE USAGE:
 -- Canonical Reference: trapper.data_engine_resolve_identity() via MIG_2090 wrapper
 -- V1 Versions: MIG_315, 361, 488, 509, 522, 527, 532, 559, 564
 
-COMMENT ON FUNCTION trapper.data_engine_resolve_identity(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) IS
+COMMENT ON FUNCTION sot.data_engine_resolve_identity(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) IS
 'Core identity resolution function - finds or creates person from contact info.
 
 CANONICAL VERSION: MIG_2801 (documentation only - implementation in V1)
@@ -278,7 +278,7 @@ USAGE NOTE:
 -- Additional utility function documentation
 -- =============================================================================
 
-COMMENT ON FUNCTION sot.should_be_person(TEXT, TEXT) IS
+COMMENT ON FUNCTION sot.should_be_person(TEXT, TEXT, TEXT, TEXT) IS
 'Gate function: Determines if owner info should create a person record.
 
 CANONICAL VERSION: MIG_2801

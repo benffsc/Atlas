@@ -51,7 +51,7 @@ COMMENT ON TABLE ops.extraction_status IS 'Status tracking for data extraction p
 -- Reference and mapping tables
 COMMENT ON TABLE ops.org_types IS 'Reference table of organization types (shelter, rescue, veterinary clinic, etc.). Used for organization classification.';
 
-COMMENT ON TABLE ops.person_roles IS 'Role assignments for people within the system (staff, volunteer, trapper, etc.). Tracks role type, assignment date, and active status.';
+-- Note: person_roles exists in sot schema only (documented below)
 
 COMMENT ON TABLE ops.request_status_mapping IS 'Maps external system status values to Atlas request statuses. Used during data import to normalize status terminology.';
 
