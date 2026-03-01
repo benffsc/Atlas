@@ -1,5 +1,6 @@
--- MIG_2400: Fix v_person_list_v3 to match API expectations
+-- MIG_2403: Fix v_person_list_v3 to match API expectations
 -- Date: 2026-02-21
+-- Renumbered: 2026-02-28 (was MIG_2400, conflicted with staged_records_orchestrator)
 -- Issue: People API returns 500 because view columns don't match API query
 -- The API at /api/people/route.ts expects specific columns that don't exist
 

@@ -1,4 +1,5 @@
-\echo '=== MIG_2337: Fix journal_entries schema for API compatibility ==='
+\echo '=== MIG_2338: Fix journal_entries schema for API compatibility ==='
+-- Renumbered: 2026-02-28 (was MIG_2337, conflicted with clean_pseudo_people)
 \echo 'Adding columns the journal API expects but are missing'
 
 -- ============================================================

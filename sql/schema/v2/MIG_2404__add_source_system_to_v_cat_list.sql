@@ -1,5 +1,6 @@
--- MIG_2401: Add source_system to v_cat_list view
+-- MIG_2404: Add source_system to v_cat_list view
 -- Date: 2026-02-21
+-- Renumbered: 2026-02-28 (was MIG_2401, conflicted with fix_shelterluv_people_batch)
 -- Issue: Cats API needs source_system for data provenance display
 -- The API at /api/cats/route.ts expects source_system column
 

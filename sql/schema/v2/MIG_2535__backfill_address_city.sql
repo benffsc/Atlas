@@ -1,5 +1,6 @@
--- MIG_2530: Backfill Address Components
+-- MIG_2535: Backfill Address Components
 -- Date: 2026-02-26
+-- Renumbered: 2026-02-28 (was MIG_2530, conflicted with simplified_request_status)
 --
 -- Problem: V2 migration didn't extract address components (street_number,
 -- street_name, city, state, postal_code) from formatted_address.
@@ -10,7 +11,7 @@
 
 \echo ''
 \echo '=============================================='
-\echo '  MIG_2530: Backfill Address Components'
+\echo '  MIG_2535: Backfill Address Components'
 \echo '=============================================='
 \echo ''
 

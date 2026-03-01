@@ -1,8 +1,15 @@
--- MIG_2006: Fix V2 Schema for ClinicHQ Ingest Route
--- Run this in Supabase SQL Editor
+-- MIG_2006 (Supabase Variant): Fix V2 Schema for ClinicHQ Ingest Route
+--
+-- IMPORTANT: This is a Supabase SQL Editor-compatible variant of MIG_2006.
+-- The canonical version is: MIG_2006__fix_v2_schema_for_clinichq_route.sql
+--
+-- This variant removes psql-specific commands (\echo, etc.) for use in
+-- Supabase Dashboard SQL Editor which doesn't support them.
+--
 -- Purpose: Fix column name mismatches and add missing constraints
 -- Created: 2026-02-12
 -- Updated: Added constraint fixes for ON CONFLICT clauses
+-- Renamed: 2026-02-28 (from _supabase.sql to __supabase_variant.sql)
 
 -- ============================================================================
 -- 1. FIX source.clinichq_raw record_type CHECK
