@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Data Engine Statistics API
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest) {
       WHERE decision_type = 'review_pending' OR review_status != 'not_required'
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       period_days: days,
       generated_at: new Date().toISOString(),
 
@@ -138,9 +139,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching Data Engine stats:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

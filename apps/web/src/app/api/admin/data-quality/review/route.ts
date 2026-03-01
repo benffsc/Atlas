@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows, query } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface ReviewPerson {
   person_id: string;
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       source ? [quality, source] : [quality]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       records: rows,
       total: totalRow?.count || 0,
       limit,
@@ -67,10 +68,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Data quality review GET error:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch review records" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch review records");
   }
 }
 
@@ -84,17 +82,11 @@ export async function PATCH(request: NextRequest) {
     const { person_id, action, merge_target_id } = body;
 
     if (!person_id || !action) {
-      return NextResponse.json(
-        { error: "person_id and action required" },
-        { status: 400 }
-      );
+      return apiBadRequest("person_id and action required");
     }
 
     if (!["promote", "garbage", "merge"].includes(action)) {
-      return NextResponse.json(
-        { error: "action must be promote, garbage, or merge" },
-        { status: 400 }
-      );
+      return apiBadRequest("action must be promote, garbage, or merge");
     }
 
     // Verify person exists and is needs_review
@@ -105,7 +97,7 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!person) {
-      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+      return apiNotFound("Person", person_id);
     }
 
     if (action === "promote") {
@@ -121,7 +113,7 @@ export async function PATCH(request: NextRequest) {
         [person_id, person.data_quality]
       );
 
-      return NextResponse.json({ success: true, action: "promoted", person_id });
+      return apiSuccess({ action: "promoted", person_id });
     }
 
     if (action === "garbage") {
@@ -138,15 +130,12 @@ export async function PATCH(request: NextRequest) {
         [person_id, person.data_quality]
       );
 
-      return NextResponse.json({ success: true, action: "marked_garbage", person_id });
+      return apiSuccess({ action: "marked_garbage", person_id });
     }
 
     if (action === "merge") {
       if (!merge_target_id) {
-        return NextResponse.json(
-          { error: "merge_target_id required for merge action" },
-          { status: 400 }
-        );
+        return apiBadRequest("merge_target_id required for merge action");
       }
 
       // Check safe to merge
@@ -156,10 +145,7 @@ export async function PATCH(request: NextRequest) {
       );
 
       if (safeCheck && !safeCheck.safe) {
-        return NextResponse.json(
-          { error: `Merge not safe: ${safeCheck.reason}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Merge not safe: ${safeCheck.reason}`);
       }
 
       // Perform merge
@@ -168,8 +154,7 @@ export async function PATCH(request: NextRequest) {
         [person_id, merge_target_id]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         action: "merged",
         person_id,
         merge_target_id,
@@ -177,9 +162,6 @@ export async function PATCH(request: NextRequest) {
     }
   } catch (err) {
     console.error("Data quality review PATCH error:", err);
-    return NextResponse.json(
-      { error: "Failed to resolve record" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to resolve record");
   }
 }

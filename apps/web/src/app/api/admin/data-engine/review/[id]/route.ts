@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 /**
  * Data Engine Review Resolution API
@@ -25,18 +26,12 @@ export async function POST(
     const { action, notes } = body;
 
     if (!action) {
-      return NextResponse.json(
-        { error: "action is required (merge, keep_separate, add_to_household, reject)" },
-        { status: 400 }
-      );
+      return apiBadRequest("action is required (merge, keep_separate, add_to_household, reject)");
     }
 
     const validActions = ["merge", "keep_separate", "add_to_household", "reject"];
     if (!validActions.includes(action)) {
-      return NextResponse.json(
-        { error: `Invalid action. Must be one of: ${validActions.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid action. Must be one of: ${validActions.join(", ")}`);
     }
 
     // Call the resolution function
@@ -45,26 +40,23 @@ export async function POST(
     `, [id, action, "api_user", notes || null]);
 
     if (!result?.result) {
-      return NextResponse.json(
-        { error: "Failed to resolve review" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to resolve review");
     }
 
-    return NextResponse.json(result.result);
+    return apiSuccess(result.result);
   } catch (error) {
     console.error("Error resolving review:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
     // Check for specific error messages
     if (errorMessage.includes("Decision not found")) {
-      return NextResponse.json({ error: "Decision not found" }, { status: 404 });
+      return apiNotFound("Decision", id);
     }
     if (errorMessage.includes("already resolved")) {
-      return NextResponse.json({ error: "Decision already resolved" }, { status: 409 });
+      return apiError("Decision already resolved", 409);
     }
 
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return apiServerError(errorMessage);
   }
 }
 
@@ -129,15 +121,12 @@ export async function GET(
     `, [id]);
 
     if (!decision) {
-      return NextResponse.json({ error: "Decision not found" }, { status: 404 });
+      return apiNotFound("Decision", id);
     }
 
-    return NextResponse.json({ decision });
+    return apiSuccess({ decision });
   } catch (error) {
     console.error("Error fetching decision:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

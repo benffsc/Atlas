@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Data Quality - Duplicate Management API
@@ -56,7 +57,7 @@ export async function GET() {
        LIMIT 50`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       summary: summary || {
         email_duplicates: 0,
         email_excess_records: 0,
@@ -73,10 +74,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching data quality stats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch data quality stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch data quality stats");
   }
 }
 
@@ -92,8 +90,7 @@ export async function POST(request: NextRequest) {
         [canonical_id, duplicate_id]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         action: "merge_one",
         result: result?.merge_duplicate_person,
       });
@@ -114,8 +111,7 @@ export async function POST(request: NextRequest) {
         [isDryRun]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         action: "merge_all_email",
         dry_run: isDryRun,
         ...result,
@@ -137,8 +133,7 @@ export async function POST(request: NextRequest) {
         [isDryRun]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         action: "clean_names",
         dry_run: isDryRun,
         ...result,
@@ -160,26 +155,16 @@ export async function POST(request: NextRequest) {
         [isDryRun]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         action: "merge_all_phone",
         dry_run: isDryRun,
         ...result,
       });
     }
 
-    return NextResponse.json(
-      { error: "Invalid action. Use: merge_one, merge_all_email, merge_all_phone, clean_names" },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid action. Use: merge_one, merge_all_email, merge_all_phone, clean_names");
   } catch (error) {
     console.error("Error processing duplicate action:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Action failed",
-        success: false,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Action failed");
   }
 }

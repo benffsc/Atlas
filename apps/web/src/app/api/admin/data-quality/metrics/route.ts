@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Data Quality Metrics API
@@ -65,8 +65,7 @@ export async function GET() {
     `);
 
     if (!metrics) {
-      return NextResponse.json({
-        success: false,
+      return apiSuccess({
         message: "MIG_2515 not applied yet - metrics view not found",
         metrics: null,
       });
@@ -89,8 +88,7 @@ export async function GET() {
       ? Math.round(((metrics.active_people - metrics.people_without_identifiers) / metrics.active_people) * 100 * 10) / 10
       : 0;
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       metrics,
       derived: {
         cat_place_coverage_pct: catPlaceCoverage,
@@ -106,20 +104,13 @@ export async function GET() {
       error instanceof Error &&
       error.message.includes("does not exist")
     ) {
-      return NextResponse.json({
-        success: false,
+      return apiSuccess({
         message: "MIG_2515 not applied yet - metrics view not found",
         metrics: null,
       });
     }
 
     console.error("Error fetching data quality metrics:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

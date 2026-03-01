@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Data Quality API
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
     const hasCritical = problems.some((p) => p.severity === "critical");
     const hasWarnings = problems.some((p) => p.severity === "warning");
 
-    return NextResponse.json({
+    return apiSuccess({
       status: hasCritical ? "critical" : hasWarnings ? "warning" : "healthy",
       generated_at: new Date().toISOString(),
       dashboard,
@@ -140,10 +141,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching data quality metrics:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -156,16 +154,12 @@ export async function POST() {
       SELECT ops.take_quality_snapshot('api')
     `);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       snapshot_id: result?.take_quality_snapshot,
       message: "Quality snapshot taken",
     });
   } catch (error) {
     console.error("Error taking quality snapshot:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

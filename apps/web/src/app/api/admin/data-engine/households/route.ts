@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
  * Data Engine Households API
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       `, [householdId]);
 
       if (!household) {
-        return NextResponse.json({ error: "Household not found" }, { status: 404 });
+        return apiNotFound("Household", householdId);
       }
 
       const members = await queryRows<HouseholdMember>(`
@@ -70,10 +71,7 @@ export async function GET(request: NextRequest) {
         ORDER BY hm.created_at ASC
       `, [householdId]);
 
-      return NextResponse.json({
-        household,
-        members,
-      });
+      return apiSuccess({ household, members });
     }
 
     // List households
@@ -97,7 +95,7 @@ export async function GET(request: NextRequest) {
       SELECT COUNT(*)::int as count FROM sot.households
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       households,
       pagination: {
         total: countResult?.count || 0,
@@ -107,9 +105,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching households:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 /**
  * Fellegi-Sunter Thresholds API
@@ -43,19 +44,13 @@ export async function GET(request: NextRequest) {
       ORDER BY source_system
     `);
 
-    return NextResponse.json({ thresholds });
+    return apiSuccess({ thresholds });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching F-S thresholds:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -74,19 +69,13 @@ export async function PATCH(request: NextRequest) {
     } = body;
 
     if (!source_system) {
-      return NextResponse.json(
-        { error: "source_system is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("source_system is required");
     }
 
     // Validate threshold logic
     if (upper_threshold !== undefined && lower_threshold !== undefined) {
       if (upper_threshold <= lower_threshold) {
-        return NextResponse.json(
-          { error: "upper_threshold must be greater than lower_threshold" },
-          { status: 400 }
-        );
+        return apiBadRequest("upper_threshold must be greater than lower_threshold");
       }
     }
 
@@ -116,10 +105,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No updates provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No updates provided");
     }
 
     updates.push(`updated_at = NOW()`);
@@ -143,28 +129,16 @@ export async function PATCH(request: NextRequest) {
     const result = await query(sql, values);
 
     if (!result.rows || result.rows.length === 0) {
-      return NextResponse.json(
-        { error: "Threshold configuration not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Threshold configuration", source_system);
     }
 
-    return NextResponse.json({
-      success: true,
-      threshold: result.rows[0],
-    });
+    return apiSuccess({ threshold: result.rows[0] });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error updating F-S threshold:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -182,24 +156,15 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!source_system) {
-      return NextResponse.json(
-        { error: "source_system is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("source_system is required");
     }
 
     if (upper_threshold === undefined || lower_threshold === undefined) {
-      return NextResponse.json(
-        { error: "upper_threshold and lower_threshold are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("upper_threshold and lower_threshold are required");
     }
 
     if (upper_threshold <= lower_threshold) {
-      return NextResponse.json(
-        { error: "upper_threshold must be greater than lower_threshold" },
-        { status: 400 }
-      );
+      return apiBadRequest("upper_threshold must be greater than lower_threshold");
     }
 
     const result = await query(
@@ -226,21 +191,12 @@ export async function POST(request: NextRequest) {
       [source_system, upper_threshold, lower_threshold, description]
     );
 
-    return NextResponse.json({
-      success: true,
-      threshold: result.rows[0],
-    });
+    return apiSuccess({ threshold: result.rows[0] });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error creating F-S threshold:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

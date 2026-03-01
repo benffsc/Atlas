@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Data Engine Processing API
@@ -108,17 +109,14 @@ export async function GET() {
       ORDER BY pending DESC
     `, []);
 
-    return NextResponse.json({
+    return apiSuccess({
       stats: result,
       processors: processors || [],
       pending_by_source: pendingBySource || [],
     });
   } catch (error) {
     console.error("Error fetching Data Engine stats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch stats");
   }
 }
 
@@ -170,8 +168,7 @@ export async function POST(request: NextRequest) {
             remaining: parseInt(statsResult?.remaining || "0"),
           };
 
-          return NextResponse.json({
-            success: true,
+          return apiSuccess({
             result: {
               processed: parseInt(unifiedResult.processed || "0"),
               success: parseInt(unifiedResult.success || "0"),
@@ -194,10 +191,7 @@ export async function POST(request: NextRequest) {
     const source = sourceSystem || "clinichq";
     const validSources = ["clinichq", "airtable", "web_intake", "shelterluv", "volunteerhub", "petlink"];
     if (!validSources.includes(source)) {
-      return NextResponse.json(
-        { error: `Invalid source. Must be one of: ${validSources.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid source. Must be one of: ${validSources.join(", ")}`);
     }
 
     // Process batch using the legacy data_engine_process_batch function
@@ -217,10 +211,7 @@ export async function POST(request: NextRequest) {
     `, [source, limit]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "No result from processing" },
-        { status: 500 }
-      );
+      return apiServerError("No result from processing");
     }
 
     const batchResult: BatchResult = {
@@ -261,8 +252,7 @@ export async function POST(request: NextRequest) {
       remaining: parseInt(statsResult?.remaining || "0"),
     };
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       result: batchResult,
       stats,
       processor: "legacy",
@@ -270,12 +260,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error processing Data Engine batch:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Processing failed",
-        success: false,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Processing failed");
   }
 }

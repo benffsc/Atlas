@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 /**
  * Data Engine Matching Rules API
@@ -55,19 +56,13 @@ export async function GET(request: NextRequest) {
       ORDER BY priority DESC, rule_name ASC
     `);
 
-    return NextResponse.json({ rules });
+    return apiSuccess({ rules });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching matching rules:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -88,10 +83,7 @@ export async function PATCH(request: NextRequest) {
     } = body;
 
     if (!rule_id) {
-      return NextResponse.json(
-        { error: "rule_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("rule_id is required");
     }
 
     // Build update query dynamically
@@ -130,10 +122,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No updates provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No updates provided");
     }
 
     updates.push(`updated_at = NOW()`);
@@ -149,24 +138,15 @@ export async function PATCH(request: NextRequest) {
     const result = await query(sql, values);
 
     if (!result.rows || result.rows.length === 0) {
-      return NextResponse.json({ error: "Rule not found" }, { status: 404 });
+      return apiNotFound("Rule", rule_id);
     }
 
-    return NextResponse.json({
-      success: true,
-      rule: result.rows[0],
-    });
+    return apiSuccess({ rule: result.rows[0] });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error updating matching rule:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

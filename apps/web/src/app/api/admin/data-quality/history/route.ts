@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Data Quality History API
@@ -44,8 +45,7 @@ export async function GET(request: NextRequest) {
         SELECT * FROM ops.get_data_quality_trend($1)
       `, [Math.min(days, 365)]);
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         days,
         data: trend,
         generated_at: new Date().toISOString(),
@@ -65,8 +65,7 @@ export async function GET(request: NextRequest) {
       ORDER BY metric_date DESC
     `, [Math.min(days, 365)]);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       days,
       records: history.length,
       data: history,
@@ -78,21 +77,14 @@ export async function GET(request: NextRequest) {
       error instanceof Error &&
       error.message.includes("does not exist")
     ) {
-      return NextResponse.json({
-        success: false,
+      return apiSuccess({
         message: "MIG_2515 not applied yet - history not available",
         data: [],
       });
     }
 
     console.error("Error fetching data quality history:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -104,8 +96,7 @@ export async function POST() {
     `);
 
     if (result?.snapshot_data_quality_metrics) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "Data quality snapshot captured",
         snapshot: result.snapshot_data_quality_metrics,
       });
@@ -116,19 +107,12 @@ export async function POST() {
       SELECT ops.take_quality_snapshot('api')
     `);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: "Quality snapshot taken (legacy)",
       snapshot_id: legacyResult?.take_quality_snapshot,
     });
   } catch (error) {
     console.error("Error taking data quality snapshot:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

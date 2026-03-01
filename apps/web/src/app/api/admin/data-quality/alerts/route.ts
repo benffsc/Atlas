@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Data Quality Alerts API
@@ -36,15 +37,11 @@ export async function GET(request: NextRequest) {
       `);
 
       if (result?.check_data_quality_health) {
-        return NextResponse.json({
-          success: true,
-          ...result.check_data_quality_health,
-        });
+        return apiSuccess(result.check_data_quality_health);
       }
 
       // Fallback if function doesn't exist yet
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         status: "unknown",
         message: "MIG_2515 not applied yet - run migration first",
       });
@@ -87,8 +84,7 @@ export async function GET(request: NextRequest) {
       status = "healthy";
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       status,
       summary: {
         critical: criticalCount,
@@ -106,8 +102,7 @@ export async function GET(request: NextRequest) {
       error instanceof Error &&
       error.message.includes("does not exist")
     ) {
-      return NextResponse.json({
-        success: false,
+      return apiSuccess({
         status: "unavailable",
         message: "MIG_2515 not applied yet - alerts view not found",
         alerts: [],
@@ -115,12 +110,6 @@ export async function GET(request: NextRequest) {
     }
 
     console.error("Error fetching data quality alerts:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 /**
  * Fellegi-Sunter Parameters API
@@ -51,19 +52,13 @@ export async function GET(request: NextRequest) {
       ORDER BY agreement_weight DESC
     `);
 
-    return NextResponse.json({ parameters });
+    return apiSuccess({ parameters });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching F-S parameters:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -82,28 +77,19 @@ export async function PATCH(request: NextRequest) {
     } = body;
 
     if (!field_name) {
-      return NextResponse.json(
-        { error: "field_name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("field_name is required");
     }
 
     // Validate probability ranges
     if (m_probability !== undefined) {
       if (m_probability <= 0 || m_probability >= 1) {
-        return NextResponse.json(
-          { error: "m_probability must be between 0 and 1 (exclusive)" },
-          { status: 400 }
-        );
+        return apiBadRequest("m_probability must be between 0 and 1 (exclusive)");
       }
     }
 
     if (u_probability !== undefined) {
       if (u_probability <= 0 || u_probability >= 1) {
-        return NextResponse.json(
-          { error: "u_probability must be between 0 and 1 (exclusive)" },
-          { status: 400 }
-        );
+        return apiBadRequest("u_probability must be between 0 and 1 (exclusive)");
       }
     }
 
@@ -133,10 +119,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No updates provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No updates provided");
     }
 
     updates.push(`updated_at = NOW()`);
@@ -160,27 +143,15 @@ export async function PATCH(request: NextRequest) {
     const result = await query(sql, values);
 
     if (!result.rows || result.rows.length === 0) {
-      return NextResponse.json(
-        { error: "Parameter not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Parameter", field_name);
     }
 
-    return NextResponse.json({
-      success: true,
-      parameter: result.rows[0],
-    });
+    return apiSuccess({ parameter: result.rows[0] });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error updating F-S parameter:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
