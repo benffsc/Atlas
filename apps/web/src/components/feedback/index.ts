@@ -4,6 +4,7 @@
  * User feedback and loading state components:
  * - Skeleton loaders for loading states
  * - Toast notifications with undo support
+ * - Empty state placeholders
  */
 
 export {
@@ -22,3 +23,12 @@ export {
   useToast,
 } from "./Toast";
 export type { Toast, ToastType, ToastAction } from "./Toast";
+
+export {
+  EmptyState,
+  EmptySearchResults,
+  EmptyFilteredResults,
+  EmptyList,
+  ErrorState,
+} from "./EmptyState";
+export type { EmptyStateVariant } from "./EmptyState";
