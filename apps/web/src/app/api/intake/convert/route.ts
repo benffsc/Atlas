@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,10 +8,7 @@ export async function POST(request: NextRequest) {
     const { submission_id, converted_by = "web_user" } = body;
 
     if (!submission_id) {
-      return NextResponse.json(
-        { error: "submission_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("submission_id is required");
     }
 
     // Call the SQL function to convert to request (MIG_2531: using ops schema)
@@ -21,21 +19,12 @@ export async function POST(request: NextRequest) {
 
     if (!result?.request_id) {
       console.error("Error converting intake: no request_id returned");
-      return NextResponse.json(
-        { error: "Failed to convert submission to request" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to convert submission to request");
     }
 
-    return NextResponse.json({
-      success: true,
-      request_id: result.request_id,
-    });
+    return apiSuccess({ request_id: result.request_id });
   } catch (err) {
     console.error("Convert error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Invalid request" },
-      { status: 400 }
-    );
+    return apiBadRequest(err instanceof Error ? err.message : "Invalid request");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface IntakeSubmission {
   // Source tracking
@@ -113,25 +114,16 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.first_name || !body.last_name) {
-      return NextResponse.json(
-        { error: "First name and last name are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("First name and last name are required");
     }
 
     // Require email OR phone
     if (!body.email && !body.phone) {
-      return NextResponse.json(
-        { error: "Email or phone is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Email or phone is required");
     }
 
     if (!body.cats_address) {
-      return NextResponse.json(
-        { error: "Cat location address is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Cat location address is required");
     }
 
     // Check for duplicate by source_raw_id first (Jotform Submission ID - most reliable)
@@ -143,8 +135,7 @@ export async function POST(request: NextRequest) {
 
       if (existingBySourceId) {
         console.log(`Duplicate blocked by source_raw_id: ${body.source_raw_id}, existing: ${existingBySourceId.submission_id}`);
-        return NextResponse.json({
-          success: true,
+        return apiSuccess({
           submission_id: existingBySourceId.submission_id,
           message: "Your request was already received. Thank you!",
           duplicate: true
@@ -180,8 +171,7 @@ export async function POST(request: NextRequest) {
 
     if (duplicateCheck) {
       console.log(`Duplicate submission blocked: ${body.email || body.phone} at ${body.cats_address}, existing: ${duplicateCheck.submission_id}`);
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         submission_id: duplicateCheck.submission_id,
         message: "Your request was already received. Thank you!",
         duplicate: true
@@ -320,10 +310,7 @@ export async function POST(request: NextRequest) {
 
     if (!data) {
       console.error("Error creating intake submission: no data returned");
-      return NextResponse.json(
-        { error: "Failed to submit request" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to submit request");
     }
 
     // Try to match to existing person (async, don't wait)
@@ -339,8 +326,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return success with submission ID and triage info
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       submission_id: data.submission_id,
       triage_category: data.triage_category,
       triage_score: data.triage_score,
@@ -349,10 +335,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("Intake submission error:", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Submission failed: ${errorMessage}` },
-      { status: 400 }
-    );
+    return apiBadRequest(`Submission failed: ${errorMessage}`);
   }
 }
 
@@ -381,10 +364,7 @@ export async function GET(request: NextRequest) {
   const email = searchParams.get("email");
 
   if (!submission_id && !email) {
-    return NextResponse.json(
-      { error: "Submission ID or email required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Submission ID or email required");
   }
 
   try {
@@ -407,12 +387,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ submissions });
+    return apiSuccess({ submissions });
   } catch (error) {
     console.error("Error fetching submission:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch submission" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch submission");
   }
 }

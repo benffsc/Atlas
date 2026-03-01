@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -204,12 +205,9 @@ export async function GET(request: NextRequest) {
 
     const submissions = await queryRows<IntakeSubmission>(sql, params);
 
-    return NextResponse.json({ submissions });
+    return apiSuccess({ submissions });
   } catch (err) {
     console.error("Error fetching queue:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch submissions" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch submissions");
   }
 }

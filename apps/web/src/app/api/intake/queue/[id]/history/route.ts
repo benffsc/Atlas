@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface EditHistoryEntry {
   edit_id: string;
@@ -35,12 +36,9 @@ export async function GET(
       LIMIT 50
     `, [id]);
 
-    return NextResponse.json({ history });
+    return apiSuccess({ history });
   } catch (err) {
     console.error("Error fetching edit history:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch edit history" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch edit history");
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * Public API endpoint for embedded intake form submissions
@@ -245,10 +246,11 @@ export async function POST(request: NextRequest) {
     // Validate
     const { valid, errors } = validateSubmission(data);
     if (!valid) {
-      return NextResponse.json(
-        { success: false, error: "Validation failed", details: errors },
-        { status: 400, headers: corsHeaders }
-      );
+      const response = apiBadRequest(`Validation failed: ${errors.join(", ")}`);
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+      return response;
     }
 
     // Get client IP
@@ -345,10 +347,11 @@ export async function POST(request: NextRequest) {
 
     if (!result) {
       console.error("Error creating public intake submission: no data returned");
-      return NextResponse.json(
-        { success: false, error: "Failed to submit request" },
-        { status: 500, headers: corsHeaders }
-      );
+      const response = apiServerError("Failed to submit request");
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+      return response;
     }
 
     const submissionId = result.submission_id;
@@ -364,26 +367,24 @@ export async function POST(request: NextRequest) {
       .catch((err: unknown) => console.error("Place linking error:", err));
 
     // Return success with submission reference
-    return NextResponse.json(
-      {
-        success: true,
-        message: getSuccessMessage(category),
-        submission_id: submissionId.substring(0, 8), // Partial ID for reference
-        triage_category: category,
-        triage_score: result.triage_score,
-      },
-      { status: 201, headers: corsHeaders }
-    );
+    const response = apiSuccess({
+      message: getSuccessMessage(category),
+      submission_id: submissionId.substring(0, 8), // Partial ID for reference
+      triage_category: category,
+      triage_score: result.triage_score,
+    });
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+    return response;
   } catch (error) {
     console.error("Public intake submission error:", error);
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to process submission. Please try again.",
-      },
-      { status: 500, headers: corsHeaders }
-    );
+    const response = apiServerError("Failed to process submission. Please try again.");
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+    return response;
   }
 }
 

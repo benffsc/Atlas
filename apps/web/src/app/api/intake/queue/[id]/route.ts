@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdits, type FieldChange } from "@/lib/audit";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -75,10 +76,7 @@ export async function GET(
     `, [id]);
 
     if (!submission) {
-      return NextResponse.json(
-        { error: "Submission not found" },
-        { status: 404 }
-      );
+      return apiNotFound("submission", id);
     }
 
     // Get matched person details if linked
@@ -91,16 +89,10 @@ export async function GET(
       `, [submission.matched_person_id]);
     }
 
-    return NextResponse.json({
-      submission,
-      matchedPerson,
-    });
+    return apiSuccess({ submission, matchedPerson });
   } catch (err) {
     console.error("Error fetching submission:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch submission" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch submission");
   }
 }
 
@@ -216,10 +208,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     // If address is being corrected, clear old geo data and place link
@@ -277,14 +266,14 @@ export async function PATCH(
           WHERE w.submission_id = $1
         `, [id]);
 
-        return NextResponse.json({
+        return apiSuccess({
           submission: refreshed,
           address_relinked: true,
         });
       } catch (linkErr) {
         console.error("Place re-linking error:", linkErr);
         // Return the updated submission even if relinking failed
-        return NextResponse.json({
+        return apiSuccess({
           submission: updated,
           address_relinked: false,
           relink_error: "Failed to re-link place, please try again",
@@ -292,12 +281,9 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ submission: updated });
+    return apiSuccess({ submission: updated });
   } catch (err) {
     console.error("Error updating submission:", err);
-    return NextResponse.json(
-      { error: "Failed to update submission" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update submission");
   }
 }

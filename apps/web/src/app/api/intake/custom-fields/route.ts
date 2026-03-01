@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess } from "@/lib/api-response";
 
 // Cache custom fields for 10 minutes - they rarely change
 export const revalidate = 600;
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     if (!tableCheck[0]?.exists) {
       // Table doesn't exist yet, return empty
-      return NextResponse.json({ fields: [] });
+      return apiSuccess({ fields: [] });
     }
 
     const fields = await queryRows<CustomField>(`
@@ -60,14 +61,13 @@ export async function GET(request: NextRequest) {
       ORDER BY display_order, created_at
     `, [callType || null]);
 
-    return NextResponse.json({ fields }, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
-      }
-    });
+    // Use NextResponse for custom cache headers
+    const response = apiSuccess({ fields });
+    response.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
+    return response;
   } catch (err) {
     console.error("Error fetching custom fields:", err);
     // Return empty on error so form still works
-    return NextResponse.json({ fields: [] });
+    return apiSuccess({ fields: [] });
   }
 }

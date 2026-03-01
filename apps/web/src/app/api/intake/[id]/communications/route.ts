@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface CommunicationLog {
   log_id: string;
@@ -24,10 +25,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Submission ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Submission ID is required");
   }
 
   try {
@@ -83,13 +81,10 @@ export async function GET(
       new Date(b.contacted_at).getTime() - new Date(a.contacted_at).getTime()
     );
 
-    return NextResponse.json({ logs: mergedLogs });
+    return apiSuccess({ logs: mergedLogs });
   } catch (err) {
     console.error("Error fetching communication logs:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch communication logs" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch communication logs");
   }
 }
 
@@ -101,10 +96,7 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Submission ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Submission ID is required");
   }
 
   try {
@@ -113,28 +105,19 @@ export async function POST(
 
     // For journal-only entries (internal notes), we don't need contact method/result
     if (!is_journal_only && (!contact_method || !contact_result)) {
-      return NextResponse.json(
-        { error: "contact_method and contact_result are required for contact logs" },
-        { status: 400 }
-      );
+      return apiBadRequest("contact_method and contact_result are required for contact logs");
     }
 
     // Validate contact_method (if provided)
     const validMethods = ["phone", "email", "in_person", "text", "voicemail"];
     if (contact_method && !validMethods.includes(contact_method)) {
-      return NextResponse.json(
-        { error: `Invalid contact_method. Must be one of: ${validMethods.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid contact_method. Must be one of: ${validMethods.join(", ")}`);
     }
 
     // Validate contact_result (if provided)
     const validResults = ["answered", "no_answer", "left_voicemail", "sent", "spoke_in_person", "scheduled", "other"];
     if (contact_result && !validResults.includes(contact_result)) {
-      return NextResponse.json(
-        { error: `Invalid contact_result. Must be one of: ${validResults.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid contact_result. Must be one of: ${validResults.join(", ")}`);
     }
 
     // Look up staff_id from display name if contacted_by is provided
@@ -177,10 +160,7 @@ export async function POST(
     ]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create communication log" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create communication log");
     }
 
     // If this is a contact_attempt, update denormalized contact fields on submission
@@ -197,15 +177,9 @@ export async function POST(
       `, [id, contact_method]);
     }
 
-    return NextResponse.json({
-      success: true,
-      log_id: result.id,
-    });
+    return apiSuccess({ log_id: result.id });
   } catch (err) {
     console.error("Error creating communication log:", err);
-    return NextResponse.json(
-      { error: "Failed to create communication log" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create communication log");
   }
 }

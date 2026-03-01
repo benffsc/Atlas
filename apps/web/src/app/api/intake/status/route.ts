@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -23,10 +24,7 @@ export async function PATCH(request: NextRequest) {
     } = body;
 
     if (!submission_id) {
-      return NextResponse.json(
-        { error: "submission_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("submission_id is required");
     }
 
     const updates: string[] = ["updated_at = NOW()"];
@@ -38,10 +36,7 @@ export async function PATCH(request: NextRequest) {
     if (submission_status !== undefined) {
       const validStatuses = ["new", "in_progress", "scheduled", "complete", "archived"];
       if (!validStatuses.includes(submission_status)) {
-        return NextResponse.json(
-          { error: "Invalid submission_status. Valid values: new, in_progress, scheduled, complete, archived" },
-          { status: 400 }
-        );
+        return apiBadRequest("Invalid submission_status. Valid values: new, in_progress, scheduled, complete, archived");
       }
       updates.push(`submission_status = $${paramIndex}`);
       params.push(submission_status);
@@ -82,10 +77,7 @@ export async function PATCH(request: NextRequest) {
     if (priority_override !== undefined) {
       const validPriorities = ["high", "normal", "low", null, ""];
       if (priority_override && !validPriorities.includes(priority_override)) {
-        return NextResponse.json(
-          { error: "Invalid priority_override. Valid values: high, normal, low" },
-          { status: 400 }
-        );
+        return apiBadRequest("Invalid priority_override. Valid values: high, normal, low");
       }
       updates.push(`priority_override = $${paramIndex}`);
       params.push(priority_override || null);
@@ -104,10 +96,7 @@ export async function PATCH(request: NextRequest) {
         "archived"
       ];
       if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          { error: "Invalid status" },
-          { status: 400 }
-        );
+        return apiBadRequest("Invalid status");
       }
       updates.push(`status = $${paramIndex}`);
       params.push(status);
@@ -174,12 +163,9 @@ export async function PATCH(request: NextRequest) {
 
     await query(sql, params);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ updated: true });
   } catch (err) {
     console.error("Status update error:", err);
-    return NextResponse.json(
-      { error: "Invalid request" },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid request");
   }
 }

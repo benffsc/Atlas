@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface DeclineRequest {
   submission_id: string;
@@ -33,17 +34,11 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!submission_id) {
-      return NextResponse.json(
-        { error: "submission_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("submission_id is required");
     }
 
     if (!reason_code) {
-      return NextResponse.json(
-        { error: "reason_code is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("reason_code is required");
     }
 
     // Build the decline note that will be stored
@@ -74,10 +69,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!submission) {
-      return NextResponse.json(
-        { error: "Submission not found" },
-        { status: 404 }
-      );
+      return apiNotFound("submission", submission_id);
     }
 
     // Append decline note to existing review_notes
@@ -99,10 +91,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!updated) {
-      return NextResponse.json(
-        { error: "Failed to update submission" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to update submission");
     }
 
     // Log decline in journal
@@ -148,8 +137,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       submission_id,
       status: "declined",
       reason_code,
@@ -157,9 +145,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Decline error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to decline submission" },
-      { status: 500 }
-    );
+    return apiServerError(err instanceof Error ? err.message : "Failed to decline submission");
   }
 }
