@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface MovementEvent {
   movement_id: string;
@@ -49,14 +51,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     // Get movement timeline
     const timelineSql = `
       SELECT
@@ -112,17 +109,17 @@ export async function GET(
 
     const pattern = await queryOne<MovementPattern>(patternSql, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       timeline,
       pattern: pattern || null,
       has_movements: timeline.length > 0,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching cat movements:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch movements" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch movements");
   }
 }
 
@@ -133,23 +130,14 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
     const body = await request.json();
 
     const { to_place_id, event_date, notes, recorded_by } = body;
 
     if (!to_place_id) {
-      return NextResponse.json(
-        { error: "to_place_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("to_place_id is required");
     }
 
     const result = await queryOne<{ record_cat_movement: string }>(
@@ -165,15 +153,14 @@ export async function POST(
       ]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       movement_id: result?.record_cat_movement,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error recording movement:", error);
-    return NextResponse.json(
-      { error: "Failed to record movement" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to record movement");
   }
 }

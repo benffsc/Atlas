@@ -1,34 +1,61 @@
-# Dead Code Routes - Tables Don't Exist
+# Dead Code Routes - Tables Don't Exist or Schema Mismatch
 
 **Date:** 2026-02-14
-**Status:** Need Cleanup or Table Creation
+**Updated:** 2026-03-01
+**Status:** Need Cleanup or Schema Fixes
 
-These API routes reference tables that don't exist in the database. They will fail when called.
+These API routes reference tables that don't exist OR have schema mismatches with actual tables.
+
+---
+
+## UPDATED (2026-03-01): Tables Created in MIG_2206
+
+**MIG_2206** created many of these tables, but some routes have **schema mismatches** with what was implemented.
+
+| Table | Status | Notes |
+|-------|--------|-------|
+| `ops.intake_questions` | ✅ EXISTS | Route expects `step_name`, table has `category` |
+| `ops.intake_question_options` | ✅ EXISTS | Route expects `option_description`, `show_warning`, `warning_text` - not in table |
+| `ops.intake_custom_fields` | ✅ EXISTS | May work |
+| `ops.clinic_days` | ✅ EXISTS | Needs route verification |
+| `ops.clinic_day_entries` | ✅ EXISTS | Needs route verification |
+| `ops.ecology_config` | ✅ EXISTS | Needs route verification |
+| `ops.ecology_config_audit` | ✅ EXISTS | Needs route verification |
+| `ops.count_precision_factors` | ✅ EXISTS | Needs route verification |
+| `ops.sonoma_zip_demographics` | ✅ EXISTS | Needs route verification |
+
+---
+
+## Schema Mismatch Issues
+
+### Intake System - SCHEMA MISMATCH
+| Route | Issue |
+|-------|-------|
+| `/api/admin/intake-questions/route.ts` | Expects `step_name`, `show_condition`, `is_custom` - table has `category` instead |
+| `/app/admin/intake-questions/page.tsx` | Same schema mismatch - full UI but won't work with current schema |
+
+**Action Needed:** Either update route/page to use `category` instead of `step_name`, or add missing columns to table.
+
+---
 
 ## High Priority - Actively Used Features
-
-### Intake System
-| Route | Missing Table | Action Needed |
-|-------|---------------|---------------|
-| `/api/admin/intake-questions/route.ts` | `intake_questions`, `intake_question_options` | Create tables or remove route |
-| `/api/admin/intake-fields/route.ts` | `intake_custom_fields` | Create table or remove route |
 
 ### Clinic Operations
 | Route | Missing Table | Action Needed |
 |-------|---------------|---------------|
-| `/api/admin/clinic-days/[date]/import/route.ts` | `clinic_days`, `clinic_day_entries` | Create tables or remove route |
-| `/api/admin/clinic-days/[date]/entries/[id]/route.ts` | `clinic_day_entries` | Create table or remove route |
+| `/api/admin/clinic-days/[date]/import/route.ts` | Tables exist, verify schema | Test route |
+| `/api/admin/clinic-days/[date]/entries/[id]/route.ts` | Tables exist, verify schema | Test route |
 
 ### Beacon/Ecology
 | Route | Missing Table | Action Needed |
 |-------|---------------|---------------|
-| `/api/admin/beacon/forecasts/route.ts` | `ecology_config` | Create table or remove route |
-| `/api/admin/ecology-config/route.ts` | `ecology_config` | Create table or remove route |
-| `/api/admin/ecology-config/audit/route.ts` | `ecology_config_audit` | Create table or remove route |
-| `/api/admin/colony-estimation/route.ts` | `count_precision_factors` | Create table or remove route |
+| `/api/admin/beacon/forecasts/route.ts` | Table exists | Test route |
+| `/api/admin/ecology-config/route.ts` | Table exists | Test route |
+| `/api/admin/ecology-config/audit/route.ts` | Table exists | Test route |
+| `/api/admin/colony-estimation/route.ts` | Table exists | Test route |
 | `/api/beacon/clusters/route.ts` | `mv_beacon_clusters` | Create materialized view or fix query |
 | `/api/beacon/summary/route.ts` | `mv_beacon_clusters` | Create materialized view or fix query |
-| `/api/beacon/demographics/route.ts` | `sonoma_zip_demographics` | Create table with census data |
+| `/api/beacon/demographics/route.ts` | Table exists | Test route |
 
 ### Data Engine
 | Route | Missing Table | Action Needed |

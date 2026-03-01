@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface Reunification {
   reunification_id: string;
@@ -29,14 +31,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     const sql = `
       SELECT
         r.reunification_id,
@@ -68,16 +65,16 @@ export async function GET(
 
     const reunifications = await queryRows<Reunification>(sql, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       reunifications,
       has_reunification: reunifications.some(r => r.reunification_status === 'confirmed'),
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching reunifications:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch reunifications" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch reunifications");
   }
 }
 
@@ -88,14 +85,8 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
     const body = await request.json();
 
     const {
@@ -138,16 +129,15 @@ export async function POST(
       ]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       reunification_id: result?.reunification_id,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error recording reunification:", error);
-    return NextResponse.json(
-      { error: "Failed to record reunification" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to record reunification");
   }
 }
 
@@ -160,14 +150,12 @@ export async function PATCH(
   const searchParams = request.nextUrl.searchParams;
   const reunificationId = searchParams.get("reunification_id");
 
-  if (!id || !reunificationId) {
-    return NextResponse.json(
-      { error: "Cat ID and reunification_id are required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
+    if (!reunificationId) {
+      return apiBadRequest("reunification_id is required");
+    }
+
     const body = await request.json();
 
     const updates: string[] = [];
@@ -200,10 +188,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No fields to update");
     }
 
     values.push(reunificationId);
@@ -217,12 +202,12 @@ export async function PATCH(
       values
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ updated: true });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error updating reunification:", error);
-    return NextResponse.json(
-      { error: "Failed to update reunification" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update reunification");
   }
 }

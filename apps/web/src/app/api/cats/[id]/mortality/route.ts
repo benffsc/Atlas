@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Cat Mortality API Endpoint
@@ -57,11 +59,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Cat ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     // Check if cat exists and get basic info
     const catSql = `
       SELECT
@@ -80,7 +80,7 @@ export async function GET(
     }>(catSql, [id]);
 
     if (!cat) {
-      return NextResponse.json({ error: "Cat not found" }, { status: 404 });
+      return apiNotFound("Cat", id);
     }
 
     // Get mortality event if exists
@@ -106,7 +106,7 @@ export async function GET(
     `;
     const mortality = await queryOne<MortalityEvent>(mortalitySql, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       cat_id: cat.cat_id,
       display_name: cat.display_name,
       is_deceased: cat.is_deceased ?? false,
@@ -114,11 +114,11 @@ export async function GET(
       mortality_event: mortality ?? null,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching mortality info:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch mortality information" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch mortality information");
   }
 }
 
@@ -139,41 +139,25 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Cat ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "cat");
     const body: ReportMortalityBody = await request.json();
 
     // Validate death_cause
     if (!body.death_cause || !VALID_DEATH_CAUSES.includes(body.death_cause)) {
-      return NextResponse.json(
-        {
-          error: `Invalid death_cause. Must be one of: ${VALID_DEATH_CAUSES.join(", ")}`,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid death_cause. Must be one of: ${VALID_DEATH_CAUSES.join(", ")}`);
     }
 
     // Validate death_date_precision if provided
     const validPrecisions = ["exact", "week", "month", "season", "year", "estimated"];
     if (body.death_date_precision && !validPrecisions.includes(body.death_date_precision)) {
-      return NextResponse.json(
-        {
-          error: `Invalid death_date_precision. Must be one of: ${validPrecisions.join(", ")}`,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid death_date_precision. Must be one of: ${validPrecisions.join(", ")}`);
     }
 
     // Validate death_age_months if provided
     if (body.death_age_months !== undefined && body.death_age_months !== null) {
       if (body.death_age_months < 0 || body.death_age_months > 300) {
-        return NextResponse.json(
-          { error: "death_age_months must be between 0 and 300" },
-          { status: 400 }
-        );
+        return apiBadRequest("death_age_months must be between 0 and 300");
       }
     }
 
@@ -207,30 +191,23 @@ export async function POST(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to register mortality event" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to register mortality event");
     }
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
-      );
+      return apiBadRequest(result.message);
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: result.message,
       mortality_event_id: result.mortality_event_id,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error reporting mortality:", error);
-    return NextResponse.json(
-      { error: "Failed to report mortality" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to report mortality");
   }
 }
 
@@ -240,11 +217,9 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Cat ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     // Delete mortality event and reset cat deceased status
     const deleteSql = `
       WITH deleted AS (
@@ -261,18 +236,17 @@ export async function DELETE(
     const result = await queryOne<{ cat_id: string; display_name: string }>(deleteSql, [id]);
 
     if (!result) {
-      return NextResponse.json({ error: "Cat not found" }, { status: 404 });
+      return apiNotFound("Cat", id);
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Mortality record removed for ${result.display_name}`,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error removing mortality record:", error);
-    return NextResponse.json(
-      { error: "Failed to remove mortality record" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove mortality record");
   }
 }

@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface MediaRow {
   media_id: string;
@@ -24,6 +26,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "cat");
+
     // Use the v_cat_media view which combines direct and linked photos
     const media = await queryRows<MediaRow>(
       `SELECT
@@ -43,8 +47,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({ media });
+    return apiSuccess({ media });
   } catch (error) {
+    // Handle validation errors
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
+
     // View might not exist yet - fallback to direct query
     console.warn("v_cat_media view not available, using fallback query:", error);
 
@@ -68,13 +77,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         [id]
       );
 
-      return NextResponse.json({ media });
+      return apiSuccess({ media });
     } catch (fallbackError) {
       console.error("Error fetching cat media:", fallbackError);
-      return NextResponse.json(
-        { error: "Failed to fetch media" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to fetch media");
     }
   }
 }

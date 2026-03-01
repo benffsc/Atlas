@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Cat Birth API Endpoint
@@ -58,11 +60,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Cat ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     // Get birth event
     const birthSql = `
       SELECT
@@ -108,16 +108,16 @@ export async function GET(
       siblings = await queryRows<Sibling>(siblingsSql, [birthEvent.litter_id, id]);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       birth_event: birthEvent ?? null,
       siblings,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching birth info:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch birth information" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch birth information");
   }
 }
 
@@ -142,43 +142,28 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Cat ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "cat");
     const body: RegisterBirthBody = await request.json();
 
     // Validate date precision if provided
     if (body.birth_date_precision && !VALID_DATE_PRECISIONS.includes(body.birth_date_precision as typeof VALID_DATE_PRECISIONS[number])) {
-      return NextResponse.json(
-        { error: `Invalid birth_date_precision. Must be one of: ${VALID_DATE_PRECISIONS.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid birth_date_precision. Must be one of: ${VALID_DATE_PRECISIONS.join(", ")}`);
     }
 
     // Validate season if provided
     if (body.birth_season && !VALID_SEASONS.includes(body.birth_season as typeof VALID_SEASONS[number])) {
-      return NextResponse.json(
-        { error: `Invalid birth_season. Must be one of: ${VALID_SEASONS.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid birth_season. Must be one of: ${VALID_SEASONS.join(", ")}`);
     }
 
     // Validate month if provided
     if (body.birth_month !== undefined && (body.birth_month < 1 || body.birth_month > 12)) {
-      return NextResponse.json(
-        { error: "birth_month must be between 1 and 12" },
-        { status: 400 }
-      );
+      return apiBadRequest("birth_month must be between 1 and 12");
     }
 
     // Validate kitten count if provided
     if (body.kitten_count_in_litter !== undefined && body.kitten_count_in_litter < 1) {
-      return NextResponse.json(
-        { error: "kitten_count_in_litter must be at least 1" },
-        { status: 400 }
-      );
+      return apiBadRequest("kitten_count_in_litter must be at least 1");
     }
 
     // Check if cat already has birth event
@@ -225,8 +210,7 @@ export async function POST(
         body.notes || null,
       ]);
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "Birth event updated",
         birth_event_id: result?.birth_event_id,
         is_update: true,
@@ -286,25 +270,21 @@ export async function POST(
     ]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create birth event" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create birth event");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: "Birth event recorded",
       birth_event_id: result.birth_event_id,
       litter_id: result.litter_id,
       is_update: false,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error recording birth:", error);
-    return NextResponse.json(
-      { error: "Failed to record birth event" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to record birth event");
   }
 }
 
@@ -314,11 +294,9 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Cat ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     const deleteSql = `
       DELETE FROM sot.cat_birth_events
       WHERE cat_id = $1
@@ -328,21 +306,15 @@ export async function DELETE(
     const result = await queryOne<{ birth_event_id: string }>(deleteSql, [id]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "No birth event found for this cat" },
-        { status: 404 }
-      );
+      return apiNotFound("Birth event", id);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Birth event removed",
-    });
+    return apiSuccess({ message: "Birth event removed" });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error removing birth record:", error);
-    return NextResponse.json(
-      { error: "Failed to remove birth record" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove birth record");
   }
 }

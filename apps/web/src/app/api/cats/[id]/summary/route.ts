@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Cat AI Summary Endpoint
@@ -92,14 +94,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Cat ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "cat");
+
     // Call the database function
     const result = await queryOne<{ get_cat_summary: CatSummary | null }>(
       `SELECT ops.get_cat_summary($1) as get_cat_summary`,
@@ -107,18 +104,15 @@ export async function GET(
     );
 
     if (!result?.get_cat_summary) {
-      return NextResponse.json(
-        { error: "Cat not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Cat", id);
     }
 
-    return NextResponse.json(result.get_cat_summary);
+    return apiSuccess(result.get_cat_summary);
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching cat summary:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch cat summary" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch cat summary");
   }
 }
