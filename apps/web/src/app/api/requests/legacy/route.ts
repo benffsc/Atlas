@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface LegacyRequestRow {
   request_id: string;
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
     const requests = requestsResult.rows;
     const total = parseInt(countResult.rows[0]?.total || "0");
 
-    return NextResponse.json({
+    return apiSuccess({
       requests: requests.map((r) => ({
         request_id: r.request_id,
         summary: r.summary,
@@ -103,14 +104,9 @@ export async function GET(request: NextRequest) {
         upgrade_blocked_reason: r.upgrade_blocked_reason,
       })),
       total,
-      limit,
-      offset,
-    });
+    }, { limit, offset });
   } catch (error) {
     console.error("Error fetching legacy requests:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch legacy requests" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch legacy requests");
   }
 }

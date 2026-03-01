@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/requests/counts
@@ -28,35 +28,26 @@ export async function GET() {
     `);
 
     if (!counts) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          new: 0,
-          working: 0,
-          paused: 0,
-          completed: 0,
-          needs_trapper: 0,
-          urgent: 0,
-        },
+      return apiSuccess({
+        new: 0,
+        working: 0,
+        paused: 0,
+        completed: 0,
+        needs_trapper: 0,
+        urgent: 0,
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        new: Number(counts.new_count) || 0,
-        working: Number(counts.working_count) || 0,
-        paused: Number(counts.paused_count) || 0,
-        completed: Number(counts.completed_count) || 0,
-        needs_trapper: Number(counts.needs_trapper_count) || 0,
-        urgent: Number(counts.urgent_count) || 0,
-      },
+    return apiSuccess({
+      new: Number(counts.new_count) || 0,
+      working: Number(counts.working_count) || 0,
+      paused: Number(counts.paused_count) || 0,
+      completed: Number(counts.completed_count) || 0,
+      needs_trapper: Number(counts.needs_trapper_count) || 0,
+      urgent: Number(counts.urgent_count) || 0,
     });
   } catch (error) {
     console.error("Error fetching request counts:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch counts" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch counts");
   }
 }

@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { createHash } from "crypto";
 import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface MediaRow {
   media_id: string;
@@ -48,13 +49,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({ media });
+    return apiSuccess({ media });
   } catch (error) {
     console.error("Error fetching media:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch media");
   }
 }
 
@@ -70,10 +68,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!requestExists) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Request", id);
     }
 
     const formData = await request.formData();
@@ -85,19 +80,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const uploadedBy = formData.get("uploaded_by") as string || "app_user";
 
     if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No file provided");
     }
 
     // Validate media type
     const validTypes = ["cat_photo", "site_photo", "evidence", "map_screenshot", "document", "other"];
     if (!validTypes.includes(mediaType)) {
-      return NextResponse.json(
-        { error: "Invalid media type" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid media type");
     }
 
     // Read file
@@ -131,18 +120,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (isStorageAvailable()) {
       const uploadResult = await uploadFile(storagePath, buffer, mimeType);
       if (!uploadResult.success) {
-        return NextResponse.json(
-          { error: uploadResult.error || "Failed to upload to storage" },
-          { status: 500 }
-        );
+        return apiServerError(uploadResult.error || "Failed to upload to storage");
       }
       publicUrl = uploadResult.url || getPublicUrl(storagePath);
     } else {
       // Supabase not configured - return error in production
-      return NextResponse.json(
-        { error: "Storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY." },
-        { status: 500 }
-      );
+      return apiServerError("Storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
     }
 
     // Insert into database
@@ -171,18 +154,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       ]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       media_id: result?.media_id,
       stored_filename: storedFilename,
       storage_path: publicUrl,
     });
   } catch (error) {
     console.error("Error uploading media:", error);
-    return NextResponse.json(
-      { error: "Failed to upload media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to upload media");
   }
 }
 
@@ -195,10 +174,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const reason = searchParams.get("reason");
 
   if (!mediaId) {
-    return NextResponse.json(
-      { error: "media_id required" },
-      { status: 400 }
-    );
+    return apiBadRequest("media_id required");
   }
 
   try {
@@ -208,18 +184,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result?.result) {
-      return NextResponse.json(
-        { error: "Media not found or already archived" },
-        { status: 404 }
-      );
+      return apiNotFound("Media", mediaId);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ archived: true });
   } catch (error) {
     console.error("Error archiving media:", error);
-    return NextResponse.json(
-      { error: "Failed to archive media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to archive media");
   }
 }

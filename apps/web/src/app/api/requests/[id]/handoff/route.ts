@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiUnauthorized } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Require authentication
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return apiUnauthorized("Authentication required");
     }
 
     const { id: requestId } = await params;
@@ -63,10 +64,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Validate required fields
     if (!handoff_reason) {
-      return NextResponse.json(
-        { error: "Handoff reason is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Handoff reason is required");
     }
 
     // --- Link to existing request path ---
@@ -77,13 +75,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         [existing_target_request_id]
       );
       if (!target) {
-        return NextResponse.json({ error: "Target request not found" }, { status: 404 });
+        return apiNotFound("Request", existing_target_request_id);
       }
       if (["cancelled", "redirected", "handed_off"].includes(target.status)) {
-        return NextResponse.json(
-          { error: "Target request is already closed and cannot be linked to" },
-          { status: 400 }
-        );
+        return apiBadRequest("Target request is already closed and cannot be linked to");
       }
 
       // Close original + link to existing target
@@ -118,8 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         [requestId, `Handed off to existing request ${existing_target_request_id}: ${handoff_reason}`, `staff:${session.staff_id}`]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         original_request_id: requestId,
         new_request_id: existing_target_request_id,
         handoff_url: `/requests/${existing_target_request_id}`,
@@ -128,10 +122,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // --- Create new request path (existing behavior) ---
     if (!new_address) {
-      return NextResponse.json(
-        { error: "New address is required for handoff" },
-        { status: 400 }
-      );
+      return apiBadRequest("New address is required for handoff");
     }
 
     // Determine requester details - from existing person or manual entry
@@ -168,10 +159,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       : lastName || firstName || null;
 
     if (!new_requester_name) {
-      return NextResponse.json(
-        { error: "New caretaker name is required (first and last name)" },
-        { status: 400 }
-      );
+      return apiBadRequest("New caretaker name is required (first and last name)");
     }
 
     // Call the handoff_request function
@@ -217,14 +205,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to hand off request" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to hand off request");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       original_request_id: result.original_request_id,
       new_request_id: result.new_request_id,
       handoff_url: `/requests/${result.new_request_id}`,
@@ -237,25 +221,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const msg = error.message;
 
       if (msg.includes("not found")) {
-        return NextResponse.json({ error: "Request not found" }, { status: 404 });
+        return apiBadRequest("Request not found");
       }
       if (msg.includes("already been closed")) {
-        return NextResponse.json(
-          { error: "This request has already been closed and cannot be handed off" },
-          { status: 400 }
-        );
+        return apiBadRequest("This request has already been closed and cannot be handed off");
       }
 
       // Return the actual error message for debugging
-      return NextResponse.json(
-        { error: `Failed to hand off request: ${msg}` },
-        { status: 500 }
-      );
+      return apiServerError(`Failed to hand off request: ${msg}`);
     }
 
-    return NextResponse.json(
-      { error: "Failed to hand off request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to hand off request");
   }
 }

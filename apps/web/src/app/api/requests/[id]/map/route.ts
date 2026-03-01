@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 

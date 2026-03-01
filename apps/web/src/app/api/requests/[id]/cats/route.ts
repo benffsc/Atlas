@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiConflict } from "@/lib/api-response";
 
 interface RequestCatLink {
   link_id: string;
@@ -43,13 +44,10 @@ export async function GET(
       ORDER BY rcl.linked_at DESC
     `, [id]);
 
-    return NextResponse.json({ cats });
+    return apiSuccess({ cats });
   } catch (err) {
     console.error("Error fetching request cats:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch linked cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch linked cats");
   }
 }
 
@@ -69,10 +67,7 @@ export async function POST(
   const body: LinkCatBody = await request.json();
 
   if (!body.cat_id) {
-    return NextResponse.json(
-      { error: "cat_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("cat_id is required");
   }
 
   try {
@@ -83,10 +78,7 @@ export async function POST(
     `, [id, body.cat_id]);
 
     if (existing) {
-      return NextResponse.json(
-        { error: "Cat is already linked to this request" },
-        { status: 409 }
-      );
+      return apiConflict("Cat is already linked to this request");
     }
 
     // Create the link
@@ -119,13 +111,10 @@ export async function POST(
       editSource: "web_ui",
     });
 
-    return NextResponse.json({ link: result }, { status: 201 });
+    return apiSuccess({ link: result });
   } catch (err) {
     console.error("Error linking cat to request:", err);
-    return NextResponse.json(
-      { error: "Failed to link cat to request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to link cat to request");
   }
 }
 
@@ -144,10 +133,7 @@ export async function DELETE(
   const body: UnlinkCatBody = await request.json();
 
   if (!body.cat_id) {
-    return NextResponse.json(
-      { error: "cat_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("cat_id is required");
   }
 
   try {
@@ -158,10 +144,7 @@ export async function DELETE(
     `, [id, body.cat_id]);
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Cat is not linked to this request" },
-        { status: 404 }
-      );
+      return apiNotFound("Cat link", body.cat_id);
     }
 
     // Delete the link
@@ -181,12 +164,9 @@ export async function DELETE(
       editSource: "web_ui",
     });
 
-    return NextResponse.json({ success: true, unlinked_cat_id: body.cat_id });
+    return apiSuccess({ success: true, unlinked_cat_id: body.cat_id });
   } catch (err) {
     console.error("Error unlinking cat from request:", err);
-    return NextResponse.json(
-      { error: "Failed to unlink cat from request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to unlink cat from request");
   }
 }

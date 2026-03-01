@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdit } from "@/lib/audit";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface TrapperAssignment {
   assignment_id: string;
@@ -34,10 +35,7 @@ export async function GET(
   const includeHistory = searchParams.get("history") === "true";
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -94,7 +92,7 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       trappers: currentTrappers,
       history: includeHistory ? history : undefined,
       no_trapper_reason: requestStatus?.no_trapper_reason || null,
@@ -102,10 +100,7 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching request trappers:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch request trappers" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch request trappers");
   }
 }
 
@@ -117,10 +112,7 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -128,10 +120,7 @@ export async function POST(
     const { trapper_person_id, is_primary = false, reason } = body;
 
     if (!trapper_person_id) {
-      return NextResponse.json(
-        { error: "trapper_person_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("trapper_person_id is required");
     }
 
     // Use the assign function
@@ -148,10 +137,7 @@ export async function POST(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to assign trapper" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to assign trapper");
     }
 
     // Log to entity_edits for SOT audit trail
@@ -165,16 +151,12 @@ export async function POST(
       reason: reason || "manual_assignment",
     });
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       assignment_id: result.assign_trapper_to_request,
     });
   } catch (error) {
     console.error("Error assigning trapper:", error);
-    return NextResponse.json(
-      { error: "Failed to assign trapper" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to assign trapper");
   }
 }
 
@@ -189,10 +171,7 @@ export async function DELETE(
   const reason = searchParams.get("reason") || "unassigned";
 
   if (!id || !trapperPersonId) {
-    return NextResponse.json(
-      { error: "Request ID and trapper_person_id are required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID and trapper_person_id are required");
   }
 
   try {
@@ -202,10 +181,7 @@ export async function DELETE(
     );
 
     if (!result?.unassign_trapper_from_request) {
-      return NextResponse.json(
-        { error: "Trapper was not assigned to this request" },
-        { status: 404 }
-      );
+      return apiNotFound("Trapper assignment", trapperPersonId);
     }
 
     // Log to entity_edits for SOT audit trail
@@ -217,12 +193,9 @@ export async function DELETE(
       reason,
     });
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ unassigned: true });
   } catch (error) {
     console.error("Error unassigning trapper:", error);
-    return NextResponse.json(
-      { error: "Failed to unassign trapper" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to unassign trapper");
   }
 }

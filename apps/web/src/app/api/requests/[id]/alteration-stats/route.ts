@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface LinkedCat {
   cat_id: string;
@@ -49,10 +50,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -90,10 +88,7 @@ export async function GET(
     const stats = await queryOne<AlterationStatsRow>(sql, [id]);
 
     if (!stats) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Request", id);
     }
 
     // Parse linked_cats if it's a string (JSONB comes as object)
@@ -101,7 +96,7 @@ export async function GET(
       ? JSON.parse(stats.linked_cats)
       : stats.linked_cats || [];
 
-    return NextResponse.json({
+    return apiSuccess({
       request_id: stats.request_id,
       source_system: stats.source_system,
       source_record_id: stats.source_record_id,
@@ -138,10 +133,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching alteration stats:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to fetch alteration stats", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch alteration stats");
   }
 }

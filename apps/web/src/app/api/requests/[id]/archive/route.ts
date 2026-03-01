@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
@@ -140,10 +140,7 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof Error && error.name === "ApiError") {
-      return NextResponse.json(
-        { error: error.message },
-        { status: (error as { status?: number }).status || 400 }
-      );
+      return apiBadRequest(error.message);
     }
     console.error("Error archiving request:", error);
     return apiServerError("Failed to archive request");
@@ -226,10 +223,7 @@ export async function DELETE(
     });
   } catch (error) {
     if (error instanceof Error && error.name === "ApiError") {
-      return NextResponse.json(
-        { error: error.message },
-        { status: (error as { status?: number }).status || 400 }
-      );
+      return apiBadRequest(error.message);
     }
     console.error("Error restoring request:", error);
     return apiServerError("Failed to restore request");

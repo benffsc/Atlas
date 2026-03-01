@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiUnauthorized } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -81,17 +82,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       reports,
       request: requestInfo,
       has_final_report: reports.some((r) => r.is_final_visit),
     });
   } catch (error) {
     console.error("Trip reports list error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch trip reports" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch trip reports");
   }
 }
 
@@ -104,7 +102,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get authenticated staff
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized("Authentication required");
     }
 
     const { id: requestId } = await params;
@@ -131,10 +129,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Validate trapper_person_id
     if (!trapper_person_id) {
-      return NextResponse.json(
-        { error: "trapper_person_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("trapper_person_id is required");
     }
 
     // Verify the request exists
@@ -144,7 +139,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!requestExists) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      return apiNotFound("Request", requestId);
     }
 
     // Insert the trip report
@@ -193,10 +188,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!report) {
-      return NextResponse.json(
-        { error: "Failed to insert trip report" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to insert trip report");
     }
 
     // If this is the final visit, link it to the request
@@ -207,8 +199,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       report_id: report.report_id,
       message: is_final_visit
         ? "Final trip report submitted. Request can now be completed."
@@ -216,9 +207,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Trip report submit error:", error);
-    return NextResponse.json(
-      { error: "Failed to submit trip report" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to submit trip report");
   }
 }

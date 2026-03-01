@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 // GET: Retrieve classification suggestion for a request
 export async function GET(
@@ -9,10 +10,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -49,20 +47,13 @@ export async function GET(
     }>(sql, [id]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Request", id);
     }
 
-    return NextResponse.json(result);
+    return apiSuccess(result);
   } catch (error) {
     console.error("Error fetching classification suggestion:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to fetch classification suggestion", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch classification suggestion");
   }
 }
 
@@ -74,10 +65,7 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -85,10 +73,7 @@ export async function POST(
     const { action, override_classification, reason, authoritative_count } = body;
 
     if (!action || !["accept", "override", "dismiss"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be 'accept', 'override', or 'dismiss'" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid action. Must be 'accept', 'override', or 'dismiss'");
     }
 
     let resultValue: string | null = null;
@@ -104,16 +89,10 @@ export async function POST(
 
       case "override":
         if (!override_classification) {
-          return NextResponse.json(
-            { error: "override_classification is required for override action" },
-            { status: 400 }
-          );
+          return apiBadRequest("override_classification is required for override action");
         }
         if (!reason) {
-          return NextResponse.json(
-            { error: "reason is required for override action" },
-            { status: 400 }
-          );
+          return apiBadRequest("reason is required for override action");
         }
         const overrideResult = await queryOne<{ result: string }>(
           `SELECT ops.override_classification_suggestion($1, $2, $3, $4, $5) AS result`,
@@ -147,18 +126,13 @@ export async function POST(
 
     const updated = await queryOne(updatedSql, [id]);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       action,
       result: resultValue,
       updated,
     });
   } catch (error) {
     console.error("Error processing classification suggestion:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to process classification suggestion", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process classification suggestion");
   }
 }

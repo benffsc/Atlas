@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/requests/[id]/nearby
@@ -72,10 +73,7 @@ export async function GET(
   const radius = parseInt(searchParams.get("radius") || "5000", 10); // Default 5km
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -94,7 +92,7 @@ export async function GET(
     );
 
     if (!requestInfo?.lat || !requestInfo?.lng) {
-      return NextResponse.json({
+      return apiSuccess({
         request_id: id,
         center: null,
         nearby: {
@@ -266,7 +264,7 @@ export async function GET(
       ),
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       request_id: id,
       center: { lat: requestInfo.lat, lng: requestInfo.lng },
       place_id: requestInfo.place_id,
@@ -291,10 +289,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching nearby entities:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to fetch nearby entities", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch nearby entities");
   }
 }

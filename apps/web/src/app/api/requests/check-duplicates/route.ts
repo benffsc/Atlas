@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/requests/check-duplicates
@@ -38,10 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Must provide at least one search criterion
     if (!place_id && !phone && !email && !address_text) {
-      return NextResponse.json(
-        { error: "At least one of place_id, phone, email, or address_text is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("At least one of place_id, phone, email, or address_text is required");
     }
 
     // Call the SQL function to find duplicates
@@ -87,15 +85,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       active_requests: result,
       matching_person,
     });
   } catch (error) {
     console.error("Error checking for duplicate requests:", error);
-    return NextResponse.json(
-      { error: "Failed to check for duplicates" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check for duplicates");
   }
 }

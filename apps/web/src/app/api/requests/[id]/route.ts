@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
@@ -613,14 +613,7 @@ export async function PATCH(
         !reportCheck?.has_site_observation &&
         !hasObservationData
       ) {
-        return NextResponse.json(
-          {
-            error: "Trip report required before completion",
-            requiresReport: true,
-            message: "Please submit a final site visit observation or use the completion modal to complete this request.",
-          },
-          { status: 400 }
-        );
+        return apiBadRequest("Trip report required before completion. Please submit a final site visit observation or use the completion modal to complete this request.");
       }
     }
 

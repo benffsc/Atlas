@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface UpgradeRequestBody {
   permission_status?: string;
@@ -27,10 +28,7 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Request ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Request ID is required");
   }
 
   try {
@@ -56,18 +54,12 @@ export async function POST(
     console.log("[upgrade] Existing request:", existingRequest);
 
     if (!existingRequest) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Request", id);
     }
 
     // Check if already upgraded
     if (existingRequest.data_source === "atlas_ui") {
-      return NextResponse.json(
-        { error: "This request has already been upgraded to Atlas schema" },
-        { status: 400 }
-      );
+      return apiBadRequest("This request has already been upgraded to Atlas schema");
     }
 
     // Determine cat count updates based on clarification (MIG_534)
@@ -140,10 +132,7 @@ export async function POST(
     console.log("[upgrade] Update result:", result);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to upgrade request" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to upgrade request");
     }
 
     // Log the upgrade action in entity_edits
@@ -207,7 +196,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       new_request_id: result.request_id,
       message: "Request successfully upgraded to Atlas schema",
@@ -216,9 +205,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error upgrading request:", error);
-    return NextResponse.json(
-      { error: "Failed to upgrade request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to upgrade request");
   }
 }

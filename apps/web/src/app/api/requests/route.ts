@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { queryRows, queryOne } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
@@ -376,8 +376,7 @@ export async function POST(request: NextRequest) {
     revalidatePath("/");
     revalidatePath("/requests");
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       request_id: result.request_id,
     });
   } catch (error) {
@@ -392,14 +391,6 @@ export async function POST(request: NextRequest) {
       if (errorMessage.includes("requester_person_id")) {
         return apiBadRequest("Invalid requester_person_id - person does not exist");
       }
-    }
-
-    // Include actual error in dev for debugging
-    if (process.env.NODE_ENV === "development") {
-      return NextResponse.json(
-        { success: false, error: { message: errorMessage, code: 500 } },
-        { status: 500 }
-      );
     }
 
     return apiServerError("Failed to create request");

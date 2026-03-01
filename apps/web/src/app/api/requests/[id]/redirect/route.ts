@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiUnauthorized } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Require authentication
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return apiUnauthorized("Authentication required");
     }
 
     const { id: requestId } = await params;
@@ -52,10 +53,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Validate required fields
     if (!redirect_reason) {
-      return NextResponse.json(
-        { error: "Redirect reason is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Redirect reason is required");
     }
 
     // --- Link to existing request path ---
@@ -66,13 +64,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         [existing_target_request_id]
       );
       if (!target) {
-        return NextResponse.json({ error: "Target request not found" }, { status: 404 });
+        return apiNotFound("Request", existing_target_request_id);
       }
       if (["cancelled", "redirected", "handed_off"].includes(target.status)) {
-        return NextResponse.json(
-          { error: "Target request is already closed and cannot be linked to" },
-          { status: 400 }
-        );
+        return apiBadRequest("Target request is already closed and cannot be linked to");
       }
 
       // Close original + link to existing target
@@ -106,8 +101,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         [requestId, `Redirected to existing request ${existing_target_request_id}: ${redirect_reason}`, `staff:${session.staff_id}`]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         original_request_id: requestId,
         new_request_id: existing_target_request_id,
         redirect_url: `/requests/${existing_target_request_id}`,
@@ -116,10 +110,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // --- Create new request path (existing behavior) ---
     if (!new_address && !new_place_id) {
-      return NextResponse.json(
-        { error: "Either new_address or new_place_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Either new_address or new_place_id is required");
     }
 
     // Call the redirect_request function
@@ -165,14 +156,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to redirect request" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to redirect request");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       original_request_id: result.original_request_id,
       new_request_id: result.new_request_id,
       redirect_url: `/requests/${result.new_request_id}`,
@@ -183,27 +170,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Handle specific error messages from the function
     if (error instanceof Error) {
       if (error.message.includes("not found")) {
-        return NextResponse.json({ error: "Request not found" }, { status: 404 });
+        return apiBadRequest("Request not found");
       }
       if (error.message.includes("already been redirected")) {
-        return NextResponse.json(
-          { error: "This request has already been redirected" },
-          { status: 400 }
-        );
+        return apiBadRequest("This request has already been redirected");
       }
+
+      return apiServerError(`Failed to redirect request: ${error.message}`);
     }
 
-    if (error instanceof Error) {
-      return NextResponse.json(
-        { error: `Failed to redirect request: ${error.message}` },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Failed to redirect request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to redirect request");
   }
 }
 
@@ -243,10 +219,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      return apiNotFound("Request", requestId);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       request_id: result.request_id,
       status: result.status,
       redirect_info: {
@@ -268,9 +244,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Get redirect info error:", error);
-    return NextResponse.json(
-      { error: "Failed to get redirect info" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to get redirect info");
   }
 }
