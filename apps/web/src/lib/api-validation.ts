@@ -8,6 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import type { ZodSchema, ZodError } from "zod";
+import { apiBadRequest } from "./api-response";
 
 // Re-export existing validators for convenience
 export { isValidUUID, validatePagination, validatePersonName } from "./validation";
@@ -206,4 +208,36 @@ export function requireNonEmptyString(
     throw new ApiError(`${fieldName} is required and cannot be empty`, 400);
   }
   return value.trim();
+}
+
+/**
+ * Parse and validate request body using a Zod schema.
+ * Returns either { data: T } on success or { error: Response } on failure.
+ *
+ * @example
+ * const parsed = await parseBody(request, UpdatePersonSchema);
+ * if ("error" in parsed) return parsed.error;
+ * const body = parsed.data;
+ *
+ * // body is now fully typed according to UpdatePersonSchema
+ */
+export async function parseBody<T>(
+  request: Request,
+  schema: ZodSchema<T>
+): Promise<{ data: T } | { error: Response }> {
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return { error: apiBadRequest("Invalid JSON body") };
+  }
+
+  const result = schema.safeParse(json);
+  if (!result.success) {
+    const firstIssue = result.error.issues[0];
+    const path = firstIssue.path.join(".") || "body";
+    return { error: apiBadRequest(`${path}: ${firstIssue.message}`) };
+  }
+
+  return { data: result.data };
 }

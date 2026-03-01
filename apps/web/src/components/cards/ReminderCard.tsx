@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SnoozePicker } from "../SnoozePicker";
+import { SnoozePicker } from "@/components/common";
 import { formatPhone } from "@/lib/formatters";
 
 interface ContactInfo {

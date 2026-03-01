@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 interface JournalEntryRow {
   id: string;
@@ -35,6 +37,8 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "journal entry");
+
     const entry = await queryOne<JournalEntryRow>(
       `SELECT
         je.id,
@@ -69,19 +73,16 @@ export async function GET(
     );
 
     if (!entry) {
-      return NextResponse.json(
-        { error: "Journal entry not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Journal entry", id);
     }
 
-    return NextResponse.json(entry);
+    return apiSuccess(entry);
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching journal entry:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch journal entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch journal entry");
   }
 }
 
@@ -103,6 +104,8 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "journal entry");
+
     const data: UpdateEntryBody = await request.json();
 
     // Build dynamic update
@@ -155,10 +158,7 @@ export async function PATCH(
 
     if (updates.length === 1) {
       // Only updated_by was added, no actual changes
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No fields to update");
     }
 
     values.push(id);
@@ -172,22 +172,16 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Journal entry not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Journal entry", id);
     }
 
-    return NextResponse.json({
-      id: result.id,
-      success: true,
-    });
+    return apiSuccess({ id: result.id });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error updating journal entry:", error);
-    return NextResponse.json(
-      { error: "Failed to update journal entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update journal entry");
   }
 }
 
@@ -222,39 +216,29 @@ export async function DELETE(
   const user = getCurrentUser(request);
 
   try {
+    requireValidUUID(id, "journal entry");
+
     // Parse request body for archive reason
     let body: ArchiveBody;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: "Request body required with archive reason" },
-        { status: 400 }
-      );
+      return apiBadRequest("Request body required with archive reason");
     }
 
     // Validate reason is provided
     if (!body.reason) {
-      return NextResponse.json(
-        { error: "Archive reason is required", validReasons: ARCHIVE_REASONS },
-        { status: 400 }
-      );
+      return apiBadRequest(`Archive reason is required. Must be one of: ${ARCHIVE_REASONS.join(", ")}`);
     }
 
     // Validate reason is from predefined list
     if (!ARCHIVE_REASONS.includes(body.reason)) {
-      return NextResponse.json(
-        { error: `Invalid archive reason. Must be one of: ${ARCHIVE_REASONS.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid archive reason. Must be one of: ${ARCHIVE_REASONS.join(", ")}`);
     }
 
     // Validate notes are provided for reasons that require them
     if (REASONS_REQUIRING_NOTES.includes(body.reason) && !body.notes?.trim()) {
-      return NextResponse.json(
-        { error: `Notes are required when archive reason is "${body.reason}"` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Notes are required when archive reason is "${body.reason}"`);
     }
 
     const result = await queryOne<{ id: string }>(
@@ -280,31 +264,20 @@ export async function DELETE(
       );
 
       if (!existing) {
-        return NextResponse.json(
-          { error: "Journal entry not found" },
-          { status: 404 }
-        );
+        return apiNotFound("Journal entry", id);
       }
 
       if (existing.is_archived) {
-        return NextResponse.json(
-          { error: "Journal entry is already archived" },
-          { status: 400 }
-        );
+        return apiBadRequest("Journal entry is already archived");
       }
     }
 
-    return NextResponse.json({
-      id,
-      archived: true,
-      reason: body.reason,
-      success: true,
-    });
+    return apiSuccess({ id, archived: true, reason: body.reason });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error archiving journal entry:", error);
-    return NextResponse.json(
-      { error: "Failed to archive journal entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to archive journal entry");
   }
 }

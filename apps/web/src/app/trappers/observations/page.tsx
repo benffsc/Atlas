@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import LogObservationModal from "@/components/LogObservationModal";
+import { LogObservationModal } from "@/components/modals";
 
 interface TrapperSite {
   place_id: string;

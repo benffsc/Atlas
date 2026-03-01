@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import CreateRequestWizard from "@/components/CreateRequestWizard";
-import PlaceResolver from "@/components/PlaceResolver";
+import { CreateRequestWizard } from "@/components/forms";
+import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
 
@@ -3031,20 +3031,22 @@ function IntakeQueueContent() {
                   Most submissions are handled directly (booked for clinic) without becoming requests.
                   Only create a request if this needs trapper coordination.
                 </p>
-                <button
-                  onClick={() => handleOpenRequestWizard(selectedSubmission)}
+                <a
+                  href={`/requests/new?intake_id=${selectedSubmission.submission_id}`}
                   style={{
+                    display: "inline-block",
                     padding: "0.5rem 1rem",
                     background: "#6610f2",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
                     cursor: "pointer",
-                    fontWeight: 500
+                    fontWeight: 500,
+                    textDecoration: "none"
                   }}
                 >
                   Create Request →
-                </button>
+                </a>
               </div>
             )}
 

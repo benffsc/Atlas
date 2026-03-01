@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
-import { TippyFeedbackModal } from "./TippyFeedbackModal";
+import { TippyFeedbackModal } from "@/components/modals";
 
 interface Message {
   id: string;

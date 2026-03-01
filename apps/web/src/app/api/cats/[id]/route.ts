@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
 import { requireValidUUID } from "@/lib/api-validation";
@@ -805,7 +805,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ success: true, message: "No changes detected" });
+      return apiSuccess({ message: "No changes detected" });
     }
 
     // Log changes to centralized entity_edits table

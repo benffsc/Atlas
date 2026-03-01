@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { BackButton } from "@/components/BackButton";
-import PlaceResolver from "@/components/PlaceResolver";
+import { BackButton } from "@/components/common";
+import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface ColonyDetail {

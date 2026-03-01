@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import EntityPreview from "@/components/EntityPreview";
-import { GroupedSearchResult } from "@/components/GroupedSearchResult";
+import { EntityPreview } from "@/components/search";
+import { GroupedSearchResult } from "@/components/search";
 import { formatPhone } from "@/lib/formatters";
 
 interface SearchResult {

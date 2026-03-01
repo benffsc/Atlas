@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { DataQualityBadge } from "@/components/DataQualityBadge";
-import { VerificationBadge } from "@/components/VerificationBadge";
+import { DataQualityBadge, VerificationBadge } from "@/components/badges";
 
 interface ReviewItem {
   entity_type: string;

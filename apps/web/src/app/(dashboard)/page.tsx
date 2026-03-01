@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { formatDateLocal } from "@/lib/formatters";
-import { MyItemsWidget } from "@/components/MyItemsWidget";
-import { StatusBadge, PriorityDot } from "@/components/StatusBadge";
+import { MyItemsWidget } from "@/components/common";
+import { StatusBadge, PriorityDot } from "@/components/badges";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface ActiveRequest {

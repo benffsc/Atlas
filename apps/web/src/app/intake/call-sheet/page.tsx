@@ -2,9 +2,9 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import PlaceResolver from "@/components/PlaceResolver";
+import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 
 /**

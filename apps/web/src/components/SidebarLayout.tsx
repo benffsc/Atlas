@@ -267,6 +267,14 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
       ],
     },
     {
+      title: "Linear",
+      items: [
+        { label: "Dashboard", href: "/admin/linear", icon: "📐" },
+        { label: "Issues", href: "/admin/linear/issues", icon: "📋" },
+        { label: "Sessions", href: "/admin/linear/sessions", icon: "🤖" },
+      ],
+    },
+    {
       title: "Developer",
       items: [
         { label: "Claude Code", href: "/admin/claude-code", icon: "🤖" },

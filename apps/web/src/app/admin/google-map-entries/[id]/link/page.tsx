@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 
 interface PlaceUnit {
   place_id: string;

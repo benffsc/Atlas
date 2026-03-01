@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CatCard, CatCardData } from "@/components/CatCard";
-import { MediaUploader } from "@/components/MediaUploader";
+import { CatCard } from "@/components/cards";
+import type { CatCardData } from "@/components/cards";
+import { MediaUploader } from "@/components/media";
 
 interface ClinicDay {
   clinic_day_id: string;

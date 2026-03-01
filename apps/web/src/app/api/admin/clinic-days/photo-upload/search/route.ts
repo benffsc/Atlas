@@ -117,9 +117,16 @@ export async function GET(request: NextRequest) {
             WHERE tr.cat_id = c.cat_id AND tr.test_type = 'felv_fiv' AND tr.fiv_status IS NOT NULL
             ORDER BY tr.test_date DESC LIMIT 1
           ) AS fiv_status,
-          -- Use microchip from cat_identifiers OR directly from sot.cats
-          COALESCE(ci_mc.id_value, c.microchip) AS microchip,
-          COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
+          -- MIG_2602 FIX: Use subqueries to avoid cartesian product from multiple identifiers
+          -- (a cat with 2 microchips + 2 clinichq_ids would create 4 rows with LEFT JOIN)
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) AS microchip,
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'clinichq_animal_id' LIMIT 1),
+            c.clinichq_animal_id
+          ) AS clinichq_animal_id,
           -- Owner name via subquery to avoid cartesian product (one row per cat)
           -- V2: Uses sot.person_cat (not sot.person_cat_relationships)
           (
@@ -181,18 +188,21 @@ export async function GET(request: NextRequest) {
               AND a.appointment_date >= CURRENT_DATE - INTERVAL '90 days'
           ) AS all_appointments,
           -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
-          CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
+          CASE WHEN COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
           CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
         FROM sot.cats c
-        LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
-        LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+        -- MIG_2602 FIX: Removed LEFT JOINs to cat_identifiers (now uses subqueries above)
         -- Get FIRST appointment for selected date (avoids duplicates if cat has multiple appointments)
         LEFT JOIN first_appointment fa ON fa.cat_id = c.cat_id
         WHERE c.merged_into_cat_id IS NULL
           AND (
             c.name ILIKE $1
-            OR ci_mc.id_value ILIKE $1
-            OR ci_chq.id_value ILIKE $1
+            -- MIG_2602 FIX: Use EXISTS to avoid cartesian product
+            OR EXISTS (SELECT 1 FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' AND ci.id_value ILIKE $1)
+            OR EXISTS (SELECT 1 FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'clinichq_animal_id' AND ci.id_value ILIKE $1)
             -- Also search microchip directly on sot.cats table
             OR c.microchip ILIKE $1
             -- Search owner names via EXISTS to avoid join duplicates
@@ -284,9 +294,15 @@ export async function GET(request: NextRequest) {
             FALSE AS needs_microchip,
             NULL AS felv_status,
             NULL AS fiv_status,
-            -- Use microchip from cat_identifiers OR directly from sot.cats
-            COALESCE(ci_mc.id_value, c.microchip) AS microchip,
-            COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
+            -- MIG_2602 FIX: Use subqueries to avoid cartesian product from multiple identifiers
+            COALESCE(
+              (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+              c.microchip
+            ) AS microchip,
+            COALESCE(
+              (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'clinichq_animal_id' LIMIT 1),
+              c.clinichq_animal_id
+            ) AS clinichq_animal_id,
             (
               SELECT per.display_name
               FROM sot.person_cat pc
@@ -333,18 +349,21 @@ export async function GET(request: NextRequest) {
                 AND a.appointment_date >= CURRENT_DATE - INTERVAL '90 days'
             ) AS all_appointments,
             -- Sorting fields: check both cat_identifiers AND sot.cats.microchip
-            CASE WHEN COALESCE(ci_mc.id_value, c.microchip) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
+            CASE WHEN COALESCE(
+              (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+              c.microchip
+            ) = TRIM(BOTH '%' FROM $1) THEN 0 ELSE 1 END AS microchip_exact_match,
             CASE WHEN c.name ILIKE $1 THEN 0 ELSE 1 END AS name_match
           FROM sot.cats c
-          LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = c.cat_id AND ci_mc.id_type = 'microchip'
-          LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = c.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
+          -- MIG_2602 FIX: Removed LEFT JOINs to cat_identifiers (now uses subqueries above)
           -- Get FIRST appointment for selected date (avoids duplicates if cat has multiple appointments)
           LEFT JOIN first_appointment fa ON fa.cat_id = c.cat_id
           WHERE c.merged_into_cat_id IS NULL
             AND (
               c.name ILIKE $1
-              OR ci_mc.id_value ILIKE $1
-              OR ci_chq.id_value ILIKE $1
+              -- MIG_2602 FIX: Use EXISTS to avoid cartesian product
+              OR EXISTS (SELECT 1 FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'microchip' AND ci.id_value ILIKE $1)
+              OR EXISTS (SELECT 1 FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'clinichq_animal_id' AND ci.id_value ILIKE $1)
               -- Also search microchip directly on sot.cats table
               OR c.microchip ILIKE $1
               OR EXISTS (

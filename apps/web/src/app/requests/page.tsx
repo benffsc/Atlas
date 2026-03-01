@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { formatDateLocal } from "@/lib/formatters";
-import { SavedFilters, RequestFilters } from "@/components/SavedFilters";
-import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
-import { KanbanBoard, KanbanBoardMobile } from "@/components/KanbanBoard";
+import { SavedFilters, RequestFilters } from "@/components/search";
+import { StatusBadge, PriorityBadge } from "@/components/badges";
+import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 

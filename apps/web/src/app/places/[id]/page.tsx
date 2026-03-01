@@ -2,37 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import JournalSection, { JournalEntry } from "@/components/JournalSection";
-import QuickNotes from "@/components/QuickNotes";
-import { BackButton } from "@/components/BackButton";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
-import { EditHistory } from "@/components/EditHistory";
-import { PlaceAlterationHistory } from "@/components/PlaceAlterationHistory";
-import { ColonyEstimates } from "@/components/ColonyEstimates";
-import { PopulationTrendChart } from "@/components/PopulationTrendChart";
-import { PopulationTimeline } from "@/components/PopulationTimeline";
-import { HistoricalContextCard } from "@/components/HistoricalContextCard";
-import ObservationsSection from "@/components/ObservationsSection";
-import { SubmissionsSection } from "@/components/SubmissionsSection";
-import { EntityLink } from "@/components/EntityLink";
-import { PlaceLinksSection } from "@/components/PlaceLinksSection";
-import { SiteStatsCard } from "@/components/SiteStatsCard";
-import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
-import { formatDateLocal, formatPhone } from "@/lib/formatters";
-import { MediaGallery } from "@/components/MediaGallery";
-import { HeroGallery } from "@/components/HeroGallery";
-import { MediaItem } from "@/components/MediaUploader";
-import { QuickActions, usePlaceQuickActionState } from "@/components/QuickActions";
-import { CatPresenceReconciliation } from "@/components/CatPresenceReconciliation";
-import { CreateColonyModal } from "@/components/CreateColonyModal";
-import { PlaceContextEditor } from "@/components/PlaceContextEditor";
-import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
-import DiseaseStatusSection from "@/components/DiseaseStatusSection";
-import ClinicHistorySection from "@/components/ClinicHistorySection";
-import ClinicNotesSection from "@/components/ClinicNotesSection";
+import { JournalSection, ObservationsSection, PlaceLinksSection, DiseaseStatusSection, ClinicHistorySection, ClinicNotesSection, LinkedPeopleSection } from "@/components/sections";
+import type { JournalEntry } from "@/components/sections";
+import { QuickNotes, BackButton, EditHistory, EntityLink, QuickActions, usePlaceQuickActionState, SubmissionsSection } from "@/components/common";
+import { AddressAutocomplete, PlaceContextEditor } from "@/components/forms";
+import { PlaceAlterationHistory, CatPresenceReconciliation } from "@/components/admin";
+import { ColonyEstimates, PopulationTrendChart, PopulationTimeline } from "@/components/charts";
+import { HistoricalContextCard, SiteStatsCard } from "@/components/cards";
+import { VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/components/badges";
+import { CreateColonyModal } from "@/components/modals";
+import { MediaGallery, HeroGallery, type MediaItem } from "@/components/media";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
-import { LinkedPeopleSection } from "@/components/LinkedPeopleSection";
 import { AssociatedPeopleCard } from "@/components/verification";
+import { formatDateLocal, formatPhone } from "@/lib/formatters";
 
 interface Cat {
   cat_id: string;

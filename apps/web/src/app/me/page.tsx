@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ReminderCard } from "@/components/ReminderCard";
-import { LookupViewerModal } from "@/components/LookupViewerModal";
+import { ReminderCard } from "@/components/cards";
+import { LookupViewerModal } from "@/components/modals";
 
 interface Reminder {
   reminder_id: string;

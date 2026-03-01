@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 
 interface ReadyRequest {
   request_id: string;

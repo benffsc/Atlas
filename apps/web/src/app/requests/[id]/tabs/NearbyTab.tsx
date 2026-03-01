@@ -1,6 +1,6 @@
 "use client";
 
-import { NearbyEntities } from "@/components/NearbyEntities";
+import { NearbyEntities } from "@/components/common";
 
 interface NearbyTabProps {
   requestId: string;

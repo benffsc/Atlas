@@ -1,11 +1,31 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BackButton } from "@/components/BackButton";
-import PlaceResolver from "@/components/PlaceResolver";
+import { BackButton } from "@/components/common";
+import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone } from "@/lib/formatters";
+import {
+  EntryModeSelector,
+  ActiveRequestWarning,
+  CompletionSection,
+  DEFAULT_COMPLETION_DATA,
+  type EntryMode,
+  type CompletionData,
+} from "@/components/request-entry";
+
+interface DuplicateMatch {
+  request_id: string;
+  summary: string | null;
+  status: string;
+  trapper_name: string | null;
+  place_address: string | null;
+  place_city: string | null;
+  created_at: string;
+  match_type: "exact_place" | "same_phone" | "same_email" | "nearby_address";
+  distance_m: number | null;
+}
 
 interface SearchResult {
   entity_type: string;
@@ -95,6 +115,15 @@ const URGENCY_REASONS = [
 function NewRequestForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Entry Mode (phone intake, paper entry, quick complete)
+  const [entryMode, setEntryMode] = useState<EntryMode>("phone");
+  const [completionData, setCompletionData] = useState<CompletionData>(DEFAULT_COMPLETION_DATA);
+
+  // Smart matching - duplicate detection
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [duplicatesDismissed, setDuplicatesDismissed] = useState(false);
 
   // Location
   const [selectedPlace, setSelectedPlace] = useState<ResolvedPlace | null>(null);
@@ -238,6 +267,77 @@ function NewRequestForm() {
     }
   }, [searchParams, selectedPlace]);
 
+  // Pre-populate from intake submission (Phase 5: Unified Form Integration)
+  useEffect(() => {
+    const intakeId = searchParams.get("intake_id");
+    if (!intakeId) return;
+
+    // Set entry mode to paper (transcribing from intake)
+    setEntryMode("paper");
+
+    // Fetch intake submission data
+    fetch(`/api/intake/${intakeId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.submission) return;
+        const s = data.submission;
+
+        // Pre-fill contact info
+        if (s.first_name || s.last_name || s.submitter_name) {
+          const nameParts = (s.submitter_name || "").split(" ");
+          setRequestorFirstName(s.first_name || nameParts[0] || "");
+          setRequestorLastName(s.last_name || nameParts.slice(1).join(" ") || "");
+        }
+        if (s.email) setRequestorEmail(s.email);
+        if (s.phone) setRequestorPhone(s.phone);
+
+        // Pre-fill location (if place already resolved)
+        if (s.matched_place_id) {
+          fetch(`/api/places/${s.matched_place_id}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((place) => {
+              if (place) {
+                setSelectedPlace({
+                  place_id: place.place_id,
+                  display_name: place.display_name,
+                  formatted_address: place.formatted_address || s.geo_formatted_address || s.cats_address,
+                  locality: place.locality || s.cats_city,
+                });
+              }
+            })
+            .catch(() => {});
+        } else if (s.geo_formatted_address || s.cats_address) {
+          // Use raw address - PlaceResolver will handle it
+          setSelectedPlace({
+            place_id: null,
+            display_name: s.geo_formatted_address || s.cats_address,
+            formatted_address: s.geo_formatted_address || s.cats_address,
+            locality: s.cats_city,
+          } as never); // Type assertion - PlaceResolver handles this
+        }
+
+        // Pre-fill cat info
+        if (s.cat_count_estimate) setEstimatedCatCount(s.cat_count_estimate);
+        if (s.has_kittens !== null) setHasKittens(s.has_kittens);
+        if (s.kitten_count) setKittenCount(s.kitten_count);
+
+        // Pre-fill property info
+        if (s.ownership_status) setPropertyType(s.ownership_status);
+
+        // Pre-fill notes
+        if (s.situation_description) setNotes(s.situation_description);
+
+        // Pre-fill urgency
+        if (s.is_emergency) {
+          setUrgencyReasons(["emergency"]);
+        }
+
+        // Store intake ID for reference (for linking back after creation)
+        console.log("Loaded intake submission:", intakeId);
+      })
+      .catch((err) => console.error("Failed to load intake:", err));
+  }, [searchParams]);
+
   // Debounced person search
   useEffect(() => {
     if (personSearch.length < 2 || selectedPerson) {
@@ -295,6 +395,51 @@ function NewRequestForm() {
 
     return () => clearTimeout(timer);
   }, [requestorEmail, selectedPerson]);
+
+  // Smart matching - check for duplicate requests when place or contact info changes
+  const checkDuplicates = useCallback(async () => {
+    // Need at least one criterion to check
+    if (!selectedPlace?.place_id && !requestorPhone && !requestorEmail) {
+      setDuplicateMatches([]);
+      return;
+    }
+
+    // Don't re-check if user dismissed the warning
+    if (duplicatesDismissed) return;
+
+    setCheckingDuplicates(true);
+    try {
+      const response = await fetch("/api/requests/check-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          place_id: selectedPlace?.place_id || null,
+          phone: requestorPhone || null,
+          email: requestorEmail || null,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDuplicateMatches(data.active_requests || []);
+      }
+    } catch (err) {
+      console.error("Duplicate check error:", err);
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  }, [selectedPlace?.place_id, requestorPhone, requestorEmail, duplicatesDismissed]);
+
+  // Debounced duplicate check
+  useEffect(() => {
+    const timer = setTimeout(checkDuplicates, 600);
+    return () => clearTimeout(timer);
+  }, [checkDuplicates]);
+
+  // Reset dismissed state when place changes
+  useEffect(() => {
+    setDuplicatesDismissed(false);
+  }, [selectedPlace?.place_id]);
 
   // Auto-fill the title with requester name when a requester is selected/entered
   useEffect(() => {
@@ -509,6 +654,19 @@ function NewRequestForm() {
           notes: notes || null,
           internal_notes: internalNotes || null,
           created_by: "app_user",
+          // Entry mode and completion data
+          entry_mode: entryMode,
+          initial_status: entryMode === "complete" ? "completed" : "new",
+          completion_data: entryMode === "complete" ? {
+            final_cat_count: completionData.final_cat_count || null,
+            eartips_observed: completionData.eartips_observed || null,
+            cats_altered_today: completionData.cats_altered_today || null,
+            observation_notes: completionData.observation_notes || null,
+            colony_complete: completionData.colony_complete,
+            requester_followup: completionData.requester_followup,
+            refer_partner: completionData.refer_partner,
+            partner_name: completionData.partner_name || null,
+          } : null,
         }),
       });
 
@@ -549,6 +707,11 @@ function NewRequestForm() {
       <BackButton fallbackHref="/requests" />
 
       <h1 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>New FFR Request</h1>
+
+      {/* Entry Mode Selector */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <EntryModeSelector value={entryMode} onChange={setEntryMode} />
+      </div>
 
       {/* Submission Result Modal */}
       {submissionResult && (
@@ -816,7 +979,22 @@ function NewRequestForm() {
             placeholder="Type an address..."
           />
 
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+          {/* Smart matching - show warning if active requests found at this location */}
+          {duplicateMatches.length > 0 && !duplicatesDismissed && (
+            <ActiveRequestWarning
+              matches={duplicateMatches}
+              onDismiss={() => setDuplicatesDismissed(true)}
+              onLinkToRequest={(requestId) => router.push(`/requests/${requestId}`)}
+            />
+          )}
+
+          {checkingDuplicates && (
+            <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
+              Checking for existing requests...
+            </p>
+          )}
+
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "1rem" }}>
             <div style={{ flex: "1 1 150px" }}>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 County
@@ -2156,11 +2334,25 @@ function NewRequestForm() {
           </div>
         </div>
 
+        {/* SECTION: Completion Data (only shown in Quick Complete mode) */}
+        {entryMode === "complete" && (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <CompletionSection
+              value={completionData}
+              onChange={setCompletionData}
+            />
+          </div>
+        )}
+
         {error && <div style={{ color: "#dc3545", marginBottom: "1rem" }}>{error}</div>}
 
         <div style={{ display: "flex", gap: "1rem" }}>
           <button type="submit" disabled={submitting}>
-            {submitting ? "Creating..." : "Create Request"}
+            {submitting
+              ? "Creating..."
+              : entryMode === "complete"
+              ? "Complete & Close Request"
+              : "Create Request"}
           </button>
           <a
             href="/requests"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 import { formatPhone } from "@/lib/formatters";
 
 interface Staff {

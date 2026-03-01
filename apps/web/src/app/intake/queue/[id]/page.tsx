@@ -2,7 +2,7 @@
 
 import { useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 
 /**
  * This page redirects to the unified intake queue page with the submission

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne, queryRows, query } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 interface ProcedureRow {
   procedure_id: string;
@@ -16,11 +18,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Appointment ID required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "appointment");
     // Main appointment query using enriched view + raw payload for surgery/post-op detail
     const appointment = await queryOne<Record<string, unknown>>(
       `SELECT
@@ -103,7 +102,7 @@ export async function GET(
     );
 
     if (!appointment) {
-      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+      return apiNotFound("Appointment", id);
     }
 
     // Fetch linked procedures
@@ -202,7 +201,7 @@ export async function GET(
     if (/convenia/i.test(serviceType)) treatments.push("Convenia (antibiotic)");
     if (/praziquantel|droncit/i.test(serviceType)) treatments.push("Dewormer");
 
-    return NextResponse.json({
+    return apiSuccess({
       appointment_id: appointment.appointment_id,
       appointment_date: appointment.appointment_date,
       appointment_number: appointment.appointment_number,
@@ -272,11 +271,11 @@ export async function GET(
       raw_details: rawDetails,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching appointment detail:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch appointment details" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch appointment details");
   }
 }
 
@@ -286,19 +285,14 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Appointment ID required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "appointment");
+
     const body = await request.json();
 
     // Currently only clinic_day_number is editable
     if (body.clinic_day_number === undefined) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     const clinicDayNumber = body.clinic_day_number;
@@ -307,10 +301,7 @@ export async function PATCH(
     if (clinicDayNumber !== null) {
       const num = parseInt(clinicDayNumber, 10);
       if (isNaN(num) || num < 1 || num > 999) {
-        return NextResponse.json(
-          { error: "clinic_day_number must be between 1 and 999" },
-          { status: 400 }
-        );
+        return apiBadRequest("clinic_day_number must be between 1 and 999");
       }
     }
 
@@ -323,15 +314,15 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+      return apiNotFound("Appointment", id);
     }
 
-    return NextResponse.json({ success: true, ...result });
+    return apiSuccess(result);
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error updating appointment:", error);
-    return NextResponse.json(
-      { error: "Failed to update appointment" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update appointment");
   }
 }

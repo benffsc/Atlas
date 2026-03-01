@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import PlaceResolver from "@/components/PlaceResolver";
+import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 

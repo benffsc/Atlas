@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SafeLinkingIndicator, MatchReasonBadge, ConfidenceMeter } from "../SafeLinkingIndicators";
+import { SafeLinkingIndicator, MatchReasonBadge, ConfidenceMeter } from "@/components/admin";
 
 interface LinkedCat {
   cat_id: string;

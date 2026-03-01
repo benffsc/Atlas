@@ -55,6 +55,10 @@ export {
   SERVICE_ZONES,
 } from "./types";
 
+// Main map components
+export { default as AtlasMap } from "./AtlasMap";
+export { default as BeaconMap } from "./BeaconMap";
+
 // Re-export existing map components (already in this directory)
 export { PlaceDetailDrawer } from "./PlaceDetailDrawer";
 export { PersonDetailDrawer } from "./PersonDetailDrawer";

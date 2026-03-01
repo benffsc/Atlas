@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits, logFieldEdit, detectChanges, type FieldChange } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
@@ -247,10 +247,7 @@ export async function PATCH(
     if (body.display_name !== undefined) {
       const validation = validatePersonName(body.display_name);
       if (!validation.valid) {
-        return NextResponse.json(
-          { error: validation.error || "Invalid name" },
-          { status: 400 }
-        );
+        return apiBadRequest(validation.error || "Invalid name");
       }
     }
 
@@ -364,10 +361,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     // Log changes to centralized entity_edits table

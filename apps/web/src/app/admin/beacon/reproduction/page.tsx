@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { DataQualityBadge, AIParsedBadge } from "@/components/DataQualityBadge";
+import { DataQualityBadge, AIParsedBadge } from "@/components/badges";
 
 interface ReproductionRecord {
   vitals_id: string;

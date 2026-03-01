@@ -13,6 +13,7 @@ export { default as CompleteRequestModal } from './CompleteRequestModal';
 export { default as HoldRequestModal } from './HoldRequestModal';
 export { RedirectRequestModal } from './RedirectRequestModal';
 export { HandoffRequestModal } from './HandoffRequestModal';
+export { default as ArchiveRequestModal } from './ArchiveRequestModal';
 
 // Communication modals
 export { SendEmailModal } from './SendEmailModal';
@@ -30,3 +31,4 @@ export { default as ReportDeceasedModal } from './ReportDeceasedModal';
 // Detail view modals
 export { default as AppointmentDetailModal } from './AppointmentDetailModal';
 export { LookupViewerModal } from './LookupViewerModal';
+export { default as DeclineIntakeModal } from './DeclineIntakeModal';

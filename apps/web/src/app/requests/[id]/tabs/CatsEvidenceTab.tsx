@@ -1,7 +1,7 @@
 "use client";
 
-import { LinkedCatsSection } from "@/components/LinkedCatsSection";
-import { MediaGallery } from "@/components/MediaGallery";
+import { LinkedCatsSection } from "@/components/sections";
+import { MediaGallery } from "@/components/media";
 
 interface CatsEvidenceTabProps {
   requestId: string;

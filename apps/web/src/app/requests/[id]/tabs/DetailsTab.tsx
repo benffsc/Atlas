@@ -1,6 +1,6 @@
 "use client";
 
-import { AlterationStatsCard } from "@/components/AlterationStatsCard";
+import { AlterationStatsCard } from "@/components/cards";
 import type { RequestDetail } from "../types";
 
 interface KittenForm {

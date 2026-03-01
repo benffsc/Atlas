@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { DataQualityBadge } from "@/components/DataQualityBadge";
+import { DataQualityBadge } from "@/components/badges";
 
 interface MortalityEvent {
   mortality_event_id: string;

@@ -1,8 +1,8 @@
 "use client";
 
-import { TrapperAssignments } from "@/components/TrapperAssignments";
-import { ColonyEstimates } from "@/components/ColonyEstimates";
-import { ClassificationSuggestionBanner } from "@/components/ClassificationSuggestionBanner";
+import { TrapperAssignments } from "@/components/sections";
+import { ColonyEstimates } from "@/components/charts";
+import { ClassificationSuggestionBanner } from "@/components/admin";
 import { formatPhone } from "@/lib/formatters";
 import type { RequestDetail } from "../types";
 

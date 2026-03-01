@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { formatDateLocal } from "@/lib/formatters";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 
 interface PartnerOrgCat {
   cat_id: string;

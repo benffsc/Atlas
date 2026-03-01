@@ -1,6 +1,7 @@
 "use client";
 
-import JournalSection, { JournalEntry } from "@/components/JournalSection";
+import { JournalSection } from "@/components/sections";
+import type { JournalEntry } from "@/components/sections";
 
 interface ActivityTabProps {
   requestId: string;

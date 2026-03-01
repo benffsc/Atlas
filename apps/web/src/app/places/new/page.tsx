@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import PlaceResolver from "@/components/PlaceResolver";
+import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 
 export default function NewPlacePage() {
   const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);

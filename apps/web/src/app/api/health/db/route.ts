@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Database Health Check Endpoint
  *
- * Returns the status of all critical database objects needed for:
- * - Beacon Analytics (colony status, TNR metrics)
- * - Tippy Data Quality (deduplication, lineage, quality checks)
+ * V2 Schema Architecture:
+ * - source.* — Raw data from external systems
+ * - ops.* — Operational data (views, appointments, staff)
+ * - sot.* — Source of Truth entities (cats, people, places)
  *
  * Used by:
  * - Playwright tests (to diagnose failures)
@@ -16,97 +17,107 @@ import { queryOne, queryRows } from "@/lib/db";
 
 interface DbCheck {
   name: string;
+  schema: string;
   type: "view" | "materialized_view" | "function" | "table";
   exists: boolean;
   error?: string;
 }
 
-async function checkView(viewName: string): Promise<DbCheck> {
+async function checkView(schema: string, viewName: string): Promise<DbCheck> {
   try {
     const result = await queryOne<{ exists: boolean }>(`
       SELECT EXISTS(
         SELECT 1 FROM pg_views
-        WHERE schemaname = 'trapper' AND viewname = $1
+        WHERE schemaname = $1 AND viewname = $2
       ) as exists
-    `, [viewName]);
-    return { name: viewName, type: "view", exists: result?.exists ?? false };
+    `, [schema, viewName]);
+    return { name: viewName, schema, type: "view", exists: result?.exists ?? false };
   } catch (error) {
-    return { name: viewName, type: "view", exists: false, error: String(error) };
+    return { name: viewName, schema, type: "view", exists: false, error: String(error) };
   }
 }
 
-async function checkMaterializedView(viewName: string): Promise<DbCheck> {
+async function checkMaterializedView(schema: string, viewName: string): Promise<DbCheck> {
   try {
     const result = await queryOne<{ exists: boolean }>(`
       SELECT EXISTS(
         SELECT 1 FROM pg_matviews
-        WHERE schemaname = 'trapper' AND matviewname = $1
+        WHERE schemaname = $1 AND matviewname = $2
       ) as exists
-    `, [viewName]);
-    return { name: viewName, type: "materialized_view", exists: result?.exists ?? false };
+    `, [schema, viewName]);
+    return { name: viewName, schema, type: "materialized_view", exists: result?.exists ?? false };
   } catch (error) {
-    return { name: viewName, type: "materialized_view", exists: false, error: String(error) };
+    return { name: viewName, schema, type: "materialized_view", exists: false, error: String(error) };
   }
 }
 
-async function checkFunction(funcName: string): Promise<DbCheck> {
+async function checkFunction(schema: string, funcName: string): Promise<DbCheck> {
   try {
     const result = await queryOne<{ exists: boolean }>(`
       SELECT EXISTS(
         SELECT 1 FROM pg_proc p
         JOIN pg_namespace n ON p.pronamespace = n.oid
-        WHERE n.nspname = 'trapper' AND p.proname = $1
+        WHERE n.nspname = $1 AND p.proname = $2
       ) as exists
-    `, [funcName]);
-    return { name: funcName, type: "function", exists: result?.exists ?? false };
+    `, [schema, funcName]);
+    return { name: funcName, schema, type: "function", exists: result?.exists ?? false };
   } catch (error) {
-    return { name: funcName, type: "function", exists: false, error: String(error) };
+    return { name: funcName, schema, type: "function", exists: false, error: String(error) };
   }
 }
 
-async function checkTable(tableName: string): Promise<DbCheck> {
+async function checkTable(schema: string, tableName: string): Promise<DbCheck> {
   try {
     const result = await queryOne<{ exists: boolean }>(`
       SELECT EXISTS(
         SELECT 1 FROM pg_tables
-        WHERE schemaname = 'trapper' AND tablename = $1
+        WHERE schemaname = $1 AND tablename = $2
       ) as exists
-    `, [tableName]);
-    return { name: tableName, type: "table", exists: result?.exists ?? false };
+    `, [schema, tableName]);
+    return { name: tableName, schema, type: "table", exists: result?.exists ?? false };
   } catch (error) {
-    return { name: tableName, type: "table", exists: false, error: String(error) };
+    return { name: tableName, schema, type: "table", exists: false, error: String(error) };
   }
 }
 
 export async function GET() {
   try {
     const checks = await Promise.all([
-      // Beacon views
-      checkView("v_beacon_summary"),
-      checkView("v_beacon_place_metrics"),
-      checkView("v_beacon_cluster_summary"),
-      checkMaterializedView("mv_beacon_clusters"),
+      // V2 Core entity views (ops schema)
+      checkView("ops", "v_cat_list"),
+      checkView("ops", "v_person_list"),
+      checkView("ops", "v_place_list"),
+      checkView("ops", "v_request_list"),
 
-      // Beacon functions
-      checkFunction("beacon_cluster_colonies"),
-      checkFunction("get_seasonal_alerts"),
+      // V2 Detail views (sot schema)
+      checkView("sot", "v_cat_detail"),
+      checkView("sot", "v_person_detail"),
+      checkView("sot", "v_place_detail"),
 
-      // Seasonal views
-      checkView("v_seasonal_dashboard"),
-      checkView("v_yoy_activity_comparison"),
-      checkView("v_kitten_surge_prediction"),
+      // V2 Core tables (sot schema)
+      checkTable("sot", "cats"),
+      checkTable("sot", "people"),
+      checkTable("sot", "places"),
+      checkTable("sot", "addresses"),
 
-      // Data quality functions (MIG_487)
-      checkFunction("check_entity_quality"),
-      checkFunction("find_potential_duplicates"),
-      checkFunction("query_merge_history"),
-      checkFunction("query_data_lineage"),
-      checkFunction("query_volunteerhub_data"),
+      // V2 Operational tables (ops schema)
+      checkTable("ops", "requests"),
+      checkTable("ops", "appointments"),
+      checkTable("ops", "staff"),
 
-      // Supporting tables
-      checkTable("source_identity_confidence"),
-      checkTable("place_colony_estimates"),
-      checkTable("schema_migrations"),
+      // V2 Source tables (source schema)
+      checkTable("source", "clinichq_raw"),
+      checkTable("source", "shelterluv_raw"),
+
+      // Linear integration (ops schema)
+      checkTable("ops", "linear_issues"),
+      checkTable("ops", "linear_projects"),
+
+      // V2 Core functions (sot schema)
+      checkFunction("sot", "find_or_create_person"),
+      checkFunction("sot", "find_or_create_place"),
+      checkFunction("sot", "find_or_create_cat"),
+      checkFunction("sot", "classify_owner_name"),
     ]);
 
     const failed = checks.filter((c) => !c.exists);
@@ -125,7 +136,7 @@ export async function GET() {
       // Table doesn't exist yet
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       healthy,
       summary: {
         total: checks.length,
@@ -136,21 +147,14 @@ export async function GET() {
       failed,
       migrations,
       hints: failed.length > 0 ? [
-        "Run: ./scripts/deploy-critical-migrations.sh",
-        "See: docs/DEPLOYMENT.md#beacon-migrations",
+        "Apply V2 migrations from sql/schema/v2/",
+        "See: docs/DEVELOPER_QUICK_START.md",
       ] : [],
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    return NextResponse.json({
-      healthy: false,
-      error: "Database connection failed",
-      details: String(error),
-      hints: [
-        "Check DATABASE_URL environment variable",
-        "Verify database is running",
-      ],
-      timestamp: new Date().toISOString(),
-    }, { status: 503 });
+    return apiServerError(
+      `Database connection failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }

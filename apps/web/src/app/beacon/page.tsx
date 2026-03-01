@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SeasonalAlertsCard } from "@/components/SeasonalAlertsCard";
-import { YoYComparisonChart } from "@/components/YoYComparisonChart";
+import { SeasonalAlertsCard } from "@/components/cards";
+import { YoYComparisonChart } from "@/components/charts";
 
 interface BeaconSummaryResponse {
   summary: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BackButton } from "@/components/BackButton";
+import { BackButton } from "@/components/common";
 
 interface SourceConfidence {
   source_type: string;

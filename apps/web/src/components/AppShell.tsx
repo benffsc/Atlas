@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import GlobalSearch from "@/components/GlobalSearch";
+import { GlobalSearch } from "@/components/search";
 import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout";
 
 interface Staff {

@@ -2,32 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import PlaceResolver from "@/components/PlaceResolver";
+import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import JournalSection, { JournalEntry } from "@/components/JournalSection";
-import QuickNotes from "@/components/QuickNotes";
-import { BackButton } from "@/components/BackButton";
-import { EditHistory } from "@/components/EditHistory";
-import { TrapperBadge } from "@/components/TrapperBadge";
-import { TrapperStatsCard } from "@/components/TrapperStatsCard";
-import { VolunteerBadge } from "@/components/VolunteerBadge";
-import { SubmissionsSection } from "@/components/SubmissionsSection";
-import { EntityLink } from "@/components/EntityLink";
-import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
-import { PersonPlaceGoogleContext } from "@/components/GoogleMapContextCard";
-import { validatePersonName } from "@/lib/validation";
-import { QuickActions, usePersonQuickActionState } from "@/components/QuickActions";
-import { formatDateLocal, formatPhone, isValidPhone, extractPhones } from "@/lib/formatters";
-import { SendEmailModal } from "@/components/SendEmailModal";
-import { StatusBadge, PriorityBadge } from "@/components/StatusBadge";
-import ClinicHistorySection from "@/components/ClinicHistorySection";
-import ClinicNotesSection from "@/components/ClinicNotesSection";
-import { TwoColumnLayout } from "@/components/layouts";
-import { Section, StatsSidebar, StatRow } from "@/components/layouts";
-import { MediaGallery } from "@/components/MediaGallery";
-import { LinkedCatsSection } from "@/components/LinkedCatsSection";
-import { LinkedPlacesSection } from "@/components/LinkedPlacesSection";
+import { JournalSection, ClinicHistorySection, ClinicNotesSection, LinkedCatsSection, LinkedPlacesSection } from "@/components/sections";
+import type { JournalEntry } from "@/components/sections";
+import { QuickNotes, BackButton, EditHistory, EntityLink, QuickActions, usePersonQuickActionState, SubmissionsSection } from "@/components/common";
+import { TrapperBadge, VolunteerBadge, VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/components/badges";
+import { TrapperStatsCard, PersonPlaceGoogleContext } from "@/components/cards";
+import { SendEmailModal } from "@/components/modals";
+import { MediaGallery } from "@/components/media";
+import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { VerificationPanel } from "@/components/verification";
+import { validatePersonName } from "@/lib/validation";
+import { formatDateLocal, formatPhone, isValidPhone, extractPhones } from "@/lib/formatters";
 
 interface Cat {
   cat_id: string;

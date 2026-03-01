@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { SendEmailModal } from "@/components/SendEmailModal";
+import { SendEmailModal } from "@/components/modals";
 
 interface EmailHubMetrics {
   connected_accounts: number;

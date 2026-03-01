@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DataQualityBadge } from "@/components/DataQualityBadge";
+import { DataQualityBadge } from "@/components/badges";
 
 interface SeasonalDashboard {
   year: number;

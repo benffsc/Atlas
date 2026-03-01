@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface Organization {
   org_id: string;
@@ -54,6 +56,12 @@ export async function GET(
   const { id } = await params;
 
   try {
+    // Validate UUID if it looks like one (org_code may not be UUID)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    if (isUUID) {
+      requireValidUUID(id, "organization");
+    }
+
     // Get organization details
     const org = await queryOne<Organization>(`
       SELECT
@@ -72,10 +80,7 @@ export async function GET(
     `, [id]);
 
     if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Organization", id);
     }
 
     // Get members (people linked to this org)
@@ -148,22 +153,18 @@ export async function GET(
       WHERE org_id = $1
     `, [org.org_id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       organization: org,
       members,
       cats,
       cat_count: catCount?.count || cats.length,
       children,
-    }, {
-      headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-      }
     });
   } catch (err) {
+    if (err instanceof Error && err.name === "ApiError") {
+      return apiError(err.message, (err as { status?: number }).status || 400);
+    }
     console.error("Error fetching organization:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch organization");
   }
 }

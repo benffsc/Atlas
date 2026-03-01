@@ -20,7 +20,7 @@ export { TrapperStatsCard } from './TrapperStatsCard';
 // Context cards
 export { SeasonalAlertsCard } from './SeasonalAlertsCard';
 export { default as HistoricalContextCard } from './HistoricalContextCard';
-export { GoogleMapContextCard } from './GoogleMapContextCard';
+export { GoogleMapContextCard, PersonPlaceGoogleContext } from './GoogleMapContextCard';
 
 // Workflow cards
 export { ReminderCard } from './ReminderCard';

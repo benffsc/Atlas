@@ -2,23 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import JournalSection, { JournalEntry } from "@/components/JournalSection";
-import QuickNotes from "@/components/QuickNotes";
-import { BackButton } from "@/components/BackButton";
-import { EditHistory } from "@/components/EditHistory";
-import { OwnershipTransferWizard } from "@/components/OwnershipTransferWizard";
-import { CatMovementSection } from "@/components/CatMovementSection";
-import { EntityLink } from "@/components/EntityLink";
-import { VerificationBadge, LastVerified } from "@/components/VerificationBadge";
+import { JournalSection, CatMovementSection } from "@/components/sections";
+import type { JournalEntry } from "@/components/sections";
+import { QuickNotes, BackButton, EditHistory, EntityLink, QuickActions, useCatQuickActionState } from "@/components/common";
+import { OwnershipTransferWizard } from "@/components/forms";
+import { VerificationBadge, LastVerified, AtlasCatIdBadge, MicrochipStatusBadge } from "@/components/badges";
+import { ReportDeceasedModal, RecordBirthModal, AppointmentDetailModal } from "@/components/modals";
+import { MediaGallery } from "@/components/media";
 import { formatDateLocal, formatPhone } from "@/lib/formatters";
-import ReportDeceasedModal from "@/components/ReportDeceasedModal";
-import RecordBirthModal from "@/components/RecordBirthModal";
-import AppointmentDetailModal from "@/components/AppointmentDetailModal";
-import { MediaGallery } from "@/components/MediaGallery";
-import { QuickActions, useCatQuickActionState } from "@/components/QuickActions";
 import { ProfileLayout } from "@/components/ProfileLayout";
-import { AtlasCatIdBadge } from "@/components/AtlasCatIdBadge";
-import { MicrochipStatusBadge } from "@/components/MicrochipStatusBadge";
 
 interface Owner {
   person_id: string;

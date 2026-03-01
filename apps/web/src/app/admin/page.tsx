@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ClinicHQUploadModal from "@/components/ClinicHQUploadModal";
+import { ClinicHQUploadModal } from "@/components/modals";
 
 interface QueueStats {
   total: number;

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { TrapperBadge } from "@/components/TrapperBadge";
-import { TrapperStatsCard } from "@/components/TrapperStatsCard";
-import { BackButton } from "@/components/BackButton";
+import { TrapperBadge } from "@/components/badges";
+import { TrapperStatsCard } from "@/components/cards";
+import { BackButton } from "@/components/common";
 
 interface TrapperStats {
   person_id: string;

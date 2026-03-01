@@ -8,26 +8,28 @@
  * - Legacy (mapped): triaged→new, scheduled→working, in_progress→working, on_hold→paused
  */
 
+import { COLORS, TYPOGRAPHY, BORDERS, SPACING } from "@/lib/design-tokens";
+
 const STATUS_COLORS: Record<string, { bg: string; color: string; softBg: string; softColor: string }> = {
   // PRIMARY STATUSES (new simplified system)
-  new:         { bg: "#3b82f6", color: "#fff", softBg: "#dbeafe", softColor: "#1e40af" },  // Blue
-  working:     { bg: "#f59e0b", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },  // Amber
-  paused:      { bg: "#ec4899", color: "#fff", softBg: "#fce7f3", softColor: "#9d174d" },  // Pink
-  completed:   { bg: "#10b981", color: "#fff", softBg: "#d1fae5", softColor: "#065f46" },  // Emerald
+  new:         { bg: COLORS.primary, color: COLORS.white, softBg: COLORS.primaryLight, softColor: COLORS.primaryDark },  // Blue
+  working:     { bg: COLORS.warning, color: COLORS.black, softBg: COLORS.warningLight, softColor: COLORS.warningDark },  // Amber
+  paused:      { bg: "#ec4899", color: COLORS.white, softBg: "#fce7f3", softColor: "#9d174d" },  // Pink
+  completed:   { bg: COLORS.success, color: COLORS.white, softBg: COLORS.successLight, softColor: COLORS.successDark },  // Emerald
 
   // SPECIAL STATUSES
-  redirected:  { bg: "#9ca3af", color: "#fff", softBg: "#f3f4f6", softColor: "#6b7280" },  // Gray
-  handed_off:  { bg: "#0d9488", color: "#fff", softBg: "#ccfbf1", softColor: "#115e59" },  // Teal
+  redirected:  { bg: COLORS.gray400, color: COLORS.white, softBg: COLORS.gray100, softColor: COLORS.gray500 },  // Gray
+  handed_off:  { bg: "#0d9488", color: COLORS.white, softBg: "#ccfbf1", softColor: "#115e59" },  // Teal
 
   // LEGACY STATUSES (for backward compatibility - display as primary equivalent)
-  triaged:     { bg: "#3b82f6", color: "#fff", softBg: "#dbeafe", softColor: "#1e40af" },  // → new
-  scheduled:   { bg: "#f59e0b", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },  // → working
-  in_progress: { bg: "#f59e0b", color: "#000", softBg: "#fef3c7", softColor: "#92400e" },  // → working
-  on_hold:     { bg: "#ec4899", color: "#fff", softBg: "#fce7f3", softColor: "#9d174d" },  // → paused
-  cancelled:   { bg: "#6b7280", color: "#fff", softBg: "#f3f4f6", softColor: "#4b5563" },  // → completed (gray)
-  complete:    { bg: "#10b981", color: "#fff", softBg: "#d1fae5", softColor: "#065f46" },  // → completed
-  partial:     { bg: "#6b7280", color: "#fff", softBg: "#f3f4f6", softColor: "#4b5563" },  // → completed (gray)
-  archived:    { bg: "#adb5bd", color: "#000", softBg: "#f3f4f6", softColor: "#6b7280" },
+  triaged:     { bg: COLORS.primary, color: COLORS.white, softBg: COLORS.primaryLight, softColor: COLORS.primaryDark },  // → new
+  scheduled:   { bg: COLORS.warning, color: COLORS.black, softBg: COLORS.warningLight, softColor: COLORS.warningDark },  // → working
+  in_progress: { bg: COLORS.warning, color: COLORS.black, softBg: COLORS.warningLight, softColor: COLORS.warningDark },  // → working
+  on_hold:     { bg: "#ec4899", color: COLORS.white, softBg: "#fce7f3", softColor: "#9d174d" },  // → paused
+  cancelled:   { bg: COLORS.gray500, color: COLORS.white, softBg: COLORS.gray100, softColor: COLORS.gray600 },  // → completed (gray)
+  complete:    { bg: COLORS.success, color: COLORS.white, softBg: COLORS.successLight, softColor: COLORS.successDark },  // → completed
+  partial:     { bg: COLORS.gray500, color: COLORS.white, softBg: COLORS.gray100, softColor: COLORS.gray600 },  // → completed (gray)
+  archived:    { bg: COLORS.gray300, color: COLORS.black, softBg: COLORS.gray100, softColor: COLORS.gray500 },
 };
 
 /**
@@ -54,17 +56,17 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_COLORS: Record<string, { bg: string; color: string }> = {
-  urgent: { bg: "#dc3545", color: "#fff" },
-  high:   { bg: "#fd7e14", color: "#000" },
-  normal: { bg: "#6c757d", color: "#fff" },
-  low:    { bg: "#adb5bd", color: "#000" },
+  urgent: { bg: COLORS.error, color: COLORS.white },
+  high:   { bg: "#fd7e14", color: COLORS.black },
+  normal: { bg: COLORS.gray500, color: COLORS.white },
+  low:    { bg: COLORS.gray300, color: COLORS.black },
 };
 
 const PRIORITY_DOT_COLORS: Record<string, string> = {
-  urgent: "#dc2626",
+  urgent: COLORS.error,
   high:   "#f97316",
-  normal: "#6b7280",
-  low:    "#9ca3af",
+  normal: COLORS.gray500,
+  low:    COLORS.gray400,
 };
 
 interface StatusBadgeProps {
@@ -82,9 +84,9 @@ export function StatusBadge({ status, variant = "solid", size = "md", label }: S
   const isSoft = variant === "soft";
 
   const sizeStyles = {
-    sm: { fontSize: "0.65rem", padding: "1px 6px" },
-    md: { fontSize: "0.75rem", padding: "2px 8px" },
-    lg: { fontSize: "0.9rem", padding: "0.5rem 1rem" },
+    sm: { fontSize: TYPOGRAPHY.size["2xs"], padding: `1px ${SPACING.sm}` },
+    md: { fontSize: TYPOGRAPHY.size.xs, padding: `2px ${SPACING.sm}` },
+    lg: { fontSize: TYPOGRAPHY.size.sm, padding: `${SPACING.sm} ${SPACING.lg}` },
   };
 
   const displayLabel = label || STATUS_LABELS[status] || status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -95,8 +97,8 @@ export function StatusBadge({ status, variant = "solid", size = "md", label }: S
       style={{
         background: isSoft ? s.softBg : s.bg,
         color: isSoft ? s.softColor : s.color,
-        borderRadius: isSoft ? "9999px" : undefined,
-        fontWeight: 500,
+        borderRadius: isSoft ? BORDERS.radius.full : undefined,
+        fontWeight: TYPOGRAPHY.weight.medium,
         textTransform: "capitalize",
         whiteSpace: "nowrap",
         ...sizeStyles[size],
@@ -121,7 +123,7 @@ export function PriorityBadge({ priority, size = "md" }: PriorityBadgeProps) {
       style={{
         background: s.bg,
         color: s.color,
-        fontSize: size === "sm" ? "0.65rem" : "0.75rem",
+        fontSize: size === "sm" ? TYPOGRAPHY.size["2xs"] : TYPOGRAPHY.size.xs,
         textTransform: "capitalize",
       }}
     >
