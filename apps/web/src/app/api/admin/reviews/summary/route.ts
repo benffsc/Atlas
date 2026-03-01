@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Unified Review Dashboard Summary API
@@ -253,12 +253,9 @@ export async function GET() {
       })),
     };
 
-    return NextResponse.json(summary);
+    return apiSuccess(summary);
   } catch (error) {
     console.error("Error fetching review summary:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Failed to fetch review summary");
   }
 }

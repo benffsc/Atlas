@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * Unified Identity Review API
@@ -364,7 +365,7 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*) FROM sot.data_engine_match_decisions WHERE decision_type = 'review_pending' AND reviewed_at IS NULL)::int as uncertain
     `, []);
 
-    return NextResponse.json({
+    return apiSuccess({
       items: items.slice(0, limit),
       stats: stats || { total: 0, tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0, uncertain: 0 },
       pagination: {
@@ -375,10 +376,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching identity reviews:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Failed to fetch identity reviews");
   }
 }
 
@@ -391,18 +389,12 @@ export async function POST(request: NextRequest) {
     const { id, action, notes } = body;
 
     if (!id || !action) {
-      return NextResponse.json(
-        { error: "id and action are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("id and action are required");
     }
 
     const validActions = ["merge", "keep_separate", "dismiss"];
     if (!validActions.includes(action)) {
-      return NextResponse.json(
-        { error: `Invalid action. Must be one of: ${validActions.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid action. Must be one of: ${validActions.join(", ")}`);
     }
 
     // Parse the composite ID: source:id1:id2 or source:id
@@ -424,7 +416,8 @@ export async function POST(request: NextRequest) {
         }
       );
       const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
+      if (!res.ok) return apiServerError(data.error || "Failed to resolve dedup");
+      return apiSuccess(data);
     } else if (source === "tier4") {
       // Call merge-review resolution
       const duplicateId = idParts[0];
@@ -437,7 +430,8 @@ export async function POST(request: NextRequest) {
         }
       );
       const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
+      if (!res.ok) return apiServerError(data.error || "Failed to resolve tier4");
+      return apiSuccess(data);
     } else if (source === "engine") {
       // Call data-engine review resolution
       const decisionId = idParts[0];
@@ -451,15 +445,13 @@ export async function POST(request: NextRequest) {
         }
       );
       const data = await res.json();
-      return NextResponse.json(data, { status: res.status });
+      if (!res.ok) return apiServerError(data.error || "Failed to resolve engine decision");
+      return apiSuccess(data);
     }
 
-    return NextResponse.json({ error: "Unknown source type" }, { status: 400 });
+    return apiBadRequest("Unknown source type");
   } catch (error) {
     console.error("Error resolving review:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Failed to resolve review");
   }
 }
