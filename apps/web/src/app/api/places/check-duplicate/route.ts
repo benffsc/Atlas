@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface DuplicateCheckResult {
   isDuplicate: boolean;
@@ -41,10 +42,7 @@ export async function GET(request: NextRequest) {
   const address = searchParams.get("address");
 
   if (!address || address.trim().length < 5) {
-    return NextResponse.json(
-      { error: "Address parameter required (minimum 5 characters)" },
-      { status: 400 }
-    );
+    return apiBadRequest("Address parameter required (minimum 5 characters)");
   }
 
   try {
@@ -80,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     if (existingPlaces.length === 0) {
       // No duplicate found
-      return NextResponse.json({
+      return apiSuccess({
         isDuplicate: false,
         canAddUnit: false,
         normalizedAddress,
@@ -96,7 +94,7 @@ export async function GET(request: NextRequest) {
       // Check if address doesn't already have a unit
       !/\b(apt|apartment|unit|suite|ste|space|#)\s*[a-z0-9]/i.test(address);
 
-    return NextResponse.json({
+    return apiSuccess({
       isDuplicate: true,
       existingPlace: bestMatch,
       canAddUnit,
@@ -104,9 +102,6 @@ export async function GET(request: NextRequest) {
     } as DuplicateCheckResult);
   } catch (error) {
     console.error("Error checking duplicate:", error);
-    return NextResponse.json(
-      { error: "Failed to check for duplicate" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check for duplicate");
   }
 }

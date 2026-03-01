@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface Colony {
   colony_id: string;
@@ -87,16 +88,10 @@ export async function GET(request: NextRequest) {
       FROM ops.v_colony_stats`
     );
 
-    return NextResponse.json({
-      colonies,
-      summary,
-    });
+    return apiSuccess({ colonies, summary });
   } catch (error) {
     console.error("Error fetching colonies:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch colonies" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch colonies");
   }
 }
 
@@ -107,25 +102,16 @@ export async function POST(request: NextRequest) {
     const { colony_name, status = "active", notes, created_by } = body;
 
     if (!colony_name?.trim()) {
-      return NextResponse.json(
-        { error: "Colony name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Colony name is required");
     }
 
     if (!created_by?.trim()) {
-      return NextResponse.json(
-        { error: "Created by is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Created by is required");
     }
 
     const validStatuses = ["active", "monitored", "resolved", "inactive"];
     if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
     }
 
     const colony = await queryOne<{ colony_id: string }>(
@@ -136,21 +122,12 @@ export async function POST(request: NextRequest) {
     );
 
     if (!colony) {
-      return NextResponse.json(
-        { error: "Failed to create colony" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create colony");
     }
 
-    return NextResponse.json({
-      success: true,
-      colony_id: colony.colony_id,
-    });
+    return apiSuccess({ colony_id: colony.colony_id });
   } catch (error) {
     console.error("Error creating colony:", error);
-    return NextResponse.json(
-      { error: "Failed to create colony" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create colony");
   }
 }

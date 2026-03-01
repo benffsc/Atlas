@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
@@ -32,15 +33,10 @@ export async function GET() {
          AND formatted_address != ''`
     );
 
-    return NextResponse.json({
-      places_needing_geocoding: result?.count || 0,
-    });
+    return apiSuccess({ places_needing_geocoding: result?.count || 0 });
   } catch (error) {
     console.error("Error checking places:", error);
-    return NextResponse.json(
-      { error: "Failed to check places" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check places");
   }
 }
 
@@ -52,10 +48,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google API key not configured (set GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY)" },
-      { status: 500 }
-    );
+    return apiServerError("Google API key not configured (set GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY)");
   }
 
   try {
@@ -74,7 +67,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (places.length === 0) {
-      return NextResponse.json({
+      return apiSuccess({
         message: "No places need geocoding",
         processed: 0,
         results: [],
@@ -144,7 +137,7 @@ export async function POST(request: NextRequest) {
     const successCount = results.filter((r) => r.status === "success").length;
     const failCount = results.filter((r) => r.status !== "success").length;
 
-    return NextResponse.json({
+    return apiSuccess({
       message: `Geocoded ${successCount} places, ${failCount} failed`,
       processed: results.length,
       success: successCount,
@@ -153,9 +146,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error geocoding places:", error);
-    return NextResponse.json(
-      { error: "Failed to geocode places" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to geocode places");
   }
 }

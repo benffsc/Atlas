@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
@@ -14,17 +15,11 @@ export async function GET(request: NextRequest) {
   const input = searchParams.get("input");
 
   if (!input) {
-    return NextResponse.json(
-      { error: "Input required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Input required");
   }
 
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google Places API key not configured" },
-      { status: 500 }
-    );
+    return apiServerError("Google Places API key not configured");
   }
 
   try {
@@ -46,20 +41,12 @@ export async function GET(request: NextRequest) {
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
       console.error("Google Places error:", data.status, data.error_message);
-      return NextResponse.json(
-        { error: "Places API error", predictions: [] },
-        { status: 500 }
-      );
+      return apiServerError("Places API error");
     }
 
-    return NextResponse.json({
-      predictions: data.predictions || [],
-    });
+    return apiSuccess({ predictions: data.predictions || [] });
   } catch (error) {
     console.error("Autocomplete error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch predictions" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch predictions");
   }
 }

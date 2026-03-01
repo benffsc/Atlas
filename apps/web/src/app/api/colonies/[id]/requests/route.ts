@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 // POST /api/colonies/[id]/requests - Link a request to colony
 export async function POST(
@@ -13,17 +14,11 @@ export async function POST(
     const { request_id, added_by } = body;
 
     if (!request_id) {
-      return NextResponse.json(
-        { error: "request_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("request_id is required");
     }
 
     if (!added_by?.trim()) {
-      return NextResponse.json(
-        { error: "added_by is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("added_by is required");
     }
 
     // Verify colony exists
@@ -33,7 +28,7 @@ export async function POST(
     );
 
     if (!colony) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", colonyId);
     }
 
     // Verify request exists
@@ -43,7 +38,7 @@ export async function POST(
     );
 
     if (!req) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      return apiNotFound("request", request_id);
     }
 
     // Insert the link (ignore if already exists)
@@ -54,13 +49,10 @@ export async function POST(
       [colonyId, request_id, added_by.trim()]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ linked: true });
   } catch (error) {
     console.error("Error linking request to colony:", error);
-    return NextResponse.json(
-      { error: "Failed to link request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to link request");
   }
 }
 
@@ -74,10 +66,7 @@ export async function DELETE(
   const requestId = searchParams.get("requestId");
 
   if (!requestId) {
-    return NextResponse.json(
-      { error: "requestId query parameter is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("requestId query parameter is required");
   }
 
   try {
@@ -89,18 +78,12 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Request link not found" },
-        { status: 404 }
-      );
+      return apiNotFound("request link", requestId);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Error unlinking request:", error);
-    return NextResponse.json(
-      { error: "Failed to unlink request" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to unlink request");
   }
 }

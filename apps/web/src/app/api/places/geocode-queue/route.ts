@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
@@ -44,16 +45,10 @@ export async function GET() {
       "SELECT place_id, formatted_address, geocode_error, failure_category FROM ops.v_geocoding_failures LIMIT 10"
     );
 
-    return NextResponse.json({
-      stats,
-      recent_failures: failures,
-    });
+    return apiSuccess({ stats, recent_failures: failures });
   } catch (error) {
     console.error("Error getting geocode stats:", error);
-    return NextResponse.json(
-      { error: "Failed to get geocoding stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to get geocoding stats");
   }
 }
 
@@ -65,10 +60,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google API key not configured" },
-      { status: 500 }
-    );
+    return apiServerError("Google API key not configured");
   }
 
   try {
@@ -82,7 +74,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (queue.length === 0) {
-      return NextResponse.json({
+      return apiSuccess({
         message: "No places ready for geocoding",
         processed: 0,
         results: [],
@@ -171,7 +163,7 @@ export async function POST(request: NextRequest) {
       active_requests_pending: number;
     }>("SELECT * FROM ops.v_geocoding_stats");
 
-    return NextResponse.json({
+    return apiSuccess({
       message: `Processed ${results.length} places: ${successCount} success, ${failedCount} failed/retry`,
       processed: results.length,
       success: successCount,
@@ -181,9 +173,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error processing geocode queue:", error);
-    return NextResponse.json(
-      { error: "Failed to process geocoding queue" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process geocoding queue");
   }
 }

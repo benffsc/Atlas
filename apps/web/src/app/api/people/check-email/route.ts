@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface EmailCheckResult {
   exists: boolean;
@@ -31,10 +32,7 @@ export async function GET(request: NextRequest) {
   const email = searchParams.get("email");
 
   if (!email || !email.includes("@")) {
-    return NextResponse.json(
-      { error: "Valid email parameter required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Valid email parameter required");
   }
 
   try {
@@ -56,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     if (result) {
       // Email exists
-      return NextResponse.json({
+      return apiSuccess({
         exists: true,
         person: {
           person_id: result.person_id,
@@ -72,16 +70,13 @@ export async function GET(request: NextRequest) {
       [email]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       exists: false,
       normalizedEmail: normResult?.normalized || email.toLowerCase(),
     } as EmailCheckResult);
   } catch (error) {
     console.error("Error checking email:", error);
-    return NextResponse.json(
-      { error: "Failed to check email" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check email");
   }
 }
 
@@ -181,12 +176,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(results);
+    return apiSuccess(results);
   } catch (error) {
     console.error("Error checking contacts:", error);
-    return NextResponse.json(
-      { error: "Failed to check contacts" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check contacts");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface CreateFromCoordinatesBody {
   lat: number;
@@ -15,10 +16,7 @@ export async function POST(request: NextRequest) {
     // Validate coordinates
     if (typeof body.lat !== 'number' || typeof body.lng !== 'number' ||
         body.lat < -90 || body.lat > 90 || body.lng < -180 || body.lng > 180) {
-      return NextResponse.json(
-        { error: "Valid lat (-90..90) and lng (-180..180) are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Valid lat (-90..90) and lng (-180..180) are required");
     }
 
     // Use centralized function — handles 10m dedup automatically
@@ -28,10 +26,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create place" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create place");
     }
 
     const placeId = result.create_place_from_coordinates;
@@ -56,18 +51,14 @@ export async function POST(request: NextRequest) {
       [placeId]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: placeId,
       display_name: place?.display_name || body.display_name || null,
       formatted_address: place?.formatted_address || null,
       is_existing: place?.is_address_backed === true,
-      success: true,
     });
   } catch (error) {
     console.error("Error creating place from coordinates:", error);
-    return NextResponse.json(
-      { error: "Failed to create place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create place");
   }
 }

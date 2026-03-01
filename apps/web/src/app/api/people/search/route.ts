@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess } from "@/lib/api-response";
 
 /**
  * People Search API
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "20");
 
   if (query.length < 2) {
-    return NextResponse.json({ people: [] });
+    return apiSuccess({ people: [] });
   }
 
   const searchPattern = `%${query}%`;
@@ -93,8 +94,5 @@ export async function GET(request: NextRequest) {
     LIMIT $2
   `, [searchPattern, limit]);
 
-  return NextResponse.json({
-    people,
-    query,
-  });
+  return apiSuccess({ people, query });
 }

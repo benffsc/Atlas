@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface SimilarPerson {
   person_id: string;
@@ -30,10 +31,7 @@ export async function GET(request: NextRequest) {
   const threshold = parseFloat(searchParams.get("threshold") || "0.30");
 
   if (!name || name.trim().length < 2) {
-    return NextResponse.json(
-      { error: "Name is required (minimum 2 characters)" },
-      { status: 400 }
-    );
+    return apiBadRequest("Name is required (minimum 2 characters)");
   }
 
   try {
@@ -55,7 +53,7 @@ export async function GET(request: NextRequest) {
       (m) => !highConfidence.includes(m) && !mediumConfidence.includes(m)
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       query: { name, phone, email },
       total_matches: matches.length,
       high_confidence: highConfidence,
@@ -66,9 +64,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error checking for duplicates:", error);
-    return NextResponse.json(
-      { error: "Failed to check for duplicates" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check for duplicates");
   }
 }

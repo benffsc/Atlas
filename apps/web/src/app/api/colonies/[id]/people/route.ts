@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 interface ColonyPerson {
   colony_people_id: string;
@@ -68,13 +69,10 @@ export async function GET(
       [colonyId]
     );
 
-    return NextResponse.json({ people });
+    return apiSuccess({ people });
   } catch (error) {
     console.error("Error fetching colony people:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch people" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch people");
   }
 }
 
@@ -90,17 +88,11 @@ export async function POST(
     const { person_id, role_type, notes, assigned_by } = body;
 
     if (!person_id) {
-      return NextResponse.json(
-        { error: "person_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("person_id is required");
     }
 
     if (!role_type) {
-      return NextResponse.json(
-        { error: "role_type is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("role_type is required");
     }
 
     const validRoles = [
@@ -117,17 +109,11 @@ export async function POST(
     ];
 
     if (!validRoles.includes(role_type)) {
-      return NextResponse.json(
-        { error: `Invalid role_type. Must be one of: ${validRoles.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid role_type. Must be one of: ${validRoles.join(", ")}`);
     }
 
     if (!assigned_by?.trim()) {
-      return NextResponse.json(
-        { error: "assigned_by is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("assigned_by is required");
     }
 
     // Verify colony exists
@@ -137,7 +123,7 @@ export async function POST(
     );
 
     if (!colony) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", colonyId);
     }
 
     // Verify person exists
@@ -148,7 +134,7 @@ export async function POST(
     );
 
     if (!person) {
-      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+      return apiNotFound("person", person_id);
     }
 
     // Use the assign_colony_person function for idempotent assignment
@@ -157,16 +143,10 @@ export async function POST(
       [colonyId, person_id, role_type, assigned_by.trim(), notes?.trim() || null]
     );
 
-    return NextResponse.json({
-      success: true,
-      colony_people_id: result?.assign_colony_person,
-    });
+    return apiSuccess({ colony_people_id: result?.assign_colony_person });
   } catch (error) {
     console.error("Error linking person to colony:", error);
-    return NextResponse.json(
-      { error: "Failed to link person" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to link person");
   }
 }
 
@@ -182,10 +162,7 @@ export async function PATCH(
     const { person_id, role_type, action, end_reason } = body;
 
     if (!person_id || !role_type) {
-      return NextResponse.json(
-        { error: "person_id and role_type are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("person_id and role_type are required");
     }
 
     if (action === "end") {
@@ -195,21 +172,13 @@ export async function PATCH(
         [colonyId, person_id, role_type, end_reason || null]
       );
 
-      return NextResponse.json({
-        success: result?.end_colony_person || false,
-      });
+      return apiSuccess({ ended: result?.end_colony_person || false });
     }
 
-    return NextResponse.json(
-      { error: "Invalid action. Use action: 'end' to end a role." },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid action. Use action: 'end' to end a role.");
   } catch (error) {
     console.error("Error updating colony person:", error);
-    return NextResponse.json(
-      { error: "Failed to update person" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update person");
   }
 }
 
@@ -224,10 +193,7 @@ export async function DELETE(
   const roleType = searchParams.get("roleType");
 
   if (!personId || !roleType) {
-    return NextResponse.json(
-      { error: "personId and roleType query parameters are required" },
-      { status: 400 }
-    );
+    return apiBadRequest("personId and roleType query parameters are required");
   }
 
   try {
@@ -239,18 +205,12 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Person-role link not found" },
-        { status: 404 }
-      );
+      return apiNotFound("person-role link", `${personId}/${roleType}`);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Error removing person from colony:", error);
-    return NextResponse.json(
-      { error: "Failed to remove person" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove person");
   }
 }

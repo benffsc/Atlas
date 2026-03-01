@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface NearbyPlaceRow {
   place_id: string;
@@ -23,10 +24,7 @@ export async function GET(request: NextRequest) {
   const googlePlaceId = searchParams.get("google_place_id");
 
   if (isNaN(lat) || isNaN(lng)) {
-    return NextResponse.json(
-      { error: "lat and lng are required" },
-      { status: 400 }
-    );
+    return apiBadRequest("lat and lng are required");
   }
 
   try {
@@ -72,16 +70,13 @@ export async function GET(request: NextRequest) {
       [lat, lng]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       existing_places: nearbyPlaces,
       existing_address: existingAddress !== null,
       address_id: addressId,
     });
   } catch (error) {
     console.error("Error checking nearby places:", error);
-    return NextResponse.json(
-      { error: "Failed to check nearby places" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to check nearby places");
   }
 }

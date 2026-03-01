@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 /**
  * GET /api/colonies/suggest-details
@@ -231,10 +232,7 @@ export async function GET(request: NextRequest) {
   const radius = parseInt(searchParams.get("radius") || "200", 10);
 
   if (!requestId && !placeId) {
-    return NextResponse.json(
-      { error: "Either request_id or place_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Either request_id or place_id is required");
   }
 
   try {
@@ -277,10 +275,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!centerInfo?.lat || !centerInfo?.lng) {
-      return NextResponse.json(
-        { error: "Could not find coordinates for the specified entity" },
-        { status: 404 }
-      );
+      return apiNotFound("coordinates", requestId || placeId || "unknown");
     }
 
     // Generate colony name suggestions
@@ -513,13 +508,9 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    return NextResponse.json(response);
+    return apiSuccess(response);
   } catch (error) {
     console.error("Error generating colony suggestions:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "Failed to generate suggestions", details: errorMessage },
-      { status: 500 }
-    );
+    return apiServerError("Failed to generate suggestions");
   }
 }

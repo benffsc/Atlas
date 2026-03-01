@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query, queryOne } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
       return apiServerError("Failed to create place");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       place_id: result.place_id,
       display_name: body.display_name,
       formatted_address: body.formatted_address,

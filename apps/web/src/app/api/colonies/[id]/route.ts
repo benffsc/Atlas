@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 interface ColonyDetail {
   colony_id: string;
@@ -96,7 +97,7 @@ export async function GET(
     );
 
     if (!colony) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", id);
     }
 
     // Get linked places
@@ -155,18 +156,10 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
-      ...colony,
-      places,
-      requests,
-      observations,
-    });
+    return apiSuccess({ ...colony, places, requests, observations });
   } catch (error) {
     console.error("Error fetching colony:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch colony" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch colony");
   }
 }
 
@@ -194,10 +187,7 @@ export async function PATCH(
     if (status !== undefined) {
       const validStatuses = ["active", "monitored", "resolved", "inactive"];
       if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
       }
       updates.push(`status = $${paramIndex++}`);
       values.push(status);
@@ -209,10 +199,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No fields to update");
     }
 
     values.push(id);
@@ -226,16 +213,13 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", id);
     }
 
-    return NextResponse.json({ success: true, colony_id: result.colony_id });
+    return apiSuccess({ colony_id: result.colony_id });
   } catch (error) {
     console.error("Error updating colony:", error);
-    return NextResponse.json(
-      { error: "Failed to update colony" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update colony");
   }
 }
 
@@ -253,15 +237,12 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", id);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Error deleting colony:", error);
-    return NextResponse.json(
-      { error: "Failed to delete colony" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete colony");
   }
 }

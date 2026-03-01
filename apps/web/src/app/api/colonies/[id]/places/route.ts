@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 // POST /api/colonies/[id]/places - Link a place to colony
 export async function POST(
@@ -18,17 +19,11 @@ export async function POST(
     } = body;
 
     if (!place_id) {
-      return NextResponse.json(
-        { error: "place_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("place_id is required");
     }
 
     if (!added_by?.trim()) {
-      return NextResponse.json(
-        { error: "added_by is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("added_by is required");
     }
 
     // Verify colony exists
@@ -38,7 +33,7 @@ export async function POST(
     );
 
     if (!colony) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", colonyId);
     }
 
     // Verify place exists
@@ -48,7 +43,7 @@ export async function POST(
     );
 
     if (!place) {
-      return NextResponse.json({ error: "Place not found" }, { status: 404 });
+      return apiNotFound("place", place_id);
     }
 
     // If this is being set as primary, unset other primaries first
@@ -69,13 +64,10 @@ export async function POST(
       [colonyId, place_id, relationship_type, is_primary, added_by.trim()]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ linked: true });
   } catch (error) {
     console.error("Error linking place to colony:", error);
-    return NextResponse.json(
-      { error: "Failed to link place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to link place");
   }
 }
 
@@ -89,10 +81,7 @@ export async function DELETE(
   const placeId = searchParams.get("placeId");
 
   if (!placeId) {
-    return NextResponse.json(
-      { error: "placeId query parameter is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("placeId query parameter is required");
   }
 
   try {
@@ -104,18 +93,12 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Place link not found" },
-        { status: 404 }
-      );
+      return apiNotFound("place link", placeId);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Error unlinking place:", error);
-    return NextResponse.json(
-      { error: "Failed to unlink place" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to unlink place");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 interface Observation {
   observation_id: string;
@@ -47,13 +48,10 @@ export async function GET(
       [colonyId]
     );
 
-    return NextResponse.json({ observations });
+    return apiSuccess({ observations });
   } catch (error) {
     console.error("Error fetching observations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch observations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch observations");
   }
 }
 
@@ -78,10 +76,7 @@ export async function POST(
     } = body;
 
     if (!observed_by?.trim()) {
-      return NextResponse.json(
-        { error: "observed_by is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("observed_by is required");
     }
 
     // Verify colony exists and get linked cat counts
@@ -97,7 +92,7 @@ export async function POST(
     );
 
     if (!colonyStats) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", colonyId);
     }
 
     // Validate observation against linked data
@@ -125,14 +120,7 @@ export async function POST(
 
       // If user hasn't acknowledged, return warning
       if (!override_discrepancy) {
-        return NextResponse.json(
-          {
-            warning: true,
-            validation,
-            message: validation.message,
-          },
-          { status: 200 }
-        );
+        return apiSuccess({ warning: true, validation, message: validation.message });
       }
     }
 
@@ -169,16 +157,12 @@ export async function POST(
       ]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       observation_id: observation?.observation_id,
       validation,
     });
   } catch (error) {
     console.error("Error creating observation:", error);
-    return NextResponse.json(
-      { error: "Failed to create observation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create observation");
   }
 }

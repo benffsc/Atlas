@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiNotFound } from "@/lib/api-response";
 
 interface LinkedCat {
   cat_id: string;
@@ -29,7 +30,7 @@ export async function GET(
     );
 
     if (!colony) {
-      return NextResponse.json({ error: "Colony not found" }, { status: 404 });
+      return apiNotFound("colony", colonyId);
     }
 
     // Get linked cats with place info
@@ -65,16 +66,9 @@ export async function GET(
       community_unaltered: communityCats.filter((c) => !c.is_altered).length,
     };
 
-    return NextResponse.json({
-      cats: communityCats,
-      owned_cats: ownedCats,
-      stats,
-    });
+    return apiSuccess({ cats: communityCats, owned_cats: ownedCats, stats });
   } catch (error) {
     console.error("Error fetching colony cats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch cats");
   }
 }
