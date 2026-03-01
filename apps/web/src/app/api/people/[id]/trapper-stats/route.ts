@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface TrapperStatsRow {
   person_id: string;
@@ -37,14 +39,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     // First check if this person is a trapper
     const trapperCheck = await queryOne<{ is_trapper: boolean }>(
       `SELECT (ops.get_trapper_info($1)).is_trapper AS is_trapper`,
@@ -52,10 +49,7 @@ export async function GET(
     );
 
     if (!trapperCheck?.is_trapper) {
-      return NextResponse.json(
-        { error: "Person is not a trapper" },
-        { status: 404 }
-      );
+      return apiNotFound("Trapper", id);
     }
 
     // Get full trapper stats
@@ -65,18 +59,15 @@ export async function GET(
     );
 
     if (!stats) {
-      return NextResponse.json(
-        { error: "Trapper stats not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Trapper stats", id);
     }
 
-    return NextResponse.json(stats);
+    return apiSuccess(stats);
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching trapper stats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch trapper stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch trapper stats");
   }
 }

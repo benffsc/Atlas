@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Person AI Summary Endpoint
@@ -85,14 +87,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     // Call the database function
     const result = await queryOne<{ get_person_summary: PersonSummary | null }>(
       `SELECT ops.get_person_summary($1) as get_person_summary`,
@@ -100,18 +97,15 @@ export async function GET(
     );
 
     if (!result?.get_person_summary) {
-      return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person", id);
     }
 
-    return NextResponse.json(result.get_person_summary);
+    return apiSuccess(result.get_person_summary);
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person summary:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch person summary" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch person summary");
   }
 }

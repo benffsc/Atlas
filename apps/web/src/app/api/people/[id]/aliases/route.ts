@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { logFieldEdit } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiConflict } from "@/lib/api-response";
 
 interface AliasRow {
   alias_id: string;
@@ -18,14 +20,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const aliases = await queryRows<AliasRow>(
       `SELECT alias_id, name_raw, name_key, source_system, source_table, created_at::text
        FROM sot.person_aliases
@@ -34,13 +31,13 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({ aliases });
+    return apiSuccess({ aliases });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching aliases:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch aliases" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch aliases");
   }
 }
 
@@ -50,30 +47,19 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const body = await request.json();
     const name = body.name?.trim();
 
     if (!name) {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Name is required");
     }
 
     const validation = validatePersonName(name);
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error || "Invalid name" },
-        { status: 400 }
-      );
+      return apiBadRequest(validation.error || "Invalid name");
     }
 
     // Verify person exists
@@ -82,7 +68,7 @@ export async function POST(
       [id]
     );
     if (!person) {
-      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+      return apiNotFound("Person", id);
     }
 
     // Compute name_key and check for duplicates
@@ -98,10 +84,7 @@ export async function POST(
         [id, nameKey.key]
       );
       if (existing) {
-        return NextResponse.json(
-          { error: "This name is already recorded as a previous name" },
-          { status: 409 }
-        );
+        return apiConflict("This name is already recorded as a previous name");
       }
     }
 
@@ -119,13 +102,13 @@ export async function POST(
       reason: "manual_alias",
     });
 
-    return NextResponse.json({ alias: result });
+    return apiSuccess({ alias: result });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error adding alias:", error);
-    return NextResponse.json(
-      { error: "Failed to add alias" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to add alias");
   }
 }
 
@@ -135,22 +118,14 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const body = await request.json();
     const aliasId = body.alias_id;
 
     if (!aliasId) {
-      return NextResponse.json(
-        { error: "alias_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("alias_id is required");
     }
 
     // Verify alias belongs to this person
@@ -161,10 +136,7 @@ export async function DELETE(
     );
 
     if (!alias) {
-      return NextResponse.json(
-        { error: "Alias not found for this person" },
-        { status: 404 }
-      );
+      return apiNotFound("Alias", aliasId);
     }
 
     await query(
@@ -178,12 +150,12 @@ export async function DELETE(
       reason: "manual_removal",
     });
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error removing alias:", error);
-    return NextResponse.json(
-      { error: "Failed to remove alias" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove alias");
   }
 }

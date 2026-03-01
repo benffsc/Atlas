@@ -1,23 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-function isValidUUID(str: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
 // GET /api/people/[id]/media - List direct media for a person
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
-  if (!isValidUUID(id)) {
-    return NextResponse.json({ error: "Invalid UUID" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const media = await queryRows(
       `SELECT
         m.media_id, m.media_type::TEXT AS media_type, m.original_filename,
@@ -31,12 +27,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({ media });
+    return apiSuccess({ media });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person media:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch media");
   }
 }

@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface Submission {
   submission_id: string;
@@ -35,6 +37,8 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "person");
+
     const submissions = await queryRows<Submission>(
       `SELECT
         submission_id,
@@ -62,16 +66,16 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       person_id: id,
       count: submissions.length,
       submissions,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person submissions:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch submissions" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch submissions");
   }
 }

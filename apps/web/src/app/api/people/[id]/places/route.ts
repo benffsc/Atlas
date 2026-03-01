@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface PlaceForPerson {
   person_place_id: string;
@@ -31,14 +33,9 @@ export async function GET(
 ) {
   const { id: personId } = await params;
 
-  if (!personId) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(personId, "person");
+
     // Validate person exists
     const person = await queryOne<{
       person_id: string;
@@ -53,10 +50,7 @@ export async function GET(
     );
 
     if (!person) {
-      return NextResponse.json(
-        { error: "Person not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person", personId);
     }
 
     // Get places for this person
@@ -104,7 +98,7 @@ export async function GET(
       byType[place.relationship_type] = (byType[place.relationship_type] || 0) + 1;
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       person: {
         person_id: person.person_id,
         display_name: person.display_name,
@@ -120,10 +114,10 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching places for person:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch places for person" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch places for person");
   }
 }

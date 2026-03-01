@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface AddressComponent {
   long_name: string;
@@ -29,14 +31,9 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const body: UpdateAddressRequest = await request.json();
 
     let placeId: string;
@@ -59,10 +56,7 @@ export async function PATCH(
       );
 
       if (!place) {
-        return NextResponse.json(
-          { error: "Place not found or has been merged" },
-          { status: 404 }
-        );
+        return apiNotFound("Place", body.place_id);
       }
 
       placeId = place.place_id;
@@ -81,10 +75,7 @@ export async function PATCH(
         );
         addressId = addrResult?.address_id || "";
         if (!addressId) {
-          return NextResponse.json(
-            { error: "Failed to create address record" },
-            { status: 500 }
-          );
+          return apiServerError("Failed to create address record");
         }
       }
     } else if (body.google_place_id && body.formatted_address) {
@@ -115,10 +106,7 @@ export async function PATCH(
       );
 
       if (!addressResult?.address_id) {
-        return NextResponse.json(
-          { error: "Failed to create or find address" },
-          { status: 500 }
-        );
+        return apiServerError("Failed to create or find address");
       }
       addressId = addressResult.address_id;
 
@@ -128,18 +116,12 @@ export async function PATCH(
       );
 
       if (!placeResult?.place_id) {
-        return NextResponse.json(
-          { error: "Failed to create or find place" },
-          { status: 500 }
-        );
+        return apiServerError("Failed to create or find place");
       }
       placeId = placeResult.place_id;
       formattedAddress = body.formatted_address;
     } else {
-      return NextResponse.json(
-        { error: "Either place_id or google_place_id + formatted_address required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Either place_id or google_place_id + formatted_address required");
     }
 
     // Atomically relink: ends old relationship, creates new one, updates primary_address_id, logs audit
@@ -148,19 +130,18 @@ export async function PATCH(
       [id, placeId, addressId, "web_user"]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       address_id: addressId,
       place_id: placeId,
       relationship_id: relinkResult?.relink_person_primary_address,
       formatted_address: formattedAddress,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error updating person address:", error);
-    return NextResponse.json(
-      { error: "Failed to update address" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update address");
   }
 }
 
@@ -170,26 +151,21 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     // Atomically unlink: ends resident relationship, clears primary_address_id, logs audit
     await query(
       `SELECT sot.unlink_person_primary_address($1, $2)`,
       [id, "web_user"]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error removing person address:", error);
-    return NextResponse.json(
-      { error: "Failed to remove address" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to remove address");
   }
 }

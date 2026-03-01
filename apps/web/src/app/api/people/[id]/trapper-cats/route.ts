@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface ManualCatch {
   catch_id: string;
@@ -19,14 +21,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const catches = await queryRows<ManualCatch>(
       `SELECT
         mc.catch_id,
@@ -44,13 +41,13 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({ catches });
+    return apiSuccess({ catches });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching manual catches:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch manual catches" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch manual catches");
   }
 }
 
@@ -61,22 +58,14 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const body = await request.json();
     const { microchip, cat_id, catch_date, catch_location, notes } = body;
 
     if (!microchip && !cat_id) {
-      return NextResponse.json(
-        { error: "Either microchip or cat_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Either microchip or cat_id is required");
     }
 
     // Use the add_trapper_catch function
@@ -101,30 +90,23 @@ export async function POST(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to add catch" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to add catch");
     }
 
-    return NextResponse.json({
-      success: true,
-      catch_id: result.add_trapper_catch,
-    });
+    return apiSuccess({ catch_id: result.add_trapper_catch });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error adding manual catch:", error);
 
     // Handle specific error messages from the function
-    const errorMessage =
-      error instanceof Error ? error.message : "";
+    const errorMessage = error instanceof Error ? error.message : "";
 
     if (errorMessage.includes("not an active trapper")) {
-      return NextResponse.json(
-        { error: "Person is not an active trapper" },
-        { status: 400 }
-      );
+      return apiBadRequest("Person is not an active trapper");
     }
 
-    return NextResponse.json({ error: "Failed to add catch" }, { status: 500 });
+    return apiServerError("Failed to add catch");
   }
 }

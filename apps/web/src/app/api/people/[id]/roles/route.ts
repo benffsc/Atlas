@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiUnauthorized } from "@/lib/api-response";
 
 /**
  * GET /api/people/[id]/roles
@@ -17,14 +19,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     // 1. All person_roles
     const roles = await queryRows<{
       role: string;
@@ -165,7 +162,7 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       roles,
       volunteer_groups: {
         active: activeGroups,
@@ -199,11 +196,11 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person roles:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch person roles" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch person roles");
   }
 }
 
@@ -224,23 +221,15 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
-  // Validate session (authenticated staff only)
-  const session = await getSession(request);
-  if (!session) {
-    return NextResponse.json(
-      { error: "Authentication required" },
-      { status: 401 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
+    // Validate session (authenticated staff only)
+    const session = await getSession(request);
+    if (!session) {
+      return apiUnauthorized("Authentication required");
+    }
+
     const body = await request.json();
     const { role, action, notes } = body as {
       role?: string;
@@ -250,17 +239,11 @@ export async function PATCH(
 
     // Validate required fields
     if (!role || !action) {
-      return NextResponse.json(
-        { error: "Both 'role' and 'action' are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Both 'role' and 'action' are required");
     }
 
     if (action !== "deactivate" && action !== "activate") {
-      return NextResponse.json(
-        { error: "Action must be 'deactivate' or 'activate'" },
-        { status: 400 }
-      );
+      return apiBadRequest("Action must be 'deactivate' or 'activate'");
     }
 
     // Fetch the current role record
@@ -279,10 +262,7 @@ export async function PATCH(
     );
 
     if (!currentRole) {
-      return NextResponse.json(
-        { error: `Role '${role}' not found for this person` },
-        { status: 404 }
-      );
+      return apiNotFound("Role", role);
     }
 
     const oldStatus = currentRole.role_status;
@@ -333,10 +313,7 @@ export async function PATCH(
     }
 
     if (!updatedRole) {
-      return NextResponse.json(
-        { error: "Failed to update role" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to update role");
     }
 
     // Log to entity_edits for audit trail
@@ -352,15 +329,12 @@ export async function PATCH(
       [id, oldStatus, newStatus, notes || null, session.staff_id]
     );
 
-    return NextResponse.json({
-      success: true,
-      role: updatedRole,
-    });
+    return apiSuccess({ role: updatedRole });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error updating person role:", error);
-    return NextResponse.json(
-      { error: "Failed to update person role" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update person role");
   }
 }

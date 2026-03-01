@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Person Google Map Context API
@@ -29,11 +31,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json({ error: "Person ID is required" }, { status: 400 });
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     // V2: Uses sot.person_place and source.google_map_entries
     const sql = `
       SELECT
@@ -57,15 +57,15 @@ export async function GET(
 
     const contexts = await queryRows<PersonPlaceContext>(sql, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       contexts,
       count: contexts.length,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person Google Map context:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch context" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch context");
   }
 }

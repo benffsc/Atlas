@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,14 +24,9 @@ interface PersonAddress {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
     const addresses = await queryRows<PersonAddress>(
       `
@@ -56,12 +53,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({ addresses });
+    return apiSuccess({ addresses });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person addresses:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch addresses" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch addresses");
   }
 }

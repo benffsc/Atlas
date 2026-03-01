@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 interface PersonCatRelationship {
   cat_id: string;
@@ -28,14 +30,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return NextResponse.json(
-      { error: "Person ID is required" },
-      { status: 400 }
-    );
-  }
-
   try {
+    requireValidUUID(id, "person");
+
     const sql = `
       SELECT
         pcr.cat_id,
@@ -108,17 +105,17 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       person_id: id,
       cats: Array.from(catMap.values()),
       total_cats: catMap.size,
       total_relationships: cats.length,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
     console.error("Error fetching person cats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch person cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch person cats");
   }
 }
