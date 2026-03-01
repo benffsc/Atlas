@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Duplicate People Auto-Merge Cron Job
 //
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -80,8 +81,7 @@ export async function GET(request: NextRequest) {
     `, [limit]);
 
     if (duplicateGroups.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "No duplicate groups found",
         duration_ms: Date.now() - startTime,
       });
@@ -217,8 +217,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       dry_run: dryRun,
       stats: {
         duplicate_groups_found: duplicateGroups.length,
@@ -234,14 +233,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Merge duplicates error:", error);
-    return NextResponse.json(
-      {
-        error: "Merge duplicates check failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Merge duplicates check failed");
   }
 }
 

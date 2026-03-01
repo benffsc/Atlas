@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 /**
  * AI Data Guardian Cron Job
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -226,8 +227,7 @@ export async function GET(request: NextRequest) {
         ? ` Warning: ${results.stale_data_categories.length} stale data categories.`
         : "";
 
-    return NextResponse.json({
-      success: results.errors.length === 0,
+    return apiSuccess({
       duration_ms: duration,
       results,
       message:
@@ -238,15 +238,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Guardian cron error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        duration_ms: Date.now() - startTime,
-        error: errorMessage,
-        results,
-      },
-      { status: 500 }
-    );
+    return apiServerError(errorMessage);
   }
 }

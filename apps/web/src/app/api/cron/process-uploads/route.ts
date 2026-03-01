@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 /**
  * Auto-Process Uploaded Files Cron Job
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -59,8 +60,7 @@ export async function GET(request: NextRequest) {
     `, [BATCH_LIMIT]);
 
     if (pendingUploads.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "No pending uploads to process",
         processed: 0,
         duration_ms: Date.now() - startTime,
@@ -135,8 +135,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Processed ${successCount} uploads, ${failCount} failed`,
       total: pendingUploads.length,
       success_count: successCount,
@@ -146,14 +145,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Process uploads cron error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Processing failed",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Processing failed");
   }
 }
 
@@ -164,7 +156,7 @@ export async function POST(request: NextRequest) {
   // Verify auth
   const authHeader = request.headers.get("authorization");
   if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   try {
@@ -201,17 +193,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Processed ${successCount} of ${upload_ids.length} uploads`,
       success_count: successCount,
       fail_count: failCount,
     });
   } catch (error) {
     console.error("Process uploads POST error:", error);
-    return NextResponse.json(
-      { error: "Processing failed" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Processing failed");
   }
 }

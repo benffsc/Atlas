@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows, query } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Airtable Sync Cron Job
 //
@@ -406,14 +407,11 @@ export async function GET(request: NextRequest) {
     CRON_SECRET &&
     authHeader !== `Bearer ${CRON_SECRET}`
   ) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   if (!AIRTABLE_PAT) {
-    return NextResponse.json(
-      { error: "AIRTABLE_PAT not configured" },
-      { status: 500 }
-    );
+    return apiServerError("AIRTABLE_PAT not configured");
   }
 
   const startTime = Date.now();
@@ -425,8 +423,7 @@ export async function GET(request: NextRequest) {
     console.log(`Found ${pendingRecords.length} pending records to sync`);
 
     if (pendingRecords.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "No pending records to sync",
         synced: 0,
         errors: 0,
@@ -462,8 +459,7 @@ export async function GET(request: NextRequest) {
     const synced = results.filter((r) => r.success).length;
     const errors = results.filter((r) => !r.success).length;
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Synced ${synced} records, ${errors} errors`,
       synced,
       errors,
@@ -478,13 +474,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Sync error:", error);
-    return NextResponse.json(
-      {
-        error: "Sync failed",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError("Sync failed");
   }
 }
 

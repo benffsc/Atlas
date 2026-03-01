@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Data Quality Check Cron Job
 //
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -208,8 +209,7 @@ export async function GET(request: NextRequest) {
       // MIG_2515 may not be applied yet - ignore
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       status: hasCritical ? "critical" : hasAlerts ? "warning" : "healthy",
       checked_at: new Date().toISOString(),
       metrics: {
@@ -239,14 +239,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Data quality check error:", error);
-    return NextResponse.json(
-      {
-        error: "Data quality check failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Data quality check failed");
   }
 }
 

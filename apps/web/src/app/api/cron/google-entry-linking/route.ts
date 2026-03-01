@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Google Maps Entry Linking Cron Job
 //
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -128,8 +129,7 @@ export async function GET(request: NextRequest) {
       WHERE lat IS NOT NULL
     `);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Daily Google Maps linking complete`,
       operations: results,
       current_stats: stats,
@@ -137,15 +137,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Google entry linking cron error:", error);
-    return NextResponse.json(
-      {
-        error: "Google entry linking failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        partial_results: results,
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Google entry linking failed");
   }
 }
 

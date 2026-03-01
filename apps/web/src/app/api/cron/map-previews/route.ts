@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * Map Preview Generation Cron Job
@@ -181,14 +182,11 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google API key not configured" },
-      { status: 500 }
-    );
+    return apiServerError("Google API key not configured");
   }
 
   const searchParams = request.nextUrl.searchParams;
@@ -206,8 +204,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (queue.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "No requests need map preview generation",
         processed: 0,
         duration_ms: Date.now() - startTime,
@@ -244,8 +241,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Generated ${success} map previews`,
       processed: queue.length,
       success_count: success,
@@ -255,14 +251,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Map preview cron error:", err);
-    return NextResponse.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(err instanceof Error ? err.message : "Map preview generation failed");
   }
 }
 
@@ -271,14 +260,11 @@ export async function POST(request: NextRequest) {
   // Verify auth
   const authHeader = request.headers.get("authorization");
   if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google API key not configured" },
-      { status: 500 }
-    );
+    return apiServerError("Google API key not configured");
   }
 
   try {
@@ -286,10 +272,7 @@ export async function POST(request: NextRequest) {
     const requestIds: string[] = body.request_ids || [];
 
     if (requestIds.length === 0) {
-      return NextResponse.json(
-        { error: "No request_ids provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No request_ids provided");
     }
 
     // Limit to 50 at a time
@@ -336,8 +319,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       requested: idsToProcess.length,
       found: requests.length,
       generated: success,
@@ -345,9 +327,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Map preview POST error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(err instanceof Error ? err.message : "Map preview generation failed");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 /**
  * Beacon Data Enrichment Cron Job
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -271,8 +272,7 @@ export async function GET(request: NextRequest) {
       // Table may not exist
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       ...results,
       disease: diseaseResults,
       duration_ms: Date.now() - startTime,
@@ -281,11 +281,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error("Beacon enrich cron error:", error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      ...results,
-      duration_ms: Date.now() - startTime,
-    }, { status: 500 });
+    return apiServerError(error instanceof Error ? error.message : "Beacon enrichment failed");
   }
 }

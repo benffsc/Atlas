@@ -17,8 +17,9 @@
  * Authentication: Vercel Cron secret or Bearer token
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Vercel Cron authorization
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -58,20 +59,14 @@ export async function GET(request: NextRequest) {
       `SELECT * FROM ops.v_orchestrator_health`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       status: "healthy",
       orchestrator: health,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Orchestrator health check failed:", error);
-    return NextResponse.json(
-      {
-        status: "error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Orchestrator health check failed");
   }
 }
 
@@ -87,7 +82,7 @@ export async function POST(request: NextRequest) {
     (authHeader && authHeader === `Bearer ${process.env.API_SECRET}`);
 
   if (!isAuthorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   // Parse options
@@ -121,8 +116,7 @@ export async function POST(request: NextRequest) {
       .join(", ");
     console.log(`[orchestrator] Phases: ${phaseSummary}`);
 
-    return NextResponse.json({
-      success: result.status === "completed",
+    return apiSuccess({
       run_id: result.run_id,
       status: result.status,
       duration_ms: result.duration_ms,
@@ -150,14 +144,7 @@ export async function POST(request: NextRequest) {
       console.error("[orchestrator] Failed to log error:", logError);
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Orchestrator run failed");
   }
 }
 

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Entity Linking Cron Job
 //
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -89,17 +90,7 @@ export async function GET(request: NextRequest) {
 
     // FAIL LOUDLY if critical functions are missing
     if (!preflightPassed) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Preflight check failed - critical functions missing",
-          preflight: preflightResults,
-          message:
-            "CRITICAL: Entity linking aborted. Apply missing migrations (MIG_2441, etc.) to fix.",
-          duration_ms: Date.now() - startTime,
-        },
-        { status: 500 }
-      );
+      return apiServerError("Preflight check failed - critical functions missing. Apply missing migrations (MIG_2441, etc.) to fix.");
     }
 
     // Step 1: Catch-up processing for any unprocessed ClinicHQ records
@@ -253,8 +244,7 @@ export async function GET(request: NextRequest) {
       console.warn("Disease status computation skipped:", e instanceof Error ? e.message : "Unknown");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: totalLinked > 0
         ? `Linked ${totalLinked} entities`
         : "No new entities to link",
@@ -266,14 +256,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Entity linking cron error:", error);
-    return NextResponse.json(
-      {
-        error: "Entity linking failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Entity linking failed");
   }
 }
 

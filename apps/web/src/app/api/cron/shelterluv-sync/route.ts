@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 import crypto from "crypto";
 
 // ShelterLuv API Sync Cron Job
@@ -273,14 +274,11 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   if (!SHELTERLUV_API_KEY) {
-    return NextResponse.json(
-      { error: "SHELTERLUV_API_KEY not configured" },
-      { status: 500 }
-    );
+    return apiServerError("SHELTERLUV_API_KEY not configured");
   }
 
   const startTime = Date.now();
@@ -459,8 +457,7 @@ export async function GET(request: NextRequest) {
     const totalSkipped = Object.values(results).reduce((sum, r) => sum + r.skipped, 0);
     const totalRecords = Object.values(results).reduce((sum, r) => sum + r.total, 0);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Synced ${totalRecords} records (${totalInserted} new, ${totalSkipped} unchanged)`,
       incremental,
       staging: {
@@ -480,18 +477,8 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("ShelterLuv sync error:", error);
-
-    // Update sync state with error
     const errorMessage = error instanceof Error ? error.message : String(error);
-
-    return NextResponse.json(
-      {
-        error: "Sync failed",
-        message: errorMessage,
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(errorMessage);
   }
 }
 

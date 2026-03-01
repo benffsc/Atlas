@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 /**
  * Parse Notes Cron Job
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const startTime = Date.now();
@@ -462,8 +463,7 @@ export async function GET(request: NextRequest) {
     const totalParsed = results.request_notes_parsed + results.intake_situations_parsed + results.reproduction_indicators_found + results.mortality_mentions_found;
     const totalCreated = results.estimates_created + results.vitals_updated + results.mortality_events_created;
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       ...results,
       duration_ms: Date.now() - startTime,
       message: `Parsed ${totalParsed} records: ${results.estimates_created} colony estimates, ${results.vitals_updated} repro vitals, ${results.mortality_events_created} mortality events`,
@@ -471,11 +471,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error("Parse notes cron error:", error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      ...results,
-      duration_ms: Date.now() - startTime,
-    }, { status: 500 });
+    return apiServerError(error instanceof Error ? error.message : "Parse notes failed");
   }
 }

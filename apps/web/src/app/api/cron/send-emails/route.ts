@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getPendingOutOfCountyEmails, sendOutOfCountyEmail } from "@/lib/email";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Email Sending Cron Job
 //
@@ -18,17 +19,12 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   // Check if email is configured
   if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json({
-      success: false,
-      error: "RESEND_API_KEY not configured",
-      sent: 0,
-      failed: 0,
-    });
+    return apiServerError("RESEND_API_KEY not configured");
   }
 
   const startTime = Date.now();
@@ -38,8 +34,7 @@ export async function GET(request: NextRequest) {
     const pending = await getPendingOutOfCountyEmails();
 
     if (pending.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "No pending emails to send",
         sent: 0,
         failed: 0,
@@ -66,8 +61,7 @@ export async function GET(request: NextRequest) {
       await new Promise((r) => setTimeout(r, 100));
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Sent ${sentCount} emails, ${failedCount} failed`,
       sent: sentCount,
       failed: failedCount,
@@ -76,14 +70,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Email cron error:", error);
-    return NextResponse.json(
-      {
-        error: "Email sending failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Email sending failed");
   }
 }
 

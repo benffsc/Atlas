@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 // Geocoding Cron Job
 //
@@ -37,14 +38,11 @@ export async function GET(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google API key not configured" },
-      { status: 500 }
-    );
+    return apiServerError("Google API key not configured");
   }
 
   const startTime = Date.now();
@@ -175,8 +173,7 @@ export async function GET(request: NextRequest) {
 
     const totalProcessed = queue.length + reverseSuccess + reverseFail;
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Forward: ${forwardSuccess} geocoded, ${forwardFail} failed. Reverse: ${reverseSuccess} resolved (${reverseMerged} merged), ${reverseFail} failed.`,
       forward: {
         processed: queue.length,
@@ -196,13 +193,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Geocoding cron error:", error);
-    return NextResponse.json(
-      {
-        error: "Geocoding failed",
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Geocoding failed");
   }
 }
 
