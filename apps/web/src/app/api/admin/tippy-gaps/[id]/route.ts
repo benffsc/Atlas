@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { execute } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 export async function PATCH(
   request: NextRequest,
@@ -8,7 +9,7 @@ export async function PATCH(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiError("Admin access required", 403);
   }
 
   const { id } = await params;
@@ -26,7 +27,7 @@ export async function PATCH(
     "duplicate",
   ];
   if (resolution_status && !validStatuses.includes(resolution_status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    return apiBadRequest("Invalid status");
   }
 
   try {
@@ -44,12 +45,9 @@ export async function PATCH(
       [resolution_status, session.staff_id, resolution_notes, related_view, id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ updated: true });
   } catch (error) {
     console.error("Error updating question:", error);
-    return NextResponse.json(
-      { error: "Failed to update question" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update question");
   }
 }

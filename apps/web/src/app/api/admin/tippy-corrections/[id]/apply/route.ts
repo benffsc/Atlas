@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 export async function POST(
   request: NextRequest,
@@ -8,7 +9,7 @@ export async function POST(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiError("Admin access required", 403);
   }
 
   const { id } = await params;
@@ -27,25 +28,15 @@ export async function POST(
     );
 
     if (!result?.success) {
-      return NextResponse.json(
-        {
-          error: result?.error || "Failed to apply correction",
-          manual_required: result?.manual_required,
-        },
-        { status: 400 }
-      );
+      return apiBadRequest(result?.error || "Failed to apply correction");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       edit_id: result.edit_id,
       correction_id: result.correction_id,
     });
   } catch (error) {
     console.error("Error applying correction:", error);
-    return NextResponse.json(
-      { error: "Failed to apply correction" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to apply correction");
   }
 }

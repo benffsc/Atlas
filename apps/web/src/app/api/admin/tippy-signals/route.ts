@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/tippy-signals
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { searchParams } = new URL(request.url);
@@ -71,16 +72,13 @@ export async function GET(request: NextRequest) {
       0
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       signals,
       summary,
       total_needs_attention: totalNeedsAttention,
     });
   } catch (error) {
     console.error("Error fetching Tippy signals:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch signals" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch signals");
   }
 }

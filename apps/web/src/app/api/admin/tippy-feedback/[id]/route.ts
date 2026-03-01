@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id } = await params;
@@ -25,10 +26,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Validate status
     const validStatuses = ["pending", "reviewed", "resolved", "rejected"];
     if (status && !validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
     }
 
     // Build update query dynamically
@@ -52,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+      return apiBadRequest("No updates provided");
     }
 
     values.push(id);
@@ -73,19 +71,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
+      return apiNotFound("Feedback", id);
     }
 
-    return NextResponse.json({
-      success: true,
-      feedback: result,
-    });
+    return apiSuccess({ feedback: result });
   } catch (error) {
     console.error("Admin tippy feedback update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update feedback" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update feedback");
   }
 }
 
@@ -98,7 +90,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id } = await params;
@@ -119,15 +111,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!feedback) {
-      return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
+      return apiNotFound("Feedback", id);
     }
 
-    return NextResponse.json({ feedback });
+    return apiSuccess({ feedback });
   } catch (error) {
     console.error("Admin tippy feedback get error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch feedback" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch feedback");
   }
 }

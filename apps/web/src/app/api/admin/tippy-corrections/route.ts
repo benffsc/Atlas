@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiError("Admin access required", 403);
   }
 
   const { searchParams } = new URL(request.url);
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       corrections,
       stats: stats
         ? {
@@ -94,9 +95,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching corrections:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch corrections" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch corrections");
   }
 }

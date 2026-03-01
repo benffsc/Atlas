@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +9,7 @@ export async function GET(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiError("Admin access required", 403);
   }
 
   const { id } = await params;
@@ -38,16 +39,13 @@ export async function GET(
     );
 
     if (!correction) {
-      return NextResponse.json({ error: "Correction not found" }, { status: 404 });
+      return apiNotFound("Correction", id);
     }
 
-    return NextResponse.json(correction);
+    return apiSuccess(correction);
   } catch (error) {
     console.error("Error fetching correction:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch correction" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch correction");
   }
 }
 
@@ -57,7 +55,7 @@ export async function PATCH(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiError("Admin access required", 403);
   }
 
   const { id } = await params;
@@ -67,7 +65,7 @@ export async function PATCH(
   // Validate status
   const validStatuses = ["proposed", "approved", "applied", "rejected"];
   if (status && !validStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    return apiBadRequest("Invalid status");
   }
 
   try {
@@ -85,12 +83,9 @@ export async function PATCH(
       [status, session.staff_id, review_notes, id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ updated: true });
   } catch (error) {
     console.error("Error updating correction:", error);
-    return NextResponse.json(
-      { error: "Failed to update correction" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update correction");
   }
 }

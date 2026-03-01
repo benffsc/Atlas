@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id } = await context.params;
@@ -59,16 +60,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     );
 
     if (!draft) {
-      return NextResponse.json({ error: "Draft not found" }, { status: 404 });
+      return apiNotFound("Draft", id);
     }
 
-    return NextResponse.json({ draft });
+    return apiSuccess({ draft });
   } catch (error) {
     console.error("Get draft error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch draft" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch draft");
   }
 }
 
@@ -81,7 +79,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id } = await context.params;
@@ -89,10 +87,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { action, review_notes, overrides } = body;
 
     if (!action || !["approve", "reject"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be 'approve' or 'reject'" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid action. Must be 'approve' or 'reject'");
     }
 
     if (action === "approve") {
@@ -110,14 +105,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
 
       if (!result) {
-        return NextResponse.json(
-          { error: "Failed to approve draft" },
-          { status: 500 }
-        );
+        return apiServerError("Failed to approve draft");
       }
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "Draft approved and request created",
         request_id: result.approve_tippy_draft,
       });
@@ -128,17 +119,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         [id, session.staff_id, review_notes || null]
       );
 
-      return NextResponse.json({
-        success: true,
-        message: "Draft rejected",
-      });
+      return apiSuccess({ message: "Draft rejected" });
     }
   } catch (error) {
     console.error("Draft action error:", error);
     const message = error instanceof Error ? error.message : "Failed to process draft";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return apiServerError(message);
   }
 }

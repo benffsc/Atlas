@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id } = await params;
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!conversation) {
-      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      return apiNotFound("Conversation", id);
     }
 
     // Get all messages in the conversation
@@ -81,16 +82,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       conversation,
       messages,
       feedback,
     });
   } catch (error) {
     console.error("Admin tippy conversation detail error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch conversation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch conversation");
   }
 }
