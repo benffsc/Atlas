@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Processing Health Check Endpoint
@@ -191,7 +192,7 @@ export async function GET(request: NextRequest) {
       overallStatus = "healthy";
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       status: overallStatus,
       timestamp: new Date().toISOString(),
       duration_ms: Date.now() - startTime,
@@ -218,15 +219,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Health check error:", error);
-    return NextResponse.json(
-      {
-        status: "unhealthy",
-        error: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 

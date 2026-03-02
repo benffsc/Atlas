@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Appointment Categorization Health Check Endpoint
@@ -125,7 +125,7 @@ export async function GET() {
       status = "healthy";
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       status,
       timestamp: new Date().toISOString(),
       duration_ms: Date.now() - startTime,
@@ -160,14 +160,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Categorization health check error:", error);
-    return NextResponse.json(
-      {
-        status: "unhealthy",
-        error: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

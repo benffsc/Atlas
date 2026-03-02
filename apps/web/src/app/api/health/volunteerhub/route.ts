@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * VolunteerHub Health Check Endpoint
@@ -83,7 +83,7 @@ export async function GET() {
       syncStatus = hoursSinceLastSync <= 24 ? "healthy" : "stale";
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       total_vh_volunteers: totalResult?.count ?? 0,
       matched_to_atlas: matchedResult?.count ?? 0,
       active_volunteers: activeResult?.count ?? 0,
@@ -101,9 +101,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("VolunteerHub health check error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
