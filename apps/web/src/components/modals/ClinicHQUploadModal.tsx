@@ -131,7 +131,11 @@ export default function ClinicHQUploadModal({
       const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(result.error || "Upload failed");
+        // Handle both string errors and { message, code } error objects
+        const errorMsg = typeof result.error === 'string'
+          ? result.error
+          : result.error?.message || "Upload failed";
+        throw new Error(errorMsg);
       }
 
       // Store batch ID from first upload
@@ -305,7 +309,11 @@ export default function ClinicHQUploadModal({
         }
         setProcessing(false);
         setProcessingProgress(null);
-        throw new Error(result.error || "Processing failed");
+        // Handle both string errors and { message, code } error objects
+        const errorMsg = typeof result.error === 'string'
+          ? result.error
+          : result.error?.message || "Processing failed";
+        throw new Error(errorMsg);
       }
 
       // If we got an immediate response (non-async), use it
