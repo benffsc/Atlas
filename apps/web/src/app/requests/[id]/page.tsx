@@ -339,7 +339,8 @@ export default function RequestDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setError(data.error || "Failed to update status");
         return;
       }
@@ -361,7 +362,8 @@ export default function RequestDetailPage() {
         method: "DELETE",
       });
       if (!response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setError(data.error?.message || data.error || "Failed to restore request");
         return;
       }
@@ -449,7 +451,8 @@ export default function RequestDetailPage() {
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setError(data.error || "Failed to save changes");
         return;
       }

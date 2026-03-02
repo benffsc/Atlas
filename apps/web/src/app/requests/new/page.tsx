@@ -352,7 +352,8 @@ function NewRequestForm() {
           `/api/search?q=${encodeURIComponent(personSearch)}&type=person&limit=5`
         );
         if (response.ok) {
-          const data = await response.json();
+          const result = await response.json();
+          const data = result.data || result;
           setPersonResults(data.results || []);
         }
       } catch (err) {
@@ -420,7 +421,8 @@ function NewRequestForm() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setDuplicateMatches(data.active_requests || []);
       }
     } catch (err) {

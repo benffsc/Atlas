@@ -611,7 +611,8 @@ export default function CatDetailPage() {
     try {
       const response = await fetch(`/api/appointments?cat_id=${id}&limit=20`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setAppointments(data.appointments || []);
       }
     } catch (err) {
@@ -623,7 +624,8 @@ export default function CatDetailPage() {
     try {
       const response = await fetch(`/api/journal?cat_id=${id}&limit=50&include_related=true`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setJournal(data.entries || []);
       }
     } catch (err) {

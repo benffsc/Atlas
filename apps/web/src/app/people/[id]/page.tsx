@@ -377,7 +377,8 @@ export default function PersonDetailPage() {
     try {
       const response = await fetch(`/api/journal?person_id=${id}&limit=50&include_related=true`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setJournal(data.entries || []);
       }
     } catch (err) {
@@ -403,7 +404,8 @@ export default function PersonDetailPage() {
     try {
       const response = await fetch(`/api/people/${id}/trapper-stats`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setTrapperInfo({
           trapper_type: data.trapper_type,
           is_ffsc_trapper: data.is_ffsc_trapper,

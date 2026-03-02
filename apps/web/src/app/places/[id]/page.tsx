@@ -287,7 +287,8 @@ export default function PlaceDetailPage() {
     try {
       const response = await fetch(`/api/journal?place_id=${id}&limit=50`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setJournal(data.entries || []);
       }
     } catch (err) {
@@ -313,7 +314,8 @@ export default function PlaceDetailPage() {
     try {
       const response = await fetch(`/api/places/${id}/media`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setHeroMedia(data.media || []);
       }
     } catch (err) {
