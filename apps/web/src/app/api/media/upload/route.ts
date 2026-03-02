@@ -349,3 +349,6 @@ export async function POST(request: NextRequest) {
     return apiServerError("Failed to upload media");
   }
 }
+
+// Next.js App Router config for larger uploads
+export const maxDuration = 60; // 60 seconds for Pro plan
