@@ -101,14 +101,21 @@ export async function POST(request: NextRequest) {
     const fileHash = createHash("sha256").update(buffer).digest("hex");
     console.log("[UPLOAD] Hash:", fileHash.substring(0, 16));
 
-    // Check for duplicate
-    const existing = await queryOne<{ upload_id: string }>(
-      `SELECT upload_id FROM ops.file_uploads WHERE file_hash = $1`,
+    // Check for duplicate - but allow re-upload if previous attempt failed
+    const existing = await queryOne<{ upload_id: string; status: string }>(
+      `SELECT upload_id, status FROM ops.file_uploads WHERE file_hash = $1`,
       [fileHash]
     );
 
     if (existing) {
-      return apiConflict(`This file has already been uploaded (upload_id: ${existing.upload_id})`);
+      // Allow re-upload if previous was failed - delete the failed record first
+      if (existing.status === 'failed') {
+        console.log("[UPLOAD] Previous upload failed, allowing re-upload");
+        await query(`DELETE FROM ops.staged_records WHERE file_upload_id = $1`, [existing.upload_id]);
+        await query(`DELETE FROM ops.file_uploads WHERE upload_id = $1`, [existing.upload_id]);
+      } else {
+        return apiConflict(`This file has already been uploaded (upload_id: ${existing.upload_id}, status: ${existing.status})`);
+      }
     }
 
     // Generate storage filename: {source}_{table}_{timestamp}_{hash8}.{ext}

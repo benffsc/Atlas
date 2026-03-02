@@ -9,7 +9,7 @@ import { createHash } from "crypto";
 import { parseStringPromise } from "xml2js";
 import JSZip from "jszip";
 
-export const maxDuration = 180; // 3 minutes: staging + post-processing + enrichment
+export const maxDuration = 300; // 5 minutes: staging + post-processing + enrichment (increased for large files)
 
 interface FileUpload {
   upload_id: string;

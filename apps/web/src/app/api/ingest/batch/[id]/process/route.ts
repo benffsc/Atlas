@@ -104,7 +104,10 @@ export async function POST(
       console.log(`[BATCH] Processing ${file.source_table} (${file.upload_id})...`);
 
       try {
-        // Call the existing process endpoint
+        // Call the existing process endpoint with extended timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min per file
+
         const processResponse = await fetch(
           `${baseUrl}/api/ingest/process/${file.upload_id}`,
           {
@@ -112,34 +115,59 @@ export async function POST(
             headers: {
               "Content-Type": "application/json",
             },
+            signal: controller.signal,
           }
         );
+        clearTimeout(timeoutId);
 
-        const processResult = await processResponse.json();
-
-        if (!processResponse.ok) {
+        // Handle non-JSON responses (e.g., HTML error pages from timeout)
+        const contentType = processResponse.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const textBody = await processResponse.text();
+          console.error(`[BATCH] Non-JSON response for ${file.source_table}:`, textBody.substring(0, 200));
           results.push({
             source_table: file.source_table,
             upload_id: file.upload_id,
             success: false,
-            error: processResult.error || "Processing failed",
+            error: `Server error (non-JSON response, status ${processResponse.status})`,
+          });
+          continue;
+        }
+
+        const processResult = await processResponse.json();
+
+        if (!processResponse.ok) {
+          // Extract error from standardized response format
+          const errorMsg = typeof processResult.error === 'object'
+            ? processResult.error?.message
+            : processResult.error || "Processing failed";
+          results.push({
+            source_table: file.source_table,
+            upload_id: file.upload_id,
+            success: false,
+            error: errorMsg,
           });
           // Don't stop on failure - continue with other files
         } else {
+          // Extract data from apiSuccess wrapper
+          const data = processResult.data || processResult;
           results.push({
             source_table: file.source_table,
             upload_id: file.upload_id,
             success: true,
-            details: processResult,
+            details: data,
           });
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
+        const isTimeout = errorMsg.includes('abort') || errorMsg.includes('timeout');
         results.push({
           source_table: file.source_table,
           upload_id: file.upload_id,
           success: false,
-          error: `Fetch error: ${errorMsg}`,
+          error: isTimeout
+            ? `Processing timed out for ${file.source_table}. File may be too large.`
+            : `Fetch error: ${errorMsg}`,
         });
       }
     }
@@ -173,4 +201,4 @@ export async function POST(
   }
 }
 
-export const maxDuration = 300; // 5 minutes for processing all 3 files
+export const maxDuration = 300; // 5 minutes max (Vercel Pro limit) - processes files sequentially

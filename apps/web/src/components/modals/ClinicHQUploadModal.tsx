@@ -302,6 +302,18 @@ export default function ClinicHQUploadModal({
         method: "POST",
       });
 
+      // Handle non-JSON responses (e.g., server timeout returns HTML)
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text();
+        console.error("Non-JSON response:", text.substring(0, 200));
+        throw new Error(
+          res.status === 504 || res.status === 502
+            ? "Server timeout. Try processing one file at a time or retry later."
+            : `Server error (${res.status}). Please retry.`
+        );
+      }
+
       const result = await res.json();
 
       if (!res.ok) {
