@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 /**
  * Unified Processing Endpoint
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
   const hasValidAuth = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
 
   if (!isFromCron && !hasValidAuth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiUnauthorized("Unauthorized");
   }
 
   // If called from Vercel Cron, actually process jobs (not just return status)
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     const totalQueued = dashboard.reduce((sum, row) => sum + Number(row.queued || 0), 0);
 
-    return NextResponse.json({
+    return apiSuccess({
       status: "ok",
       queue: {
         total_queued: totalQueued,
@@ -77,10 +78,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching processing status:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch processing status" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch processing status");
   }
 }
 
@@ -129,7 +127,7 @@ async function processJobs(request: NextRequest): Promise<NextResponse> {
 
     const totalQueued = dashboard.reduce((sum, row) => sum + Number(row.queued || 0), 0);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       jobs_processed: totalProcessed,
       duration_ms: Date.now() - startTime,
@@ -144,14 +142,8 @@ async function processJobs(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     console.error("Processing error:", error);
-    return NextResponse.json(
-      {
-        error: "Processing failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-        jobs_completed: totalProcessed,
-        duration_ms: Date.now() - startTime,
-      },
-      { status: 500 }
+    return apiServerError(
+      `Processing failed: ${error instanceof Error ? error.message : "Unknown error"} (jobs_completed: ${totalProcessed}, duration: ${Date.now() - startTime}ms)`
     );
   }
 }
@@ -162,7 +154,7 @@ export async function POST(request: NextRequest) {
   const cronHeader = request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiUnauthorized("Unauthorized");
   }
 
   return processJobs(request);

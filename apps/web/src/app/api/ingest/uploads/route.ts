@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface FileUploadRow {
   upload_id: string;
@@ -69,12 +70,9 @@ export async function GET(request: NextRequest) {
 
     const uploads = await queryRows<FileUploadRow>(sql, params);
 
-    return NextResponse.json({ uploads });
+    return apiSuccess({ uploads });
   } catch (error) {
     console.error("Error fetching uploads:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch uploads" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch uploads");
   }
 }

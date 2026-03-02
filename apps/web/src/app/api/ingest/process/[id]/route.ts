@@ -1,6 +1,7 @@
 // Process uploaded files for ClinicHQ, Airtable, and Google Maps data
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 import { readFile } from "fs/promises";
 import path from "path";
 import * as XLSX from "xlsx";
@@ -55,10 +56,7 @@ export async function POST(
   const { id: uploadId } = await params;
 
   if (!uploadId) {
-    return NextResponse.json(
-      { error: "Upload ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Upload ID is required");
   }
 
   try {
@@ -70,17 +68,11 @@ export async function POST(
     );
 
     if (!upload) {
-      return NextResponse.json(
-        { error: "Upload not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Upload not found");
     }
 
     if (upload.status === 'processing') {
-      return NextResponse.json(
-        { error: "Upload is already being processed" },
-        { status: 409 }
-      );
+      return apiConflict("Upload is already being processed");
     }
 
     // Mark as processing with timestamp for stuck-job detection
@@ -101,10 +93,7 @@ export async function POST(
       if (upload.file_content) {
         buffer = Buffer.from(upload.file_content);
       } else {
-        return NextResponse.json(
-          { error: "File content not available. Please re-upload the file." },
-          { status: 404 }
-        );
+        return apiNotFound("File content not available. Please re-upload the file.");
       }
     }
 
@@ -299,7 +288,7 @@ export async function POST(
        postProcessingResults ? JSON.stringify(postProcessingResults) : null]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       upload_id: uploadId,
       rows_total: rows.length,
@@ -320,10 +309,7 @@ export async function POST(
       [uploadId, error instanceof Error ? error.message : "Unknown error"]
     );
 
-    return NextResponse.json(
-      { error: "Failed to process file" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process file");
   }
 }
 
@@ -1756,10 +1742,7 @@ async function processGoogleMapsFile(
       `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, "Google Maps files must be .kmz or .kml"]
     );
-    return NextResponse.json(
-      { error: "Google Maps files must be .kmz or .kml" },
-      { status: 400 }
-    );
+    return apiBadRequest("Google Maps files must be .kmz or .kml");
   }
 
   let kmlContent: string;
@@ -1784,10 +1767,7 @@ async function processGoogleMapsFile(
         `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
         [uploadId, `Failed to extract KMZ: ${error instanceof Error ? error.message : "Unknown error"}`]
       );
-      return NextResponse.json(
-        { error: "Failed to extract KMZ file" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to extract KMZ file");
     }
   } else {
     kmlContent = buffer.toString("utf-8");
@@ -1803,10 +1783,7 @@ async function processGoogleMapsFile(
       `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, `Failed to parse KML: ${error instanceof Error ? error.message : "Unknown error"}`]
     );
-    return NextResponse.json(
-      { error: "Failed to parse KML file" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to parse KML file");
   }
 
   if (placemarks.length === 0) {
@@ -1814,10 +1791,7 @@ async function processGoogleMapsFile(
       `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, "No placemarks found. If using a link from Google Maps, download the full KMZ export instead."]
     );
-    return NextResponse.json(
-      { error: "No placemarks found in the file. It may be a NetworkLink file - please download the full KMZ export." },
-      { status: 400 }
-    );
+    return apiBadRequest("No placemarks found in the file. It may be a NetworkLink file - please download the full KMZ export.");
   }
 
   // Stage the import using the centralized pattern
@@ -1844,10 +1818,7 @@ async function processGoogleMapsFile(
       `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, "Failed to stage import"]
     );
-    return NextResponse.json(
-      { error: "Failed to stage import" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to stage import");
   }
 
   // Process the import through the centralized function
@@ -1860,10 +1831,7 @@ async function processGoogleMapsFile(
       `UPDATE ops.file_uploads SET status = 'failed', error_message = $2 WHERE upload_id = $1`,
       [uploadId, processResult?.result?.error || "Processing failed"]
     );
-    return NextResponse.json(
-      { error: processResult?.result?.error || "Processing failed" },
-      { status: 500 }
-    );
+    return apiServerError(processResult?.result?.error || "Processing failed");
   }
 
   // Mark file upload as completed
@@ -1881,7 +1849,7 @@ async function processGoogleMapsFile(
     ]
   );
 
-  return NextResponse.json({
+  return apiSuccess({
     success: true,
     upload_id: uploadId,
     import_id: importResult.import_id,

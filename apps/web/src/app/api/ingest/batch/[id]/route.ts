@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface BatchStatus {
   batch_id: string;
@@ -33,10 +34,7 @@ export async function GET(
   const { id: batchId } = await params;
 
   if (!batchId) {
-    return NextResponse.json(
-      { error: "Batch ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Batch ID is required");
   }
 
   try {
@@ -46,13 +44,10 @@ export async function GET(
     );
 
     if (!status) {
-      return NextResponse.json(
-        { error: "Batch not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Batch not found");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       batch_id: batchId,
       status: status.batch_status,
       files_uploaded: status.files_uploaded,
@@ -72,9 +67,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Batch status error:", error);
-    return NextResponse.json(
-      { error: "Failed to get batch status" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to get batch status");
   }
 }

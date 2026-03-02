@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 
 // Wrap a promise with a timeout that rejects if it takes too long
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -24,7 +25,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json({ error: "Upload ID required" }, { status: 400 });
+    return apiBadRequest("Upload ID required");
   }
 
   try {
@@ -47,27 +48,18 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Upload not found or cannot be deleted (still actively processing)" },
-        { status: 404 }
-      );
+      return apiNotFound("Upload not found or cannot be deleted (still actively processing)");
     }
 
-    return NextResponse.json({ success: true, upload_id: result.upload_id });
+    return apiSuccess({ success: true, upload_id: result.upload_id });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "";
     if (msg.includes("timed out") || msg.includes("lock") || msg.includes("canceling statement")) {
       console.error("Timeout/lock deleting upload — row is likely locked by zombie transaction:", id);
-      return NextResponse.json(
-        { error: "Upload row is locked by a stuck transaction. Wait a few minutes and try again, or restart the server." },
-        { status: 409 }
-      );
+      return apiConflict("Upload row is locked by a stuck transaction. Wait a few minutes and try again, or restart the server.");
     }
     console.error("Error deleting upload:", error);
-    return NextResponse.json(
-      { error: "Failed to delete upload" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete upload");
   }
 }
 
@@ -82,7 +74,7 @@ export async function PATCH(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json({ error: "Upload ID required" }, { status: 400 });
+    return apiBadRequest("Upload ID required");
   }
 
   try {
@@ -105,36 +97,24 @@ export async function PATCH(
       );
 
       if (!result) {
-        return NextResponse.json(
-          { error: "Upload not found or not in processing status" },
-          { status: 404 }
-        );
+        return apiNotFound("Upload not found or not in processing status");
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         upload_id: result.upload_id,
         status: result.status,
       });
     }
 
-    return NextResponse.json(
-      { error: "Unknown action. Supported: reset" },
-      { status: 400 }
-    );
+    return apiBadRequest("Unknown action. Supported: reset");
   } catch (error) {
     const msg = error instanceof Error ? error.message : "";
     if (msg.includes("timed out") || msg.includes("lock") || msg.includes("canceling statement")) {
       console.error("Timeout/lock resetting upload — row is likely locked:", id);
-      return NextResponse.json(
-        { error: "Upload row is locked by a stuck transaction. Wait a few minutes and try again, or restart the server." },
-        { status: 409 }
-      );
+      return apiConflict("Upload row is locked by a stuck transaction. Wait a few minutes and try again, or restart the server.");
     }
     console.error("Error updating upload:", error);
-    return NextResponse.json(
-      { error: "Failed to update upload" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update upload");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError, apiConflict } from "@/lib/api-response";
 import { writeFile, mkdir } from "fs/promises";
 import { createHash, randomUUID } from "crypto";
 import path from "path";
@@ -35,7 +36,7 @@ const SOURCE_CONFIGS: Record<string, { tables: string[]; label: string; accepts?
 
 export async function GET() {
   // Return available source systems
-  return NextResponse.json({
+  return apiSuccess({
     sources: Object.entries(SOURCE_CONFIGS).map(([key, config]) => ({
       value: key,
       label: config.label,
@@ -55,10 +56,7 @@ export async function POST(request: NextRequest) {
       formData = await request.formData();
     } catch (formError) {
       console.error("[UPLOAD] FormData parse error:", formError);
-      return NextResponse.json(
-        { error: `FormData parse error: ${formError instanceof Error ? formError.message : String(formError)}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`FormData parse error: ${formError instanceof Error ? formError.message : String(formError)}`);
     }
     const file = formData.get("file") as File | null;
     const sourceSystem = formData.get("source_system") as string | null;
@@ -82,24 +80,15 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No file provided");
     }
 
     if (!sourceSystem || !SOURCE_CONFIGS[sourceSystem]) {
-      return NextResponse.json(
-        { error: "Invalid source system" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid source system");
     }
 
     if (!sourceTable || !SOURCE_CONFIGS[sourceSystem].tables.includes(sourceTable)) {
-      return NextResponse.json(
-        { error: "Invalid source table for this system" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid source table for this system");
     }
 
     // Read file content
@@ -119,13 +108,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing) {
-      return NextResponse.json(
-        {
-          error: "This file has already been uploaded",
-          existing_upload_id: existing.upload_id
-        },
-        { status: 409 }
-      );
+      return apiConflict(`This file has already been uploaded (upload_id: ${existing.upload_id})`);
     }
 
     // Generate storage filename: {source}_{table}_{timestamp}_{hash8}.{ext}
@@ -187,13 +170,10 @@ export async function POST(request: NextRequest) {
     } catch (dbError) {
       console.error("[UPLOAD] Database insert failed:", dbError);
       const dbErrorMsg = dbError instanceof Error ? dbError.message : String(dbError);
-      return NextResponse.json(
-        { error: `Database error: ${dbErrorMsg}` },
-        { status: 500 }
-      );
+      return apiServerError(`Database error: ${dbErrorMsg}`);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       upload_id: result?.upload_id,
       original_filename: file.name,
@@ -210,10 +190,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error
       ? `${error.name}: ${error.message}`
       : JSON.stringify(error);
-    return NextResponse.json(
-      { error: `[v2] Upload failed: ${errorMessage}` },
-      { status: 500 }
-    );
+    return apiServerError(`[v2] Upload failed: ${errorMessage}`);
   }
 }
 

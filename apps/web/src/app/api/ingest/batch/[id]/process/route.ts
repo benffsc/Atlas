@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 
 interface BatchStatus {
   batch_id: string;
@@ -35,10 +36,7 @@ export async function POST(
   const { id: batchId } = await params;
 
   if (!batchId) {
-    return NextResponse.json(
-      { error: "Batch ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Batch ID is required");
   }
 
   try {
@@ -51,35 +49,21 @@ export async function POST(
     );
 
     if (!status) {
-      return NextResponse.json(
-        { error: "Batch not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Batch not found");
     }
 
     if (!status.is_complete) {
-      return NextResponse.json(
-        {
-          error: "Batch incomplete",
-          files_uploaded: status.files_uploaded,
-          message: "Upload all 3 files (cat_info, owner_info, appointment_info) before processing"
-        },
-        { status: 400 }
+      return apiBadRequest(
+        `Batch incomplete (${status.files_uploaded} files). Upload all 3 files (cat_info, owner_info, appointment_info) before processing.`
       );
     }
 
     if (status.batch_status === "processing") {
-      return NextResponse.json(
-        { error: "Batch is already being processed" },
-        { status: 409 }
-      );
+      return apiConflict("Batch is already being processed");
     }
 
     if (status.batch_status === "completed") {
-      return NextResponse.json(
-        { error: "Batch has already been processed" },
-        { status: 409 }
-      );
+      return apiConflict("Batch has already been processed");
     }
 
     // Get files in correct processing order
@@ -89,10 +73,7 @@ export async function POST(
     );
 
     if (files.length !== 3) {
-      return NextResponse.json(
-        { error: `Expected 3 files, found ${files.length}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Expected 3 files, found ${files.length}`);
     }
 
     // Process each file in order
@@ -173,7 +154,7 @@ export async function POST(
       [batchId]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       batch_id: batchId,
       success: allSuccess,
       partial_success: anySuccess && !allSuccess,
@@ -188,10 +169,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("Batch process error:", error);
-    return NextResponse.json(
-      { error: "Failed to process batch" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process batch");
   }
 }
 
