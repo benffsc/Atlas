@@ -5,6 +5,7 @@ import { formatDateLocal } from "@/lib/formatters";
 import { MyItemsWidget } from "@/components/common";
 import { StatusBadge, PriorityDot } from "@/components/badges";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { fetchApi } from "@/lib/api-client";
 
 interface ActiveRequest {
   request_id: string;
@@ -120,8 +121,7 @@ export default function Home() {
     let staffData: StaffInfo | null = null;
 
     // 1. Auth (for greeting + person_id)
-    fetch("/api/auth/me")
-      .then(res => res.ok ? res.json() : null)
+    fetchApi<{ authenticated: boolean; staff?: StaffInfo }>("/api/auth/me")
       .then(data => {
         if (data?.authenticated && data.staff) {
           staffData = data.staff;
@@ -131,12 +131,9 @@ export default function Home() {
       .catch(() => {})
       .finally(() => {
         // 2. Active requests
-        fetch("/api/requests?limit=8")
-          .then(res => res.ok ? res.json() : { data: { requests: [] } })
-          .then(response => {
-            // Handle both old format (data.requests) and new apiSuccess format (data.data.requests)
-            const requests = response.data?.requests || response.requests || [];
-            const active = requests.filter(
+        fetchApi<{ requests: ActiveRequest[] }>("/api/requests?limit=8")
+          .then(data => {
+            const active = (data.requests || []).filter(
               (r: ActiveRequest) => !["completed", "cancelled"].includes(r.status)
             );
             setRequests(active.slice(0, 6));
@@ -148,19 +145,16 @@ export default function Home() {
         const statsUrl = staffData?.person_id
           ? `/api/dashboard/stats?staff_person_id=${staffData.person_id}`
           : "/api/dashboard/stats";
-        fetch(statsUrl)
-          .then(res => res.ok ? res.json() : null)
+        fetchApi<DashboardStats>(statsUrl)
           .then(data => {
-            if (data && !data.error) setStats(data);
+            if (data) setStats(data);
           })
           .catch(() => {});
       });
 
     // 4. Recent intake (parallel, no auth dependency)
-    fetch("/api/intake/queue?mode=attention&limit=5")
-      .then(res => res.ok ? res.json() : { submissions: [] })
-      .then(result => {
-        const data = result.data || result;
+    fetchApi<{ submissions: IntakeSubmission[] }>("/api/intake/queue?mode=attention&limit=5")
+      .then(data => {
         setIntake((data.submissions || []).slice(0, 5));
       })
       .catch(() => setIntake([]))
