@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiServerError, apiForbidden, apiConflict } from "@/lib/api-response";
 
 interface KnowledgeArticle {
   article_id: string;
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       articles,
       category_counts: counts,
       pagination: {
@@ -116,10 +117,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Knowledge list error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch knowledge articles" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch knowledge articles");
   }
 }
 
@@ -131,7 +129,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession(request);
     if (!session || (session.auth_role !== "admin" && session.auth_role !== "staff")) {
-      return NextResponse.json({ error: "Staff access required" }, { status: 403 });
+      return apiForbidden("Staff access required");
     }
 
     const body = await request.json();
@@ -149,10 +147,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!title || !content || !category) {
-      return NextResponse.json(
-        { error: "title, content, and category are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("title, content, and category are required");
     }
 
     // Generate slug if not provided
@@ -167,29 +162,20 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing) {
-      return NextResponse.json(
-        { error: "An article with this slug already exists" },
-        { status: 409 }
-      );
+      return apiConflict("An article with this slug already exists");
     }
 
     // Validate category
     const validCategories = ["procedures", "training", "faq", "troubleshooting", "talking_points", "equipment", "policy"];
     if (!validCategories.includes(category)) {
-      return NextResponse.json(
-        { error: `Invalid category. Must be one of: ${validCategories.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid category. Must be one of: ${validCategories.join(", ")}`);
     }
 
     // Validate access_level
     const validAccessLevels = ["public", "staff", "admin", "volunteer"];
     const finalAccessLevel = access_level || "staff";
     if (!validAccessLevels.includes(finalAccessLevel)) {
-      return NextResponse.json(
-        { error: `Invalid access_level. Must be one of: ${validAccessLevels.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid access_level. Must be one of: ${validAccessLevels.join(", ")}`);
     }
 
     // Create article
@@ -217,22 +203,16 @@ export async function POST(request: NextRequest) {
     );
 
     if (!article) {
-      return NextResponse.json(
-        { error: "Failed to create article" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create article");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       article_id: article.article_id,
       slug: article.slug,
     });
   } catch (error) {
     console.error("Knowledge create error:", error);
-    return NextResponse.json(
-      { error: "Failed to create knowledge article" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create knowledge article");
   }
 }

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Map Layer Stats API
@@ -84,7 +84,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       layers: layerStats,
       classifications: classificationStats,
       summary: {
@@ -96,9 +96,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching layer stats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch layer stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch layer stats");
   }
 }

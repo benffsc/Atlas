@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Map Places API
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
     `;
     const counts = await queryOne<{ total: number; with_context: number }>(countSql);
 
-    return NextResponse.json({
+    return apiSuccess({
       places,
       count: places.length,
       total_places: counts?.total || 0,
@@ -186,9 +187,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching map places:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch map places" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch map places");
   }
 }

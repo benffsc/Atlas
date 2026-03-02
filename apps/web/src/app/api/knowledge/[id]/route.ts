@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiForbidden, apiConflict } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!article) {
-      return NextResponse.json({ error: "Article not found" }, { status: 404 });
+      return apiNotFound("Article not found");
     }
 
     // Check access control
@@ -71,12 +72,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       (userAccessLevel === "staff" && ["public", "volunteer", "staff"].includes(article.access_level));
 
     if (!canAccess) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      return apiForbidden("Access denied");
     }
 
     // Non-admins can only see published articles
     if (!article.is_published && userAccessLevel !== "admin") {
-      return NextResponse.json({ error: "Article not found" }, { status: 404 });
+      return apiNotFound("Article not found");
     }
 
     // Log usage for analytics (if authenticated)
@@ -92,13 +93,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       });
     }
 
-    return NextResponse.json({ article });
+    return apiSuccess({ article });
   } catch (error) {
     console.error("Knowledge fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch knowledge article" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch knowledge article");
   }
 }
 
@@ -110,7 +108,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session || (session.auth_role !== "admin" && session.auth_role !== "staff")) {
-      return NextResponse.json({ error: "Staff access required" }, { status: 403 });
+      return apiForbidden("Staff access required");
     }
 
     const { id } = await params;
@@ -123,7 +121,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!existing) {
-      return NextResponse.json({ error: "Article not found" }, { status: 404 });
+      return apiNotFound("Article not found");
     }
 
     // Build update
@@ -149,7 +147,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      return apiBadRequest("No fields to update");
     }
 
     // Add updated_by
@@ -166,10 +164,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
 
       if (slugConflict) {
-        return NextResponse.json(
-          { error: "Another article already uses this slug" },
-          { status: 409 }
-        );
+        return apiConflict("Another article already uses this slug");
       }
     }
 
@@ -178,13 +173,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       [...updateParams, existing.article_id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Knowledge update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update knowledge article" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update knowledge article");
   }
 }
 
@@ -196,7 +188,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const { id } = await params;
@@ -208,7 +200,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!existing) {
-      return NextResponse.json({ error: "Article not found" }, { status: 404 });
+      return apiNotFound("Article not found");
     }
 
     // Delete usage logs first (foreign key)
@@ -223,12 +215,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       [existing.article_id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Knowledge delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete knowledge article" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete knowledge article");
   }
 }

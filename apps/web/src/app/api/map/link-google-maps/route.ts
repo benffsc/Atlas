@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Link Google Maps Entries API
@@ -29,13 +30,10 @@ export async function POST(request: NextRequest) {
     `, [maxDistance]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Linking function not available - run MIG_722 first" },
-        { status: 500 }
-      );
+      return apiServerError("Linking function not available - run MIG_722 first");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       linked: result.linked,
       already_linked: result.already_linked,
@@ -47,14 +45,8 @@ export async function POST(request: NextRequest) {
     console.error("Error linking Google Maps entries:", error);
     // Check if it's because the function doesn't exist
     if (error instanceof Error && error.message.includes("does not exist")) {
-      return NextResponse.json(
-        { error: "Linking function not available - run MIG_722 migration first" },
-        { status: 500 }
-      );
+      return apiServerError("Linking function not available - run MIG_722 migration first");
     }
-    return NextResponse.json(
-      { error: "Failed to link Google Maps entries" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to link Google Maps entries");
   }
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface SearchResult {
   article_id: string;
@@ -25,10 +26,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10");
 
     if (!queryText || queryText.trim().length < 2) {
-      return NextResponse.json(
-        { error: "Query must be at least 2 characters" },
-        { status: 400 }
-      );
+      return apiBadRequest("Query must be at least 2 characters");
     }
 
     // Determine user's access level
@@ -56,17 +54,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       query: queryText,
       results,
       count: results.length,
     });
   } catch (error) {
     console.error("Knowledge search error:", error);
-    return NextResponse.json(
-      { error: "Failed to search knowledge base" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to search knowledge base");
   }
 }
 
@@ -82,10 +77,7 @@ export async function POST(request: NextRequest) {
     const { query: queryText, category, limit } = body;
 
     if (!queryText || queryText.trim().length < 2) {
-      return NextResponse.json(
-        { error: "Query must be at least 2 characters" },
-        { status: 400 }
-      );
+      return apiBadRequest("Query must be at least 2 characters");
     }
 
     // Determine user's access level
@@ -126,16 +118,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       query: queryText,
       results: enrichedResults,
       count: results.length,
     });
   } catch (error) {
     console.error("Knowledge search error:", error);
-    return NextResponse.json(
-      { error: "Failed to search knowledge base" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to search knowledge base");
   }
 }
