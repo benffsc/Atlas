@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
-import { apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface Organization {
   org_id: string;
@@ -81,13 +80,14 @@ export async function GET() {
         o.display_name
     `);
 
-    return NextResponse.json({
-      organizations,
-    }, {
-      headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    return apiSuccess(
+      { organizations },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
       }
-    });
+    );
   } catch (err) {
     console.error("Error fetching organizations:", err);
     return apiServerError("Failed to fetch organizations");

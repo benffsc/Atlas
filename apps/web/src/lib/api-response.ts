@@ -43,6 +43,16 @@ export interface ApiErrorResponse {
 }
 
 /**
+ * Check if a value is ResponseInit (has headers or status).
+ */
+function isResponseInit(
+  value: Partial<PaginationMeta> | ResponseInit | undefined
+): value is ResponseInit {
+  if (!value || typeof value !== "object") return false;
+  return "headers" in value || "status" in value;
+}
+
+/**
  * Create a standardized success response.
  *
  * @example
@@ -54,15 +64,42 @@ export interface ApiErrorResponse {
  *   { cats: results },
  *   { total: count, limit, offset }
  * );
+ *
+ * // Response with custom headers (e.g., cache control)
+ * return apiSuccess(
+ *   { orgs: results },
+ *   { headers: { "Cache-Control": "public, s-maxage=300" } }
+ * );
+ *
+ * // Pagination + custom headers
+ * return apiSuccess(
+ *   { cats: results },
+ *   { total: count, limit, offset },
+ *   { headers: { "Cache-Control": "public, s-maxage=60" } }
+ * );
  */
 export function apiSuccess<T>(
   data: T,
-  meta?: Partial<PaginationMeta>
+  metaOrOptions?: Partial<PaginationMeta> | ResponseInit,
+  options?: ResponseInit
 ): NextResponse<ApiSuccessResponse<T>> {
   const response: ApiSuccessResponse<T> = {
     success: true,
     data,
   };
+
+  // Determine what the second param is
+  let meta: Partial<PaginationMeta> | undefined;
+  let responseInit: ResponseInit | undefined;
+
+  if (isResponseInit(metaOrOptions)) {
+    // Second param is ResponseInit
+    responseInit = metaOrOptions;
+  } else if (metaOrOptions) {
+    // Second param is PaginationMeta
+    meta = metaOrOptions;
+    responseInit = options;
+  }
 
   if (meta) {
     response.meta = {
@@ -73,7 +110,7 @@ export function apiSuccess<T>(
     };
   }
 
-  return NextResponse.json(response);
+  return NextResponse.json(response, responseInit);
 }
 
 /**
