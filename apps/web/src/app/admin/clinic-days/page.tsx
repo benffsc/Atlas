@@ -264,12 +264,22 @@ export default function ClinicDaysPage() {
   // Load clinic days list
   useEffect(() => {
     fetch("/api/admin/clinic-days?include_comparison=true&limit=90")
-      .then((res) => res.json())
-      .then((data) => {
-        setClinicDays(data.clinic_days || []);
+      .then((res) => {
+        console.log("[clinic-days] API response status:", res.status);
+        return res.json();
+      })
+      .then((response) => {
+        console.log("[clinic-days] API response:", response);
+        // Handle apiSuccess format: { success: true, data: { clinic_days: [...] } }
+        const clinicDaysData = response.data?.clinic_days || response.clinic_days || [];
+        console.log("[clinic-days] Parsed clinic days:", clinicDaysData.length, "days");
+        setClinicDays(clinicDaysData);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("[clinic-days] Fetch error:", err);
+        setLoading(false);
+      });
   }, []);
 
   // Load trappers for dropdown
@@ -300,10 +310,12 @@ export default function ClinicDaysPage() {
       fetch(`/api/admin/clinic-days/${selectedDate}`)
         .then((res) => {
           if (res.ok) return res.json();
-          return { clinic_day: null, entries: [] };
+          return { data: { clinic_day: null, entries: [] } };
         })
-        .then((data) => {
-          setSelectedDay(data.clinic_day);
+        .then((response) => {
+          // Handle apiSuccess format: { success: true, data: { clinic_day, entries } }
+          const data = response.data || response;
+          setSelectedDay(data.clinic_day || null);
           setEntries(data.entries || []);
         });
 
@@ -332,7 +344,9 @@ export default function ClinicDaysPage() {
   const loadComparison = async () => {
     const res = await fetch(`/api/admin/clinic-days/${selectedDate}/compare`);
     if (res.ok) {
-      const data = await res.json();
+      const response = await res.json();
+      // Handle apiSuccess format: { success: true, data: {...} }
+      const data = response.data || response;
       setCompareData(data);
       setShowCompare(true);
     }
@@ -372,8 +386,9 @@ export default function ClinicDaysPage() {
       });
       // Reload list
       const listRes = await fetch("/api/admin/clinic-days?include_comparison=true&limit=90");
-      const listData = await listRes.json();
-      setClinicDays(listData.clinic_days || []);
+      const listResponse = await listRes.json();
+      // Handle apiSuccess format
+      setClinicDays(listResponse.data?.clinic_days || listResponse.clinic_days || []);
     } else {
       const err = await res.json();
       if (err.clinic_day_id) {
@@ -404,11 +419,12 @@ export default function ClinicDaysPage() {
       setShowEditModal(false);
       // Reload day and list
       const dayRes = await fetch(`/api/admin/clinic-days/${selectedDate}`);
-      const dayData = await dayRes.json();
-      setSelectedDay(dayData.clinic_day);
+      const dayResponse = await dayRes.json();
+      const dayData = dayResponse.data || dayResponse;
+      setSelectedDay(dayData.clinic_day || null);
       const listRes = await fetch("/api/admin/clinic-days?include_comparison=true&limit=90");
-      const listData = await listRes.json();
-      setClinicDays(listData.clinic_days || []);
+      const listResponse = await listRes.json();
+      setClinicDays(listResponse.data?.clinic_days || listResponse.clinic_days || []);
     }
   };
 
@@ -452,8 +468,9 @@ export default function ClinicDaysPage() {
     if (res.ok) {
       // Reload entries
       const dayRes = await fetch(`/api/admin/clinic-days/${selectedDate}`);
-      const dayData = await dayRes.json();
-      setSelectedDay(dayData.clinic_day);
+      const dayResponse = await dayRes.json();
+      const dayData = dayResponse.data || dayResponse;
+      setSelectedDay(dayData.clinic_day || null);
       setEntries(dayData.entries || []);
 
       // Reset form
@@ -469,8 +486,8 @@ export default function ClinicDaysPage() {
 
       // Reload clinic days list
       const listRes = await fetch("/api/admin/clinic-days?include_comparison=true&limit=90");
-      const listData = await listRes.json();
-      setClinicDays(listData.clinic_days || []);
+      const listResponse = await listRes.json();
+      setClinicDays(listResponse.data?.clinic_days || listResponse.clinic_days || []);
     } else {
       const err = await res.json();
       alert(err.error || "Failed to add entry");
@@ -489,8 +506,9 @@ export default function ClinicDaysPage() {
       setEntries(entries.filter((e) => e.entry_id !== entryId));
       // Reload day totals
       const dayRes = await fetch(`/api/admin/clinic-days/${selectedDate}`);
-      const dayData = await dayRes.json();
-      setSelectedDay(dayData.clinic_day);
+      const dayResponse = await dayRes.json();
+      const dayData = dayResponse.data || dayResponse;
+      setSelectedDay(dayData.clinic_day || null);
     }
   };
 
@@ -551,21 +569,24 @@ export default function ClinicDaysPage() {
         body: formData,
       });
 
-      const data = await res.json();
+      const response = await res.json();
+      // Handle apiSuccess format
+      const data = response.data || response;
 
       if (res.ok) {
         setImportResult({ success: true, ...data });
         // Reload entries and day data
         const dayRes = await fetch(`/api/admin/clinic-days/${selectedDate}`);
-        const dayData = await dayRes.json();
-        setSelectedDay(dayData.clinic_day);
-        setEntries(dayData.entries || []);
+        const dayResponse = await dayRes.json();
+        const reloadData = dayResponse.data || dayResponse;
+        setSelectedDay(reloadData.clinic_day || null);
+        setEntries(reloadData.entries || []);
         // Reload clinic days list
         const listRes = await fetch("/api/admin/clinic-days?include_comparison=true&limit=90");
-        const listData = await listRes.json();
-        setClinicDays(listData.clinic_days || []);
+        const listResponse = await listRes.json();
+        setClinicDays(listResponse.data?.clinic_days || listResponse.clinic_days || []);
       } else {
-        setImportResult({ success: false, error: data.error, existingCount: data.existingCount });
+        setImportResult({ success: false, error: data.error || response.error, existingCount: data.existingCount });
       }
     } catch {
       setImportResult({ success: false, error: "Failed to import file" });
@@ -584,13 +605,15 @@ export default function ClinicDaysPage() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const response = await res.json();
+        const data = response.data || response;
         alert(`Deleted ${data.deleted} entries`);
         // Reload
         const dayRes = await fetch(`/api/admin/clinic-days/${selectedDate}`);
-        const dayData = await dayRes.json();
-        setSelectedDay(dayData.clinic_day);
-        setEntries(dayData.entries || []);
+        const dayResponse = await dayRes.json();
+        const reloadData = dayResponse.data || dayResponse;
+        setSelectedDay(reloadData.clinic_day || null);
+        setEntries(reloadData.entries || []);
         setImportResult(null);
         setImportFile(null);
       }
