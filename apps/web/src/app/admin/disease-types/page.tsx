@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface DiseaseType {
   disease_key: string;
@@ -71,10 +72,7 @@ export default function DiseaseTypesPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/disease-types");
-      if (!response.ok) throw new Error("Failed to fetch disease types");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ disease_types: DiseaseType[] }>("/api/admin/disease-types");
       setDiseaseTypes(data.disease_types || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -103,19 +101,10 @@ export default function DiseaseTypesPage() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/admin/disease-types", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          description: form.description || null,
-        }),
+      await postApi("/api/admin/disease-types", {
+        ...form,
+        description: form.description || null,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create disease type");
-      }
 
       setMessage({ type: "success", text: "Disease type created!" });
       resetForm();
@@ -151,20 +140,11 @@ export default function DiseaseTypesPage() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/admin/disease-types", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          disease_key: editingKey,
-          ...editForm,
-          description: editForm.description || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to update disease type");
-      }
+      await postApi("/api/admin/disease-types", {
+        disease_key: editingKey,
+        ...editForm,
+        description: editForm.description || null,
+      }, { method: "PATCH" });
 
       setMessage({ type: "success", text: "Disease type updated!" });
       setEditingKey(null);

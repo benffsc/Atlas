@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Colony {
   colony_id: string;
@@ -95,11 +96,7 @@ export default function ColoniesPage() {
       if (showDiscrepancies) params.set("hasDiscrepancy", "true");
       if (searchQuery) params.set("search", searchQuery);
 
-      const response = await fetch(`/api/colonies?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch colonies");
-
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ colonies: Colony[]; summary: Summary | null }>(`/api/colonies?${params.toString()}`);
       setColonies(data.colonies || []);
       setSummary(data.summary || null);
     } catch (err) {
@@ -119,22 +116,11 @@ export default function ColoniesPage() {
 
     setCreating(true);
     try {
-      const response = await fetch("/api/colonies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          colony_name: newColonyName.trim(),
-          notes: newColonyNotes.trim() || null,
-          created_by: "staff", // TODO: Use actual user
-        }),
+      const data = await postApi<{ colony_id: string }>("/api/colonies", {
+        colony_name: newColonyName.trim(),
+        notes: newColonyNotes.trim() || null,
+        created_by: "staff", // TODO: Use actual user
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create colony");
-      }
-
-      const data = await response.json();
 
       // Reset form and close modal
       setNewColonyName("");
