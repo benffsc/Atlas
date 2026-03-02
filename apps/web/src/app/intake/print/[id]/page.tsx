@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi } from "@/lib/api-client";
 import {
   URGENT_SITUATION_EXAMPLES,
   getOwnershipLabel as getOwnershipLabelFromLib,
@@ -121,20 +122,14 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/intake/queue/${id}`).then(res => {
-        if (!res.ok) throw new Error("Failed to fetch submission");
-        return res.json();
-      }),
-      fetch("/api/intake/custom-fields").then(res => res.ok ? res.json() : { fields: [] })
+      fetchApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${id}`),
+      fetchApi<{ fields: CustomFieldDef[] }>("/api/intake/custom-fields").catch(() => ({ fields: [] }))
     ])
-      .then(([subResponse, fieldsResponse]) => {
-        // Handle apiSuccess wrapper format
-        const subData = subResponse.data || subResponse;
-        const fieldsData = fieldsResponse.data || fieldsResponse;
+      .then(([subData, fieldsData]) => {
         setSubmission(subData.submission);
         setCustomFieldDefs(fieldsData.fields || []);
       })
-      .catch(err => setError(err.message))
+      .catch(err => setError(err instanceof Error ? err.message : "Failed to fetch"))
       .finally(() => setLoading(false));
   }, [id]);
 
