@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface TrapperReportSubmission {
   submission_id: string;
@@ -178,13 +179,13 @@ export default function TrapperReportsPage() {
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/trapper-reports?status=${activeTab}`);
-      if (!res.ok) throw new Error("Failed to fetch submissions");
-      const data = await res.json();
+      const data = await fetchApi<{ submissions: TrapperReportSubmission[]; stats: SubmissionStats }>(
+        `/api/admin/trapper-reports?status=${activeTab}`
+      );
       setSubmissions(data.submissions);
       setStats(data.stats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load submissions");
+      setError(err instanceof ApiError ? err.message : "Failed to load submissions");
     } finally {
       setLoading(false);
     }
@@ -196,12 +197,10 @@ export default function TrapperReportsPage() {
 
   const fetchSubmissionDetail = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/trapper-reports/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch submission");
-      const data = await res.json();
+      const data = await fetchApi<SubmissionDetail>(`/api/admin/trapper-reports/${id}`);
       setSelectedSubmission(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load submission");
+      setError(err instanceof ApiError ? err.message : "Failed to load submission");
     }
   };
 
@@ -213,17 +212,16 @@ export default function TrapperReportsPage() {
     }
     setSearchingReporter(true);
     try {
-      const res = await fetch(`/api/trappers?search=${encodeURIComponent(query)}&limit=10`);
-      if (res.ok) {
-        const data = await res.json();
-        setReporterResults(
-          (data.trappers || []).map((t: { person_id: string; display_name: string; trapper_type: string }) => ({
-            id: t.person_id,
-            name: t.display_name,
-            type: t.trapper_type,
-          }))
-        );
-      }
+      const data = await fetchApi<{ trappers: Array<{ person_id: string; display_name: string; trapper_type: string }> }>(
+        `/api/trappers?search=${encodeURIComponent(query)}&limit=10`
+      );
+      setReporterResults(
+        (data.trappers || []).map((t) => ({
+          id: t.person_id,
+          name: t.display_name,
+          type: t.trapper_type,
+        }))
+      );
     } catch (err) {
       console.error("Failed to search trappers:", err);
     } finally {
@@ -239,16 +237,15 @@ export default function TrapperReportsPage() {
     }
     setSearchingReporter(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=10`);
-      if (res.ok) {
-        const data = await res.json();
-        setReporterResults(
-          (data.results || []).map((p: { entity_id: string; display_name: string }) => ({
-            id: p.entity_id,
-            name: p.display_name,
-          }))
-        );
-      }
+      const data = await fetchApi<{ results: Array<{ entity_id: string; display_name: string }> }>(
+        `/api/search?q=${encodeURIComponent(query)}&type=person&limit=10`
+      );
+      setReporterResults(
+        (data.results || []).map((p) => ({
+          id: p.entity_id,
+          name: p.display_name,
+        }))
+      );
     } catch (err) {
       console.error("Failed to search people:", err);
     } finally {
@@ -264,18 +261,17 @@ export default function TrapperReportsPage() {
     }
     setSearchingRequest(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=request&limit=10`);
-      if (res.ok) {
-        const data = await res.json();
-        setRequestResults(
-          (data.requests || []).map((r: { request_id: string; place_address: string; requester_name: string; status: string }) => ({
-            id: r.request_id,
-            address: r.place_address || "No address",
-            requester: r.requester_name,
-            status: r.status,
-          }))
-        );
-      }
+      const data = await fetchApi<{ requests: Array<{ request_id: string; place_address: string; requester_name: string; status: string }> }>(
+        `/api/search?q=${encodeURIComponent(query)}&type=request&limit=10`
+      );
+      setRequestResults(
+        (data.requests || []).map((r) => ({
+          id: r.request_id,
+          address: r.place_address || "No address",
+          requester: r.requester_name,
+          status: r.status,
+        }))
+      );
     } catch (err) {
       console.error("Failed to search requests:", err);
     } finally {
@@ -343,23 +339,14 @@ export default function TrapperReportsPage() {
         hold_reason: statusUpdate === "on_hold" ? holdReason || null : null,
       } : null;
 
-      const res = await fetch("/api/admin/trapper-reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reporter_email: selectedReporter ? null : newReporterEmail || null,
-          reporter_person_id: selectedReporter?.id || null,
-          request_id: selectedRequest?.id || null,
-          structured_data: structuredData,
-          content: newContent,
-          content_type: newContentType,
-        }),
+      await postApi("/api/admin/trapper-reports", {
+        reporter_email: selectedReporter ? null : newReporterEmail || null,
+        reporter_person_id: selectedReporter?.id || null,
+        request_id: selectedRequest?.id || null,
+        structured_data: structuredData,
+        content: newContent,
+        content_type: newContentType,
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to submit");
-      }
 
       setShowNewForm(false);
       resetFormState();
@@ -374,16 +361,10 @@ export default function TrapperReportsPage() {
   const runExtraction = async (id: string) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/trapper-reports/${id}/extract`, {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Extraction failed");
-      }
-
-      const data = await res.json();
+      const data = await postApi<{ sites_processed: number; items_created: number }>(
+        `/api/admin/trapper-reports/${id}/extract`,
+        {}
+      );
       alert(`Extracted ${data.sites_processed} sites, created ${data.items_created} items for review`);
 
       fetchSubmissions();
@@ -391,7 +372,7 @@ export default function TrapperReportsPage() {
         fetchSubmissionDetail(id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Extraction failed");
+      setError(err instanceof ApiError ? err.message : "Extraction failed");
     } finally {
       setUpdating(false);
     }
@@ -404,19 +385,12 @@ export default function TrapperReportsPage() {
 
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/trapper-reports/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Delete failed");
-      }
+      await postApi(`/api/admin/trapper-reports/${id}`, {}, { method: "DELETE" });
 
       setSelectedSubmission(null);
       fetchSubmissions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof ApiError ? err.message : "Delete failed");
     } finally {
       setUpdating(false);
     }
@@ -427,20 +401,15 @@ export default function TrapperReportsPage() {
 
     setUpdating(true);
     try {
-      const res = await fetch(
+      await postApi(
         `/api/admin/trapper-reports/${selectedSubmission.submission.submission_id}/items/${itemId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ review_status: status }),
-        }
+        { review_status: status },
+        { method: "PATCH" }
       );
-
-      if (!res.ok) throw new Error("Failed to update item");
 
       fetchSubmissionDetail(selectedSubmission.submission.submission_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
+      setError(err instanceof ApiError ? err.message : "Update failed");
     } finally {
       setUpdating(false);
     }
@@ -451,25 +420,16 @@ export default function TrapperReportsPage() {
 
     setUpdating(true);
     try {
-      const res = await fetch(
+      const data = await postApi<{ committed: number; failed: number }>(
         `/api/admin/trapper-reports/${selectedSubmission.submission.submission_id}/commit`,
-        {
-          method: "POST",
-        }
+        {}
       );
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Commit failed");
-      }
-
-      const data = await res.json();
       alert(`Committed ${data.committed} items, ${data.failed} failed`);
 
       fetchSubmissions();
       fetchSubmissionDetail(selectedSubmission.submission.submission_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Commit failed");
+      setError(err instanceof ApiError ? err.message : "Commit failed");
     } finally {
       setUpdating(false);
     }

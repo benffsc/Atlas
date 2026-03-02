@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { BackButton } from "@/components/common";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface ReadyRequest {
   request_id: string;
@@ -81,13 +82,13 @@ export default function EmailBatchesPage() {
 
   const fetchReadyRequests = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/email-batches?mode=ready-requests");
-      if (!res.ok) throw new Error("Failed to fetch ready requests");
-      const data = await res.json();
+      const data = await fetchApi<{ ready_requests: TrapperGroup[]; total_count: number }>(
+        "/api/admin/email-batches?mode=ready-requests"
+      );
       setTrapperGroups(data.ready_requests || []);
       setReadyCount(data.total_count || 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load ready requests");
+      setError(err instanceof ApiError ? err.message : "Failed to load ready requests");
     }
   }, []);
 
@@ -96,31 +97,31 @@ export default function EmailBatchesPage() {
       const url = status && status !== "all"
         ? `/api/admin/email-batches?status=${status}`
         : "/api/admin/email-batches";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch batches");
-      const data = await res.json();
+      const data = await fetchApi<{ batches: EmailBatch[]; counts: { draft: number; sent: number; failed: number } }>(url);
       setBatches(data.batches || []);
       setCounts(data.counts || { draft: 0, sent: 0, failed: 0 });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load batches");
+      setError(err instanceof ApiError ? err.message : "Failed to load batches");
     }
   }, []);
 
   const fetchOutlookAccounts = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/email-settings/accounts");
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await fetchApi<{ accounts: OutlookAccount[] }>("/api/admin/email-settings/accounts");
       setOutlookAccounts(data.accounts || []);
 
       // Get default account for trapper category
-      const catRes = await fetch("/api/admin/email-categories");
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        const trapperCat = catData.categories?.find((c: { category_key: string }) => c.category_key === "trapper");
+      try {
+        const catData = await fetchApi<{ categories: Array<{ category_key: string; default_outlook_account_id?: string }> }>(
+          "/api/admin/email-categories"
+        );
+        const trapperCat = catData.categories?.find((c) => c.category_key === "trapper");
         if (trapperCat?.default_outlook_account_id) {
-          setCreateForm(prev => ({ ...prev, outlook_account_id: trapperCat.default_outlook_account_id }));
+          const defaultAccountId = trapperCat.default_outlook_account_id;
+          setCreateForm(prev => ({ ...prev, outlook_account_id: defaultAccountId }));
         }
+      } catch {
+        // Ignore category fetch errors
       }
     } catch {
       // Ignore errors
@@ -185,24 +186,15 @@ export default function EmailBatchesPage() {
         ? Array.from(selectedIds)
         : createTarget.requests.map(r => r.request_id);
 
-      const res = await fetch("/api/admin/email-batches", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipient_person_id: createTarget.trapper_person_id || null,
-          recipient_email: createTarget.trapper_email,
-          recipient_name: createTarget.trapper_name,
-          request_ids: requestIds,
-          outlook_account_id: createForm.outlook_account_id || undefined,
-          subject: createForm.subject,
-          custom_intro: createForm.custom_intro || undefined,
-        }),
+      await postApi("/api/admin/email-batches", {
+        recipient_person_id: createTarget.trapper_person_id || null,
+        recipient_email: createTarget.trapper_email,
+        recipient_name: createTarget.trapper_name,
+        request_ids: requestIds,
+        outlook_account_id: createForm.outlook_account_id || undefined,
+        subject: createForm.subject,
+        custom_intro: createForm.custom_intro || undefined,
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create batch");
-      }
 
       setShowCreateModal(false);
       setCreateTarget(null);
@@ -211,7 +203,7 @@ export default function EmailBatchesPage() {
       await fetchReadyRequests();
       await fetchBatches("draft");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create batch");
+      setError(err instanceof ApiError ? err.message : "Failed to create batch");
     } finally {
       setCreating(false);
     }
@@ -220,21 +212,12 @@ export default function EmailBatchesPage() {
   const handleSendBatch = async (batchId: string) => {
     setSending(batchId);
     try {
-      const res = await fetch(`/api/admin/email-batches/${batchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send" }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to send batch");
-      }
+      await postApi(`/api/admin/email-batches/${batchId}`, { action: "send" }, { method: "PATCH" });
 
       await fetchBatches(activeTab === "ready" ? undefined : activeTab);
       await fetchReadyRequests();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send batch");
+      setError(err instanceof ApiError ? err.message : "Failed to send batch");
     } finally {
       setSending(null);
     }
@@ -244,21 +227,12 @@ export default function EmailBatchesPage() {
     if (!confirm("Cancel this batch? Requests will be unmarked and available again.")) return;
 
     try {
-      const res = await fetch(`/api/admin/email-batches/${batchId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cancel" }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to cancel batch");
-      }
+      await postApi(`/api/admin/email-batches/${batchId}`, { action: "cancel" }, { method: "PATCH" });
 
       await fetchBatches(activeTab === "ready" ? undefined : activeTab);
       await fetchReadyRequests();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to cancel batch");
+      setError(err instanceof ApiError ? err.message : "Failed to cancel batch");
     }
   };
 

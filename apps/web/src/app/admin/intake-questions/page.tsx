@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface QuestionOption {
   option_id?: string;
@@ -51,8 +52,9 @@ export default function IntakeQuestionsAdmin() {
 
   const fetchQuestions = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/intake-questions?include_inactive=true");
-      const data = await res.json();
+      const data = await fetchApi<{ questions: IntakeQuestion[] }>(
+        "/api/admin/intake-questions?include_inactive=true"
+      );
       setQuestions(data.questions || []);
     } catch (err) {
       console.error("Error fetching questions:", err);
@@ -70,27 +72,19 @@ export default function IntakeQuestionsAdmin() {
     setSaving(true);
 
     try {
-      const res = await fetch("/api/admin/intake-questions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question_id: editingQuestion.question_id,
-          question_text: editingQuestion.question_text,
-          help_text: editingQuestion.help_text,
-          is_active: editingQuestion.is_active,
-          options: editingQuestion.options,
-        }),
-      });
+      await postApi("/api/admin/intake-questions", {
+        question_id: editingQuestion.question_id,
+        question_text: editingQuestion.question_text,
+        help_text: editingQuestion.help_text,
+        is_active: editingQuestion.is_active,
+        options: editingQuestion.options,
+      }, { method: "PUT" });
 
-      if (res.ok) {
-        setEditingQuestion(null);
-        fetchQuestions();
-      } else {
-        alert("Failed to save question");
-      }
+      setEditingQuestion(null);
+      fetchQuestions();
     } catch (err) {
       console.error("Error saving question:", err);
-      alert("Failed to save question");
+      alert(err instanceof ApiError ? err.message : "Failed to save question");
     } finally {
       setSaving(false);
     }
@@ -104,29 +98,21 @@ export default function IntakeQuestionsAdmin() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/intake-questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newQuestion),
-      });
+      await postApi("/api/admin/intake-questions", newQuestion);
 
-      if (res.ok) {
-        setShowAddCustom(false);
-        setNewQuestion({
-          question_key: "",
-          question_text: "",
-          help_text: "",
-          question_type: "text",
-          step_name: "situation",
-          is_required: false,
-        });
-        fetchQuestions();
-      } else {
-        alert("Failed to add question");
-      }
+      setShowAddCustom(false);
+      setNewQuestion({
+        question_key: "",
+        question_text: "",
+        help_text: "",
+        question_type: "text",
+        step_name: "situation",
+        is_required: false,
+      });
+      fetchQuestions();
     } catch (err) {
       console.error("Error adding question:", err);
-      alert("Failed to add question");
+      alert(err instanceof ApiError ? err.message : "Failed to add question");
     } finally {
       setSaving(false);
     }
@@ -136,19 +122,11 @@ export default function IntakeQuestionsAdmin() {
     if (!confirm("Are you sure you want to delete this custom question?")) return;
 
     try {
-      const res = await fetch(`/api/admin/intake-questions?id=${questionId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        fetchQuestions();
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to delete question");
-      }
+      await postApi(`/api/admin/intake-questions?id=${questionId}`, {}, { method: "DELETE" });
+      fetchQuestions();
     } catch (err) {
       console.error("Error deleting question:", err);
-      alert("Failed to delete question");
+      alert(err instanceof ApiError ? err.message : "Failed to delete question");
     }
   };
 
