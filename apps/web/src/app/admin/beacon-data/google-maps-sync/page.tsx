@@ -93,7 +93,8 @@ export default function GoogleMapsSyncPage() {
     try {
       const response = await fetch("/api/admin/google-maps-sync");
       if (!response.ok) throw new Error("Failed to fetch stats");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stats");

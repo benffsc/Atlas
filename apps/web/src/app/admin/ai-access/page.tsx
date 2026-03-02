@@ -38,7 +38,8 @@ export default function AIAccessManagementPage() {
     try {
       const response = await fetch("/api/admin/ai-access");
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setStaff(data.staff || []);
         setAccessLevels(data.access_levels || []);
       } else {
@@ -75,7 +76,8 @@ export default function AIAccessManagementPage() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setMessage({ type: "success", text: data.message });
         // Update local state
         setStaff((prev) =>

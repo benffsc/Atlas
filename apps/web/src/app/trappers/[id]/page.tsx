@@ -91,7 +91,8 @@ export default function TrapperDetailPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch trapper stats");
       }
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -102,7 +103,8 @@ export default function TrapperDetailPage() {
     try {
       const response = await fetch(`/api/people/${id}/trapper-cats`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setManualCatches(data.catches || []);
       }
     } catch (err) {

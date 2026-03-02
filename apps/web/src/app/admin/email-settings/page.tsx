@@ -57,7 +57,8 @@ function EmailSettingsContent() {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/email-settings/accounts");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setConfigured(data.configured);
       setAccounts(data.accounts || []);
     } catch (err) {

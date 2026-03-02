@@ -199,7 +199,8 @@ export default function ColonyDetailPage() {
         }
         throw new Error("Failed to fetch colony");
       }
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setColony(data);
 
       // Initialize edit form
@@ -215,7 +216,8 @@ export default function ColonyDetailPage() {
     try {
       const response = await fetch(`/api/colonies/${id}/cats`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setCats(data.cats || []);
         setOwnedCats(data.owned_cats || []);
       }

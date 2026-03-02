@@ -39,7 +39,8 @@ export default function TemplateSuggestionsPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
 
       const response = await fetch(`/api/admin/email-templates/suggestions?${params}`);
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setSuggestions(data.suggestions || []);
     } catch (err) {
       console.error("Failed to fetch suggestions:", err);

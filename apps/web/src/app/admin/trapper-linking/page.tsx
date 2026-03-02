@@ -49,7 +49,8 @@ export default function TrapperLinkingPage() {
     try {
       const response = await fetch(`/api/admin/trapper-linking?status=${status}`);
       const result = await response.json();
-      setData(result);
+      const data = result.data || result;
+      setData(data);
     } catch (error) {
       console.error("Failed to fetch pending trapper links:", error);
     } finally {
@@ -225,7 +226,8 @@ function TrapperLinkCard({
     setSearching(true);
     try {
       const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=10`);
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setSearchResults(data.people || []);
     } catch (error) {
       console.error("Search failed:", error);

@@ -87,7 +87,8 @@ export default function EmailJobsPage() {
   const fetchJobs = async () => {
     try {
       const response = await fetch(`/api/admin/email-jobs?status=${filter}`);
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setJobs(data.jobs || []);
       setCounts(data.counts || { draft: 0, queued: 0, sent: 0, failed: 0 });
     } catch (err) {
@@ -103,8 +104,10 @@ export default function EmailJobsPage() {
         fetch("/api/admin/email-templates"),
         fetch("/api/admin/email-settings/accounts"),
       ]);
-      const templatesData = await templatesRes.json();
-      const accountsData = await accountsRes.json();
+      const templatesResult = await templatesRes.json();
+      const accountsResult = await accountsRes.json();
+      const templatesData = templatesResult.data || templatesResult;
+      const accountsData = accountsResult.data || accountsResult;
 
       setTemplates(templatesData.templates || []);
       setAccounts(accountsData.accounts || []);

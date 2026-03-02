@@ -52,7 +52,8 @@ export default function DepartmentsPage() {
     try {
       const response = await fetch("/api/admin/departments");
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setDepartments(data.departments || []);
         setHierarchy(data.hierarchy || null);
         setStats(data.stats || null);

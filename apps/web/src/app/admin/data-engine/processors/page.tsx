@@ -37,7 +37,8 @@ export default function ProcessorsPage() {
     try {
       const response = await fetch("/api/admin/data-engine/process");
       if (!response.ok) throw new Error("Failed to fetch processors");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setProcessors(data.processors || []);
       setPendingCounts(data.pending_by_source || []);
     } catch (err) {

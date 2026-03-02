@@ -70,7 +70,8 @@ export default function StaffManagementPage() {
 
       const response = await fetch(`/api/staff?${params.toString()}`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setStaff(data.staff || []);
         setDepartments(data.departments || []);
       }

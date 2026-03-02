@@ -66,7 +66,8 @@ export default function OrganizationsPage() {
 
       const response = await fetch(`/api/admin/orgs?${params}`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setOrgs(data.organizations || []);
         setOrgTypes(data.org_types || []);
         setStats(data.stats || null);

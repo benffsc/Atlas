@@ -98,7 +98,8 @@ export default function ColoniesPage() {
       const response = await fetch(`/api/colonies?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch colonies");
 
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setColonies(data.colonies || []);
       setSummary(data.summary || null);
     } catch (err) {

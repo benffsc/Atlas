@@ -73,7 +73,8 @@ export default function DiseaseTypesPage() {
     try {
       const response = await fetch("/api/admin/disease-types");
       if (!response.ok) throw new Error("Failed to fetch disease types");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setDiseaseTypes(data.disease_types || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

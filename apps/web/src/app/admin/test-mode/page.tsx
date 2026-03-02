@@ -20,7 +20,8 @@ export default function TestModePage() {
   const fetchStatus = useCallback(async () => {
     try {
       const response = await fetch("/api/admin/test-mode");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setStatus(data);
       setError(null);
     } catch (err) {

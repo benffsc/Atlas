@@ -81,7 +81,8 @@ export default function EducationMaterialsAdminPage() {
       if (selectedCategory) params.set("category", selectedCategory);
 
       const response = await fetch(`/api/trappers/materials?${params.toString()}`);
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setMaterials(data.materials || []);
       setCategories(data.categories || []);
     } catch (err) {

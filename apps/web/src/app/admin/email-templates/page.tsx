@@ -76,7 +76,8 @@ export default function EmailTemplatesAdminPage() {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/email-templates");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setTemplates(data.templates || []);
       setUserRole(data.userRole || "staff");
       setPendingSuggestions(data.pendingSuggestions || 0);

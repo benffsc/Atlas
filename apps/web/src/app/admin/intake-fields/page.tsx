@@ -91,7 +91,8 @@ export default function IntakeFieldsAdminPage() {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/intake-fields");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setFields(data.fields || []);
     } catch (err) {
       console.error("Failed to fetch fields:", err);
@@ -104,7 +105,8 @@ export default function IntakeFieldsAdminPage() {
   const fetchSyncStatus = async () => {
     try {
       const response = await fetch("/api/admin/intake-fields/sync-airtable");
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setSyncStatus(data);
     } catch (err) {
       console.error("Failed to fetch sync status:", err);

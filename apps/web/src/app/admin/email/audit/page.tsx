@@ -65,7 +65,8 @@ export default function EmailAuditPage() {
       params.set("offset", String(offset));
 
       const response = await fetch(`/api/admin/email-audit?${params}`);
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
 
       setEmails(data.emails || []);
       setTotal(data.total || 0);
