@@ -108,13 +108,15 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing) {
-      // Allow re-upload if previous was failed - delete the failed record first
-      if (existing.status === 'failed') {
-        console.log("[UPLOAD] Previous upload failed, allowing re-upload");
+      // Allow re-upload if previous was failed or pending (stalled) - delete the old record first
+      if (existing.status === 'failed' || existing.status === 'pending') {
+        console.log(`[UPLOAD] Previous upload was ${existing.status}, allowing re-upload`);
         await query(`DELETE FROM ops.staged_records WHERE file_upload_id = $1`, [existing.upload_id]);
         await query(`DELETE FROM ops.file_uploads WHERE upload_id = $1`, [existing.upload_id]);
+      } else if (existing.status === 'completed') {
+        return apiConflict(`This file has already been processed successfully (upload_id: ${existing.upload_id}). Upload a new export if you have new data.`);
       } else {
-        return apiConflict(`This file has already been uploaded (upload_id: ${existing.upload_id}, status: ${existing.status})`);
+        return apiConflict(`This file is currently being processed (upload_id: ${existing.upload_id}, status: ${existing.status}). Please wait.`);
       }
     }
 
