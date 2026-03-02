@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows, execute } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiNotFound, apiConflict, apiServerError } from "@/lib/api-response";
 import * as xlsx from "xlsx";
 
 interface RouteParams {
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { date } = await params;
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return apiBadRequest("No file provided");
     }
 
     // Validate file type
@@ -37,10 +38,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
 
     if (!isCSV && !isExcel) {
-      return NextResponse.json(
-        { error: "Invalid file type. Please upload an Excel (.xlsx) or CSV (.csv) file." },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid file type. Please upload an Excel (.xlsx) or CSV (.csv) file.");
     }
 
     // Read file as buffer and parse with xlsx library (handles both Excel and CSV)
@@ -51,10 +49,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { entries, extractedDate } = parseMasterList(workbook);
 
     if (entries.length === 0) {
-      return NextResponse.json(
-        { error: "No entries found in the file" },
-        { status: 400 }
-      );
+      return apiBadRequest("No entries found in the file");
     }
 
     // Get or create clinic day
@@ -73,10 +68,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     if (!clinicDay) {
-      return NextResponse.json(
-        { error: "Failed to get or create clinic day" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to get or create clinic day");
     }
 
     // Check for existing entries
@@ -86,13 +78,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (existingCount && existingCount.count > 0) {
-      return NextResponse.json(
-        {
-          error: `${existingCount.count} entries already exist for this date. Delete existing entries first or use a different date.`,
-          existingCount: existingCount.count,
-        },
-        { status: 409 }
-      );
+      return apiConflict(`${existingCount.count} entries already exist for this date. Delete existing entries first or use a different date.`);
     }
 
     // Import entries
@@ -224,8 +210,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       with_phone: entries.filter((e) => e.contact_phone).length,
     };
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       clinic_day_id: clinicDay.clinic_day_id,
       imported: inserted,
       trappers_resolved: trappersResolved,
@@ -240,10 +225,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Master list import error:", error);
-    return NextResponse.json(
-      { error: "Failed to import master list" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to import master list");
   }
 }
 
@@ -255,7 +237,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { date } = await params;
@@ -266,10 +248,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!clinicDay) {
-      return NextResponse.json(
-        { error: "Clinic day not found" },
-        { status: 404 }
-      );
+      return apiNotFound("clinic day", date);
     }
 
     // Delete entries from master_list source only
@@ -284,16 +263,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       [clinicDay.clinic_day_id]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       deleted: result?.count || 0,
     });
   } catch (error) {
     console.error("Master list delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete entries" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete entries");
   }
 }
 

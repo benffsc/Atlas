@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryOne } from "@/lib/db";
+import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -56,14 +57,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { date } = await params;
 
     // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
+      return apiBadRequest("Invalid date format");
     }
 
     // Get all cats seen on this clinic day (V2 schema)
@@ -235,9 +236,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Clinic day cats fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch clinic day cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch clinic day cats");
   }
 }

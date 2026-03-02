@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { query, queryOne, queryRows } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { date } = await params;
@@ -73,23 +74,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!clinicDay) {
-      return NextResponse.json({ error: "Clinic day not found" }, { status: 404 });
+      return apiNotFound("clinic day", `date ${date}`);
     }
 
     // V2: No separate entries table - entries are the appointments themselves
     // Return empty array for backward compatibility
     const entries: ClinicDayEntry[] = [];
 
-    return NextResponse.json({
+    return apiSuccess({
       clinic_day: clinicDay,
       entries,
     });
   } catch (error) {
     console.error("Clinic day fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch clinic day" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch clinic day");
   }
 }
 
@@ -101,21 +99,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     // V2: Clinic days are derived from ops.appointments
     // Metadata updates not yet supported - would need ops.clinic_day_metadata table
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: "Clinic day metadata updates not yet available in V2"
     });
   } catch (error) {
     console.error("Clinic day update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update clinic day" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update clinic day");
   }
 }
 
@@ -127,19 +121,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     // V2: Cannot delete clinic days - they're derived from appointments
-    return NextResponse.json(
-      { error: "Cannot delete clinic days in V2 - they are derived from appointments" },
-      { status: 400 }
-    );
+    return apiBadRequest("Cannot delete clinic days in V2 - they are derived from appointments");
   } catch (error) {
     console.error("Clinic day delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete clinic day" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete clinic day");
   }
 }

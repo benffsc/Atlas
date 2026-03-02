@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiConflict, apiServerError } from "@/lib/api-response";
 
 interface ClinicDay {
   clinic_day_id: string;
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { searchParams } = new URL(request.url);
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
       [...params, limit, offset]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       clinic_days: clinicDays,
       pagination: {
         limit,
@@ -116,10 +117,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Clinic days list error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch clinic days" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch clinic days");
   }
 }
 
@@ -132,7 +130,7 @@ export async function POST(request: NextRequest) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const body = await request.json();
@@ -146,10 +144,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!clinic_date) {
-      return NextResponse.json(
-        { error: "clinic_date is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("clinic_date is required");
     }
 
     // Check if appointments exist for this date
@@ -159,10 +154,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing && existing.count > 0) {
-      return NextResponse.json(
-        { error: "Appointments already exist for this date", appointment_count: existing.count },
-        { status: 409 }
-      );
+      return apiConflict(`Appointments already exist for this date (${existing.count} appointments)`);
     }
 
     // V2: We don't have a separate clinic_days table
@@ -170,8 +162,7 @@ export async function POST(request: NextRequest) {
     // This endpoint now just returns success with the date info
     // Future: Consider adding ops.clinic_day_metadata table if needed
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       clinic_day_id: null, // No separate table in V2
       clinic_date,
       clinic_type: clinic_type || "regular",
@@ -179,9 +170,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Clinic day create error:", error);
-    return NextResponse.json(
-      { error: "Failed to create clinic day" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create clinic day");
   }
 }

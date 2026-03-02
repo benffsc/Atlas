@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { date } = await params;
@@ -90,13 +91,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       [date]
     );
 
-    return NextResponse.json({ entries });
+    return apiSuccess({ entries });
   } catch (error) {
     console.error("Clinic day entries error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch entries" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch entries");
   }
 }
 
@@ -108,19 +106,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     // V2: Manual entry creation not supported - data comes from ClinicHQ uploads
-    return NextResponse.json(
-      { error: "Manual entry creation not available in V2. Upload ClinicHQ data instead." },
-      { status: 400 }
-    );
+    return apiBadRequest("Manual entry creation not available in V2. Upload ClinicHQ data instead.");
   } catch (error) {
     console.error("Clinic day entry create error:", error);
-    return NextResponse.json(
-      { error: "Failed to create entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create entry");
   }
 }

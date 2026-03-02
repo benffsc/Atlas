@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ date: string; id: string }>;
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -26,16 +27,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!entry) {
-      return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+      return apiNotFound("entry", id);
     }
 
-    return NextResponse.json({ entry });
+    return apiSuccess({ entry });
   } catch (error) {
     console.error("Clinic day entry fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch entry");
   }
 }
 
@@ -48,7 +46,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -61,7 +59,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!existing) {
-      return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+      return apiNotFound("entry", id);
     }
 
     // Build update
@@ -90,17 +88,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      return apiBadRequest("No fields to update");
     }
 
     // Validate status if provided
     if (body.status) {
       const validStatuses = ["completed", "no_show", "cancelled", "partial", "pending"];
       if (!validStatuses.includes(body.status)) {
-        return NextResponse.json(
-          { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
       }
     }
 
@@ -111,13 +106,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       [...updateParams, id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ updated: true });
   } catch (error) {
     console.error("Clinic day entry update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update entry");
   }
 }
 
@@ -130,7 +122,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -142,7 +134,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!existing) {
-      return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+      return apiNotFound("entry", id);
     }
 
     await query(
@@ -150,12 +142,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Clinic day entry delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete entry");
   }
 }

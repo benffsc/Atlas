@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface AppointmentInfo {
   appointment_id: string;
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Validate date format if provided
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
+      return apiBadRequest("Invalid date format");
     }
 
     const searchTerm = `%${query.trim()}%`;
@@ -397,9 +398,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Photo upload search error:", error);
-    return NextResponse.json(
-      { error: "Failed to search cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to search cats");
   }
 }

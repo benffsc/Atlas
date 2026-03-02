@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { date } = await params;
@@ -159,7 +160,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       is_match: (comparison?.logged_total || 0) === clinichqAppointments.length,
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       date,
       summary,
       logged_entries: loggedEntries,
@@ -168,9 +169,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Clinic day compare error:", error);
-    return NextResponse.json(
-      { error: "Failed to compare clinic day" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to compare clinic day");
   }
 }

@@ -1,8 +1,8 @@
 // API route for listing pending owner changes
 // GET /api/admin/owner-changes
 
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface OwnerChange {
   review_id: string;
@@ -38,19 +38,12 @@ export async function GET() {
       LIMIT 100
     `);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       changes,
       count: changes.length,
     });
   } catch (error) {
     console.error("Error fetching owner changes:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

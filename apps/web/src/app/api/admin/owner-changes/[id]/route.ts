@@ -1,8 +1,9 @@
 // API route for handling owner change actions
 // POST /api/admin/owner-changes/[id]
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface ActionRequest {
   action: "transfer" | "merge" | "keep_both" | "reject";
@@ -27,20 +28,14 @@ export async function POST(
   const { id: reviewId } = await params;
 
   if (!reviewId) {
-    return NextResponse.json(
-      { success: false, error: "Review ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Review ID is required");
   }
 
   try {
     const body: ActionRequest = await request.json();
 
     if (!body.action || !["transfer", "merge", "keep_both", "reject"].includes(body.action)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid action. Must be: transfer, merge, keep_both, or reject" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid action. Must be: transfer, merge, keep_both, or reject");
     }
 
     // Call the SQL function we created in MIG_2504
@@ -50,34 +45,21 @@ export async function POST(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { success: false, error: "Failed to apply owner change" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to apply owner change");
     }
 
     const actionResult = result.apply_owner_change;
 
     if (!actionResult.success) {
-      return NextResponse.json(
-        { success: false, error: actionResult.error || "Action failed" },
-        { status: 400 }
-      );
+      return apiBadRequest(actionResult.error || "Action failed");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Owner change ${body.action} successful`,
       result: actionResult,
     });
   } catch (error) {
     console.error("Error applying owner change:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
