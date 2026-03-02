@@ -6,6 +6,7 @@ import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/common";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 /**
  * Parse city and zip from a Google formatted address string.
@@ -338,13 +339,9 @@ export default function CallSheetEntryPage() {
       return;
     }
     try {
-      const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setPersonSuggestions(data.people || []);
-        setShowPersonDropdown(data.people?.length > 0);
-      }
+      const data = await fetchApi<{ people: PersonSuggestion[] }>(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
+      setPersonSuggestions(data.people || []);
+      setShowPersonDropdown(data.people?.length > 0);
     } catch (err) {
       console.error("Person search error:", err);
     }
@@ -458,85 +455,73 @@ export default function CallSheetEntryPage() {
     }
 
     try {
-      const response = await fetch("/api/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: "paper",
-          source_system: "call_sheet",
-          existing_person_id: selectedPersonId || null,
-          selected_address_place_id: selectedPlaceId || null,
-          // Contact
-          first_name: form.first_name,
-          last_name: form.last_name,
-          phone: normalizePhone(form.phone),
-          email: form.email || null,
-          // Third-party
-          is_third_party_report: form.is_third_party_report,
-          third_party_relationship: form.third_party_relationship || null,
-          // Location
-          cats_address: resolvedPlace?.formatted_address || form.cats_address,
-          cats_city: form.cats_city || null,
-          cats_zip: form.cats_zip || null,
-          county: form.county || null,
-          // Cats
-          ownership_status: form.ownership_status || null,
-          cat_count_estimate: form.cat_count_estimate || null,
-          count_confidence: form.count_confidence || null,
-          colony_duration: form.colony_duration || null,
-          eartip_count_observed: form.eartip_count_observed || null,
-          fixed_status: form.fixed_status || null,
-          handleability: form.handleability || null,
-          // Kittens
-          has_kittens: form.has_kittens,
-          kitten_count: form.has_kittens ? (form.kitten_count || null) : null,
-          kitten_age_estimate: form.has_kittens ? (form.kitten_age_estimate || null) : null,
-          // Medical / Emergency
-          has_medical_concerns: form.has_medical_concerns,
-          medical_description: form.medical_description || null,
-          is_emergency: form.is_emergency,
-          // Awareness
-          awareness_duration: mapAwarenessDuration(form.awareness_duration),
-          referral_source: form.referral_source || null,
-          // Feeding
-          feeds_cat: form.feeder_info ? true : null,
-          feeding_frequency: form.feeding_frequency || null,
-          feeder_info: form.feeder_info || null,
-          // Access
-          has_property_access: form.has_property_access === "yes" ? true :
-            form.has_property_access === "no" ? false : null,
-          access_notes: form.access_notes || null,
-          is_property_owner: form.is_property_owner === "yes" ? true :
-            form.is_property_owner === "renter" || form.is_property_owner === "neighbor" ? false : null,
-          // Descriptions
-          cat_count_text: form.cat_count_text || null,
-          situation_description: form.situation_description || null,
-          // Staff
-          priority_override: form.priority_override || null,
-          reviewed_by: form.reviewed_by || null,
-          // Trapping-specific fields → custom_fields JSONB
-          custom_fields: {
-            property_type: form.property_type || undefined,
-            dogs_on_site: form.dogs_on_site || undefined,
-            trap_savvy: form.trap_savvy || undefined,
-            previous_tnr: form.previous_tnr || undefined,
-            feeding_time: form.feeding_time || undefined,
-            feeding_location: form.feeding_location || undefined,
-            best_trapping_time: form.best_trapping_time || undefined,
-            important_notes: form.important_notes.length > 0 ? form.important_notes : undefined,
-            caller_is_owner: form.is_property_owner || undefined,
-          },
-        }),
+      const data = await postApi<{ submission_id: string; triage_category: string }>("/api/intake", {
+        source: "paper",
+        source_system: "call_sheet",
+        existing_person_id: selectedPersonId || null,
+        selected_address_place_id: selectedPlaceId || null,
+        // Contact
+        first_name: form.first_name,
+        last_name: form.last_name,
+        phone: normalizePhone(form.phone),
+        email: form.email || null,
+        // Third-party
+        is_third_party_report: form.is_third_party_report,
+        third_party_relationship: form.third_party_relationship || null,
+        // Location
+        cats_address: resolvedPlace?.formatted_address || form.cats_address,
+        cats_city: form.cats_city || null,
+        cats_zip: form.cats_zip || null,
+        county: form.county || null,
+        // Cats
+        ownership_status: form.ownership_status || null,
+        cat_count_estimate: form.cat_count_estimate || null,
+        count_confidence: form.count_confidence || null,
+        colony_duration: form.colony_duration || null,
+        eartip_count_observed: form.eartip_count_observed || null,
+        fixed_status: form.fixed_status || null,
+        handleability: form.handleability || null,
+        // Kittens
+        has_kittens: form.has_kittens,
+        kitten_count: form.has_kittens ? (form.kitten_count || null) : null,
+        kitten_age_estimate: form.has_kittens ? (form.kitten_age_estimate || null) : null,
+        // Medical / Emergency
+        has_medical_concerns: form.has_medical_concerns,
+        medical_description: form.medical_description || null,
+        is_emergency: form.is_emergency,
+        // Awareness
+        awareness_duration: mapAwarenessDuration(form.awareness_duration),
+        referral_source: form.referral_source || null,
+        // Feeding
+        feeds_cat: form.feeder_info ? true : null,
+        feeding_frequency: form.feeding_frequency || null,
+        feeder_info: form.feeder_info || null,
+        // Access
+        has_property_access: form.has_property_access === "yes" ? true :
+          form.has_property_access === "no" ? false : null,
+        access_notes: form.access_notes || null,
+        is_property_owner: form.is_property_owner === "yes" ? true :
+          form.is_property_owner === "renter" || form.is_property_owner === "neighbor" ? false : null,
+        // Descriptions
+        cat_count_text: form.cat_count_text || null,
+        situation_description: form.situation_description || null,
+        // Staff
+        priority_override: form.priority_override || null,
+        reviewed_by: form.reviewed_by || null,
+        // Trapping-specific fields → custom_fields JSONB
+        custom_fields: {
+          property_type: form.property_type || undefined,
+          dogs_on_site: form.dogs_on_site || undefined,
+          trap_savvy: form.trap_savvy || undefined,
+          previous_tnr: form.previous_tnr || undefined,
+          feeding_time: form.feeding_time || undefined,
+          feeding_location: form.feeding_location || undefined,
+          best_trapping_time: form.best_trapping_time || undefined,
+          important_notes: form.important_notes.length > 0 ? form.important_notes : undefined,
+          caller_is_owner: form.is_property_owner || undefined,
+        },
       });
 
-      if (!response.ok) {
-        const result = await response.json();
-        const errData = result.data || result;
-        throw new Error(errData.error || "Failed to submit");
-      }
-
-      const result = await response.json();
-      const data = result.data || result;
       setSuccess(`Call sheet submitted! Triage: ${data.triage_category}`);
       setTimeout(() => {
         router.push(`/intake/queue/${data.submission_id}`);

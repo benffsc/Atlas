@@ -6,6 +6,7 @@ import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/common";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
@@ -201,13 +202,9 @@ export default function NewIntakeEntryPage() {
 
     setPersonSearchLoading(true);
     try {
-      const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setPersonSuggestions(data.people || []);
-        setShowPersonDropdown(data.people?.length > 0);
-      }
+      const data = await fetchApi<{ people: PersonSuggestion[] }>(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
+      setPersonSuggestions(data.people || []);
+      setShowPersonDropdown(data.people?.length > 0);
     } catch (err) {
       console.error("Person search error:", err);
     } finally {
@@ -308,69 +305,57 @@ export default function NewIntakeEntryPage() {
     }
 
     try {
-      const response = await fetch("/api/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: form.source,
-          is_third_party_report: form.is_third_party_report,
-          third_party_relationship: form.third_party_relationship || null,
-          property_owner_name: form.property_owner_name || null,
-          property_owner_phone: form.property_owner_phone || null,
-          property_owner_email: null,
-          first_name: form.first_name,
-          last_name: form.last_name,
-          phone: form.phone || null,
-          email: form.email,
-          cats_address: form.cats_address,
-          cats_city: form.cats_city || null,
-          cats_zip: form.cats_zip || null,
-          county: form.county || null,
-          ownership_status: form.ownership_status,
-          cat_count_estimate: form.cat_count_estimate || null,
-          count_confidence: form.count_confidence || null,
-          colony_duration: form.colony_duration || null,
-          fixed_status: form.fixed_status,
-          // Feeding behavior (MIG_236)
-          feeds_cat: form.feeds_cat,
-          feeding_frequency: form.feeding_frequency || null,
-          feeding_duration: form.feeding_duration || null,
-          cat_comes_inside: form.cat_comes_inside || null,
-          has_kittens: form.has_kittens,
-          kitten_count: form.has_kittens ? (form.kitten_count || null) : null,
-          is_emergency: form.is_emergency,
-          has_medical_concerns: form.has_medical_concerns,
-          cats_being_fed: form.others_feeding,
-          has_property_access: form.has_property_access,
-          is_property_owner: form.is_property_owner,
-          referral_source: form.referral_source || null,
-          situation_description: form.situation_description || null,
-          // Kitten details
-          kitten_age_estimate: form.has_kittens ? (form.kitten_age_estimate || null) : null,
-          kitten_mixed_ages_description: form.has_kittens && form.kitten_age_estimate === "mixed" ? (form.kitten_mixed_ages_description || null) : null,
-          kitten_behavior: form.has_kittens ? (form.kitten_behavior || null) : null,
-          kitten_contained: form.has_kittens ? (form.kitten_contained || null) : null,
-          mom_present: form.has_kittens ? (form.mom_present || null) : null,
-          mom_fixed: form.has_kittens && form.mom_present === "yes" ? (form.mom_fixed || null) : null,
-          can_bring_in: form.has_kittens ? (form.can_bring_in || null) : null,
-          kitten_notes: form.has_kittens ? (form.kitten_notes || null) : null,
-          // Staff fields
-          priority_override: form.priority_override || null,
-          kitten_outcome: form.has_kittens ? (form.kitten_outcome || null) : null,
-          foster_readiness: form.has_kittens ? (form.foster_readiness || null) : null,
-          kitten_urgency_factors: form.has_kittens && form.kitten_urgency_factors.length > 0 ? form.kitten_urgency_factors : null,
-          reviewed_by: form.reviewed_by || null,
-        }),
+      const data = await postApi<{ submission_id: string }>("/api/intake", {
+        source: form.source,
+        is_third_party_report: form.is_third_party_report,
+        third_party_relationship: form.third_party_relationship || null,
+        property_owner_name: form.property_owner_name || null,
+        property_owner_phone: form.property_owner_phone || null,
+        property_owner_email: null,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        phone: form.phone || null,
+        email: form.email,
+        cats_address: form.cats_address,
+        cats_city: form.cats_city || null,
+        cats_zip: form.cats_zip || null,
+        county: form.county || null,
+        ownership_status: form.ownership_status,
+        cat_count_estimate: form.cat_count_estimate || null,
+        count_confidence: form.count_confidence || null,
+        colony_duration: form.colony_duration || null,
+        fixed_status: form.fixed_status,
+        // Feeding behavior (MIG_236)
+        feeds_cat: form.feeds_cat,
+        feeding_frequency: form.feeding_frequency || null,
+        feeding_duration: form.feeding_duration || null,
+        cat_comes_inside: form.cat_comes_inside || null,
+        has_kittens: form.has_kittens,
+        kitten_count: form.has_kittens ? (form.kitten_count || null) : null,
+        is_emergency: form.is_emergency,
+        has_medical_concerns: form.has_medical_concerns,
+        cats_being_fed: form.others_feeding,
+        has_property_access: form.has_property_access,
+        is_property_owner: form.is_property_owner,
+        referral_source: form.referral_source || null,
+        situation_description: form.situation_description || null,
+        // Kitten details
+        kitten_age_estimate: form.has_kittens ? (form.kitten_age_estimate || null) : null,
+        kitten_mixed_ages_description: form.has_kittens && form.kitten_age_estimate === "mixed" ? (form.kitten_mixed_ages_description || null) : null,
+        kitten_behavior: form.has_kittens ? (form.kitten_behavior || null) : null,
+        kitten_contained: form.has_kittens ? (form.kitten_contained || null) : null,
+        mom_present: form.has_kittens ? (form.mom_present || null) : null,
+        mom_fixed: form.has_kittens && form.mom_present === "yes" ? (form.mom_fixed || null) : null,
+        can_bring_in: form.has_kittens ? (form.can_bring_in || null) : null,
+        kitten_notes: form.has_kittens ? (form.kitten_notes || null) : null,
+        // Staff fields
+        priority_override: form.priority_override || null,
+        kitten_outcome: form.has_kittens ? (form.kitten_outcome || null) : null,
+        foster_readiness: form.has_kittens ? (form.foster_readiness || null) : null,
+        kitten_urgency_factors: form.has_kittens && form.kitten_urgency_factors.length > 0 ? form.kitten_urgency_factors : null,
+        reviewed_by: form.reviewed_by || null,
       });
 
-      if (!response.ok) {
-        const result = await response.json();
-        const errData = result.data || result;
-        throw new Error(errData.error || "Failed to submit");
-      }
-
-      const result = await response.json();
-      const data = result.data || result;
       router.push(`/intake/queue/${data.submission_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit");
