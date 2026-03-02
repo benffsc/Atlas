@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query, queryOne } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // Validate UUID format
 function isValidUUID(str: string): boolean {
@@ -253,7 +254,7 @@ export async function GET(request: NextRequest) {
     const entityType = requestId ? "request" : personId ? "person" : "cat";
     const entityId = (requestId || personId || catId)!;
     if (!isValidUUID(entityId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
 
     try {
@@ -271,7 +272,7 @@ export async function GET(request: NextRequest) {
         query(countSql, params.slice(0, -2)),
       ]);
 
-      return NextResponse.json({
+      return apiSuccess({
         entries: dataResult,
         total: parseInt(countResult.rows[0]?.total || "0", 10),
         limit,
@@ -279,10 +280,7 @@ export async function GET(request: NextRequest) {
       });
     } catch (error) {
       console.error("Error fetching cross-ref journal entries:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error) },
-        { status: 500 }
-      );
+      return apiServerError("Failed to fetch journal entries");
     }
   }
 
@@ -297,7 +295,7 @@ export async function GET(request: NextRequest) {
 
   if (catId) {
     if (!isValidUUID(catId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_cat_id = $${paramIndex}`);
     params.push(catId);
@@ -306,7 +304,7 @@ export async function GET(request: NextRequest) {
 
   if (personId) {
     if (!isValidUUID(personId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_person_id = $${paramIndex}`);
     params.push(personId);
@@ -315,7 +313,7 @@ export async function GET(request: NextRequest) {
 
   if (placeId) {
     if (!isValidUUID(placeId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_place_id = $${paramIndex}`);
     params.push(placeId);
@@ -324,7 +322,7 @@ export async function GET(request: NextRequest) {
 
   if (requestId) {
     if (!isValidUUID(requestId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_request_id = $${paramIndex}`);
     params.push(requestId);
@@ -333,7 +331,7 @@ export async function GET(request: NextRequest) {
 
   if (submissionId) {
     if (!isValidUUID(submissionId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_submission_id = $${paramIndex}`);
     params.push(submissionId);
@@ -342,7 +340,7 @@ export async function GET(request: NextRequest) {
 
   if (annotationId) {
     if (!isValidUUID(annotationId)) {
-      return NextResponse.json({ entries: [], total: 0 });
+      return apiSuccess({ entries: [], total: 0 });
     }
     conditions.push(`je.primary_annotation_id = $${paramIndex}`);
     params.push(annotationId);
@@ -416,7 +414,7 @@ export async function GET(request: NextRequest) {
       query(countSql, params.slice(0, -2)),
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       entries: dataResult,
       total: parseInt(countResult.rows[0]?.total || "0", 10),
       limit,
@@ -424,10 +422,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching journal entries:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch journal entries", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch journal entries");
   }
 }
 
@@ -468,18 +463,12 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!data.body || data.body.trim() === "") {
-      return NextResponse.json(
-        { error: "body is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("body is required");
     }
 
     // At least one entity must be linked
     if (!data.cat_id && !data.person_id && !data.place_id && !data.request_id && !data.submission_id && !data.annotation_id) {
-      return NextResponse.json(
-        { error: "At least one of cat_id, person_id, place_id, request_id, submission_id, or annotation_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("At least one of cat_id, person_id, place_id, request_id, submission_id, or annotation_id is required");
     }
 
     const entryKind = data.entry_kind || "note";
@@ -542,10 +531,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create journal entry" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create journal entry");
     }
 
     // If this is a contact_attempt on a submission, update the denormalized contact fields
@@ -566,16 +552,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       id: result.id,
       success: true,
     });
   } catch (error) {
     console.error("Error creating journal entry:", error);
-    return NextResponse.json(
-      { error: "Failed to create journal entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create journal entry");
   }
 }
 
@@ -585,10 +568,7 @@ export async function PATCH(request: NextRequest) {
   const id = searchParams.get("id");
 
   if (!id) {
-    return NextResponse.json(
-      { error: "id parameter is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("id parameter is required");
   }
 
   try {
@@ -652,10 +632,7 @@ export async function PATCH(request: NextRequest) {
 
     if (setClauses.length === 2) {
       // Only updated_at and edit_count, no actual changes
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No fields to update");
     }
 
     params.push(id);
@@ -669,18 +646,12 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Journal entry not found" },
-        { status: 404 }
-      );
+      return apiNotFound("journal entry", id);
     }
 
-    return NextResponse.json({ id: result.id, success: true });
+    return apiSuccess({ id: result.id, success: true });
   } catch (error) {
     console.error("Error updating journal entry:", error);
-    return NextResponse.json(
-      { error: "Failed to update journal entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update journal entry");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface Staff {
   staff_id: string;
@@ -53,19 +54,13 @@ export async function GET(
     `, [id]);
 
     if (!staff) {
-      return NextResponse.json(
-        { error: "Staff member not found" },
-        { status: 404 }
-      );
+      return apiNotFound("staff member", id);
     }
 
-    return NextResponse.json({ staff });
+    return apiSuccess({ staff });
   } catch (err) {
     console.error("Error fetching staff:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch staff member" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch staff member");
   }
 }
 
@@ -106,10 +101,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     values.push(id);
@@ -122,10 +114,7 @@ export async function PATCH(
     `, values);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Staff member not found" },
-        { status: 404 }
-      );
+      return apiNotFound("staff member", id);
     }
 
     // If deactivating, update person_roles too
@@ -143,13 +132,10 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (err) {
     console.error("Error updating staff:", err);
-    return NextResponse.json(
-      { error: "Failed to update staff member" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update staff member");
   }
 }
 
@@ -172,10 +158,7 @@ export async function DELETE(
       `, [id]);
 
       if (!result) {
-        return NextResponse.json(
-          { error: "Cannot hard delete Airtable-synced staff. Use soft delete instead." },
-          { status: 400 }
-        );
+        return apiBadRequest("Cannot hard delete Airtable-synced staff. Use soft delete instead.");
       }
     } else {
       // Soft delete - set inactive
@@ -199,12 +182,9 @@ export async function DELETE(
       }
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (err) {
     console.error("Error deleting staff:", err);
-    return NextResponse.json(
-      { error: "Failed to delete staff member" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete staff member");
   }
 }

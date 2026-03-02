@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiServerError } from "@/lib/api-response";
 
 interface Organization {
   org_id: string;
@@ -89,9 +90,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("Error fetching organizations:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch organizations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch organizations");
   }
 }

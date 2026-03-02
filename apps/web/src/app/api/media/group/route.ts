@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface PhotoGroup {
   collection_id: string;
@@ -23,10 +24,7 @@ export async function GET(request: NextRequest) {
     const requestId = searchParams.get("request_id");
 
     if (!requestId) {
-      return NextResponse.json(
-        { error: "request_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("request_id is required");
     }
 
     // Verify request exists
@@ -36,10 +34,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (!requestExists) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("request", requestId);
     }
 
     // Get photo groups for this request
@@ -63,17 +58,14 @@ export async function GET(request: NextRequest) {
       [requestId]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       request_id: requestId,
       groups,
       total: groups.length,
     });
   } catch (error) {
     console.error("Error fetching photo groups:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch photo groups" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch photo groups");
   }
 }
 
@@ -84,17 +76,11 @@ export async function POST(request: NextRequest) {
     const { request_id, name, description, media_ids, created_by = "app_user" } = body;
 
     if (!request_id) {
-      return NextResponse.json(
-        { error: "request_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("request_id is required");
     }
 
     if (!name) {
-      return NextResponse.json(
-        { error: "name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("name is required");
     }
 
     // Verify request exists
@@ -104,10 +90,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!requestExists) {
-      return NextResponse.json(
-        { error: "Request not found" },
-        { status: 404 }
-      );
+      return apiNotFound("request", request_id);
     }
 
     // Create the photo group using the database function
@@ -123,10 +106,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result?.create_photo_group) {
-      return NextResponse.json(
-        { error: "Failed to create photo group" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create photo group");
     }
 
     // Fetch the created group details
@@ -149,17 +129,14 @@ export async function POST(request: NextRequest) {
       [result.create_photo_group]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       collection_id: result.create_photo_group,
       group,
     });
   } catch (error) {
     console.error("Error creating photo group:", error);
-    return NextResponse.json(
-      { error: "Failed to create photo group" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create photo group");
   }
 }
 
@@ -170,10 +147,7 @@ export async function PATCH(request: NextRequest) {
     const { collection_id, name, description, add_media_ids, remove_media_ids } = body;
 
     if (!collection_id) {
-      return NextResponse.json(
-        { error: "collection_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("collection_id is required");
     }
 
     // Verify group exists
@@ -183,10 +157,7 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!groupExists) {
-      return NextResponse.json(
-        { error: "Photo group not found" },
-        { status: 404 }
-      );
+      return apiNotFound("photo group", collection_id);
     }
 
     // Update group name/description if provided
@@ -255,16 +226,13 @@ export async function PATCH(request: NextRequest) {
       [collection_id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       group,
     });
   } catch (error) {
     console.error("Error updating photo group:", error);
-    return NextResponse.json(
-      { error: "Failed to update photo group" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update photo group");
   }
 }
 
@@ -275,10 +243,7 @@ export async function DELETE(request: NextRequest) {
     const collectionId = searchParams.get("collection_id");
 
     if (!collectionId) {
-      return NextResponse.json(
-        { error: "collection_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("collection_id is required");
     }
 
     // First, unlink all media from this group
@@ -298,21 +263,15 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Photo group not found" },
-        { status: 404 }
-      );
+      return apiNotFound("photo group", collectionId);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       deleted_collection_id: collectionId,
     });
   } catch (error) {
     console.error("Error deleting photo group:", error);
-    return NextResponse.json(
-      { error: "Failed to delete photo group" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete photo group");
   }
 }

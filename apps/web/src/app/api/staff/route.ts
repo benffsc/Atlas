@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface Staff {
   staff_id: string;
@@ -81,10 +82,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Error fetching staff:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch staff" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch staff");
   }
 }
 
@@ -104,17 +102,11 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!first_name) {
-      return NextResponse.json(
-        { error: "first_name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("first_name is required");
     }
 
     if (!role) {
-      return NextResponse.json(
-        { error: "role is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("role is required");
     }
 
     // Create the staff record
@@ -143,10 +135,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create staff member" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create staff member");
     }
 
     // If email provided, create/link person
@@ -184,15 +173,12 @@ export async function POST(request: NextRequest) {
       // For org emails: staff record created successfully, no person linking needed
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       staff_id: result.staff_id,
     });
   } catch (err) {
     console.error("Error creating staff:", err);
-    return NextResponse.json(
-      { error: "Failed to create staff member" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create staff member");
   }
 }

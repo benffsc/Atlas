@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { execute, queryOne } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface MediaRow {
   media_id: string;
@@ -23,7 +24,7 @@ export async function PATCH(
     );
 
     if (!media) {
-      return NextResponse.json({ error: "Media not found" }, { status: 404 });
+      return apiNotFound("media", mediaId);
     }
 
     // Clear existing hero for each linked entity
@@ -58,9 +59,9 @@ export async function PATCH(
       [mediaId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error setting hero image:", error);
-    return NextResponse.json({ error: "Failed to set hero image" }, { status: 500 });
+    return apiServerError("Failed to set hero image");
   }
 }

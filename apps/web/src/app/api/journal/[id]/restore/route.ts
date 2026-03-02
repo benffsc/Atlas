@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // POST /api/journal/[id]/restore - Restore an archived journal entry
 export async function POST(
@@ -34,30 +35,21 @@ export async function POST(
       );
 
       if (!existing) {
-        return NextResponse.json(
-          { error: "Journal entry not found" },
-          { status: 404 }
-        );
+        return apiNotFound("journal entry", id);
       }
 
       if (!existing.is_archived) {
-        return NextResponse.json(
-          { error: "Journal entry is not archived" },
-          { status: 400 }
-        );
+        return apiBadRequest("Journal entry is not archived");
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       id,
       restored: true,
       success: true,
     });
   } catch (error) {
     console.error("Error restoring journal entry:", error);
-    return NextResponse.json(
-      { error: "Failed to restore journal entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to restore journal entry");
   }
 }

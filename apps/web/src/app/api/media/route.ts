@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 function isValidUUID(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -146,15 +147,12 @@ export async function GET(request: NextRequest) {
 
   const entityIds = [requestId, personId, catId, placeId].filter(Boolean);
   if (entityIds.length !== 1) {
-    return NextResponse.json(
-      { error: "Provide exactly one entity ID (request_id, person_id, cat_id, or place_id)" },
-      { status: 400 },
-    );
+    return apiBadRequest("Provide exactly one entity ID (request_id, person_id, cat_id, or place_id)");
   }
 
   const entityId = entityIds[0]!;
   if (!isValidUUID(entityId)) {
-    return NextResponse.json({ error: "Invalid UUID" }, { status: 400 });
+    return apiBadRequest("Invalid UUID");
   }
 
   const entityType = requestId ? "request" : personId ? "person" : catId ? "cat" : "place";
@@ -166,7 +164,7 @@ export async function GET(request: NextRequest) {
         entityId,
       );
       const media = await queryRows(sql, params);
-      return NextResponse.json({ media });
+      return apiSuccess({ media });
     }
 
     // Simple fallback — direct media only
@@ -183,9 +181,9 @@ export async function GET(request: NextRequest) {
        ORDER BY is_hero DESC, uploaded_at DESC`,
       [entityType, entityId],
     );
-    return NextResponse.json({ media });
+    return apiSuccess({ media });
   } catch (error) {
     console.error("Error fetching media:", error);
-    return NextResponse.json({ error: "Failed to fetch media" }, { status: 500 });
+    return apiServerError("Failed to fetch media");
   }
 }

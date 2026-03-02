@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface AppointmentListRow {
   appointment_id: string;
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
       query(countSql, params.slice(0, -2)),
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       appointments: dataResult,
       total: parseInt(countResult.rows[0]?.total || "0", 10),
       limit,
@@ -142,9 +143,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching appointments:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch appointments" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch appointments");
   }
 }

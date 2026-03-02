@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { createHash } from "crypto";
 import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // Unified media upload endpoint
 // Supports uploading to: requests, cats, places
@@ -243,42 +244,27 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (files.length === 0) {
-      return NextResponse.json(
-        { error: "No file(s) provided" },
-        { status: 400 }
-      );
+      return apiBadRequest("No file(s) provided");
     }
 
     if (!entityType || !["request", "cat", "place", "person", "annotation"].includes(entityType)) {
-      return NextResponse.json(
-        { error: "Invalid entity_type. Must be 'request', 'cat', 'place', 'person', or 'annotation'" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid entity_type. Must be 'request', 'cat', 'place', 'person', or 'annotation'");
     }
 
     if (!entityId) {
-      return NextResponse.json(
-        { error: "entity_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("entity_id is required");
     }
 
     // Validate media type
     const validMediaTypes = ["cat_photo", "site_photo", "evidence", "map_screenshot", "document", "other"];
     if (!validMediaTypes.includes(mediaType)) {
-      return NextResponse.json(
-        { error: "Invalid media_type" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid media_type");
     }
 
     // Validate confidence level
     const validConfidence: ConfidenceLevel[] = ["confirmed", "likely", "uncertain", "unidentified"];
     if (!validConfidence.includes(confidence)) {
-      return NextResponse.json(
-        { error: "Invalid cat_identification_confidence. Must be 'confirmed', 'likely', 'uncertain', or 'unidentified'" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid cat_identification_confidence. Must be 'confirmed', 'likely', 'uncertain', or 'unidentified'");
     }
 
     // Verify entity exists
@@ -288,18 +274,12 @@ export async function POST(request: NextRequest) {
     );
 
     if (!entityExists) {
-      return NextResponse.json(
-        { error: `${entityType} not found` },
-        { status: 404 }
-      );
+      return apiNotFound(entityType, entityId);
     }
 
     // Check storage availability
     if (!isStorageAvailable()) {
-      return NextResponse.json(
-        { error: "Storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY." },
-        { status: 500 }
-      );
+      return apiServerError("Storage not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
     }
 
     // Create photo group if requested (for batch uploads with grouping)
@@ -329,13 +309,10 @@ export async function POST(request: NextRequest) {
       const result = await uploadSingleFile(files[0], entityType, entityId, uploadOptions);
 
       if (!result.success) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: 500 }
-        );
+        return apiServerError(result.error);
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         ...result.result,
       });
@@ -366,12 +343,9 @@ export async function POST(request: NextRequest) {
       response.photo_group_id = photoGroupId;
     }
 
-    return NextResponse.json(response);
+    return apiSuccess(response);
   } catch (error) {
     console.error("Error uploading media:", error);
-    return NextResponse.json(
-      { error: "Failed to upload media", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to upload media");
   }
 }

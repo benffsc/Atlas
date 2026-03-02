@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiNotFound, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -36,16 +37,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!media) {
-      return NextResponse.json({ error: "Media not found" }, { status: 404 });
+      return apiNotFound("media", id);
     }
 
-    return NextResponse.json(media);
+    return apiSuccess(media);
   } catch (error) {
     console.error("Get media error:", error);
-    return NextResponse.json(
-      { error: "Failed to get media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to get media");
   }
 }
 
@@ -60,7 +58,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Require auth
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -73,7 +71,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!media) {
-      return NextResponse.json({ error: "Media not found" }, { status: 404 });
+      return apiNotFound("media", id);
     }
 
     // Soft delete by archiving
@@ -89,22 +87,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to archive media" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to archive media");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       media_id: id,
       message: "Media archived successfully",
     });
   } catch (error) {
     console.error("Delete media error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete media");
   }
 }

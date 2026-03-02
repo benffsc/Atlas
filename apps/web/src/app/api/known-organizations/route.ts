@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiConflict, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/known-organizations
@@ -71,16 +72,13 @@ export async function GET(request: NextRequest) {
 
     const organizations = await queryRows<KnownOrganization>(sql, params);
 
-    return NextResponse.json({
+    return apiSuccess({
       organizations: organizations || [],
       count: (organizations || []).length,
     });
   } catch (error) {
     console.error("Error fetching known organizations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch organizations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch organizations");
   }
 }
 
@@ -116,10 +114,7 @@ export async function POST(request: NextRequest) {
     const body: CreateOrgBody = await request.json();
 
     if (!body.canonical_name?.trim()) {
-      return NextResponse.json(
-        { error: "canonical_name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("canonical_name is required");
     }
 
     // Check for existing org with same name
@@ -130,10 +125,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing) {
-      return NextResponse.json(
-        { error: "Organization with this name already exists", org_id: existing.org_id },
-        { status: 409 }
-      );
+      return apiConflict("Organization with this name already exists");
     }
 
     // Create the organization
@@ -171,18 +163,12 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create organization" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create organization");
     }
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Error creating organization:", error);
-    return NextResponse.json(
-      { error: "Failed to create organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create organization");
   }
 }

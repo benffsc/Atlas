@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 type ConfidenceLevel = "confirmed" | "likely" | "uncertain";
 
@@ -27,17 +28,11 @@ export async function PATCH(
     // Validate confidence level
     const validConfidence: ConfidenceLevel[] = ["confirmed", "likely", "uncertain"];
     if (!validConfidence.includes(confidence)) {
-      return NextResponse.json(
-        { error: "Invalid confidence. Must be 'confirmed', 'likely', or 'uncertain'" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid confidence. Must be 'confirmed', 'likely', or 'uncertain'");
     }
 
     if (!cat_id) {
-      return NextResponse.json(
-        { error: "cat_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("cat_id is required");
     }
 
     // Verify cat exists
@@ -47,10 +42,7 @@ export async function PATCH(
     );
 
     if (!catExists) {
-      return NextResponse.json(
-        { error: "Cat not found" },
-        { status: 404 }
-      );
+      return apiNotFound("cat", cat_id);
     }
 
     // Get the media record
@@ -66,10 +58,7 @@ export async function PATCH(
     );
 
     if (!media) {
-      return NextResponse.json(
-        { error: "Media not found" },
-        { status: 404 }
-      );
+      return apiNotFound("media", mediaId);
     }
 
     let updatedCount = 0;
@@ -106,7 +95,7 @@ export async function PATCH(
       updatedMediaIds.push(mediaId);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       updated_count: updatedCount,
       updated_media_ids: updatedMediaIds,
@@ -119,10 +108,7 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Error identifying media:", error);
-    return NextResponse.json(
-      { error: "Failed to identify media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to identify media");
   }
 }
 
@@ -150,10 +136,7 @@ export async function DELETE(
     );
 
     if (!media) {
-      return NextResponse.json(
-        { error: "Media not found" },
-        { status: 404 }
-      );
+      return apiNotFound("media", mediaId);
     }
 
     let updatedCount = 0;
@@ -186,17 +169,14 @@ export async function DELETE(
       updatedCount = 1;
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       updated_count: updatedCount,
       applied_to_group: applyToGroup && media.photo_group_id !== null,
     });
   } catch (error) {
     console.error("Error unlinking media:", error);
-    return NextResponse.json(
-      { error: "Failed to unlink media" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to unlink media");
   }
 }
 
@@ -227,10 +207,7 @@ export async function GET(
     );
 
     if (!media) {
-      return NextResponse.json(
-        { error: "Media not found" },
-        { status: 404 }
-      );
+      return apiNotFound("media", mediaId);
     }
 
     // If linked to a cat, get cat details
@@ -264,7 +241,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       media_id: media.media_id,
       is_identified: media.cat_id !== null,
       confidence: media.cat_identification_confidence,
@@ -274,9 +251,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error getting identification status:", error);
-    return NextResponse.json(
-      { error: "Failed to get identification status" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to get identification status");
   }
 }

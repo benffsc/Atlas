@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface ClinicNoteRow {
   account_id: string;
@@ -21,10 +22,7 @@ export async function GET(request: NextRequest) {
 
   // Must have at least one filter
   if (!personId && !placeId && !accountId) {
-    return NextResponse.json(
-      { error: "Missing required parameter: person_id, place_id, or account_id" },
-      { status: 400 }
-    );
+    return apiBadRequest("Missing required parameter: person_id, place_id, or account_id");
   }
 
   try {
@@ -89,15 +87,12 @@ export async function GET(request: NextRequest) {
 
     const notes = await queryRows<ClinicNoteRow>(sql!, params);
 
-    return NextResponse.json({
+    return apiSuccess({
       notes,
       total: notes.length,
     });
   } catch (error) {
     console.error("[GET /api/clinic-notes] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch clinic notes" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch clinic notes");
   }
 }
