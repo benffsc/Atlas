@@ -138,14 +138,17 @@ export default function ClinicHQUploadModal({
         throw new Error(errorMsg);
       }
 
+      // API uses apiSuccess which wraps data in { success: true, data: {...} }
+      const data = result.data || result;
+
       // Store batch ID from first upload
-      if (result.batch_id && !batchId) {
-        setBatchId(result.batch_id);
+      if (data.batch_id && !batchId) {
+        setBatchId(data.batch_id);
       }
 
       setUploadedFiles((prev) => ({
         ...prev,
-        [fileType]: { filename: file.name, uploadId: result.upload_id },
+        [fileType]: { filename: file.name, uploadId: data.upload_id },
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -202,12 +205,15 @@ export default function ClinicHQUploadModal({
         // Check batch status for completion
         const batchRes = await fetch(`/api/ingest/batch/${batchIdToPoll}`);
         if (!batchRes.ok) return;
-        const batchData = await batchRes.json();
+        const batchRaw = await batchRes.json();
+        // API uses apiSuccess which wraps data in { success: true, data: {...} }
+        const batchData = batchRaw.data || batchRaw;
 
         // Also get individual upload statuses for more detail
         const uploadsRes = await fetch("/api/ingest/uploads");
         if (uploadsRes.ok) {
-          const uploadsData = await uploadsRes.json();
+          const uploadsRaw = await uploadsRes.json();
+          const uploadsData = uploadsRaw.data || uploadsRaw;
           const batchUploads = uploadsData.uploads?.filter(
             (u: { batch_id?: string }) => u.batch_id === batchIdToPoll
           ) || [];
@@ -249,7 +255,8 @@ export default function ClinicHQUploadModal({
 
           // Fetch final results
           const resultRes = await fetch(`/api/ingest/batch/${batchIdToPoll}`);
-          const finalResult = await resultRes.json();
+          const finalRaw = await resultRes.json();
+          const finalResult = finalRaw.data || finalRaw;
 
           setProcessing(false);
           setProcessingProgress(null);
@@ -316,8 +323,11 @@ export default function ClinicHQUploadModal({
         throw new Error(errorMsg);
       }
 
+      // API uses apiSuccess which wraps data in { success: true, data: {...} }
+      const processData = result.data || result;
+
       // If we got an immediate response (non-async), use it
-      if (result.success !== undefined) {
+      if (processData.success !== undefined) {
         // Stop polling
         if (pollingRef.current) {
           clearInterval(pollingRef.current);
@@ -329,8 +339,8 @@ export default function ClinicHQUploadModal({
         }
         setProcessing(false);
         setProcessingProgress(null);
-        setProcessResult(result);
-        if (result.success) {
+        setProcessResult(processData);
+        if (processData.success) {
           onSuccess?.();
         }
       }

@@ -10,6 +10,7 @@ interface FileUploadRow {
   source_system: string;
   source_table: string;
   status: string;
+  batch_id: string | null;
   uploaded_at: string;
   processed_at: string | null;
   rows_total: number | null;
@@ -50,7 +51,8 @@ export async function GET(request: NextRequest) {
         source_system,
         source_table,
         status,
-        uploaded_at,
+        batch_id,
+        created_at AS uploaded_at,
         processed_at,
         rows_total,
         rows_inserted,
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
         post_processing_results
       FROM ops.file_uploads
       ${whereClause}
-      ORDER BY uploaded_at DESC
+      ORDER BY created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
