@@ -104,7 +104,10 @@ export function MediaUploader({
         return;
       }
       const img = new Image();
+      const blobUrl = URL.createObjectURL(file);
       img.onload = () => {
+        // Clean up blob URL immediately after image loads
+        URL.revokeObjectURL(blobUrl);
         let { width, height } = img;
         if (width > maxDim || height > maxDim) {
           const ratio = Math.min(maxDim / width, maxDim / height);
@@ -127,8 +130,11 @@ export function MediaUploader({
           quality
         );
       };
-      img.onerror = () => resolve(file);
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(blobUrl);
+        resolve(file);
+      };
+      img.src = blobUrl;
     });
   };
 
@@ -184,8 +190,9 @@ export function MediaUploader({
   }, [allowMultiple, selectedFiles]);
 
   // Handle paste from clipboard (Cmd+V / Ctrl+V)
+  // Note: Clipboard blob data can be temporary, so we read it immediately into an ArrayBuffer
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
 
@@ -195,10 +202,17 @@ export function MediaUploader({
           e.preventDefault();
           const file = item.getAsFile();
           if (file) {
-            const namedFile = new File([file], `pasted-image-${Date.now()}.png`, {
-              type: file.type,
-            });
-            imageFiles.push(namedFile);
+            try {
+              // Read file data immediately to prevent blob URL expiration
+              const arrayBuffer = await file.arrayBuffer();
+              const blob = new Blob([arrayBuffer], { type: file.type });
+              const namedFile = new File([blob], `pasted-image-${Date.now()}.png`, {
+                type: file.type,
+              });
+              imageFiles.push(namedFile);
+            } catch (err) {
+              console.error("[MediaUploader] Failed to read pasted image:", err);
+            }
           }
         }
       }
