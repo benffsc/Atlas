@@ -323,7 +323,8 @@ function IntakeForm() {
     try {
       const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setPersonSuggestions(data.people || []);
         setShowPersonDropdown(data.people?.length > 0);
       }

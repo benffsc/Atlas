@@ -340,7 +340,8 @@ export default function CallSheetEntryPage() {
     try {
       const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setPersonSuggestions(data.people || []);
         setShowPersonDropdown(data.people?.length > 0);
       }
@@ -529,11 +530,13 @@ export default function CallSheetEntryPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to submit");
+        const result = await response.json();
+        const errData = result.data || result;
+        throw new Error(errData.error || "Failed to submit");
       }
 
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       setSuccess(`Call sheet submitted! Triage: ${data.triage_category}`);
       setTimeout(() => {
         router.push(`/intake/queue/${data.submission_id}`);

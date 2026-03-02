@@ -554,7 +554,8 @@ function IntakeQueueContent() {
 
       const response = await fetch(`/api/intake/queue?${params.toString()}`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setSubmissions(data.submissions || []);
       }
     } catch (err) {
@@ -627,7 +628,8 @@ function IntakeQueueContent() {
     try {
       const response = await fetch(`/api/intake/${submissionId}/communications`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setCommunicationLogs(data.logs || []);
       }
     } catch (err) {
@@ -723,7 +725,8 @@ function IntakeQueueContent() {
     try {
       const response = await fetch(`/api/intake/queue/${submissionId}/history`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setEditHistory(data.history || []);
       }
     } catch (err) {
@@ -886,7 +889,8 @@ function IntakeQueueContent() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setEditingStatus(false);
         setSelectedSubmission({
           ...selectedSubmission,
@@ -956,7 +960,8 @@ function IntakeQueueContent() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setEditingAddress(false);
         // Update local state with refreshed submission data
         if (data.submission) {

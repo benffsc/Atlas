@@ -203,7 +203,8 @@ export default function NewIntakeEntryPage() {
     try {
       const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setPersonSuggestions(data.people || []);
         setShowPersonDropdown(data.people?.length > 0);
       }
@@ -363,11 +364,13 @@ export default function NewIntakeEntryPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to submit");
+        const result = await response.json();
+        const errData = result.data || result;
+        throw new Error(errData.error || "Failed to submit");
       }
 
-      const data = await response.json();
+      const result = await response.json();
+      const data = result.data || result;
       router.push(`/intake/queue/${data.submission_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit");
