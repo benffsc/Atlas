@@ -366,7 +366,14 @@ export function MediaUploader({
         onUploadComplete?.(uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      console.error("[MediaUploader] Upload error:", err);
+      const errorMsg = err instanceof Error ? err.message : "Upload failed";
+      // Provide more helpful error messages for common issues
+      if (errorMsg === "Failed to fetch") {
+        setError("Network error - please check your connection and try again. If the problem persists, the file may be too large.");
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setUploading(false);
       setProgress(null);
