@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface ContactInfo {
   name?: string;
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const url = new URL(request.url);
@@ -93,13 +94,10 @@ export async function GET(request: NextRequest) {
       [session.staff_id]
     );
 
-    return NextResponse.json({ reminders });
+    return apiSuccess({ reminders });
   } catch (error) {
     console.error("Error fetching reminders:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch reminders" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch reminders");
   }
 }
 
@@ -113,17 +111,14 @@ export async function POST(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const body = await request.json();
     const { title, notes, due_at, entity_type, entity_id, contact_info } = body;
 
     if (!title || !due_at) {
-      return NextResponse.json(
-        { error: "Title and due_at are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Title and due_at are required");
     }
 
     const result = await queryOne<{ reminder_id: string }>(
@@ -147,21 +142,15 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create reminder" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create reminder");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       reminder_id: result.reminder_id,
     });
   } catch (error) {
     console.error("Error creating reminder:", error);
-    return NextResponse.json(
-      { error: "Failed to create reminder" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create reminder");
   }
 }

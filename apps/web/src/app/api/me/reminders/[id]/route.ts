@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
  * PATCH /api/me/reminders/[id]
@@ -15,7 +16,7 @@ export async function PATCH(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -30,10 +31,7 @@ export async function PATCH(
     );
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Reminder not found" },
-        { status: 404 }
-      );
+      return apiNotFound("reminder", id);
     }
 
     // Handle snooze
@@ -52,13 +50,10 @@ export async function PATCH(
       );
 
       if (!result) {
-        return NextResponse.json(
-          { error: "Failed to snooze reminder" },
-          { status: 500 }
-        );
+        return apiServerError("Failed to snooze reminder");
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         message: "Reminder snoozed",
       });
@@ -68,10 +63,7 @@ export async function PATCH(
     if (status) {
       const validStatuses = ["pending", "due", "snoozed", "completed", "archived"];
       if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          { error: "Invalid status" },
-          { status: 400 }
-        );
+        return apiBadRequest("Invalid status");
       }
 
       const completedAt = status === "completed" ? "NOW()" : "NULL";
@@ -88,28 +80,19 @@ export async function PATCH(
       );
 
       if (!result) {
-        return NextResponse.json(
-          { error: "Failed to update reminder" },
-          { status: 500 }
-        );
+        return apiServerError("Failed to update reminder");
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         message: `Reminder marked as ${status}`,
       });
     }
 
-    return NextResponse.json(
-      { error: "No update provided" },
-      { status: 400 }
-    );
+    return apiBadRequest("No update provided");
   } catch (error) {
     console.error("Error updating reminder:", error);
-    return NextResponse.json(
-      { error: "Failed to update reminder" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update reminder");
   }
 }
 
@@ -126,7 +109,7 @@ export async function DELETE(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -141,21 +124,15 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Reminder not found" },
-        { status: 404 }
-      );
+      return apiNotFound("reminder", id);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: "Reminder archived",
     });
   } catch (error) {
     console.error("Error archiving reminder:", error);
-    return NextResponse.json(
-      { error: "Failed to archive reminder" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to archive reminder");
   }
 }

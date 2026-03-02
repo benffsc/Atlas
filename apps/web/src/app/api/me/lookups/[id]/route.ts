@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface LookupDetail {
   lookup_id: string;
@@ -28,7 +29,7 @@ export async function GET(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -65,19 +66,13 @@ export async function GET(
     );
 
     if (!lookup) {
-      return NextResponse.json(
-        { error: "Lookup not found" },
-        { status: 404 }
-      );
+      return apiNotFound("lookup", id);
     }
 
-    return NextResponse.json({ lookup });
+    return apiSuccess({ lookup });
   } catch (error) {
     console.error("Error fetching lookup:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch lookup" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch lookup");
   }
 }
 
@@ -94,7 +89,7 @@ export async function PATCH(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -102,10 +97,7 @@ export async function PATCH(
     const { status } = body;
 
     if (status !== "archived" && status !== "active") {
-      return NextResponse.json(
-        { error: "Invalid status" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid status");
     }
 
     const result = await queryOne<{ lookup_id: string }>(
@@ -120,22 +112,16 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Lookup not found" },
-        { status: 404 }
-      );
+      return apiNotFound("lookup", id);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: status === "archived" ? "Lookup archived" : "Lookup restored",
     });
   } catch (error) {
     console.error("Error updating lookup:", error);
-    return NextResponse.json(
-      { error: "Failed to update lookup" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update lookup");
   }
 }
 
@@ -152,7 +138,7 @@ export async function DELETE(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -166,21 +152,15 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Lookup not found" },
-        { status: 404 }
-      );
+      return apiNotFound("lookup", id);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: "Lookup deleted",
     });
   } catch (error) {
     console.error("Error deleting lookup:", error);
-    return NextResponse.json(
-      { error: "Failed to delete lookup" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete lookup");
   }
 }

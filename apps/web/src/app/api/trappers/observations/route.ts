@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface TrapperSite {
   place_id: string;
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
     ).length;
     const totalObservations = sites.reduce((sum, s) => sum + s.observation_count, 0);
 
-    return NextResponse.json({
+    return apiSuccess({
       sites,
       recent_observations: recentObservations,
       stats: {
@@ -157,9 +158,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching trapper observations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch observation data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch observation data");
   }
 }

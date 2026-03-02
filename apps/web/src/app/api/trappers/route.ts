@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface TrapperRow {
   person_id: string;
@@ -209,10 +210,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching trappers:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch trappers" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch trappers");
   }
 }
 
@@ -223,22 +221,16 @@ export async function PATCH(request: NextRequest) {
     const { person_id, action, value, reason } = body;
 
     if (!person_id) {
-      return NextResponse.json({ error: "person_id is required" }, { status: 400 });
+      return apiBadRequest("person_id is required");
     }
 
     if (!action || !["status", "type"].includes(action)) {
-      return NextResponse.json(
-        { error: "action must be 'status' or 'type'" },
-        { status: 400 }
-      );
+      return apiBadRequest("action must be 'status' or 'type'");
     }
 
     if (action === "status") {
       if (!["active", "inactive", "suspended", "revoked"].includes(value)) {
-        return NextResponse.json(
-          { error: "status value must be active, inactive, suspended, or revoked" },
-          { status: 400 }
-        );
+        return apiBadRequest("status value must be active, inactive, suspended, or revoked");
       }
 
       await queryOne(
@@ -247,10 +239,7 @@ export async function PATCH(request: NextRequest) {
       );
     } else if (action === "type") {
       if (!["coordinator", "head_trapper", "ffsc_trapper", "community_trapper"].includes(value)) {
-        return NextResponse.json(
-          { error: "type value must be coordinator, head_trapper, ffsc_trapper, or community_trapper" },
-          { status: 400 }
-        );
+        return apiBadRequest("type value must be coordinator, head_trapper, ffsc_trapper, or community_trapper");
       }
 
       await queryOne(
@@ -259,13 +248,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, person_id, action, value });
+    return apiSuccess({ success: true, person_id, action, value });
   } catch (error) {
     console.error("Error updating trapper:", error);
-    return NextResponse.json(
-      { error: "Failed to update trapper" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update trapper");
   }
 }
 
@@ -276,15 +262,12 @@ export async function POST(request: NextRequest) {
     const { person_id, trapper_type, reason } = body;
 
     if (!person_id) {
-      return NextResponse.json({ error: "person_id is required" }, { status: 400 });
+      return apiBadRequest("person_id is required");
     }
 
     const type = trapper_type || "community_trapper";
     if (!["coordinator", "head_trapper", "ffsc_trapper", "community_trapper"].includes(type)) {
-      return NextResponse.json(
-        { error: "trapper_type must be coordinator, head_trapper, ffsc_trapper, or community_trapper" },
-        { status: 400 }
-      );
+      return apiBadRequest("trapper_type must be coordinator, head_trapper, ffsc_trapper, or community_trapper");
     }
 
     await queryOne(
@@ -292,12 +275,9 @@ export async function POST(request: NextRequest) {
       [person_id, type, reason || null, "staff"]
     );
 
-    return NextResponse.json({ success: true, person_id, trapper_type: type });
+    return apiSuccess({ success: true, person_id, trapper_type: type });
   } catch (error) {
     console.error("Error adding trapper role:", error);
-    return NextResponse.json(
-      { error: "Failed to add trapper role" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to add trapper role");
   }
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface StaffMessage {
   message_id: string;
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const url = new URL(request.url);
@@ -97,16 +98,13 @@ export async function GET(request: NextRequest) {
       [session.staff_id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       messages,
       unread_count: unreadCount?.count || 0,
     });
   } catch (error) {
     console.error("Error fetching messages:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch messages" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch messages");
   }
 }
 
@@ -120,7 +118,7 @@ export async function POST(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const body = await request.json();
@@ -137,17 +135,11 @@ export async function POST(request: NextRequest) {
 
     // Either recipient_staff_id or recipient_name required
     if (!recipient_staff_id && !recipient_name) {
-      return NextResponse.json(
-        { error: "recipient_staff_id or recipient_name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("recipient_staff_id or recipient_name is required");
     }
 
     if (!subject || !content) {
-      return NextResponse.json(
-        { error: "subject and content are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("subject and content are required");
     }
 
     // If recipient_name provided, use the SQL function to find them
@@ -175,10 +167,7 @@ export async function POST(request: NextRequest) {
       );
 
       if (!result) {
-        return NextResponse.json(
-          { error: "Failed to send message" },
-          { status: 500 }
-        );
+        return apiServerError("Failed to send message");
       }
 
       // The function returns JSONB, need to parse if it's a string
@@ -186,13 +175,10 @@ export async function POST(request: NextRequest) {
         typeof result === "string" ? JSON.parse(result) : result;
 
       if (!parsed.success) {
-        return NextResponse.json(
-          { error: parsed.error || "Failed to send message" },
-          { status: 400 }
-        );
+        return apiBadRequest(parsed.error || "Failed to send message");
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         message_id: parsed.message_id,
         recipient_name: parsed.recipient_name,
@@ -233,21 +219,15 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to send message" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to send message");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message_id: result.message_id,
     });
   } catch (error) {
     console.error("Error sending message:", error);
-    return NextResponse.json(
-      { error: "Failed to send message" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to send message");
   }
 }

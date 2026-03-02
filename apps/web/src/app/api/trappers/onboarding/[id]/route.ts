@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // PATCH - Advance onboarding status
 export async function PATCH(
@@ -13,10 +14,7 @@ export async function PATCH(
     const { new_status, notes, advanced_by } = body;
 
     if (!new_status) {
-      return NextResponse.json(
-        { error: "new_status is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("new_status is required");
     }
 
     // Valid statuses
@@ -36,10 +34,7 @@ export async function PATCH(
     ];
 
     if (!validStatuses.includes(new_status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
     }
 
     // Advance using centralized function
@@ -63,13 +58,10 @@ export async function PATCH(
     ]);
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to advance onboarding" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to advance onboarding");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       onboarding_id: result.onboarding_id,
       previous_status: result.previous_status,
@@ -78,10 +70,7 @@ export async function PATCH(
     });
   } catch (err) {
     console.error("Error advancing onboarding:", err);
-    return NextResponse.json(
-      { error: "Failed to advance onboarding status" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to advance onboarding status");
   }
 }
 
@@ -99,18 +88,12 @@ export async function GET(
     `, [id]);
 
     if (!candidate) {
-      return NextResponse.json(
-        { error: "Onboarding record not found" },
-        { status: 404 }
-      );
+      return apiNotFound("onboarding", id);
     }
 
-    return NextResponse.json({ candidate });
+    return apiSuccess({ candidate });
   } catch (err) {
     console.error("Error fetching onboarding record:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch onboarding record" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch onboarding record");
   }
 }

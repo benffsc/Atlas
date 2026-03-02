@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 // POST /api/trappers/materials/[id]/track - Track view/download
 export async function POST(
@@ -13,10 +14,7 @@ export async function POST(
     const action = body.action as string;
 
     if (!["view", "download"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid action");
     }
 
     const column = action === "view" ? "view_count" : "download_count";
@@ -28,12 +26,9 @@ export async function POST(
       [id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error tracking material:", error);
-    return NextResponse.json(
-      { error: "Failed to track" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to track");
   }
 }

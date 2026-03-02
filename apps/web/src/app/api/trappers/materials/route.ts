@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
 import { createHash } from "crypto";
 import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface EducationMaterial {
   material_id: string;
@@ -78,17 +79,14 @@ export async function GET(request: NextRequest) {
        ORDER BY category`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       materials,
       categories,
       total: materials.length,
     });
   } catch (error) {
     console.error("Error fetching materials:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch materials" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch materials");
   }
 }
 
@@ -105,17 +103,11 @@ export async function POST(request: NextRequest) {
     const displayOrder = parseInt(formData.get("display_order") as string || "0", 10);
 
     if (!title) {
-      return NextResponse.json(
-        { error: "Title is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Title is required");
     }
 
     if (!file) {
-      return NextResponse.json(
-        { error: "File is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("File is required");
     }
 
     // Read file
@@ -166,17 +158,11 @@ export async function POST(request: NextRequest) {
     if (isStorageAvailable()) {
       const uploadResult = await uploadFile(storagePath, buffer, mimeType);
       if (!uploadResult.success) {
-        return NextResponse.json(
-          { error: uploadResult.error || "Failed to upload to storage" },
-          { status: 500 }
-        );
+        return apiServerError(uploadResult.error || "Failed to upload to storage");
       }
       publicUrl = uploadResult.url || getPublicUrl(storagePath);
     } else {
-      return NextResponse.json(
-        { error: "Storage not configured" },
-        { status: 500 }
-      );
+      return apiServerError("Storage not configured");
     }
 
     // Insert into database
@@ -202,17 +188,14 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       material_id: result?.material_id,
       storage_url: publicUrl,
     });
   } catch (error) {
     console.error("Error uploading material:", error);
-    return NextResponse.json(
-      { error: "Failed to upload material" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to upload material");
   }
 }
 
@@ -223,10 +206,7 @@ export async function PATCH(request: NextRequest) {
     const { material_id, ...updates } = body;
 
     if (!material_id) {
-      return NextResponse.json(
-        { error: "material_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("material_id is required");
     }
 
     const allowedFields = [
@@ -251,10 +231,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (setClause.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     setClause.push(`updated_at = NOW()`);
@@ -267,13 +244,10 @@ export async function PATCH(request: NextRequest) {
       values
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error updating material:", error);
-    return NextResponse.json(
-      { error: "Failed to update material" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update material");
   }
 }
 
@@ -283,10 +257,7 @@ export async function DELETE(request: NextRequest) {
   const materialId = searchParams.get("material_id");
 
   if (!materialId) {
-    return NextResponse.json(
-      { error: "material_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("material_id is required");
   }
 
   try {
@@ -297,12 +268,9 @@ export async function DELETE(request: NextRequest) {
       [materialId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error archiving material:", error);
-    return NextResponse.json(
-      { error: "Failed to archive material" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to archive material");
   }
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface StaffMessage {
   message_id: string;
@@ -34,7 +35,7 @@ export async function GET(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -66,19 +67,13 @@ export async function GET(
     );
 
     if (!message) {
-      return NextResponse.json(
-        { error: "Message not found" },
-        { status: 404 }
-      );
+      return apiNotFound("message", id);
     }
 
-    return NextResponse.json({ message });
+    return apiSuccess({ message });
   } catch (error) {
     console.error("Error fetching message:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch message" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch message");
   }
 }
 
@@ -95,7 +90,7 @@ export async function PATCH(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -110,25 +105,16 @@ export async function PATCH(
     );
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Message not found" },
-        { status: 404 }
-      );
+      return apiNotFound("message", id);
     }
 
     if (!status) {
-      return NextResponse.json(
-        { error: "status is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("status is required");
     }
 
     const validStatuses = ["unread", "read", "archived"];
     if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: "Invalid status. Must be: unread, read, or archived" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid status. Must be: unread, read, or archived");
     }
 
     // Update status and read_at if marking as read
@@ -143,22 +129,16 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to update message" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to update message");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: `Message marked as ${status}`,
     });
   } catch (error) {
     console.error("Error updating message:", error);
-    return NextResponse.json(
-      { error: "Failed to update message" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update message");
   }
 }
 
@@ -175,7 +155,7 @@ export async function DELETE(
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const { id } = await params;
@@ -190,21 +170,15 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Message not found" },
-        { status: 404 }
-      );
+      return apiNotFound("message", id);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       message: "Message archived",
     });
   } catch (error) {
     console.error("Error archiving message:", error);
-    return NextResponse.json(
-      { error: "Failed to archive message" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to archive message");
   }
 }

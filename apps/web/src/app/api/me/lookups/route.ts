@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface Lookup {
   lookup_id: string;
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const url = new URL(request.url);
@@ -68,12 +69,9 @@ export async function GET(request: NextRequest) {
       [session.staff_id]
     );
 
-    return NextResponse.json({ lookups });
+    return apiSuccess({ lookups });
   } catch (error) {
     console.error("Error fetching lookups:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch lookups" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch lookups");
   }
 }

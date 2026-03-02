@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface OnboardingCandidate {
   onboarding_id: string;
@@ -76,17 +77,14 @@ export async function GET(request: NextRequest) {
       SELECT * FROM ops.v_trapper_onboarding_stats
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       candidates,
       stats,
       total: candidates.length,
     });
   } catch (err) {
     console.error("Error fetching onboarding data:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch onboarding data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch onboarding data");
   }
 }
 
@@ -105,10 +103,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!first_name || !last_name) {
-      return NextResponse.json(
-        { error: "first_name and last_name are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("first_name and last_name are required");
     }
 
     // Create interest using centralized function
@@ -137,7 +132,7 @@ export async function POST(request: NextRequest) {
       notes || null,
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       person_id: result?.person_id,
       onboarding_id: result?.onboarding_id,
@@ -145,9 +140,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Error creating trapper interest:", err);
-    return NextResponse.json(
-      { error: "Failed to create trapper interest" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create trapper interest");
   }
 }
