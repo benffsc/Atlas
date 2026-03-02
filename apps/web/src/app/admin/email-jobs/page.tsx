@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface EmailJob {
   job_id: string;
@@ -86,9 +87,7 @@ export default function EmailJobsPage() {
 
   const fetchJobs = async () => {
     try {
-      const response = await fetch(`/api/admin/email-jobs?status=${filter}`);
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ jobs: EmailJob[]; counts: { draft: number; queued: number; sent: number; failed: number } }>(`/api/admin/email-jobs?status=${filter}`);
       setJobs(data.jobs || []);
       setCounts(data.counts || { draft: 0, queued: 0, sent: 0, failed: 0 });
     } catch (err) {
@@ -100,14 +99,10 @@ export default function EmailJobsPage() {
 
   const fetchFormData = async () => {
     try {
-      const [templatesRes, accountsRes] = await Promise.all([
-        fetch("/api/admin/email-templates"),
-        fetch("/api/admin/email-settings/accounts"),
+      const [templatesData, accountsData] = await Promise.all([
+        fetchApi<{ templates: EmailTemplate[] }>("/api/admin/email-templates"),
+        fetchApi<{ accounts: OutlookAccount[] }>("/api/admin/email-settings/accounts"),
       ]);
-      const templatesResult = await templatesRes.json();
-      const accountsResult = await accountsRes.json();
-      const templatesData = templatesResult.data || templatesResult;
-      const accountsData = accountsResult.data || accountsResult;
 
       setTemplates(templatesData.templates || []);
       setAccounts(accountsData.accounts || []);
@@ -147,33 +142,23 @@ export default function EmailJobsPage() {
 
     setCreating(true);
     try {
-      const response = await fetch("/api/admin/email-jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          outlook_account_id: form.outlook_account_id || undefined,
-        }),
+      await postApi("/api/admin/email-jobs", {
+        ...form,
+        outlook_account_id: form.outlook_account_id || undefined,
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        setMessage({ type: "success", text: "Email job created" });
-        setShowCreateModal(false);
-        setForm({
-          category_key: "",
-          template_key: "",
-          recipient_email: "",
-          recipient_name: "",
-          outlook_account_id: "",
-          placeholders: {},
-        });
-        fetchJobs();
-      } else {
-        setMessage({ type: "error", text: data.error || "Failed to create job" });
-      }
+      setMessage({ type: "success", text: "Email job created" });
+      setShowCreateModal(false);
+      setForm({
+        category_key: "",
+        template_key: "",
+        recipient_email: "",
+        recipient_name: "",
+        outlook_account_id: "",
+        placeholders: {},
+      });
+      fetchJobs();
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to create job" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to create job" });
     } finally {
       setCreating(false);
     }
@@ -182,21 +167,11 @@ export default function EmailJobsPage() {
   const handleSendJob = async (jobId: string) => {
     setSending(jobId);
     try {
-      const response = await fetch(`/api/admin/email-jobs/${jobId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send" }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setMessage({ type: "success", text: "Email sent!" });
-        fetchJobs();
-      } else {
-        setMessage({ type: "error", text: data.error || "Failed to send" });
-      }
+      await postApi(`/api/admin/email-jobs/${jobId}`, { action: "send" }, { method: "PATCH" });
+      setMessage({ type: "success", text: "Email sent!" });
+      fetchJobs();
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to send email" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to send email" });
     } finally {
       setSending(null);
     }
@@ -204,16 +179,9 @@ export default function EmailJobsPage() {
 
   const handleCancelJob = async (jobId: string) => {
     try {
-      const response = await fetch(`/api/admin/email-jobs/${jobId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cancel" }),
-      });
-
-      if (response.ok) {
-        setMessage({ type: "success", text: "Job cancelled" });
-        fetchJobs();
-      }
+      await postApi(`/api/admin/email-jobs/${jobId}`, { action: "cancel" }, { method: "PATCH" });
+      setMessage({ type: "success", text: "Job cancelled" });
+      fetchJobs();
     } catch (err) {
       setMessage({ type: "error", text: "Failed to cancel job" });
     }

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface OutlookAccount {
   account_id: string;
@@ -56,9 +57,7 @@ function EmailSettingsContent() {
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/email-settings/accounts");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ configured: boolean; accounts: OutlookAccount[] }>("/api/admin/email-settings/accounts");
       setConfigured(data.configured);
       setAccounts(data.accounts || []);
     } catch (err) {
@@ -80,19 +79,11 @@ function EmailSettingsContent() {
 
     setDisconnecting(accountId);
     try {
-      const response = await fetch(`/api/admin/email-settings/accounts?accountId=${accountId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setMessage({ type: "success", text: `Disconnected ${email}` });
-        fetchAccounts();
-      } else {
-        const data = await response.json();
-        setMessage({ type: "error", text: data.error || "Failed to disconnect" });
-      }
+      await postApi(`/api/admin/email-settings/accounts?accountId=${accountId}`, {}, { method: "DELETE" });
+      setMessage({ type: "success", text: `Disconnected ${email}` });
+      fetchAccounts();
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to disconnect account" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to disconnect account" });
     } finally {
       setDisconnecting(null);
     }

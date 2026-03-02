@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import DOMPurify from "dompurify";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface EmailTemplate {
   template_id: string;
@@ -75,9 +76,7 @@ export default function EmailTemplatesAdminPage() {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/email-templates");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ templates: EmailTemplate[]; userRole: string; pendingSuggestions: number }>("/api/admin/email-templates");
       setTemplates(data.templates || []);
       setUserRole(data.userRole || "staff");
       setPendingSuggestions(data.pendingSuggestions || 0);
@@ -131,29 +130,19 @@ export default function EmailTemplatesAdminPage() {
         return;
       }
 
-      const response = await fetch("/api/admin/email-templates/suggestions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          template_id: suggestingTemplate.template_id,
-          ...changes,
-          suggestion_notes: suggestionNotes,
-        }),
+      await postApi("/api/admin/email-templates/suggestions", {
+        template_id: suggestingTemplate.template_id,
+        ...changes,
+        suggestion_notes: suggestionNotes,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: "success", text: "Suggestion submitted for review!" });
-        setTimeout(() => {
-          closeSuggestModal();
-          setMessage(null);
-        }, 1500);
-      } else {
-        setMessage({ type: "error", text: data.error || "Failed to submit suggestion" });
-      }
+      setMessage({ type: "success", text: "Suggestion submitted for review!" });
+      setTimeout(() => {
+        closeSuggestModal();
+        setMessage(null);
+      }, 1500);
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to submit suggestion" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to submit suggestion" });
     } finally {
       setSaving(false);
     }
@@ -212,26 +201,16 @@ export default function EmailTemplatesAdminPage() {
         ? { template_id: editingTemplate.template_id, ...form }
         : form;
 
-      const response = await fetch("/api/admin/email-templates", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await postApi("/api/admin/email-templates", body, { method });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: "success", text: editingTemplate ? "Template updated!" : "Template created!" });
-        fetchTemplates();
-        setTimeout(() => {
-          closeModal();
-          setMessage(null);
-        }, 1500);
-      } else {
-        setMessage({ type: "error", text: data.error || "Failed to save" });
-      }
+      setMessage({ type: "success", text: editingTemplate ? "Template updated!" : "Template created!" });
+      fetchTemplates();
+      setTimeout(() => {
+        closeModal();
+        setMessage(null);
+      }, 1500);
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to save template" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save template" });
     } finally {
       setSaving(false);
     }
@@ -239,14 +218,10 @@ export default function EmailTemplatesAdminPage() {
 
   const toggleActive = async (template: EmailTemplate) => {
     try {
-      await fetch("/api/admin/email-templates", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          template_id: template.template_id,
-          is_active: !template.is_active,
-        }),
-      });
+      await postApi("/api/admin/email-templates", {
+        template_id: template.template_id,
+        is_active: !template.is_active,
+      }, { method: "PATCH" });
       fetchTemplates();
     } catch (err) {
       console.error("Failed to toggle template:", err);
