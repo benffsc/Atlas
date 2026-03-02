@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface DedupCandidate {
   canonical_person_id: string;
@@ -94,10 +95,9 @@ export default function PersonDedupPage() {
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
+      const result = await fetchApi<DedupResponse>(
         `/api/admin/person-dedup?tier=${tier}&limit=${limit}&offset=${offset}`
       );
-      const result = await res.json();
       setData(result);
     } catch (error) {
       console.error("Failed to fetch dedup candidates:", error);
@@ -126,24 +126,16 @@ export default function PersonDedupPage() {
     const key = `${canonical_person_id}|${duplicate_person_id}`;
     setResolving(key);
     try {
-      const res = await fetch("/api/admin/person-dedup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canonical_person_id, duplicate_person_id, action }),
+      await postApi("/api/admin/person-dedup", { canonical_person_id, duplicate_person_id, action });
+      fetchCandidates();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
       });
-      if (res.ok) {
-        fetchCandidates();
-        setSelected((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
-      } else {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      }
     } catch (error) {
       console.error("Failed to resolve:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setResolving(null);
     }
@@ -165,16 +157,11 @@ export default function PersonDedupPage() {
     });
 
     try {
-      const res = await fetch("/api/admin/person-dedup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, pairs }),
-      });
-      const result = await res.json();
+      const result = await postApi<{ success: number; errors: number; results: Array<{ success: boolean; error?: string }> }>("/api/admin/person-dedup", { action, pairs });
       if (result.errors > 0) {
         const failed = result.results
-          .filter((r: { success: boolean; error?: string }) => !r.success)
-          .map((r: { error?: string }) => r.error)
+          .filter((r) => !r.success)
+          .map((r) => r.error)
           .join(", ");
         alert(`${result.success} succeeded, ${result.errors} failed: ${failed}`);
       }

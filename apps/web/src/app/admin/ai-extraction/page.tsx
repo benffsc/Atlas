@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface SourceProgress {
   total: number;
@@ -109,9 +110,7 @@ export default function AIExtractionPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/ai-extraction");
-      if (!response.ok) throw new Error("Failed to fetch");
-      const json = await response.json();
+      const json = await fetchApi<ExtractionData>("/api/admin/ai-extraction");
       setData(json);
       setError(null);
     } catch (err) {

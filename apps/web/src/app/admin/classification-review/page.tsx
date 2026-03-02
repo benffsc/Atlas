@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface PlaceNeedingClassification {
   place_id: string;
@@ -72,10 +73,7 @@ export default function ClassificationReviewPage() {
         params.set("classification", classificationFilter);
       }
 
-      const res = await fetch(`/api/admin/classification-review?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-
-      const data = await res.json();
+      const data = await fetchApi<{ places: PlaceNeedingClassification[]; stats: ClassificationStats }>(`/api/admin/classification-review?${params}`);
       setPlaces(data.places);
       setStats(data.stats);
     } catch (err) {
@@ -122,15 +120,7 @@ export default function ClassificationReviewPage() {
         body.reason = bulkReason || undefined;
       }
 
-      const res = await fetch("/api/admin/classification-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) throw new Error("Failed to process");
-
-      const result = await res.json();
+      const result = await postApi<{ updated: number }>("/api/admin/classification-review", body);
       alert(`Updated ${result.updated} places`);
 
       setSelectedPlaces(new Set());
@@ -146,13 +136,7 @@ export default function ClassificationReviewPage() {
 
   const acceptSingle = async (place: PlaceNeedingClassification) => {
     try {
-      const res = await fetch(`/api/requests/${place.most_recent_request_id}/classification-suggestion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept" }),
-      });
-
-      if (!res.ok) throw new Error("Failed to accept");
+      await postApi(`/api/requests/${place.most_recent_request_id}/classification-suggestion`, { action: "accept" });
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to accept");
@@ -161,13 +145,7 @@ export default function ClassificationReviewPage() {
 
   const dismissSingle = async (place: PlaceNeedingClassification) => {
     try {
-      const res = await fetch(`/api/requests/${place.most_recent_request_id}/classification-suggestion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss" }),
-      });
-
-      if (!res.ok) throw new Error("Failed to dismiss");
+      await postApi(`/api/requests/${place.most_recent_request_id}/classification-suggestion`, { action: "dismiss" });
       fetchData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to dismiss");

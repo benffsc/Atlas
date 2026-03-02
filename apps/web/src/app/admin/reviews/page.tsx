@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { ReviewStatsBar } from "@/components/reviews";
 
 interface QueueSummary {
@@ -74,16 +75,9 @@ export default function ReviewsDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/reviews/summary")
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setData(result);
-        }
-      })
-      .catch((err) => setError(err.message))
+    fetchApi<QueueSummary>("/api/admin/reviews/summary")
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, []);
 

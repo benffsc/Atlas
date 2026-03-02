@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
 
 interface OwnerChange {
@@ -51,9 +52,7 @@ export default function OwnerChangesPage() {
 
   const fetchChanges = async () => {
     try {
-      const res = await fetch("/api/admin/owner-changes");
-      if (!res.ok) throw new Error("Failed to fetch owner changes");
-      const data = await res.json();
+      const data = await fetchApi<{ changes: OwnerChange[] }>("/api/admin/owner-changes");
       setChanges(data.changes || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -73,21 +72,11 @@ export default function OwnerChangesPage() {
   ) => {
     setActionLoading(reviewId);
     try {
-      const res = await fetch(`/api/admin/owner-changes/${reviewId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reason }),
-      });
-      const data: ActionResponse = await res.json();
-
-      if (data.success) {
-        // Remove from list
-        setChanges((prev) => prev.filter((c) => c.review_id !== reviewId));
-      } else {
-        alert(data.error || "Action failed");
-      }
-    } catch {
-      alert("Failed to perform action");
+      await postApi<ActionResponse>(`/api/admin/owner-changes/${reviewId}`, { action, reason });
+      // Remove from list
+      setChanges((prev) => prev.filter((c) => c.review_id !== reviewId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to perform action");
     } finally {
       setActionLoading(null);
     }

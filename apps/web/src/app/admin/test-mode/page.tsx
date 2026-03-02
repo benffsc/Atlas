@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface TestModeStatus {
   test_mode_active: boolean;
@@ -19,9 +20,7 @@ export default function TestModePage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/test-mode");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<TestModeStatus>("/api/admin/test-mode");
       setStatus(data);
       setError(null);
     } catch (err) {
@@ -55,18 +54,7 @@ export default function TestModePage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/admin/test-mode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ started_by: "admin" }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to enable test mode");
-      }
-
+      const data = await postApi<{ message: string }>("/api/admin/test-mode", { started_by: "admin" });
       setLastAction(data.message);
       await fetchStatus();
     } catch (err) {
@@ -91,18 +79,7 @@ export default function TestModePage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/admin/test-mode", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keep_changes: keepChanges }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to disable test mode");
-      }
-
+      const data = await postApi<{ message: string }>("/api/admin/test-mode", { keep_changes: keepChanges }, { method: "DELETE" });
       setLastAction(data.message);
       await fetchStatus();
     } catch (err) {

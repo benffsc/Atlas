@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi } from "@/lib/api-client";
 
 // ============================================================================
 // Types
@@ -410,11 +411,8 @@ export default function V2IngestPage() {
   const loadV2Stats = async () => {
     setLoadingStats(true);
     try {
-      const res = await fetch("/api/v2/stats");
-      if (res.ok) {
-        const data = await res.json();
-        setV2Stats(data);
-      }
+      const data = await fetchApi<V2Stats>("/api/v2/stats");
+      setV2Stats(data);
     } catch (err) {
       console.error("Failed to load V2 stats:", err);
     } finally {

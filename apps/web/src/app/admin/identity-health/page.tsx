@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface HealthMetrics {
   total_active_people: number;
@@ -41,9 +42,7 @@ export default function IdentityHealthPage() {
   async function fetchHealth() {
     try {
       setLoading(true);
-      const res = await fetch("/api/admin/identity-health");
-      if (!res.ok) throw new Error("Failed to fetch health data");
-      const data = await res.json();
+      const data = await fetchApi<HealthCheck>("/api/admin/identity-health");
       setHealth(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DataQualityBadge, AIParsedBadge } from "@/components/badges";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ReproductionRecord {
   vitals_id: string;
@@ -51,18 +52,13 @@ export default function ReproductionPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [recordsRes, statsRes] = await Promise.all([
-        fetch("/api/admin/beacon/reproduction"),
-        fetch("/api/admin/beacon/reproduction/stats"),
+      const [recordsData, statsData] = await Promise.all([
+        fetchApi<{ records: ReproductionRecord[] }>("/api/admin/beacon/reproduction"),
+        fetchApi<Stats>("/api/admin/beacon/reproduction/stats"),
       ]);
 
-      if (recordsRes.ok) {
-        const data = await recordsRes.json();
-        setRecords(data.records || []);
-      }
-      if (statsRes.ok) {
-        setStats(await statsRes.json());
-      }
+      setRecords(recordsData.records || []);
+      setStats(statsData);
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {
@@ -87,20 +83,12 @@ export default function ReproductionPage() {
     if (!editRecord) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/beacon/reproduction", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vitals_id: editRecord.vitals_id,
-          ...editForm,
-        }),
-      });
-      if (res.ok) {
-        await loadData();
-        closeEditModal();
-      } else {
-        alert("Failed to save changes");
-      }
+      await postApi("/api/admin/beacon/reproduction", {
+        vitals_id: editRecord.vitals_id,
+        ...editForm,
+      }, { method: "PATCH" });
+      await loadData();
+      closeEditModal();
     } catch (err) {
       alert("Error saving changes");
     } finally {
@@ -111,14 +99,8 @@ export default function ReproductionPage() {
   const handleDelete = async (vitalsId: string) => {
     if (!confirm("Remove reproduction indicators from this record? This clears pregnant/lactating/in-heat flags.")) return;
     try {
-      const res = await fetch(`/api/admin/beacon/reproduction?id=${vitalsId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        await loadData();
-      } else {
-        alert("Failed to delete");
-      }
+      await postApi(`/api/admin/beacon/reproduction?id=${vitalsId}`, {}, { method: "DELETE" });
+      await loadData();
     } catch (err) {
       alert("Error deleting");
     }
@@ -130,7 +112,7 @@ export default function ReproductionPage() {
     setBulkDeleting(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
-        fetch(`/api/admin/beacon/reproduction?id=${id}`, { method: "DELETE" })
+        postApi(`/api/admin/beacon/reproduction?id=${id}`, {}, { method: "DELETE" })
       );
       await Promise.all(promises);
       setSelectedIds(new Set());

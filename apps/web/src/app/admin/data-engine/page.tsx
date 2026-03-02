@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface OverallStats {
   total_decisions: number;
@@ -64,14 +65,14 @@ export default function DataEnginePage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/admin/data-engine/stats").then((r) => r.ok ? r.json() : null),
-      fetch("/api/health/data-engine").then((r) => r.ok ? r.json() : null),
+      fetchApi<DataEngineStats>("/api/admin/data-engine/stats").catch(() => null),
+      fetchApi<HealthData>("/api/health/data-engine").catch(() => null),
     ])
       .then(([statsData, healthData]) => {
         setStats(statsData);
         setHealth(healthData);
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, []);
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi } from "@/lib/api-client";
 import { DataQualityBadge, VerificationBadge } from "@/components/badges";
 
 interface ReviewItem {
@@ -57,12 +58,9 @@ export default function NeedsReviewPage() {
   useEffect(() => {
     async function fetchItems() {
       try {
-        const res = await fetch("/api/admin/needs-review");
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.items || []);
-          setSummary(data.summary || null);
-        }
+        const data = await fetchApi<{ items: ReviewItem[]; summary: ReviewSummary | null }>("/api/admin/needs-review");
+        setItems(data.items || []);
+        setSummary(data.summary || null);
       } catch (err) {
         console.error("Error fetching review items:", err);
       } finally {

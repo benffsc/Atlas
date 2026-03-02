@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Processor {
   processor_id: string;
@@ -35,10 +36,7 @@ export default function ProcessorsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/data-engine/process");
-      if (!response.ok) throw new Error("Failed to fetch processors");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ processors: Processor[]; pending_by_source: PendingCount[] }>("/api/admin/data-engine/process");
       setProcessors(data.processors || []);
       setPendingCounts(data.pending_by_source || []);
     } catch (err) {
@@ -58,25 +56,15 @@ export default function ProcessorsPage() {
     setLastResult(null);
 
     try {
-      const response = await fetch("/api/admin/data-engine/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source_system: sourceSystem,
-          source_table: sourceTable,
-          limit: 100,
-        }),
+      const data = await postApi<{ result: ProcessResult }>("/api/admin/data-engine/process", {
+        source_system: sourceSystem,
+        source_table: sourceTable,
+        limit: 100,
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setLastResult({ key, result: data.result });
-        // Refresh pending counts
-        await fetchData();
-      } else {
-        setError(data.error || "Processing failed");
-      }
+      setLastResult({ key, result: data.result });
+      // Refresh pending counts
+      await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
     } finally {
@@ -89,20 +77,10 @@ export default function ProcessorsPage() {
     setLastResult(null);
 
     try {
-      const response = await fetch("/api/admin/data-engine/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 500 }),
-      });
+      const data = await postApi<{ result: ProcessResult }>("/api/admin/data-engine/process", { limit: 500 });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setLastResult({ key: "all", result: data.result });
-        await fetchData();
-      } else {
-        setError(data.error || "Processing failed");
-      }
+      setLastResult({ key: "all", result: data.result });
+      await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
     } finally {

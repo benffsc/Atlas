@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
 
 interface OnboardingCandidate {
@@ -96,8 +97,7 @@ export default function TrapperOnboardingPage() {
       const url = statusFilter === "all"
         ? "/api/trappers/onboarding"
         : `/api/trappers/onboarding?status=${statusFilter}`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const data = await fetchApi<{ candidates: OnboardingCandidate[]; stats: OnboardingStats[] }>(url);
       setCandidates(data.candidates || []);
       setStats(data.stats || []);
     } catch (err) {
@@ -114,20 +114,13 @@ export default function TrapperOnboardingPage() {
   const handleAdvance = async (personId: string, newStatus: string, notes?: string) => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/trappers/onboarding/${personId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          new_status: newStatus,
-          notes,
-          advanced_by: "staff",
-        }),
-      });
-
-      if (res.ok) {
-        fetchData();
-        setSelectedCandidate(null);
-      }
+      await postApi(`/api/trappers/onboarding/${personId}`, {
+        new_status: newStatus,
+        notes,
+        advanced_by: "staff",
+      }, { method: "PATCH" });
+      fetchData();
+      setSelectedCandidate(null);
     } catch (err) {
       console.error("Failed to advance:", err);
     } finally {
@@ -140,24 +133,17 @@ export default function TrapperOnboardingPage() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/trappers/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newCandidate),
+      await postApi("/api/trappers/onboarding", newCandidate);
+      setShowNewForm(false);
+      setNewCandidate({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        referral_source: "",
+        notes: "",
       });
-
-      if (res.ok) {
-        setShowNewForm(false);
-        setNewCandidate({
-          first_name: "",
-          last_name: "",
-          email: "",
-          phone: "",
-          referral_source: "",
-          notes: "",
-        });
-        fetchData();
-      }
+      fetchData();
     } catch (err) {
       console.error("Failed to create:", err);
     } finally {

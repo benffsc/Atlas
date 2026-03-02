@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface ImportHistory {
   import_id: string;
@@ -91,10 +92,7 @@ export default function GoogleMapsSyncPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/google-maps-sync");
-      if (!response.ok) throw new Error("Failed to fetch stats");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<SyncStats>("/api/admin/google-maps-sync");
       setStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stats");
@@ -124,12 +122,14 @@ export default function GoogleMapsSyncPage() {
         body: formData,
       });
 
-      const data = await response.json();
+      const json = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Upload failed");
+        throw new Error(json.error || "Upload failed");
       }
 
+      // Handle apiSuccess wrapper
+      const data = json.data || json;
       setSuccess(data.result);
       fetchStats(); // Refresh stats
     } catch (err) {

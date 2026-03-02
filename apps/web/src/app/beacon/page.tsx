@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { SeasonalAlertsCard } from "@/components/cards";
 import { YoYComparisonChart } from "@/components/charts";
 
@@ -39,9 +40,8 @@ export default function BeaconPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/beacon/summary")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((d) => setData(d))
+    fetchApi<BeaconSummaryResponse>("/api/beacon/summary")
+      .then((data) => setData({ summary: data.summary, insights: data.insights }))
       .catch(() => null)
       .finally(() => setLoading(false));
   }, []);

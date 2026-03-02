@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Trapper {
   person_id: string;
@@ -94,11 +95,7 @@ export default function TrappersPage() {
     params.set("offset", String(page * limit));
 
     try {
-      const response = await fetch(`/api/trappers?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch trappers");
-      }
-      const result: TrappersResponse = await response.json();
+      const result = await fetchApi<TrappersResponse>(`/api/trappers?${params.toString()}`);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -114,19 +111,10 @@ export default function TrappersPage() {
   const updateTrapper = async (personId: string, action: "status" | "type", value: string) => {
     setUpdating(personId);
     try {
-      const response = await fetch("/api/trappers", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ person_id: personId, action, value }),
-      });
-      if (response.ok) {
-        fetchTrappers();
-      } else {
-        const err = await response.json();
-        alert(`Error: ${err.error}`);
-      }
+      await postApi("/api/trappers", { person_id: personId, action, value }, { method: "PATCH" });
+      fetchTrappers();
     } catch (err) {
-      console.error("Update error:", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Update failed"}`);
     } finally {
       setUpdating(null);
     }

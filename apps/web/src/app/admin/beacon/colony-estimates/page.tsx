@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DataQualityBadge } from "@/components/badges";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ColonyEstimate {
   estimate_id: string;
@@ -57,18 +58,13 @@ export default function ColonyEstimatesPage() {
       if (sourceFilter !== "all") params.set("source_type", sourceFilter);
       params.set("limit", "200");
 
-      const [estimatesRes, statsRes] = await Promise.all([
-        fetch(`/api/admin/beacon/colony-estimates?${params}`),
-        fetch("/api/admin/beacon/colony-estimates/stats"),
+      const [estimatesData, statsData] = await Promise.all([
+        fetchApi<{ estimates: ColonyEstimate[] }>(`/api/admin/beacon/colony-estimates?${params}`),
+        fetchApi<Stats>("/api/admin/beacon/colony-estimates/stats"),
       ]);
 
-      if (estimatesRes.ok) {
-        const data = await estimatesRes.json();
-        setEstimates(data.estimates || []);
-      }
-      if (statsRes.ok) {
-        setStats(await statsRes.json());
-      }
+      setEstimates(estimatesData.estimates || []);
+      setStats(statsData);
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {
@@ -84,24 +80,16 @@ export default function ColonyEstimatesPage() {
     if (!editingEstimate) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/beacon/colony-estimates", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          estimate_id: editingEstimate.estimate_id,
-          total_cats: editingEstimate.total_cats,
-          eartip_count_observed: editingEstimate.eartip_count_observed,
-          altered_count: editingEstimate.altered_count,
-          notes: editingEstimate.notes,
-        }),
-      });
+      await postApi("/api/admin/beacon/colony-estimates", {
+        estimate_id: editingEstimate.estimate_id,
+        total_cats: editingEstimate.total_cats,
+        eartip_count_observed: editingEstimate.eartip_count_observed,
+        altered_count: editingEstimate.altered_count,
+        notes: editingEstimate.notes,
+      }, { method: "PATCH" });
 
-      if (res.ok) {
-        setEditingEstimate(null);
-        loadData();
-      } else {
-        alert("Failed to save changes");
-      }
+      setEditingEstimate(null);
+      loadData();
     } catch (err) {
       alert("Error saving changes");
     } finally {
@@ -113,15 +101,8 @@ export default function ColonyEstimatesPage() {
     if (!confirm("Delete this colony estimate? This cannot be undone.")) return;
 
     try {
-      const res = await fetch(`/api/admin/beacon/colony-estimates?id=${estimateId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        loadData();
-      } else {
-        alert("Failed to delete estimate");
-      }
+      await postApi(`/api/admin/beacon/colony-estimates?id=${estimateId}`, {}, { method: "DELETE" });
+      loadData();
     } catch (err) {
       alert("Error deleting estimate");
     }
@@ -134,10 +115,8 @@ export default function ColonyEstimatesPage() {
     let deleted = 0;
     for (const id of selectedIds) {
       try {
-        const res = await fetch(`/api/admin/beacon/colony-estimates?id=${id}`, {
-          method: "DELETE",
-        });
-        if (res.ok) deleted++;
+        await postApi(`/api/admin/beacon/colony-estimates?id=${id}`, {}, { method: "DELETE" });
+        deleted++;
       } catch {
         // Continue with others
       }

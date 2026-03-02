@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
 
 interface PendingTrapperLink {
@@ -47,9 +48,7 @@ export default function TrapperLinkingPage() {
   const fetchPending = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/trapper-linking?status=${status}`);
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<TrapperLinkingResponse>(`/api/admin/trapper-linking?status=${status}`);
       setData(data);
     } catch (error) {
       console.error("Failed to fetch pending trapper links:", error);
@@ -65,20 +64,11 @@ export default function TrapperLinkingPage() {
   const handleResolve = async (pendingId: string, personId: string | null, action: string, notes?: string) => {
     setResolving(pendingId);
     try {
-      const response = await fetch("/api/admin/trapper-linking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pending_id: pendingId, person_id: personId, action, notes }),
-      });
-
-      if (response.ok) {
-        fetchPending();
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
-      }
+      await postApi("/api/admin/trapper-linking", { pending_id: pendingId, person_id: personId, action, notes });
+      fetchPending();
     } catch (error) {
       console.error("Failed to resolve:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Failed to resolve"}`);
     } finally {
       setResolving(null);
     }
@@ -225,9 +215,7 @@ function TrapperLinkCard({
 
     setSearching(true);
     try {
-      const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=10`);
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ people: PersonSearchResult[] }>(`/api/people/search?q=${encodeURIComponent(query)}&limit=10`);
       setSearchResults(data.people || []);
     } catch (error) {
       console.error("Search failed:", error);

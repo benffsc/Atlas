@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { fetchApi, postApi } from "@/lib/api-client";
 import {
   ReviewComparisonCard,
   BatchActionBar,
@@ -114,8 +115,7 @@ function IdentityReviewContent() {
       if (filter && filter !== "all") {
         params.set("filter", filter);
       }
-      const res = await fetch(`/api/admin/reviews/identity?${params}`);
-      const result = await res.json();
+      const result = await fetchApi<ReviewResponse>(`/api/admin/reviews/identity?${params}`);
       setData(result);
     } catch (error) {
       console.error("Failed to fetch identity reviews:", error);
@@ -136,24 +136,16 @@ function IdentityReviewContent() {
   const handleResolve = async (id: string, action: "merge" | "keep_separate" | "dismiss") => {
     setResolving(id);
     try {
-      const res = await fetch("/api/admin/reviews/identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action }),
+      await postApi("/api/admin/reviews/identity", { id, action });
+      fetchItems();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
       });
-      if (res.ok) {
-        fetchItems();
-        setSelected((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      } else {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      }
     } catch (error) {
       console.error("Failed to resolve:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Failed to resolve"}`);
     } finally {
       setResolving(null);
     }
@@ -172,13 +164,8 @@ function IdentityReviewContent() {
 
     for (const id of ids) {
       try {
-        const res = await fetch("/api/admin/reviews/identity", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, action }),
-        });
-        if (res.ok) successCount++;
-        else errorCount++;
+        await postApi("/api/admin/reviews/identity", { id, action });
+        successCount++;
       } catch {
         errorCount++;
       }

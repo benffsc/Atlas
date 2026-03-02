@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface PlaceDedupCandidate {
   candidate_id: string;
@@ -99,10 +100,9 @@ export default function PlaceDedupPage() {
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
+      const result = await fetchApi<PlaceDedupResponse>(
         `/api/admin/place-dedup?tier=${tier}&limit=${limit}&offset=${offset}`
       );
-      const result = await res.json();
       setData(result);
     } catch (error) {
       console.error("Failed to fetch place dedup candidates:", error);
@@ -130,29 +130,21 @@ export default function PlaceDedupPage() {
     const key = pairKey(c);
     setResolving(key);
     try {
-      const res = await fetch("/api/admin/place-dedup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          candidate_id: c.candidate_id,
-          canonical_place_id: c.canonical_place_id,
-          duplicate_place_id: c.duplicate_place_id,
-          action,
-        }),
+      await postApi("/api/admin/place-dedup", {
+        candidate_id: c.candidate_id,
+        canonical_place_id: c.canonical_place_id,
+        duplicate_place_id: c.duplicate_place_id,
+        action,
       });
-      if (res.ok) {
-        fetchCandidates();
-        setSelected((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
-      } else {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      }
+      fetchCandidates();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     } catch (error) {
       console.error("Failed to resolve:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setResolving(null);
     }
@@ -174,16 +166,11 @@ export default function PlaceDedupPage() {
     });
 
     try {
-      const res = await fetch("/api/admin/place-dedup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, pairs }),
-      });
-      const result = await res.json();
+      const result = await postApi<{ success: number; errors: number; results: Array<{ success: boolean; error?: string }> }>("/api/admin/place-dedup", { action, pairs });
       if (result.errors > 0) {
         const failed = result.results
-          .filter((r: { success: boolean; error?: string }) => !r.success)
-          .map((r: { error?: string }) => r.error)
+          .filter((r) => !r.success)
+          .map((r) => r.error)
           .join(", ");
         alert(`${result.success} succeeded, ${result.errors} failed: ${failed}`);
       }
@@ -218,16 +205,9 @@ export default function PlaceDedupPage() {
     if (!confirm("Refresh all candidate pairs? This re-scans all places and may take a moment.")) return;
     setRefreshing(true);
     try {
-      const res = await fetch("/api/admin/place-dedup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "refresh_candidates" }),
-      });
-      if (res.ok) {
-        const result = await res.json();
-        alert(`Refreshed: T1=${result.tier1_count}, T2=${result.tier2_count}, T3=${result.tier3_count}, T4=${result.tier4_count}, Total=${result.total}`);
-        fetchCandidates();
-      }
+      const result = await postApi<{ tier1_count: number; tier2_count: number; tier3_count: number; tier4_count: number; total: number }>("/api/admin/place-dedup", { action: "refresh_candidates" });
+      alert(`Refreshed: T1=${result.tier1_count}, T2=${result.tier2_count}, T3=${result.tier3_count}, T4=${result.tier4_count}, Total=${result.total}`);
+      fetchCandidates();
     } catch (error) {
       console.error("Refresh failed:", error);
     } finally {

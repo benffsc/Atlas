@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DataQualityBadge } from "@/components/badges";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface MortalityEvent {
   mortality_event_id: string;
@@ -81,18 +82,13 @@ export default function MortalityPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [eventsRes, statsRes] = await Promise.all([
-        fetch("/api/admin/beacon/mortality"),
-        fetch("/api/admin/beacon/mortality/stats"),
+      const [eventsData, statsData] = await Promise.all([
+        fetchApi<{ events: MortalityEvent[] }>("/api/admin/beacon/mortality"),
+        fetchApi<Stats>("/api/admin/beacon/mortality/stats"),
       ]);
 
-      if (eventsRes.ok) {
-        const data = await eventsRes.json();
-        setEvents(data.events || []);
-      }
-      if (statsRes.ok) {
-        setStats(await statsRes.json());
-      }
+      setEvents(eventsData.events || []);
+      setStats(statsData);
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {
@@ -118,20 +114,12 @@ export default function MortalityPage() {
     if (!editEvent) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/beacon/mortality", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mortality_event_id: editEvent.mortality_event_id,
-          ...editForm,
-        }),
-      });
-      if (res.ok) {
-        await loadData();
-        closeEditModal();
-      } else {
-        alert("Failed to save changes");
-      }
+      await postApi("/api/admin/beacon/mortality", {
+        mortality_event_id: editEvent.mortality_event_id,
+        ...editForm,
+      }, { method: "PATCH" });
+      await loadData();
+      closeEditModal();
     } catch (err) {
       alert("Error saving changes");
     } finally {
@@ -142,14 +130,8 @@ export default function MortalityPage() {
   const handleDelete = async (eventId: string) => {
     if (!confirm("Delete this mortality event? This cannot be undone.")) return;
     try {
-      const res = await fetch(`/api/admin/beacon/mortality?id=${eventId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        await loadData();
-      } else {
-        alert("Failed to delete");
-      }
+      await postApi(`/api/admin/beacon/mortality?id=${eventId}`, {}, { method: "DELETE" });
+      await loadData();
     } catch (err) {
       alert("Error deleting");
     }
@@ -161,7 +143,7 @@ export default function MortalityPage() {
     setBulkDeleting(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
-        fetch(`/api/admin/beacon/mortality?id=${id}`, { method: "DELETE" })
+        postApi(`/api/admin/beacon/mortality?id=${id}`, {}, { method: "DELETE" })
       );
       await Promise.all(promises);
       setSelectedIds(new Set());

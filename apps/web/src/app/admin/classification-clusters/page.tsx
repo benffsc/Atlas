@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ClusterPlace {
   place_id: string;
@@ -58,8 +59,7 @@ export default function ClassificationClustersPage() {
   const fetchClusters = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/classification-clusters?status=${statusFilter}`);
-      const data = await res.json();
+      const data = await fetchApi<{ clusters: Cluster[]; stats: Stats | null }>(`/api/admin/classification-clusters?status=${statusFilter}`);
       setClusters(data.clusters || []);
       setStats(data.stats || null);
     } catch (error) {
@@ -80,25 +80,15 @@ export default function ClassificationClustersPage() {
   ) => {
     setActionInProgress(clusterId);
     try {
-      const res = await fetch("/api/admin/classification-clusters", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cluster_id: clusterId,
-          action,
-          ...params,
-        }),
+      await postApi("/api/admin/classification-clusters", {
+        cluster_id: clusterId,
+        action,
+        ...params,
       });
-
-      if (res.ok) {
-        fetchClusters();
-      } else {
-        const error = await res.json();
-        alert(`Error: ${error.error}`);
-      }
+      fetchClusters();
     } catch (error) {
       console.error("Action failed:", error);
-      alert("Action failed");
+      alert(`Error: ${error instanceof Error ? error.message : "Action failed"}`);
     } finally {
       setActionInProgress(null);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { LogObservationModal } from "@/components/modals";
 
 interface TrapperSite {
@@ -98,9 +99,7 @@ export default function TrapperObservationsPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/trappers/observations");
-      if (!response.ok) throw new Error("Failed to fetch data");
-      const result: ObservationsData = await response.json();
+      const result = await fetchApi<ObservationsData>("/api/trappers/observations");
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

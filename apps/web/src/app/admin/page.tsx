@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { ClinicHQUploadModal } from "@/components/modals";
 
 interface QueueStats {
@@ -33,8 +34,7 @@ export default function AdminPage() {
   const [showClinicHQModal, setShowClinicHQModal] = useState(false);
 
   useEffect(() => {
-    fetch("/api/admin/stats")
-      .then((res) => (res.ok ? res.json() : null))
+    fetchApi<QueueStats>("/api/admin/stats")
       .then(setStats)
       .catch(() => null)
       .finally(() => setLoading(false));

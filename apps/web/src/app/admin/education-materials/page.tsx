@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface EducationMaterial {
   material_id: string;
@@ -80,9 +81,7 @@ export default function EducationMaterialsAdminPage() {
       params.set("include_inactive", "true");
       if (selectedCategory) params.set("category", selectedCategory);
 
-      const response = await fetch(`/api/trappers/materials?${params.toString()}`);
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ materials: EducationMaterial[]; categories: CategoryCount[] }>(`/api/trappers/materials?${params.toString()}`);
       setMaterials(data.materials || []);
       setCategories(data.categories || []);
     } catch (err) {
@@ -167,16 +166,9 @@ export default function EducationMaterialsAdminPage() {
 
   const updateMaterial = async (materialId: string, updates: Partial<EducationMaterial>) => {
     try {
-      const response = await fetch("/api/trappers/materials", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ material_id: materialId, ...updates }),
-      });
-
-      if (response.ok) {
-        fetchMaterials();
-        setEditingMaterial(null);
-      }
+      await postApi("/api/trappers/materials", { material_id: materialId, ...updates }, { method: "PATCH" });
+      fetchMaterials();
+      setEditingMaterial(null);
     } catch (err) {
       console.error("Update failed:", err);
     }
