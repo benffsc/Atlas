@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SendEmailModal } from "@/components/modals";
+import { fetchApi } from "@/lib/api-client";
 
 interface EmailHubMetrics {
   connected_accounts: number;
@@ -35,8 +36,8 @@ export default function EmailHubPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/admin/email-hub/metrics").then(r => r.json()),
-      fetch("/api/admin/email-audit?limit=10").then(r => r.json()),
+      fetchApi<{ metrics: EmailHubMetrics }>("/api/admin/email-hub/metrics"),
+      fetchApi<{ emails: RecentEmail[] }>("/api/admin/email-audit?limit=10"),
     ])
       .then(([metricsData, auditData]) => {
         setMetrics(metricsData.metrics);
@@ -230,11 +231,9 @@ export default function EmailHubPage() {
         onSuccess={() => {
           setShowComposeModal(false);
           // Refresh metrics
-          fetch("/api/admin/email-hub/metrics")
-            .then(r => r.json())
+          fetchApi<{ metrics: EmailHubMetrics }>("/api/admin/email-hub/metrics")
             .then(data => setMetrics(data.metrics));
-          fetch("/api/admin/email-audit?limit=10")
-            .then(r => r.json())
+          fetchApi<{ emails: RecentEmail[] }>("/api/admin/email-audit?limit=10")
             .then(data => setRecentEmails(data.emails || []));
         }}
       />

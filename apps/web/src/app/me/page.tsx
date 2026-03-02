@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ReminderCard } from "@/components/cards";
 import { LookupViewerModal } from "@/components/modals";
+import { fetchApi } from "@/lib/api-client";
 
 interface Reminder {
   reminder_id: string;
@@ -75,7 +76,8 @@ export default function MyDashboardPage() {
         }
         throw new Error("Failed to fetch");
       }
-      const data = await res.json();
+      const result = await res.json();
+      const data = result.data || result;
       setReminders(data.reminders || []);
     } catch (err) {
       console.error("Error fetching reminders:", err);
@@ -94,7 +96,8 @@ export default function MyDashboardPage() {
         }
         throw new Error("Failed to fetch");
       }
-      const data = await res.json();
+      const result = await res.json();
+      const data = result.data || result;
       setLookups(data.lookups || []);
     } catch (err) {
       console.error("Error fetching lookups:", err);
@@ -114,7 +117,8 @@ export default function MyDashboardPage() {
         }
         throw new Error("Failed to fetch");
       }
-      const data = await res.json();
+      const result = await res.json();
+      const data = result.data || result;
       setMessages(data.messages || []);
       setUnreadCount(data.unread_count || 0);
     } catch (err) {
@@ -216,7 +220,8 @@ export default function MyDashboardPage() {
     try {
       const res = await fetch(`/api/me/lookups/${lookup.lookup_id}`);
       if (res.ok) {
-        const data = await res.json();
+        const result = await res.json();
+        const data = result.data || result;
         setSelectedLookup(data.lookup);
       }
     } catch (err) {

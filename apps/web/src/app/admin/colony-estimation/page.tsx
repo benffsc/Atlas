@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { BackButton } from "@/components/common";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface SourceConfidence {
   source_type: string;
@@ -51,14 +52,16 @@ export default function ColonyEstimationPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/colony-estimation");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
+      const data = await fetchApi<{
+        source_confidence: SourceConfidence[];
+        count_precision: CountPrecision[];
+        stats: Stats;
+      }>("/api/admin/colony-estimation");
       setSources(data.source_confidence || []);
       setPrecision(data.count_precision || []);
       setStats(data.stats || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof ApiError ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -71,19 +74,14 @@ export default function ColonyEstimationPage() {
   const updateSource = async (source: Partial<SourceConfidence> & { source_type: string }) => {
     setSaving(source.source_type);
     try {
-      const res = await fetch("/api/admin/colony-estimation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "source_confidence", ...source }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      } else {
-        fetchData();
-      }
+      await postApi("/api/admin/colony-estimation", { type: "source_confidence", ...source });
+      fetchData();
     } catch (err) {
-      console.error("Update error:", err);
+      if (err instanceof ApiError) {
+        alert(`Error: ${err.message}`);
+      } else {
+        console.error("Update error:", err);
+      }
     } finally {
       setSaving(null);
     }
@@ -92,19 +90,14 @@ export default function ColonyEstimationPage() {
   const updatePrecision = async (prec: Partial<CountPrecision> & { precision_type: string }) => {
     setSaving(prec.precision_type);
     try {
-      const res = await fetch("/api/admin/colony-estimation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "count_precision", ...prec }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      } else {
-        fetchData();
-      }
+      await postApi("/api/admin/colony-estimation", { type: "count_precision", ...prec });
+      fetchData();
     } catch (err) {
-      console.error("Update error:", err);
+      if (err instanceof ApiError) {
+        alert(`Error: ${err.message}`);
+      } else {
+        console.error("Update error:", err);
+      }
     } finally {
       setSaving(null);
     }
@@ -114,18 +107,18 @@ export default function ColonyEstimationPage() {
     if (!confirm(`Delete "${key}"?`)) return;
     setSaving(key);
     try {
-      const res = await fetch(
+      await postApi(
         `/api/admin/colony-estimation?type=${type}&key=${encodeURIComponent(key)}`,
+        {},
         { method: "DELETE" }
       );
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      } else {
-        fetchData();
-      }
+      fetchData();
     } catch (err) {
-      console.error("Delete error:", err);
+      if (err instanceof ApiError) {
+        alert(`Error: ${err.message}`);
+      } else {
+        console.error("Delete error:", err);
+      }
     } finally {
       setSaving(null);
     }
