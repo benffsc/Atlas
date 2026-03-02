@@ -127,7 +127,10 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
       }),
       fetch("/api/intake/custom-fields").then(res => res.ok ? res.json() : { fields: [] })
     ])
-      .then(([subData, fieldsData]) => {
+      .then(([subResponse, fieldsResponse]) => {
+        // Handle apiSuccess wrapper format
+        const subData = subResponse.data || subResponse;
+        const fieldsData = fieldsResponse.data || fieldsResponse;
         setSubmission(subData.submission);
         setCustomFieldDefs(fieldsData.fields || []);
       })
