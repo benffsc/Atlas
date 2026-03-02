@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * Beacon Colony Clustering API
@@ -37,12 +38,7 @@ export async function GET(request: NextRequest) {
     `, []);
 
     if (!viewCheck?.exists) {
-      return NextResponse.json({
-        error: "Beacon clusters view not deployed",
-        missing: ["v_beacon_cluster_summary (MIG_2082)"],
-        hint: "Run V2 beacon migrations: MIG_2082__beacon_views_implementation.sql",
-        health_check: "/api/beacon/health",
-      }, { status: 503 });
+      return apiServerError("Beacon clusters view not deployed. Run MIG_2082__beacon_views_implementation.sql");
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -133,7 +129,7 @@ export async function GET(request: NextRequest) {
     const totalCats = clusters.reduce((sum, c) => sum + c.total_verified_cats, 0);
     const totalAltered = clusters.reduce((sum, c) => sum + c.total_altered_cats, 0);
 
-    return NextResponse.json({
+    return apiSuccess({
       clusters,
       summary: {
         total_clusters: clusters.length,
@@ -171,19 +167,10 @@ export async function GET(request: NextRequest) {
 
     const errorMessage = String(error);
     if (errorMessage.includes("does not exist") || errorMessage.includes("relation")) {
-      return NextResponse.json({
-        error: "Beacon clusters view or function not found",
-        details: errorMessage,
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
-        health_check: "/api/beacon/health",
-      }, { status: 503 });
+      return apiServerError("Beacon clusters view not found. Run deploy-critical-migrations.sh");
     }
 
-    return NextResponse.json({
-      error: "Failed to fetch Beacon cluster data",
-      details: errorMessage,
-      health_check: "/api/health/db",
-    }, { status: 500 });
+    return apiServerError("Failed to fetch Beacon cluster data");
   }
 }
 
@@ -194,15 +181,9 @@ export async function GET(request: NextRequest) {
 export async function POST() {
   try {
     await queryOne(`SELECT ops.refresh_beacon_clusters()`, []);
-    return NextResponse.json({
-      success: true,
-      message: "Beacon clusters refreshed",
-    });
+    return apiSuccess({ message: "Beacon clusters refreshed" });
   } catch (error) {
     console.error("Error refreshing Beacon clusters:", error);
-    return NextResponse.json(
-      { error: "Failed to refresh Beacon clusters" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to refresh Beacon clusters");
   }
 }

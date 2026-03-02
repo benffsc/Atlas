@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Beacon Health Check Endpoint
@@ -68,23 +68,11 @@ export async function GET() {
         !seasonal.exists && "v_seasonal_dashboard (MIG_291)",
       ].filter(Boolean);
 
-      return NextResponse.json({
-        healthy: false,
-        status: "views_missing",
-        views: { summary, places, clusters, seasonal },
-        missing,
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
-        migrations_needed: [
-          "MIG_209__colony_size_tracking.sql",
-          "MIG_291__seasonal_analysis_views.sql",
-          "MIG_340__beacon_calculation_views.sql",
-          "MIG_341__beacon_clustering.sql",
-        ],
-      }, { status: 503 });
+      return apiServerError(`Views missing: ${missing.join(", ")}. Run deploy-critical-migrations.sh`);
     }
 
     if (!anyHasData) {
-      return NextResponse.json({
+      return apiSuccess({
         healthy: true,
         status: "no_data",
         views: { summary, places, clusters, seasonal },
@@ -92,18 +80,13 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       healthy: true,
       status: "operational",
       views: { summary, places, clusters, seasonal },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    return NextResponse.json({
-      healthy: false,
-      status: "error",
-      error: String(error),
-      hint: "Database connection issue or schema problem",
-    }, { status: 503 });
+    return apiServerError("Database connection issue or schema problem");
   }
 }

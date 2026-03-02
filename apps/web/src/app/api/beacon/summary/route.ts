@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Beacon Dashboard Summary API
@@ -57,18 +57,10 @@ export async function GET() {
 
     if (!viewCheck?.summary_exists || !viewCheck?.cluster_summary_exists) {
       const missing = [];
-      if (!viewCheck?.summary_exists) missing.push("v_beacon_summary (MIG_2082)");
-      if (!viewCheck?.cluster_summary_exists) missing.push("v_beacon_cluster_summary (MIG_2082)");
+      if (!viewCheck?.summary_exists) missing.push("v_beacon_summary");
+      if (!viewCheck?.cluster_summary_exists) missing.push("v_beacon_cluster_summary");
 
-      return NextResponse.json({
-        error: "Beacon views not deployed",
-        missing,
-        hint: "Run V2 beacon migrations: MIG_2082__beacon_views_implementation.sql",
-        migrations_needed: [
-          "MIG_2082__beacon_views_implementation.sql",
-        ],
-        health_check: "/api/beacon/health",
-      }, { status: 503 });
+      return apiServerError(`Beacon views not deployed: ${missing.join(", ")}. Run MIG_2082__beacon_views_implementation.sql`);
     }
 
     // Fetch summary data from V2 views (column names differ from V1)
@@ -195,7 +187,7 @@ export async function GET() {
       LIMIT 5
     `, []);
 
-    return NextResponse.json({
+    return apiSuccess({
       summary,
       insights: {
         managed_percentage: managedPercentage,
@@ -225,18 +217,9 @@ export async function GET() {
     // Check if it's a "relation does not exist" error
     const errorMessage = String(error);
     if (errorMessage.includes("does not exist") || errorMessage.includes("relation")) {
-      return NextResponse.json({
-        error: "Beacon database views not found",
-        details: errorMessage,
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
-        health_check: "/api/beacon/health",
-      }, { status: 503 });
+      return apiServerError("Beacon database views not found. Run deploy-critical-migrations.sh");
     }
 
-    return NextResponse.json({
-      error: "Failed to fetch Beacon summary",
-      details: errorMessage,
-      health_check: "/api/health/db",
-    }, { status: 500 });
+    return apiServerError("Failed to fetch Beacon summary");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Beacon Place-Level Metrics API
@@ -46,12 +47,7 @@ export async function GET(request: NextRequest) {
     `, []);
 
     if (!viewCheck?.exists) {
-      return NextResponse.json({
-        error: "Beacon places view not deployed",
-        missing: ["v_beacon_place_metrics (MIG_2082)"],
-        hint: "Run V2 beacon migrations: MIG_2082__beacon_views_implementation.sql",
-        health_check: "/api/beacon/health",
-      }, { status: 503 });
+      return apiServerError("Beacon places view not deployed. Run MIG_2082__beacon_views_implementation.sql");
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -154,7 +150,7 @@ export async function GET(request: NextRequest) {
       params
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       places,
       summary: {
         total_places: summary?.total_places || 0,
@@ -180,18 +176,9 @@ export async function GET(request: NextRequest) {
 
     const errorMessage = String(error);
     if (errorMessage.includes("does not exist") || errorMessage.includes("relation")) {
-      return NextResponse.json({
-        error: "Beacon places view not found",
-        details: errorMessage,
-        hint: "Run: ./scripts/deploy-critical-migrations.sh",
-        health_check: "/api/beacon/health",
-      }, { status: 503 });
+      return apiServerError("Beacon places view not found. Run deploy-critical-migrations.sh");
     }
 
-    return NextResponse.json({
-      error: "Failed to fetch Beacon place data",
-      details: errorMessage,
-      health_check: "/api/health/db",
-    }, { status: 500 });
+    return apiServerError("Failed to fetch Beacon place data");
   }
 }

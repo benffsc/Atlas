@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/beacon/seasonal-dashboard
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
         .map((k) => k.prediction_date),
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       monthly_data: monthlyData,
       breeding_indicators: breedingIndicators,
       kitten_surge_analysis: kittenSurge,
@@ -120,9 +121,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching seasonal dashboard:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch seasonal dashboard data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch seasonal dashboard data");
   }
 }

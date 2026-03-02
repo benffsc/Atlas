@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/beacon/yoy-comparison
@@ -130,16 +130,13 @@ export async function GET() {
       consistent_decline: significantMonths.filter(m => m.change_pct < 0).length,
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       comparison,
       summary,
       highlights,
     });
   } catch (error) {
     console.error("Error fetching YoY comparison:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch YoY comparison data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch YoY comparison data");
   }
 }

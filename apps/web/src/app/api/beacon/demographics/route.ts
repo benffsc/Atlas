@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/beacon/demographics
@@ -36,13 +37,10 @@ export async function GET(req: NextRequest) {
       );
 
       if (!row) {
-        return NextResponse.json(
-          { error: "Zip code not found" },
-          { status: 404 }
-        );
+        return apiNotFound("zip code", zip);
       }
 
-      return NextResponse.json({ data: row });
+      return apiSuccess({ data: row });
     }
 
     // Get all or by zone
@@ -85,7 +83,7 @@ export async function GET(req: NextRequest) {
          ORDER BY total_population DESC`
         );
 
-    return NextResponse.json({
+    return apiSuccess({
       data: rows,
       summary: summary || undefined,
       total_zips: rows.length,
@@ -93,9 +91,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching demographics:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch demographics data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch demographics data");
   }
 }

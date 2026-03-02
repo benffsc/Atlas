@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/beacon/map-data
@@ -842,17 +843,11 @@ export async function GET(req: NextRequest) {
       result.summary = { total_places: 0, total_cats: 0, zones_needing_obs: 0 };
     }
 
-    return NextResponse.json(result, {
-      headers: {
-        // Map data cached for 2 minutes, serve stale for 5 more while revalidating
-        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
-      },
-    });
+    const response = apiSuccess(result);
+    response.headers.set("Cache-Control", "public, s-maxage=120, stale-while-revalidate=300");
+    return response;
   } catch (error) {
     console.error("Error fetching map data:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch map data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch map data");
   }
 }

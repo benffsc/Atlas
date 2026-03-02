@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/beacon/priorities
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
         zone ? [zone] : []
       );
 
-      return NextResponse.json({
+      return apiSuccess({
         level: "zone",
         data: rows,
         summary: {
@@ -101,7 +102,7 @@ export async function GET(req: NextRequest) {
         [...params, limit]
       );
 
-      return NextResponse.json({
+      return apiSuccess({
         level: "zip",
         filters: { zone, zip },
         data: rows,
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest) {
         [...params, limit]
       );
 
-      return NextResponse.json({
+      return apiSuccess({
         level: "place",
         filters: { zone, zip, priority },
         data: rows,
@@ -181,15 +182,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      { error: "Invalid level. Use: zone, zip, or place" },
-      { status: 400 }
-    );
+    return apiBadRequest("Invalid level. Use: zone, zip, or place");
   } catch (error) {
     console.error("Error fetching beacon priorities:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch priority data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch priority data");
   }
 }

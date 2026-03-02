@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/beacon/seasonal-alerts
@@ -180,7 +180,7 @@ export async function GET() {
       []
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       alerts,
       current_season: currentSeason,
       predictions: prediction,
@@ -197,10 +197,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching seasonal alerts:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch seasonal alerts" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch seasonal alerts");
   }
 }
 
