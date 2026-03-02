@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // GET /api/annotations/[id] - Get annotation details with journal entries
 export async function GET(
@@ -43,10 +44,7 @@ export async function GET(
     );
 
     if (!annotation) {
-      return NextResponse.json(
-        { error: "Annotation not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Annotation", id);
     }
 
     // Fetch journal entries for this annotation
@@ -72,16 +70,13 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       ...annotation,
       journal_entries: journalEntries,
     });
   } catch (error) {
     console.error("Error fetching annotation:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch annotation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch annotation");
   }
 }
 
@@ -113,10 +108,7 @@ export async function PATCH(
     if (body.annotation_type !== undefined) {
       const validTypes = ["general", "colony_sighting", "trap_location", "hazard", "feeding_site", "other"];
       if (!validTypes.includes(body.annotation_type)) {
-        return NextResponse.json(
-          { error: "Invalid annotation_type" },
-          { status: 400 }
-        );
+        return apiBadRequest("Invalid annotation_type");
       }
       updates.push(`annotation_type = $${paramIndex}`);
       values.push(body.annotation_type);
@@ -142,10 +134,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No fields to update");
     }
 
     values.push(id);
@@ -159,19 +148,13 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Annotation not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Annotation", id);
     }
 
-    return NextResponse.json({ success: true, annotation_id: result.annotation_id });
+    return apiSuccess({ annotation_id: result.annotation_id });
   } catch (error) {
     console.error("Error updating annotation:", error);
-    return NextResponse.json(
-      { error: "Failed to update annotation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update annotation");
   }
 }
 
@@ -192,18 +175,12 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Annotation not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Annotation", id);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Error deleting annotation:", error);
-    return NextResponse.json(
-      { error: "Failed to delete annotation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete annotation");
   }
 }

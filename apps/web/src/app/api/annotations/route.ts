@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface AnnotationRow {
   annotation_id: string;
@@ -51,13 +52,10 @@ export async function GET(request: NextRequest) {
       params
     );
 
-    return NextResponse.json({ annotations });
+    return apiSuccess({ annotations });
   } catch (error) {
     console.error("Error fetching annotations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch annotations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch annotations");
   }
 }
 
@@ -69,26 +67,17 @@ export async function POST(request: NextRequest) {
     // Validation
     if (typeof body.lat !== "number" || typeof body.lng !== "number" ||
         body.lat < -90 || body.lat > 90 || body.lng < -180 || body.lng > 180) {
-      return NextResponse.json(
-        { error: "Valid lat and lng are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Valid lat and lng are required");
     }
 
     if (!body.label || typeof body.label !== "string" || body.label.trim().length === 0) {
-      return NextResponse.json(
-        { error: "label is required (max 100 chars)" },
-        { status: 400 }
-      );
+      return apiBadRequest("label is required (max 100 chars)");
     }
 
     const validTypes = ["general", "colony_sighting", "trap_location", "hazard", "feeding_site", "other"];
     const annotationType = body.annotation_type || "general";
     if (!validTypes.includes(annotationType)) {
-      return NextResponse.json(
-        { error: `Invalid annotation_type. Must be one of: ${validTypes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid annotation_type. Must be one of: ${validTypes.join(", ")}`);
     }
 
     const result = await queryOne<{ annotation_id: string }>(
@@ -112,21 +101,14 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create annotation" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create annotation");
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       annotation_id: result.annotation_id,
-      success: true,
     });
   } catch (error) {
     console.error("Error creating annotation:", error);
-    return NextResponse.json(
-      { error: "Failed to create annotation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create annotation");
   }
 }

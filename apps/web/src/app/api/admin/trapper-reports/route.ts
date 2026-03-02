@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiForbidden, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/trapper-reports
@@ -9,7 +10,7 @@ import { queryRows, queryOne, execute } from "@/lib/db";
 export async function GET(request: NextRequest) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { searchParams } = new URL(request.url);
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       submissions,
       stats: stats
         ? {
@@ -99,10 +100,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching trapper reports:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch trapper reports" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch trapper reports");
   }
 }
 
@@ -125,7 +123,7 @@ interface StructuredData {
 export async function POST(request: NextRequest) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   try {
@@ -147,19 +145,13 @@ export async function POST(request: NextRequest) {
     };
 
     if (!content || content.trim().length < 10) {
-      return NextResponse.json(
-        { error: "Content is required and must be at least 10 characters" },
-        { status: 400 }
-      );
+      return apiBadRequest("Content is required and must be at least 10 characters");
     }
 
     // Validate content_type - must match CHECK constraint in MIG_566
     const validTypes = ["email", "form", "sms", "note"];
     if (!validTypes.includes(content_type)) {
-      return NextResponse.json(
-        { error: `Invalid content_type. Must be one of: ${validTypes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid content_type. Must be one of: ${validTypes.join(", ")}`);
     }
 
     // Insert submission with optional pre-filled reporter
@@ -188,10 +180,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to create submission" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create submission");
     }
 
     const submissionId = result.submission_id;
@@ -256,8 +245,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       submission_id: submissionId,
       items_created: itemsCreated,
       message: itemsCreated > 0
@@ -266,9 +254,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error creating trapper report:", error);
-    return NextResponse.json(
-      { error: "Failed to create trapper report" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create trapper report");
   }
 }

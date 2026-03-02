@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface ReviewItem {
   entity_type: string;
@@ -192,12 +192,9 @@ export async function GET() {
       birth: items.filter((i) => i.entity_type === "birth").length,
     };
 
-    return NextResponse.json({ items, summary });
+    return apiSuccess({ items, summary });
   } catch (error) {
     console.error("Error fetching review items:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch review items" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch review items");
   }
 }

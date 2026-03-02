@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryOne, query } from "@/lib/db";
 import { sendOutlookEmail, sendTemplatedOutlookEmail, getAccountById } from "@/lib/outlook";
 import { sendTemplateEmail, getEmailTemplate } from "@/lib/email";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface EmailJob {
   job_id: string;
@@ -70,7 +70,7 @@ export async function GET(
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to get email job");
@@ -238,7 +238,7 @@ export async function PATCH(
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to update email job");
@@ -278,7 +278,7 @@ export async function DELETE(
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to delete email job");

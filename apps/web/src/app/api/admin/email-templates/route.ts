@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiError, apiForbidden, apiServerError } from "@/lib/api-response";
 
 interface EmailTemplate {
   template_id: string;
@@ -85,10 +85,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching email templates:", error);
     return apiServerError("Failed to fetch templates");
@@ -147,10 +144,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error creating email template:", error);
     return apiServerError("Failed to create template");
@@ -183,10 +177,7 @@ export async function PATCH(request: NextRequest) {
 
     // Staff can only edit unrestricted templates
     if (session.auth_role !== "admin" && template.edit_restricted) {
-      return NextResponse.json(
-        { error: "This template is restricted. Please submit a suggestion instead." },
-        { status: 403 }
-      );
+      return apiForbidden("This template is restricted. Please submit a suggestion instead.");
     }
 
     const allowedFields = [
@@ -241,10 +232,7 @@ export async function PATCH(request: NextRequest) {
     return apiSuccess({ success: true });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error updating email template:", error);
     return apiServerError("Failed to update template");
@@ -272,10 +260,7 @@ export async function DELETE(request: NextRequest) {
     return apiSuccess({ success: true });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error deleting email template:", error);
     return apiServerError("Failed to delete template");

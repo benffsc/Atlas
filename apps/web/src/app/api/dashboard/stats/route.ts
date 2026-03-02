@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiServerError } from "@/lib/api-response";
 
 // Cache for 5 minutes
 export const revalidate = 300;
@@ -118,9 +119,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch dashboard stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch dashboard stats");
   }
 }

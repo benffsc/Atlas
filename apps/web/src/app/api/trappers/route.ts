@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
@@ -182,32 +182,29 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    return NextResponse.json({
-      trappers,
-      aggregates: aggregates || {
-        total_active_trappers: 0,
-        ffsc_trappers: 0,
-        community_trappers: 0,
-        inactive_trappers: 0,
-        all_clinic_cats: 0,
-        all_clinic_days: 0,
-        avg_cats_per_day_all: 0,
-        felv_positive_rate_pct_all: null,
-        all_site_visits: 0,
-        first_visit_success_rate_pct_all: null,
-        all_cats_caught: 0,
+    return apiSuccess(
+      {
+        trappers,
+        aggregates: aggregates || {
+          total_active_trappers: 0,
+          ffsc_trappers: 0,
+          community_trappers: 0,
+          inactive_trappers: 0,
+          all_clinic_cats: 0,
+          all_clinic_days: 0,
+          avg_cats_per_day_all: 0,
+          felv_positive_rate_pct_all: null,
+          all_site_visits: 0,
+          first_visit_success_rate_pct_all: null,
+          all_cats_caught: 0,
+        },
       },
-      pagination: {
+      {
         limit,
         offset,
         hasMore: trappers.length === limit,
-      },
-    }, {
-      headers: {
-        // Cache trapper list for 5 minutes - stats don't need real-time updates
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       }
-    });
+    );
   } catch (error) {
     console.error("Error fetching trappers:", error);
     return apiServerError("Failed to fetch trappers");

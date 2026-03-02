@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryOne, query } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
-import { apiSuccess, apiBadRequest, apiNotFound, apiConflict, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiConflict, apiServerError, apiError } from "@/lib/api-response";
 
 const anthropic = new Anthropic();
 
@@ -170,7 +170,7 @@ Respond in this exact JSON format:
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError(error instanceof Error ? error.message : "Failed to translate template");

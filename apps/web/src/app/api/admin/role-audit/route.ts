@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/role-audit
@@ -124,7 +124,7 @@ export async function GET() {
       unmatched_fosters: unmatchedFosters.length,
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       summary,
       stale_roles: staleRoles,
       missing_volunteer: missingVolunteer,
@@ -134,9 +134,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Role audit error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }

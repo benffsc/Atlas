@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface SourceConfidence {
   source_system: string;
@@ -16,20 +17,17 @@ export async function GET() {
        ORDER BY confidence_score DESC`
     );
 
-    return NextResponse.json({ scores });
+    return apiSuccess({ scores });
   } catch (error) {
     console.error("Error fetching source confidence:", error);
     // Return empty if table doesn't exist
     if (error instanceof Error && error.message.includes("does not exist")) {
-      return NextResponse.json({
+      return apiSuccess({
         scores: [],
         note: "Migration MIG_251 needs to be applied",
       });
     }
-    return NextResponse.json(
-      { error: "Failed to fetch source confidence scores" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch source confidence scores");
   }
 }
 
@@ -40,17 +38,11 @@ export async function POST(request: NextRequest) {
     const { source_system, confidence_score, description } = body;
 
     if (!source_system) {
-      return NextResponse.json(
-        { error: "source_system is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("source_system is required");
     }
 
     if (typeof confidence_score !== "number" || confidence_score < 0 || confidence_score > 1) {
-      return NextResponse.json(
-        { error: "confidence_score must be a number between 0 and 1" },
-        { status: 400 }
-      );
+      return apiBadRequest("confidence_score must be a number between 0 and 1");
     }
 
     // Upsert the score
@@ -63,17 +55,13 @@ export async function POST(request: NextRequest) {
       [source_system, confidence_score, description || null]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       source_system,
       confidence_score,
     });
   } catch (error) {
     console.error("Error updating source confidence:", error);
-    return NextResponse.json(
-      { error: "Failed to update source confidence" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update source confidence");
   }
 }
 
@@ -84,19 +72,13 @@ export async function DELETE(request: NextRequest) {
     const source_system = searchParams.get("source_system");
 
     if (!source_system) {
-      return NextResponse.json(
-        { error: "source_system is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("source_system is required");
     }
 
     // Don't allow deleting core sources
     const coreSource = ["web_intake", "atlas_ui", "airtable", "clinichq"].includes(source_system);
     if (coreSource) {
-      return NextResponse.json(
-        { error: "Cannot delete core source systems" },
-        { status: 400 }
-      );
+      return apiBadRequest("Cannot delete core source systems");
     }
 
     await queryOne(
@@ -104,12 +86,9 @@ export async function DELETE(request: NextRequest) {
       [source_system]
     );
 
-    return NextResponse.json({ success: true, deleted: source_system });
+    return apiSuccess({ deleted: source_system });
   } catch (error) {
     console.error("Error deleting source confidence:", error);
-    return NextResponse.json(
-      { error: "Failed to delete source confidence" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete source confidence");
   }
 }

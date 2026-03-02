@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface MergeResult {
   action: string;
@@ -33,7 +34,7 @@ export async function POST(
     );
 
     if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return apiNotFound("organization", id);
     }
 
     // Call the merge function
@@ -67,18 +68,14 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       dry_run: dryRun,
       org_name: org.canonical_name,
       results,
     });
   } catch (error) {
     console.error("Error merging organization duplicates:", error);
-    return NextResponse.json(
-      { error: "Failed to merge organization duplicates" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to merge organization duplicates");
   }
 }
 
@@ -97,7 +94,7 @@ export async function GET(
     );
 
     if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return apiNotFound("organization", id);
     }
 
     // Find matching person records (potential duplicates)
@@ -129,7 +126,7 @@ export async function GET(
       [org.canonical_name, org.canonical_person_id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       org_id: id,
       org_name: org.canonical_name,
       canonical_person_id: org.canonical_person_id,
@@ -138,9 +135,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error previewing merge:", error);
-    return NextResponse.json(
-      { error: "Failed to preview merge" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to preview merge");
   }
 }

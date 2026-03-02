@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiForbidden, apiNotFound, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/trapper-reports/[id]/items/[itemId]
@@ -12,7 +13,7 @@ export async function GET(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id, itemId } = await params;
@@ -54,16 +55,13 @@ export async function GET(
     );
 
     if (!item) {
-      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      return apiNotFound("Item", itemId);
     }
 
-    return NextResponse.json(item);
+    return apiSuccess(item);
   } catch (error) {
     console.error("Error fetching item:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch item" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch item");
   }
 }
 
@@ -77,7 +75,7 @@ export async function PATCH(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id, itemId } = await params;
@@ -87,10 +85,7 @@ export async function PATCH(
   // Validate status
   const validStatuses = ["pending", "approved", "rejected", "needs_clarification"];
   if (review_status && !validStatuses.includes(review_status)) {
-    return NextResponse.json(
-      { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-      { status: 400 }
-    );
+    return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
   }
 
   try {
@@ -101,7 +96,7 @@ export async function PATCH(
     );
 
     if (!item) {
-      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      return apiNotFound("Item", itemId);
     }
 
     await execute(
@@ -121,12 +116,9 @@ export async function PATCH(
       ]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error updating item:", error);
-    return NextResponse.json(
-      { error: "Failed to update item" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update item");
   }
 }

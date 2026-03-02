@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface PartnerOrgCatRow {
   cat_id: string;
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       organizations: orgSummaryResult,
       cats: catsResult,
       total,
@@ -155,9 +156,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching partner org cats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch partner org cats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch partner org cats");
   }
 }

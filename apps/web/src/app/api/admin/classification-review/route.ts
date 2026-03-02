@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface PlaceNeedingClassification {
   place_id: string;
@@ -105,21 +106,13 @@ export async function GET(request: NextRequest) {
       by_classification: byClassification,
     };
 
-    return NextResponse.json({
-      places,
-      stats,
-      pagination: {
-        limit,
-        offset,
-        hasMore: places.length === limit,
-      },
-    });
+    return apiSuccess(
+      { places, stats },
+      { limit, offset, hasMore: places.length === limit }
+    );
   } catch (error) {
     console.error("Error fetching classification review queue:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch classification review queue" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch classification review queue");
   }
 }
 
@@ -130,17 +123,11 @@ export async function POST(request: NextRequest) {
     const { action, place_ids, classification, reason } = body;
 
     if (!action || !["accept_all", "apply_classification"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid action");
     }
 
     if (!place_ids || !Array.isArray(place_ids) || place_ids.length === 0) {
-      return NextResponse.json(
-        { error: "place_ids array required" },
-        { status: 400 }
-      );
+      return apiBadRequest("place_ids array required");
     }
 
     let updated = 0;
@@ -169,10 +156,7 @@ export async function POST(request: NextRequest) {
     } else if (action === "apply_classification") {
       // Apply a specific classification to all selected places
       if (!classification) {
-        return NextResponse.json(
-          { error: "classification required for apply_classification action" },
-          { status: 400 }
-        );
+        return apiBadRequest("classification required for apply_classification action");
       }
 
       for (const placeId of place_ids) {
@@ -196,15 +180,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      updated,
-    });
+    return apiSuccess({ updated });
   } catch (error) {
     console.error("Error processing bulk classification action:", error);
-    return NextResponse.json(
-      { error: "Failed to process bulk action" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process bulk action");
   }
 }

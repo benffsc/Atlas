@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { queryRows, execute } from "@/lib/db";
 import {
   isAirtableSyncConfigured,
@@ -6,6 +5,7 @@ import {
   syncFieldToAirtable,
   CustomFieldForSync,
 } from "@/lib/airtable-sync";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface CustomField extends CustomFieldForSync {
   airtable_synced_at: string | null;
@@ -14,10 +14,7 @@ interface CustomField extends CustomFieldForSync {
 // POST - Sync custom fields to Airtable
 export async function POST() {
   if (!isAirtableSyncConfigured()) {
-    return NextResponse.json(
-      { error: "AIRTABLE_PAT not configured" },
-      { status: 500 }
-    );
+    return apiServerError("AIRTABLE_PAT not configured");
   }
 
   try {
@@ -31,8 +28,7 @@ export async function POST() {
     `);
 
     if (customFields.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "No custom fields to sync",
         synced: 0,
         skipped: 0,
@@ -78,8 +74,7 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Synced ${results.synced.length} fields to Airtable`,
       synced: results.synced.length,
       skipped: results.skipped.length,
@@ -88,20 +83,14 @@ export async function POST() {
     });
   } catch (err) {
     console.error("Airtable sync error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Sync failed" },
-      { status: 500 }
-    );
+    return apiServerError(err instanceof Error ? err.message : "Sync failed");
   }
 }
 
 // GET - Check sync status (what would be synced)
 export async function GET() {
   if (!isAirtableSyncConfigured()) {
-    return NextResponse.json(
-      { error: "AIRTABLE_PAT not configured" },
-      { status: 500 }
-    );
+    return apiServerError("AIRTABLE_PAT not configured");
   }
 
   try {
@@ -135,7 +124,7 @@ export async function GET() {
 
     const needsSync = status.filter(s => s.needs_sync);
 
-    return NextResponse.json({
+    return apiSuccess({
       total_custom_fields: customFields.length,
       needs_sync: needsSync.length,
       already_synced: customFields.length - needsSync.length,
@@ -144,9 +133,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("Error checking sync status:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to check status" },
-      { status: 500 }
-    );
+    return apiServerError(err instanceof Error ? err.message : "Failed to check status");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface ClusterPlace {
   place_id: string;
@@ -87,16 +88,13 @@ export async function GET(request: NextRequest) {
       FROM ops.v_beacon_cluster_summary`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       clusters,
       stats,
     });
   } catch (error) {
     console.error("Error fetching clusters:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch clusters" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch clusters");
   }
 }
 
@@ -107,10 +105,7 @@ export async function POST(request: NextRequest) {
     const { cluster_id, action, classification, colony_id, notes, reviewed_by } = body;
 
     if (!cluster_id || !action) {
-      return NextResponse.json(
-        { error: "cluster_id and action are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("cluster_id and action are required");
     }
 
     let result;
@@ -118,10 +113,7 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case "reconcile":
         if (!classification) {
-          return NextResponse.json(
-            { error: "classification is required for reconcile action" },
-            { status: 400 }
-          );
+          return apiBadRequest("classification is required for reconcile action");
         }
         result = await queryOne(
           `SELECT ops.reconcile_cluster_classification($1, $2, $3) AS success`,
@@ -131,10 +123,7 @@ export async function POST(request: NextRequest) {
 
       case "merge":
         if (!colony_id) {
-          return NextResponse.json(
-            { error: "colony_id is required for merge action" },
-            { status: 400 }
-          );
+          return apiBadRequest("colony_id is required for merge action");
         }
         result = await queryOne(
           `SELECT sot.merge_cluster_to_colony($1, $2, $3) AS success`,
@@ -157,7 +146,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (!clusterData) {
-          return NextResponse.json({ error: "Cluster not found" }, { status: 404 });
+          return apiNotFound("Cluster");
         }
 
         // Get center and first address for naming
@@ -187,7 +176,7 @@ export async function POST(request: NextRequest) {
           [cluster_id, newColony?.colony_id, reviewed_by || "staff"]
         );
 
-        return NextResponse.json({
+        return apiSuccess({
           success: true,
           action: "create_colony_and_merge",
           colony_id: newColony?.colony_id,
@@ -195,21 +184,15 @@ export async function POST(request: NextRequest) {
         });
 
       default:
-        return NextResponse.json(
-          { error: `Unknown action: ${action}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Unknown action: ${action}`);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: result?.success ?? true,
       action,
     });
   } catch (error) {
     console.error("Error processing cluster action:", error);
-    return NextResponse.json(
-      { error: "Failed to process cluster action" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process cluster action");
   }
 }

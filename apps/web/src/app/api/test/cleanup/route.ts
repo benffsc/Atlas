@@ -1,5 +1,10 @@
-import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import {
+  apiSuccess,
+  apiForbidden,
+  apiUnauthorized,
+  apiServerError,
+} from '@/lib/api-response';
 
 /**
  * Test Cleanup API
@@ -18,10 +23,7 @@ export async function POST(request: Request) {
   // Safety check: Only allow in dev/test
   const env = process.env.NODE_ENV || 'development';
   if (!ALLOWED_ENVIRONMENTS.includes(env)) {
-    return NextResponse.json(
-      { error: 'Test cleanup only allowed in development/test environments' },
-      { status: 403 }
-    );
+    return apiForbidden('Test cleanup only allowed in development/test environments');
   }
 
   // Verify authorization header
@@ -29,10 +31,7 @@ export async function POST(request: Request) {
   const expectedToken = process.env.E2E_TEST_TOKEN || 'e2e-test-token-dev';
 
   if (authHeader !== `Bearer ${expectedToken}`) {
-    return NextResponse.json(
-      { error: 'Invalid test authorization token' },
-      { status: 401 }
-    );
+    return apiUnauthorized('Invalid test authorization token');
   }
 
   try {
@@ -83,8 +82,7 @@ export async function POST(request: Request) {
     `);
     results.cats_deleted = catsResult.rowCount || 0;
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: 'Test data cleaned up',
       results,
       environment: env,
@@ -92,10 +90,7 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Test cleanup error:', error);
-    return NextResponse.json(
-      { error: 'Failed to clean up test data' },
-      { status: 500 }
-    );
+    return apiServerError('Failed to clean up test data');
   }
 }
 
@@ -103,10 +98,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const env = process.env.NODE_ENV || 'development';
   if (!ALLOWED_ENVIRONMENTS.includes(env)) {
-    return NextResponse.json(
-      { error: 'Test API only allowed in development/test environments' },
-      { status: 403 }
-    );
+    return apiForbidden('Test API only allowed in development/test environments');
   }
 
   try {
@@ -119,17 +111,13 @@ export async function GET(request: Request) {
         (SELECT COUNT(*) FROM sot.cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%') as test_cats
     `);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       test_records: result.rows[0],
       environment: env,
     });
 
   } catch (error) {
     console.error('Test count error:', error);
-    return NextResponse.json(
-      { error: 'Failed to count test data' },
-      { status: 500 }
-    );
+    return apiServerError('Failed to count test data');
   }
 }

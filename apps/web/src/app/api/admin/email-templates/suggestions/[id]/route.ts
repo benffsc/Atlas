@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiError, apiBadRequest, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface TemplateSuggestion {
   suggestion_id: string;
@@ -56,10 +56,7 @@ export async function GET(
     return apiSuccess({ suggestion });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching template suggestion:", error);
     return apiServerError("Failed to fetch suggestion");
@@ -157,10 +154,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error processing template suggestion:", error);
     return apiServerError("Failed to process suggestion");
@@ -187,10 +181,7 @@ export async function DELETE(
 
     // Only creator can withdraw, unless admin
     if (suggestion.created_by !== session.staff_id && session.auth_role !== "admin") {
-      return NextResponse.json(
-        { error: "Only the creator can withdraw this suggestion" },
-        { status: 403 }
-      );
+      return apiForbidden("Only the creator can withdraw this suggestion");
     }
 
     if (suggestion.status !== "pending") {
@@ -206,10 +197,7 @@ export async function DELETE(
     return apiSuccess({ success: true });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error withdrawing template suggestion:", error);
     return apiServerError("Failed to withdraw suggestion");

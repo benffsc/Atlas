@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryOne, query } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiError, apiServerError } from "@/lib/api-response";
 
 interface TemplateSuggestion {
   suggestion_id: string;
@@ -84,10 +84,7 @@ export async function GET(request: NextRequest) {
     return apiSuccess({ suggestions });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching template suggestions:", error);
     return apiServerError("Failed to fetch suggestions");
@@ -161,10 +158,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error creating template suggestion:", error);
     return apiServerError("Failed to create suggestion");

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { apiSuccess, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 import Anthropic from "@anthropic-ai/sdk";
 
 const MODEL = "claude-haiku-4-5-20251001";
@@ -169,17 +170,14 @@ export async function POST(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id } = await params;
 
   // Check if API key is configured
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY not configured" },
-      { status: 500 }
-    );
+    return apiServerError("ANTHROPIC_API_KEY not configured");
   }
 
   try {
@@ -198,7 +196,7 @@ export async function POST(
     );
 
     if (!submission) {
-      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+      return apiNotFound("Submission", id);
     }
 
     // Check for pre-filled manual data
@@ -228,10 +226,7 @@ export async function POST(
          WHERE submission_id = $1`,
         [id, "AI extraction returned null or invalid JSON"]
       );
-      return NextResponse.json(
-        { error: "AI extraction failed - could not parse response" },
-        { status: 500 }
-      );
+      return apiServerError("AI extraction failed - could not parse response");
     }
 
     // Match reporter ONLY if not already pre-selected
@@ -471,7 +466,7 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       extraction: mergedExtraction,
       items_created: itemsCreated,
@@ -491,9 +486,6 @@ export async function POST(
       [id, error instanceof Error ? error.message : "Unknown error"]
     );
 
-    return NextResponse.json(
-      { error: "Failed to extract trapper report" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to extract trapper report");
   }
 }

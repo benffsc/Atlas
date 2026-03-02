@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
-import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiError, apiServerError } from "@/lib/api-response";
 
 interface EmailAuditEntry {
   email_id: string;
@@ -152,10 +152,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching email audit log:", error);
     return apiServerError("Failed to fetch audit log");

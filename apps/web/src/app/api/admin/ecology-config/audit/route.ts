@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface AuditRow {
   audit_id: string;
@@ -29,12 +29,9 @@ export async function GET() {
 
     const audits = await queryRows<AuditRow>(sql);
 
-    return NextResponse.json({ audits });
+    return apiSuccess({ audits });
   } catch (error) {
     console.error("Error fetching ecology config audit:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch audit log" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch audit log");
   }
 }

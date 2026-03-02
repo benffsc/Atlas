@@ -1,5 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import {
+  apiSuccess,
+  apiNotFound,
+  apiBadRequest,
+  apiServerError,
+} from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -41,19 +47,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!org) {
-      return NextResponse.json(
-        { error: "Partner organization not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Partner organization", id);
     }
 
-    return NextResponse.json(org);
+    return apiSuccess(org);
   } catch (error) {
     console.error("Error fetching partner organization:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch partner organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch partner organization");
   }
 }
 
@@ -90,10 +90,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     updates.push("updated_at = NOW()");
@@ -115,13 +112,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error updating partner organization:", error);
-    return NextResponse.json(
-      { error: "Failed to update partner organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update partner organization");
   }
 }
 
@@ -139,12 +133,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       [id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error deleting partner organization:", error);
-    return NextResponse.json(
-      { error: "Failed to delete partner organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete partner organization");
   }
 }

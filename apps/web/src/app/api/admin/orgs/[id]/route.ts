@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface OrgDetail {
   id: string;
@@ -85,10 +86,7 @@ export async function GET(
     );
 
     if (!org) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Organization", id);
     }
 
     // Get recent appointments linked to this org
@@ -109,16 +107,13 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       organization: org,
       recent_appointments: appointments,
     });
   } catch (error) {
     console.error("Error fetching organization:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch organization");
   }
 }
 
@@ -182,10 +177,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No fields to update");
     }
 
     values.push(id);
@@ -201,10 +193,7 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Organization not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Organization", id);
     }
 
     // If patterns were updated, re-link appointments
@@ -212,13 +201,10 @@ export async function PATCH(
       await execute(`SELECT * FROM sot.link_all_appointments_to_orgs(500)`);
     }
 
-    return NextResponse.json({ success: true, id: result.id });
+    return apiSuccess({ id: result.id });
   } catch (error) {
     console.error("Error updating organization:", error);
-    return NextResponse.json(
-      { error: "Failed to update organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update organization");
   }
 }
 
@@ -239,11 +225,8 @@ export async function DELETE(
       );
 
       if (hasAppointments && hasAppointments.count > 0) {
-        return NextResponse.json(
-          {
-            error: `Cannot delete: ${hasAppointments.count} appointments are linked to this organization`,
-          },
-          { status: 400 }
+        return apiBadRequest(
+          `Cannot delete: ${hasAppointments.count} appointments are linked to this organization`
         );
       }
 
@@ -256,12 +239,9 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ deleted: true });
   } catch (error) {
     console.error("Error deleting organization:", error);
-    return NextResponse.json(
-      { error: "Failed to delete organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete organization");
   }
 }

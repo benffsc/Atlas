@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface SourceConfidence {
   source_type: string;
@@ -61,7 +62,7 @@ export async function GET() {
       WHERE total_cats IS NOT NULL
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       source_confidence: sourceConfidence,
       count_precision: countPrecision,
       stats: supersessionStats || {
@@ -73,10 +74,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching colony estimation config:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch configuration" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch configuration");
   }
 }
 
@@ -93,7 +91,7 @@ export async function POST(request: NextRequest) {
       const { source_type, base_confidence, is_firsthand_boost, supersession_tier, description } = data;
 
       if (!source_type) {
-        return NextResponse.json({ error: "source_type required" }, { status: 400 });
+        return apiBadRequest("source_type required");
       }
 
       await execute(
@@ -108,14 +106,14 @@ export async function POST(request: NextRequest) {
         [source_type, base_confidence, is_firsthand_boost, supersession_tier, description]
       );
 
-      return NextResponse.json({ success: true, source_type });
+      return apiSuccess({ success: true, source_type });
     }
 
     if (type === "count_precision") {
       const { precision_type, default_number_confidence, description, examples } = data;
 
       if (!precision_type) {
-        return NextResponse.json({ error: "precision_type required" }, { status: 400 });
+        return apiBadRequest("precision_type required");
       }
 
       await execute(
@@ -129,16 +127,13 @@ export async function POST(request: NextRequest) {
         [precision_type, default_number_confidence, description, examples]
       );
 
-      return NextResponse.json({ success: true, precision_type });
+      return apiSuccess({ success: true, precision_type });
     }
 
-    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+    return apiBadRequest("Invalid type");
   } catch (error) {
     console.error("Error updating colony estimation config:", error);
-    return NextResponse.json(
-      { error: "Failed to update configuration" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update configuration");
   }
 }
 
@@ -153,14 +148,14 @@ export async function DELETE(request: NextRequest) {
     const key = searchParams.get("key");
 
     if (!type || !key) {
-      return NextResponse.json({ error: "type and key required" }, { status: 400 });
+      return apiBadRequest("type and key required");
     }
 
     if (type === "source_confidence") {
       // Don't allow deleting core source types
       const coreTypes = ["verified_cats", "trapper_report", "trapping_request", "intake_form"];
       if (coreTypes.includes(key)) {
-        return NextResponse.json({ error: "Cannot delete core source type" }, { status: 400 });
+        return apiBadRequest("Cannot delete core source type");
       }
 
       await execute(
@@ -171,7 +166,7 @@ export async function DELETE(request: NextRequest) {
       // Don't allow deleting core precision types
       const coreTypes = ["exact", "approximate", "range", "lower_bound"];
       if (coreTypes.includes(key)) {
-        return NextResponse.json({ error: "Cannot delete core precision type" }, { status: 400 });
+        return apiBadRequest("Cannot delete core precision type");
       }
 
       await execute(
@@ -179,15 +174,12 @@ export async function DELETE(request: NextRequest) {
         [key]
       );
     } else {
-      return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+      return apiBadRequest("Invalid type");
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error deleting colony estimation config:", error);
-    return NextResponse.json(
-      { error: "Failed to delete configuration" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete configuration");
   }
 }

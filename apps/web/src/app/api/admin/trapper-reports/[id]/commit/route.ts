@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { apiSuccess, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/admin/trapper-reports/[id]/commit
@@ -12,7 +13,7 @@ export async function POST(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id } = await params;
@@ -26,7 +27,7 @@ export async function POST(
     );
 
     if (!submission) {
-      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+      return apiNotFound("Submission", id);
     }
 
     // Get approved items that haven't been committed yet
@@ -55,7 +56,7 @@ export async function POST(
     );
 
     if (items.length === 0) {
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         message: "No approved items to commit",
         committed: 0,
@@ -162,7 +163,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: failCount === 0,
       committed: successCount,
       failed: failCount,
@@ -170,9 +171,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error committing trapper report items:", error);
-    return NextResponse.json(
-      { error: "Failed to commit items" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to commit items");
   }
 }

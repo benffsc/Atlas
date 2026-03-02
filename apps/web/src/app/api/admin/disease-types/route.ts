@@ -1,5 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiNotFound,
+  apiConflict,
+  apiServerError,
+} from "@/lib/api-response";
 
 interface DiseaseType {
   disease_key: string;
@@ -51,13 +58,10 @@ export async function GET() {
       `
     );
 
-    return NextResponse.json({ disease_types: diseaseTypes });
+    return apiSuccess({ disease_types: diseaseTypes });
   } catch (error) {
     console.error("Error fetching disease types:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch disease types" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch disease types");
   }
 }
 
@@ -81,21 +85,14 @@ export async function POST(request: NextRequest) {
       typeof disease_key !== "string" ||
       !/^[a-z0-9_]{2,30}$/.test(disease_key)
     ) {
-      return NextResponse.json(
-        {
-          error:
-            "disease_key must be lowercase alphanumeric/underscore, 2-30 characters",
-        },
-        { status: 400 }
+      return apiBadRequest(
+        "disease_key must be lowercase alphanumeric/underscore, 2-30 characters"
       );
     }
 
     // Validate display_label is non-empty
     if (!display_label || typeof display_label !== "string" || !display_label.trim()) {
-      return NextResponse.json(
-        { error: "display_label is required and must be non-empty" },
-        { status: 400 }
-      );
+      return apiBadRequest("display_label is required and must be non-empty");
     }
 
     // Validate short_code is exactly 1 uppercase letter
@@ -104,10 +101,7 @@ export async function POST(request: NextRequest) {
       typeof short_code !== "string" ||
       !/^[A-Z]$/.test(short_code)
     ) {
-      return NextResponse.json(
-        { error: "short_code must be exactly 1 uppercase letter" },
-        { status: 400 }
-      );
+      return apiBadRequest("short_code must be exactly 1 uppercase letter");
     }
 
     // Validate color is valid hex
@@ -116,10 +110,7 @@ export async function POST(request: NextRequest) {
       typeof color !== "string" ||
       !/^#[0-9a-fA-F]{6}$/.test(color)
     ) {
-      return NextResponse.json(
-        { error: "color must be a valid hex color (e.g. #FF0000)" },
-        { status: 400 }
-      );
+      return apiBadRequest("color must be a valid hex color (e.g. #FF0000)");
     }
 
     const result = await queryOne(
@@ -142,22 +133,16 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    return NextResponse.json({ success: true, disease_type: result });
+    return apiSuccess({ disease_type: result });
   } catch (error) {
     console.error("Error creating disease type:", error);
     if (
       error instanceof Error &&
       error.message.includes("duplicate key")
     ) {
-      return NextResponse.json(
-        { error: "A disease type with this key or short code already exists" },
-        { status: 409 }
-      );
+      return apiConflict("A disease type with this key or short code already exists");
     }
-    return NextResponse.json(
-      { error: "Failed to create disease type" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create disease type");
   }
 }
 
@@ -168,10 +153,7 @@ export async function PATCH(request: NextRequest) {
     const { disease_key } = body;
 
     if (!disease_key || typeof disease_key !== "string") {
-      return NextResponse.json(
-        { error: "disease_key is required to identify the record to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("disease_key is required to identify the record to update");
     }
 
     // Only allow updating these fields
@@ -194,20 +176,14 @@ export async function PATCH(request: NextRequest) {
         // Validate color if provided
         if (field === "color" && body[field] !== undefined) {
           if (typeof body[field] !== "string" || !/^#[0-9a-fA-F]{6}$/.test(body[field])) {
-            return NextResponse.json(
-              { error: "color must be a valid hex color (e.g. #FF0000)" },
-              { status: 400 }
-            );
+            return apiBadRequest("color must be a valid hex color (e.g. #FF0000)");
           }
         }
 
         // Validate display_label if provided
         if (field === "display_label" && body[field] !== undefined) {
           if (typeof body[field] !== "string" || !body[field].trim()) {
-            return NextResponse.json(
-              { error: "display_label must be non-empty" },
-              { status: 400 }
-            );
+            return apiBadRequest("display_label must be non-empty");
           }
         }
 
@@ -218,10 +194,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (setClauses.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields provided to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields provided to update");
     }
 
     params.push(disease_key);
@@ -237,18 +210,12 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: `Disease type '${disease_key}' not found` },
-        { status: 404 }
-      );
+      return apiNotFound("Disease type", disease_key);
     }
 
-    return NextResponse.json({ success: true, disease_type: result });
+    return apiSuccess({ disease_type: result });
   } catch (error) {
     console.error("Error updating disease type:", error);
-    return NextResponse.json(
-      { error: "Failed to update disease type" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update disease type");
   }
 }

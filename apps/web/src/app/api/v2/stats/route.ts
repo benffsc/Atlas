@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 export async function GET() {
   try {
@@ -29,7 +29,7 @@ export async function GET() {
       `),
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       source: {
         clinichq_raw: parseInt(sourceCount?.count || "0"),
       },
@@ -47,9 +47,6 @@ export async function GET() {
 
   } catch (error) {
     console.error("[V2 Stats] Error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Failed to fetch stats");
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
-import { apiServerError } from "@/lib/api-response";
+import { apiError, apiServerError } from "@/lib/api-response";
 
 interface EmailExportRow {
   email_id: string;
@@ -136,10 +136,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error exporting email audit log:", error);
     return apiServerError("Failed to export audit log");

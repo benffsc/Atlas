@@ -1,6 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows, queryOne } from "@/lib/db";
+import {
+  apiSuccess,
+  apiBadRequest,
+  apiUnauthorized,
+  apiForbidden,
+  apiNotFound,
+  apiServerError,
+} from "@/lib/api-response";
 
 /**
  * GET /api/admin/ai-access
@@ -13,7 +21,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     // Check if user is admin
@@ -23,7 +31,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (admin?.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     // Get all staff with AI access info
@@ -48,7 +56,7 @@ export async function GET(request: NextRequest) {
         display_name`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       staff,
       access_levels: [
         { value: "none", label: "None", description: "Tippy disabled for this user" },
@@ -59,10 +67,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching AI access levels:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch AI access levels" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch AI access levels");
   }
 }
 
@@ -77,7 +82,7 @@ export async function PATCH(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     // Check if user is admin
@@ -87,26 +92,20 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (admin?.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const body = await request.json();
     const { staff_id, ai_access_level } = body;
 
     if (!staff_id || !ai_access_level) {
-      return NextResponse.json(
-        { error: "staff_id and ai_access_level are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("staff_id and ai_access_level are required");
     }
 
     // Validate access level
     const validLevels = ["none", "read_only", "read_write", "full"];
     if (!validLevels.includes(ai_access_level)) {
-      return NextResponse.json(
-        { error: "Invalid access level" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid access level");
     }
 
     // Update the staff member's AI access level
@@ -120,21 +119,14 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Staff member not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Staff member");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Updated AI access for ${result.display_name} to ${ai_access_level}`,
     });
   } catch (error) {
     console.error("Error updating AI access level:", error);
-    return NextResponse.json(
-      { error: "Failed to update AI access level" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update AI access level");
   }
 }

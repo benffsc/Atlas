@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryOne, execute } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface KnownOrganization {
   org_id: string;
@@ -66,16 +67,13 @@ export async function GET(
     );
 
     if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return apiNotFound("Organization", id);
     }
 
-    return NextResponse.json({ organization: org });
+    return apiSuccess({ organization: org });
   } catch (error) {
     console.error("Error fetching organization:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch organization");
   }
 }
 
@@ -128,10 +126,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     // Always update updated_at
@@ -149,16 +144,13 @@ export async function PATCH(
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return apiNotFound("Organization", id);
     }
 
-    return NextResponse.json({ organization: result });
+    return apiSuccess({ organization: result });
   } catch (error) {
     console.error("Error updating organization:", error);
-    return NextResponse.json(
-      { error: "Failed to update organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update organization");
   }
 }
 
@@ -181,15 +173,12 @@ export async function DELETE(
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return apiNotFound("Organization", id);
     }
 
-    return NextResponse.json({ success: true, deleted: id });
+    return apiSuccess({ success: true, deleted: id });
   } catch (error) {
     console.error("Error deleting organization:", error);
-    return NextResponse.json(
-      { error: "Failed to delete organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete organization");
   }
 }

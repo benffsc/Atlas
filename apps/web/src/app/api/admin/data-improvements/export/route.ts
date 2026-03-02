@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiForbidden, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/data-improvements/export
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const { searchParams } = new URL(request.url);
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Default: JSON format
-    return NextResponse.json({
+    return apiSuccess({
       exported_at: new Date().toISOString(),
       total_count: improvements.length,
       improvements: improvements.map((imp) => ({
@@ -125,10 +126,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Data improvements export error:", error);
-    return NextResponse.json(
-      { error: "Failed to export improvements" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to export improvements");
   }
 }
 

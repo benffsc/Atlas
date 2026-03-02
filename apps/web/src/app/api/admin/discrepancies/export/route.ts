@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiUnauthorized, apiForbidden, apiServerError } from "@/lib/api-response";
 
 interface Discrepancy {
   improvement_id: string;
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession(request);
 
     if (!session?.staff_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     // Check if user is admin
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (admin?.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const url = new URL(request.url);
@@ -91,17 +92,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       discrepancies,
       count: discrepancies.length,
       generated_at: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error exporting discrepancies:", error);
-    return NextResponse.json(
-      { error: "Failed to export discrepancies" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to export discrepancies");
   }
 }
 

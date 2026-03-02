@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const { id } = await params;
@@ -41,16 +42,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!improvement) {
-      return NextResponse.json({ error: "Improvement not found" }, { status: 404 });
+      return apiNotFound("Improvement", id);
     }
 
-    return NextResponse.json({ improvement });
+    return apiSuccess({ improvement });
   } catch (error) {
     console.error("Data improvement get error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch improvement" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch improvement");
   }
 }
 
@@ -63,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const { id } = await params;
@@ -86,10 +84,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       // Validate status
       const validStatuses = ["pending", "confirmed", "in_progress", "resolved", "rejected", "wont_fix"];
       if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
       }
       updates.push(`status = $${paramIndex++}`);
       values.push(status);
@@ -105,10 +100,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (priority) {
       const validPriorities = ["critical", "high", "normal", "low"];
       if (!validPriorities.includes(priority)) {
-        return NextResponse.json(
-          { error: `Invalid priority. Must be one of: ${validPriorities.join(", ")}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Invalid priority. Must be one of: ${validPriorities.join(", ")}`);
       }
       updates.push(`priority = $${paramIndex++}`);
       values.push(priority);
@@ -135,7 +127,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No updates provided" }, { status: 400 });
+      return apiBadRequest("No updates provided");
     }
 
     values.push(id);
@@ -159,18 +151,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json({ error: "Improvement not found" }, { status: 404 });
+      return apiNotFound("Improvement", id);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       improvement: result,
     });
   } catch (error) {
     console.error("Data improvement update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update improvement" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update improvement");
   }
 }

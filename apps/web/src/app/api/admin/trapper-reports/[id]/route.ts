@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { apiSuccess, apiForbidden, apiNotFound, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/trapper-reports/[id]
@@ -12,7 +13,7 @@ export async function GET(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id } = await params;
@@ -49,7 +50,7 @@ export async function GET(
     );
 
     if (!submission) {
-      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+      return apiNotFound("Submission", id);
     }
 
     // Get all items with entity details
@@ -93,16 +94,13 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       submission,
       items,
     });
   } catch (error) {
     console.error("Error fetching trapper report:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch trapper report" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch trapper report");
   }
 }
 
@@ -116,7 +114,7 @@ export async function PATCH(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id } = await params;
@@ -126,10 +124,7 @@ export async function PATCH(
   // Validate status
   const validStatuses = ["pending", "extracting", "extracted", "reviewed", "committed", "failed"];
   if (extraction_status && !validStatuses.includes(extraction_status)) {
-    return NextResponse.json(
-      { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-      { status: 400 }
-    );
+    return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
   }
 
   try {
@@ -146,13 +141,10 @@ export async function PATCH(
       [extraction_status, session.staff_id || session.email, review_notes, id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error updating trapper report:", error);
-    return NextResponse.json(
-      { error: "Failed to update trapper report" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update trapper report");
   }
 }
 
@@ -166,7 +158,7 @@ export async function DELETE(
 ) {
   const session = await getSession(request);
   if (!session || session.auth_role !== "admin") {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    return apiForbidden("Admin access required");
   }
 
   const { id } = await params;
@@ -179,10 +171,7 @@ export async function DELETE(
     );
 
     if (committed && parseInt(committed.count) > 0) {
-      return NextResponse.json(
-        { error: "Cannot delete submission with committed items" },
-        { status: 400 }
-      );
+      return apiBadRequest("Cannot delete submission with committed items");
     }
 
     // Delete items first (due to FK)
@@ -197,12 +186,9 @@ export async function DELETE(
       [id]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error deleting trapper report:", error);
-    return NextResponse.json(
-      { error: "Failed to delete trapper report" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete trapper report");
   }
 }

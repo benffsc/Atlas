@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface ResolutionReason {
   reason_code: string;
@@ -43,14 +44,9 @@ export async function GET(request: NextRequest) {
 
     const reasons = await queryRows<ResolutionReason>(query, params);
 
-    return NextResponse.json({
-      reasons: reasons || [],
-    });
+    return apiSuccess({ reasons: reasons || [] });
   } catch (error) {
     console.error("Error fetching resolution reasons:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch resolution reasons" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch resolution reasons");
   }
 }

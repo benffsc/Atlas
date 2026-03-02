@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface MatchLogEntry {
   log_id: string;
@@ -46,7 +47,7 @@ export async function GET(
     );
 
     if (!org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return apiNotFound("organization", id);
     }
 
     // Build query
@@ -114,7 +115,7 @@ export async function GET(
       [id]
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       org_id: id,
       org_name: org.canonical_name,
       matches,
@@ -136,9 +137,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching match log:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch match log" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch match log");
   }
 }

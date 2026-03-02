@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // Valid relationship types for TNR taxonomy (from MIG_2514)
 const VALID_RELATIONSHIP_TYPES = [
@@ -46,10 +47,7 @@ export async function PATCH(
   const { id: personPlaceId } = await params;
 
   if (!personPlaceId) {
-    return NextResponse.json(
-      { error: "person_place_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("person_place_id is required");
   }
 
   try {
@@ -58,18 +56,12 @@ export async function PATCH(
 
     // Validate relationship_type is required
     if (!relationship_type) {
-      return NextResponse.json(
-        { error: "relationship_type is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("relationship_type is required");
     }
 
     // Validate relationship_type
     if (!VALID_RELATIONSHIP_TYPES.includes(relationship_type as typeof VALID_RELATIONSHIP_TYPES[number])) {
-      return NextResponse.json(
-        { error: `Invalid relationship_type. Must be one of: ${VALID_RELATIONSHIP_TYPES.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid relationship_type. Must be one of: ${VALID_RELATIONSHIP_TYPES.join(", ")}`);
     }
 
     // Check if person_place exists and get current type
@@ -86,18 +78,14 @@ export async function PATCH(
     );
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Person-place relationship not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person-place relationship", personPlaceId);
     }
 
     const oldType = existing.relationship_type;
 
     // Don't update if same type
     if (oldType === relationship_type) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         person_place_id: personPlaceId,
         relationship_type,
         changed: false,
@@ -125,8 +113,7 @@ export async function PATCH(
       [personPlaceId, oldType, relationship_type, edited_by || "atlas_ui"]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       person_place_id: personPlaceId,
       old_relationship_type: oldType,
       new_relationship_type: relationship_type,
@@ -134,10 +121,7 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Error updating person-place role:", error);
-    return NextResponse.json(
-      { error: "Failed to update role" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update role");
   }
 }
 
@@ -153,10 +137,7 @@ export async function GET(
   const { id: personPlaceId } = await params;
 
   if (!personPlaceId) {
-    return NextResponse.json(
-      { error: "person_place_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("person_place_id is required");
   }
 
   try {
@@ -205,22 +186,15 @@ export async function GET(
     );
 
     if (!relationship) {
-      return NextResponse.json(
-        { error: "Person-place relationship not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person-place relationship", personPlaceId);
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       relationship,
       valid_roles: VALID_RELATIONSHIP_TYPES,
     });
   } catch (error) {
     console.error("Error fetching person-place relationship:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch relationship" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch relationship");
   }
 }

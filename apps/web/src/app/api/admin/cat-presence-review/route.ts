@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface PlaceNeedingReconciliation {
   place_id: string;
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       ORDER BY count DESC`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       places,
       stats: {
         ...stats,
@@ -120,10 +121,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching places needing reconciliation:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch places needing reconciliation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch places needing reconciliation");
   }
 }
 
@@ -134,19 +132,13 @@ export async function POST(request: NextRequest) {
     const { action, place_ids, confirmed_by = "staff" } = body;
 
     if (!action) {
-      return NextResponse.json(
-        { error: "action is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("action is required");
     }
 
     if (action === "mark_all_old_departed") {
       // Mark all cats not seen in 36+ months as departed across specified places
       if (!place_ids || !Array.isArray(place_ids) || place_ids.length === 0) {
-        return NextResponse.json(
-          { error: "place_ids array is required for this action" },
-          { status: 400 }
-        );
+        return apiBadRequest("place_ids array is required for this action");
       }
 
       // V2: Uses sot.cat_place instead of sot.cat_place_relationships
@@ -164,23 +156,16 @@ export async function POST(request: NextRequest) {
         [place_ids, confirmed_by]
       );
 
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         action: "mark_all_old_departed",
         updated_count: result.rowCount,
         places_affected: place_ids.length,
       });
     }
 
-    return NextResponse.json(
-      { error: `Unknown action: ${action}` },
-      { status: 400 }
-    );
+    return apiBadRequest(`Unknown action: ${action}`);
   } catch (error) {
     console.error("Error performing bulk action:", error);
-    return NextResponse.json(
-      { error: "Failed to perform bulk action" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to perform bulk action");
   }
 }

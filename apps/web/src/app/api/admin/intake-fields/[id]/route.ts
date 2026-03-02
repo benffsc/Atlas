@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface CustomField {
   field_id: string;
@@ -31,16 +32,13 @@ export async function GET(
     `, [id]);
 
     if (!field) {
-      return NextResponse.json({ error: "Field not found" }, { status: 404 });
+      return apiNotFound("Field", id);
     }
 
-    return NextResponse.json({ field });
+    return apiSuccess({ field });
   } catch (err) {
     console.error("Error fetching field:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch field" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch field");
   }
 }
 
@@ -85,10 +83,7 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     values.push(id);
@@ -100,16 +95,13 @@ export async function PATCH(
     `, values);
 
     if (!result) {
-      return NextResponse.json({ error: "Field not found" }, { status: 404 });
+      return apiNotFound("Field", id);
     }
 
-    return NextResponse.json({ field: result });
+    return apiSuccess({ field: result });
   } catch (err) {
     console.error("Error updating field:", err);
-    return NextResponse.json(
-      { error: "Failed to update field" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update field");
   }
 }
 
@@ -129,15 +121,12 @@ export async function DELETE(
     `, [id]);
 
     if (!result) {
-      return NextResponse.json({ error: "Field not found" }, { status: 404 });
+      return apiNotFound("Field", id);
     }
 
-    return NextResponse.json({ success: true, deleted: id });
+    return apiSuccess({ success: true, deleted: id });
   } catch (err) {
     console.error("Error deleting field:", err);
-    return NextResponse.json(
-      { error: "Failed to delete field" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete field");
   }
 }

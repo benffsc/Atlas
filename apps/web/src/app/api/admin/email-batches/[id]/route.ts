@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryOne, query, queryRows } from "@/lib/db";
 import { sendOutlookEmail } from "@/lib/outlook";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface EmailBatch {
   batch_id: string;
@@ -83,7 +83,7 @@ export async function GET(
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to get email batch");
@@ -253,7 +253,7 @@ export async function PATCH(
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to update email batch");
@@ -301,7 +301,7 @@ export async function DELETE(
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to delete email batch");

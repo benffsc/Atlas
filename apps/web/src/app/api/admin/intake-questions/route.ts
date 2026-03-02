@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface IntakeQuestion {
   question_id: string;
@@ -64,10 +65,10 @@ export async function GET(request: NextRequest) {
       ORDER BY q.step_name, q.display_order
     `, [step, includeInactive]);
 
-    return NextResponse.json({ questions });
+    return apiSuccess({ questions });
   } catch (err) {
     console.error("Error fetching intake questions:", err);
-    return NextResponse.json({ error: "Failed to fetch questions" }, { status: 500 });
+    return apiServerError("Failed to fetch questions");
   }
 }
 
@@ -88,10 +89,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!question_key || !question_text || !step_name) {
-      return NextResponse.json(
-        { error: "question_key, question_text, and step_name are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("question_key, question_text, and step_name are required");
     }
 
     // Create the question
@@ -113,7 +111,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (!question) {
-      return NextResponse.json({ error: "Failed to create question" }, { status: 500 });
+      return apiServerError("Failed to create question");
     }
 
     // Add options if provided
@@ -128,10 +126,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, question_id: question.question_id });
+    return apiSuccess({ success: true, question_id: question.question_id });
   } catch (err) {
     console.error("Error creating intake question:", err);
-    return NextResponse.json({ error: "Failed to create question" }, { status: 500 });
+    return apiServerError("Failed to create question");
   }
 }
 
@@ -142,7 +140,7 @@ export async function PUT(request: NextRequest) {
     const { question_id, question_text, help_text, is_active, display_order, options } = body;
 
     if (!question_id) {
-      return NextResponse.json({ error: "question_id is required" }, { status: 400 });
+      return apiBadRequest("question_id is required");
     }
 
     // Update question
@@ -182,10 +180,10 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (err) {
     console.error("Error updating intake question:", err);
-    return NextResponse.json({ error: "Failed to update question" }, { status: 500 });
+    return apiServerError("Failed to update question");
   }
 }
 
@@ -195,7 +193,7 @@ export async function DELETE(request: NextRequest) {
   const question_id = searchParams.get("id");
 
   if (!question_id) {
-    return NextResponse.json({ error: "Question ID required" }, { status: 400 });
+    return apiBadRequest("Question ID required");
   }
 
   try {
@@ -206,15 +204,12 @@ export async function DELETE(request: NextRequest) {
     `, [question_id]);
 
     if (result.rowCount === 0) {
-      return NextResponse.json(
-        { error: "Question not found or cannot be deleted (core questions are protected)" },
-        { status: 404 }
-      );
+      return apiNotFound("Question", question_id);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (err) {
     console.error("Error deleting intake question:", err);
-    return NextResponse.json({ error: "Failed to delete question" }, { status: 500 });
+    return apiServerError("Failed to delete question");
   }
 }

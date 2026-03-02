@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface LinkBody {
   place_id: string;
@@ -14,20 +15,14 @@ export async function POST(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Entry ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Entry ID is required");
   }
 
   try {
     const body: LinkBody = await request.json();
 
     if (!body.place_id) {
-      return NextResponse.json(
-        { error: "place_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("place_id is required");
     }
 
     const result = await queryOne<{
@@ -39,22 +34,15 @@ export async function POST(
     );
 
     if (!result || !result.success) {
-      return NextResponse.json(
-        { error: result?.message || "Failed to link entry" },
-        { status: 400 }
-      );
+      return apiBadRequest(result?.message || "Failed to link entry");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: result.message,
     });
   } catch (error) {
     console.error("Error linking Google Map entry:", error);
-    return NextResponse.json(
-      { error: "Failed to link entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to link entry");
   }
 }
 
@@ -66,10 +54,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Entry ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Entry ID is required");
   }
 
   try {
@@ -90,21 +75,14 @@ export async function DELETE(
     );
 
     if (!result || !result.success) {
-      return NextResponse.json(
-        { error: result?.message || "Failed to unlink entry" },
-        { status: 400 }
-      );
+      return apiBadRequest(result?.message || "Failed to unlink entry");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: result.message,
     });
   } catch (error) {
     console.error("Error unlinking Google Map entry:", error);
-    return NextResponse.json(
-      { error: "Failed to unlink entry" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to unlink entry");
   }
 }

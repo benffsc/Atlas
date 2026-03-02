@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { getConnectedAccounts, disconnectAccount, isOutlookConfigured } from "@/lib/outlook";
-import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiError, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/email-settings/accounts
@@ -25,10 +25,7 @@ export async function GET(request: NextRequest) {
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json(
-        { error: authError.message },
-        { status: authError.statusCode }
-      );
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to get email accounts");
@@ -60,10 +57,7 @@ export async function DELETE(request: NextRequest) {
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json(
-        { error: authError.message },
-        { status: authError.statusCode }
-      );
+      return apiError(authError.message, authError.statusCode);
     }
 
     return apiServerError("Failed to disconnect account");

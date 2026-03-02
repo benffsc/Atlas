@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface PlaceUnit {
   place_id: string;
@@ -27,10 +28,7 @@ export async function GET(
   const { id } = await params;
 
   if (!id) {
-    return NextResponse.json(
-      { error: "Entry ID is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Entry ID is required");
   }
 
   try {
@@ -62,10 +60,7 @@ export async function GET(
     );
 
     if (!entry) {
-      return NextResponse.json(
-        { error: "Entry not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Entry", id);
     }
 
     // Get nearby places within 500m with multi-unit detection
@@ -195,7 +190,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       entry: {
         id: entry.entry_id,
         name: entry.kml_name,
@@ -210,9 +205,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error fetching nearby places:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch nearby places" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch nearby places");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface SearchResult {
   entity_type: string;
@@ -146,10 +147,7 @@ export async function GET(request: NextRequest) {
   const q = rawQuery?.trim().replace(/\s+/g, ' ') || "";
 
   if (!q || q.length === 0) {
-    return NextResponse.json(
-      { error: "Search query 'q' is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("Search query 'q' is required");
   }
 
   try {
@@ -168,15 +166,15 @@ export async function GET(request: NextRequest) {
 
       const deepResults = await queryRows<DeepSearchResult>(deepSql, [q, limit]);
 
-      return NextResponse.json({
-        query: q,
-        mode: "deep",
-        results: deepResults,
-        total: deepResults.length,
-        limit,
-        offset: 0,
-        timing_ms: Date.now() - startTime,
-      });
+      return apiSuccess(
+        {
+          query: q,
+          mode: "deep",
+          results: deepResults,
+          timing_ms: Date.now() - startTime,
+        },
+        { total: deepResults.length, limit, offset: 0 }
+      );
     }
 
     // Suggestions mode (for typeahead)
@@ -286,7 +284,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         query: q,
         mode: "canonical",
         suggestions,
@@ -504,28 +502,25 @@ export async function GET(request: NextRequest) {
       ? groupResults(possibleMatches)
       : [];
 
-    return NextResponse.json({
-      query: q,
-      mode: "canonical",
-      suggestions,
-      results: mainResults,
-      grouped_results: groupedResults,
-      possible_matches: possibleMatches,
-      grouped_possible: groupedPossible,
-      intake_records: intakeResults,
-      submissions,
-      requests,
-      counts_by_type: countsByType,
-      total: totalCount,
-      limit,
-      offset,
-      timing_ms: Date.now() - startTime,
-    });
+    return apiSuccess(
+      {
+        query: q,
+        mode: "canonical",
+        suggestions,
+        results: mainResults,
+        grouped_results: groupedResults,
+        possible_matches: possibleMatches,
+        grouped_possible: groupedPossible,
+        intake_records: intakeResults,
+        submissions,
+        requests,
+        counts_by_type: countsByType,
+        timing_ms: Date.now() - startTime,
+      },
+      { total: totalCount, limit, offset }
+    );
   } catch (error) {
     console.error("Error searching:", error);
-    return NextResponse.json(
-      { error: "Search failed" },
-      { status: 500 }
-    );
+    return apiServerError("Search failed");
   }
 }

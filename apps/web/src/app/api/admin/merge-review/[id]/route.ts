@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 
 /**
  * Merge Review Resolution API
@@ -93,16 +94,13 @@ export async function GET(
     `, [id]);
 
     if (!review) {
-      return NextResponse.json({ error: "Review not found" }, { status: 404 });
+      return apiNotFound("Review", id);
     }
 
-    return NextResponse.json({ review });
+    return apiSuccess({ review });
   } catch (error) {
     console.error("Error fetching review:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -122,18 +120,12 @@ export async function POST(
     const { action, notes, resolved_by } = body;
 
     if (!action) {
-      return NextResponse.json(
-        { error: "action is required (merge, keep_separate, dismiss)" },
-        { status: 400 }
-      );
+      return apiBadRequest("action is required (merge, keep_separate, dismiss)");
     }
 
     const validActions = ["merge", "keep_separate", "dismiss"];
     if (!validActions.includes(action)) {
-      return NextResponse.json(
-        { error: `Invalid action. Must be one of: ${validActions.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid action. Must be one of: ${validActions.join(", ")}`);
     }
 
     // Call the resolution function
@@ -142,10 +134,7 @@ export async function POST(
     `, [id, action, resolved_by || "api_user", notes || null]);
 
     if (!result?.resolve_person_duplicate) {
-      return NextResponse.json(
-        { error: "Failed to resolve review" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to resolve review");
     }
 
     // Get the updated status
@@ -155,8 +144,7 @@ export async function POST(
       WHERE duplicate_id = $1::uuid
     `, [id]);
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Review resolved with action: ${action}`,
       duplicate_id: id,
       action,
@@ -170,12 +158,12 @@ export async function POST(
 
     // Check for specific error messages
     if (errorMessage.includes("not found")) {
-      return NextResponse.json({ error: "Review not found" }, { status: 404 });
+      return apiNotFound("Review", id);
     }
     if (errorMessage.includes("already resolved")) {
-      return NextResponse.json({ error: "Review already resolved" }, { status: 409 });
+      return apiConflict("Review already resolved");
     }
 
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return apiServerError(errorMessage);
   }
 }
