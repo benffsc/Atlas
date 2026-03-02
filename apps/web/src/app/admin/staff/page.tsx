@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Staff {
   staff_id: string;
@@ -68,13 +69,9 @@ export default function StaffManagementPage() {
       if (showInactive) params.set("active", "false");
       if (departmentFilter) params.set("department", departmentFilter);
 
-      const response = await fetch(`/api/staff?${params.toString()}`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setStaff(data.staff || []);
-        setDepartments(data.departments || []);
-      }
+      const data = await fetchApi<{ staff: Staff[]; departments: string[] }>(`/api/staff?${params.toString()}`);
+      setStaff(data.staff || []);
+      setDepartments(data.departments || []);
     } catch (err) {
       console.error("Failed to fetch staff:", err);
     } finally {
@@ -127,29 +124,15 @@ export default function StaffManagementPage() {
     try {
       if (selectedStaff && editMode) {
         // Update existing
-        const response = await fetch(`/api/staff/${selectedStaff.staff_id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-
-        if (response.ok) {
-          setEditMode(false);
-          setSelectedStaff(null);
-          fetchStaff();
-        }
+        await postApi(`/api/staff/${selectedStaff.staff_id}`, formData, { method: "PATCH" });
+        setEditMode(false);
+        setSelectedStaff(null);
+        fetchStaff();
       } else {
         // Create new
-        const response = await fetch("/api/staff", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-
-        if (response.ok) {
-          setShowAddModal(false);
-          fetchStaff();
-        }
+        await postApi("/api/staff", formData);
+        setShowAddModal(false);
+        fetchStaff();
       }
     } catch (err) {
       console.error("Failed to save:", err);
@@ -164,7 +147,7 @@ export default function StaffManagementPage() {
     }
 
     try {
-      await fetch(`/api/staff/${staffId}`, { method: "DELETE" });
+      await postApi(`/api/staff/${staffId}`, {}, { method: "DELETE" });
       fetchStaff();
       setSelectedStaff(null);
       setEditMode(false);

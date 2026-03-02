@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Department {
   org_id: string;
@@ -50,14 +51,10 @@ export default function DepartmentsPage() {
   const fetchDepartments = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/departments");
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setDepartments(data.departments || []);
-        setHierarchy(data.hierarchy || null);
-        setStats(data.stats || null);
-      }
+      const data = await fetchApi<{ departments: Department[]; hierarchy: Hierarchy; stats: Stats }>("/api/admin/departments");
+      setDepartments(data.departments || []);
+      setHierarchy(data.hierarchy || null);
+      setStats(data.stats || null);
     } catch (err) {
       console.error("Failed to fetch departments:", err);
     } finally {
@@ -359,19 +356,13 @@ function DeptDetailModal({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/departments", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          org_id: dept.org_id,
-          ...form,
-        }),
-      });
-      if (response.ok) {
-        setEditing(false);
-        onUpdate();
-        onClose();
-      }
+      await postApi("/api/admin/departments", {
+        org_id: dept.org_id,
+        ...form,
+      }, { method: "PATCH" });
+      setEditing(false);
+      onUpdate();
+      onClose();
     } catch (err) {
       console.error("Failed to save:", err);
     } finally {
@@ -561,22 +552,14 @@ function CreateDeptModal({
 
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/departments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          parent_org_id: form.parent_org_id || undefined,
-        }),
+      await postApi("/api/admin/departments", {
+        ...form,
+        parent_org_id: form.parent_org_id || undefined,
       });
-      if (response.ok) {
-        onCreated();
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to create");
-      }
+      onCreated();
     } catch (err) {
       console.error("Failed to create:", err);
+      alert(err instanceof Error ? err.message : "Failed to create");
     } finally {
       setSaving(false);
     }

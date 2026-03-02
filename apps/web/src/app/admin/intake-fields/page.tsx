@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface CustomField {
   field_id: string;
@@ -90,9 +91,7 @@ export default function IntakeFieldsAdminPage() {
   const fetchFields = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/intake-fields");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ fields: CustomField[] }>("/api/admin/intake-fields");
       setFields(data.fields || []);
     } catch (err) {
       console.error("Failed to fetch fields:", err);
@@ -104,9 +103,7 @@ export default function IntakeFieldsAdminPage() {
   // Fetch sync status
   const fetchSyncStatus = async () => {
     try {
-      const response = await fetch("/api/admin/intake-fields/sync-airtable");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<SyncStatus>("/api/admin/intake-fields/sync-airtable");
       setSyncStatus(data);
     } catch (err) {
       console.error("Failed to fetch sync status:", err);
@@ -197,20 +194,11 @@ export default function IntakeFieldsAdminPage() {
         : "/api/admin/intake-fields";
       const method = editingField ? "PATCH" : "POST";
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          options: form.options.length > 0 ? form.options : null,
-          show_for_call_types: form.show_for_call_types.length > 0 ? form.show_for_call_types : null,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to save");
-      }
+      await postApi(url, {
+        ...form,
+        options: form.options.length > 0 ? form.options : null,
+        show_for_call_types: form.show_for_call_types.length > 0 ? form.show_for_call_types : null,
+      }, { method });
 
       setMessage({ type: "success", text: editingField ? "Field updated!" : "Field created!" });
       closeModal();
@@ -227,13 +215,7 @@ export default function IntakeFieldsAdminPage() {
     if (!confirm(`Delete field "${field.field_label}"? This cannot be undone.`)) return;
 
     try {
-      const response = await fetch(`/api/admin/intake-fields/${field.field_id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete");
-      }
+      await postApi(`/api/admin/intake-fields/${field.field_id}`, {}, { method: "DELETE" });
 
       setMessage({ type: "success", text: "Field deleted" });
       fetchFields();
@@ -248,15 +230,10 @@ export default function IntakeFieldsAdminPage() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/admin/intake-fields/sync-airtable", {
-        method: "POST",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Sync failed");
-      }
+      const data = await postApi<{ synced: number; skipped: number }>(
+        "/api/admin/intake-fields/sync-airtable",
+        {}
+      );
 
       setMessage({
         type: "success",

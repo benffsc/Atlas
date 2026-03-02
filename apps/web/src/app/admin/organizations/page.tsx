@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Org {
   id: string;
@@ -64,14 +65,10 @@ export default function OrganizationsPage() {
       if (showInactive) params.set("include_inactive", "true");
       if (filterType) params.set("type", filterType);
 
-      const response = await fetch(`/api/admin/orgs?${params}`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setOrgs(data.organizations || []);
-        setOrgTypes(data.org_types || []);
-        setStats(data.stats || null);
-      }
+      const data = await fetchApi<{ organizations: Org[]; org_types: OrgType[]; stats: Stats }>(`/api/admin/orgs?${params}`);
+      setOrgs(data.organizations || []);
+      setOrgTypes(data.org_types || []);
+      setStats(data.stats || null);
     } catch (err) {
       console.error("Failed to fetch organizations:", err);
     } finally {
@@ -339,15 +336,9 @@ function OrgDetailModal({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`/api/admin/orgs/${org.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        setEditing(false);
-        onUpdate();
-      }
+      await postApi(`/api/admin/orgs/${org.id}`, form, { method: "PATCH" });
+      setEditing(false);
+      onUpdate();
     } catch (err) {
       console.error("Failed to save:", err);
     } finally {
@@ -357,15 +348,9 @@ function OrgDetailModal({
 
   const handleToggleActive = async () => {
     try {
-      const response = await fetch(`/api/admin/orgs/${org.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !org.is_active }),
-      });
-      if (response.ok) {
-        onUpdate();
-        onClose();
-      }
+      await postApi(`/api/admin/orgs/${org.id}`, { is_active: !org.is_active }, { method: "PATCH" });
+      onUpdate();
+      onClose();
     } catch (err) {
       console.error("Failed to toggle active:", err);
     }
@@ -670,14 +655,8 @@ function CreateOrgModal({
 
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/orgs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (response.ok) {
-        onCreated();
-      }
+      await postApi("/api/admin/orgs", form);
+      onCreated();
     } catch (err) {
       console.error("Failed to create:", err);
     } finally {

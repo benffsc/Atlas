@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface AutomationRule {
   rule_id: string;
@@ -127,9 +128,7 @@ export default function AutomationsAdminPage() {
   const fetchRules = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/automations");
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ rules: AutomationRule[]; templates: EmailTemplate[] }>("/api/admin/automations");
       setRules(data.rules || []);
       setTemplates(data.templates || []);
     } catch (err) {
@@ -190,25 +189,15 @@ export default function AutomationsAdminPage() {
         ? { rule_id: editingRule.rule_id, ...form }
         : form;
 
-      const response = await fetch("/api/admin/automations", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await postApi("/api/admin/automations", body, { method });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: "success", text: editingRule ? "Rule updated!" : "Rule created!" });
-        fetchRules();
-        setTimeout(() => {
-          closeModal();
-        }, 1000);
-      } else {
-        setMessage({ type: "error", text: data.error || "Failed to save" });
-      }
+      setMessage({ type: "success", text: editingRule ? "Rule updated!" : "Rule created!" });
+      fetchRules();
+      setTimeout(() => {
+        closeModal();
+      }, 1000);
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to save automation" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save automation" });
     } finally {
       setSaving(false);
     }
@@ -216,14 +205,10 @@ export default function AutomationsAdminPage() {
 
   const toggleActive = async (rule: AutomationRule) => {
     try {
-      await fetch("/api/admin/automations", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rule_id: rule.rule_id,
-          is_active: !rule.is_active,
-        }),
-      });
+      await postApi("/api/admin/automations", {
+        rule_id: rule.rule_id,
+        is_active: !rule.is_active,
+      }, { method: "PATCH" });
       fetchRules();
     } catch (err) {
       console.error("Toggle failed:", err);
@@ -234,9 +219,7 @@ export default function AutomationsAdminPage() {
     if (!confirm("Are you sure you want to delete this automation?")) return;
 
     try {
-      await fetch(`/api/admin/automations?rule_id=${ruleId}`, {
-        method: "DELETE",
-      });
+      await postApi(`/api/admin/automations?rule_id=${ruleId}`, {}, { method: "DELETE" });
       fetchRules();
     } catch (err) {
       console.error("Delete failed:", err);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Staff {
   staff_id: string;
@@ -36,19 +37,12 @@ export default function AIAccessManagementPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/ai-access");
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setStaff(data.staff || []);
-        setAccessLevels(data.access_levels || []);
-      } else {
-        const err = await response.json();
-        setMessage({ type: "error", text: err.error || "Failed to load data" });
-      }
+      const data = await fetchApi<{ staff: Staff[]; access_levels: AccessLevel[] }>("/api/admin/ai-access");
+      setStaff(data.staff || []);
+      setAccessLevels(data.access_levels || []);
     } catch (err) {
       console.error("Failed to fetch AI access data:", err);
-      setMessage({ type: "error", text: "Failed to connect to server" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to connect to server" });
     } finally {
       setLoading(false);
     }
@@ -69,29 +63,17 @@ export default function AIAccessManagementPage() {
   const updateAccessLevel = async (staffId: string, newLevel: string) => {
     setSaving(staffId);
     try {
-      const response = await fetch("/api/admin/ai-access", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ staff_id: staffId, ai_access_level: newLevel }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setMessage({ type: "success", text: data.message });
-        // Update local state
-        setStaff((prev) =>
-          prev.map((s) =>
-            s.staff_id === staffId ? { ...s, ai_access_level: newLevel } : s
-          )
-        );
-      } else {
-        const err = await response.json();
-        setMessage({ type: "error", text: err.error || "Failed to update" });
-      }
+      const data = await postApi<{ message: string }>("/api/admin/ai-access", { staff_id: staffId, ai_access_level: newLevel }, { method: "PATCH" });
+      setMessage({ type: "success", text: data.message });
+      // Update local state
+      setStaff((prev) =>
+        prev.map((s) =>
+          s.staff_id === staffId ? { ...s, ai_access_level: newLevel } : s
+        )
+      );
     } catch (err) {
       console.error("Failed to update access level:", err);
-      setMessage({ type: "error", text: "Failed to connect to server" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to connect to server" });
     } finally {
       setSaving(null);
     }
