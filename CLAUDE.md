@@ -90,14 +90,21 @@ Cats are linked to requests based on appointment date relative to request lifecy
 - Uses `COALESCE(source_created_at, created_at)` for legacy Airtable dates
 - Function: `sot.link_cats_to_requests_attribution()`
 
-**Cat-Place Linking** (MIG_889/892):
-- `link_cats_to_appointment_places()` — uses `inferred_place_id` (highest priority)
+**Cat-Place Linking** (MIG_889/892/2430-2435):
+- `link_cats_to_appointment_places()` — uses `inferred_place_id` ONLY (no fallback)
 - `link_cats_to_places()` — uses LIMIT 1 per person + staff exclusion
 - Never link to ALL person_place_relationships (causes pollution)
+- **CRITICAL (MIG_2430):** NEVER use COALESCE fallback to clinic address. If `inferred_place_id IS NULL`, skip the cat and log to `ops.entity_linking_skipped`. Clinic fallback polluted data with cats incorrectly linked to 845 Todd/Empire Industrial.
+
+**Entity Linking Pipeline Monitoring** (MIG_2435):
+- `ops.check_entity_linking_health()` — Returns health metrics (clinic_leakage, cat_place_coverage, etc.)
+- `ops.v_clinic_leakage` — View showing cats incorrectly linked to clinic addresses (should be 0)
+- `ops.v_entity_linking_skipped_summary` — View showing skipped entities by reason
+- `ops.v_cat_place_coverage` — View showing cat-place linking coverage metrics
 
 **After Backfills**: Always re-run `trapper.run_all_entity_linking()`. Backfills create edges but don't propagate.
 
-**It's OK If Cats Have No Person Link** — Don't force bad matches. PetLink cats (956) are registry-only. ClinicHQ may have no contact info.
+**It's OK If Cats Have No Person Link** — Don't force bad matches. PetLink cats (956) are registry-only. ClinicHQ may have no contact info. Better to skip than link incorrectly.
 
 ## Disease & Ecological Data
 

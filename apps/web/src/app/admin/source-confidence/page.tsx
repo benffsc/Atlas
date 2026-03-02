@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { BackButton } from "@/components/common";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface SourceConfidence {
   source_system: string;
@@ -25,9 +26,7 @@ export default function SourceConfidencePage() {
   const fetchScores = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/source-confidence");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
+      const data = await fetchApi<{ scores: SourceConfidence[] }>("/api/admin/source-confidence");
       setScores(data.scores || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -47,19 +46,11 @@ export default function SourceConfidencePage() {
   ) => {
     setSaving(source_system);
     try {
-      const res = await fetch("/api/admin/source-confidence", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_system, confidence_score, description }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      } else {
-        fetchScores();
-      }
+      await postApi("/api/admin/source-confidence", { source_system, confidence_score, description });
+      fetchScores();
     } catch (err) {
       console.error("Update error:", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setSaving(null);
     }
@@ -69,18 +60,14 @@ export default function SourceConfidencePage() {
     if (!confirm(`Delete source "${source_system}"?`)) return;
     setSaving(source_system);
     try {
-      const res = await fetch(
+      await fetchApi(
         `/api/admin/source-confidence?source_system=${encodeURIComponent(source_system)}`,
         { method: "DELETE" }
       );
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      } else {
-        fetchScores();
-      }
+      fetchScores();
     } catch (err) {
       console.error("Delete error:", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setSaving(null);
     }

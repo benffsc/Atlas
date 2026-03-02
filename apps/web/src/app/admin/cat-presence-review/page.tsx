@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface PlaceNeedingReconciliation {
   place_id: string;
@@ -72,9 +73,11 @@ export default function CatPresenceReviewPage() {
         params.set("has_uncertain", "true");
       }
 
-      const res = await fetch(`/api/admin/cat-presence-review?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
+      const data = await fetchApi<{
+        places: PlaceNeedingReconciliation[];
+        stats: Stats;
+        classification_distribution: ClassificationDist[];
+      }>(`/api/admin/cat-presence-review?${params}`);
 
       setPlaces(data.places || []);
       setStats(data.stats || null);
@@ -103,17 +106,11 @@ export default function CatPresenceReviewPage() {
 
     setActionInProgress(true);
     try {
-      const res = await fetch("/api/admin/cat-presence-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "mark_all_old_departed",
-          place_ids: placeIds,
-        }),
+      const result = await postApi<{ updated_count: number }>("/api/admin/cat-presence-review", {
+        action: "mark_all_old_departed",
+        place_ids: placeIds,
       });
 
-      if (!res.ok) throw new Error("Failed");
-      const result = await res.json();
       alert(`Updated ${result.updated_count} cat(s) across ${placeIds.length} place(s)`);
       setSelectedPlaces(new Set());
       fetchData();

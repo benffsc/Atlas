@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatDateLocal } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface OrphanPlace {
   place_id: string;
@@ -33,11 +34,8 @@ export default function OrphanPlacesPage() {
   const fetchData = async (offset = 0) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/orphan-places?limit=${pageSize}&offset=${offset}`);
-      if (res.ok) {
-        const result = await res.json();
-        setData(result);
-      }
+      const result = await fetchApi<OrphanData>(`/api/admin/orphan-places?limit=${pageSize}&offset=${offset}`);
+      setData(result);
     } catch {
       // ignore
     } finally {
@@ -74,18 +72,14 @@ export default function OrphanPlacesPage() {
     setDeleting(true);
     setDeleteResult(null);
     try {
-      const res = await fetch("/api/admin/orphan-places", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ place_ids: Array.from(selected) }),
-      });
-      const result = await res.json();
-      if (res.ok) {
-        setDeleteResult({ deleted: result.deleted });
-        setSelected(new Set());
-        // Refresh data
-        fetchData(page * pageSize);
-      }
+      const result = await postApi<{ deleted: number }>("/api/admin/orphan-places",
+        { place_ids: Array.from(selected) },
+        { method: "DELETE" }
+      );
+      setDeleteResult({ deleted: result.deleted });
+      setSelected(new Set());
+      // Refresh data
+      fetchData(page * pageSize);
     } catch {
       // ignore
     } finally {

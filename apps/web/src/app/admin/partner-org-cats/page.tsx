@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { formatDateLocal } from "@/lib/formatters";
 import { BackButton } from "@/components/common";
+import { fetchApi } from "@/lib/api-client";
 
 interface PartnerOrgCat {
   cat_id: string;
@@ -65,11 +66,7 @@ export default function PartnerOrgCatsPage() {
     params.set("offset", String(page * limit));
 
     try {
-      const response = await fetch(`/api/admin/partner-org-cats?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch data");
-      }
-      const result: ApiResponse = await response.json();
+      const result = await fetchApi<ApiResponse>(`/api/admin/partner-org-cats?${params.toString()}`);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

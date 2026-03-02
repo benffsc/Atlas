@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface PendingReview {
   decision_id: string;
@@ -38,9 +39,7 @@ export default function DataEngineReviewPage() {
 
   const fetchReviews = async () => {
     try {
-      const res = await fetch("/api/admin/data-engine/review?limit=50");
-      if (!res.ok) throw new Error("Failed to fetch reviews");
-      const data = await res.json();
+      const data = await fetchApi<{ reviews: PendingReview[] }>("/api/admin/data-engine/review?limit=50");
       setReviews(data.reviews || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -56,21 +55,11 @@ export default function DataEngineReviewPage() {
   const handleAction = async (decisionId: string, action: "approve" | "reject" | "merge") => {
     setActionLoading(decisionId);
     try {
-      const res = await fetch(`/api/admin/data-engine/review/${decisionId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data: ReviewResponse = await res.json();
-
-      if (data.success) {
-        // Remove from list
-        setReviews((prev) => prev.filter((r) => r.decision_id !== decisionId));
-      } else {
-        alert(data.error || "Action failed");
-      }
-    } catch {
-      alert("Failed to perform action");
+      await postApi(`/api/admin/data-engine/review/${decisionId}`, { action });
+      // Remove from list on success
+      setReviews((prev) => prev.filter((r) => r.decision_id !== decisionId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to perform action");
     } finally {
       setActionLoading(null);
     }

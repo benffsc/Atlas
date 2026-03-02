@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface TippyDraft {
   draft_id: string;
@@ -93,9 +94,9 @@ export default function TippyDraftsPage() {
   const fetchDrafts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/tippy-drafts?status=${activeTab}`);
-      if (!res.ok) throw new Error("Failed to fetch drafts");
-      const data = await res.json();
+      const data = await fetchApi<{ drafts: TippyDraft[]; stats: DraftStats }>(
+        `/api/admin/tippy-drafts?status=${activeTab}`
+      );
       setDrafts(data.drafts);
       setStats(data.stats);
     } catch (err) {
@@ -127,14 +128,7 @@ export default function TippyDraftsPage() {
         }
       }
 
-      const res = await fetch(`/api/admin/tippy-drafts/${draftId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to process draft");
+      await postApi(`/api/admin/tippy-drafts/${draftId}`, body);
 
       // Refresh list
       fetchDrafts();
