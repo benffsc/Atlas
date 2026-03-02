@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows, type QueryResultRow } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * Beacon Data Enrichment Pipeline Status
@@ -156,7 +156,7 @@ export async function GET() {
         (SELECT COUNT(*)::INT FROM sot.place_colony_estimates WHERE source_system = 'requests') AS requests_parsed
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       totals: {
         colony_estimates: totals?.colony_estimates || 0,
         birth_events: totals?.birth_events || 0,
@@ -183,9 +183,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Enrichment status error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch enrichment status" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch enrichment status");
   }
 }

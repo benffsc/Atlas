@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface EcologyConfig {
   config_key: string;
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
         grouped[cat].push(row);
       }
 
-      return NextResponse.json({ parameters: grouped });
+      return apiSuccess({ parameters: grouped });
     }
 
     if (view === "forecasts") {
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (!viewExists?.exists) {
-        return NextResponse.json({
+        return apiSuccess({
           forecasts: [],
           summary: {
             total_places_with_data: 0,
@@ -255,15 +256,12 @@ export async function GET(request: NextRequest) {
           withMonths.length;
       }
 
-      return NextResponse.json({ forecasts, summary });
+      return apiSuccess({ forecasts, summary });
     }
 
-    return NextResponse.json({ error: "Invalid view" }, { status: 400 });
+    return apiBadRequest("Invalid view");
   } catch (error) {
     console.error("Error fetching forecasts:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch forecast data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch forecast data");
   }
 }

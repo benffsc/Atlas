@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface SourceTypeStat {
   source_type: string;
@@ -31,7 +31,7 @@ export async function GET() {
        ORDER BY count DESC`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       total_estimates: totalResult?.count || 0,
       places_with_estimates: placesResult?.count || 0,
       avg_colony_size: avgResult?.avg || 0,
@@ -39,9 +39,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Colony estimates stats error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch stats");
   }
 }

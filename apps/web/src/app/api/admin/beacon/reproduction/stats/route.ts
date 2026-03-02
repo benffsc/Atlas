@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface BySource {
   source_system: string;
@@ -68,7 +68,7 @@ export async function GET() {
         END
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       vitals: vitalsStats || {
         total_records: 0,
         pregnant_count: 0,
@@ -87,9 +87,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Reproduction stats error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch stats");
   }
 }

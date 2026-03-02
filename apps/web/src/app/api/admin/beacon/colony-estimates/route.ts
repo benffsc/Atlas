@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface ColonyEstimate {
   estimate_id: string;
@@ -56,13 +57,10 @@ export async function GET(request: NextRequest) {
 
     const estimates = await queryRows<ColonyEstimate>(sql, params);
 
-    return NextResponse.json({ estimates });
+    return apiSuccess({ estimates });
   } catch (error) {
     console.error("Colony estimates fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch colony estimates" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch colony estimates");
   }
 }
 
@@ -72,7 +70,7 @@ export async function PATCH(request: NextRequest) {
     const { estimate_id, total_cats, eartip_count_observed, altered_count, notes } = body;
 
     if (!estimate_id) {
-      return NextResponse.json({ error: "Missing estimate ID" }, { status: 400 });
+      return apiBadRequest("Missing estimate ID");
     }
 
     // Build dynamic update
@@ -98,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      return apiBadRequest("No fields to update");
     }
 
     updates.push(`updated_at = NOW()`);
@@ -109,13 +107,10 @@ export async function PATCH(request: NextRequest) {
       params
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Colony estimate update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update estimate" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update estimate");
   }
 }
 
@@ -125,7 +120,7 @@ export async function DELETE(request: NextRequest) {
     const estimateId = searchParams.get("id");
 
     if (!estimateId) {
-      return NextResponse.json({ error: "Missing estimate ID" }, { status: 400 });
+      return apiBadRequest("Missing estimate ID");
     }
 
     await query(
@@ -133,12 +128,9 @@ export async function DELETE(request: NextRequest) {
       [estimateId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Colony estimate delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete estimate" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete estimate");
   }
 }

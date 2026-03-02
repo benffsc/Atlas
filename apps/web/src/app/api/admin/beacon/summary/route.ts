@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, type QueryResultRow } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface BeaconSummary {
   // Colony estimates
@@ -139,15 +139,12 @@ export async function GET() {
       recent_reproduction_flags: recentActivity?.recent_reproduction || 0,
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       summary,
       alerts: [],
     });
   } catch (error) {
     console.error("Error fetching Beacon summary:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch Beacon summary" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch Beacon summary");
   }
 }

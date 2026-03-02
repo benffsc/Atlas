@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface ReproductionRecord {
   vitals_id: string;
@@ -38,13 +39,10 @@ export async function GET() {
 
     const records = await queryRows<ReproductionRecord>(sql);
 
-    return NextResponse.json({ records });
+    return apiSuccess({ records });
   } catch (error) {
     console.error("Reproduction data fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch reproduction data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch reproduction data");
   }
 }
 
@@ -54,7 +52,7 @@ export async function PATCH(request: NextRequest) {
     const { vitals_id, is_pregnant, is_lactating, is_in_heat } = body;
 
     if (!vitals_id) {
-      return NextResponse.json({ error: "Missing vitals ID" }, { status: 400 });
+      return apiBadRequest("Missing vitals ID");
     }
 
     const updates: string[] = [];
@@ -75,7 +73,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      return apiBadRequest("No fields to update");
     }
 
     params.push(vitals_id);
@@ -85,13 +83,10 @@ export async function PATCH(request: NextRequest) {
       params
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Reproduction update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update reproduction data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update reproduction data");
   }
 }
 
@@ -101,7 +96,7 @@ export async function DELETE(request: NextRequest) {
     const vitalsId = searchParams.get("id");
 
     if (!vitalsId) {
-      return NextResponse.json({ error: "Missing vitals ID" }, { status: 400 });
+      return apiBadRequest("Missing vitals ID");
     }
 
     // Instead of deleting, we clear the reproduction flags
@@ -113,12 +108,9 @@ export async function DELETE(request: NextRequest) {
       [vitalsId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Reproduction delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete reproduction data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete reproduction data");
   }
 }

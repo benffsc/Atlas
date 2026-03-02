@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface SeasonalDashboard {
   year: number;
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
         LIMIT 36
       `;
       const rows = await queryRows<SeasonalDashboard>(sql, params);
-      return NextResponse.json({ data: rows, view: "dashboard" });
+      return apiSuccess({ data: rows, view: "dashboard" });
     }
 
     if (view === "breeding") {
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest) {
         LIMIT 36
       `;
       const rows = await queryRows<BreedingIndicator>(sql, params);
-      return NextResponse.json({ data: rows, view: "breeding" });
+      return apiSuccess({ data: rows, view: "breeding" });
     }
 
     if (view === "kittens") {
@@ -144,7 +145,7 @@ export async function GET(request: NextRequest) {
         LIMIT 36
       `;
       const rows = await queryRows<KittenSurge>(sql, params);
-      return NextResponse.json({ data: rows, view: "kittens" });
+      return apiSuccess({ data: rows, view: "kittens" });
     }
 
     if (view === "yoy") {
@@ -165,21 +166,18 @@ export async function GET(request: NextRequest) {
         LIMIT 24
       `;
       const rows = await queryRows<YoYComparison>(sql, params);
-      return NextResponse.json({ data: rows, view: "yoy" });
+      return apiSuccess({ data: rows, view: "yoy" });
     }
 
     if (view === "alerts") {
       const sql = `SELECT * FROM ops.get_seasonal_alerts()`;
       const rows = await queryRows<SeasonalAlert>(sql, []);
-      return NextResponse.json({ data: rows, view: "alerts" });
+      return apiSuccess({ data: rows, view: "alerts" });
     }
 
-    return NextResponse.json({ error: "Invalid view" }, { status: 400 });
+    return apiBadRequest("Invalid view");
   } catch (error) {
     console.error("Error fetching seasonal data:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch seasonal data" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch seasonal data");
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface MortalityEvent {
   mortality_event_id: string;
@@ -26,7 +27,7 @@ export async function GET() {
     `);
 
     if (!tableExists[0]?.exists) {
-      return NextResponse.json({ events: [], message: "Table not created yet" });
+      return apiSuccess({ events: [], message: "Table not created yet" });
     }
 
     const sql = `
@@ -51,13 +52,10 @@ export async function GET() {
 
     const events = await queryRows<MortalityEvent>(sql);
 
-    return NextResponse.json({ events });
+    return apiSuccess({ events });
   } catch (error) {
     console.error("Mortality events fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch mortality events" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch mortality events");
   }
 }
 
@@ -67,7 +65,7 @@ export async function PATCH(request: NextRequest) {
     const { mortality_event_id, death_cause, death_age_category, death_date, notes } = body;
 
     if (!mortality_event_id) {
-      return NextResponse.json({ error: "Missing mortality event ID" }, { status: 400 });
+      return apiBadRequest("Missing mortality event ID");
     }
 
     const updates: string[] = [];
@@ -92,7 +90,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+      return apiBadRequest("No fields to update");
     }
 
     params.push(mortality_event_id);
@@ -102,13 +100,10 @@ export async function PATCH(request: NextRequest) {
       params
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Mortality update error:", error);
-    return NextResponse.json(
-      { error: "Failed to update mortality event" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update mortality event");
   }
 }
 
@@ -118,7 +113,7 @@ export async function DELETE(request: NextRequest) {
     const eventId = searchParams.get("id");
 
     if (!eventId) {
-      return NextResponse.json({ error: "Missing mortality event ID" }, { status: 400 });
+      return apiBadRequest("Missing mortality event ID");
     }
 
     await query(
@@ -126,12 +121,9 @@ export async function DELETE(request: NextRequest) {
       [eventId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Mortality delete error:", error);
-    return NextResponse.json(
-      { error: "Failed to delete mortality event" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete mortality event");
   }
 }

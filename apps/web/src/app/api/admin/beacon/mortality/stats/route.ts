@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface CauseStat {
   death_cause: string;
@@ -22,7 +22,7 @@ export async function GET() {
     `);
 
     if (!tableExists[0]?.exists) {
-      return NextResponse.json({
+      return apiSuccess({
         total_events: 0,
         by_cause: {},
         by_age_category: {},
@@ -77,7 +77,7 @@ export async function GET() {
       WHERE death_year = EXTRACT(YEAR FROM CURRENT_DATE)
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       total_events: totals?.total_events || 0,
       with_cat_id: totals?.with_cat_id || 0,
       unique_places: totals?.unique_places || 0,
@@ -88,9 +88,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Mortality stats error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch stats");
   }
 }
