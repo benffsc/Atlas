@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess } from "@/lib/api-response";
 
 /**
  * Entity History API
@@ -84,7 +85,7 @@ export async function GET(
     }
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     history,
     grouped_changes: grouped,
     individual_changes: ungrouped,

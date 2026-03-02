@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
@@ -71,14 +71,9 @@ export async function GET(request: NextRequest) {
       SELECT DISTINCT department FROM ops.staff WHERE department IS NOT NULL ORDER BY department
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       staff,
       departments: departments.map(d => d.department),
-    }, {
-      headers: {
-        // Cache staff list for 5 minutes - rarely changes
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-      }
     });
   } catch (err) {
     console.error("Error fetching staff:", err);

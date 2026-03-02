@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // Valid relationship types for TNR taxonomy (from MIG_2514)
 const VALID_RELATIONSHIP_TYPES = [
@@ -65,10 +66,7 @@ export async function POST(
   const { id: personPlaceId } = await params;
 
   if (!personPlaceId) {
-    return NextResponse.json(
-      { error: "person_place_id is required" },
-      { status: 400 }
-    );
+    return apiBadRequest("person_place_id is required");
   }
 
   try {
@@ -83,34 +81,22 @@ export async function POST(
 
     // Validate verification_method is required
     if (!verification_method) {
-      return NextResponse.json(
-        { error: "verification_method is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("verification_method is required");
     }
 
     // Validate verification_method
     if (!VALID_VERIFICATION_METHODS.includes(verification_method as typeof VALID_VERIFICATION_METHODS[number])) {
-      return NextResponse.json(
-        { error: `Invalid verification_method. Must be one of: ${VALID_VERIFICATION_METHODS.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid verification_method. Must be one of: ${VALID_VERIFICATION_METHODS.join(", ")}`);
     }
 
     // Validate relationship_type if provided
     if (relationship_type && !VALID_RELATIONSHIP_TYPES.includes(relationship_type as typeof VALID_RELATIONSHIP_TYPES[number])) {
-      return NextResponse.json(
-        { error: `Invalid relationship_type. Must be one of: ${VALID_RELATIONSHIP_TYPES.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid relationship_type. Must be one of: ${VALID_RELATIONSHIP_TYPES.join(", ")}`);
     }
 
     // Validate financial_commitment if provided
     if (financial_commitment && !VALID_FINANCIAL_COMMITMENTS.includes(financial_commitment as typeof VALID_FINANCIAL_COMMITMENTS[number])) {
-      return NextResponse.json(
-        { error: `Invalid financial_commitment. Must be one of: ${VALID_FINANCIAL_COMMITMENTS.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid financial_commitment. Must be one of: ${VALID_FINANCIAL_COMMITMENTS.join(", ")}`);
     }
 
     // Check if person_place exists
@@ -122,10 +108,7 @@ export async function POST(
     );
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Person-place relationship not found" },
-        { status: 404 }
-      );
+      return apiNotFound("Person-place relationship");
     }
 
     // Try to use the verify function (from MIG_2514)
@@ -191,7 +174,7 @@ export async function POST(
       };
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       person_place_id: personPlaceId,
       old_relationship_type: result.old_relationship_type,
@@ -201,9 +184,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error verifying person-place relationship:", error);
-    return NextResponse.json(
-      { error: "Failed to verify relationship" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to verify relationship");
   }
 }

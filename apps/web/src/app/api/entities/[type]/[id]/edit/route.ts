@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryOne, withTransaction, TransactionClient } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryRows, queryOne, withTransaction } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 
 /**
  * Entity Edit API
@@ -44,7 +45,7 @@ export async function GET(
   const { type, id } = await params;
 
   if (!VALID_ENTITY_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid entity type" }, { status: 400 });
+    return apiBadRequest("Invalid entity type");
   }
 
   // Get current lock status
@@ -61,7 +62,7 @@ export async function GET(
   // Get entity-specific suggestions
   const suggestions = await getEntitySuggestions(type, id);
 
-  return NextResponse.json({
+  return apiSuccess({
     lock,
     history,
     suggestions,
@@ -76,7 +77,7 @@ export async function POST(
   const { type, id } = await params;
 
   if (!VALID_ENTITY_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid entity type" }, { status: 400 });
+    return apiBadRequest("Invalid entity type");
   }
 
   const body = await request.json();
@@ -95,7 +96,7 @@ export async function POST(
       WHERE entity_type = $1 AND entity_id = $2
     `, [type, id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       lock,
     });
@@ -106,11 +107,7 @@ export async function POST(
       WHERE entity_type = $1 AND entity_id = $2
     `, [type, id]);
 
-    return NextResponse.json({
-      success: false,
-      error: "Entity is locked by another user",
-      lock,
-    }, { status: 409 });
+    return apiConflict("Entity is locked by another user", { lock });
   }
 }
 
@@ -122,7 +119,7 @@ export async function PATCH(
   const { type, id } = await params;
 
   if (!VALID_ENTITY_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid entity type" }, { status: 400 });
+    return apiBadRequest("Invalid entity type");
   }
 
   const body = await request.json();
@@ -198,7 +195,7 @@ export async function PATCH(
       return { editIds, entity };
     });
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       edit_ids: result.editIds,
       entity: result.entity,
@@ -208,14 +205,14 @@ export async function PATCH(
     const message = error instanceof Error ? error.message : "Unknown error";
 
     if (message === "ENTITY_NOT_FOUND") {
-      return NextResponse.json({ error: "Entity not found" }, { status: 404 });
+      return apiNotFound("Entity", id);
     }
     if (message.startsWith("FIELD_NOT_EDITABLE:")) {
       const field = message.split(":")[1];
-      return NextResponse.json({ error: `Field '${field}' is not editable` }, { status: 400 });
+      return apiBadRequest(`Field '${field}' is not editable`);
     }
 
-    return NextResponse.json({ error: "Failed to apply edit" }, { status: 500 });
+    return apiServerError("Failed to apply edit");
   }
 }
 
@@ -227,7 +224,7 @@ export async function DELETE(
   const { type, id } = await params;
 
   if (!VALID_ENTITY_TYPES.includes(type)) {
-    return NextResponse.json({ error: "Invalid entity type" }, { status: 400 });
+    return apiBadRequest("Invalid entity type");
   }
 
   const { searchParams } = new URL(request.url);
@@ -237,7 +234,7 @@ export async function DELETE(
     SELECT ops.release_edit_lock($1, $2, $3) as success
   `, [type, id, userId]);
 
-  return NextResponse.json({
+  return apiSuccess({
     success: result?.success ?? false,
   });
 }
@@ -313,7 +310,7 @@ async function handleOwnershipTransfer(req: TransferRequest) {
       };
     });
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       edit_id: result.editId,
       old_owner_id: result.oldOwnerId,
@@ -321,9 +318,7 @@ async function handleOwnershipTransfer(req: TransferRequest) {
     });
   } catch (error) {
     console.error("Transfer error:", error);
-    return NextResponse.json({
-      error: "Failed to transfer ownership",
-    }, { status: 500 });
+    return apiServerError("Failed to transfer ownership");
   }
 }
 

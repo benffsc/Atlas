@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface SiteObservation {
   observation_id: string;
@@ -134,20 +135,13 @@ export async function GET(request: NextRequest) {
       [...params, limit, offset]
     );
 
-    return NextResponse.json({
-      observations,
-      pagination: {
-        limit,
-        offset,
-        hasMore: observations.length === limit,
-      },
-    });
+    return apiSuccess(
+      { observations },
+      { limit, offset, hasMore: observations.length === limit }
+    );
   } catch (error) {
     console.error("Observations list error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch observations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch observations");
   }
 }
 
@@ -196,10 +190,7 @@ export async function POST(request: NextRequest) {
 
     // Must have at least place_id or request_id
     if (!place_id && !request_id) {
-      return NextResponse.json(
-        { error: "Either place_id or request_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Either place_id or request_id is required");
     }
 
     // If no place_id but have request_id, get place from request
@@ -240,18 +231,12 @@ export async function POST(request: NextRequest) {
       "admin_entry",
     ];
     if (!validObserverTypes.includes(effectiveObserverType)) {
-      return NextResponse.json(
-        { error: `Invalid observer_type. Must be one of: ${validObserverTypes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid observer_type. Must be one of: ${validObserverTypes.join(", ")}`);
     }
 
     // Validate confidence if provided
     if (confidence && !["high", "medium", "low"].includes(confidence)) {
-      return NextResponse.json(
-        { error: "Invalid confidence. Must be: high, medium, or low" },
-        { status: 400 }
-      );
+      return apiBadRequest("Invalid confidence. Must be: high, medium, or low");
     }
 
     // Insert observation (includes unified trip report fields)
@@ -329,10 +314,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!observation) {
-      return NextResponse.json(
-        { error: "Failed to create observation" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create observation");
     }
 
     // Calculate Chapman estimate if we have cats observed and a place
@@ -392,8 +374,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       observation_id: observation.observation_id,
       message: "Observation recorded successfully",
       chapman_estimate: chapmanEstimate,
@@ -401,9 +382,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Observation create error:", error);
-    return NextResponse.json(
-      { error: "Failed to create observation" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create observation");
   }
 }

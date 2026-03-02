@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiConflict, apiServerError } from "@/lib/api-response";
 
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
       return apiServerError("Failed to create organization");
     }
 
-    return NextResponse.json(result, { status: 201 });
+    return apiSuccess(result);
   } catch (error) {
     console.error("Error creating organization:", error);
     return apiServerError("Failed to create organization");

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/tippy/feedback
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
     // Get authenticated staff
     const session = await getSession(request);
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiUnauthorized();
     }
 
     const body = await request.json();
@@ -27,10 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!tippy_message || !user_correction || !feedback_type) {
-      return NextResponse.json(
-        { error: "Missing required fields: tippy_message, user_correction, feedback_type" },
-        { status: 400 }
-      );
+      return apiBadRequest("Missing required fields: tippy_message, user_correction, feedback_type");
     }
 
     // Validate entity_id as UUID if provided; if not valid UUID, fold into correction text
@@ -58,20 +56,14 @@ export async function POST(request: NextRequest) {
       "other",
     ];
     if (!validTypes.includes(feedback_type)) {
-      return NextResponse.json(
-        { error: `Invalid feedback_type. Must be one of: ${validTypes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid feedback_type. Must be one of: ${validTypes.join(", ")}`);
     }
 
     // Validate entity_type if provided
     if (entity_type) {
       const validEntityTypes = ["place", "cat", "person", "request", "other"];
       if (!validEntityTypes.includes(entity_type)) {
-        return NextResponse.json(
-          { error: `Invalid entity_type. Must be one of: ${validEntityTypes.join(", ")}` },
-          { status: 400 }
-        );
+        return apiBadRequest(`Invalid entity_type. Must be one of: ${validEntityTypes.join(", ")}`);
       }
     }
 
@@ -121,10 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!feedback) {
-      return NextResponse.json(
-        { error: "Failed to insert feedback" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to insert feedback");
     }
 
     // Auto-create data improvement if entity is specified
@@ -175,7 +164,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       feedback_id: feedback.feedback_id,
       data_improvement_id: improvementId,
@@ -183,9 +172,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Tippy feedback error:", error);
-    return NextResponse.json(
-      { error: "Failed to submit feedback" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to submit feedback");
   }
 }

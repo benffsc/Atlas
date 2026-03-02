@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/context-types
@@ -55,15 +56,12 @@ export async function GET(request: NextRequest) {
       ),
     };
 
-    return NextResponse.json({
+    return apiSuccess({
       all: contextTypes || [],
       categorized,
     });
   } catch (error) {
     console.error("Error fetching context types:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch context types" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch context types");
   }
 }
