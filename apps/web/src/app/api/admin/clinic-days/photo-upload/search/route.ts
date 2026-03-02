@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface AppointmentInfo {
   appointment_id: string;
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date");
 
     if (!query || query.trim().length < 2) {
-      return NextResponse.json({ cats: [] });
+      return apiSuccess({ cats: [] });
     }
 
     // Validate date format if provided
@@ -391,11 +391,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ cats }, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-      },
-    });
+    return apiSuccess({ cats });
   } catch (error) {
     console.error("Photo upload search error:", error);
     return apiServerError("Failed to search cats");

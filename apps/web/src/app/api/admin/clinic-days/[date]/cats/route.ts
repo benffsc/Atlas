@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -228,12 +228,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       cats,
     };
 
-    // Prevent caching to ensure fresh data after updates
-    return NextResponse.json(response, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-      },
-    });
+    return apiSuccess(response);
   } catch (error) {
     console.error("Clinic day cats fetch error:", error);
     return apiServerError("Failed to fetch clinic day cats");
