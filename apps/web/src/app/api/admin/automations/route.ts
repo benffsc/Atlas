@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface AutomationRule {
   rule_id: string;
@@ -42,13 +43,10 @@ export async function GET() {
       SELECT template_key, name FROM ops.email_templates WHERE is_active = TRUE ORDER BY name
     `);
 
-    return NextResponse.json({ rules, templates });
+    return apiSuccess({ rules, templates });
   } catch (error) {
     console.error("Error fetching automations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch automations" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch automations", 500);
   }
 }
 
@@ -66,10 +64,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!name || !trigger_type || !action_type) {
-      return NextResponse.json(
-        { error: "name, trigger_type, and action_type are required" },
-        { status: 400 }
-      );
+      return apiError("name, trigger_type, and action_type are required", 400);
     }
 
     const result = await queryOne<{ rule_id: string }>(`
@@ -86,16 +81,13 @@ export async function POST(request: NextRequest) {
       JSON.stringify(action_config || {}),
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       rule_id: result?.rule_id,
     });
   } catch (error) {
     console.error("Error creating automation:", error);
-    return NextResponse.json(
-      { error: "Failed to create automation" },
-      { status: 500 }
-    );
+    return apiError("Failed to create automation", 500);
   }
 }
 
@@ -106,10 +98,7 @@ export async function PATCH(request: NextRequest) {
     const { rule_id, ...updates } = body;
 
     if (!rule_id) {
-      return NextResponse.json(
-        { error: "rule_id is required" },
-        { status: 400 }
-      );
+      return apiError("rule_id is required", 400);
     }
 
     const allowedFields = [
@@ -139,10 +128,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (setClause.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiError("No valid fields to update", 400);
     }
 
     setClause.push(`updated_at = NOW()`);
@@ -155,13 +141,10 @@ export async function PATCH(request: NextRequest) {
       values
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error updating automation:", error);
-    return NextResponse.json(
-      { error: "Failed to update automation" },
-      { status: 500 }
-    );
+    return apiError("Failed to update automation", 500);
   }
 }
 
@@ -171,10 +154,7 @@ export async function DELETE(request: NextRequest) {
   const ruleId = searchParams.get("rule_id");
 
   if (!ruleId) {
-    return NextResponse.json(
-      { error: "rule_id is required" },
-      { status: 400 }
-    );
+    return apiError("rule_id is required", 400);
   }
 
   try {
@@ -183,12 +163,9 @@ export async function DELETE(request: NextRequest) {
       [ruleId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error deleting automation:", error);
-    return NextResponse.json(
-      { error: "Failed to delete automation" },
-      { status: 500 }
-    );
+    return apiError("Failed to delete automation", 500);
   }
 }

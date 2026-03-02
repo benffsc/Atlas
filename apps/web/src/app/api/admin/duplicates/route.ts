@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * Legacy Duplicates API - DEPRECATED
@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
  * The legacy duplicates page now redirects to /admin/data
  */
 export async function GET() {
-  return NextResponse.json({
+  return apiSuccess({
     deprecated: true,
     message: "This endpoint has been deprecated. Use /api/admin/reviews/summary or /api/admin/data-engine/review instead.",
     redirect: "/admin/data?tab=review",
@@ -33,9 +33,5 @@ export async function GET() {
 }
 
 export async function POST() {
-  return NextResponse.json({
-    deprecated: true,
-    error: "This endpoint has been deprecated. Use /api/admin/data-engine/review/[id] for resolving reviews.",
-    success: false,
-  }, { status: 410 });
+  return apiError("This endpoint has been deprecated. Use /api/admin/data-engine/review/[id] for resolving reviews.", 410);
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/auth/status
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     // Get aggregate stats
@@ -68,15 +69,12 @@ export async function GET(request: NextRequest) {
       ORDER BY s.display_name`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       stats,
       staff: staffList,
     });
   } catch (error) {
     console.error("Auth status error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch auth status" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch auth status", 500);
   }
 }

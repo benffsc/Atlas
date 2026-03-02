@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface DedupCandidate {
   canonical_person_id: string;
@@ -98,31 +99,25 @@ export async function GET(request: NextRequest) {
       `SELECT * FROM sot.v_person_dedup_summary`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       candidates,
       summary,
       pagination: { tier, limit, offset, hasMore: candidates.length === limit },
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching person dedup candidates:", error);
     if (error instanceof Error && error.message.includes("does not exist")) {
-      return NextResponse.json({
+      return apiSuccess({
         candidates: [],
         summary: [],
         pagination: { tier, limit, offset, hasMore: false },
         note: "Migration MIG_801 needs to be applied",
       });
     }
-    return NextResponse.json(
-      { error: "Failed to fetch person dedup candidates" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch person dedup candidates", 500);
   }
 }
 
@@ -135,10 +130,7 @@ export async function POST(request: NextRequest) {
     const { action, pairs } = body;
 
     if (!action || !["merge", "keep_separate", "dismiss"].includes(action)) {
-      return NextResponse.json(
-        { error: "action must be 'merge', 'keep_separate', or 'dismiss'" },
-        { status: 400 }
-      );
+      return apiError("action must be 'merge', 'keep_separate', or 'dismiss'", 400);
     }
 
     // Support single pair or batch
@@ -146,10 +138,7 @@ export async function POST(request: NextRequest) {
       pairs || [{ canonical_person_id: body.canonical_person_id, duplicate_person_id: body.duplicate_person_id }];
 
     if (!pairList.length || !pairList[0].canonical_person_id || !pairList[0].duplicate_person_id) {
-      return NextResponse.json(
-        { error: "canonical_person_id and duplicate_person_id are required" },
-        { status: 400 }
-      );
+      return apiError("canonical_person_id and duplicate_person_id are required", 400);
     }
 
     const results: { canonical_person_id: string; duplicate_person_id: string; success: boolean; error?: string }[] = [];
@@ -228,7 +217,7 @@ export async function POST(request: NextRequest) {
     const successCount = results.filter((r) => r.success).length;
     const errorCount = results.filter((r) => !r.success).length;
 
-    return NextResponse.json({
+    return apiSuccess({
       action,
       total: results.length,
       success: successCount,
@@ -237,15 +226,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error resolving person dedup:", error);
-    return NextResponse.json(
-      { error: "Failed to resolve person dedup" },
-      { status: 500 }
-    );
+    return apiError("Failed to resolve person dedup", 500);
   }
 }

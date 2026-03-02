@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface Org {
   id: string;
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       organizations: orgs,
       org_types: orgTypes,
       stats: stats || {
@@ -119,10 +120,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching organizations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch organizations" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch organizations", 500);
   }
 }
 
@@ -147,10 +145,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!name || !org_type) {
-      return NextResponse.json(
-        { error: "name and org_type are required" },
-        { status: 400 }
-      );
+      return apiError("name and org_type are required", 400);
     }
 
     // Create place if address provided
@@ -218,12 +213,9 @@ export async function POST(request: NextRequest) {
       await execute(`SELECT * FROM sot.link_all_appointments_to_orgs(500)`);
     }
 
-    return NextResponse.json({ success: true, id: result?.id });
+    return apiSuccess({ success: true, id: result?.id });
   } catch (error) {
     console.error("Error creating organization:", error);
-    return NextResponse.json(
-      { error: "Failed to create organization" },
-      { status: 500 }
-    );
+    return apiError("Failed to create organization", 500);
   }
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { getSession, hashPassword } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * POST /api/admin/auth/set-default-passwords
@@ -14,16 +15,13 @@ export async function POST(request: NextRequest) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     // Default password from environment variable (secure)
     const DEFAULT_PASSWORD = process.env.STAFF_DEFAULT_PASSWORD;
     if (!DEFAULT_PASSWORD) {
-      return NextResponse.json(
-        { error: "STAFF_DEFAULT_PASSWORD environment variable is not configured" },
-        { status: 500 }
-      );
+      return apiError("STAFF_DEFAULT_PASSWORD environment variable is not configured", 500);
     }
 
     // Hash the default password
@@ -38,8 +36,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (staffToUpdate.length === 0) {
-      return NextResponse.json({
-        success: true,
+      return apiSuccess({
         message: "All active staff members already have passwords set.",
         updated_count: 0,
         staff_updated: [],
@@ -57,8 +54,7 @@ export async function POST(request: NextRequest) {
       [passwordHash]
     );
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Default password set for ${staffToUpdate.length} staff members. They will be required to change it on first login.`,
       updated_count: staffToUpdate.length,
       staff_updated: staffToUpdate.map((s) => ({
@@ -69,9 +65,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Set default passwords error:", error);
-    return NextResponse.json(
-      { error: "Failed to set default passwords" },
-      { status: 500 }
-    );
+    return apiError("Failed to set default passwords", 500);
   }
 }

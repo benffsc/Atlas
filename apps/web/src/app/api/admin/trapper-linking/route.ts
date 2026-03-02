@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface PendingTrapperLink {
   pending_id: string;
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
       FROM ops.pending_trapper_links`
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       pending,
       counts: counts || { pending: 0, linked: 0, created: 0, dismissed: 0 },
       pagination: { limit, offset, hasMore: pending.length === limit },
@@ -83,17 +84,14 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching pending trapper links:", error);
     // Return empty result if table doesn't exist yet
     if (error instanceof Error && error.message.includes("does not exist")) {
-      return NextResponse.json({
+      return apiSuccess({
         pending: [],
         counts: { pending: 0, linked: 0, created: 0, dismissed: 0 },
         pagination: { limit, offset, hasMore: false },
         note: "MIG_558 needs to be applied",
       });
     }
-    return NextResponse.json(
-      { error: "Failed to fetch pending trapper links" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch pending trapper links", 500);
   }
 }
 
@@ -107,24 +105,15 @@ export async function POST(request: NextRequest) {
     const { pending_id, person_id, action, notes } = body;
 
     if (!pending_id) {
-      return NextResponse.json(
-        { error: "pending_id is required" },
-        { status: 400 }
-      );
+      return apiError("pending_id is required", 400);
     }
 
     if (!["link", "create", "dismiss"].includes(action)) {
-      return NextResponse.json(
-        { error: "action must be 'link', 'create', or 'dismiss'" },
-        { status: 400 }
-      );
+      return apiError("action must be 'link', 'create', or 'dismiss'", 400);
     }
 
     if (action !== "dismiss" && !person_id) {
-      return NextResponse.json(
-        { error: "person_id is required for link/create actions" },
-        { status: 400 }
-      );
+      return apiError("person_id is required for link/create actions", 400);
     }
 
     const result = await queryOne<{ resolve_pending_trapper_link: { success: boolean; error?: string; person_id?: string } }>(
@@ -135,13 +124,10 @@ export async function POST(request: NextRequest) {
     const response = result?.resolve_pending_trapper_link;
 
     if (!response?.success) {
-      return NextResponse.json(
-        { error: response?.error || "Failed to resolve" },
-        { status: 400 }
-      );
+      return apiError(response?.error || "Failed to resolve", 400);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       pending_id,
       person_id: response.person_id,
@@ -149,9 +135,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error resolving pending trapper link:", error);
-    return NextResponse.json(
-      { error: "Failed to resolve pending trapper link" },
-      { status: 500 }
-    );
+    return apiError("Failed to resolve pending trapper link", 500);
   }
 }

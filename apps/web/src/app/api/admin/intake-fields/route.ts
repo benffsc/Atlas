@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
 import { syncFieldToAirtable, isAirtableSyncConfigured, CustomFieldForSync } from "@/lib/airtable-sync";
+import { apiSuccess, apiBadRequest, apiConflict, apiServerError } from "@/lib/api-response";
 
 interface CustomField {
   field_id: string;
@@ -31,13 +32,10 @@ export async function GET() {
       ORDER BY display_order, created_at
     `);
 
-    return NextResponse.json({ fields });
+    return apiSuccess({ fields });
   } catch (err) {
     console.error("Error fetching custom fields:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch custom fields" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch custom fields");
   }
 }
 
@@ -61,35 +59,23 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!field_key || !field_label || !field_type) {
-      return NextResponse.json(
-        { error: "field_key, field_label, and field_type are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("field_key, field_label, and field_type are required");
     }
 
     // Validate field_key format (snake_case)
     if (!/^[a-z][a-z0-9_]*$/.test(field_key)) {
-      return NextResponse.json(
-        { error: "field_key must be lowercase snake_case (e.g., my_field_name)" },
-        { status: 400 }
-      );
+      return apiBadRequest("field_key must be lowercase snake_case (e.g., my_field_name)");
     }
 
     // Validate field type
     const validTypes = ["text", "textarea", "number", "select", "multiselect", "checkbox", "date", "phone", "email"];
     if (!validTypes.includes(field_type)) {
-      return NextResponse.json(
-        { error: `Invalid field_type. Must be one of: ${validTypes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid field_type. Must be one of: ${validTypes.join(", ")}`);
     }
 
     // For select/multiselect, options are required
     if ((field_type === "select" || field_type === "multiselect") && (!options || options.length === 0)) {
-      return NextResponse.json(
-        { error: "Options are required for select/multiselect fields" },
-        { status: 400 }
-      );
+      return apiBadRequest("Options are required for select/multiselect fields");
     }
 
     const result = await queryOne<CustomField>(`
@@ -149,7 +135,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       field: result,
       airtable_sync: airtableSync,
     });
@@ -158,15 +144,9 @@ export async function POST(request: NextRequest) {
 
     // Check for unique constraint violation
     if (err instanceof Error && err.message?.includes("unique")) {
-      return NextResponse.json(
-        { error: "A field with this key already exists" },
-        { status: 409 }
-      );
+      return apiConflict("A field with this key already exists");
     }
 
-    return NextResponse.json(
-      { error: "Failed to create custom field" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create custom field");
   }
 }

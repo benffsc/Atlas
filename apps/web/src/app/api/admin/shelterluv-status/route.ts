@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 export async function GET(_request: NextRequest) {
   try {
@@ -17,12 +18,9 @@ export async function GET(_request: NextRequest) {
        ORDER BY sync_type`
     );
 
-    return NextResponse.json({ status });
+    return apiSuccess({ status });
   } catch (error) {
     console.error("Error fetching ShelterLuv status:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch status", status: [] },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch status", 500);
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryOne, execute } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface Department {
   org_id: string;
@@ -52,7 +53,7 @@ export async function GET() {
     const depts = departments.filter((d) => d.org_type === "department");
     const teams = departments.filter((d) => d.org_type === "team");
 
-    return NextResponse.json({
+    return apiSuccess({
       departments,
       hierarchy: {
         ffsc,
@@ -67,10 +68,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching FFSC departments:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch departments" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch departments", 500);
   }
 }
 
@@ -86,17 +84,11 @@ export async function POST(request: NextRequest) {
       body;
 
     if (!org_code || !display_name || !org_type) {
-      return NextResponse.json(
-        { error: "org_code, display_name, and org_type are required" },
-        { status: 400 }
-      );
+      return apiError("org_code, display_name, and org_type are required", 400);
     }
 
     if (!["department", "team"].includes(org_type)) {
-      return NextResponse.json(
-        { error: "org_type must be 'department' or 'team'" },
-        { status: 400 }
-      );
+      return apiError("org_type must be 'department' or 'team'", 400);
     }
 
     // Get FFSC parent if not specified
@@ -118,7 +110,7 @@ export async function POST(request: NextRequest) {
       [org_code, display_name, org_type, description || null, parentId]
     );
 
-    return NextResponse.json({ success: true, org_id: result?.org_id });
+    return apiSuccess({ success: true, org_id: result?.org_id });
   } catch (error) {
     console.error("Error creating department:", error);
 
@@ -127,16 +119,10 @@ export async function POST(request: NextRequest) {
       error instanceof Error &&
       error.message.includes("organizations_org_code_key")
     ) {
-      return NextResponse.json(
-        { error: "A department with this code already exists" },
-        { status: 400 }
-      );
+      return apiError("A department with this code already exists", 400);
     }
 
-    return NextResponse.json(
-      { error: "Failed to create department" },
-      { status: 500 }
-    );
+    return apiError("Failed to create department", 500);
   }
 }
 
@@ -152,7 +138,7 @@ export async function PATCH(request: NextRequest) {
     const { org_id, display_name, description } = body;
 
     if (!org_id) {
-      return NextResponse.json({ error: "org_id is required" }, { status: 400 });
+      return apiError("org_id is required", 400);
     }
 
     const updates: string[] = [];
@@ -172,10 +158,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (updates.length === 0) {
-      return NextResponse.json(
-        { error: "No fields to update" },
-        { status: 400 }
-      );
+      return apiError("No fields to update", 400);
     }
 
     updates.push(`updated_at = NOW()`);
@@ -192,18 +175,12 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Department not found" },
-        { status: 404 }
-      );
+      return apiError("Department not found", 404);
     }
 
-    return NextResponse.json({ success: true, org_id: result.org_id });
+    return apiSuccess({ success: true, org_id: result.org_id });
   } catch (error) {
     console.error("Error updating department:", error);
-    return NextResponse.json(
-      { error: "Failed to update department" },
-      { status: 500 }
-    );
+    return apiError("Failed to update department", 500);
   }
 }

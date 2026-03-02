@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface PartnerOrg {
   org_id: string;
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       organizations: orgs,
       stats: stats || {
         total_org_appts: 0,
@@ -95,10 +96,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching partner organizations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch partner organizations" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch partner organizations", 500);
   }
 }
 
@@ -119,10 +117,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!org_name || !org_type) {
-      return NextResponse.json(
-        { error: "org_name and org_type are required" },
-        { status: 400 }
-      );
+      return apiError("org_name and org_type are required", 400);
     }
 
     // Create place if address provided
@@ -167,12 +162,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, org_id: result?.org_id });
+    return apiSuccess({ success: true, org_id: result?.org_id });
   } catch (error) {
     console.error("Error creating partner organization:", error);
-    return NextResponse.json(
-      { error: "Failed to create partner organization" },
-      { status: 500 }
-    );
+    return apiError("Failed to create partner organization", 500);
   }
 }

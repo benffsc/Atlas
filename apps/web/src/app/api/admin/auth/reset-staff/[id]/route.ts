@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession, hashPassword } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id: staffId } = await params;
@@ -23,10 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Default password from environment variable (secure)
     const DEFAULT_PASSWORD = process.env.STAFF_DEFAULT_PASSWORD;
     if (!DEFAULT_PASSWORD) {
-      return NextResponse.json(
-        { error: "STAFF_DEFAULT_PASSWORD environment variable is not configured" },
-        { status: 500 }
-      );
+      return apiError("STAFF_DEFAULT_PASSWORD environment variable is not configured", 500);
     }
     const passwordHash = await hashPassword(DEFAULT_PASSWORD);
 
@@ -46,14 +44,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Staff member not found or inactive" },
-        { status: 404 }
-      );
+      return apiError("Staff member not found or inactive", 404);
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Password reset for ${result.display_name}. They will need to change it on next login.`,
       staff: {
         display_name: result.display_name,
@@ -63,9 +57,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Reset staff password error:", error);
-    return NextResponse.json(
-      { error: "Failed to reset password" },
-      { status: 500 }
-    );
+    return apiError("Failed to reset password", 500);
   }
 }

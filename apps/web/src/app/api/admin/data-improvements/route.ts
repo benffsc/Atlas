@@ -1,6 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryOne, query } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryRows, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import {
+  apiSuccess,
+  apiForbidden,
+  apiBadRequest,
+  apiServerError,
+} from "@/lib/api-response";
 
 /**
  * GET /api/admin/data-improvements
@@ -11,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const { searchParams } = new URL(request.url);
@@ -105,21 +111,13 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
-      improvements,
-      counts,
-      pagination: {
-        limit,
-        offset,
-        hasMore: improvements.length === limit,
-      },
-    });
+    return apiSuccess(
+      { improvements, counts },
+      { limit, offset, hasMore: improvements.length === limit }
+    );
   } catch (error) {
     console.error("Data improvements list error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch improvements" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch improvements");
   }
 }
 
@@ -132,7 +130,7 @@ export async function POST(request: NextRequest) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiForbidden("Admin access required");
     }
 
     const body = await request.json();
@@ -149,10 +147,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!title || !description || !category) {
-      return NextResponse.json(
-        { error: "Missing required fields: title, description, category" },
-        { status: 400 }
-      );
+      return apiBadRequest("Missing required fields: title, description, category");
     }
 
     // Validate category
@@ -166,10 +161,7 @@ export async function POST(request: NextRequest) {
       "other",
     ];
     if (!validCategories.includes(category)) {
-      return NextResponse.json(
-        { error: `Invalid category. Must be one of: ${validCategories.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid category. Must be one of: ${validCategories.join(", ")}`);
     }
 
     const improvement = await queryOne<{ improvement_id: string; created_at: string }>(
@@ -200,21 +192,14 @@ export async function POST(request: NextRequest) {
     );
 
     if (!improvement) {
-      return NextResponse.json(
-        { error: "Failed to create improvement" },
-        { status: 500 }
-      );
+      return apiServerError("Failed to create improvement");
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       improvement_id: improvement.improvement_id,
     });
   } catch (error) {
     console.error("Data improvement create error:", error);
-    return NextResponse.json(
-      { error: "Failed to create improvement" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create improvement");
   }
 }

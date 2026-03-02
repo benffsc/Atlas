@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * Merge Review API
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
       FROM ops.v_tier4_pending_review
     `, []);
 
-    return NextResponse.json({
+    return apiSuccess({
       reviews,
       pagination: {
         total: countResult?.count || 0,
@@ -117,9 +118,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching merge reviews:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiError(error instanceof Error ? error.message : "Unknown error", 500);
   }
 }

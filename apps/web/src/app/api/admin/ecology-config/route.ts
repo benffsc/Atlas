@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, query } from "@/lib/db";
 import { getCurrentUser, getAdminUser } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface EcologyConfigRow {
   config_id: string;
@@ -34,18 +35,13 @@ export async function GET() {
 
     const configs = await queryRows<EcologyConfigRow>(sql);
 
-    return NextResponse.json({ configs }, {
-      headers: {
-        // Cache config for 10 minutes - rarely changes
-        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
-      }
-    });
+    const response = apiSuccess({ configs });
+    // Cache config for 10 minutes - rarely changes
+    response.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200');
+    return response;
   } catch (error) {
     console.error("Error fetching ecology config:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch ecology config" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch ecology config");
   }
 }
 
@@ -55,10 +51,7 @@ export async function POST(request: NextRequest) {
     const { config_key, config_value, reason } = body;
 
     if (!config_key || config_value === undefined) {
-      return NextResponse.json(
-        { success: false, message: "config_key and config_value are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("config_key and config_value are required");
     }
 
     // Get user context (admin endpoints default to "admin" if no auth)
@@ -85,23 +78,16 @@ export async function POST(request: NextRequest) {
     const row = result.rows[0];
 
     if (!row.success) {
-      return NextResponse.json(
-        { success: false, message: row.message },
-        { status: 400 }
-      );
+      return apiBadRequest(row.message);
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: row.message,
       old_value: row.old_value,
       new_value: row.new_value,
     });
   } catch (error) {
     console.error("Error updating ecology config:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to update ecology config" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update ecology config");
   }
 }

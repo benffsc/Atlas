@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/identity-health
@@ -14,18 +14,15 @@ export async function GET() {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Failed to fetch health data" },
-        { status: 500 }
-      );
+      return apiError("Failed to fetch health data", 500);
     }
 
-    return NextResponse.json(result.check_identity_health);
+    return apiSuccess(result.check_identity_health);
   } catch (error) {
     console.error("Identity health check error:", error);
 
     // If the function doesn't exist yet (migrations not run), return placeholder
-    return NextResponse.json({
+    return apiSuccess({
       status: "unknown",
       checked_at: new Date().toISOString(),
       metrics: {

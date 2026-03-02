@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface VerifyRequest {
   table: string;
@@ -36,18 +37,12 @@ export async function POST(request: NextRequest) {
     const { table, record_id, staff_id } = body;
 
     if (!table || !record_id) {
-      return NextResponse.json(
-        { error: "table and record_id are required" },
-        { status: 400 }
-      );
+      return apiError("table and record_id are required", 400);
     }
 
     const tableName = ALLOWED_TABLES[table];
     if (!tableName) {
-      return NextResponse.json(
-        { error: `Invalid table: ${table}. Allowed: ${Object.keys(ALLOWED_TABLES).join(", ")}` },
-        { status: 400 }
-      );
+      return apiError(`Invalid table: ${table}. Allowed: ${Object.keys(ALLOWED_TABLES).join(", ")}`, 400);
     }
 
     const idColumn = ID_COLUMNS[tableName];
@@ -66,22 +61,16 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Record not found" },
-        { status: 404 }
-      );
+      return apiError("Record not found", 404);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       verified_at: result.verified_at,
     });
   } catch (error) {
     console.error("Error verifying record:", error);
-    return NextResponse.json(
-      { error: "Failed to verify record" },
-      { status: 500 }
-    );
+    return apiError("Failed to verify record", 500);
   }
 }
 
@@ -93,18 +82,12 @@ export async function DELETE(request: NextRequest) {
     const record_id = searchParams.get("record_id");
 
     if (!table || !record_id) {
-      return NextResponse.json(
-        { error: "table and record_id are required" },
-        { status: 400 }
-      );
+      return apiError("table and record_id are required", 400);
     }
 
     const tableName = ALLOWED_TABLES[table];
     if (!tableName) {
-      return NextResponse.json(
-        { error: `Invalid table: ${table}` },
-        { status: 400 }
-      );
+      return apiError(`Invalid table: ${table}`, 400);
     }
 
     const idColumn = ID_COLUMNS[tableName];
@@ -120,19 +103,13 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Record not found" },
-        { status: 404 }
-      );
+      return apiError("Record not found", 404);
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Error unverifying record:", error);
-    return NextResponse.json(
-      { error: "Failed to unverify record" },
-      { status: 500 }
-    );
+    return apiError("Failed to unverify record", 500);
   }
 }
 
@@ -190,15 +167,12 @@ export async function GET(request: NextRequest) {
          WHERE source_type = 'ai_parsed'`
       );
 
-      return NextResponse.json({ counts });
+      return apiSuccess({ counts });
     }
 
     const tableName = ALLOWED_TABLES[table];
     if (!tableName) {
-      return NextResponse.json(
-        { error: `Invalid table: ${table}` },
-        { status: 400 }
-      );
+      return apiError(`Invalid table: ${table}`, 400);
     }
 
     const idColumn = ID_COLUMNS[tableName];
@@ -223,7 +197,7 @@ export async function GET(request: NextRequest) {
         [ids]
       );
 
-      return NextResponse.json({ records });
+      return apiSuccess({ records });
     }
 
     // Return unverified records for this table
@@ -243,12 +217,9 @@ export async function GET(request: NextRequest) {
       []
     );
 
-    return NextResponse.json({ unverified });
+    return apiSuccess({ unverified });
   } catch (error) {
     console.error("Error getting verification status:", error);
-    return NextResponse.json(
-      { error: "Failed to get verification status" },
-      { status: 500 }
-    );
+    return apiError("Failed to get verification status", 500);
   }
 }

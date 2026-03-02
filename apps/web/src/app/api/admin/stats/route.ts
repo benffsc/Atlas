@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiError } from "@/lib/api-response";
 
 // Cache stats for 5 minutes - they don't need to be real-time
 export const revalidate = 300;
@@ -96,9 +97,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("Error fetching admin stats:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch stats" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch stats", 500);
   }
 }

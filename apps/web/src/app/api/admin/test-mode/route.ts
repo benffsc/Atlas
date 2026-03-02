@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { queryOne, query, queryRows } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { queryOne, query } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * Test Mode API
@@ -20,7 +21,7 @@ import { queryOne, query, queryRows } from "@/lib/db";
  */
 
 // Production guard - prevent destructive operations in production
-function checkTestModeAllowed(): NextResponse | null {
+function checkTestModeAllowed(): Response | null {
   // Allow in development
   if (process.env.NODE_ENV === "development") {
     return null;
@@ -28,12 +29,9 @@ function checkTestModeAllowed(): NextResponse | null {
 
   // In production, only allow if explicitly enabled
   if (process.env.ALLOW_TEST_MODE !== "true") {
-    return NextResponse.json(
-      {
-        error: "Test mode is disabled in production",
-        hint: "Set ALLOW_TEST_MODE=true to enable (NOT RECOMMENDED for production databases)",
-      },
-      { status: 403 }
+    return apiError(
+      "Test mode is disabled in production. Set ALLOW_TEST_MODE=true to enable (NOT RECOMMENDED for production databases)",
+      403
     );
   }
 
@@ -73,13 +71,13 @@ export async function GET() {
     `);
 
     if (!result) {
-      return NextResponse.json({
+      return apiSuccess({
         test_mode_active: false,
         message: "Test mode is not active",
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       test_mode_active: result.is_active,
       started_at: result.started_at,
       started_by: result.started_by,
@@ -87,7 +85,7 @@ export async function GET() {
     });
   } catch (error) {
     // Table might not exist yet
-    return NextResponse.json({
+    return apiSuccess({
       test_mode_active: false,
       message: "Test mode not initialized",
     });
@@ -123,10 +121,7 @@ export async function POST(request: NextRequest) {
     `);
 
     if (existing?.is_active) {
-      return NextResponse.json(
-        { error: "Test mode is already active. Disable it first before starting a new session." },
-        { status: 400 }
-      );
+      return apiError("Test mode is already active. Disable it first before starting a new session.", 400);
     }
 
     // Create backup tables
@@ -167,7 +162,7 @@ export async function POST(request: NextRequest) {
       VALUES (TRUE, $1, $2)
     `, [startedBy, backedUpTables]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       test_mode_active: true,
       tables_backed_up: backedUpTables,
@@ -176,10 +171,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error enabling test mode:", error);
-    return NextResponse.json(
-      { error: "Failed to enable test mode" },
-      { status: 500 }
-    );
+    return apiError("Failed to enable test mode", 500);
   }
 }
 
@@ -207,10 +199,7 @@ export async function DELETE(request: NextRequest) {
     `);
 
     if (!session) {
-      return NextResponse.json(
-        { error: "No active test mode session to disable" },
-        { status: 400 }
-      );
+      return apiError("No active test mode session to disable", 400);
     }
 
     const restoredTables: string[] = [];
@@ -263,7 +252,7 @@ export async function DELETE(request: NextRequest) {
       WHERE id = $1
     `, [session.id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       test_mode_active: false,
       changes_kept: keepChanges,
@@ -275,9 +264,6 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error disabling test mode:", error);
-    return NextResponse.json(
-      { error: "Failed to disable test mode" },
-      { status: 500 }
-    );
+    return apiError("Failed to disable test mode", 500);
   }
 }

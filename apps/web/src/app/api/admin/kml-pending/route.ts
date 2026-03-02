@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { apiSuccess, apiError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 /**
  * Google Map Entries API (Review Queue)
@@ -88,17 +89,13 @@ export async function GET(request: NextRequest) {
       counts.map((c) => [c.match_status, parseInt(c.count)])
     );
 
-    return NextResponse.json({
-      entries,
-      counts: statusCounts,
-      pagination: { limit, offset },
-    });
+    return apiSuccess(
+      { entries, counts: statusCounts },
+      { limit, offset }
+    );
   } catch (error) {
     console.error("Error fetching Google Map entries:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch Google Map entries" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch Google Map entries", 500);
   }
 }
 
@@ -133,13 +130,10 @@ export async function PATCH(request: NextRequest) {
       );
 
       if (!result?.success) {
-        return NextResponse.json(
-          { error: result?.error || "Failed to link entry" },
-          { status: 400 }
-        );
+        return apiBadRequest(result?.error || "Failed to link entry");
       }
 
-      return NextResponse.json(result);
+      return apiSuccess(result);
     } else if (body.ai_summary) {
       // Update AI summary
       const summaryBody = body as AiSummaryBody;
@@ -153,24 +147,15 @@ export async function PATCH(request: NextRequest) {
       );
 
       if (!result?.found) {
-        return NextResponse.json(
-          { error: "Entry not found" },
-          { status: 404 }
-        );
+        return apiNotFound("Entry");
       }
 
-      return NextResponse.json({ success: true });
+      return apiSuccess({ updated: true });
     } else {
-      return NextResponse.json(
-        { error: "Must provide either place_id (to link) or ai_summary (to update)" },
-        { status: 400 }
-      );
+      return apiBadRequest("Must provide either place_id (to link) or ai_summary (to update)");
     }
   } catch (error) {
     console.error("Error updating Google Map entry:", error);
-    return NextResponse.json(
-      { error: "Failed to update entry" },
-      { status: 500 }
-    );
+    return apiError("Failed to update entry", 500);
   }
 }

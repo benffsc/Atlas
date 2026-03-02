@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * AI Extraction Progress Tracker API
@@ -148,7 +148,7 @@ export async function GET() {
     const totalClassified = googleMaps?.classified || 0;
     const totalAttributes = attributesByType.rows.reduce((sum, r) => sum + parseInt(r.count), 0);
 
-    return NextResponse.json({
+    return apiSuccess({
       status: "ok",
       generated_at: new Date().toISOString(),
       summary: {
@@ -190,9 +190,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("AI extraction status error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiError(error instanceof Error ? error.message : "Unknown error", 500);
   }
 }

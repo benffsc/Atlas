@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 /**
  * Admin Query Endpoint for E2E Testing
@@ -26,10 +27,7 @@ const ALLOWED_VIEWS = [
 export async function GET(request: NextRequest) {
   // Only allow in development/test
   if (process.env.NODE_ENV === "production") {
-    return NextResponse.json(
-      { error: "Not available in production" },
-      { status: 403 }
-    );
+    return apiError("Not available in production", 403);
   }
 
   const searchParams = request.nextUrl.searchParams;
@@ -38,18 +36,12 @@ export async function GET(request: NextRequest) {
   const limit = searchParams.get("limit");
 
   if (!viewName) {
-    return NextResponse.json(
-      { error: "view parameter is required" },
-      { status: 400 }
-    );
+    return apiError("view parameter is required", 400);
   }
 
   // Validate view name is in whitelist
   if (!ALLOWED_VIEWS.includes(viewName)) {
-    return NextResponse.json(
-      { error: `View ${viewName} is not in the allowed list` },
-      { status: 400 }
-    );
+    return apiError(`View ${viewName} is not in the allowed list`, 400);
   }
 
   try {
@@ -81,14 +73,12 @@ export async function GET(request: NextRequest) {
 
     const rows = await queryRows(query);
 
-    return NextResponse.json(rows);
+    return apiSuccess(rows);
   } catch (error) {
     console.error("Query error:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Query failed",
-      },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : "Query failed",
+      500
     );
   }
 }

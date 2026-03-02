@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError, apiConflict } from "@/lib/api-response";
 
 interface KnownOrganization {
   org_id: string;
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
       `
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       organizations: orgs,
       stats: stats || {
         total_orgs: 0,
@@ -159,10 +160,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching known organizations:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch known organizations" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch known organizations");
   }
 }
 
@@ -194,19 +192,13 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!canonical_name) {
-      return NextResponse.json(
-        { error: "canonical_name is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("canonical_name is required");
     }
 
     // Valid org types
     const validOrgTypes = ["shelter", "rescue", "clinic", "municipal", "partner", "other"];
     if (org_type && !validOrgTypes.includes(org_type)) {
-      return NextResponse.json(
-        { error: `Invalid org_type. Must be one of: ${validOrgTypes.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Invalid org_type. Must be one of: ${validOrgTypes.join(", ")}`);
     }
 
     // Auto-generate name patterns if not provided
@@ -289,24 +281,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      organization: result,
-    });
+    return apiSuccess({ organization: result });
   } catch (error: unknown) {
     console.error("Error creating known organization:", error);
 
     // Check for unique constraint violation
     if (error instanceof Error && error.message?.includes("unique")) {
-      return NextResponse.json(
-        { error: "An organization with this name already exists" },
-        { status: 409 }
-      );
+      return apiConflict("An organization with this name already exists");
     }
 
-    return NextResponse.json(
-      { error: "Failed to create known organization" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create known organization");
   }
 }

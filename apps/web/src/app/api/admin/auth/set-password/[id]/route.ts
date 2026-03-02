@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession, hashPassword } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return apiError("Admin access required", 403);
     }
 
     const { id: staffId } = await params;
@@ -23,10 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { password } = body;
 
     if (!password || password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
-        { status: 400 }
-      );
+      return apiError("Password must be at least 6 characters", 400);
     }
 
     const passwordHash = await hashPassword(password);
@@ -43,14 +41,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
 
     if (!result) {
-      return NextResponse.json(
-        { error: "Staff member not found or inactive" },
-        { status: 404 }
-      );
+      return apiError("Staff member not found or inactive", 404);
     }
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: `Password set for ${result.display_name}`,
       staff: {
         display_name: result.display_name,
@@ -59,9 +53,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Set password error:", error);
-    return NextResponse.json(
-      { error: "Failed to set password" },
-      { status: 500 }
-    );
+    return apiError("Failed to set password", 500);
   }
 }

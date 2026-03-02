@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase, MEDIA_BUCKET } from "@/lib/supabase";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 // V1 → V2 Cat Photo Migration
 // Downloads photos from V1 public storage and uploads to V2
@@ -103,10 +103,7 @@ export const maxDuration = 300;
 
 export async function POST() {
   if (!supabase) {
-    return NextResponse.json(
-      { error: "Supabase not configured" },
-      { status: 500 }
-    );
+    return apiError("Supabase not configured", 500);
   }
 
   const results = {
@@ -171,7 +168,7 @@ export async function POST() {
     }
   }
 
-  return NextResponse.json(results);
+  return apiSuccess(results);
 }
 
 // Fetch V1 photo paths - this list is pre-computed from the V1 database

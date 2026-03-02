@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError, getCurrentUser } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 import { parseStringPromise } from "xml2js";
 import JSZip from "jszip";
 
@@ -216,7 +217,7 @@ export async function GET(request: NextRequest) {
       LIMIT 20
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       stats,
       totals: totals[0] || { total: 0, with_icons: 0, synced: 0 },
       lastSyncedAt: lastSync[0]?.last_synced_at || null,
@@ -235,13 +236,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching Google Maps sync status:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiError(error instanceof Error ? error.message : "Unknown error", 500);
   }
 }
 
@@ -254,17 +252,14 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return apiError("No file provided", 400);
     }
 
     const isKmz = file.name.endsWith(".kmz");
     const isKml = file.name.endsWith(".kml");
 
     if (!isKmz && !isKml) {
-      return NextResponse.json(
-        { error: "File must be a .kmz or .kml file" },
-        { status: 400 }
-      );
+      return apiError("File must be a .kmz or .kml file", 400);
     }
 
     let kmlContent: string;
@@ -281,10 +276,7 @@ export async function POST(request: NextRequest) {
           // Try to find any .kml file
           const kmlFiles = Object.keys(zip.files).filter(name => name.endsWith(".kml"));
           if (kmlFiles.length === 0) {
-            return NextResponse.json(
-              { error: "No KML file found in KMZ archive" },
-              { status: 400 }
-            );
+            return apiError("No KML file found in KMZ archive", 400);
           }
           kmlContent = await zip.file(kmlFiles[0])!.async("string");
         } else {
@@ -299,10 +291,7 @@ export async function POST(request: NextRequest) {
       const placemarks = extractPlacemarks(result.kml);
 
       if (placemarks.length === 0) {
-        return NextResponse.json(
-          { error: "No placemarks found in the file. It may be a NetworkLink file - please download the full KMZ export." },
-          { status: 400 }
-        );
+        return apiError("No placemarks found in the file. It may be a NetworkLink file - please download the full KMZ export.", 400);
       }
 
       // Stage the import (centralized ingest pattern)
@@ -334,13 +323,10 @@ export async function POST(request: NextRequest) {
       `, [importResult.import_id]);
 
       if (!processResult?.result?.success) {
-        return NextResponse.json(
-          { error: processResult?.result?.error || "Processing failed" },
-          { status: 500 }
-        );
+        return apiError(processResult?.result?.error || "Processing failed", 500);
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         import_id: importResult.import_id,
         result: {
@@ -352,19 +338,13 @@ export async function POST(request: NextRequest) {
       });
     } catch (error) {
       console.error("Error processing KMZ/KML:", error);
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Failed to process file" },
-        { status: 500 }
-      );
+      return apiError(error instanceof Error ? error.message : "Failed to process file", 500);
     }
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error syncing Google Maps data:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return apiError(error instanceof Error ? error.message : "Unknown error", 500);
   }
 }

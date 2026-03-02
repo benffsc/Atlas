@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryRows } from "@/lib/db";
 import { getConnectedAccounts, sendOutlookEmail, sendTemplatedOutlookEmail, isOutlookConfigured } from "@/lib/outlook";
 import { sendTemplateEmail, getEmailTemplate } from "@/lib/email";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface EmailTemplate {
   template_id: string;
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     // Check if Resend fallback is configured
     const resendConfigured = !!process.env.RESEND_API_KEY;
 
-    return NextResponse.json({
+    return apiSuccess({
       outlookAccounts: outlookAccounts.filter(a => !a.token_expired && !a.connection_error),
       templates,
       hasOutlook: outlookConfigured && outlookAccounts.length > 0,
@@ -47,16 +48,10 @@ export async function GET(request: NextRequest) {
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json(
-        { error: authError.message },
-        { status: authError.statusCode }
-      );
+      return apiError(authError.message, authError.statusCode);
     }
 
-    return NextResponse.json(
-      { error: "Failed to get email options" },
-      { status: 500 }
-    );
+    return apiError("Failed to get email options", 500);
   }
 }
 
@@ -85,17 +80,17 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!to || typeof to !== "string" || !to.includes("@")) {
-      return NextResponse.json({ error: "Valid email address is required" }, { status: 400 });
+      return apiError("Valid email address is required", 400);
     }
 
     // Must have either a template or custom content
     if (!templateKey && !customBody) {
-      return NextResponse.json({ error: "Either a template or custom body is required" }, { status: 400 });
+      return apiError("Either a template or custom body is required", 400);
     }
 
     // If using custom content, must have subject too
     if (customBody && !customSubject) {
-      return NextResponse.json({ error: "Subject is required for custom emails" }, { status: 400 });
+      return apiError("Subject is required for custom emails", 400);
     }
 
     // Determine sending method
@@ -117,10 +112,10 @@ export async function POST(request: NextRequest) {
         });
 
         if (!result.success) {
-          return NextResponse.json({ error: result.error || "Failed to send email" }, { status: 500 });
+          return apiError(result.error || "Failed to send email", 500);
         }
 
-        return NextResponse.json({
+        return apiSuccess({
           success: true,
           emailId: result.emailId,
           method: "outlook",
@@ -137,10 +132,10 @@ export async function POST(request: NextRequest) {
         });
 
         if (!result.success) {
-          return NextResponse.json({ error: result.error || "Failed to send email" }, { status: 500 });
+          return apiError(result.error || "Failed to send email", 500);
         }
 
-        return NextResponse.json({
+        return apiSuccess({
           success: true,
           method: "outlook",
           account: outlookAccountId,
@@ -149,10 +144,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Fall back to Resend
       if (!process.env.RESEND_API_KEY) {
-        return NextResponse.json(
-          { error: "No email service configured. Connect an Outlook account or configure RESEND_API_KEY." },
-          { status: 503 }
-        );
+        return apiError("No email service configured. Connect an Outlook account or configure RESEND_API_KEY.", 503);
       }
 
       if (templateKey) {
@@ -167,20 +159,17 @@ export async function POST(request: NextRequest) {
         });
 
         if (!result.success) {
-          return NextResponse.json({ error: result.error || "Failed to send email" }, { status: 500 });
+          return apiError(result.error || "Failed to send email", 500);
         }
 
-        return NextResponse.json({
+        return apiSuccess({
           success: true,
           emailId: result.emailId,
           method: "resend",
         });
       } else {
         // Custom emails via Resend not supported yet
-        return NextResponse.json(
-          { error: "Custom emails require an Outlook account. Templates can use Resend." },
-          { status: 400 }
-        );
+        return apiError("Custom emails require an Outlook account. Templates can use Resend.", 400);
       }
     }
   } catch (error) {
@@ -188,15 +177,9 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error && "statusCode" in error) {
       const authError = error as { message: string; statusCode: number };
-      return NextResponse.json(
-        { error: authError.message },
-        { status: authError.statusCode }
-      );
+      return apiError(authError.message, authError.statusCode);
     }
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to send email" },
-      { status: 500 }
-    );
+    return apiError(error instanceof Error ? error.message : "Failed to send email", 500);
   }
 }

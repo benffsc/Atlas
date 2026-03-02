@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicUrl, isStorageAvailable } from "@/lib/supabase";
+import { apiError } from "@/lib/api-response";
 
 interface RouteParams {
   params: Promise<{ path: string[] }>;
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   // Security: prevent directory traversal
   if (relativePath.includes("..") || relativePath.startsWith("/")) {
-    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+    return apiError("Invalid path", 400);
   }
 
   // Redirect to Supabase Storage
@@ -38,8 +39,5 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   // Supabase not available - return error
-  return NextResponse.json(
-    { error: "Storage not configured" },
-    { status: 500 }
-  );
+  return apiError("Storage not configured", 500);
 }

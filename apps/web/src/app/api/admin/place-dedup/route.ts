@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface PlaceDedupCandidate {
   candidate_id: string;
@@ -119,7 +120,7 @@ export async function GET(request: NextRequest) {
       junkAddressCount = 0;
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       candidates,
       summary,
       junkAddressCount,
@@ -127,24 +128,18 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error fetching place dedup candidates:", error);
     if (error instanceof Error && error.message.includes("does not exist")) {
-      return NextResponse.json({
+      return apiSuccess({
         candidates: [],
         summary: [],
         pagination: { tier, limit, offset, hasMore: false },
         note: "Migration MIG_803 needs to be applied",
       });
     }
-    return NextResponse.json(
-      { error: "Failed to fetch place dedup candidates" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch place dedup candidates", 500);
   }
 }
 
@@ -156,10 +151,7 @@ export async function POST(request: NextRequest) {
     const { action, pairs } = body;
 
     if (!action || !["merge", "keep_separate", "dismiss", "refresh_candidates"].includes(action)) {
-      return NextResponse.json(
-        { error: "action must be 'merge', 'keep_separate', 'dismiss', or 'refresh_candidates'" },
-        { status: 400 }
-      );
+      return apiError("action must be 'merge', 'keep_separate', 'dismiss', or 'refresh_candidates'", 400);
     }
 
     if (action === "refresh_candidates") {
@@ -170,7 +162,7 @@ export async function POST(request: NextRequest) {
         tier4_count: number;
         total: number;
       }>(`SELECT * FROM ops.refresh_place_dedup_candidates()`);
-      return NextResponse.json({ action: "refresh_candidates", ...result });
+      return apiSuccess({ action: "refresh_candidates", ...result });
     }
 
     const pairList: { candidate_id: string; canonical_place_id: string; duplicate_place_id: string }[] =
@@ -181,10 +173,7 @@ export async function POST(request: NextRequest) {
       }];
 
     if (!pairList.length || !pairList[0].canonical_place_id || !pairList[0].duplicate_place_id) {
-      return NextResponse.json(
-        { error: "canonical_place_id and duplicate_place_id are required" },
-        { status: 400 }
-      );
+      return apiError("canonical_place_id and duplicate_place_id are required", 400);
     }
 
     const results: { canonical_place_id: string; duplicate_place_id: string; success: boolean; error?: string }[] = [];
@@ -256,7 +245,7 @@ export async function POST(request: NextRequest) {
     const successCount = results.filter((r) => r.success).length;
     const errorCount = results.filter((r) => !r.success).length;
 
-    return NextResponse.json({
+    return apiSuccess({
       action,
       total: results.length,
       success: successCount,
@@ -265,15 +254,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.statusCode }
-      );
+      return apiError(error.message, error.statusCode);
     }
     console.error("Error resolving place dedup:", error);
-    return NextResponse.json(
-      { error: "Failed to resolve place dedup" },
-      { status: 500 }
-    );
+    return apiError("Failed to resolve place dedup", 500);
   }
 }
