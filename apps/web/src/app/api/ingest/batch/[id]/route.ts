@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { isValidUUID } from "@/lib/validation";
 
 interface BatchStatus {
   batch_id: string;
@@ -35,6 +36,10 @@ export async function GET(
 
   if (!batchId) {
     return apiBadRequest("Batch ID is required");
+  }
+
+  if (!isValidUUID(batchId)) {
+    return apiBadRequest("Invalid batch ID format");
   }
 
   try {

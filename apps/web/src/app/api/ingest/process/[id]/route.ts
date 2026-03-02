@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
+import { isValidUUID } from "@/lib/validation";
 import { readFile } from "fs/promises";
 import path from "path";
 import * as XLSX from "xlsx";
@@ -57,6 +58,10 @@ export async function POST(
 
   if (!uploadId) {
     return apiBadRequest("Upload ID is required");
+  }
+
+  if (!isValidUUID(uploadId)) {
+    return apiBadRequest("Invalid upload ID format");
   }
 
   try {

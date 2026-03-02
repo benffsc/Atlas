@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
+import { isValidUUID } from "@/lib/validation";
 
 // Wrap a promise with a timeout that rejects if it takes too long
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -26,6 +27,10 @@ export async function DELETE(
 
   if (!id) {
     return apiBadRequest("Upload ID required");
+  }
+
+  if (!isValidUUID(id)) {
+    return apiBadRequest("Invalid upload ID format");
   }
 
   try {
@@ -75,6 +80,10 @@ export async function PATCH(
 
   if (!id) {
     return apiBadRequest("Upload ID required");
+  }
+
+  if (!isValidUUID(id)) {
+    return apiBadRequest("Invalid upload ID format");
   }
 
   try {
