@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface EmailTemplate {
   template_id: string;
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
       pendingSuggestions = countResult?.count || 0;
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       templates: templatesWithStats,
       userRole: session.auth_role,
       pendingSuggestions,
@@ -90,10 +91,7 @@ export async function GET(request: NextRequest) {
       );
     }
     console.error("Error fetching email templates:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch templates" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch templates");
   }
 }
 
@@ -115,10 +113,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!template_key || !name || !subject || !body_html) {
-      return NextResponse.json(
-        { error: "template_key, name, subject, and body_html are required" },
-        { status: 400 }
-      );
+      return apiBadRequest("template_key, name, subject, and body_html are required");
     }
 
     // Check if key already exists
@@ -128,10 +123,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (existing) {
-      return NextResponse.json(
-        { error: "Template key already exists" },
-        { status: 400 }
-      );
+      return apiBadRequest("Template key already exists");
     }
 
     const result = await queryOne<{ template_id: string }>(`
@@ -149,7 +141,7 @@ export async function POST(request: NextRequest) {
       placeholders ? JSON.stringify(placeholders) : null,
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       template_id: result?.template_id,
     });
@@ -161,10 +153,7 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error("Error creating email template:", error);
-    return NextResponse.json(
-      { error: "Failed to create template" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create template");
   }
 }
 
@@ -178,10 +167,7 @@ export async function PATCH(request: NextRequest) {
     const { template_id, ...updates } = body;
 
     if (!template_id) {
-      return NextResponse.json(
-        { error: "template_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("template_id is required");
     }
 
     // Check if template exists and get restriction status
@@ -192,10 +178,7 @@ export async function PATCH(request: NextRequest) {
     `, [template_id]);
 
     if (!template) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
+      return apiNotFound("template", template_id);
     }
 
     // Staff can only edit unrestricted templates
@@ -238,10 +221,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (setClause.length === 0) {
-      return NextResponse.json(
-        { error: "No valid fields to update" },
-        { status: 400 }
-      );
+      return apiBadRequest("No valid fields to update");
     }
 
     // Track who edited and when
@@ -258,7 +238,7 @@ export async function PATCH(request: NextRequest) {
       values
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
@@ -267,10 +247,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
     console.error("Error updating email template:", error);
-    return NextResponse.json(
-      { error: "Failed to update template" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to update template");
   }
 }
 
@@ -284,10 +261,7 @@ export async function DELETE(request: NextRequest) {
     const templateId = searchParams.get("template_id");
 
     if (!templateId) {
-      return NextResponse.json(
-        { error: "template_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("template_id is required");
     }
 
     await query(
@@ -295,7 +269,7 @@ export async function DELETE(request: NextRequest) {
       [templateId]
     );
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
@@ -304,9 +278,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
     console.error("Error deleting email template:", error);
-    return NextResponse.json(
-      { error: "Failed to delete template" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to delete template");
   }
 }

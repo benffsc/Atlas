@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryOne, query, queryRows } from "@/lib/db";
 import { sendOutlookEmail } from "@/lib/outlook";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface EmailBatch {
   batch_id: string;
@@ -47,7 +48,7 @@ export async function GET(
     `, [id]);
 
     if (!batch) {
-      return NextResponse.json({ error: "Email batch not found" }, { status: 404 });
+      return apiNotFound("email batch", id);
     }
 
     // Get linked requests
@@ -73,7 +74,7 @@ export async function GET(
       ORDER BY r.created_at
     `, [id]);
 
-    return NextResponse.json({
+    return apiSuccess({
       batch,
       requests,
     });
@@ -85,7 +86,7 @@ export async function GET(
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to get email batch" }, { status: 500 });
+    return apiServerError("Failed to get email batch");
   }
 }
 
@@ -112,17 +113,17 @@ export async function PATCH(
     `, [id]);
 
     if (!batch) {
-      return NextResponse.json({ error: "Email batch not found" }, { status: 404 });
+      return apiNotFound("email batch", id);
     }
 
     // Handle send action
     if (action === "send") {
       if (batch.status !== "draft") {
-        return NextResponse.json({ error: "Can only send draft batches" }, { status: 400 });
+        return apiBadRequest("Can only send draft batches");
       }
 
       if (!batch.outlook_account_id) {
-        return NextResponse.json({ error: "No Outlook account configured for this batch" }, { status: 400 });
+        return apiBadRequest("No Outlook account configured for this batch");
       }
 
       // Mark as sending
@@ -171,7 +172,7 @@ export async function PATCH(
             batch.outlook_account_id,
           ]);
 
-          return NextResponse.json({ success: true });
+          return apiSuccess({ success: true });
         } else {
           await query(`
             UPDATE ops.email_batches
@@ -179,7 +180,7 @@ export async function PATCH(
             WHERE batch_id = $1
           `, [id, result.error || "Unknown error"]);
 
-          return NextResponse.json({ error: result.error || "Failed to send email" }, { status: 500 });
+          return apiServerError(result.error || "Failed to send email");
         }
       } catch (sendError) {
         const errorMessage = sendError instanceof Error ? sendError.message : "Send failed";
@@ -189,14 +190,14 @@ export async function PATCH(
           WHERE batch_id = $1
         `, [id, errorMessage]);
 
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        return apiServerError(errorMessage);
       }
     }
 
     // Handle cancel action
     if (action === "cancel") {
       if (batch.status !== "draft") {
-        return NextResponse.json({ error: "Can only cancel draft batches" }, { status: 400 });
+        return apiBadRequest("Can only cancel draft batches");
       }
 
       // Unlink requests from batch
@@ -211,12 +212,12 @@ export async function PATCH(
         UPDATE ops.email_batches SET status = 'cancelled', updated_at = NOW() WHERE batch_id = $1
       `, [id]);
 
-      return NextResponse.json({ success: true });
+      return apiSuccess({ success: true });
     }
 
     // Regular update
     if (batch.status !== "draft") {
-      return NextResponse.json({ error: "Can only update draft batches" }, { status: 400 });
+      return apiBadRequest("Can only update draft batches");
     }
 
     const updateFields: string[] = [];
@@ -234,7 +235,7 @@ export async function PATCH(
     }
 
     if (updateFields.length === 0) {
-      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+      return apiBadRequest("No valid fields to update");
     }
 
     updateFields.push(`updated_at = NOW()`);
@@ -246,7 +247,7 @@ export async function PATCH(
       WHERE batch_id = $${paramIndex}
     `, updateValues);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Update email batch error:", error);
 
@@ -255,7 +256,7 @@ export async function PATCH(
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to update email batch" }, { status: 500 });
+    return apiServerError("Failed to update email batch");
   }
 }
 
@@ -277,11 +278,11 @@ export async function DELETE(
     `, [id]);
 
     if (!batch) {
-      return NextResponse.json({ error: "Email batch not found" }, { status: 404 });
+      return apiNotFound("email batch", id);
     }
 
     if (batch.status !== "draft") {
-      return NextResponse.json({ error: "Can only delete draft batches" }, { status: 400 });
+      return apiBadRequest("Can only delete draft batches");
     }
 
     // Unlink requests first
@@ -294,7 +295,7 @@ export async function DELETE(
     // Delete the batch
     await query(`DELETE FROM ops.email_batches WHERE batch_id = $1`, [id]);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Delete email batch error:", error);
 
@@ -303,6 +304,6 @@ export async function DELETE(
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to delete email batch" }, { status: 500 });
+    return apiServerError("Failed to delete email batch");
   }
 }

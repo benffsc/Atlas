@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { getConnectedAccounts, disconnectAccount, isOutlookConfigured } from "@/lib/outlook";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * GET /api/admin/email-settings/accounts
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     const configured = isOutlookConfigured();
     const accounts = configured ? await getConnectedAccounts() : [];
 
-    return NextResponse.json({
+    return apiSuccess({
       configured,
       accounts,
     });
@@ -30,10 +31,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to get email accounts" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to get email accounts");
   }
 }
 
@@ -51,15 +49,12 @@ export async function DELETE(request: NextRequest) {
     const accountId = searchParams.get("accountId");
 
     if (!accountId) {
-      return NextResponse.json(
-        { error: "Account ID is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Account ID is required");
     }
 
     await disconnectAccount(accountId);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Disconnect account error:", error);
 
@@ -71,9 +66,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to disconnect account" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to disconnect account");
   }
 }

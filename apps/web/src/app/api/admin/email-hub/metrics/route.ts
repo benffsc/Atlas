@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface EmailHubMetrics {
   connected_accounts: number;
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
       success_rate_30d,
     };
 
-    return NextResponse.json({ metrics });
+    return apiSuccess({ metrics });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
@@ -72,9 +73,6 @@ export async function GET(request: NextRequest) {
       );
     }
     console.error("Error fetching email hub metrics:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch metrics" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch metrics");
   }
 }

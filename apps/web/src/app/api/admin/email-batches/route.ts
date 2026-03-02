@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface EmailBatch {
   batch_id: string;
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         ready_requests: Object.values(groupedByTrapper),
         total_count: requests.length,
       });
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
       FROM ops.email_batches
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       batches,
       counts,
     });
@@ -159,7 +160,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to get email batches" }, { status: 500 });
+    return apiServerError("Failed to get email batches");
   }
 }
 
@@ -186,11 +187,11 @@ export async function POST(request: NextRequest) {
 
     // Validate
     if (!recipient_email || !recipient_email.includes("@")) {
-      return NextResponse.json({ error: "Valid recipient email is required" }, { status: 400 });
+      return apiBadRequest("Valid recipient email is required");
     }
 
     if (!request_ids || !Array.isArray(request_ids) || request_ids.length === 0) {
-      return NextResponse.json({ error: "At least one request is required" }, { status: 400 });
+      return apiBadRequest("At least one request is required");
     }
 
     // Fetch the requests with their summaries
@@ -224,7 +225,7 @@ export async function POST(request: NextRequest) {
     `, [request_ids]);
 
     if (requests.length === 0) {
-      return NextResponse.json({ error: "No valid requests found" }, { status: 400 });
+      return apiBadRequest("No valid requests found");
     }
 
     // Generate subject if not provided
@@ -269,7 +270,7 @@ export async function POST(request: NextRequest) {
       WHERE request_id = ANY($2)
     `, [batchId, request_ids]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       batch_id: batchId,
       request_count: requests.length,
@@ -282,7 +283,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to create email batch" }, { status: 500 });
+    return apiServerError("Failed to create email batch");
   }
 }
 

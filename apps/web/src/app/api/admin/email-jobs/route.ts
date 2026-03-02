@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface EmailJob {
   job_id: string;
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
       FROM ops.email_jobs
     `);
 
-    return NextResponse.json({
+    return apiSuccess({
       jobs,
       counts,
     });
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to get email jobs" }, { status: 500 });
+    return apiServerError("Failed to get email jobs");
   }
 }
 
@@ -122,15 +123,15 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!recipient_email || !recipient_email.includes("@")) {
-      return NextResponse.json({ error: "Valid recipient email is required" }, { status: 400 });
+      return apiBadRequest("Valid recipient email is required");
     }
 
     if (!template_key && !custom_body_html) {
-      return NextResponse.json({ error: "Either template_key or custom content is required" }, { status: 400 });
+      return apiBadRequest("Either template_key or custom content is required");
     }
 
     if (custom_body_html && !custom_subject) {
-      return NextResponse.json({ error: "Subject is required for custom emails" }, { status: 400 });
+      return apiBadRequest("Subject is required for custom emails");
     }
 
     // Get default outlook account from category if not specified
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
       staff.staff_id,
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       job_id: result?.job_id,
     });
@@ -176,6 +177,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to create email job" }, { status: 500 });
+    return apiServerError("Failed to create email job");
   }
 }

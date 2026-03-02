@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface TemplateSuggestion {
   suggestion_id: string;
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
       ORDER BY ts.created_at DESC
     `, params);
 
-    return NextResponse.json({ suggestions });
+    return apiSuccess({ suggestions });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
@@ -89,10 +90,7 @@ export async function GET(request: NextRequest) {
       );
     }
     console.error("Error fetching template suggestions:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch suggestions" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch suggestions");
   }
 }
 
@@ -112,18 +110,12 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!template_id) {
-      return NextResponse.json(
-        { error: "template_id is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("template_id is required");
     }
 
     // Check at least one change is provided
     if (!suggested_name && !suggested_subject && !suggested_body_html && !suggested_body_text) {
-      return NextResponse.json(
-        { error: "At least one suggested change is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("At least one suggested change is required");
     }
 
     // Get template info
@@ -134,10 +126,7 @@ export async function POST(request: NextRequest) {
     `, [template_id]);
 
     if (!template) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
+      return apiNotFound("template", template_id);
     }
 
     // If template is not restricted and user is admin, they should just edit directly
@@ -166,7 +155,7 @@ export async function POST(request: NextRequest) {
       session.staff_id,
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       suggestion_id: result?.suggestion_id,
     });
@@ -178,9 +167,6 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error("Error creating template suggestion:", error);
-    return NextResponse.json(
-      { error: "Failed to create suggestion" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to create suggestion");
   }
 }

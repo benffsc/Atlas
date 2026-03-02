@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryOne, query } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { apiSuccess, apiBadRequest, apiNotFound, apiConflict, apiServerError } from "@/lib/api-response";
 
 const anthropic = new Anthropic();
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     const { template_id, target_language = "es", preview_only = false } = body;
 
     if (!template_id) {
-      return NextResponse.json({ error: "template_id is required" }, { status: 400 });
+      return apiBadRequest("template_id is required");
     }
 
     // Get the source template
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     `, [template_id]);
 
     if (!template) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      return apiNotFound("template", template_id);
     }
 
     // Check if translation already exists
@@ -51,10 +52,7 @@ export async function POST(request: NextRequest) {
     `, [existingKey]);
 
     if (existing && !preview_only) {
-      return NextResponse.json({
-        error: `Translation already exists with key: ${existingKey}`,
-        existing_template_id: existing.template_id,
-      }, { status: 409 });
+      return apiConflict(`Translation already exists with key: ${existingKey}`);
     }
 
     // Get language name for prompt
@@ -123,12 +121,12 @@ Respond in this exact JSON format:
       translated = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
       console.error("Failed to parse translation response:", responseText);
-      return NextResponse.json({ error: "Failed to parse translation response" }, { status: 500 });
+      return apiServerError("Failed to parse translation response");
     }
 
     // If preview only, return the translation without saving
     if (preview_only) {
-      return NextResponse.json({
+      return apiSuccess({
         preview: true,
         source_template_key: template.template_key,
         target_template_key: existingKey,
@@ -161,7 +159,7 @@ Respond in this exact JSON format:
       target_language,
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       new_template_id: result?.template_id,
       new_template_key: existingKey,
@@ -175,8 +173,6 @@ Respond in this exact JSON format:
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : "Failed to translate template",
-    }, { status: 500 });
+    return apiServerError(error instanceof Error ? error.message : "Failed to translate template");
   }
 }

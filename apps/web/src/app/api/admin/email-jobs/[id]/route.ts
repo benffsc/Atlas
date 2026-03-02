@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { queryOne, query } from "@/lib/db";
 import { sendOutlookEmail, sendTemplatedOutlookEmail, getAccountById } from "@/lib/outlook";
 import { sendTemplateEmail, getEmailTemplate } from "@/lib/email";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface EmailJob {
   job_id: string;
@@ -60,10 +61,10 @@ export async function GET(
     `, [id]);
 
     if (!job) {
-      return NextResponse.json({ error: "Email job not found" }, { status: 404 });
+      return apiNotFound("email job", id);
     }
 
-    return NextResponse.json({ job });
+    return apiSuccess({ job });
   } catch (error) {
     console.error("Get email job error:", error);
 
@@ -72,7 +73,7 @@ export async function GET(
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to get email job" }, { status: 500 });
+    return apiServerError("Failed to get email job");
   }
 }
 
@@ -99,14 +100,14 @@ export async function PATCH(
     `, [id]);
 
     if (!job) {
-      return NextResponse.json({ error: "Email job not found" }, { status: 404 });
+      return apiNotFound("email job", id);
     }
 
     // Handle different actions
     if (action === "send") {
       // Can only send draft or queued jobs
       if (!["draft", "queued"].includes(job.status)) {
-        return NextResponse.json({ error: "Can only send draft or queued jobs" }, { status: 400 });
+        return apiBadRequest("Can only send draft or queued jobs");
       }
 
       // Mark as sending
@@ -164,7 +165,7 @@ export async function PATCH(
             WHERE job_id = $1
           `, [id, result.emailId || null]);
 
-          return NextResponse.json({ success: true, emailId: result.emailId });
+          return apiSuccess({ success: true, emailId: result.emailId });
         } else {
           await query(`
             UPDATE ops.email_jobs
@@ -172,7 +173,7 @@ export async function PATCH(
             WHERE job_id = $1
           `, [id, result.error || "Unknown error"]);
 
-          return NextResponse.json({ error: result.error || "Failed to send email" }, { status: 500 });
+          return apiServerError(result.error || "Failed to send email");
         }
       } catch (sendError) {
         const errorMessage = sendError instanceof Error ? sendError.message : "Send failed";
@@ -182,22 +183,22 @@ export async function PATCH(
           WHERE job_id = $1
         `, [id, errorMessage]);
 
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        return apiServerError(errorMessage);
       }
     } else if (action === "cancel") {
       if (!["draft", "queued"].includes(job.status)) {
-        return NextResponse.json({ error: "Can only cancel draft or queued jobs" }, { status: 400 });
+        return apiBadRequest("Can only cancel draft or queued jobs");
       }
 
       await query(`
         UPDATE ops.email_jobs SET status = 'cancelled', updated_at = NOW() WHERE job_id = $1
       `, [id]);
 
-      return NextResponse.json({ success: true });
+      return apiSuccess({ success: true });
     } else {
       // Regular update
       if (job.status !== "draft") {
-        return NextResponse.json({ error: "Can only update draft jobs" }, { status: 400 });
+        return apiBadRequest("Can only update draft jobs");
       }
 
       const updateFields: string[] = [];
@@ -218,7 +219,7 @@ export async function PATCH(
       }
 
       if (updateFields.length === 0) {
-        return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+        return apiBadRequest("No valid fields to update");
       }
 
       updateFields.push(`updated_at = NOW()`);
@@ -230,7 +231,7 @@ export async function PATCH(
         WHERE job_id = $${paramIndex}
       `, updateValues);
 
-      return NextResponse.json({ success: true });
+      return apiSuccess({ success: true });
     }
   } catch (error) {
     console.error("Update email job error:", error);
@@ -240,7 +241,7 @@ export async function PATCH(
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to update email job" }, { status: 500 });
+    return apiServerError("Failed to update email job");
   }
 }
 
@@ -262,16 +263,16 @@ export async function DELETE(
     `, [id]);
 
     if (!job) {
-      return NextResponse.json({ error: "Email job not found" }, { status: 404 });
+      return apiNotFound("email job", id);
     }
 
     if (job.status !== "draft") {
-      return NextResponse.json({ error: "Can only delete draft jobs" }, { status: 400 });
+      return apiBadRequest("Can only delete draft jobs");
     }
 
     await query(`DELETE FROM ops.email_jobs WHERE job_id = $1`, [id]);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error("Delete email job error:", error);
 
@@ -280,6 +281,6 @@ export async function DELETE(
       return NextResponse.json({ error: authError.message }, { status: authError.statusCode });
     }
 
-    return NextResponse.json({ error: "Failed to delete email job" }, { status: 500 });
+    return apiServerError("Failed to delete email job");
   }
 }

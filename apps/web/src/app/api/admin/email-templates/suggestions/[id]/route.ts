@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface TemplateSuggestion {
   suggestion_id: string;
@@ -49,13 +50,10 @@ export async function GET(
     `, [id]);
 
     if (!suggestion) {
-      return NextResponse.json(
-        { error: "Suggestion not found" },
-        { status: 404 }
-      );
+      return apiNotFound("suggestion", id);
     }
 
-    return NextResponse.json({ suggestion });
+    return apiSuccess({ suggestion });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
@@ -64,10 +62,7 @@ export async function GET(
       );
     }
     console.error("Error fetching template suggestion:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch suggestion" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to fetch suggestion");
   }
 }
 
@@ -84,10 +79,7 @@ export async function PATCH(
     const { action, review_notes } = body;
 
     if (!action || !["approve", "reject"].includes(action)) {
-      return NextResponse.json(
-        { error: "action must be 'approve' or 'reject'" },
-        { status: 400 }
-      );
+      return apiBadRequest("action must be 'approve' or 'reject'");
     }
 
     // Get the suggestion
@@ -96,17 +88,11 @@ export async function PATCH(
     `, [id]);
 
     if (!suggestion) {
-      return NextResponse.json(
-        { error: "Suggestion not found" },
-        { status: 404 }
-      );
+      return apiNotFound("suggestion", id);
     }
 
     if (suggestion.status !== "pending") {
-      return NextResponse.json(
-        { error: "Suggestion has already been processed" },
-        { status: 400 }
-      );
+      return apiBadRequest("Suggestion has already been processed");
     }
 
     if (action === "approve") {
@@ -165,7 +151,7 @@ export async function PATCH(
       id,
     ]);
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       action,
     });
@@ -177,10 +163,7 @@ export async function PATCH(
       );
     }
     console.error("Error processing template suggestion:", error);
-    return NextResponse.json(
-      { error: "Failed to process suggestion" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to process suggestion");
   }
 }
 
@@ -199,10 +182,7 @@ export async function DELETE(
     `, [id]);
 
     if (!suggestion) {
-      return NextResponse.json(
-        { error: "Suggestion not found" },
-        { status: 404 }
-      );
+      return apiNotFound("suggestion", id);
     }
 
     // Only creator can withdraw, unless admin
@@ -214,10 +194,7 @@ export async function DELETE(
     }
 
     if (suggestion.status !== "pending") {
-      return NextResponse.json(
-        { error: "Can only withdraw pending suggestions" },
-        { status: 400 }
-      );
+      return apiBadRequest("Can only withdraw pending suggestions");
     }
 
     await query(`
@@ -226,7 +203,7 @@ export async function DELETE(
       WHERE suggestion_id = $1
     `, [id]);
 
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json(
@@ -235,9 +212,6 @@ export async function DELETE(
       );
     }
     console.error("Error withdrawing template suggestion:", error);
-    return NextResponse.json(
-      { error: "Failed to withdraw suggestion" },
-      { status: 500 }
-    );
+    return apiServerError("Failed to withdraw suggestion");
   }
 }
