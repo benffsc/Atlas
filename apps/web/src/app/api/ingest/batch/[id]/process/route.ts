@@ -21,14 +21,17 @@ interface BatchFile {
 /**
  * POST /api/ingest/batch/[id]/process
  * Processes all 3 ClinicHQ files in the correct order:
- * 1. cat_info - Creates cats, updates sex
- * 2. owner_info - Creates people/places, links appointments
- * 3. appointment_info - Creates procedures, links cats to places/requests
  *
- * Entity linking runs after each file (idempotent), but the key benefit is
- * processing in the correct order so dependencies are satisfied.
+ * CRITICAL: Processing order was fixed in MIG_2402. Order MUST be:
+ * 1. appointment_info - Creates appointment records FIRST (anchor records)
+ * 2. cat_info - Creates cats, links them to EXISTING appointments
+ * 3. owner_info - Creates people/places, links them to EXISTING appointments
+ *
+ * The order is enforced by ops.get_batch_files_in_order() and validated here.
+ * Appointments must exist before cats and owners can link to them!
  *
  * MIG_971: Added for batch upload processing
+ * MIG_2402: Fixed processing order (appointment_info FIRST)
  */
 export async function POST(
   request: NextRequest,
@@ -79,6 +82,34 @@ export async function POST(
 
     if (files.length !== 3) {
       return apiBadRequest(`Expected 3 files, found ${files.length}`);
+    }
+
+    // VALIDATION: Verify processing order is correct (MIG_2402 fix)
+    // appointment_info MUST be first - cats and owners link to appointments
+    const expectedOrder = ['appointment_info', 'cat_info', 'owner_info'];
+    const actualOrder = files.map(f => f.source_table);
+
+    if (actualOrder[0] !== 'appointment_info') {
+      console.error('[BATCH] CRITICAL: Processing order incorrect!', { expectedOrder, actualOrder });
+      return apiServerError(
+        `Processing order error: appointment_info must be processed first (got: ${actualOrder.join(' → ')}). ` +
+        `Run MIG_2402__fix_batch_processing_order.sql to fix ops.get_batch_files_in_order().`
+      );
+    }
+
+    console.log(`[BATCH] Processing order validated: ${actualOrder.join(' → ')}`);
+
+    // Additional validation: If cat_info or owner_info need processing,
+    // appointment_info must be completed (not just pending)
+    const appointmentFile = files.find(f => f.source_table === 'appointment_info');
+    const needsAppointments = files.filter(
+      f => f.source_table !== 'appointment_info' && f.status === 'pending'
+    );
+
+    if (needsAppointments.length > 0 && appointmentFile?.status === 'failed') {
+      return apiBadRequest(
+        'Cannot process cat_info/owner_info: appointment_info failed. Fix appointment_info first.'
+      );
     }
 
     // Process each file in order

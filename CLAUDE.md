@@ -226,6 +226,28 @@ owner_info →
      - person_id = account.resolved_person_id (if resolved)
 ```
 
+### Ingest Stability Rules (MIG_2400-2404)
+
+**ClinicHQ batch processing order MUST be:**
+1. `appointment_info` — Creates appointment records FIRST (anchor)
+2. `cat_info` — Creates cats, links to EXISTING appointments
+3. `owner_info` — Creates people/places, links to EXISTING appointments
+
+**Before creating ingest-related triggers or functions:**
+- Run `scripts/pipeline/validate-ingest-schema.sh` to verify columns exist
+- ON CONFLICT clauses require pre-existing unique indexes
+- Enum casts must be explicit (`value::ops.test_result`)
+- Create indexes in SAME migration as trigger (not separate)
+
+**Required columns (verified by `/api/health/ingest`):**
+- `ops.file_uploads`: batch_id, batch_ready, processing_order, file_hash
+- `ops.appointments`: client_name, owner_account_id
+- `ops.cat_test_results`: evidence_source, extraction_confidence, raw_text, updated_at
+
+**After modifying ingest infrastructure:**
+- Verify `/api/health/ingest` returns `status: "healthy"`
+- Test a real ClinicHQ batch upload end-to-end
+
 ## Beacon / Ground Truth
 
 **FFSC is the ONLY dedicated spay/neuter clinic for community cats in Sonoma County.** FFSC clinic data = verified alterations (ground truth). Chapman mark-recapture: `N = ((M+1)(C+1)/(R+1)) - 1`.
