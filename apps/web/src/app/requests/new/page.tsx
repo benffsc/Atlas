@@ -278,7 +278,8 @@ function NewRequestForm() {
     // Fetch intake submission data
     fetch(`/api/intake/${intakeId}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
+      .then((result) => {
+        const data = result?.data || result;
         if (!data?.submission) return;
         const s = data.submission;
 
@@ -295,8 +296,9 @@ function NewRequestForm() {
         if (s.matched_place_id) {
           fetch(`/api/places/${s.matched_place_id}`)
             .then((res) => (res.ok ? res.json() : null))
-            .then((place) => {
-              if (place) {
+            .then((result) => {
+              const place = result?.data?.place || result?.place || result;
+              if (place?.place_id) {
                 setSelectedPlace({
                   place_id: place.place_id,
                   display_name: place.display_name,

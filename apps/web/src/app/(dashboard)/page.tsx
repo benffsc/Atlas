@@ -159,7 +159,10 @@ export default function Home() {
     // 4. Recent intake (parallel, no auth dependency)
     fetch("/api/intake/queue?mode=attention&limit=5")
       .then(res => res.ok ? res.json() : { submissions: [] })
-      .then(data => setIntake((data.submissions || []).slice(0, 5)))
+      .then(result => {
+        const data = result.data || result;
+        setIntake((data.submissions || []).slice(0, 5));
+      })
       .catch(() => setIntake([]))
       .finally(() => setLoadingIntake(false));
   }, []);

@@ -301,7 +301,10 @@ function IntakeForm() {
     if (formData.call_type) {
       fetch(`/api/intake/custom-fields?call_type=${formData.call_type}`)
         .then(res => res.json())
-        .then(data => setCustomFields(data.fields || []))
+        .then(result => {
+          const data = result.data || result;
+          setCustomFields(data.fields || []);
+        })
         .catch(() => setCustomFields([]));
     }
   }, [formData.call_type]);

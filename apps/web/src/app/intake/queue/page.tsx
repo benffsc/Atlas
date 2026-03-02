@@ -583,7 +583,8 @@ function IntakeQueueContent() {
         // Submission not in current list - fetch directly
         fetch(`/api/intake/queue/${openSubmissionId}`)
           .then(res => res.ok ? res.json() : null)
-          .then(data => {
+          .then(result => {
+            const data = result?.data || result;
             if (data?.submission) {
               openDetail(data.submission);
             }

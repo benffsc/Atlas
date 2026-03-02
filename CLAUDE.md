@@ -55,9 +55,12 @@ These rules apply to ALL API routes in `/apps/web/src/app/api/`:
 
 51. **Error Handler Wrapper** — Routes with complex logic SHOULD use `withErrorHandling()` wrapper from `@/lib/api-validation` to catch and format errors consistently.
 
+52. **Frontend Must Unwrap apiSuccess** — All frontend fetch calls MUST handle the `apiSuccess` response wrapper. API responses are `{ success: true, data: T }`. Always unwrap: `const data = result.data || result;` to support both old and new formats. Use `fetchApi()` from `@/lib/api-client.ts` for automatic unwrapping. **CRITICAL:** When standardizing API routes to use `apiSuccess`, ALSO update frontend consumers.
+
 **Key Files:**
 - `@/lib/api-validation.ts` — `requireValidUUID()`, `parsePagination()`, `requireValidEnum()`, `withErrorHandling()`, `ApiError`
 - `@/lib/api-response.ts` — `apiSuccess()`, `apiError()`, `apiNotFound()`, `apiBadRequest()`
+- `@/lib/api-client.ts` — `fetchApi()`, `postApi()`, `unwrapApiResponse()` — client-side helpers that auto-unwrap
 - `@/lib/enums.ts` — `ENTITY_ENUMS`, `REQUEST_STATUS`, `PLACE_KIND`, etc.
 - `@/lib/types/view-contracts.ts` — `VCatListRow`, `VPersonListRow`, `VPlaceListRow`, `VRequestListRow`, etc.
 
