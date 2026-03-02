@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 type TabType = "dashboard" | "alerts" | "trends";
 
@@ -120,13 +121,11 @@ export default function DataQualityPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/data-quality");
-      if (!response.ok) throw new Error("Failed to fetch data quality metrics");
-      const result = await response.json();
+      const result = await fetchApi<DataQualityResponse>("/api/admin/data-quality");
       setData(result);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof ApiError ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -134,9 +133,7 @@ export default function DataQualityPage() {
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/data-quality/alerts");
-      if (!response.ok) return;
-      const result = await response.json();
+      const result = await fetchApi<AlertsResponse>("/api/admin/data-quality/alerts");
       setAlerts(result);
     } catch {
       // Alerts endpoint may not exist if MIG_2515 not applied
@@ -145,9 +142,7 @@ export default function DataQualityPage() {
 
   const fetchTrends = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/data-quality/history?days=30");
-      if (!response.ok) return;
-      const result = await response.json();
+      const result = await fetchApi<TrendResponse>("/api/admin/data-quality/history?days=30");
       setTrends(result);
     } catch {
       // Trends endpoint may not exist if MIG_2515 not applied
@@ -168,11 +163,10 @@ export default function DataQualityPage() {
   const takeSnapshot = async () => {
     setSnapshotLoading(true);
     try {
-      const response = await fetch("/api/admin/data-quality", { method: "POST" });
-      if (!response.ok) throw new Error("Failed to take snapshot");
+      await postApi("/api/admin/data-quality", {});
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof ApiError ? err.message : "Unknown error");
     } finally {
       setSnapshotLoading(false);
     }
