@@ -106,6 +106,20 @@ Cats are linked to requests based on appointment date relative to request lifecy
 
 **It's OK If Cats Have No Person Link** — Don't force bad matches. PetLink cats (956) are registry-only. ClinicHQ may have no contact info. Better to skip than link incorrectly.
 
+**Entity Linking Monitoring Tables** (MIG_2430-2435):
+| Table | Purpose |
+|-------|---------|
+| `ops.entity_linking_skipped` | Tracks entities that couldn't be linked with reasons |
+| `ops.entity_linking_runs` | Run history with coverage metrics, duration, warnings |
+
+**Confidence Helper Functions** (MIG_2421): Use these instead of inline `confidence >= 0.5`:
+| Function | Purpose |
+|----------|---------|
+| `sot.get_email(person_id)` | Returns high-confidence email (>= 0.5) |
+| `sot.get_phone(person_id)` | Returns high-confidence phone (>= 0.5) |
+| `sot.has_high_confidence_identifier(person_id, type)` | Boolean check |
+| `sot.get_all_identifiers(person_id)` | Returns JSONB array of all identifiers |
+
 ## Disease & Ecological Data
 
 **Disease Is Ecological, Not Medical** (MIG_2304): Disease status is about WHERE CATS LIVE, not where tested. Must:
