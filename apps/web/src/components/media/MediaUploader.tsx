@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { unwrapApiResponse } from "@/lib/api-client";
 
 export interface MediaItem {
   media_id: string;
@@ -316,7 +317,9 @@ export function MediaUploader({
           return { success: false, error: errorMessage };
         }
 
-        const result = await response.json();
+        const json = await response.json();
+        // Handle apiSuccess format: { success: true, data: { media_id, storage_path, ... } }
+        const result = unwrapApiResponse<{ media_id: string; storage_path: string; stored_filename: string; photo_group_id?: string }>(json);
         return { success: true, result };
       };
 

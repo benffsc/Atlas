@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { MediaUploader, MediaItem } from "./MediaUploader";
 import { MediaLightbox } from "./MediaLightbox";
 import { PhotoGroupingPanel } from "./PhotoGroupingPanel";
+import { unwrapApiResponse } from "@/lib/api-client";
 
 interface Cat {
   cat_id: string;
@@ -90,7 +91,9 @@ export function MediaGallery({
       if (!response.ok) {
         throw new Error("Failed to fetch media");
       }
-      const data = await response.json();
+      const json = await response.json();
+      // Handle apiSuccess format: { success: true, data: { media: [...] } }
+      const data = unwrapApiResponse<{ media: ExtendedMediaItem[] }>(json);
       setMedia(data.media || []);
     } catch (err) {
       console.error("Error fetching media:", err);

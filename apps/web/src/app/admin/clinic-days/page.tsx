@@ -326,7 +326,9 @@ export default function ClinicDaysPage() {
           if (res.ok) return res.json();
           return { cats: [], total_cats: 0, chipped_count: 0, unchipped_count: 0, unlinked_count: 0 };
         })
-        .then((data) => {
+        .then((response) => {
+          // Handle apiSuccess format: { success: true, data: {...} }
+          const data = response.data || response;
           setClinicCats(data.cats || []);
           setCatGalleryStats({
             total_cats: data.total_cats || 0,
@@ -666,7 +668,9 @@ export default function ClinicDaysPage() {
         { cache: 'no-store' }
       );
       if (res.ok) {
-        const data = await res.json();
+        const response = await res.json();
+        // Handle apiSuccess format: { success: true, data: {...} }
+        const data = response.data || response;
         setUploadSearchResults(data.cats || []);
       }
     } catch (err) {
@@ -704,7 +708,9 @@ export default function ClinicDaysPage() {
     // Reload cat gallery data
     fetch(`/api/admin/clinic-days/${selectedDate}/cats`, { cache: 'no-store' })
       .then((res) => res.ok ? res.json() : { cats: [] })
-      .then((data) => {
+      .then((response) => {
+        // Handle apiSuccess format: { success: true, data: {...} }
+        const data = response.data || response;
         setClinicCats(data.cats || []);
         setCatGalleryStats({
           total_cats: data.total_cats || 0,
