@@ -4,6 +4,10 @@ import { queryRows, queryOne } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
+// Valid enum values from ops.requests CHECK constraints
+const VALID_STATUS = ['new', 'triaged', 'scheduled', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const;
+const VALID_PRIORITY = ['low', 'normal', 'high', 'urgent'] as const;
+
 interface RequestListRow {
   request_id: string;
   status: string;
@@ -337,6 +341,15 @@ export async function POST(request: NextRequest) {
     return apiBadRequest("Either place_id or summary is required");
   }
 
+  // Validate enum values to return 400 instead of 500 on CHECK constraint violation
+  if (body.status && !VALID_STATUS.includes(body.status as typeof VALID_STATUS[number])) {
+    return apiBadRequest(`Invalid status. Must be one of: ${VALID_STATUS.join(', ')}`);
+  }
+
+  if (body.priority && !VALID_PRIORITY.includes(body.priority as typeof VALID_PRIORITY[number])) {
+    return apiBadRequest(`Invalid priority. Must be one of: ${VALID_PRIORITY.join(', ')}`);
+  }
+
   try {
     // Core columns that exist in ops.requests base table
     // Note: Many columns in v_request_detail are from joined views, not the base table
@@ -383,7 +396,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Error creating request:", errorMessage);
 
-    // Provide helpful error messages for common issues
+    // Provide helpful error messages for common constraint violations
     if (errorMessage.includes("violates foreign key constraint")) {
       if (errorMessage.includes("place_id")) {
         return apiBadRequest("Invalid place_id - place does not exist");
@@ -391,6 +404,17 @@ export async function POST(request: NextRequest) {
       if (errorMessage.includes("requester_person_id")) {
         return apiBadRequest("Invalid requester_person_id - person does not exist");
       }
+      return apiBadRequest("Invalid reference - referenced entity does not exist");
+    }
+
+    // CHECK constraint violations (enum values)
+    if (errorMessage.includes("violates check constraint")) {
+      return apiBadRequest("Invalid field value - check status/priority/handleability values");
+    }
+
+    // NOT NULL constraint violations
+    if (errorMessage.includes("violates not-null constraint")) {
+      return apiBadRequest("Missing required field");
     }
 
     return apiServerError("Failed to create request");

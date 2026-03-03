@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
-import { apiSuccess } from "@/lib/api-response";
+import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
 /**
  * People Search API
@@ -37,8 +37,9 @@ export async function GET(request: NextRequest) {
 
   const searchPattern = `%${query}%`;
 
-  // V2: Uses sot.person_cat instead of sot.person_cat_relationships, sot.person_place instead of person_place_relationships
-  const people = await queryRows<PersonSearchResult>(`
+  try {
+    // V2: Uses sot.person_cat instead of sot.person_cat_relationships, sot.person_place instead of person_place_relationships
+    const people = await queryRows<PersonSearchResult>(`
     SELECT DISTINCT ON (p.person_id)
       p.person_id,
       p.display_name,
@@ -62,18 +63,22 @@ export async function GET(request: NextRequest) {
         FROM sot.person_identifiers pi
         WHERE pi.person_id = p.person_id
           AND pi.id_type = 'phone'
+          AND pi.confidence >= 0.5
       ) as phones,
       (
         -- V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
-        SELECT jsonb_agg(
-          jsonb_build_object(
-            'place_id', ppr.place_id,
-            'formatted_address', pl.formatted_address,
-            'display_name', pl.display_name,
-            'role', ppr.relationship_type,
-            'confidence', ppr.confidence
-          )
-          ORDER BY ppr.confidence DESC NULLS LAST
+        SELECT COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'place_id', ppr.place_id,
+              'formatted_address', pl.formatted_address,
+              'display_name', pl.display_name,
+              'role', ppr.relationship_type,
+              'confidence', ppr.confidence
+            )
+            ORDER BY ppr.confidence DESC NULLS LAST
+          ),
+          '[]'::jsonb
         )
         FROM sot.person_place ppr
         JOIN sot.places pl ON pl.place_id = ppr.place_id
@@ -92,7 +97,13 @@ export async function GET(request: NextRequest) {
       )
     ORDER BY p.person_id, p.display_name
     LIMIT $2
-  `, [searchPattern, limit]);
+    `, [searchPattern, limit]);
 
-  return apiSuccess({ people, query });
+    return apiSuccess({ people, query });
+  } catch (error) {
+    console.error("People search error:", error);
+    return apiServerError("Failed to search people", {
+      detail: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
 }
