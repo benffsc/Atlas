@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface PlacePrediction {
   place_id: string;
@@ -60,14 +61,11 @@ export default function AddressAutocomplete({
 
     setLoading(true);
     try {
-      const response = await fetch(
+      const data = await fetchApi<{ predictions: PlacePrediction[] }>(
         `/api/places/autocomplete?input=${encodeURIComponent(input)}`
       );
-      if (response.ok) {
-        const data = await response.json();
-        setPredictions(data.predictions || []);
-        setShowDropdown(true);
-      }
+      setPredictions(data.predictions || []);
+      setShowDropdown(true);
     } catch (err) {
       console.error("Autocomplete error:", err);
     } finally {
@@ -98,13 +96,10 @@ export default function AddressAutocomplete({
 
     // Fetch place details
     try {
-      const response = await fetch(
+      const data = await fetchApi<{ place: PlaceDetails }>(
         `/api/places/details?place_id=${encodeURIComponent(prediction.place_id)}`
       );
-      if (response.ok) {
-        const data = await response.json();
-        onPlaceSelect(data.place);
-      }
+      onPlaceSelect(data.place);
     } catch (err) {
       console.error("Place details error:", err);
     }

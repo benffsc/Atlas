@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -97,19 +98,17 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
       setShowDropdown(true);
 
       try {
-        const [atlasRes, googleRes] = await Promise.all([
-          fetch(`/api/search?q=${encodeURIComponent(query)}&type=place&limit=${atlasLimit}`),
-          fetch(`/api/places/autocomplete?input=${encodeURIComponent(query)}`),
+        const [atlasData, googleData] = await Promise.all([
+          fetchApi<{ results?: AtlasPlace[]; suggestions?: AtlasPlace[] }>(
+            `/api/search?q=${encodeURIComponent(query)}&type=place&limit=${atlasLimit}`
+          ),
+          fetchApi<{ predictions: GooglePrediction[] }>(
+            `/api/places/autocomplete?input=${encodeURIComponent(query)}`
+          ),
         ]);
 
-        if (atlasRes.ok) {
-          const data = await atlasRes.json();
-          setAtlasResults(data.results || []);
-        }
-        if (googleRes.ok) {
-          const data = await googleRes.json();
-          setGoogleResults((data.predictions || []).slice(0, googleLimit));
-        }
+        setAtlasResults(atlasData.results || atlasData.suggestions || []);
+        setGoogleResults((googleData.predictions || []).slice(0, googleLimit));
       } catch (err) {
         console.error("PlaceResolver search error:", err);
       } finally {
@@ -148,15 +147,12 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
 
     setCheckingDuplicate(true);
     try {
-      const response = await fetch(
+      const result = await fetchApi<DuplicateCheckResult>(
         `/api/places/check-duplicate?address=${encodeURIComponent(prediction.description)}`
       );
-      if (response.ok) {
-        const result: DuplicateCheckResult = await response.json();
-        if (result.isDuplicate && result.existingPlace) {
-          setDuplicateCheck(result);
-          return; // Caller should show duplicate modal
-        }
+      if (result.isDuplicate && result.existingPlace) {
+        setDuplicateCheck(result);
+        return; // Caller should show duplicate modal
       }
       // No duplicate found — caller should show place type modal
     } catch (err) {
@@ -191,43 +187,31 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     setError(null);
     try {
       // Fetch full Google details
-      const detailsRes = await fetch(
+      const { place: googleDetails } = await fetchApi<{ place: Record<string, unknown> }>(
         `/api/places/details?place_id=${encodeURIComponent(pendingGoogle.place_id)}`
       );
-      if (!detailsRes.ok) {
-        throw new Error("Failed to get place details");
-      }
-      const { place: googleDetails } = await detailsRes.json();
+
+      const geo = googleDetails.geometry as { location?: { lat: number; lng: number } } | undefined;
 
       // Create place via centralized endpoint
-      const createRes = await fetch("/api/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const newPlace = await postApi<{ place_id: string; display_name: string }>(
+        "/api/places",
+        {
           display_name: pendingGoogle.structured_formatting.main_text,
           google_place_id: pendingGoogle.place_id,
           formatted_address: googleDetails.formatted_address,
           place_kind: placeKind,
-          location: googleDetails.geometry?.location
-            ? {
-                lat: googleDetails.geometry.location.lat,
-                lng: googleDetails.geometry.location.lng,
-              }
+          location: geo?.location
+            ? { lat: geo.location.lat, lng: geo.location.lng }
             : null,
           address_components: googleDetails.address_components,
-        }),
-      });
+        }
+      );
 
-      if (!createRes.ok) {
-        const errData = await createRes.json();
-        throw new Error(errData.error || "Failed to create place");
-      }
-
-      const newPlace = await createRes.json();
       setSelectedPlace({
         place_id: newPlace.place_id,
         display_name: newPlace.display_name,
-        formatted_address: googleDetails.formatted_address,
+        formatted_address: googleDetails.formatted_address as string,
         locality: null,
       });
       setPendingGoogle(null);
@@ -249,38 +233,26 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     setCreating(true);
     setError(null);
     try {
-      const detailsRes = await fetch(
+      const { place: googleDetails } = await fetchApi<{ place: Record<string, unknown> }>(
         `/api/places/details?place_id=${encodeURIComponent(pendingGoogle.place_id)}`
       );
-      if (!detailsRes.ok) {
-        throw new Error("Failed to get place details");
-      }
-      const { place: googleDetails } = await detailsRes.json();
 
-      const createRes = await fetch("/api/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const geo = googleDetails.geometry as { location?: { lat: number; lng: number } } | undefined;
+
+      const newPlace = await postApi<{ place_id: string; display_name: string; formatted_address?: string }>(
+        "/api/places",
+        {
           display_name: `${duplicateCheck.existingPlace.display_name} ${unitIdentifier}`,
           formatted_address: `${duplicateCheck.existingPlace.formatted_address.replace(/, USA$/, "")} ${unitIdentifier}`,
           place_kind: "apartment_unit",
           parent_place_id: parentPlaceId,
           unit_identifier: unitIdentifier,
-          location: googleDetails.geometry?.location
-            ? {
-                lat: googleDetails.geometry.location.lat,
-                lng: googleDetails.geometry.location.lng,
-              }
+          location: geo?.location
+            ? { lat: geo.location.lat, lng: geo.location.lng }
             : null,
-        }),
-      });
+        }
+      );
 
-      if (!createRes.ok) {
-        const errData = await createRes.json();
-        throw new Error(errData.error || "Failed to create unit");
-      }
-
-      const newPlace = await createRes.json();
       setSelectedPlace({
         place_id: newPlace.place_id,
         display_name: newPlace.display_name,
@@ -304,23 +276,16 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     setCreating(true);
     setError(null);
     try {
-      const createRes = await fetch("/api/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const newPlace = await postApi<{ place_id: string; display_name: string }>(
+        "/api/places",
+        {
           display_name: description,
           place_kind: placeKind,
           location_type: "described",
           location_description: description,
-        }),
-      });
+        }
+      );
 
-      if (!createRes.ok) {
-        const errData = await createRes.json();
-        throw new Error(errData.error || "Failed to create place");
-      }
-
-      const newPlace = await createRes.json();
       setSelectedPlace({
         place_id: newPlace.place_id,
         display_name: newPlace.display_name,

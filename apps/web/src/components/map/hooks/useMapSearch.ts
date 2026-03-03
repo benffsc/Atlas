@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { fetchApi } from "@/lib/api-client";
 import type {
   Place,
   GooglePin,
@@ -138,13 +139,10 @@ export function useMapSearch({
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(
+        const data = await fetchApi<{ suggestions: AtlasSearchResult[] }>(
           `/api/search?q=${encodeURIComponent(query)}&limit=8&suggestions=true`
         );
-        if (res.ok) {
-          const data = await res.json();
-          setAtlasResults(data.suggestions || []);
-        }
+        setAtlasResults(data.suggestions || []);
       } catch (err) {
         console.error("Atlas search error:", err);
       } finally {
@@ -165,13 +163,10 @@ export function useMapSearch({
     const timer = setTimeout(async () => {
       if (atlasResults.length < 3) {
         try {
-          const res = await fetch(
+          const data = await fetchApi<{ predictions: PlacePrediction[] }>(
             `/api/places/autocomplete?input=${encodeURIComponent(query)}`
           );
-          if (res.ok) {
-            const data = await res.json();
-            setGoogleSuggestions(data.predictions || []);
-          }
+          setGoogleSuggestions(data.predictions || []);
         } catch (err) {
           console.error("Google Places error:", err);
         }
@@ -227,28 +222,30 @@ export function useMapSearch({
               : result.entity_type === "person"
               ? "people"
               : "places";
-          const res = await fetch(`/api/${apiPath}/${result.entity_id}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.coordinates?.lat && (!lat || !lng)) {
-              lat = data.coordinates.lat;
-              lng = data.coordinates.lng;
-            }
+          const data = await fetchApi<Record<string, unknown>>(
+            `/api/${apiPath}/${result.entity_id}`
+          );
+          const coords = data.coordinates as { lat?: number; lng?: number } | undefined;
+          if (coords?.lat && (!lat || !lng)) {
+            lat = coords.lat;
+            lng = coords.lng;
+          }
 
-            // Resolve linked place for person/cat
-            if (result.entity_type !== "place") {
-              const plId =
-                data.associated_places?.[0]?.place_id ||
-                data.places?.[0]?.place_id ||
-                null;
-              if (plId) {
-                linkedPlaceId = plId;
-                if (!lat || !lng) {
-                  const pin = atlasPinsRef.current.find((p) => p.id === plId);
-                  if (pin?.lat && pin?.lng) {
-                    lat = pin.lat;
-                    lng = pin.lng;
-                  }
+          // Resolve linked place for person/cat
+          if (result.entity_type !== "place") {
+            const assocPlaces = data.associated_places as { place_id: string }[] | undefined;
+            const placesArr = data.places as { place_id: string }[] | undefined;
+            const plId =
+              assocPlaces?.[0]?.place_id ||
+              placesArr?.[0]?.place_id ||
+              null;
+            if (plId) {
+              linkedPlaceId = plId;
+              if (!lat || !lng) {
+                const pin = atlasPinsRef.current.find((p) => p.id === plId);
+                if (pin?.lat && pin?.lng) {
+                  lat = pin.lat;
+                  lng = pin.lng;
                 }
               }
             }
@@ -280,25 +277,22 @@ export function useMapSearch({
   const handleGoogleSelect = useCallback(
     async (prediction: PlacePrediction) => {
       try {
-        const res = await fetch(
+        const data = await fetchApi<{ place: { geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string } }>(
           `/api/places/details?place_id=${prediction.place_id}`
         );
-        if (res.ok) {
-          const data = await res.json();
-          const place = data.place;
-          if (place?.geometry?.location) {
-            const { lat, lng } = place.geometry.location;
-            setNavigatedLocation({
-              lat,
-              lng,
-              address: place.formatted_address || prediction.description,
+        const place = data.place;
+        if (place?.geometry?.location) {
+          const { lat, lng } = place.geometry.location;
+          setNavigatedLocation({
+            lat,
+            lng,
+            address: place.formatted_address || prediction.description,
+          });
+          if (mapRef.current) {
+            mapRef.current.setView([lat, lng], 16, {
+              animate: true,
+              duration: 0.5,
             });
-            if (mapRef.current) {
-              mapRef.current.setView([lat, lng], 16, {
-                animate: true,
-                duration: 0.5,
-              });
-            }
           }
         }
       } catch (err) {

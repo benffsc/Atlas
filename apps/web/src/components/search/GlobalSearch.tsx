@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { fetchApi } from "@/lib/api-client";
 
 interface SearchResult {
   entity_type: string;
@@ -47,11 +48,10 @@ export default function GlobalSearch() {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(q)}&suggestions=true`);
-      if (response.ok) {
-        const data: SuggestionsResponse = await response.json();
-        setSuggestions(data.suggestions || []);
-      }
+      const data = await fetchApi<SuggestionsResponse>(
+        `/api/search?q=${encodeURIComponent(q)}&suggestions=true`
+      );
+      setSuggestions(data.suggestions || []);
     } catch (error) {
       console.error("Error fetching suggestions:", error);
     } finally {

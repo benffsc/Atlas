@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
 
 interface EntityPreviewProps {
@@ -53,11 +54,8 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
     if (isHovering && !detail && !loading) {
       setLoading(true);
       const endpoint = entityType === "cat" ? "cats" : entityType === "person" ? "people" : "places";
-      fetch(`/api/${endpoint}/${entityId}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data) setDetail(data);
-        })
+      fetchApi<EntityDetail>(`/api/${endpoint}/${entityId}`)
+        .then((data) => setDetail(data))
         .catch(() => {})
         .finally(() => setLoading(false));
     }
