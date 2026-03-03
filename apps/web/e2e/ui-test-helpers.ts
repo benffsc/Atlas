@@ -246,11 +246,33 @@ export async function switchToTabBarTab(page: Page, tabLabel: string) {
 
 /**
  * Verify TabBar is present on the page
+ * Looks for common tab labels used across entity detail pages
  */
 export async function expectTabBarVisible(page: Page) {
-  // TabBar has a distinctive borderBottom style
-  const tabBar = page.locator('div[style*="borderBottom: 2px solid"]').first();
-  await expect(tabBar).toBeVisible({ timeout: 5000 });
+  // TabBar contains multiple tab buttons - look for common tab patterns
+  const tabPatterns = [
+    'button:has-text("Details")',
+    'button:has-text("Activity")',
+    'button:has-text("Linked Cats")',
+    'button:has-text("Photos")',
+    'button:has-text("Admin")',
+    'button:has-text("History")',
+    'button:has-text("Requests")',
+    'button:has-text("Ecology")',
+    'button:has-text("Media")',
+  ];
+
+  // Check if at least 2 tab-like buttons are visible (indicates TabBar)
+  let tabCount = 0;
+  for (const pattern of tabPatterns) {
+    const tab = page.locator(pattern).first();
+    if (await tab.isVisible({ timeout: 1000 }).catch(() => false)) {
+      tabCount++;
+      if (tabCount >= 2) break;
+    }
+  }
+
+  expect(tabCount).toBeGreaterThanOrEqual(2);
 }
 
 /**

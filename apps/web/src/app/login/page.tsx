@@ -52,7 +52,11 @@ function LoginForm() {
           window.location.href = redirect;
         }
       } else {
-        setError(data.error || "Login failed");
+        // data.error is {message, code} object, extract the message string
+        const errorMsg = typeof data.error === 'string'
+          ? data.error
+          : data.error?.message || "Login failed";
+        setError(errorMsg);
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
