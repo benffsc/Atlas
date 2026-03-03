@@ -331,6 +331,115 @@ test.describe("Empty State Screenshots", () => {
 });
 
 // ============================================================================
+// TABBAR COMPONENT SCREENSHOTS (New standardized tabs)
+// ============================================================================
+
+test.describe("TabBar Component Screenshots", () => {
+  test.setTimeout(60000);
+
+  test("Request page TabBar - all tabs", async ({ page, request }) => {
+    const requestId = await findRealEntity(request, "requests");
+    test.skip(!requestId, "No requests in database");
+
+    await navigateTo(page, `/requests/${requestId}`);
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+
+    // Find TabBar
+    const tabBar = page.locator('[style*="borderBottom: 2px solid"]').first();
+    const hasTabBar = await tabBar.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (hasTabBar) {
+      // Screenshot default state (cats tab active)
+      await expect(tabBar).toHaveScreenshot("tabbar-request-cats-active.png", {
+        maxDiffPixels: 100,
+      });
+
+      // Click through each tab and screenshot
+      const tabs = ["Photos", "Activity", "Admin"];
+      for (const tabName of tabs) {
+        const tab = page.locator(`button:has-text("${tabName}")`).first();
+        if (await tab.isVisible().catch(() => false)) {
+          await tab.click();
+          await page.waitForTimeout(300);
+          await expect(tabBar).toHaveScreenshot(`tabbar-request-${tabName.toLowerCase()}-active.png`, {
+            maxDiffPixels: 100,
+          });
+        }
+      }
+    }
+  });
+
+  test("Place page TabBar - all tabs", async ({ page, request }) => {
+    const placeId = await findRealEntity(request, "places");
+    test.skip(!placeId, "No places in database");
+
+    await navigateTo(page, `/places/${placeId}`);
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+
+    // Find TabBar (place page has Details, Requests, Ecology, Media tabs)
+    const tabs = ["Requests", "Ecology", "Media"];
+    for (const tabName of tabs) {
+      const tab = page.locator(`button:has-text("${tabName}")`).first();
+      if (await tab.isVisible().catch(() => false)) {
+        await tab.click();
+        await page.waitForTimeout(300);
+
+        // Screenshot the active tab content area
+        await expect(page).toHaveScreenshot(`place-tab-${tabName.toLowerCase()}.png`, {
+          maxDiffPixels: 500,
+          fullPage: true,
+        });
+      }
+    }
+  });
+
+  test("Person page TabBar - all tabs", async ({ page, request }) => {
+    const personId = await findRealEntity(request, "people");
+    test.skip(!personId, "No people in database");
+
+    await navigateTo(page, `/people/${personId}`);
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+
+    // Find TabBar (person page has Details, History, Admin tabs)
+    const tabs = ["History", "Admin"];
+    for (const tabName of tabs) {
+      const tab = page.locator(`button:has-text("${tabName}")`).first();
+      if (await tab.isVisible().catch(() => false)) {
+        await tab.click();
+        await page.waitForTimeout(300);
+
+        // Screenshot the active tab content area
+        await expect(page).toHaveScreenshot(`person-tab-${tabName.toLowerCase()}.png`, {
+          maxDiffPixels: 500,
+          fullPage: true,
+        });
+      }
+    }
+  });
+
+  test("TabBar count badges", async ({ page, request }) => {
+    const requestId = await findRealEntity(request, "requests");
+    test.skip(!requestId, "No requests in database");
+
+    await navigateTo(page, `/requests/${requestId}`);
+    await page.waitForLoadState("networkidle");
+
+    // Find tabs with count badges
+    const countBadge = page.locator('button:has-text("Linked Cats") span[style*="borderRadius: 999px"]').first();
+    const hasBadge = await countBadge.isVisible({ timeout: 5000 }).catch(() => false);
+
+    if (hasBadge) {
+      await expect(countBadge).toHaveScreenshot("tabbar-count-badge.png", {
+        maxDiffPixels: 50,
+      });
+    }
+  });
+});
+
+// ============================================================================
 // MAP COMPONENT SCREENSHOTS
 // ============================================================================
 

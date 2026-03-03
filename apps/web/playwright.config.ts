@@ -7,19 +7,53 @@ dotenv.config({ path: '.env.local' });
 /**
  * Playwright E2E Test Configuration for Atlas
  *
- * Run tests:
+ * ═══════════════════════════════════════════════════════════════════════════
+ * RUN COMMANDS
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
  *   npm run test:e2e                    - Run all tests (skips @real-api)
  *   npm run test:e2e:ui                 - Run with UI mode
  *   npm run test:e2e:headed             - Run with browser visible
- *   INCLUDE_REAL_API=1 npm run test:e2e - Run ALL tests including @real-api
+ *   npm run test:e2e:visual             - Run visual regression tests only
+ *   npm run test:e2e:ci                 - CI mode (no Tippy, cleanup enabled)
  *
  * Debug:
  *   npm run test:e2e -- --debug
  *
- * Cost control:
- *   Tests tagged with @real-api call the actual Anthropic API and cost money.
- *   By default, these are SKIPPED to prevent accidental API credit burn.
- *   Set INCLUDE_REAL_API=1 to run them (e.g., for weekly capability checks).
+ * Update visual snapshots:
+ *   npx playwright test e2e/visual-regression.spec.ts --update-snapshots
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * TIPPY/AI TESTS - SKIPPED BY DEFAULT DUE TO API COSTS
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Tests tagged with @real-api call the Anthropic API and incur costs.
+ * These are SKIPPED by default to prevent accidental API credit burn.
+ *
+ * To run Tippy tests (when ready to pay for API calls):
+ *   INCLUDE_REAL_API=1 npm run test:e2e
+ *
+ * Tippy test files (13 total):
+ *   - tippy-capabilities.spec.ts
+ *   - tippy-accuracy-verification.spec.ts
+ *   - tippy-complex-queries.spec.ts
+ *   - tippy-cross-source-stress.spec.ts
+ *   - tippy-cross-source.spec.ts
+ *   - tippy-edge-cases.spec.ts
+ *   - tippy-expected-gaps.spec.ts
+ *   - tippy-human-questions.spec.ts
+ *   - tippy-identity-resolution.spec.ts
+ *   - tippy-infrastructure.spec.ts
+ *   - tippy-performance.spec.ts
+ *   - tippy-staff-workflows.spec.ts
+ *   - data-quality-tippy.spec.ts
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CLEANUP
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Test data cleanup runs automatically after tests via globalTeardown.
+ * Manual cleanup: node -e "require('./e2e/global-teardown').default()"
  */
 
 // Skip @real-api tests by default to avoid burning Anthropic API credits
@@ -36,7 +70,10 @@ export default defineConfig({
     ['list'],
   ],
 
-  // Skip @real-api tests by default
+  // Clean up test data after all tests complete
+  globalTeardown: './e2e/global-teardown.ts',
+
+  // Skip @real-api tests by default (Tippy tests cost money)
   grepInvert,
 
   use: {

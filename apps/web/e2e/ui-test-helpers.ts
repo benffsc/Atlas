@@ -227,6 +227,57 @@ export async function expectTabExists(page: Page, label: string) {
   await expect(page.locator('.profile-tab', { hasText: label })).toBeVisible();
 }
 
+// ============================================================================
+// TABBAR HELPERS (New standardized TabBar component)
+// ============================================================================
+
+/**
+ * Switch to a tab in the new TabBar component.
+ * Works with the standardized TabBar from @/components/ui
+ */
+export async function switchToTabBarTab(page: Page, tabLabel: string) {
+  // Find tab button by text content (TabBar uses buttons with text labels)
+  const tab = page.locator(`button:has-text("${tabLabel}")`).first();
+  await tab.click();
+  await page.waitForLoadState('networkidle');
+  // Short wait for tab panel transition
+  await page.waitForTimeout(300);
+}
+
+/**
+ * Verify TabBar is present on the page
+ */
+export async function expectTabBarVisible(page: Page) {
+  // TabBar has a distinctive borderBottom style
+  const tabBar = page.locator('div[style*="borderBottom: 2px solid"]').first();
+  await expect(tabBar).toBeVisible({ timeout: 5000 });
+}
+
+/**
+ * Get the currently active TabBar tab label
+ */
+export async function getActiveTabBarTab(page: Page): Promise<string | null> {
+  // Active tab has fontWeight 600 and a specific border style
+  const activeTab = page.locator('button[style*="fontWeight: 600"]').first();
+  if (await activeTab.isVisible().catch(() => false)) {
+    return await activeTab.textContent();
+  }
+  return null;
+}
+
+/**
+ * Get count badge value from a TabBar tab
+ */
+export async function getTabBarBadgeCount(page: Page, tabLabel: string): Promise<number | null> {
+  const tab = page.locator(`button:has-text("${tabLabel}")`).first();
+  const badge = tab.locator('span[style*="borderRadius: 999px"]');
+  if (await badge.isVisible().catch(() => false)) {
+    const text = await badge.textContent();
+    return text ? parseInt(text, 10) : null;
+  }
+  return null;
+}
+
 /**
  * Wait for the page to finish loading (no loading spinners).
  * Verifies we're NOT on the login page.
