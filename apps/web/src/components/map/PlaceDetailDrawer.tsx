@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { unwrapApiResponse } from "@/lib/api-client";
 
 interface GoogleNote {
   entry_id: string;
@@ -164,8 +165,8 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
         if (!res.ok) throw new Error("Failed to load place details");
         return res.json();
       })
-      .then((data) => {
-        setPlace(data);
+      .then((json) => {
+        setPlace(unwrapApiResponse<PlaceDetails>(json));
         setLoading(false);
       })
       .catch((err) => {
@@ -257,7 +258,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     if (!placeId) return;
     fetch(`/api/places/${placeId}/map-details`)
       .then((res) => res.ok ? res.json() : null)
-      .then((data) => { if (data) setPlace(data); });
+      .then((json) => { if (json) setPlace(unwrapApiResponse<PlaceDetails>(json)); });
   };
 
   // Handle journal entry creation

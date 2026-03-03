@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { unwrapApiResponse } from "@/lib/api-client";
 
 interface JournalEntry {
   id: string;
@@ -87,8 +88,8 @@ export function AnnotationDetailDrawer({ annotationId, onClose }: AnnotationDeta
         if (!res.ok) throw new Error("Failed to load annotation details");
         return res.json();
       })
-      .then((data) => {
-        setAnnotation(data);
+      .then((json) => {
+        setAnnotation(unwrapApiResponse<AnnotationDetails>(json));
         setLoading(false);
       })
       .catch((err) => {
@@ -102,8 +103,8 @@ export function AnnotationDetailDrawer({ annotationId, onClose }: AnnotationDeta
     if (!annotationId) return;
     fetch(`/api/annotations/${annotationId}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) setAnnotation(data);
+      .then((json) => {
+        if (json) setAnnotation(unwrapApiResponse<AnnotationDetails>(json));
       });
   };
 

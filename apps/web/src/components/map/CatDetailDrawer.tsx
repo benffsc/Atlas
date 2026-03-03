@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { unwrapApiResponse } from "@/lib/api-client";
 
 /* ------------------------------------------------------------------ */
 /*  Type definitions matching the GET /api/cats/:id response shape     */
@@ -121,8 +122,8 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
         if (!res.ok) throw new Error("Failed to load cat details");
         return res.json();
       })
-      .then((data) => {
-        setCat(data);
+      .then((json) => {
+        setCat(unwrapApiResponse<CatDetails>(json));
         setLoading(false);
       })
       .catch((err) => {

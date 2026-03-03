@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { unwrapApiResponse } from "@/lib/api-client";
 
 interface PersonIdentifier {
   id_type: string;
@@ -133,8 +134,9 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
         return res.json();
       }),
     ])
-      .then(([personData, rolesData]) => {
-        setPerson(personData);
+      .then(([personJson, rolesJson]) => {
+        setPerson(unwrapApiResponse<PersonDetails>(personJson));
+        const rolesData = unwrapApiResponse<{ roles: PersonRole[] }>(rolesJson);
         setRoles(
           (rolesData.roles || []).filter(
             (r: PersonRole) => r.role_status === "active"
