@@ -19,6 +19,7 @@
  */
 
 import useSWR, { SWRConfiguration } from 'swr';
+import { unwrapApiResponse } from '@/lib/api-client';
 
 export interface MapDataBounds {
   south: number;
@@ -140,7 +141,8 @@ const fetcher = async (url: string): Promise<MapDataResponse> => {
   if (!res.ok) {
     throw new Error(`Failed to fetch map data: ${res.status}`);
   }
-  return res.json();
+  const json = await res.json();
+  return unwrapApiResponse<MapDataResponse>(json);
 };
 
 /**
