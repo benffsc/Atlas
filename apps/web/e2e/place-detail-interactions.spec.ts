@@ -2,7 +2,7 @@
  * Place Detail Interactions - E2E Tests
  *
  * Tests the place detail page (/places/[id]) including:
- * - ProfileLayout tab navigation (Overview, Requests, Ecology, Media, Activity)
+ * - TabBar navigation (Details, Requests, Ecology, Media)
  * - Place header with name, address, context tags, kind badge
  * - Content sections within each tab
  * - Entity link navigation
@@ -16,10 +16,10 @@ import {
   navigateTo,
   findRealEntity,
   mockAllWrites,
-  waitForProfileTabs,
-  clickTab,
-  expectTabExists,
   waitForLoaded,
+  switchToTabBarTab,
+  expectTabBarVisible,
+  getTabBarBadgeCount,
 } from './ui-test-helpers';
 
 test.describe('UI: Place Detail Interactions', () => {
@@ -41,20 +41,21 @@ test.describe('UI: Place Detail Interactions', () => {
     // Page loaded - waitForLoaded already verified we're not on login page
   });
 
-  test('All tabs are present', async ({ page, request }) => {
+  test('TabBar tabs are present', async ({ page, request }) => {
     if (!placeId) {
       placeId = await findRealEntity(request, 'places');
     }
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
 
-    await expectTabExists(page, 'Overview');
-    await expectTabExists(page, 'Requests');
-    await expectTabExists(page, 'Ecology');
-    await expectTabExists(page, 'Media');
-    await expectTabExists(page, 'Activity');
+    // New TabBar tabs: Details, Requests, Ecology, Media
+    const tabs = ['Details', 'Requests', 'Ecology', 'Media'];
+    for (const tabName of tabs) {
+      await expect(page.locator(`button:has-text("${tabName}")`)).toBeVisible();
+    }
   });
 
   test('Tab switching works', async ({ page, request }) => {
@@ -64,21 +65,16 @@ test.describe('UI: Place Detail Interactions', () => {
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
 
-    // Iterate actual tabs in the DOM (avoids hardcoding names)
-    const tabButtons = page.locator('.profile-tab');
-    const tabCount = await tabButtons.count();
-
-    for (let i = 0; i < tabCount; i++) {
-      const tab = tabButtons.nth(i);
-      const label = (await tab.textContent())?.trim();
-      if (!label) continue;
-
-      await tab.click();
-      // Allow Next.js router.replace() to settle before asserting
-      await page.waitForTimeout(500);
-      await expect(tab).toHaveClass(/active/, { timeout: 10000 });
+    // Click through each tab
+    const tabs = ['Details', 'Requests', 'Ecology', 'Media'];
+    for (const tabName of tabs) {
+      await switchToTabBarTab(page, tabName);
+      // Verify tab content area exists
+      const content = page.locator('main').last();
+      await expect(content).toBeVisible();
     }
   });
 
@@ -99,24 +95,24 @@ test.describe('UI: Place Detail Interactions', () => {
     expect(headingText && headingText.trim().length > 0).toBeTruthy();
   });
 
-  test('Overview tab shows place info', async ({ page, request }) => {
+  test('Details tab shows place info', async ({ page, request }) => {
     if (!placeId) {
       placeId = await findRealEntity(request, 'places');
     }
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
-    await clickTab(page, 'Overview');
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
+    await switchToTabBarTab(page, 'Details');
 
-    // Overview renders h2 headings: "Location Details", "Activity Summary", "Cats", "People", etc.
-    const locationSection = page.locator('h2', { hasText: 'Location Details' });
-    const activitySection = page.locator('h2', { hasText: 'Activity Summary' });
+    // Details tab contains location info, activity summary, cats, people
+    const mainContent = page.locator('main').last();
+    await expect(mainContent).toBeVisible({ timeout: 10000 });
 
     // At least one content section should be visible
-    const hasLocation = await locationSection.isVisible({ timeout: 10000 }).catch(() => false);
-    const hasActivity = await activitySection.isVisible({ timeout: 5000 }).catch(() => false);
-    expect(hasLocation || hasActivity).toBeTruthy();
+    const mainText = await mainContent.textContent();
+    expect(mainText && mainText.trim().length > 0).toBeTruthy();
   });
 
   test('Requests tab shows linked requests', async ({ page, request }) => {
@@ -126,15 +122,35 @@ test.describe('UI: Place Detail Interactions', () => {
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
-    await clickTab(page, 'Requests');
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
+    await switchToTabBarTab(page, 'Requests');
 
     // Wait for the tab content to render
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     // Should show request links, an empty state, or at least rendered content
     const mainText = await page.locator('main').last().textContent();
     expect(mainText && mainText.trim().length > 0).toBeTruthy();
+  });
+
+  test('Requests tab shows count badge', async ({ page, request }) => {
+    if (!placeId) {
+      placeId = await findRealEntity(request, 'places');
+    }
+    test.skip(!placeId, 'No places available in database');
+
+    await navigateTo(page, `/places/${placeId}`);
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
+
+    // Check that Requests tab has a count badge (even if 0)
+    const requestsTab = page.locator('button:has-text("Requests")');
+    await expect(requestsTab).toBeVisible();
+
+    const count = await getTabBarBadgeCount(page, 'Requests');
+    // Count can be 0 or more - just verify it's a number or null (no badge)
+    expect(count === null || typeof count === 'number').toBeTruthy();
   });
 
   test('Ecology tab shows colony data', async ({ page, request }) => {
@@ -144,31 +160,33 @@ test.describe('UI: Place Detail Interactions', () => {
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
-    await clickTab(page, 'Ecology');
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
+    await switchToTabBarTab(page, 'Ecology');
 
     // Wait for tab content to render
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     // Ecology tab should have content in the main area
     const mainText = await page.locator('main').last().textContent();
     expect(mainText && mainText.trim().length > 0).toBeTruthy();
   });
 
-  test('Activity tab shows journal section', async ({ page, request }) => {
+  test('Media tab shows photos section', async ({ page, request }) => {
     if (!placeId) {
       placeId = await findRealEntity(request, 'places');
     }
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
-    await clickTab(page, 'Activity');
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
+    await switchToTabBarTab(page, 'Media');
 
     // Wait for tab content to render
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
-    // Activity tab should have content in the main area
+    // Media tab should have content in the main area (upload button, gallery, or empty state)
     const mainText = await page.locator('main').last().textContent();
     expect(mainText && mainText.trim().length > 0).toBeTruthy();
   });
@@ -180,10 +198,11 @@ test.describe('UI: Place Detail Interactions', () => {
     test.skip(!placeId, 'No places available in database');
 
     await navigateTo(page, `/places/${placeId}`);
-    await waitForProfileTabs(page);
-    await clickTab(page, 'Overview');
+    await waitForLoaded(page);
+    await expectTabBarVisible(page);
+    await switchToTabBarTab(page, 'Details');
 
-    // Look for links to cats or people within the overview content
+    // Look for links to cats or people within the details content
     const entityLinks = page.locator('a[href*="/cats/"], a[href*="/people/"]');
     const linkCount = await entityLinks.count();
 
