@@ -14,8 +14,9 @@
     "test:e2e:report": "playwright show-report",
     "test:e2e:visual": "playwright test e2e/visual-regression.spec.ts",
     "test:e2e:visual:update": "playwright test e2e/visual-regression.spec.ts --update-snapshots",
-    "test:e2e:ci": "CLEANUP_TEST_DATA=1 playwright test --grep-invert @real-api",
-    "test:e2e:tippy": "INCLUDE_REAL_API=1 playwright test --grep @real-api"
+    "test:e2e:ci": "CLEANUP_TEST_DATA=1 playwright test",
+    "test:e2e:tippy": "INCLUDE_REAL_API=1 playwright test --grep @real-api",
+    "test:e2e:vision": "INCLUDE_VISION_API=1 playwright test --grep @vision-api"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

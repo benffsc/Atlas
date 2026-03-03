@@ -49,6 +49,25 @@ dotenv.config({ path: '.env.local' });
  *   - data-quality-tippy.spec.ts
  *
  * ═══════════════════════════════════════════════════════════════════════════
+ * VISION API TESTS - SKIPPED BY DEFAULT DUE TO API COSTS
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Tests tagged with @vision-api use Claude Vision to semantically verify UI.
+ * These are SKIPPED by default (~$0.003-0.01 per verification).
+ *
+ * To run vision tests:
+ *   INCLUDE_VISION_API=1 npm run test:e2e -- --grep @vision-api
+ *
+ * Vision test files:
+ *   - vision-verification.spec.ts (page structure, accessibility, business rules)
+ *
+ * Vision tests verify:
+ *   - Correct page structure and layout
+ *   - Expected UI elements are present
+ *   - Data displays according to business rules
+ *   - Known gaps are handled properly (not flagged as errors)
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
  * CLEANUP
  * ═══════════════════════════════════════════════════════════════════════════
  *
@@ -56,8 +75,26 @@ dotenv.config({ path: '.env.local' });
  * Manual cleanup: node -e "require('./e2e/global-teardown').default()"
  */
 
-// Skip @real-api tests by default to avoid burning Anthropic API credits
-const grepInvert = process.env.INCLUDE_REAL_API ? undefined : /@real-api/;
+// Build grepInvert pattern based on which API tests to include
+// By default, skip both @real-api (Tippy) and @vision-api tests to avoid API costs
+function buildGrepInvert(): RegExp | undefined {
+  const skipPatterns: string[] = [];
+
+  if (!process.env.INCLUDE_REAL_API) {
+    skipPatterns.push('@real-api');
+  }
+  if (!process.env.INCLUDE_VISION_API) {
+    skipPatterns.push('@vision-api');
+  }
+
+  if (skipPatterns.length === 0) {
+    return undefined;
+  }
+
+  return new RegExp(skipPatterns.join('|'));
+}
+
+const grepInvert = buildGrepInvert();
 
 export default defineConfig({
   testDir: './e2e',
@@ -73,7 +110,7 @@ export default defineConfig({
   // Clean up test data after all tests complete
   globalTeardown: './e2e/global-teardown.ts',
 
-  // Skip @real-api tests by default (Tippy tests cost money)
+  // Skip @real-api and @vision-api tests by default (API costs)
   grepInvert,
 
   use: {
