@@ -1,0 +1,381 @@
+  1) [chromium] › e2e/api-schema-validation.spec.ts:57:7 › API Schema Validation › People API returns expected columns 
+  2) [chromium] › e2e/api-schema-validation.spec.ts:75:7 › API Schema Validation › Cats API returns expected columns 
+  3) [chromium] › e2e/api-schema-validation.spec.ts:93:7 › API Schema Validation › People API handles query parameters 
+  4) [chromium] › e2e/api-schema-validation.spec.ts:111:7 › API Schema Validation › Cats API handles query parameters 
+  5) [chromium] › e2e/api-schema-validation.spec.ts:128:7 › API Schema Validation › Places API returns valid data 
+  6) [chromium] › e2e/api-schema-validation.spec.ts:136:7 › API Schema Validation › Requests API returns valid data 
+  7) [chromium] › e2e/api-schema-validation.spec.ts:241:7 › Search API Validation › Unified search returns valid results 
+  8) [chromium] › e2e/beacon-analytics.spec.ts:29:7 › Beacon Analytics: Summary Endpoint › Summary has required structure 
+  9) [chromium] › e2e/beacon-analytics.spec.ts:38:7 › Beacon Analytics: Summary Endpoint › Summary total_cats is non-negative 
+  10) [chromium] › e2e/beacon-analytics.spec.ts:45:7 › Beacon Analytics: Summary Endpoint › Summary overall_alteration_rate is 0-100 (percentage) 
+  11) [chromium] › e2e/beacon-analytics.spec.ts:54:7 › Beacon Analytics: Summary Endpoint › Summary tnr_target_rate is 75 (Levy threshold) 
+  12) [chromium] › e2e/beacon-analytics.spec.ts:61:7 › Beacon Analytics: Summary Endpoint › Summary colony status counts are consistent 
+  13) [chromium] › e2e/beacon-analytics.spec.ts:82:7 › Beacon Analytics: Places Endpoint › GET /api/beacon/places returns array 
+  14) [chromium] › e2e/beacon-analytics.spec.ts:90:7 › Beacon Analytics: Places Endpoint › Places have required fields 
+  15) [chromium] › e2e/beacon-analytics.spec.ts:102:7 › Beacon Analytics: Places Endpoint › Places minCats filter works 
+  16) [chromium] › e2e/beacon-analytics.spec.ts:116:7 › Beacon Analytics: Places Endpoint › Places status filter works 
+  17) [chromium] › e2e/beacon-analytics.spec.ts:128:7 › Beacon Analytics: Places Endpoint › Places bounds filter accepts valid coordinates 
+  18) [chromium] › e2e/beacon-analytics.spec.ts:145:7 › Beacon Analytics: Clusters Endpoint › GET /api/beacon/clusters returns array 
+  19) [chromium] › e2e/beacon-analytics.spec.ts:153:7 › Beacon Analytics: Clusters Endpoint › Clusters have centroid coordinates 
+  20) [chromium] › e2e/beacon-analytics.spec.ts:166:7 › Beacon Analytics: Clusters Endpoint › Clusters have minimum place count 
+  21) [chromium] › e2e/beacon-analytics.spec.ts:178:7 › Beacon Analytics: Clusters Endpoint › Cluster epsilon parameter affects results 
+  22) [chromium] › e2e/beacon-analytics.spec.ts:204:7 › Beacon Analytics: Seasonal Endpoints › GET /api/beacon/seasonal-alerts returns alerts 
+  23) [chromium] › e2e/beacon-analytics.spec.ts:240:7 › Beacon Analytics: Calculation Validation › Alteration rate never exceeds 100% 
+  24) [chromium] › e2e/beacon-analytics.spec.ts:254:7 › Beacon Analytics: Calculation Validation › Alteration rate is non-negative 
+  25) [chromium] › e2e/beacon-analytics.spec.ts:268:7 › Beacon Analytics: Calculation Validation › Colony estimates are non-negative 
+  26) [chromium] › e2e/beacon-analytics.spec.ts:282:7 › Beacon Analytics: Calculation Validation › Verified counts are non-negative 
+  27) [chromium] › e2e/beacon-analytics.spec.ts:299:7 › Beacon Analytics: Calculation Validation › Altered never exceeds total verified 
+  28) [chromium] › e2e/beacon-analytics.spec.ts:320:7 › Beacon Analytics: Calculation Validation › Status classification matches thresholds 
+  29) [chromium] › e2e/beacon-analytics.spec.ts:431:7 › Beacon Analytics: Data Consistency › Summary totals are consistent with places sum 
+  30) [chromium] › e2e/beacon-analytics.spec.ts:459:7 › Beacon Analytics: Data Consistency › Cluster place counts match place data 
+  31) [chromium] › e2e/clinic-data-verification.spec.ts:39:7 › Clinic Data Cross-Reference › cats API returns cats with microchips 
+  32) [chromium] › e2e/clinic-data-verification.spec.ts:93:7 › Clinic Data Cross-Reference › person with cats shows correct cat count 
+  33) [chromium] › e2e/clinic-data-verification.spec.ts:163:7 › Microchip Data Verification › microchip search returns correct cat 
+  34) [chromium] › e2e/clinic-data-verification.spec.ts:187:7 › Microchip Data Verification › clinic visit count matches appointments 
+  35) [chromium] › e2e/clinic-data-verification.spec.ts:215:7 › Owner-Cat Relationship Verification › cat owner link is bidirectional 
+  36) [chromium] › e2e/contracts/view-route-contracts.spec.ts:99:9 › View↔Route Contracts › Cat List Contract (VCatListRow) › GET /api/cats returns data matching VCatListRow interface 
+  37) [chromium] › e2e/contracts/view-route-contracts.spec.ts:127:9 › View↔Route Contracts › Cat List Contract (VCatListRow) › pagination metadata is present 
+  38) [chromium] › e2e/contracts/view-route-contracts.spec.ts:141:9 › View↔Route Contracts › Person List Contract (VPersonListRow) › GET /api/people returns data matching VPersonListRow interface 
+  39) [chromium] › e2e/contracts/view-route-contracts.spec.ts:171:9 › View↔Route Contracts › Place List Contract (VPlaceListRow) › GET /api/places returns data matching VPlaceListRow interface 
+  40) [chromium] › e2e/contracts/view-route-contracts.spec.ts:199:9 › View↔Route Contracts › Request List Contract (VRequestListRow) › GET /api/requests returns data matching VRequestListRow interface 
+  41) [chromium] › e2e/contracts/view-route-contracts.spec.ts:251:7 › UUID Validation (INV-46) › valid UUID format returns 404 for non-existent entity 
+  42) [chromium] › e2e/contracts/view-route-contracts.spec.ts:277:7 › Pagination Validation (INV-47) › negative limit/offset are handled gracefully 
+  43) [chromium] › e2e/contracts/view-route-contracts.spec.ts:287:7 › Pagination Validation (INV-47) › very large limit is capped 
+  44) [chromium] › e2e/contracts/view-route-contracts.spec.ts:296:7 › Pagination Validation (INV-47) › non-numeric values use defaults 
+  45) [chromium] › e2e/data-consistency.spec.ts:16:9 › Data Consistency › API Health › requests API returns valid data 
+  46) [chromium] › e2e/data-consistency.spec.ts:24:9 › Data Consistency › API Health › places API returns valid data 
+  47) [chromium] › e2e/data-consistency.spec.ts:32:9 › Data Consistency › API Health › people API returns valid data 
+  48) [chromium] › e2e/data-consistency.spec.ts:40:9 › Data Consistency › API Health › cats API returns valid data 
+  49) [chromium] › e2e/data-consistency.spec.ts:169:7 › Beacon Data Integrity › mortality stats API responds 
+  50) [chromium] › e2e/data-quality-tippy.spec.ts:107:7 › Tippy Basic Functionality › Tippy responds to simple greeting 
+  51) [chromium] › e2e/data-quality-tippy.spec.ts:115:7 › Tippy Basic Functionality › Tippy can answer "How many cats have we helped?" 
+  52) [chromium] › e2e/data-quality-tippy.spec.ts:126:7 › Tippy Basic Functionality › Tippy can explain what FFSC does 
+  53) [chromium] › e2e/data-quality-tippy.spec.ts:144:7 › Place & Colony Data Queries › Tippy can query cats at a real address 
+  54) [chromium] › e2e/data-quality-tippy.spec.ts:166:7 › Place & Colony Data Queries › Tippy can provide colony status for an address 
+  55) [chromium] › e2e/data-quality-tippy.spec.ts:185:7 › Place & Colony Data Queries › Tippy can find colony sites in a city 
+  56) [chromium] › e2e/data-quality-tippy.spec.ts:195:7 › Place & Colony Data Queries › Tippy handles ambiguous address gracefully 
+  57) [chromium] › e2e/data-quality-tippy.spec.ts:215:7 › Cat Journey & Microchip Queries › Tippy can look up a cat by microchip 
+  58) [chromium] › e2e/data-quality-tippy.spec.ts:238:7 › Cat Journey & Microchip Queries › Tippy can describe a cats journey 
+  59) [chromium] › e2e/data-quality-tippy.spec.ts:261:7 › Cat Journey & Microchip Queries › Tippy handles invalid microchip gracefully 
+  60) [chromium] › e2e/data-quality-tippy.spec.ts:272:7 › Cat Journey & Microchip Queries › Tippy can compare clinic records with Atlas data 
+  61) [chromium] › e2e/data-quality-tippy.spec.ts:304:7 › Foster & Adopter Relationship Queries › Tippy can query foster homes in an area 
+  62) [chromium] › e2e/data-quality-tippy.spec.ts:313:7 › Foster & Adopter Relationship Queries › Tippy can answer "How many cats has someone fostered?" 
+  63) [chromium] › e2e/data-quality-tippy.spec.ts:334:7 › Foster & Adopter Relationship Queries › Tippy can list adopter residences 
+  64) [chromium] › e2e/data-quality-tippy.spec.ts:353:7 › Regional Statistics Queries › Tippy can provide stats for Santa Rosa 
+  65) [chromium] › e2e/data-quality-tippy.spec.ts:363:7 › Regional Statistics Queries › Tippy understands "west county" 
+  66) [chromium] › e2e/data-quality-tippy.spec.ts:372:7 › Regional Statistics Queries › Tippy can compare regions 
+  67) [chromium] › e2e/data-quality-tippy.spec.ts:381:7 › Regional Statistics Queries › Tippy can provide pending request stats 
+  68) [chromium] › e2e/data-quality-tippy.spec.ts:402:7 › Complex Multi-Part Queries › Tippy handles multi-part question about an address 
+  69) [chromium] › e2e/data-quality-tippy.spec.ts:424:7 › Complex Multi-Part Queries › Tippy handles question requiring multiple tool calls 
+  70) [chromium] › e2e/data-quality-tippy.spec.ts:436:7 › Complex Multi-Part Queries › Tippy can research and suggest next steps 
+  71) [chromium] › e2e/data-quality-tippy.spec.ts:468:7 › Data Quality & Discrepancy Detection › Tippy can identify data quality issues 
+  72) [chromium] › e2e/data-quality-tippy.spec.ts:477:7 › Data Quality & Discrepancy Detection › Tippy handles question about duplicate records 
+  73) [chromium] › e2e/data-quality-tippy.spec.ts:486:7 › Data Quality & Discrepancy Detection › Tippy can verify cat appointment data 
+  74) [chromium] › e2e/data-quality-tippy.spec.ts:521:7 › Knowledge Base Queries › Tippy can answer procedural questions 
+  75) [chromium] › e2e/data-quality-tippy.spec.ts:531:7 › Knowledge Base Queries › Tippy can provide talking points 
+  76) [chromium] › e2e/data-quality-tippy.spec.ts:550:7 › Error Handling & Edge Cases › Tippy handles empty query gracefully 
+  77) [chromium] › e2e/data-quality-tippy.spec.ts:557:7 › Error Handling & Edge Cases › Tippy handles very long query 
+  78) [chromium] › e2e/data-quality-tippy.spec.ts:565:7 › Error Handling & Edge Cases › Tippy handles special characters in query 
+  79) [chromium] › e2e/data-quality-tippy.spec.ts:572:7 › Error Handling & Edge Cases › Tippy handles misspelled city names 
+  80) [chromium] › e2e/data-quality-tippy.spec.ts:592:7 › Person History Queries › Tippy can look up person history 
+  81) [chromium] › e2e/data-quality-tippy.spec.ts:624:7 › Data Pipeline Summary › Tippy can provide overall FFR impact summary 
+  82) [chromium] › e2e/data-quality-unified.spec.ts:60:7 › Data Quality: API Endpoints › GET /api/admin/data-engine/review returns review queue 
+  83) [chromium] › e2e/data-quality-unified.spec.ts:69:7 › Data Quality: API Endpoints › GET /api/admin/data-engine/review with entity_type filter 
+  84) [chromium] › e2e/data-quality-unified.spec.ts:79:7 › Data Quality: API Endpoints › GET /api/admin/data-engine/review with status filter 
+  85) [chromium] › e2e/data-quality-unified.spec.ts:95:7 › Data Quality: check_data_quality Function › Check data quality for a person entity 
+  86) [chromium] › e2e/data-quality-unified.spec.ts:116:7 › Data Quality: check_data_quality Function › Check data quality for a cat entity 
+  87) [chromium] › e2e/data-quality-unified.spec.ts:127:7 › Data Quality: check_data_quality Function › Check data quality for a place entity 
+  88) [chromium] › e2e/data-quality-unified.spec.ts:138:7 › Data Quality: check_data_quality Function › Data quality response includes field-level details 
+  89) [chromium] › e2e/data-quality-unified.spec.ts:160:7 › Data Quality: find_potential_duplicates Function › Find potential duplicate people 
+  90) [chromium] › e2e/data-quality-unified.spec.ts:171:7 › Data Quality: find_potential_duplicates Function › Find duplicates by name similarity 
+  91) [chromium] › e2e/data-quality-unified.spec.ts:182:7 › Data Quality: find_potential_duplicates Function › Find potential duplicate cats 
+  92) [chromium] › e2e/data-quality-unified.spec.ts:193:7 › Data Quality: find_potential_duplicates Function › Find potential duplicate places 
+  93) [chromium] › e2e/data-quality-unified.spec.ts:210:7 › Data Quality: query_merge_history Function › Query merge history for people 
+  94) [chromium] › e2e/data-quality-unified.spec.ts:221:7 › Data Quality: query_merge_history Function › Query merge history for specific entity 
+  95) [chromium] › e2e/data-quality-unified.spec.ts:232:7 › Data Quality: query_merge_history Function › Query merge history for places 
+  96) [chromium] › e2e/data-quality-unified.spec.ts:243:7 › Data Quality: query_merge_history Function › Query recent merges 
+  97) [chromium] › e2e/data-quality-unified.spec.ts:260:7 › Data Quality: query_data_lineage Function › Query data lineage for a person 
+  98) [chromium] › e2e/data-quality-unified.spec.ts:282:7 › Data Quality: query_data_lineage Function › Query data lineage for a cat 
+  99) [chromium] › e2e/data-quality-unified.spec.ts:293:7 › Data Quality: query_data_lineage Function › Query data lineage for a place 
+  100) [chromium] › e2e/data-quality-unified.spec.ts:304:7 › Data Quality: query_data_lineage Function › Lineage includes confidence scores 
+  101) [chromium] › e2e/data-quality-unified.spec.ts:321:7 › Data Quality: query_volunteerhub_data Function › Query volunteer hours 
+  102) [chromium] › e2e/data-quality-unified.spec.ts:332:7 › Data Quality: query_volunteerhub_data Function › Query volunteer shifts 
+  103) [chromium] › e2e/data-quality-unified.spec.ts:343:7 › Data Quality: query_volunteerhub_data Function › Query volunteer by email 
+  104) [chromium] › e2e/data-quality-unified.spec.ts:354:7 › Data Quality: query_volunteerhub_data Function › Correlate volunteer hours with other activities 
+  105) [chromium] › e2e/data-quality-unified.spec.ts:373:7 › Data Quality: query_source_extension Function › Query ClinicHQ extension data 
+  106) [chromium] › e2e/data-quality-unified.spec.ts:384:7 › Data Quality: query_source_extension Function › Query ShelterLuv extension data 
+  107) [chromium] › e2e/data-quality-unified.spec.ts:395:7 › Data Quality: query_source_extension Function › Query Airtable extension data 
+  108) [chromium] › e2e/data-quality-unified.spec.ts:406:7 › Data Quality: query_source_extension Function › Compare extension data across sources 
+  109) [chromium] › e2e/data-quality-unified.spec.ts:423:7 › Data Quality: Comprehensive Lookups › comprehensive_person_lookup returns multi-source data 
+  110) [chromium] › e2e/data-quality-unified.spec.ts:436:7 › Data Quality: Comprehensive Lookups › comprehensive_cat_lookup returns full history 
+  111) [chromium] › e2e/data-quality-unified.spec.ts:447:7 › Data Quality: Comprehensive Lookups › comprehensive_place_lookup returns all activities 
+  112) [chromium] › e2e/data-quality-unified.spec.ts:466:7 › Data Quality: Source Confidence › Query source identity confidence levels 
+  113) [chromium] › e2e/data-quality-unified.spec.ts:485:7 › Data Quality: Source Confidence › Explain survivorship priority 
+  114) [chromium] › e2e/data-quality-unified.spec.ts:496:7 › Data Quality: Source Confidence › Show conflicting data example 
+  115) [chromium] › e2e/data-quality-unified.spec.ts:513:7 › Data Quality: Integrity Validation › Check for orphaned records 
+  116) [chromium] › e2e/data-quality-unified.spec.ts:524:7 › Data Quality: Integrity Validation › Check for missing required fields 
+  117) [chromium] › e2e/data-quality-unified.spec.ts:535:7 › Data Quality: Integrity Validation › Check for stale data 
+  118) [chromium] › e2e/data-quality-unified.spec.ts:546:7 › Data Quality: Integrity Validation › Check for inconsistent relationships 
+  119) [chromium] › e2e/data-quality-unified.spec.ts:563:7 › Data Quality: Error Handling › Handles non-existent entity gracefully 
+  120) [chromium] › e2e/data-quality-unified.spec.ts:575:7 › Data Quality: Error Handling › Handles invalid entity type gracefully 
+  121) [chromium] › e2e/data-quality-unified.spec.ts:587:7 › Data Quality: Error Handling › Handles empty search gracefully 
+  122) [chromium] › e2e/data-quality-unified.spec.ts:604:7 › Data Quality: Cross-Source Consistency › Verify person data matches across sources 
+  123) [chromium] › e2e/data-quality-unified.spec.ts:615:7 › Data Quality: Cross-Source Consistency › Verify cat data matches across sources 
+  124) [chromium] › e2e/data-quality-unified.spec.ts:626:7 › Data Quality: Cross-Source Consistency › Verify place data matches across sources 
+  125) [chromium] › e2e/ecological-data-sanity.spec.ts:41:7 › Colony Estimate Sanity › colony estimates have valid ranges 
+  126) [chromium] › e2e/ecological-data-sanity.spec.ts:92:7 › Colony Estimate Sanity › ecology stats have valid percentages 
+  127) [chromium] › e2e/ecological-data-sanity.spec.ts:179:7 › Mortality Event Sanity › mortality events have valid values 
+  128) [chromium] › e2e/ecological-data-sanity.spec.ts:213:7 › AI-Parsed Data Sanity › AI-parsed colony estimates are reasonable 
+  129) [chromium] › e2e/ecological-data-sanity.spec.ts:261:7 › Population Model Sanity › alteration rates follow expected patterns 
+  130) [chromium] › e2e/ecological-data-sanity.spec.ts:298:7 › Population Model Sanity › Chapman estimator produces reasonable results 
+  131) [chromium] › e2e/ecological-data-sanity.spec.ts:333:7 › Data Source Attribution › colony estimates have valid source types 
+  132) [chromium] › e2e/entity-lifecycle.spec.ts:108:7 › Person Identity Matching › GET /api/people returns valid structure 
+  133) [chromium] › e2e/entity-lifecycle.spec.ts:170:7 › Place Deduplication › GET /api/places returns valid structure 
+  134) [chromium] › e2e/entity-lifecycle.spec.ts:223:7 › Cat Microchip Matching › GET /api/cats returns valid structure 
+  135) [chromium] › e2e/entity-lifecycle.spec.ts:342:7 › Trapper Roles › GET /api/trappers returns valid structure 
+  136) [chromium] › e2e/entity-lifecycle.spec.ts:350:7 › Trapper Roles › Trappers have valid trapper_type 
+  137) [chromium] › e2e/entity-lifecycle.spec.ts:441:7 › Relationship Integrity › Request-trapper assignments reference valid entities 
+  138) [chromium] › e2e/ingest-compliance.spec.ts:439:7 › Clinic Data Compliance › Appointments have required fields 
+  139) [chromium] › e2e/ingest-compliance.spec.ts:450:7 › Clinic Data Compliance › Clinic cats have microchips 
+  140) [chromium] › e2e/map-journal-writes.spec.ts:28:7 › Journal & Annotation Write Tests › create annotation via API 
+  141) [chromium] › e2e/map-performance.spec.ts:36:7 › Map Performance › map markers appear after data loads 
+  142) [chromium] › e2e/map-performance.spec.ts:77:7 › Map Performance › viewport change triggers data load without errors 
+  143) [chromium] › e2e/map-performance.spec.ts:128:7 › Map Performance › map data API returns valid response with bounds parameter 
+  144) [chromium] › e2e/map-performance.spec.ts:150:7 › Map Performance › map data API returns valid response without bounds (full load) 
+  145) [chromium] › e2e/map-performance.spec.ts:164:7 › Map Performance › zoom in triggers viewport-based loading 
+  146) [chromium] › e2e/map-ux-audit.spec.ts:62:7 › MAP_012: API Data Audit › MIG_557: people with primary address have formatted address 
+  147) [chromium] › e2e/map-ux-audit.spec.ts:125:7 › MAP_012: API Data Audit › journal API supports annotation_id filter 
+  148) [chromium] › e2e/migration-data-integrity.spec.ts:15:7 › MIG_555: Adopted Cats -> Place Links › places API responds with valid structure 
+  149) [chromium] › e2e/migration-data-integrity.spec.ts:106:7 › MIG_556: Geocoding Queue › places API still returns valid data after geocoding queue 
+  150) [chromium] › e2e/person-detail-interactions.spec.ts:45:7 › UI: Person Detail Interactions › TabBar tabs are present 
+        1) <button>History</button> aka getByRole('button', { name: 'History', exact: true })
+        2) <button>…</button> aka getByRole('button', { name: '📜 History' })
+  151) [chromium] › e2e/person-detail-interactions.spec.ts:197:7 › UI: Person Detail Interactions › History tab shows count badge 
+        1) <button>History</button> aka getByRole('button', { name: 'History', exact: true })
+        2) <button>…</button> aka getByRole('button', { name: '📜 History' })
+  152) [chromium] › e2e/personal-dashboard.spec.ts:67:9 › Personal Dashboard › My Items Widget on Dashboard › displays My Items widget 
+  153) [chromium] › e2e/personal-dashboard.spec.ts:73:9 › Personal Dashboard › My Items Widget on Dashboard › shows 'View all' link to /me 
+  154) [chromium] › e2e/personal-dashboard.spec.ts:78:9 › Personal Dashboard › My Items Widget on Dashboard › displays pending reminders or empty state 
+  155) [chromium] › e2e/personal-dashboard.spec.ts:100:9 › Personal Dashboard › Full Personal Dashboard (/me) › displays page title 
+  156) [chromium] › e2e/personal-dashboard.spec.ts:104:9 › Personal Dashboard › Full Personal Dashboard (/me) › shows Reminders section 
+  157) [chromium] › e2e/personal-dashboard.spec.ts:109:9 › Personal Dashboard › Full Personal Dashboard (/me) › shows Saved Lookups section 
+  158) [chromium] › e2e/personal-dashboard.spec.ts:114:9 › Personal Dashboard › Full Personal Dashboard (/me) › displays filter buttons for reminders 
+  159) [chromium] › e2e/personal-dashboard.spec.ts:122:9 › Personal Dashboard › Full Personal Dashboard (/me) › can switch reminder filters 
+  160) [chromium] › e2e/personal-dashboard.spec.ts:132:9 › Personal Dashboard › Full Personal Dashboard (/me) › shows lookups section 
+  161) [chromium] › e2e/personal-dashboard.spec.ts:153:9 › Personal Dashboard › Reminder Actions › can interact with reminder if present 
+  162) [chromium] › e2e/personal-dashboard.spec.ts:178:9 › Personal Dashboard › Reminder Actions › snooze picker appears on click if reminder exists 
+  163) [chromium] › e2e/personal-dashboard.spec.ts:205:9 › Personal Dashboard › Lookup Actions › can open lookup detail modal if lookup exists 
+  164) [chromium] › e2e/personal-dashboard.spec.ts:220:9 › Personal Dashboard › Lookup Actions › can close lookup modal if lookup exists 
+  165) [chromium] › e2e/personal-dashboard.spec.ts:245:7 › Tippy Chat Integration › Tippy chat widget is present 
+  166) [chromium] › e2e/personal-dashboard.spec.ts:267:7 › Navigation › user menu has My Dashboard link 
+  167) [chromium] › e2e/personal-dashboard.spec.ts:286:7 › Navigation › can navigate to /me directly 
+  168) [chromium] › e2e/personal-dashboard.spec.ts:295:7 › Access Control › unauthenticated user sees password gate 
+  169) [chromium] › e2e/place-detail-interactions.spec.ts:44:7 › UI: Place Detail Interactions › TabBar tabs are present 
+        1) <button>…</button> aka getByRole('button', { name: '📨 Requests' })
+        2) <button title="View requests at this location">…</button> aka getByRole('button', { name: '📋 View Requests' })
+  170) [chromium] › e2e/place-detail-interactions.spec.ts:137:7 › UI: Place Detail Interactions › Requests tab shows count badge 
+        1) <button>…</button> aka getByRole('button', { name: '📨 Requests' })
+        2) <button title="View requests at this location">…</button> aka getByRole('button', { name: '📋 View Requests' })
+  171) [chromium] › e2e/request-detail-interactions.spec.ts:39:7 › UI: Request Detail Interactions › Request detail page loads 
+  172) [chromium] › e2e/request-lifecycle-real.spec.ts:162:7 › Real API: Request Creation with All Scenarios › Create rural colony request with full data 
+  173) [chromium] › e2e/request-lifecycle-real.spec.ts:179:7 › Real API: Request Creation with All Scenarios › Create urban complex request 
+  174) [chromium] › e2e/request-lifecycle-real.spec.ts:193:7 › Real API: Request Creation with All Scenarios › Create friendly stray request 
+  175) [chromium] › e2e/request-lifecycle-real.spec.ts:207:7 › Real API: Request Creation with All Scenarios › Create emergency kittens request 
+  176) [chromium] › e2e/request-lifecycle-real.spec.ts:221:7 › Real API: Request Creation with All Scenarios › Create minimal request 
+  177) [chromium] › e2e/request-lifecycle-real.spec.ts:245:7 › Real API: Full Request Lifecycle › Complete lifecycle: new → triage → schedule → work → complete 
+  178) [chromium] › e2e/request-lifecycle-real.spec.ts:334:7 › Real API: Full Request Lifecycle › Alternative path: new → redirect to partner 
+  179) [chromium] › e2e/request-lifecycle-real.spec.ts:355:7 › Real API: Full Request Lifecycle › Emergency path: urgent → immediate action → complete 
+  180) [chromium] › e2e/request-lifecycle-real.spec.ts:405:7 › Real API: Request Updates and Field Persistence › All fields persist through updates 
+  181) [chromium] › e2e/request-lifecycle-real.spec.ts:441:7 › Real API: Request Updates and Field Persistence › Priority can be changed 
+  182) [chromium] › e2e/request-lifecycle-real.spec.ts:485:7 › Real API: Request Appears in List › Created request appears in list API 
+  183) [chromium] › e2e/request-lifecycle-real.spec.ts:503:7 › Real API: Request Appears in List › Request appears in filtered list 
+  184) [chromium] › e2e/request-lifecycle-real.spec.ts:531:7 › Real API: Cleanup Verification › Cancelled requests are properly marked 
+  185) [chromium] › e2e/request-workflow-stress.spec.ts:111:7 › API: Person-Place Verification › GET /api/places/[id]/people returns people with verification status 
+  186) [chromium] › e2e/request-workflow-stress.spec.ts:136:7 › API: Person-Place Verification › GET /api/people/[id]/places returns places with verification status 
+  187) [chromium] › e2e/request-workflow-stress.spec.ts:186:7 › API: Intake Decline (mocked writes) › POST /api/intake/decline requires submission_id 
+  188) [chromium] › e2e/request-workflow-stress.spec.ts:196:7 › API: Intake Decline (mocked writes) › POST /api/intake/decline requires reason_code 
+  189) [chromium] › e2e/request-workflow-stress.spec.ts:531:7 › Stress: Concurrent API Calls › Multiple concurrent counts requests 
+  190) [chromium] › e2e/request-workflow-stress.spec.ts:553:7 › Stress: Concurrent API Calls › Multiple concurrent people/places queries 
+  191) [chromium] › e2e/role-lifecycle.spec.ts:161:7 › DQ: Role Audit API › Role audit endpoint returns valid structure 
+  192) [chromium] › e2e/role-lifecycle.spec.ts:180:7 › DQ: Role Audit API › Stale roles count matches array length 
+  193) [chromium] › e2e/role-lifecycle.spec.ts:190:7 › DQ: Role Audit API › VH authority: zero stale roles and zero source conflicts 
+  194) [chromium] › e2e/staff-daily-workflows.spec.ts:60:3 › Daily Coordinator Workflow › Active Request Management › [coordinator] What requests do we have in the Santa Rosa area? 
+  195) [chromium] › e2e/staff-daily-workflows.spec.ts:226:7 › Workflow Scenarios › Colony status workflow 
+  196) [chromium] › e2e/staff-workflows-obvious.spec.ts:239:7 › Staff Workflow: People Management › Person TabBar shows expected tabs 
+        1) <button>History</button> aka getByRole('button', { name: 'History', exact: true })
+        2) <button>…</button> aka getByRole('button', { name: '📜 History' })
+  197) [chromium] › e2e/staff-workflows-obvious.spec.ts:292:7 › Staff Workflow: Place Management › Place TabBar shows expected tabs 
+        1) <button>…</button> aka getByRole('button', { name: '📨 Requests' })
+        2) <button title="View requests at this location">…</button> aka getByRole('button', { name: '📋 View Requests' })
+  198) [chromium] › e2e/tippy-accuracy-verification.spec.ts:348:7 › Tippy Accuracy: Sanity Checks @smoke › Does not claim negative values 
+  199) [chromium] › e2e/tippy-capabilities.spec.ts:118:7 › Tippy: Comprehensive Lookups › comprehensive_place_lookup works 
+  200) [chromium] › e2e/tippy-capabilities.spec.ts:128:7 › Tippy: Comprehensive Lookups › query_cat_journey traces full history 
+  201) [chromium] › e2e/tippy-capabilities.spec.ts:223:7 › Tippy: Beacon Analytics › Can query colony status breakdown 
+  202) [chromium] › e2e/tippy-complex-queries.spec.ts:84:7 › Tippy Complex Queries - Program Statistics › can compare county cats vs foster cats 
+  203) [chromium] › e2e/tippy-complex-queries.spec.ts:118:7 › Tippy Complex Queries - Program Statistics › can provide program breakdown percentages 
+  204) [chromium] › e2e/tippy-complex-queries.spec.ts:146:7 › Tippy Complex Queries - Year-over-Year › can identify monthly trends 
+  205) [chromium] › e2e/tippy-complex-queries.spec.ts:341:7 › Tippy Response Accuracy - Cross-Validation › foster count matches view data 
+  206) [chromium] › e2e/tippy-cross-source.spec.ts:98:7 › Tippy Cross-Source: Person Questions › Person: requester became trapper 
+  207) [chromium] › e2e/tippy-cross-source.spec.ts:128:7 › Tippy Cross-Source: Cat Journey Questions › Cat: full journey (trap-alter-adopt) 
+  208) [chromium] › e2e/tippy-cross-source.spec.ts:152:7 › Tippy Cross-Source: Cat Journey Questions › Cat: cross-source matching (ShelterLuv + ClinicHQ) 
+  209) [chromium] › e2e/tippy-cross-source.spec.ts:184:7 › Tippy Cross-Source: Place Questions › Place: trapper + alteration rate correlation 
+  210) [chromium] › e2e/tippy-cross-source.spec.ts:208:7 › Tippy Cross-Source: Place Questions › Place: requester is trapper detection 
+  211) [chromium] › e2e/tippy-cross-source.spec.ts:316:7 › Tippy Cross-Source: Beacon Analytics Questions › Beacon: year-over-year comparison 
+  212) [chromium] › e2e/tippy-cross-source.spec.ts:328:7 › Tippy Cross-Source: Beacon Analytics Questions › Beacon: stale estimates detection 
+  213) [chromium] › e2e/tippy-cross-source.spec.ts:352:7 › Tippy Cross-Source: Beacon Analytics Questions › Beacon: completion forecast 
+  214) [chromium] › e2e/tippy-cross-source.spec.ts:402:7 › Tippy Comprehensive Lookups › comprehensive_place_lookup returns activity data 
+  215) [chromium] › e2e/tippy-edge-cases.spec.ts:111:9 › Tippy Edge Cases: Missing Data @stress › edge-request-no-place: Tests handling of orphaned request records 
+  216) [chromium] › e2e/tippy-human-questions.spec.ts:373:7 › Tippy: Feedback Submission › Valid feedback submission succeeds 
+  217) [chromium] › e2e/tippy-human-questions.spec.ts:388:7 › Tippy: Feedback Submission › Missing required fields returns 400 
+  218) [chromium] › e2e/tippy-human-questions.spec.ts:401:7 › Tippy: Feedback Submission › Feedback with non-UUID entity_id succeeds gracefully 
+  219) [chromium] › e2e/tippy-human-questions.spec.ts:420:7 › Tippy: Feedback Submission › missing_data feedback type works 
+  220) [chromium] › e2e/tippy-human-questions.spec.ts:437:7 › Tippy: Feedback Submission › missing_capability feedback type works 
+  221) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: F-S Scoring Explanations › [fs_scoring] What does the match probability percentage mean in identity ... 
+  222) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: F-S Scoring Explanations › [fs_scoring] How is the identity match score calculated?... 
+  223) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: F-S Scoring Explanations › [fs_scoring] Why is 90% considered high confidence for identity matching?... 
+  224) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: F-S Scoring Explanations › [fs_scoring] Why is email matching weighted higher than phone matching?... 
+  225) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: F-S Scoring Explanations › [fs_scoring] What are the thresholds for automatic matching vs manual rev... 
+  226) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Identity Graph Explanations › [identity_graph] What is a household in the identity system?... 
+  227) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Review Workflow Guidance › [review_workflow] When should I keep two records separate?... 
+  228) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Review Workflow Guidance › [review_workflow] What does the red X mean in field comparison?... 
+  229) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Review Workflow Guidance › [review_workflow] What does the dash mean in field comparison?... 
+  230) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Review Workflow Guidance › [review_workflow] Can I merge multiple records at once?... 
+  231) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Review Workflow Guidance › [review_workflow] Which identity reviews should I do first?... 
+  232) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Match Scenario Explanations › [match_explanation] Why is this showing as a likely match when the phone numbers... 
+  233) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Match Scenario Explanations › [match_explanation] Why are these two different names flagged as a potential mat... 
+  234) [chromium] › e2e/tippy-identity-resolution.spec.ts:62:3 › Tippy: Match Scenario Explanations › [match_explanation] John Smith appears multiple times - how do I know which are ... 
+  235) [chromium] › e2e/tippy-identity-resolution.spec.ts:136:7 › Tippy: Identity Resolution Conversations › Can explain F-S then answer follow-up about thresholds 
+  236) [chromium] › e2e/tippy-identity-resolution.spec.ts:217:7 › Tippy: Staff Identity Review Workflow › Morning review workflow: Check queue and prioritize 
+  237) [chromium] › e2e/tippy-staff-workflows.spec.ts:76:9 › Tippy Staff Workflows - Medium Questions › [program-pct-breakdown] Percentage calculation 
+  238) [chromium] › e2e/tippy-staff-workflows.spec.ts:103:7 › Tippy Response Quality › responses contain specific numbers, not vague answers 
+  239) [chromium] › e2e/tippy-staff-workflows.spec.ts:233:7 › Tippy Edge Cases › handles empty or very short queries 
+  240) [chromium] › e2e/tnr-request-flow.spec.ts:209:7 › API: Duplicate Detection Endpoint › POST /api/requests/check-duplicates returns structure 
+  241) [chromium] › e2e/tnr-request-flow.spec.ts:791:7 › API: Complete Field Coverage › POST /api/requests accepts all 50+ fields 
+  242) [chromium] › e2e/tnr-request-flow.spec.ts:824:7 › API: Complete Field Coverage › POST /api/requests returns request_id on success 
+  243) [chromium] › e2e/tnr-request-flow.spec.ts:853:7 › API: Complete Field Coverage › POST /api/requests rejects invalid place_id with helpful message 
+  244) [chromium] › e2e/ui-comprehensive.spec.ts:66:7 › UI: Public Page Loading › Requests list page loads 
+        1) <h2>Requests</h2> aka getByRole('heading', { name: 'Requests' })
+        2) <h1>Requests</h1> aka locator('h1')
+  245) [chromium] › e2e/ui-comprehensive.spec.ts:75:7 › UI: Public Page Loading › Cats list page loads 
+        1) <h2>Cats</h2> aka locator('h2')
+        2) <h1>Cats</h1> aka locator('h1')
+  246) [chromium] › e2e/ui-comprehensive.spec.ts:84:7 › UI: Public Page Loading › Places list page loads 
+        1) <h2>Places</h2> aka locator('h2')
+        2) <h1>Places</h1> aka locator('h1')
+  247) [chromium] › e2e/ui-comprehensive.spec.ts:93:7 › UI: Public Page Loading › People list page loads 
+        1) <h2>People</h2> aka locator('h2')
+        2) <h1>People</h1> aka locator('h1')
+  248) [chromium] › e2e/ui-comprehensive.spec.ts:171:7 › UI: Detail Page Loading › Invalid request ID shows 404 or error 
+        1) <main class="container">…</main> aka getByRole('main').filter({ hasText: '← HomeRequestsQuick Actions📞' })
+        2) <main>…</main> aka getByRole('main').filter({ hasText: /^← BackFailed to load request$/ })
+  249) [chromium] › e2e/ui-comprehensive.spec.ts:186:7 › UI: Navigation › Main navigation links work 
+        1) <nav class="nav">…</nav> aka getByRole('navigation').filter({ hasText: '☰AtlasSign In' })
+        2) <nav>…</nav> aka getByText('🏠Dashboard🗺️Atlas Map📥').first()
+        3) <nav>…</nav> aka getByText('🐱Cats👥People📍Places🔍Search').first()
+        4) <nav>…</nav> aka getByText('📊Colony Estimates📆Seasonal').first()
+        5) <nav>…</nav> aka getByRole('navigation').nth(4)
+        6) <nav>…</nav> aka getByText('🏠Dashboard🗺️Atlas Map📥').nth(1)
+        7) <nav>…</nav> aka getByText('🐱Cats👥People📍Places🔍Search').nth(1)
+        8) <nav>…</nav> aka getByText('📊Colony Estimates📆Seasonal').nth(1)
+        9) <nav>…</nav> aka getByRole('navigation').filter({ hasText: '⚙️Admin Panel' }).nth(1)
+  250) [chromium] › e2e/ui-comprehensive.spec.ts:194:7 › UI: Navigation › Clicking requests nav goes to requests page 
+  251) [chromium] › e2e/ui-comprehensive.spec.ts:204:7 › UI: Navigation › Clicking cats nav goes to cats page 
+  252) [chromium] › e2e/ui-comprehensive.spec.ts:229:7 › UI: Tippy Chat Widget › Tippy chat button is visible 
+  253) [chromium] › e2e/ui-comprehensive.spec.ts:292:7 › UI: Admin Pages › Admin beacon page loads ─
+        1) <body>…</body> aka getByText('☰AtlasSign InAtlas✕Operations')
+        2) <main class="container">…</main> aka getByRole('main')
+  254) [chromium] › e2e/ui-comprehensive.spec.ts:299:7 › UI: Admin Pages › Admin tippy conversations page loads 
+        1) <body>…</body> aka getByText('☰AtlasSign InAtlas✕Operations')
+        2) <main class="container">…</main> aka getByRole('main').filter({ hasText: '← HomeAdminDashboard📊' })
+        3) <main>…</main> aka getByRole('main').filter({ hasText: '← HomeAdminDashboard📊' }).getByRole('main')
+  255) [chromium] › e2e/ui-comprehensive.spec.ts:306:7 › UI: Admin Pages › Admin data engine page loads 
+        1) <body>…</body> aka getByText('☰AtlasSign InAtlas✕Operations')
+        2) <main class="container">…</main> aka getByRole('main').filter({ hasText: '← HomeAdminDashboard📊' })
+        3) <main>…</main> aka getByRole('main').filter({ hasText: /^Data EngineLoading\.\.\.$/ })
+  256) [chromium] › e2e/ui-comprehensive.spec.ts:313:7 › UI: Admin Pages › Admin intake fields page loads 
+        1) <body>…</body> aka getByText('☰AtlasSign InAtlas✕Operations')
+        2) <main class="container">…</main> aka getByRole('main').filter({ hasText: '← HomeAdminDashboard📊' })
+        3) <main>…</main> aka getByRole('main').filter({ hasText: '← HomeAdminDashboard📊' }).getByRole('main')
+  257) [chromium] › e2e/ui-comprehensive.spec.ts:366:7 › UI: Form Interactions › Search input works on requests page 
+        1) <input value="" type="text" autocomplete="off" class="jsx-6dc6b61280e53707 search-input" placeholder="Search cats, people, places..."/> aka getByRole('textbox', { name: 'Search cats, people, places...' })
+        2) <input value="" type="text" placeholder="Search..."/> aka getByPlaceholder('Search...')
+  258) [chromium] › e2e/ui-comprehensive.spec.ts:448:7 › UI: Responsive Design › Navigation works on mobile 
+        1) <button aria-label="Toggle menu">☰</button> aka getByRole('button', { name: 'Toggle menu' })
+        2) <button aria-label="Close menu">×</button> aka getByRole('button', { name: 'Close menu' })
+  259) [chromium] › e2e/ui-comprehensive.spec.ts:476:7 › UI: Accessibility › Home page has main landmark 
+        1) <main class="container">…</main> aka getByRole('main').filter({ hasText: 'AtlasOperations🏠Dashboard🗺️' })
+        2) <main>…</main> aka getByRole('main').filter({ hasText: 'AtlasOperations🏠Dashboard🗺️' }).getByRole('main')
+  260) [chromium] › e2e/ui-comprehensive.spec.ts:516:7 › UI: Accessibility › Form inputs have labels 
+  261) [chromium] › e2e/ui-layout-components.spec.ts:264:7 › StatsSidebar Component › Sidebar displays correct request status 
+  262) [chromium] › e2e/ui-resilience.spec.ts:109:7 › Navigation Safety › rapid back/forward navigation is safe 
+  263) [chromium] › e2e/ui-workflows.spec.ts:60:7 › Authentication Workflows › can log in with test account 
+  264) [chromium] › e2e/ui-workflows.spec.ts:97:7 › Dashboard Navigation › dashboard loads with key sections 
+  265) [chromium] › e2e/ui-workflows.spec.ts:109:7 › Dashboard Navigation › can navigate to requests page 
+  266) [chromium] › e2e/ui-workflows.spec.ts:120:7 › Dashboard Navigation › can navigate to places page 
+  267) [chromium] › e2e/ui-workflows.spec.ts:127:7 › Dashboard Navigation › can navigate to cats page 
+  268) [chromium] › e2e/ui-workflows.spec.ts:134:7 › Dashboard Navigation › can navigate to people page 
+  269) [chromium] › e2e/ui-workflows.spec.ts:141:7 › Dashboard Navigation › can navigate between tabs rapidly 
+  270) [chromium] › e2e/ui-workflows.spec.ts:165:7 › Request Workflows › can view request list and click into detail 
+  271) [chromium] › e2e/ui-workflows.spec.ts:195:7 › Request Workflows › request detail shows related data sections 
+  272) [chromium] › e2e/ui-workflows.spec.ts:226:7 › Request Workflows › can use filters on request list 
+  273) [chromium] › e2e/ui-workflows.spec.ts:256:7 › Place & Colony Workflows › can view place detail with colony info 
+  274) [chromium] › e2e/ui-workflows.spec.ts:285:7 › Place & Colony Workflows › place detail shows context badges if available 
+  275) [chromium] › e2e/ui-workflows.spec.ts:320:7 › Place & Colony Workflows › can view colony statistics on place page 
+  276) [chromium] › e2e/ui-workflows.spec.ts:353:7 › Observation Logging Workflows › observation form elements exist on place page 
+  277) [chromium] › e2e/ui-workflows.spec.ts:378:7 › Observation Logging Workflows › can open observation modal (mocked submission) 
+  278) [chromium] › e2e/ui-workflows.spec.ts:428:7 › Cat Detail Workflows › can view cat detail with microchip info 
+  279) [chromium] › e2e/ui-workflows.spec.ts:454:7 › Cat Detail Workflows › cat detail shows appointment history 
+  280) [chromium] › e2e/ui-workflows.spec.ts:487:7 › Person Detail Workflows › can view person detail 
+  281) [chromium] › e2e/ui-workflows.spec.ts:512:7 › Person Detail Workflows › person detail shows related cats and requests 
+  282) [chromium] › e2e/ui-workflows.spec.ts:545:7 › Intake Queue Workflows › can view intake queue 
+  283) [chromium] › e2e/ui-workflows.spec.ts:554:7 › Intake Queue Workflows › can view intake submission detail 
+  284) [chromium] › e2e/ui-workflows.spec.ts:587:7 › Admin Workflows › can access admin dashboard ──
+  285) [chromium] › e2e/ui-workflows.spec.ts:596:7 › Admin Workflows › can view data engine page ───
+  286) [chromium] › e2e/ui-workflows.spec.ts:615:7 › Personal Dashboard Workflows › can access my dashboard 
+  287) [chromium] › e2e/ui-workflows.spec.ts:624:7 › Personal Dashboard Workflows › reminders section is visible 
+  288) [chromium] › e2e/ui-workflows.spec.ts:643:7 › Button Interactions › expand/collapse buttons work without errors 
+  289) [chromium] › e2e/ui-workflows.spec.ts:669:7 › Button Interactions › filter buttons work on list pages 
+  290) [chromium] › e2e/ui-workflows.spec.ts:685:7 › Button Interactions › tab navigation buttons work 
+  291) [chromium] › e2e/ui-workflows.spec.ts:729:7 › Form Validation › forms show validation errors for required fields 
+  292) [chromium] › e2e/v2-appointment-integrity.spec.ts:130:7 › V2 Appointment Detail API › spay/neuter appointments have correct category 
+  293) [chromium] › e2e/v2-appointment-integrity.spec.ts:215:7 › V2 Cat Medical Data › cat detail includes FeLV/FIV test results 
+  294) [chromium] › e2e/v2-appointment-integrity.spec.ts:256:7 › V2 Cat Medical Data › altered cats show correct altered_status 
+  295) [chromium] › e2e/v2-appointment-integrity.spec.ts:362:7 › V2 Appointment Detail Modal › appointment detail shows spay/neuter type correctly 
+  296) [chromium] › e2e/v2-appointment-integrity.spec.ts:407:7 › V2 Boolean Flag Extraction › appointments have boolean flags set correctly 
+  297) [chromium] › e2e/v2-appointment-integrity.spec.ts:439:7 › V2 Boolean Flag Extraction › health flags are populated from staged records 
+  298) [chromium] › e2e/v2-appointment-integrity.spec.ts:486:7 › V2 Disease Status Display › place disease badges load correctly 
+  299) [chromium] › e2e/v2-appointment-integrity.spec.ts:517:7 › V2 Disease Status Display › place map-details includes disease badges 
+  300) [chromium] › e2e/v2-data-integrity.spec.ts:83:7 › API Data Integrity - Appointments › appointments API returns enriched columns 
+  301) [chromium] › e2e/v2-data-integrity.spec.ts:99:7 › API Data Integrity - Appointments › appointment detail includes all enriched fields 
+  302) [chromium] › e2e/v2-data-integrity.spec.ts:139:7 › API Data Integrity - Appointments › spay appointments have is_spay=true and consistent data 
+  303) [chromium] › e2e/v2-data-integrity.spec.ts:169:7 › API Data Integrity - Appointments › neuter appointments have is_neuter=true and category=Spay/Neuter 
+  304) [chromium] › e2e/v2-data-integrity.spec.ts:198:7 › API Data Integrity - Cat Test Results › cat detail includes test results array 
+  305) [chromium] › e2e/v2-data-integrity.spec.ts:240:7 › API Data Integrity - Cat Test Results › FeLV/FIV test results include disease badge info 
+  306) [chromium] › e2e/v2-data-integrity.spec.ts:274:7 › API Data Integrity - Cat Test Results › positive test results have valid structure 
+  307) [chromium] › e2e/v2-data-integrity.spec.ts:316:7 › API Data Integrity - Disease Status › place disease-status API returns valid structure 
+  308) [chromium] › e2e/v2-data-integrity.spec.ts:356:7 › API Data Integrity - Disease Status › places with disease_risk=true have computed disease status 
+  309) [chromium] › e2e/v2-data-integrity.spec.ts:397:7 › API Data Integrity - Disease Status › map-details includes disease badges array 
+  310) [chromium] › e2e/v2-data-integrity.spec.ts:434:7 › Data Accuracy - Weight & Vitals › weight values are within valid range when present 
+  311) [chromium] › e2e/v2-data-integrity.spec.ts:477:7 › Data Accuracy - Weight & Vitals › altered cats have valid sex for procedure type 
+  312) [chromium] › e2e/v2-data-integrity.spec.ts:624:7 › UI - Place Disease Badges › place with disease shows badge in detail view 
+  313) [chromium] › e2e/v2-data-integrity.spec.ts:725:7 › UI - Appointment Detail Modal › spay/neuter appointment shows correct type in modal 
+  314) [chromium] › e2e/v2-data-integrity.spec.ts:787:7 › Cross-Entity Consistency › cats at disease-positive places appear in place cat count 
+  315) [chromium] › e2e/v2-data-integrity.spec.ts:832:7 › Cross-Entity Consistency › altered cats have both status and procedure record 
+  316) [chromium] › e2e/v2-migration-integrity.spec.ts:253:9 › V2 Migration: Relationship Table APIs › Cat-Place Relationships (sot.cat_place) › places check-duplicate API uses V2 cat_place for cat counts 
+  317) [chromium] › e2e/v2-migration-integrity.spec.ts:281:7 › V2 Migration: Search and Map APIs › unified search API works with V2 relationship tables 
+  318) [chromium] › e2e/v2-migration-integrity.spec.ts:297:7 › V2 Migration: Search and Map APIs › search suggestions include coordinates from V2 tables 
+  319) [chromium] › e2e/v2-migration-integrity.spec.ts:633:7 › V2 Migration: Ingest Pipeline › entity edit API uses V2 relationship tables 
+  320) [chromium] › e2e/visual-regression.spec.ts:24:7 › Page Layout Screenshots › Request detail page layout 
+  321) [chromium] › e2e/visual-regression.spec.ts:39:7 › Page Layout Screenshots › Person detail page layout 
+  322) [chromium] › e2e/visual-regression.spec.ts:53:7 › Page Layout Screenshots › Place detail page layout 
+  323) [chromium] › e2e/visual-regression.spec.ts:67:7 › Page Layout Screenshots › Cat detail page layout 
+  324) [chromium] › e2e/visual-regression.spec.ts:81:7 › Page Layout Screenshots › Intake queue layout 
+  325) [chromium] › e2e/visual-regression.spec.ts:130:7 › Responsive Layout Screenshots › Request page mobile layout 
+  326) [chromium] › e2e/visual-regression.spec.ts:147:7 › Responsive Layout Screenshots › Person page tablet layout 
+  327) [chromium] › e2e/visual-regression.spec.ts:164:7 › Responsive Layout Screenshots › Place page widescreen layout 
+  328) [chromium] › e2e/visual-regression.spec.ts:229:7 › Component Screenshots › Section component expanded state 
+  329) [chromium] › e2e/visual-regression.spec.ts:373:7 › TabBar Component Screenshots › Place page TabBar - all tabs 
+  330) [chromium] › e2e/visual-regression.spec.ts:398:7 › TabBar Component Screenshots › Person page TabBar - all tabs 
+  331) [chromium] › e2e/webhook-intake.spec.ts:48:7 › Webhook Intake Flow › intake queue API returns submissions 
+  332) [chromium] › e2e/workflows.spec.ts:14:7 › Navigation Workflows › dashboard to request detail flow 
+  333) [chromium] › e2e/workflows.spec.ts:26:7 › Navigation Workflows › request to place navigation 
