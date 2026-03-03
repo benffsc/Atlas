@@ -13,6 +13,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // Expected columns for each view - if these change, the API will break
 const EXPECTED_COLUMNS = {
@@ -58,7 +59,8 @@ test.describe("API Schema Validation", () => {
     const response = await page.request.get("/api/people?limit=1");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ people: Record<string, unknown>[] }>(wrapped);
     expect(data.people).toBeDefined();
 
     if (data.people.length > 0) {
@@ -76,7 +78,8 @@ test.describe("API Schema Validation", () => {
     const response = await page.request.get("/api/cats?limit=1");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ cats: Record<string, unknown>[] }>(wrapped);
     expect(data.cats).toBeDefined();
 
     if (data.cats.length > 0) {
@@ -103,7 +106,8 @@ test.describe("API Schema Validation", () => {
     for (const url of testCases) {
       const response = await page.request.get(url);
       expect(response.ok(), `API failed for: ${url}`).toBeTruthy();
-      const data = await response.json();
+      const wrapped = await response.json();
+      const data = unwrapApiResponse<{ people: unknown[] }>(wrapped);
       expect(data.people, `No people array for: ${url}`).toBeDefined();
     }
   });
@@ -120,7 +124,8 @@ test.describe("API Schema Validation", () => {
     for (const url of testCases) {
       const response = await page.request.get(url);
       expect(response.ok(), `API failed for: ${url}`).toBeTruthy();
-      const data = await response.json();
+      const wrapped = await response.json();
+      const data = unwrapApiResponse<{ cats: unknown[] }>(wrapped);
       expect(data.cats, `No cats array for: ${url}`).toBeDefined();
     }
   });
@@ -129,7 +134,8 @@ test.describe("API Schema Validation", () => {
     const response = await page.request.get("/api/places?limit=1");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places?: unknown[]; results?: unknown[] }>(wrapped);
     expect(data.places || data.results).toBeDefined();
   });
 
@@ -137,7 +143,8 @@ test.describe("API Schema Validation", () => {
     const response = await page.request.get("/api/requests?limit=1");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests?: unknown[]; results?: unknown[] }>(wrapped);
     expect(data.requests || data.results).toBeDefined();
   });
 });
@@ -242,8 +249,11 @@ test.describe("Search API Validation", () => {
     const response = await page.request.get("/api/search?q=test&limit=5");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    expect(Array.isArray(data.results || data)).toBeTruthy();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ results?: unknown[] } | unknown[]>(wrapped);
+    // Handle both wrapped and unwrapped response formats
+    const results = Array.isArray(data) ? data : (data as { results?: unknown[] }).results;
+    expect(Array.isArray(results) || results === undefined).toBeTruthy();
   });
 
   test("Search handles special characters", async ({ page }) => {

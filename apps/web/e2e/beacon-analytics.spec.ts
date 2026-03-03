@@ -15,6 +15,7 @@ import {
   SEASONAL_SCENARIOS,
   type BeaconPlace,
 } from "./fixtures/beacon-scenarios";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // ============================================================================
 // BEACON SUMMARY ENDPOINT TESTS
@@ -30,21 +31,24 @@ test.describe("Beacon Analytics: Summary Endpoint", () => {
     const response = await request.get("/api/beacon/summary");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ summary: unknown; insights: unknown }>(wrapped);
     expect(data.summary).toBeDefined();
     expect(data.insights).toBeDefined();
   });
 
   test("Summary total_cats is non-negative", async ({ request }) => {
     const response = await request.get("/api/beacon/summary");
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ summary: { total_cats: number } }>(wrapped);
 
     expect(Number(data.summary.total_cats)).toBeGreaterThanOrEqual(0);
   });
 
   test("Summary overall_alteration_rate is 0-100 (percentage)", async ({ request }) => {
     const response = await request.get("/api/beacon/summary");
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ summary: { overall_alteration_rate: string } }>(wrapped);
 
     const rate = parseFloat(data.summary.overall_alteration_rate);
     expect(rate).toBeGreaterThanOrEqual(0);
@@ -53,14 +57,16 @@ test.describe("Beacon Analytics: Summary Endpoint", () => {
 
   test("Summary tnr_target_rate is 75 (Levy threshold)", async ({ request }) => {
     const response = await request.get("/api/beacon/summary");
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ insights: { tnr_target_rate: number } }>(wrapped);
 
     expect(data.insights.tnr_target_rate).toBe(75);
   });
 
   test("Summary colony status counts are consistent", async ({ request }) => {
     const response = await request.get("/api/beacon/summary");
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ summary: Record<string, unknown> }>(wrapped);
 
     const s = data.summary;
     const totalColonies =
@@ -83,7 +89,8 @@ test.describe("Beacon Analytics: Places Endpoint", () => {
     const response = await request.get("/api/beacon/places");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: unknown[] }>(wrapped);
     expect(Array.isArray(data.places)).toBeTruthy();
   });
 
@@ -91,7 +98,8 @@ test.describe("Beacon Analytics: Places Endpoint", () => {
     const response = await request.get("/api/beacon/places?limit=10");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
     if (data.places.length > 0) {
       const place = data.places[0];
       expect(place.place_id).toBeDefined();
@@ -103,7 +111,8 @@ test.describe("Beacon Analytics: Places Endpoint", () => {
     const response = await request.get("/api/beacon/places?minCats=5&limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
     for (const place of data.places) {
       const catCount = Math.max(
         Number(place.verified_cat_count) || 0,
@@ -119,7 +128,8 @@ test.describe("Beacon Analytics: Places Endpoint", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
     for (const place of data.places) {
       expect(place.colony_status).toBe("needs_attention");
     }
@@ -132,7 +142,8 @@ test.describe("Beacon Analytics: Places Endpoint", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: unknown[] }>(wrapped);
     expect(Array.isArray(data.places)).toBeTruthy();
   });
 });
@@ -146,7 +157,8 @@ test.describe("Beacon Analytics: Clusters Endpoint", () => {
     const response = await request.get("/api/beacon/clusters");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ clusters: unknown[] }>(wrapped);
     expect(Array.isArray(data.clusters)).toBeTruthy();
   });
 
@@ -156,7 +168,8 @@ test.describe("Beacon Analytics: Clusters Endpoint", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ clusters: Array<{ centroid_lat: number; centroid_lng: number }> }>(wrapped);
     for (const cluster of data.clusters) {
       expect(typeof cluster.centroid_lat).toBe("number");
       expect(typeof cluster.centroid_lng).toBe("number");
@@ -169,7 +182,8 @@ test.describe("Beacon Analytics: Clusters Endpoint", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ clusters: Array<{ place_count: number }> }>(wrapped);
     for (const cluster of data.clusters) {
       expect(cluster.place_count).toBeGreaterThanOrEqual(2);
     }
@@ -186,8 +200,10 @@ test.describe("Beacon Analytics: Clusters Endpoint", () => {
     expect(response100.ok()).toBeTruthy();
     expect(response500.ok()).toBeTruthy();
 
-    const data100 = await response100.json();
-    const data500 = await response500.json();
+    const wrapped100 = await response100.json();
+    const wrapped500 = await response500.json();
+    const data100 = unwrapApiResponse<{ clusters: unknown[] }>(wrapped100);
+    const data500 = unwrapApiResponse<{ clusters: unknown[] }>(wrapped500);
 
     // Larger epsilon typically means larger/fewer clusters
     // Just verify both return valid data
@@ -205,7 +221,8 @@ test.describe("Beacon Analytics: Seasonal Endpoints", () => {
     const response = await request.get("/api/beacon/seasonal-alerts");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ alerts: unknown[] }>(wrapped);
     expect(data.alerts).toBeDefined();
     expect(Array.isArray(data.alerts)).toBeTruthy();
   });
@@ -241,8 +258,9 @@ test.describe("Beacon Analytics: Calculation Validation", () => {
     const response = await request.get("/api/beacon/places?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    const places = data.places as BeaconPlace[];
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
+    const places = data.places;
 
     for (const place of places) {
       if (place.verified_alteration_rate !== null && place.verified_alteration_rate !== undefined) {
@@ -255,8 +273,9 @@ test.describe("Beacon Analytics: Calculation Validation", () => {
     const response = await request.get("/api/beacon/places?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    const places = data.places as BeaconPlace[];
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
+    const places = data.places;
 
     for (const place of places) {
       if (place.verified_alteration_rate !== null && place.verified_alteration_rate !== undefined) {
@@ -269,8 +288,9 @@ test.describe("Beacon Analytics: Calculation Validation", () => {
     const response = await request.get("/api/beacon/places?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    const places = data.places as BeaconPlace[];
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
+    const places = data.places;
 
     for (const place of places) {
       if (place.estimated_total !== null && place.estimated_total !== undefined) {
@@ -283,8 +303,9 @@ test.describe("Beacon Analytics: Calculation Validation", () => {
     const response = await request.get("/api/beacon/places?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    const places = data.places as BeaconPlace[];
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
+    const places = data.places;
 
     for (const place of places) {
       if (place.verified_cat_count !== null && place.verified_cat_count !== undefined) {
@@ -300,8 +321,9 @@ test.describe("Beacon Analytics: Calculation Validation", () => {
     const response = await request.get("/api/beacon/places?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    const places = data.places as BeaconPlace[];
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
+    const places = data.places;
 
     for (const place of places) {
       if (
@@ -321,8 +343,9 @@ test.describe("Beacon Analytics: Calculation Validation", () => {
     const response = await request.get("/api/beacon/places?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    const places = data.places as BeaconPlace[];
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: BeaconPlace[] }>(wrapped);
+    const places = data.places;
 
     for (const place of places) {
       if (place.colony_status === "no_data") continue;
@@ -437,8 +460,11 @@ test.describe("Beacon Analytics: Data Consistency", () => {
     expect(summaryRes.ok()).toBeTruthy();
     expect(placesRes.ok()).toBeTruthy();
 
-    const summary = await summaryRes.json();
-    const places = (await placesRes.json()).places as BeaconPlace[];
+    const summaryWrapped = await summaryRes.json();
+    const placesWrapped = await placesRes.json();
+    const summary = unwrapApiResponse<{ summary: { total_verified_cats: number } }>(summaryWrapped);
+    const placesData = unwrapApiResponse<{ places: BeaconPlace[] }>(placesWrapped);
+    const places = placesData.places;
 
     // Calculate totals from places (convert strings to numbers)
     const placesTotal = places.reduce(
@@ -462,7 +488,8 @@ test.describe("Beacon Analytics: Data Consistency", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ clusters: Array<{ place_count: number }> }>(wrapped);
     for (const cluster of data.clusters) {
       // Place count should be positive
       expect(cluster.place_count).toBeGreaterThan(0);

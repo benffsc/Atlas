@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // ============================================================================
 // REQUEST LIFECYCLE TESTS
@@ -20,7 +21,8 @@ test.describe("Request Lifecycle", () => {
     const response = await request.get("/api/requests?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: Array<{ status: string }> }>(wrapped);
     const validStatuses = [
       "new",
       "triaged",
@@ -42,7 +44,8 @@ test.describe("Request Lifecycle", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: Array<{ status: string; resolved_at: string | null }> }>(wrapped);
     for (const req of data.requests || []) {
       // Every completed request should have resolved_at
       if (req.status === "completed") {
@@ -57,7 +60,8 @@ test.describe("Request Lifecycle", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: Array<{ status: string; resolved_at: string | null }> }>(wrapped);
     for (const req of data.requests || []) {
       if (req.status === "cancelled") {
         expect(req.resolved_at).toBeTruthy();
@@ -69,7 +73,8 @@ test.describe("Request Lifecycle", () => {
     const response = await request.get("/api/requests?status=on_hold&limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: Array<{ status: string; hold_reason?: string; notes?: string }> }>(wrapped);
     for (const req of data.requests || []) {
       if (req.status === "on_hold") {
         // hold_reason should be set (may be in a different field)
@@ -88,7 +93,8 @@ test.describe("Request Lifecycle", () => {
     );
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: Array<{ created_at?: string; resolved_at?: string }> }>(wrapped);
     for (const req of data.requests || []) {
       if (req.created_at && req.resolved_at) {
         const created = new Date(req.created_at);
@@ -109,7 +115,8 @@ test.describe("Person Identity Matching", () => {
     const response = await request.get("/api/people?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ people: unknown[] }>(wrapped);
     expect(Array.isArray(data.people)).toBeTruthy();
   });
 
@@ -117,7 +124,8 @@ test.describe("Person Identity Matching", () => {
     const response = await request.get("/api/people?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ people: Array<{ person_id: string }> }>(wrapped);
     for (const person of data.people || []) {
       expect(person.person_id).toBeTruthy();
     }
@@ -127,7 +135,8 @@ test.describe("Person Identity Matching", () => {
     const response = await request.get("/api/people?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ people: Array<{ phone?: string }> }>(wrapped);
     for (const person of data.people || []) {
       // If phone exists, it should be normalized (no dashes, parens in stored form)
       // Note: Display might have formatting, but underlying should be digits
@@ -142,7 +151,8 @@ test.describe("Person Identity Matching", () => {
     const response = await request.get("/api/people?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ people: Array<{ email?: string }> }>(wrapped);
     for (const person of data.people || []) {
       if (person.email) {
         // Email should be normalized to lowercase
@@ -171,7 +181,8 @@ test.describe("Place Deduplication", () => {
     const response = await request.get("/api/places?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: unknown[] }>(wrapped);
     expect(Array.isArray(data.places)).toBeTruthy();
   });
 
@@ -179,7 +190,8 @@ test.describe("Place Deduplication", () => {
     const response = await request.get("/api/places?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
     for (const place of data.places || []) {
       expect(place.place_id).toBeTruthy();
     }
@@ -189,7 +201,8 @@ test.describe("Place Deduplication", () => {
     const response = await request.get("/api/places?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ lat?: number; lng?: number }> }>(wrapped);
     for (const place of data.places || []) {
       if (place.lat && place.lng) {
         // Sonoma County approximate bounds
@@ -206,7 +219,8 @@ test.describe("Place Deduplication", () => {
     const response = await request.get("/api/places?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ place_id: string; merged_into_place_id?: string }> }>(wrapped);
     // Active places should not be merged into themselves
     for (const place of data.places || []) {
       expect(place.merged_into_place_id !== place.place_id).toBeTruthy();
@@ -224,7 +238,8 @@ test.describe("Cat Microchip Matching", () => {
     const response = await request.get("/api/cats?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ cats: unknown[] }>(wrapped);
     expect(Array.isArray(data.cats)).toBeTruthy();
   });
 
@@ -232,7 +247,8 @@ test.describe("Cat Microchip Matching", () => {
     const response = await request.get("/api/cats?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ cats: Array<{ cat_id: string }> }>(wrapped);
     for (const cat of data.cats || []) {
       expect(cat.cat_id).toBeTruthy();
     }
@@ -242,7 +258,8 @@ test.describe("Cat Microchip Matching", () => {
     const response = await request.get("/api/cats?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ cats: Array<{ microchip?: string }> }>(wrapped);
     for (const cat of data.cats || []) {
       if (cat.microchip) {
         // Microchips are typically 9, 10, or 15 digits
@@ -257,7 +274,8 @@ test.describe("Cat Microchip Matching", () => {
     const response = await request.get("/api/cats?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ cats: Array<{ sex?: string }> }>(wrapped);
     const validSex = ["male", "female", "unknown", null, "M", "F", "U"];
 
     for (const cat of data.cats || []) {
@@ -278,7 +296,8 @@ test.describe("Attribution Windows", () => {
     const response = await request.get("/api/beacon/places?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ verified_alteration_rate?: number | null }> }>(wrapped);
     for (const place of data.places || []) {
       // Alteration rate should be 0-100 (percentage)
       if (place.verified_alteration_rate !== null && place.verified_alteration_rate !== undefined) {
@@ -293,7 +312,8 @@ test.describe("Attribution Windows", () => {
     const response = await request.get("/api/beacon/places?limit=200");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ verified_altered_count?: number | null; verified_cat_count?: number | null }> }>(wrapped);
     for (const place of data.places || []) {
       if (
         place.verified_altered_count !== null &&
@@ -310,7 +330,8 @@ test.describe("Attribution Windows", () => {
     const response = await request.get("/api/beacon/places?limit=200");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ colony_status: string; lower_bound_alteration_rate?: number | null }> }>(wrapped);
     for (const place of data.places || []) {
       if (place.colony_status === "no_data") continue;
       if (place.lower_bound_alteration_rate === null) continue;
@@ -343,15 +364,17 @@ test.describe("Trapper Roles", () => {
     const response = await request.get("/api/trappers?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    expect(Array.isArray(data.trappers || data)).toBeTruthy();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ trappers?: unknown[] } | unknown[]>(wrapped);
+    expect(Array.isArray((data as { trappers?: unknown[] }).trappers || data)).toBeTruthy();
   });
 
   test("Trappers have valid trapper_type", async ({ request }) => {
     const response = await request.get("/api/trappers?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ trappers?: Array<{ trapper_type?: string }> } | Array<{ trapper_type?: string }>>(wrapped);
     const validTypes = [
       "coordinator",
       "head_trapper",
@@ -361,7 +384,7 @@ test.describe("Trapper Roles", () => {
       null,
     ];
 
-    const trappers = data.trappers || data;
+    const trappers = (data as { trappers?: Array<{ trapper_type?: string }> }).trappers || data as Array<{ trapper_type?: string }>;
     for (const trapper of trappers) {
       if (trapper.trapper_type) {
         expect(validTypes).toContain(trapper.trapper_type);
@@ -387,7 +410,8 @@ test.describe("Data Source Tracking", () => {
     const response = await request.get("/api/requests?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: Array<{ source_system?: string }> }>(wrapped);
     const validSources = [
       "airtable",
       "clinichq",
@@ -410,7 +434,8 @@ test.describe("Data Source Tracking", () => {
     const response = await request.get("/api/cats?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ cats: Array<{ source_system?: string; source_record_id?: string; cat_id: string }> }>(wrapped);
     for (const cat of data.cats || []) {
       // Cats should have some provenance tracking
       expect(
@@ -423,7 +448,8 @@ test.describe("Data Source Tracking", () => {
     const response = await request.get("/api/people?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ people: Array<{ source_system?: string; source_record_id?: string; person_id: string }> }>(wrapped);
     for (const person of data.people || []) {
       expect(
         person.source_system || person.source_record_id || person.person_id
@@ -445,7 +471,8 @@ test.describe("Relationship Integrity", () => {
     const response = await request.get("/api/requests?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ requests: unknown[] }>(wrapped);
     // Verify structure allows for trapper assignments
     expect(Array.isArray(data.requests)).toBeTruthy();
   });
@@ -455,7 +482,8 @@ test.describe("Relationship Integrity", () => {
     const response = await request.get("/api/beacon/places?limit=50");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{ places: Array<{ verified_cat_count?: number | null }> }>(wrapped);
     for (const place of data.places || []) {
       // If place has verified cats, count should be >= 0
       if (place.verified_cat_count !== null) {
@@ -491,7 +519,8 @@ test.describe("API Consistency", () => {
     // First get a request ID
     const listResponse = await request.get("/api/requests?limit=1");
     if (listResponse.ok()) {
-      const data = await listResponse.json();
+      const wrapped = await listResponse.json();
+      const data = unwrapApiResponse<{ requests: Array<{ request_id: string }> }>(wrapped);
       if (data.requests?.[0]?.request_id) {
         const detailResponse = await request.get(
           `/api/requests/${data.requests[0].request_id}`

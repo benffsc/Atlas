@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Ecological Data Sanity Tests
@@ -41,7 +42,8 @@ test.describe('Colony Estimate Sanity', () => {
   test('colony estimates have valid ranges', async ({ request }) => {
     // Get places with colony data
     const placesResponse = await request.get('/api/places?limit=100');
-    const placesData = await placesResponse.json();
+    const wrapped = await placesResponse.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
 
     let invalidEstimates = 0;
     let validEstimates = 0;
@@ -91,7 +93,8 @@ test.describe('Colony Estimate Sanity', () => {
 
   test('ecology stats have valid percentages', async ({ request }) => {
     const placesResponse = await request.get('/api/places?limit=50');
-    const placesData = await placesResponse.json();
+    const wrapped = await placesResponse.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
 
     let checkedPlaces = 0;
     let invalidStats = 0;
@@ -212,7 +215,8 @@ test.describe('AI-Parsed Data Sanity', () => {
 
   test('AI-parsed colony estimates are reasonable', async ({ request }) => {
     const placesResponse = await request.get('/api/places?limit=30');
-    const placesData = await placesResponse.json();
+    const wrapped = await placesResponse.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
 
     let aiParsedCount = 0;
     let suspiciousCount = 0;
@@ -260,7 +264,8 @@ test.describe('Population Model Sanity', () => {
 
   test('alteration rates follow expected patterns', async ({ request }) => {
     const placesResponse = await request.get('/api/places?limit=30');
-    const placesData = await placesResponse.json();
+    const wrapped = await placesResponse.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
 
     let placesWithRates = 0;
     let highRates = 0;
@@ -297,7 +302,8 @@ test.describe('Population Model Sanity', () => {
 
   test('Chapman estimator produces reasonable results', async ({ request }) => {
     const placesResponse = await request.get('/api/places?limit=30');
-    const placesData = await placesResponse.json();
+    const wrapped = await placesResponse.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
 
     let chapmanEstimates = 0;
 
@@ -332,7 +338,8 @@ test.describe('Data Source Attribution', () => {
 
   test('colony estimates have valid source types', async ({ request }) => {
     const placesResponse = await request.get('/api/places?limit=20');
-    const placesData = await placesResponse.json();
+    const wrapped = await placesResponse.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(wrapped);
 
     const validSourceTypes = [
       'post_clinic_survey',
