@@ -15,8 +15,12 @@
  *     expect(result.passed).toBe(true);
  *   });
  *
- * Cost: ~$0.003-0.01 per verification (using claude-haiku-4-5)
- * Run: INCLUDE_VISION_API=1 npm run test:e2e
+ * Models & Approximate Costs (per verification, ~1 screenshot):
+ *   - haiku:  ~$0.003 (fastest, good for structure checks)
+ *   - sonnet: ~$0.010 (balanced, recommended for most tests)
+ *   - opus:   ~$0.020 (most accurate, for nuanced assessments)
+ *
+ * Run: INCLUDE_VISION_API=1 npm run test:e2e:vision
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -157,11 +161,12 @@ export async function verifyPageWithVision(
   // Build prompt
   const prompt = buildVerificationPrompt(options);
 
-  // Select model
+  // Select model - using latest versions for best accuracy
+  // Pricing per MTok: Haiku $1/$5, Sonnet $3/$15, Opus $5/$25
   const modelMap = {
-    haiku: "claude-haiku-4-5-20251001",
-    sonnet: "claude-sonnet-4-20250514",
-    opus: "claude-opus-4-5-20251101",
+    haiku: "claude-haiku-4-5-20251001", // Fastest, cheapest (~$0.003/verification)
+    sonnet: "claude-sonnet-4-6",         // Best balance (~$0.01/verification)
+    opus: "claude-opus-4-6",             // Most accurate (~$0.02/verification)
   };
   const model = modelMap[options.model || "haiku"];
 
