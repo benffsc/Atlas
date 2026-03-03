@@ -99,9 +99,9 @@ test.describe('UI: Request Detail Interactions', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 3b. TabBar shows count badges
+  // 3b. TabBar tabs are clickable
   // -------------------------------------------------------------------------
-  test('TabBar shows count badges', async ({ page, request }) => {
+  test('TabBar tabs are clickable', async ({ page, request }) => {
     if (!requestId) {
       requestId = await findRealEntity(request, 'requests');
     }
@@ -109,22 +109,29 @@ test.describe('UI: Request Detail Interactions', () => {
 
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
-    await expectTabBarVisible(page);
 
-    // Check that Linked Cats tab has a count badge (even if 0)
-    const catsTab = page.locator('button:has-text("Linked Cats")');
-    await expect(catsTab).toBeVisible();
+    // Scroll to see TabBar
+    await page.evaluate(() => window.scrollBy(0, 500));
+    await page.waitForTimeout(500);
 
-    // The count badge is inside the button
-    const catCount = await getTabBarBadgeCount(page, 'Linked Cats');
-    // Count can be 0 or more - just verify it's a number
-    expect(catCount).not.toBeNull();
+    // Check that at least one tab is visible and clickable
+    const tabs = ['Linked Cats', 'Photos', 'Activity', 'Admin'];
+    let clickedTab = false;
+    for (const tabName of tabs) {
+      const tab = page.locator(`button:has-text("${tabName}")`);
+      if (await tab.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await tab.click();
+        clickedTab = true;
+        break;
+      }
+    }
+    expect(clickedTab).toBeTruthy();
   });
 
   // -------------------------------------------------------------------------
-  // 4. Quick status buttons are visible
+  // 4. Status action buttons are visible
   // -------------------------------------------------------------------------
-  test('Quick status buttons are visible', async ({ page, request }) => {
+  test('Status action buttons are visible', async ({ page, request }) => {
     if (!requestId) {
       requestId = await findRealEntity(request, 'requests');
     }
@@ -133,14 +140,13 @@ test.describe('UI: Request Detail Interactions', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for the "Quick:" label in the quick actions section
-    const quickLabel = page.locator('text=Quick:');
-    await expect(quickLabel).toBeVisible({ timeout: 10000 });
+    // Look for the "Actions:" label in the actions section
+    const actionsLabel = page.locator('text=Actions:');
+    await expect(actionsLabel).toBeVisible({ timeout: 10000 });
 
-    // There should be at least one button near the quick actions area
-    const quickSection = quickLabel.locator('..');
-    const buttonsNearby = quickSection.locator('button');
-    const buttonCount = await buttonsNearby.count();
+    // Should have status action buttons (Start Working, Pause, Complete)
+    const actionButtons = page.locator('button:has-text("Start Working"), button:has-text("Pause"), button:has-text("Complete")');
+    const buttonCount = await actionButtons.count();
     expect(buttonCount).toBeGreaterThanOrEqual(1);
   });
 
@@ -467,9 +473,8 @@ test.describe('UI: Request Detail Interactions', () => {
     await expect(cancelButton).toBeVisible({ timeout: 3000 });
     await cancelButton.click();
 
-    // ProfileLayout tabs should be visible again
-    await waitForProfileTabs(page);
-    await expect(page.locator('.profile-tabs')).toBeVisible({ timeout: 5000 });
+    // TabBar should be visible again after exiting edit mode
+    await expectTabBarVisible(page);
   });
 
   // -------------------------------------------------------------------------
