@@ -2,8 +2,9 @@
  * Cat Detail Interactions Tests
  *
  * Tests the cat detail page (/cats/[id]) UI interactions:
- * - Page loading and profile layout
- * - Tab navigation (Overview, Medical, Connections, Activity)
+ * - Page loading and profile layout (ProfileLayout component)
+ * - Tab navigation (Overview, Medical, Connections)
+ *   Note: Journal/Activity is integrated into Overview tab
  * - Profile header with name and badges
  * - Content rendering in each tab
  * - Entity links in connections tab
@@ -56,10 +57,11 @@ test.describe('UI: Cat Detail Interactions', () => {
     await waitForLoaded(page);
     await waitForProfileTabs(page);
 
+    // Cat page uses ProfileLayout with 3 tabs
+    // Note: Activity/Journal is integrated into Overview tab
     await expectTabExists(page, 'Overview');
     await expectTabExists(page, 'Medical');
     await expectTabExists(page, 'Connections');
-    await expectTabExists(page, 'Activity');
   });
 
   // -------------------------------------------------------------------------
@@ -73,7 +75,8 @@ test.describe('UI: Cat Detail Interactions', () => {
     await waitForLoaded(page);
     await waitForProfileTabs(page);
 
-    const tabLabels = ['Overview', 'Medical', 'Connections', 'Activity'];
+    // Cat page has 3 tabs (Activity/Journal is integrated into Overview)
+    const tabLabels = ['Overview', 'Medical', 'Connections'];
 
     for (const label of tabLabels) {
       await clickTab(page, label);
@@ -200,9 +203,9 @@ test.describe('UI: Cat Detail Interactions', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 9. Activity tab shows journal section
+  // 9. Overview tab shows journal section
   // -------------------------------------------------------------------------
-  test('Activity tab shows journal section', async ({ page, request }) => {
+  test('Overview tab shows journal section', async ({ page, request }) => {
     if (!catId) catId = await findRealEntity(request, 'cats');
     test.skip(!catId, 'No cat entities available in database');
 
@@ -210,9 +213,10 @@ test.describe('UI: Cat Detail Interactions', () => {
     await waitForLoaded(page);
     await waitForProfileTabs(page);
 
-    await clickTab(page, 'Activity');
+    // Journal is integrated into Overview tab
+    await clickTab(page, 'Overview');
 
-    // Activity tab should have a journal/activity area or empty state
+    // Overview tab should have a journal/activity area or empty state
     const activityContent = page.locator(
       '[class*="journal"], [class*="activity"], [class*="timeline"], [class*="entry"], [class*="card"], [class*="section"], [class*="empty"], [class*="log"], .profile-tab-content'
     );
