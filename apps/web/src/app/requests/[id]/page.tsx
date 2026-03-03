@@ -12,7 +12,7 @@ import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badg
 import { MediaGallery } from "@/components/media";
 import { ColonyEstimates } from "@/components/charts";
 import { ClassificationSuggestionBanner } from "@/components/admin";
-import { SmartField, YesNoSmartField, isLegacySource } from "@/components/ui/SmartField";
+import { SmartField, YesNoSmartField, isLegacySource, TabBar, TabPanel } from "@/components/ui";
 import { formatPhone, formatAddress } from "@/lib/formatters";
 import type { RequestDetail } from "./types";
 
@@ -197,7 +197,10 @@ export default function RequestDetailPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
 
-  // Collapsible sections
+  // Footer tab state (replaces collapsible sections)
+  const [activeTab, setActiveTab] = useState<string>("cats");
+
+  // Collapsible sections (keeping for edit mode compatibility)
   const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<string, boolean>>({
     cats: false,
     photos: true,
@@ -1042,25 +1045,47 @@ export default function RequestDetailPage() {
           </CaseSection>
 
           {/* ─────────────────────────────────────────────────────────────────────
-              LINKED CATS
+              TABBED SECONDARY CONTENT
               ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title={`Linked Cats${request.linked_cat_count ? ` (${request.linked_cat_count})` : ""}`} icon="😺" color="#8b5cf6" collapsed={sectionsCollapsed.cats} onToggle={() => toggleSection("cats")}>
-            <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" />
-          </CaseSection>
+          <div style={{ marginTop: "1.5rem" }}>
+            <TabBar
+              tabs={[
+                { id: "cats", label: "Linked Cats", icon: "😺", count: request.linked_cat_count || 0 },
+                { id: "photos", label: "Photos", icon: "📷" },
+                { id: "activity", label: "Activity", icon: "📝", count: journalEntries.length },
+                { id: "admin", label: "Admin", icon: "⚙️" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
 
-          {/* ─────────────────────────────────────────────────────────────────────
-              PHOTOS & MEDIA
-              ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title="Photos & Media" icon="📷" color="#64748b" collapsed={sectionsCollapsed.photos} onToggle={() => toggleSection("photos")}>
-            <MediaGallery entityType="request" entityId={requestId} allowUpload={true} includeRelated={true} showCatDescription={true} defaultMediaType="cat_photo" allowedMediaTypes={["cat_photo", "site_photo", "evidence"]} />
-          </CaseSection>
+            <TabPanel tabId="cats" activeTab={activeTab}>
+              <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" />
+            </TabPanel>
 
-          {/* ─────────────────────────────────────────────────────────────────────
-              ACTIVITY / JOURNAL
-              ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title={`Activity (${journalEntries.length})`} icon="📝" color="#0ea5e9" collapsed={sectionsCollapsed.activity} onToggle={() => toggleSection("activity")}>
-            <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshRequest(); fetchJournalEntries(); }} />
-          </CaseSection>
+            <TabPanel tabId="photos" activeTab={activeTab}>
+              <MediaGallery entityType="request" entityId={requestId} allowUpload={true} includeRelated={true} showCatDescription={true} defaultMediaType="cat_photo" allowedMediaTypes={["cat_photo", "site_photo", "evidence"]} />
+            </TabPanel>
+
+            <TabPanel tabId="activity" activeTab={activeTab}>
+              <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshRequest(); fetchJournalEntries(); }} />
+            </TabPanel>
+
+            <TabPanel tabId="admin" activeTab={activeTab}>
+              <div style={{ padding: "1rem", background: "#f9fafb", borderRadius: "8px" }}>
+                <h4 style={{ margin: "0 0 1rem 0", fontSize: "0.95rem", fontWeight: 600, color: "#374151" }}>Admin Tools</h4>
+                {request.place_coordinates && <NearbyEntities requestId={requestId} />}
+                {request.source_system?.startsWith("airtable") && (
+                  <button onClick={() => setShowUpgradeWizard(true)} className="btn btn-secondary" style={{ width: "100%", marginTop: "1rem" }}>
+                    Upgrade Legacy Data
+                  </button>
+                )}
+                {!request.place_coordinates && !request.source_system?.startsWith("airtable") && (
+                  <p style={{ color: "#6b7280", fontStyle: "italic", margin: 0 }}>No admin tools available for this request.</p>
+                )}
+              </div>
+            </TabPanel>
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════════
@@ -1126,16 +1151,6 @@ export default function RequestDetailPage() {
             {request.source_system && <div style={{ marginBottom: "0.5rem" }}><strong>Source:</strong> {request.source_system}</div>}
             <div><strong>ID:</strong> {request.request_id.slice(0, 8)}...</div>
           </div>
-
-          {/* Admin Section (Collapsed) */}
-          <CaseSection title="Admin" icon="⚙️" color="#64748b" collapsed={sectionsCollapsed.admin} onToggle={() => toggleSection("admin")}>
-            {request.place_coordinates && <NearbyEntities requestId={requestId} />}
-            {request.source_system?.startsWith("airtable") && (
-              <button onClick={() => setShowUpgradeWizard(true)} className="btn btn-secondary" style={{ width: "100%", marginTop: "1rem" }}>
-                Upgrade Legacy Data
-              </button>
-            )}
-          </CaseSection>
         </div>
       </div>
 

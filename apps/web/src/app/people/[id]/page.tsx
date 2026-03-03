@@ -12,6 +12,7 @@ import { TrapperStatsCard, PersonPlaceGoogleContext } from "@/components/cards";
 import { SendEmailModal } from "@/components/modals";
 import { MediaGallery } from "@/components/media";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
+import { TabBar, TabPanel } from "@/components/ui";
 import { VerificationPanel } from "@/components/verification";
 import { validatePersonName } from "@/lib/validation";
 import { formatDateLocal, formatPhone, isValidPhone, extractPhones } from "@/lib/formatters";
@@ -257,57 +258,7 @@ function DataSourceBadge({ dataSource }: { dataSource: string | null }) {
   );
 }
 
-// Tab navigation component
-function TabNav({
-  tabs,
-  activeTab,
-  onTabChange
-}: {
-  tabs: Array<{ id: string; label: string; badge?: number }>;
-  activeTab: string;
-  onTabChange: (id: string) => void;
-}) {
-  return (
-    <div style={{
-      display: "flex",
-      gap: "0.25rem",
-      borderBottom: "1px solid var(--border, #dee2e6)",
-      padding: "0 1rem",
-    }}>
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onTabChange(tab.id)}
-          style={{
-            padding: "0.75rem 1rem",
-            background: "transparent",
-            border: "none",
-            borderBottom: activeTab === tab.id ? "2px solid var(--primary, #0d6efd)" : "2px solid transparent",
-            color: activeTab === tab.id ? "var(--primary, #0d6efd)" : "var(--text-muted, #6c757d)",
-            fontWeight: activeTab === tab.id ? 600 : 400,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          {tab.label}
-          {tab.badge !== undefined && tab.badge > 0 && (
-            <span style={{
-              background: activeTab === tab.id ? "var(--primary, #0d6efd)" : "#6c757d",
-              color: "#fff",
-              fontSize: "0.7rem",
-              padding: "0.125rem 0.375rem",
-              borderRadius: "9999px",
-            }}>
-              {tab.badge}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
+// TabNav replaced with shared TabBar component from @/components/ui
 
 export default function PersonDetailPage() {
   const params = useParams();
@@ -1188,19 +1139,20 @@ export default function PersonDetailPage() {
 
       {/* Bottom Tabs */}
       <div className="card" style={{ marginTop: "1.5rem" }}>
-        <TabNav
-          tabs={[
-            { id: "details", label: "Details" },
-            { id: "history", label: "History", badge: requests.length },
-            { id: "admin", label: "Admin" },
-          ]}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        <div style={{ padding: "0 1rem" }}>
+          <TabBar
+            tabs={[
+              { id: "details", label: "Details", icon: "📋" },
+              { id: "history", label: "History", icon: "📜", count: requests.length },
+              { id: "admin", label: "Admin", icon: "⚙️" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        </div>
 
         <div style={{ padding: "1rem" }}>
-          {activeTab === "details" && (
-            <>
+          <TabPanel tabId="details" activeTab={activeTab}>
               {/* Clinic History */}
               <ClinicHistorySection personId={id} />
 
@@ -1235,11 +1187,9 @@ export default function PersonDetailPage() {
                   onEntryAdded={fetchJournal}
                 />
               </Section>
-            </>
-          )}
+          </TabPanel>
 
-          {activeTab === "history" && (
-            <>
+          <TabPanel tabId="history" activeTab={activeTab}>
               {/* Related Requests */}
               <Section title="Requests">
                 {requests.length > 0 ? (
@@ -1285,11 +1235,9 @@ export default function PersonDetailPage() {
               <Section title="Website Submissions">
                 <SubmissionsSection entityType="person" entityId={id} />
               </Section>
-            </>
-          )}
+          </TabPanel>
 
-          {activeTab === "admin" && (
-            <>
+          <TabPanel tabId="admin" activeTab={activeTab}>
               {/* Previous Names / Aliases */}
               <Section title="Previous Names">
                 {person.aliases && person.aliases.length > 0 ? (
@@ -1426,8 +1374,7 @@ export default function PersonDetailPage() {
                   </table>
                 </Section>
               )}
-            </>
-          )}
+          </TabPanel>
         </div>
       </div>
     </>

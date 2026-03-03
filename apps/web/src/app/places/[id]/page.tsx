@@ -13,6 +13,7 @@ import { VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/c
 import { CreateColonyModal } from "@/components/modals";
 import { MediaGallery, HeroGallery, type MediaItem } from "@/components/media";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
+import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
 import { formatDateLocal, formatPhone } from "@/lib/formatters";
 
@@ -101,58 +102,7 @@ interface RelatedRequest {
   requester_name: string | null;
 }
 
-// Tab navigation component
-function TabNav({
-  tabs,
-  activeTab,
-  onTabChange,
-}: {
-  tabs: { id: string; label: string; badge?: number }[];
-  activeTab: string;
-  onTabChange: (id: string) => void;
-}) {
-  return (
-    <div style={{
-      display: "flex",
-      gap: "0.25rem",
-      borderBottom: "1px solid var(--border)",
-      marginBottom: "1.5rem",
-    }}>
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onTabChange(tab.id)}
-          style={{
-            padding: "0.75rem 1rem",
-            background: "transparent",
-            border: "none",
-            borderBottom: activeTab === tab.id ? "2px solid var(--primary)" : "2px solid transparent",
-            color: activeTab === tab.id ? "var(--foreground)" : "var(--muted)",
-            fontWeight: activeTab === tab.id ? 600 : 400,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          {tab.label}
-          {tab.badge !== undefined && tab.badge > 0 && (
-            <span
-              className="badge"
-              style={{
-                fontSize: "0.7rem",
-                padding: "0.1rem 0.4rem",
-                background: activeTab === tab.id ? "var(--primary)" : "#6c757d",
-              }}
-            >
-              {tab.badge}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
+// TabNav replaced with shared TabBar component from @/components/ui
 
 // Place kind badge component
 function PlaceKindBadge({ kind }: { kind: string | null | undefined }) {
@@ -857,20 +807,19 @@ export default function PlaceDetailPage() {
 
       {/* Tabs for Details/Requests/Admin */}
       <div style={{ marginTop: "2rem" }}>
-        <TabNav
+        <TabBar
           tabs={[
-            { id: "details", label: "Details" },
-            { id: "requests", label: "Requests", badge: requests.length },
-            { id: "ecology", label: "Ecology" },
-            { id: "media", label: "Media" },
+            { id: "details", label: "Details", icon: "📋" },
+            { id: "requests", label: "Requests", icon: "📨", count: requests.length },
+            { id: "ecology", label: "Ecology", icon: "🌿" },
+            { id: "media", label: "Media", icon: "📷" },
           ]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
 
         {/* Details Tab */}
-        {activeTab === "details" && (
-          <>
+        <TabPanel tabId="details" activeTab={activeTab}>
             {/* Location Details Edit */}
             <Section title="Location Details">
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
@@ -1092,12 +1041,10 @@ export default function PlaceDetailPage() {
                 onEntryAdded={fetchJournal}
               />
             </Section>
-          </>
-        )}
+        </TabPanel>
 
         {/* Requests Tab */}
-        {activeTab === "requests" && (
-          <>
+        <TabPanel tabId="requests" activeTab={activeTab}>
             {/* Cat Presence Reconciliation */}
             {place.cats && place.cats.length > 0 && (
               <CatPresenceReconciliation
@@ -1167,12 +1114,10 @@ export default function PlaceDetailPage() {
             <Section title="Website Submissions" collapsible defaultCollapsed>
               <SubmissionsSection entityType="place" entityId={id} />
             </Section>
-          </>
-        )}
+        </TabPanel>
 
         {/* Ecology Tab */}
-        {activeTab === "ecology" && (
-          <>
+        <TabPanel tabId="ecology" activeTab={activeTab}>
             <Section title="Population Events">
               <PopulationTimeline placeId={id} />
             </Section>
@@ -1193,11 +1138,10 @@ export default function PlaceDetailPage() {
             <Section title="Activity Trend" collapsible defaultCollapsed>
               <PopulationTrendChart placeId={id} />
             </Section>
-          </>
-        )}
+        </TabPanel>
 
         {/* Media Tab */}
-        {activeTab === "media" && (
+        <TabPanel tabId="media" activeTab={activeTab}>
           <Section title="Photos">
             <MediaGallery
               entityType="place"
@@ -1208,7 +1152,7 @@ export default function PlaceDetailPage() {
               allowedMediaTypes={["site_photo", "evidence"]}
             />
           </Section>
-        )}
+        </TabPanel>
       </div>
     </div>
   );
