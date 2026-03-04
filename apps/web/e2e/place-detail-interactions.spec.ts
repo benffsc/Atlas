@@ -145,7 +145,7 @@ test.describe('UI: Place Detail Interactions', () => {
     await expectTabBarVisible(page);
 
     // Check that Requests tab has a count badge (even if 0)
-    const requestsTab = page.locator('button:has-text("Requests")');
+    const requestsTab = page.locator('[role="tab"]:has-text("Requests")');
     await expect(requestsTab).toBeVisible();
 
     const count = await getTabBarBadgeCount(page, 'Requests');

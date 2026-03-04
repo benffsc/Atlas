@@ -346,7 +346,7 @@ test.describe("TabBar Component Screenshots", () => {
     await page.waitForTimeout(1000);
 
     // Find TabBar
-    const tabBar = page.locator('[style*="borderBottom: 2px solid"]').first();
+    const tabBar = page.locator('[role="tablist"]').first();
     const hasTabBar = await tabBar.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (hasTabBar) {
@@ -358,7 +358,7 @@ test.describe("TabBar Component Screenshots", () => {
       // Click through each tab and screenshot
       const tabs = ["Photos", "Activity", "Admin"];
       for (const tabName of tabs) {
-        const tab = page.locator(`button:has-text("${tabName}")`).first();
+        const tab = page.locator(`[role="tab"]:has-text("${tabName}")`).first();
         if (await tab.isVisible().catch(() => false)) {
           await tab.click();
           await page.waitForTimeout(300);
@@ -428,7 +428,7 @@ test.describe("TabBar Component Screenshots", () => {
     await page.waitForLoadState("networkidle");
 
     // Find tabs with count badges
-    const countBadge = page.locator('button:has-text("Linked Cats") span[style*="borderRadius: 999px"]').first();
+    const countBadge = page.locator('[role="tab"]:has-text("Linked Cats") span[style*="borderRadius: 999px"]').first();
     const hasBadge = await countBadge.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (hasBadge) {

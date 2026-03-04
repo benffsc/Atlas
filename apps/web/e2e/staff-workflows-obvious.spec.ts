@@ -117,7 +117,7 @@ test.describe("Staff Workflow: Request Management", () => {
     await page.waitForTimeout(500);
 
     // Try to click Activity tab if visible
-    const activityTab = page.locator('button:has-text("Activity")');
+    const activityTab = page.locator('[role="tab"]:has-text("Activity")');
     if (await activityTab.isVisible({ timeout: 3000 }).catch(() => false)) {
       await activityTab.click();
       await page.waitForTimeout(500);

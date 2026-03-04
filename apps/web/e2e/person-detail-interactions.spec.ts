@@ -203,7 +203,7 @@ test.describe('UI: Person Detail Interactions', () => {
     await expectTabBarVisible(page);
 
     // Check that History tab has a count badge (even if 0)
-    const historyTab = page.locator('button:has-text("History")');
+    const historyTab = page.locator('[role="tab"]:has-text("History")');
     await expect(historyTab).toBeVisible();
 
     const count = await getTabBarBadgeCount(page, 'History');
@@ -246,7 +246,7 @@ test.describe('UI: Person Detail Interactions', () => {
     // The History button might be the tab or the header button
     // We want the header button, not the tab
     const headerHistoryButton = page.locator('button:has-text("History")').filter({
-      hasNot: page.locator('[style*="borderBottom"]'),
+      hasNot: page.locator('[role="tab"]'),
     }).first();
 
     const buttonToClick = await headerHistoryButton.isVisible({ timeout: 3000 }).catch(() => false)
