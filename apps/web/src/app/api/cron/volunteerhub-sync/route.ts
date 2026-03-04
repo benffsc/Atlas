@@ -379,19 +379,15 @@ export async function GET(request: NextRequest) {
     const isFullSync =
       forceMode === "full" || (forceMode !== "incremental" && dayOfWeek === 0);
 
-    console.log(
-      `VolunteerHub sync starting (${isFullSync ? "full" : "incremental"})...`
+    console.error(
+      `[VH-SYNC] Starting ${isFullSync ? "full" : "incremental"} sync...`
     );
 
     // Step 1: Verify API auth
     await vhFetch("/api/v1/organization");
-    console.log("VH API auth verified");
 
     // Step 2: Sync user groups
     const groupResult = await syncUserGroups();
-    console.log(
-      `Groups synced: ${groupResult.fetched} fetched, ${groupResult.upserted} upserted`
-    );
 
     // Step 3: Determine incremental cutoff
     let incrementalCutoff: string | null = null;
@@ -406,17 +402,13 @@ export async function GET(request: NextRequest) {
         const d = new Date(lastSync.last_sync);
         d.setDate(d.getDate() - 1);
         incrementalCutoff = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
-        console.log(`Incremental cutoff: ${incrementalCutoff}`);
       } else {
-        console.log("No previous sync found, doing full sync");
+        // No previous sync found, doing full sync
       }
     }
 
     // Step 4: Sync users
     const userStats = await syncUsers(incrementalCutoff);
-    console.log(
-      `Users synced: ${userStats.fetched} fetched, ${userStats.inserted} new, ${userStats.updated} updated`
-    );
 
     // Step 5: Reconcile — deactivate roles not backed by current VH groups
     let reconciliation: { deactivated: number } | null = null;
@@ -426,8 +418,8 @@ export async function GET(request: NextRequest) {
       );
       if (result?.result) {
         reconciliation = JSON.parse(result.result);
-        console.log(
-          `Role reconciliation: ${reconciliation?.deactivated ?? 0} roles deactivated`
+        console.error(
+          `[VH-SYNC] Role reconciliation: ${reconciliation?.deactivated ?? 0} roles deactivated`
         );
       }
     } catch (reconcileErr) {
@@ -449,8 +441,8 @@ export async function GET(request: NextRequest) {
       );
       if (enrichResult) {
         enrichment = enrichResult;
-        console.log(
-          `Skeleton enrichment: ${enrichment.enriched_count} enriched, ${enrichment.skipped_count} skipped, ${enrichment.error_count} errors`
+        console.error(
+          `[VH-SYNC] Skeleton enrichment: ${enrichment.enriched_count} enriched, ${enrichment.skipped_count} skipped, ${enrichment.error_count} errors`
         );
       }
     } catch (enrichErr) {

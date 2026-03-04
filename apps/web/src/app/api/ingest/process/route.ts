@@ -110,8 +110,8 @@ async function processJobs(request: NextRequest): Promise<NextResponse> {
 
       // Log each completed job
       if (result.status === "completed") {
-        console.log(
-          `Processed job ${result.job_id}: ${result.source_system}/${result.source_table}`
+        console.error(
+          `[PROCESS] Completed job ${result.job_id}: ${result.source_system}/${result.source_table}`
         );
       } else if (result.status === "failed") {
         console.error(

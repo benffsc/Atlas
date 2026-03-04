@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
 
       if (existingBySourceId) {
-        console.log(`Duplicate blocked by source_raw_id: ${body.source_raw_id}, existing: ${existingBySourceId.submission_id}`);
+        console.error(`[INTAKE] Duplicate blocked by source_raw_id: ${body.source_raw_id}, existing: ${existingBySourceId.submission_id}`);
         return apiSuccess({
           submission_id: existingBySourceId.submission_id,
           message: "Your request was already received. Thank you!",
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         : null;
 
     if (duplicateCheck) {
-      console.log(`Duplicate submission blocked: ${body.email || body.phone} at ${body.cats_address}, existing: ${duplicateCheck.submission_id}`);
+      console.error(`[INTAKE] Duplicate submission blocked: ${body.email || body.phone} at ${body.cats_address}, existing: ${duplicateCheck.submission_id}`);
       return apiSuccess({
         submission_id: duplicateCheck.submission_id,
         message: "Your request was already received. Thank you!",

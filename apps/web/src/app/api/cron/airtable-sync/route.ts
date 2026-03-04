@@ -420,7 +420,7 @@ export async function GET(request: NextRequest) {
   try {
     // Get pending records from Airtable
     const pendingRecords = await getPendingRecords();
-    console.log(`Found ${pendingRecords.length} pending records to sync`);
+    console.error(`[AT-SYNC] Found ${pendingRecords.length} pending records to sync`);
 
     if (pendingRecords.length === 0) {
       return apiSuccess({

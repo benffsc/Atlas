@@ -47,10 +47,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("[UPLOAD] Starting upload request v2...");
-
   try {
-    console.log("[UPLOAD] Parsing formData...");
     let formData;
     try {
       formData = await request.formData();
@@ -63,19 +60,10 @@ export async function POST(request: NextRequest) {
     const sourceTable = formData.get("source_table") as string | null;
     let batchId = formData.get("batch_id") as string | null;
 
-    console.log("[UPLOAD] Got:", {
-      fileName: file?.name,
-      fileSize: file?.size,
-      sourceSystem,
-      sourceTable,
-      batchId
-    });
-
     // MIG_971: For ClinicHQ uploads, auto-generate batch_id if not provided
     // This groups the 3 files (cat_info, owner_info, appointment_info) together
     if (sourceSystem === "clinichq" && !batchId) {
       batchId = randomUUID();
-      console.log("[UPLOAD] Generated batch_id for ClinicHQ:", batchId);
     }
 
     // Validation
@@ -92,14 +80,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Read file content
-    console.log("[UPLOAD] Reading file content...");
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    console.log("[UPLOAD] File read, size:", buffer.length);
 
     // Calculate file hash for duplicate detection
     const fileHash = createHash("sha256").update(buffer).digest("hex");
-    console.log("[UPLOAD] Hash:", fileHash.substring(0, 16));
 
     // Check for duplicate - but allow re-upload if previous attempt failed
     const existing = await queryOne<{ upload_id: string; status: string }>(
@@ -110,7 +95,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       // Allow re-upload if previous was failed or pending (stalled) - delete the old record first
       if (existing.status === 'failed' || existing.status === 'pending') {
-        console.log(`[UPLOAD] Previous upload was ${existing.status}, allowing re-upload`);
+        console.error(`[UPLOAD] Previous upload was ${existing.status}, allowing re-upload`);
         await query(`DELETE FROM ops.staged_records WHERE file_upload_id = $1`, [existing.upload_id]);
         await query(`DELETE FROM ops.file_uploads WHERE upload_id = $1`, [existing.upload_id]);
       } else if (existing.status === 'completed') {
@@ -139,17 +124,13 @@ export async function POST(request: NextRequest) {
         await mkdir(uploadDir, { recursive: true });
         const filePath = path.join(uploadDir, storedFilename);
         await writeFile(filePath, buffer);
-        console.log("[UPLOAD] File written to disk");
       } catch (fsError) {
-        console.log("[UPLOAD] Filesystem write failed, using DB storage only");
+        console.error("[UPLOAD] Filesystem write failed, using DB storage only");
       }
-    } else {
-      console.log("[UPLOAD] Serverless environment, using DB storage only");
     }
 
     // Record in database (store file content for serverless environments)
     // MIG_971: Include batch_id for ClinicHQ batch tracking
-    console.log("[UPLOAD] Inserting into database...");
     let result;
     try {
       result = await queryOne<{ upload_id: string }>(

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         AND processed_at < NOW() - INTERVAL '5 minutes'
     `);
     if (stuckReset.rowCount && stuckReset.rowCount > 0) {
-      console.log(`Auto-reset ${stuckReset.rowCount} stuck upload(s)`);
+      console.error(`[PROCESS-UPLOADS] Auto-reset ${stuckReset.rowCount} stuck upload(s)`);
     }
 
     // Find pending uploads that need processing

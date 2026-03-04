@@ -789,9 +789,8 @@ export async function GET(req: NextRequest) {
       // First ensure the coverage table is populated
       try {
         await queryRows(`SELECT sot.refresh_zone_data_coverage()`);
-      } catch (e) {
+      } catch {
         // Ignore if function doesn't exist yet or fails
-        console.log("refresh_zone_data_coverage not available yet:", e);
       }
 
       const dataCoverage = await queryRows<{

@@ -372,7 +372,7 @@ export async function POST(request: NextRequest) {
           // Comments are logged but not processed to a separate table
           break;
         default:
-          console.log(`Unhandled Linear webhook type: ${payload.type}`);
+          console.error(`[LINEAR-WEBHOOK] Unhandled type: ${payload.type}`);
       }
 
       // Mark event as processed

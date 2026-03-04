@@ -360,7 +360,7 @@ async function syncIssues(syncRunId: string): Promise<SyncResult> {
 
   try {
     const issues = await client.getAllIssues(undefined, (count) => {
-      console.log(`Fetched ${count} issues...`);
+      console.error(`[LINEAR-SYNC] Fetched ${count} issues...`);
     });
     result.fetched = issues.length;
 
@@ -549,31 +549,31 @@ export async function GET(request: NextRequest) {
     // Verify API connection first
     const client = getLinearClient();
     const viewer = await client.verifyAuth();
-    console.log(`Linear sync starting as: ${viewer.name} (${viewer.email})`);
+    console.error(`[LINEAR-SYNC] Starting as: ${viewer.name} (${viewer.email})`);
 
     // Sync in order: users first (for name resolution), then projects, cycles, labels, finally issues
     if (!syncType || syncType === "users") {
-      console.log("Syncing team members...");
+      console.error("[LINEAR-SYNC] Syncing team members...");
       results.users = await syncUsers(syncRunId);
     }
 
     if (!syncType || syncType === "projects") {
-      console.log("Syncing projects...");
+      console.error("[LINEAR-SYNC] Syncing projects...");
       results.projects = await syncProjects(syncRunId);
     }
 
     if (!syncType || syncType === "cycles") {
-      console.log("Syncing cycles...");
+      console.error("[LINEAR-SYNC] Syncing cycles...");
       results.cycles = await syncCycles(syncRunId);
     }
 
     if (!syncType || syncType === "labels") {
-      console.log("Syncing labels...");
+      console.error("[LINEAR-SYNC] Syncing labels...");
       results.labels = await syncLabels(syncRunId);
     }
 
     if (!syncType || syncType === "issues") {
-      console.log("Syncing issues...");
+      console.error("[LINEAR-SYNC] Syncing issues...");
       results.issues = await syncIssues(syncRunId);
     }
 

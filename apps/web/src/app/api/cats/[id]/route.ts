@@ -248,11 +248,6 @@ export async function GET(
       return apiNotFound("Cat", id);
     }
 
-    // Log if we used fallback for debugging
-    if (usedFallback) {
-      console.log(`Cat ${id} fetched using fallback query (v_cat_detail view unavailable)`);
-    }
-
     // Fetch first visit date from sot_appointments (canonical source)
     const visitStatsSql = `
       SELECT

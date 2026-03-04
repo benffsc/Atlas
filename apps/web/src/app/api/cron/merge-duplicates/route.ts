@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
     if (needsReview.length > 0 && !dryRun) {
       // Insert into a review table if it exists, or just log
       for (const review of needsReview.slice(0, 50)) { // Limit logging
-        console.log(`[merge-duplicates] Needs review: "${review.name}" - ${review.reason} - ${review.person_ids.length} people`);
+        console.error(`[merge-duplicates] Needs review: "${review.name}" - ${review.reason} - ${review.person_ids.length} people`);
       }
     }
 

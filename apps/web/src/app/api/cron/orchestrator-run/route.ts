@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
   const runType = searchParams.get("type") || "incremental";
   const batchSize = parseInt(searchParams.get("batch_size") || "500", 10);
 
-  console.log(
+  console.error(
     `[orchestrator] Starting ${runType} run with batch_size=${batchSize}`
   );
 
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime;
-    console.log(
+    console.error(
       `[orchestrator] Completed in ${duration}ms - status: ${result.status}`
     );
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     const phaseSummary = result.phases
       .map((p) => `${p.phase}: ${p.status}`)
       .join(", ");
-    console.log(`[orchestrator] Phases: ${phaseSummary}`);
+    console.error(`[orchestrator] Phases: ${phaseSummary}`);
 
     return apiSuccess({
       run_id: result.run_id,

@@ -97,7 +97,7 @@ export async function POST(
       );
     }
 
-    console.log(`[BATCH] Processing order validated: ${actualOrder.join(' → ')}`);
+    console.error(`[BATCH] Processing order validated: ${actualOrder.join(' → ')}`);
 
     // Additional validation: If cat_info or owner_info need processing,
     // appointment_info must be completed (not just pending)
@@ -137,7 +137,7 @@ export async function POST(
         continue;
       }
 
-      console.log(`[BATCH] Processing ${file.source_table} (${file.upload_id})...`);
+      console.error(`[BATCH] Processing ${file.source_table} (${file.upload_id})...`);
 
       try {
         // Call the existing process endpoint with extended timeout

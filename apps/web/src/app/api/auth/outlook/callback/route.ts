@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       session.staff_id
     );
 
-    console.log(`Outlook account connected: ${graphUser.mail || graphUser.userPrincipalName} (${accountId})`);
+    console.error(`[OUTLOOK] Account connected: ${graphUser.mail || graphUser.userPrincipalName} (${accountId})`);
 
     // Redirect to email settings with success message
     return NextResponse.redirect(

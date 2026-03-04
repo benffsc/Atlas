@@ -33,9 +33,6 @@ export async function POST(
 
   try {
     const body: UpgradeRequestBody = await request.json();
-    console.log("[upgrade] Starting upgrade for request:", id);
-    console.log("[upgrade] Request body:", JSON.stringify(body, null, 2));
-
     // First, verify the request exists and is a legacy request
     const existingRequest = await queryOne<{
       request_id: string;
@@ -50,8 +47,6 @@ export async function POST(
        FROM ops.requests WHERE request_id = $1`,
       [id]
     );
-
-    console.log("[upgrade] Existing request:", existingRequest);
 
     if (!existingRequest) {
       return apiNotFound("Request", id);
@@ -126,10 +121,7 @@ export async function POST(
       body.kittens_already_taken || false,
       ...extraParams,
     ];
-    console.log("[upgrade] Running update with params:", updateParams);
-
     const result = await queryOne<{ request_id: string }>(updateSql, updateParams);
-    console.log("[upgrade] Update result:", result);
 
     if (!result) {
       return apiServerError("Failed to upgrade request");
@@ -175,7 +167,7 @@ export async function POST(
         );
 
         if (reconcileResult?.reconciled) {
-          console.log("[upgrade] Colony auto-reconciled:", reconcileResult.message);
+          console.error("[UPGRADE] Colony auto-reconciled:", reconcileResult.message);
         }
 
         // Also add a staff-verified estimate for the total_cats_reported

@@ -333,7 +333,6 @@ function NewRequestForm() {
         }
 
         // Store intake ID for reference (for linking back after creation)
-        console.log("Loaded intake submission:", intakeId);
       })
       .catch((err) => console.error("Failed to load intake:", err));
   }, [searchParams]);
@@ -453,8 +452,6 @@ function NewRequestForm() {
 
       // Get addresses if available
       const addresses: PersonAddress[] = addressData.addresses || [];
-      console.log("[FFR] Fetched addresses for person:", person.display_name, addresses);
-
       setSelectedPerson({
         person_id: person.person_id,
         display_name: person.display_name,

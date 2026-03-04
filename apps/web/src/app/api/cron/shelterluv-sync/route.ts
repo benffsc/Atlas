@@ -292,7 +292,7 @@ export async function GET(request: NextRequest) {
 
     // Sync in order: people first (for identity resolution), then animals, then events
     if (!syncType || syncType === "people") {
-      console.log("Syncing people...");
+      console.error("[SL-SYNC] Syncing people...");
       results.people = await syncEndpoint(
         "/people",
         "people",
@@ -305,7 +305,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!syncType || syncType === "animals") {
-      console.log("Syncing animals...");
+      console.error("[SL-SYNC] Syncing animals...");
       results.animals = await syncEndpoint(
         "/animals",
         "animals",
@@ -318,7 +318,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!syncType || syncType === "events") {
-      console.log("Syncing events...");
+      console.error("[SL-SYNC] Syncing events...");
       // DATA_GAP_057 FIX: Changed from "Time" to "LastUpdatedUnixTime"
       // "Time" is the immutable event occurrence timestamp, which never changes.
       // "LastUpdatedUnixTime" is the record modification time, needed for incremental sync.
@@ -346,7 +346,7 @@ export async function GET(request: NextRequest) {
            AND is_processed IS NOT TRUE`
       );
       if (unprocessedPeople && unprocessedPeople.count > 0) {
-        console.log(`Processing ${unprocessedPeople.count} people through Data Engine...`);
+        console.error(`[SL-SYNC] Processing ${unprocessedPeople.count} people through Data Engine...`);
         const peopleResult = await queryOne<{
           records_processed: number;
           people_created: number;
@@ -373,7 +373,7 @@ export async function GET(request: NextRequest) {
       );
 
       if (unprocessedAnimals.length > 0) {
-        console.log(`Processing ${unprocessedAnimals.length} animals through Data Engine...`);
+        console.error(`[SL-SYNC] Processing ${unprocessedAnimals.length} animals through Data Engine...`);
         let animalsProcessed = 0;
         for (const animal of unprocessedAnimals) {
           try {
@@ -399,7 +399,7 @@ export async function GET(request: NextRequest) {
            AND payload->>'Type' LIKE 'Outcome.%'`
       );
       if (unprocessedOutcomes && unprocessedOutcomes.count > 0) {
-        console.log(`Processing ${unprocessedOutcomes.count} outcome events...`);
+        console.error(`[SL-SYNC] Processing ${unprocessedOutcomes.count} outcome events...`);
         const eventsResult = await queryOne<{
           events_processed: number;
           adoptions_created: number;
@@ -424,7 +424,7 @@ export async function GET(request: NextRequest) {
            AND payload->>'Type' LIKE 'Intake.%'`
       );
       if (unprocessedIntake && unprocessedIntake.count > 0) {
-        console.log(`Processing ${unprocessedIntake.count} intake events...`);
+        console.error(`[SL-SYNC] Processing ${unprocessedIntake.count} intake events...`);
         const intakeResult = await queryOne<{
           events_processed: number;
           intake_created: number;
