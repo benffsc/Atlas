@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import * as XLSX from "xlsx";
 import crypto from "crypto";
+import { apiBadRequest, apiServerError, apiSuccess } from "@/lib/api-response";
 
 // Serverless function timeout
 export const maxDuration = 300; // 5 minutes
@@ -1300,10 +1301,7 @@ export async function POST(request: NextRequest) {
       if (!catInfoFile) missing.push("cat_info");
       if (!ownerInfoFile) missing.push("owner_info");
       if (!appointmentInfoFile) missing.push("appointment_info");
-      return NextResponse.json(
-        { error: `Missing files: ${missing.join(", ")}` },
-        { status: 400 }
-      );
+      return apiBadRequest(`Missing files: ${missing.join(", ")}`);
     }
 
     // Parse all 3 files
@@ -1359,9 +1357,9 @@ export async function POST(request: NextRequest) {
 
       const elapsedMs = Date.now() - startTime;
 
-      return NextResponse.json({
-        success: stats.errors === 0,
+      return apiSuccess({
         message: `Processed ${mergedRecords.length} cats with ${uniqueAppointments} unique visits (${totalServiceItems} service items)`,
+        hasErrors: stats.errors > 0,
         stats,
         dryRun,
         elapsedMs,
@@ -1467,9 +1465,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("[V2 Ingest] Error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Processing failed" },
-      { status: 500 }
+    return apiServerError(
+      error instanceof Error ? error.message : "Processing failed"
     );
   }
 }

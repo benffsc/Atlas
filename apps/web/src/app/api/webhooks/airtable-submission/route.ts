@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiSuccess, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 /**
  * Webhook endpoint for instant Airtable sync
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
 
   if (WEBHOOK_SECRET && authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiUnauthorized("Unauthorized");
   }
 
   try {
@@ -43,26 +44,20 @@ export async function POST(request: NextRequest) {
 
     const syncResult = await syncResponse.json();
 
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       message: "Sync triggered",
       sync_result: syncResult,
       triggered_at: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Webhook sync error:", error);
-    return NextResponse.json(
-      {
-        error: "Sync failed",
-      },
-      { status: 500 }
-    );
+    return apiServerError("Sync failed");
   }
 }
 
 // Also support GET for testing
-export async function GET(request: NextRequest) {
-  return NextResponse.json({
+export async function GET() {
+  return apiSuccess({
     endpoint: "airtable-submission webhook",
     usage: "POST to trigger immediate Airtable sync",
     auth: "Include Authorization: Bearer YOUR_SECRET header",

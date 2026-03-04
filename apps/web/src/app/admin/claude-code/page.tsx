@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { postApi } from "@/lib/api-client";
 
 interface Message {
   id: string;
@@ -68,23 +69,13 @@ export default function ClaudeCodeAdminPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/admin/claude-code/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage.content,
-          history: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+      const data = await postApi<{ response: string }>("/api/admin/claude-code/chat", {
+        message: userMessage.content,
+        history: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get response");
-      }
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),

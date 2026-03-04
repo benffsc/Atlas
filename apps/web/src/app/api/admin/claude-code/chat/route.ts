@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getSession } from "@/lib/auth";
+import { apiSuccess, apiForbidden, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
  * POST /api/admin/claude-code/chat
@@ -13,28 +14,19 @@ export async function POST(request: NextRequest) {
     // Require admin auth
     const session = await getSession(request);
     if (!session || session.auth_role !== "admin") {
-      return NextResponse.json(
-        { error: "Admin access required" },
-        { status: 403 }
-      );
+      return apiForbidden("Admin access required");
     }
 
     const body = await request.json();
     const { message, history = [] } = body;
 
     if (!message) {
-      return NextResponse.json(
-        { error: "Message is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Message is required");
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY not configured" },
-        { status: 500 }
-      );
+      return apiServerError("ANTHROPIC_API_KEY not configured");
     }
 
     const client = new Anthropic({ apiKey });
@@ -92,17 +84,11 @@ You're chatting with Ben, the admin and developer of Atlas. Help him with code q
     const textContent = response.content.find((c) => c.type === "text");
     const responseText = textContent?.type === "text" ? textContent.text : "No response generated";
 
-    return NextResponse.json({
-      success: true,
-      response: responseText,
-    });
+    return apiSuccess({ response: responseText });
   } catch (error) {
     console.error("Claude Code chat error:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to process chat",
-      },
-      { status: 500 }
+    return apiServerError(
+      error instanceof Error ? error.message : "Failed to process chat"
     );
   }
 }

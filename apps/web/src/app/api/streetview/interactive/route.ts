@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiBadRequest, apiServerError } from "@/lib/api-response";
 
 const GOOGLE_API_KEY =
   process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
@@ -19,17 +20,11 @@ export async function GET(request: NextRequest) {
   const lng = searchParams.get("lng");
 
   if (!lat || !lng) {
-    return NextResponse.json(
-      { error: "lat and lng are required" },
-      { status: 400 }
-    );
+    return apiBadRequest("lat and lng are required");
   }
 
   if (!GOOGLE_API_KEY) {
-    return NextResponse.json(
-      { error: "Google Maps API key not configured" },
-      { status: 500 }
-    );
+    return apiServerError("Google Maps API key not configured");
   }
 
   const html = `<!DOCTYPE html>

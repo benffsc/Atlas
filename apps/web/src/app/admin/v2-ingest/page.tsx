@@ -503,7 +503,8 @@ export default function V2IngestPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Processing failed");
+        const errorMsg = data.error?.message || data.error || "Processing failed";
+        throw new Error(errorMsg);
       }
 
       updateStage("upload", { status: "completed", endTime: new Date() });
