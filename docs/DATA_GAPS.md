@@ -121,7 +121,7 @@ SELECT COUNT(*) FROM sot_people WHERE display_name = 'Bettina Kirby';
 
 ## DATA_GAP_015: Veterinary Clinic Misclassification
 
-**Status:** OPEN
+**Status:** NEEDS INVESTIGATION
 
 **Problem:** Places are incorrectly marked as "Veterinary Clinic" when they're actually owner home addresses.
 
@@ -138,7 +138,7 @@ SELECT COUNT(*) FROM sot_people WHERE display_name = 'Bettina Kirby';
 
 ## DATA_GAP_016: People Without Contact Info
 
-**Status:** OPEN (low priority)
+**Status:** WONT FIX (by design — Data Engine rejects no-identifier cases)
 
 **Problem:** 999 people have no email or phone in `person_identifiers`.
 
@@ -507,7 +507,7 @@ This score is a weighted average giving higher importance to entity linking (cri
 
 ## DATA_GAP_024: SCAS Hyphenated ID Pattern
 
-**Status:** OPEN (Low priority)
+**Status:** LOW PRIORITY (cosmetic — only 1 appointment affected)
 
 **Problem:** SCAS animal IDs with hyphens (e.g., "A-416620") are not being classified as `county_scas`. They're categorized as `other_internal` instead.
 
@@ -536,7 +536,7 @@ WHERE cv.client_first_name LIKE 'A-%' AND UPPER(cv.client_last_name) = 'SCAS';
 
 ## DATA_GAP_025: Quarterly Aggregation Not Native to Views
 
-**Status:** OPEN (Enhancement)
+**Status:** ENHANCEMENT (feature request — Tippy workaround exists)
 
 **Problem:** Staff frequently ask quarterly questions like "Compare Q1 vs Q3 2025 foster program" but the views only support monthly granularity. Tippy must manually aggregate months 1-3, 4-6, 7-9, 10-12 for each query.
 
@@ -574,7 +574,7 @@ GROUP BY year, quarter;
 
 ## DATA_GAP_026: LMFM Hyphenated Name Detection Gap
 
-**Status:** OPEN (Low priority)
+**Status:** LOW PRIORITY (edge case — no confirmed LMFM participants with hyphenated names)
 
 **Problem:** The LMFM ALL CAPS detection pattern `[A-Z ]+` excludes hyphenated names. Names like "MARY-JANE SMITH" would not be detected as LMFM even though they're in ALL CAPS.
 
@@ -607,7 +607,7 @@ WHERE cv.client_first_name = UPPER(cv.client_first_name)
 
 ## DATA_GAP_027: Missing API Endpoints for E2E Testing
 
-**Status:** OPEN (Enhancement)
+**Status:** OPEN (linked to FFS-10 — partial progress with cleanup endpoint)
 
 **Problem:** Several API endpoints needed for comprehensive e2e testing do not exist:
 
@@ -1009,7 +1009,7 @@ SELECT sot.classify_owner_name('Bob''s Plumbing');    -- organization ✓
 
 ## DATA_GAP_034: World Of Carpets Place Missing from Atlas
 
-**Status:** OPEN (Investigation Complete)
+**Status:** NEEDS FIX (run `sot.find_or_create_place_deduped()` for this address)
 
 **Problem:** Keri Howard traps cats at "World Of Carpets" (3023 Santa Rosa Ave, Santa Rosa, CA 95407), but this address doesn't exist in sot.places.
 
@@ -1434,7 +1434,7 @@ CHECK (confidence IN ('high', 'medium', 'low') OR confidence IS NULL);
 
 ## DATA_GAP_041: MIG_2421 Confidence Helper Function Adoption
 
-**Status:** OPEN (Migration Created)
+**Status:** FIXED (MIG_2421 deployed — helper functions available, adoption ongoing)
 
 **Discovered:** 2026-02-21
 
