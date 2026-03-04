@@ -242,7 +242,7 @@ export default function AtlasMap() {
       color: "white",
       weight: 2,
     }).addTo(miniMap);
-    (miniMap as any)._miniMapConeMarker = coneMarker;
+    miniMap._miniMapConeMarker = coneMarker;
 
     // Add nearby atlas pins within ~300m
     const MINI_RADIUS = 0.003;
@@ -1047,7 +1047,7 @@ export default function AtlasMap() {
           icon: createReferencePinMarker(refColor, { size: 18, pinStyle: pin.pin_style }),
           diseaseRisk: pin.disease_risk,
           watchList: pin.watch_list,
-        } as any);
+        });
         // Build data summary parts
         const summaryParts: string[] = [];
         if (pin.person_count > 0) summaryParts.push(`${pin.person_count} ${pin.person_count === 1 ? "person" : "people"}`);
@@ -1151,7 +1151,7 @@ export default function AtlasMap() {
         }),
         diseaseRisk: pin.disease_risk,
         watchList: pin.watch_list,
-      } as any);
+      });
 
       // Build consolidated popup
       // Filter out names that look like addresses (contain ", CA" or match the place address)

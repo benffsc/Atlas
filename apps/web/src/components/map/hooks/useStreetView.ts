@@ -93,7 +93,7 @@ export function useStreetView({
             animate: true,
           });
           // Move mini map cone marker
-          const layers = (miniMapRef.current as any)._miniMapConeMarker;
+          const layers = miniMapRef.current._miniMapConeMarker;
           if (layers) {
             layers.setLatLng([event.data.lat, event.data.lng]);
           }
