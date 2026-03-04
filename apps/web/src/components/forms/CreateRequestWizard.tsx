@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { postApi, ApiError } from "@/lib/api-client";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -135,41 +136,34 @@ export default function CreateRequestWizard({
     setError(null);
 
     try {
-      const response = await fetch("/api/intake/convert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          submission_id: submission.submission_id,
-          ...formData,
-          converted_by: "web_user",
-          // Pass through MIG_2531/2532 fields from intake
-          county: submission.county,
-          peak_count: submission.peak_count,
-          awareness_duration: submission.awareness_duration,
-          has_medical_concerns: submission.has_medical_concerns,
-          medical_description: submission.medical_description,
-          feeding_location: submission.feeding_location,
-          feeding_time: submission.feeding_time,
-          dogs_on_site: submission.dogs_on_site,
-          trap_savvy: submission.trap_savvy,
-          previous_tnr: submission.previous_tnr,
-          is_third_party_report: submission.is_third_party_report,
-          third_party_relationship: submission.third_party_relationship,
-          kitten_age_estimate: submission.kitten_age_estimate,
-          kitten_behavior: submission.kitten_behavior,
-        }),
+      const data = await postApi<{ request_id: string }>("/api/intake/convert", {
+        submission_id: submission.submission_id,
+        ...formData,
+        converted_by: "web_user",
+        // Pass through MIG_2531/2532 fields from intake
+        county: submission.county,
+        peak_count: submission.peak_count,
+        awareness_duration: submission.awareness_duration,
+        has_medical_concerns: submission.has_medical_concerns,
+        medical_description: submission.medical_description,
+        feeding_location: submission.feeding_location,
+        feeding_time: submission.feeding_time,
+        dogs_on_site: submission.dogs_on_site,
+        trap_savvy: submission.trap_savvy,
+        previous_tnr: submission.previous_tnr,
+        is_third_party_report: submission.is_third_party_report,
+        third_party_relationship: submission.third_party_relationship,
+        kitten_age_estimate: submission.kitten_age_estimate,
+        kitten_behavior: submission.kitten_behavior,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Failed to create request");
-        return;
-      }
 
       onComplete(data.request_id);
     } catch (err) {
-      setError("Network error - please try again");
+      if (err instanceof ApiError) {
+        setError(err.message || "Failed to create request");
+      } else {
+        setError("Network error - please try again");
+      }
     } finally {
       setSaving(false);
     }

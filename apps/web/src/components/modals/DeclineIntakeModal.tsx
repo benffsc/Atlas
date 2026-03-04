@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface DeclineIntakeModalProps {
   submissionId: string;
@@ -55,28 +56,17 @@ export default function DeclineIntakeModal({
     setError(null);
 
     try {
-      const response = await fetch("/api/intake/decline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          submission_id: submissionId,
-          reason_code: reason,
-          reason_notes: notes || null,
-          referred_to_org: reason === "referred_to_other_org" ? referralOrg : null,
-          send_notification: sendEmail,
-        }),
+      await postApi("/api/intake/decline", {
+        submission_id: submissionId,
+        reason_code: reason,
+        reason_notes: notes || null,
+        referred_to_org: reason === "referred_to_other_org" ? referralOrg : null,
+        send_notification: sendEmail,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Failed to decline submission");
-        return;
-      }
 
       onComplete();
     } catch (err) {
-      setError("Network error - please try again");
+      setError(err instanceof Error ? err.message : "Network error - please try again");
     } finally {
       setSaving(false);
     }

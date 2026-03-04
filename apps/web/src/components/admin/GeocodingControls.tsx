@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface GeocodingStats {
   geocoded: string;
@@ -40,11 +41,8 @@ export function GeocodingControls() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/places/geocode-queue");
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.stats);
-      }
+      const data = await fetchApi<{ stats: GeocodingStats }>("/api/places/geocode-queue");
+      setStats(data.stats);
     } catch (err) {
       console.error("Failed to fetch stats:", err);
     } finally {
@@ -67,17 +65,7 @@ export function GeocodingControls() {
 
   const runBatch = async (): Promise<BatchResponse | null> => {
     try {
-      const res = await fetch("/api/places/geocode-queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 20 }),
-      });
-      if (res.ok) {
-        return await res.json();
-      } else {
-        addLog(`Error: HTTP ${res.status}`);
-        return null;
-      }
+      return await postApi<BatchResponse>("/api/places/geocode-queue", { limit: 20 });
     } catch (err) {
       addLog(`Error: ${err instanceof Error ? err.message : "Network error"}`);
       return null;

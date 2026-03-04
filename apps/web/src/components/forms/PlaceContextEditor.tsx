@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ContextType {
   context_type: string;
@@ -96,32 +97,17 @@ export function PlaceContextEditor({
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [typesRes, orgsRes, coloniesRes, contextsRes] = await Promise.all([
-          fetch("/api/context-types"),
-          fetch("/api/known-organizations?limit=100"),
-          fetch("/api/colonies?status=active&limit=50"),
-          placeId ? fetch(`/api/places/${placeId}/contexts`) : Promise.resolve(null),
+        const [typesData, orgsData, coloniesData, contextsData] = await Promise.all([
+          fetchApi<{ all: ContextType[] }>("/api/context-types").catch(() => null),
+          fetchApi<{ organizations: KnownOrganization[] }>("/api/known-organizations?limit=100").catch(() => null),
+          fetchApi<{ colonies: Colony[] }>("/api/colonies?status=active&limit=50").catch(() => null),
+          placeId ? fetchApi<{ contexts: PlaceContext[] }>(`/api/places/${placeId}/contexts`).catch(() => null) : Promise.resolve(null),
         ]);
 
-        if (typesRes.ok) {
-          const data = await typesRes.json();
-          setContextTypes(data.all || []);
-        }
-
-        if (orgsRes.ok) {
-          const data = await orgsRes.json();
-          setOrganizations(data.organizations || []);
-        }
-
-        if (coloniesRes.ok) {
-          const data = await coloniesRes.json();
-          setColonies(data.colonies || []);
-        }
-
-        if (contextsRes?.ok) {
-          const data = await contextsRes.json();
-          setContexts(data.contexts || []);
-        }
+        if (typesData) setContextTypes(typesData.all || []);
+        if (orgsData) setOrganizations(orgsData.organizations || []);
+        if (coloniesData) setColonies(coloniesData.colonies || []);
+        if (contextsData) setContexts(contextsData.contexts || []);
       } catch (err) {
         console.error("Error fetching data:", err);
         setError("Failed to load data");
@@ -137,11 +123,10 @@ export function PlaceContextEditor({
   const searchOrganizations = useCallback(async (query: string) => {
     if (!query || query.length < 2) return;
     try {
-      const res = await fetch(`/api/known-organizations?search=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setOrganizations(data.organizations || []);
-      }
+      const data = await fetchApi<{ organizations: KnownOrganization[] }>(
+        `/api/known-organizations?search=${encodeURIComponent(query)}`
+      );
+      setOrganizations(data.organizations || []);
     } catch (err) {
       console.error("Error searching organizations:", err);
     }
@@ -178,18 +163,7 @@ export function PlaceContextEditor({
         }
       }
 
-      const res = await fetch(`/api/places/${placeId}/contexts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to add classification");
-      }
-
-      const newContext = await res.json();
+      const newContext = await postApi<PlaceContext>(`/api/places/${placeId}/contexts`, body);
       const updatedContexts = [...contexts, newContext];
       setContexts(updatedContexts);
       onContextChange?.(updatedContexts);
@@ -212,14 +186,9 @@ export function PlaceContextEditor({
     setError(null);
 
     try {
-      const res = await fetch(`/api/places/${placeId}/contexts?type=${contextType}`, {
+      await fetchApi(`/api/places/${placeId}/contexts?type=${contextType}`, {
         method: "DELETE",
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to remove classification");
-      }
 
       const updatedContexts = contexts.filter((c) => c.context_type !== contextType);
       setContexts(updatedContexts);
@@ -237,21 +206,10 @@ export function PlaceContextEditor({
 
     setSaving(true);
     try {
-      const res = await fetch("/api/known-organizations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          canonical_name: newOrgName.trim(),
-          org_type: newOrgType,
-        }),
+      const newOrg = await postApi<KnownOrganization>("/api/known-organizations", {
+        canonical_name: newOrgName.trim(),
+        org_type: newOrgType,
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create organization");
-      }
-
-      const newOrg = await res.json();
       setOrganizations([newOrg, ...organizations]);
       setSelectedOrgId(newOrg.org_id);
       setShowCreateOrg(false);

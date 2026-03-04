@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi } from "@/lib/api-client";
 
 interface PersonPrint {
   person_id: string;
@@ -43,14 +44,8 @@ export default function PersonPrintPage() {
   useEffect(() => {
     async function fetchPerson() {
       try {
-        const response = await fetch(`/api/people/${id}`);
-        if (!response.ok) throw new Error("Failed to load person");
-        const result = await response.json();
-        if (result.success) {
-          setPerson(result.data);
-        } else {
-          throw new Error(result.error?.message || "Failed to load person");
-        }
+        const data = await fetchApi<PersonPrint>(`/api/people/${id}`);
+        setPerson(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading person");
       } finally {

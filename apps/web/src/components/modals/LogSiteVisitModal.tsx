@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface LogSiteVisitModalProps {
   isOpen: boolean;
@@ -142,46 +143,36 @@ export function LogSiteVisitModal({
     setSubmitting(true);
 
     try {
-      const response = await fetch("/api/observations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          place_id: placeId,
-          request_id: requestId || null,
-          observer_staff_id: staffId || null,
-          observer_type: "trapper_field",
-          // Quick fields
-          cats_seen_total: Number(catsSeen),
-          eartipped_seen: Number(eartipsSeen),
-          time_of_day: timeOfDay || null,
-          is_at_feeding_station: atFeedingStation,
-          notes: notes.trim() || null,
-          // Full fields (only if in full mode)
-          ...(mode === "full" && {
-            observation_date: visitDate,
-            arrival_time: arrivalTime || null,
-            departure_time: departureTime || null,
-            cats_trapped: catsTrapped === "" ? 0 : Number(catsTrapped),
-            cats_returned: catsReturned === "" ? 0 : Number(catsReturned),
-            traps_set: trapsSet === "" ? null : Number(trapsSet),
-            traps_retrieved: trapsRetrieved === "" ? null : Number(trapsRetrieved),
-            issues_encountered: issuesEncountered.length > 0 ? issuesEncountered : null,
-            issue_details: issueDetails.trim() || null,
-            is_final_visit: isFinalVisit,
-          }),
-          // If quick mode but is completion flow, still mark as final
-          ...(mode === "quick" && isCompletionFlow && {
-            is_final_visit: true,
-          }),
+      const data = await postApi<ObservationResult>("/api/observations", {
+        place_id: placeId,
+        request_id: requestId || null,
+        observer_staff_id: staffId || null,
+        observer_type: "trapper_field",
+        // Quick fields
+        cats_seen_total: Number(catsSeen),
+        eartipped_seen: Number(eartipsSeen),
+        time_of_day: timeOfDay || null,
+        is_at_feeding_station: atFeedingStation,
+        notes: notes.trim() || null,
+        // Full fields (only if in full mode)
+        ...(mode === "full" && {
+          observation_date: visitDate,
+          arrival_time: arrivalTime || null,
+          departure_time: departureTime || null,
+          cats_trapped: catsTrapped === "" ? 0 : Number(catsTrapped),
+          cats_returned: catsReturned === "" ? 0 : Number(catsReturned),
+          traps_set: trapsSet === "" ? null : Number(trapsSet),
+          traps_retrieved: trapsRetrieved === "" ? null : Number(trapsRetrieved),
+          issues_encountered: issuesEncountered.length > 0 ? issuesEncountered : null,
+          issue_details: issueDetails.trim() || null,
+          is_final_visit: isFinalVisit,
+        }),
+        // If quick mode but is completion flow, still mark as final
+        ...(mode === "quick" && isCompletionFlow && {
+          is_final_visit: true,
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to log site visit");
-      }
-
-      const data: ObservationResult = await response.json();
       setResult(data);
       onSuccess?.(data);
     } catch (err) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface VerificationBadgeProps {
   table: string;
@@ -25,17 +26,12 @@ export function VerificationBadge({
   const handleVerify = async () => {
     setIsVerifying(true);
     try {
-      const res = await fetch("/api/admin/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table, record_id: recordId }),
+      const data = await postApi<{ verified_at: string }>("/api/admin/verify", {
+        table,
+        record_id: recordId,
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setLocalVerifiedAt(data.verified_at);
-        onVerify?.();
-      }
+      setLocalVerifiedAt(data.verified_at);
+      onVerify?.();
     } catch (error) {
       console.error("Failed to verify:", error);
     } finally {
@@ -46,15 +42,12 @@ export function VerificationBadge({
   const handleUnverify = async () => {
     setIsVerifying(true);
     try {
-      const res = await fetch(
+      await fetchApi(
         `/api/admin/verify?table=${table}&record_id=${recordId}`,
         { method: "DELETE" }
       );
-
-      if (res.ok) {
-        setLocalVerifiedAt(null);
-        onVerify?.();
-      }
+      setLocalVerifiedAt(null);
+      onVerify?.();
     } catch (error) {
       console.error("Failed to unverify:", error);
     } finally {

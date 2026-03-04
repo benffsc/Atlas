@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface MonthlyComparison {
   month: number;
@@ -60,11 +61,7 @@ export function YoYComparisonChart() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const response = await fetch("/api/beacon/yoy-comparison");
-        if (!response.ok) {
-          throw new Error("Failed to load YoY data");
-        }
-        const result = await response.json();
+        const result = await fetchApi<YoYResponse>("/api/beacon/yoy-comparison");
         setData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading data");

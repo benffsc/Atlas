@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { TrapperBadge } from "@/components/badges";
 import { TrapperStatsCard } from "@/components/cards";
 import { BackButton } from "@/components/common";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface TrapperStats {
   person_id: string;
@@ -83,30 +84,21 @@ export default function TrapperDetailPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch(`/api/people/${id}/trapper-stats`);
-      if (response.status === 404) {
+      const data = await fetchApi<TrapperStats>(`/api/people/${id}/trapper-stats`);
+      setStats(data);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 404) {
         setError("Not a trapper or trapper not found");
         return;
       }
-      if (!response.ok) {
-        throw new Error("Failed to fetch trapper stats");
-      }
-      const result = await response.json();
-      const data = result.data || result;
-      setStats(data);
-    } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     }
   }, [id]);
 
   const fetchManualCatches = useCallback(async () => {
     try {
-      const response = await fetch(`/api/people/${id}/trapper-cats`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setManualCatches(data.catches || []);
-      }
+      const data = await fetchApi<{ catches: ManualCatch[] }>(`/api/people/${id}/trapper-cats`);
+      setManualCatches(data.catches || []);
     } catch (err) {
       console.error("Failed to fetch manual catches:", err);
     }
@@ -136,22 +128,11 @@ export default function TrapperDetailPage() {
     setAddError(null);
 
     try {
-      const response = await fetch(`/api/people/${id}/trapper-cats`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          microchip: newMicrochip.trim(),
-          catch_date: newCatchDate,
-          notes: newNotes.trim() || null,
-        }),
+      await postApi(`/api/people/${id}/trapper-cats`, {
+        microchip: newMicrochip.trim(),
+        catch_date: newCatchDate,
+        notes: newNotes.trim() || null,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setAddError(result.error || "Failed to add catch");
-        return;
-      }
 
       // Refresh data
       await Promise.all([fetchStats(), fetchManualCatches()]);
@@ -161,7 +142,7 @@ export default function TrapperDetailPage() {
       setNewNotes("");
       setShowAddCatch(false);
     } catch (err) {
-      setAddError("Network error");
+      setAddError(err instanceof Error ? err.message : "Network error");
     } finally {
       setAddingCatch(false);
     }

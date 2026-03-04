@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { fetchApi } from "@/lib/api-client";
 
 interface PlacePrint {
   place_id: string;
@@ -47,14 +48,8 @@ export default function PlacePrintPage() {
   useEffect(() => {
     async function fetchPlace() {
       try {
-        const response = await fetch(`/api/places/${id}`);
-        if (!response.ok) throw new Error("Failed to load place");
-        const result = await response.json();
-        if (result.success) {
-          setPlace(result.data);
-        } else {
-          throw new Error(result.error?.message || "Failed to load place");
-        }
+        const data = await fetchApi<PlacePrint>(`/api/places/${id}`);
+        setPlace(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading place");
       } finally {

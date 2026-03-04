@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface SeasonalAlert {
   alert_type: string;
@@ -79,11 +80,7 @@ export function SeasonalAlertsCard() {
   useEffect(() => {
     async function fetchAlerts() {
       try {
-        const response = await fetch("/api/beacon/seasonal-alerts");
-        if (!response.ok) {
-          throw new Error("Failed to load seasonal alerts");
-        }
-        const result = await response.json();
+        const result = await fetchApi<SeasonalAlertsResponse>("/api/beacon/seasonal-alerts");
         setData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading alerts");

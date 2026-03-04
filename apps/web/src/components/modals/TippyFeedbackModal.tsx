@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface TippyFeedbackModalProps {
   isOpen: boolean;
@@ -60,25 +61,15 @@ export function TippyFeedbackModal({
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("/api/tippy/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tippy_message: tippyMessage,
-          user_correction: correction.trim(),
-          conversation_id: conversationId,
-          conversation_context: conversationContext,
-          entity_type: entityType || null,
-          entity_id: entityId || null,
-          feedback_type: feedbackType,
-        }),
+      await postApi("/api/tippy/feedback", {
+        tippy_message: tippyMessage,
+        user_correction: correction.trim(),
+        conversation_id: conversationId,
+        conversation_context: conversationContext,
+        entity_type: entityType || null,
+        entity_id: entityId || null,
+        feedback_type: feedbackType,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to submit feedback");
-      }
 
       setSuccess(true);
       setTimeout(() => {

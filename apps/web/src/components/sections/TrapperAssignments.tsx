@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { TrapperBadge } from "@/components/badges";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface TrapperAssignment {
   assignment_id: string;
@@ -83,16 +84,16 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
 
   const fetchData = async () => {
     try {
-      const response = await fetch(
-        `/api/requests/${requestId}/trappers?history=true`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setTrappers(data.trappers || []);
-        setHistory(data.history || []);
-        setNoTrapperReason(data.no_trapper_reason || null);
-        setAssignmentStatus(data.assignment_status || "pending");
-      }
+      const data = await fetchApi<{
+        trappers: TrapperAssignment[];
+        history: AssignmentHistory[];
+        no_trapper_reason: string | null;
+        assignment_status: string;
+      }>(`/api/requests/${requestId}/trappers?history=true`);
+      setTrappers(data.trappers || []);
+      setHistory(data.history || []);
+      setNoTrapperReason(data.no_trapper_reason || null);
+      setAssignmentStatus(data.assignment_status || "pending");
     } catch (err) {
       console.error("Failed to fetch trappers:", err);
     } finally {
@@ -113,15 +114,12 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
 
     setLoadingTrappers(true);
     try {
-      const response = await fetch("/api/trappers?limit=200&sort=display_name");
-      if (response.ok) {
-        const data = await response.json();
-        const allTrappers: AvailableTrapper[] = data.trappers || [];
-        trapperCache = { data: allTrappers, fetchedAt: Date.now() };
-        setAvailableTrappers(
-          allTrappers.filter(t => !assignedIds.has(t.person_id))
-        );
-      }
+      const data = await fetchApi<{ trappers: AvailableTrapper[] }>("/api/trappers?limit=200&sort=display_name");
+      const allTrappers: AvailableTrapper[] = data.trappers || [];
+      trapperCache = { data: allTrappers, fetchedAt: Date.now() };
+      setAvailableTrappers(
+        allTrappers.filter(t => !assignedIds.has(t.person_id))
+      );
     } catch (err) {
       console.error("Failed to fetch available trappers:", err);
     } finally {
@@ -137,15 +135,12 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
     }
     setSearchingPeople(true);
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=10`);
-      if (response.ok) {
-        const data = await response.json();
-        // Filter out already assigned trappers
-        const assignedIds = new Set(trappers.map(t => t.trapper_person_id));
-        setPersonResults(
-          (data.results || []).filter((p: PersonSearchResult) => !assignedIds.has(p.entity_id))
-        );
-      }
+      const data = await fetchApi<{ results: PersonSearchResult[] }>(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=10`);
+      // Filter out already assigned trappers
+      const assignedIds = new Set(trappers.map(t => t.trapper_person_id));
+      setPersonResults(
+        (data.results || []).filter((p: PersonSearchResult) => !assignedIds.has(p.entity_id))
+      );
     } catch (err) {
       console.error("Failed to search people:", err);
     } finally {
@@ -159,48 +154,34 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
     try {
       // If a no_trapper_reason was set, clear it when assigning a trapper
       if (noTrapperReason) {
-        await fetch(`/api/requests/${requestId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ no_trapper_reason: null }),
-        });
+        await postApi(`/api/requests/${requestId}`, { no_trapper_reason: null }, { method: "PATCH" });
       }
-      const response = await fetch(`/api/requests/${requestId}/trappers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          trapper_person_id: selectedTrapperId,
-          is_primary: isPrimary,
-          reason: "manual_assignment",
-        }),
+      await postApi(`/api/requests/${requestId}/trappers`, {
+        trapper_person_id: selectedTrapperId,
+        is_primary: isPrimary,
+        reason: "manual_assignment",
       });
-      if (response.ok) {
-        // Journal audit entry
-        const trapperName =
-          availableTrappers.find((t) => t.person_id === selectedTrapperId)?.display_name ||
-          personResults.find((p) => p.entity_id === selectedTrapperId)?.display_name ||
-          "Unknown";
-        fetch("/api/journal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: requestId,
-            entry_kind: "system",
-            tags: ["trapper_action"],
-            body: `Assigned trapper: ${trapperName}${isPrimary ? " (primary)" : ""}`,
-          }),
-        }).catch(() => {});
+      // Journal audit entry (fire-and-forget)
+      const trapperName =
+        availableTrappers.find((t) => t.person_id === selectedTrapperId)?.display_name ||
+        personResults.find((p) => p.entity_id === selectedTrapperId)?.display_name ||
+        "Unknown";
+      postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "system",
+        tags: ["trapper_action"],
+        body: `Assigned trapper: ${trapperName}${isPrimary ? " (primary)" : ""}`,
+      }).catch(() => {});
 
-        setShowAddForm(false);
-        setSelectedTrapperId("");
-        setIsPrimary(false);
-        setPersonSearch("");
-        setPersonResults([]);
-        setAssignMode("official");
-        setNoTrapperReason(null);
-        fetchData();
-        onAssignmentChange?.();
-      }
+      setShowAddForm(false);
+      setSelectedTrapperId("");
+      setIsPrimary(false);
+      setPersonSearch("");
+      setPersonResults([]);
+      setAssignMode("official");
+      setNoTrapperReason(null);
+      fetchData();
+      onAssignmentChange?.();
     } catch (err) {
       console.error("Failed to assign trapper:", err);
     } finally {
@@ -212,32 +193,22 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   const handleSetReason = async (reason: string) => {
     setSavingReason(true);
     try {
-      const response = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ no_trapper_reason: reason }),
-      });
-      if (response.ok) {
-        // Journal audit entry
-        const label = NO_TRAPPER_REASON_LABELS[reason] || reason;
-        fetch("/api/journal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: requestId,
-            entry_kind: "system",
-            tags: ["trapper_action"],
-            body: `Set no-trapper reason: ${label}`,
-          }),
-        }).catch(() => {});
+      await postApi(`/api/requests/${requestId}`, { no_trapper_reason: reason }, { method: "PATCH" });
+      // Journal audit entry (fire-and-forget)
+      const label = NO_TRAPPER_REASON_LABELS[reason] || reason;
+      postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "system",
+        tags: ["trapper_action"],
+        body: `Set no-trapper reason: ${label}`,
+      }).catch(() => {});
 
-        setNoTrapperReason(reason);
-        if (reason === "client_trapping") {
-          setAssignmentStatus("client_trapping");
-        }
-        setShowReasonForm(false);
-        onAssignmentChange?.();
+      setNoTrapperReason(reason);
+      if (reason === "client_trapping") {
+        setAssignmentStatus("client_trapping");
       }
+      setShowReasonForm(false);
+      onAssignmentChange?.();
     } catch (err) {
       console.error("Failed to set no_trapper_reason:", err);
     } finally {
@@ -248,28 +219,18 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   const handleClearReason = async () => {
     setSavingReason(true);
     try {
-      const response = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ no_trapper_reason: null }),
-      });
-      if (response.ok) {
-        // Journal audit entry
-        fetch("/api/journal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: requestId,
-            entry_kind: "system",
-            tags: ["trapper_action"],
-            body: "Cleared no-trapper reason (trapper needed again)",
-          }),
-        }).catch(() => {});
+      await postApi(`/api/requests/${requestId}`, { no_trapper_reason: null }, { method: "PATCH" });
+      // Journal audit entry (fire-and-forget)
+      postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "system",
+        tags: ["trapper_action"],
+        body: "Cleared no-trapper reason (trapper needed again)",
+      }).catch(() => {});
 
-        setNoTrapperReason(null);
-        setAssignmentStatus(trappers.length > 0 ? "assigned" : "pending");
-        onAssignmentChange?.();
-      }
+      setNoTrapperReason(null);
+      setAssignmentStatus(trappers.length > 0 ? "assigned" : "pending");
+      onAssignmentChange?.();
     } catch (err) {
       console.error("Failed to clear no_trapper_reason:", err);
     } finally {
@@ -281,26 +242,21 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
     if (!confirm(`Unassign ${trapperName} from this request?`)) return;
     setUnassigningId(trapperPersonId);
     try {
-      const response = await fetch(
+      await postApi(
         `/api/requests/${requestId}/trappers?trapper_person_id=${trapperPersonId}&reason=manual_unassignment`,
+        {},
         { method: "DELETE" }
       );
-      if (response.ok) {
-        // Journal audit entry
-        fetch("/api/journal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: requestId,
-            entry_kind: "system",
-            tags: ["trapper_action"],
-            body: `Unassigned trapper: ${trapperName}`,
-          }),
-        }).catch(() => {});
+      // Journal audit entry (fire-and-forget)
+      postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "system",
+        tags: ["trapper_action"],
+        body: `Unassigned trapper: ${trapperName}`,
+      }).catch(() => {});
 
-        fetchData();
-        onAssignmentChange?.();
-      }
+      fetchData();
+      onAssignmentChange?.();
     } catch (err) {
       console.error("Failed to unassign trapper:", err);
     } finally {

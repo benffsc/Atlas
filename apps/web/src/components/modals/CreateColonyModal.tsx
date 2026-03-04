@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface CreateColonyModalProps {
   isOpen: boolean;
@@ -128,13 +129,7 @@ export function CreateColonyModal({
         if (requestId) params.set("request_id", requestId);
         else if (placeId) params.set("place_id", placeId);
 
-        const response = await fetch(`/api/colonies/suggest-details?${params}`);
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Failed to fetch suggestions");
-        }
-
-        const data: SuggestionResponse = await response.json();
+        const data = await fetchApi<SuggestionResponse>(`/api/colonies/suggest-details?${params}`);
         setSuggestions(data);
 
         // Pre-fill form with suggestions
@@ -274,61 +269,38 @@ export function CreateColonyModal({
 
     try {
       // Create colony
-      const createResponse = await fetch("/api/colonies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          colony_name: colonyName.trim(),
-          status: "active",
-          notes: notes.trim() || null,
-          created_by: staffName || "Unknown",
-        }),
+      const { colony_id } = await postApi<{ colony_id: string }>("/api/colonies", {
+        colony_name: colonyName.trim(),
+        status: "active",
+        notes: notes.trim() || null,
+        created_by: staffName || "Unknown",
       });
-
-      if (!createResponse.ok) {
-        const data = await createResponse.json();
-        throw new Error(data.error || "Failed to create colony");
-      }
-
-      const { colony_id } = await createResponse.json();
 
       // Add places
       for (const [place_id, { is_primary, relationship_type }] of selectedPlaces) {
-        await fetch(`/api/colonies/${colony_id}/places`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            place_id,
-            is_primary,
-            relationship_type,
-            added_by: staffName || "Unknown",
-          }),
+        await postApi(`/api/colonies/${colony_id}/places`, {
+          place_id,
+          is_primary,
+          relationship_type,
+          added_by: staffName || "Unknown",
         });
       }
 
       // Add people
       for (const [person_id, { role_type, notes: personNotes }] of selectedPeople) {
-        await fetch(`/api/colonies/${colony_id}/people`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            person_id,
-            role_type,
-            notes: personNotes || null,
-            assigned_by: staffName || "Unknown",
-          }),
+        await postApi(`/api/colonies/${colony_id}/people`, {
+          person_id,
+          role_type,
+          notes: personNotes || null,
+          assigned_by: staffName || "Unknown",
         });
       }
 
       // Link request if applicable
       if (requestId) {
-        await fetch(`/api/colonies/${colony_id}/requests`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: requestId,
-            added_by: staffName || "Unknown",
-          }),
+        await postApi(`/api/colonies/${colony_id}/requests`, {
+          request_id: requestId,
+          added_by: staffName || "Unknown",
         });
       }
 

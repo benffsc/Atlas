@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi } from "@/lib/api-client";
 
 interface RequestPrint {
   request_id: string;
@@ -104,14 +105,8 @@ export default function RequestPrintPage() {
   useEffect(() => {
     async function fetchRequest() {
       try {
-        const response = await fetch(`/api/requests/${id}`);
-        if (!response.ok) throw new Error("Failed to load request");
-        const result = await response.json();
-        if (result.success) {
-          setRequest(result.data);
-        } else {
-          throw new Error(result.error?.message || "Failed to load request");
-        }
+        const data = await fetchApi<RequestPrint>(`/api/requests/${id}`);
+        setRequest(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading request");
       } finally {

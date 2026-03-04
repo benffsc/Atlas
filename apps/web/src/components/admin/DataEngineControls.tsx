@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface DataEngineStats {
   total_decisions: number;
@@ -43,11 +44,8 @@ export function DataEngineControls() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/data-engine/process");
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.stats);
-      }
+      const data = await fetchApi<{ stats: DataEngineStats }>("/api/admin/data-engine/process");
+      setStats(data.stats);
     } catch (err) {
       console.error("Failed to fetch stats:", err);
     } finally {
@@ -71,20 +69,9 @@ export function DataEngineControls() {
 
   const runBatch = async (): Promise<BatchResponse | null> => {
     try {
-      const res = await fetch("/api/admin/data-engine/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 50, source }),
-      });
-      if (res.ok) {
-        return await res.json();
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        addLog(`HTTP ${res.status}: ${errorData.error || "Unknown error"}`, "error");
-        return null;
-      }
+      return await postApi<BatchResponse>("/api/admin/data-engine/process", { limit: 50, source });
     } catch (err) {
-      addLog(`Network error: ${err instanceof Error ? err.message : "Unknown"}`, "error");
+      addLog(`Error: ${err instanceof Error ? err.message : "Unknown"}`, "error");
       return null;
     }
   };

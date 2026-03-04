@@ -7,6 +7,7 @@ import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Request {
   request_id: string;
@@ -244,20 +245,20 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
     const fetchMap = async () => {
       try {
         // HTTP Cache-Control handles caching (stale-while-revalidate)
-        const response = await fetch(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            const url = result.data.map_url;
-            const nearby: NearbyData = {
-              count: result.data.nearby_count || 0,
-              requests: result.data.nearby_requests || { count: 0, by_size: { large: 0, medium: 0, small: 0, tiny: 0 } },
-              places: result.data.nearby_places || { count: 0, by_style: { disease: 0, watch_list: 0, active: 0 } },
-            };
-            setMapUrl(url);
-            setNearbyData(nearby);
-          }
-        }
+        const data = await fetchApi<{
+          map_url: string;
+          nearby_count?: number;
+          nearby_requests?: NearbyData["requests"];
+          nearby_places?: NearbyData["places"];
+        }>(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
+        const url = data.map_url;
+        const nearby: NearbyData = {
+          count: data.nearby_count || 0,
+          requests: data.nearby_requests || { count: 0, by_size: { large: 0, medium: 0, small: 0, tiny: 0 } },
+          places: data.nearby_places || { count: 0, by_style: { disease: 0, watch_list: 0, active: 0 } },
+        };
+        setMapUrl(url);
+        setNearbyData(nearby);
       } catch (err) {
         console.error("Failed to fetch map:", err);
       }
@@ -844,8 +845,7 @@ function RequestsPageContent() {
 
   // Fetch current staff info
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
+    fetchApi<{ authenticated: boolean; staff?: { staff_id: string } }>("/api/auth/me")
       .then((data) => {
         if (data?.authenticated && data.staff) {
           setCurrentStaffId(data.staff.staff_id);
@@ -877,30 +877,20 @@ function RequestsPageContent() {
   // Quick trapper action from badge popover on request cards
   const handleQuickTrapperAction = async (requestId: string, reason: string) => {
     try {
-      const response = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ no_trapper_reason: reason }),
-      });
-      if (response.ok) {
-        setActionMenuId(null);
-        setRefreshTrigger((n) => n + 1);
-        // Log to journal as system entry
-        fetch("/api/journal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: requestId,
-            entry_kind: "system",
-            tags: ["trapper_action"],
-            body: reason === "client_trapping"
-              ? "Marked as client trapping (trapper not needed)"
-              : reason === "not_needed"
-              ? "Marked as trapper not needed"
-              : `Trapper status updated: ${reason}`,
-          }),
-        }).catch(() => {}); // fire-and-forget
-      }
+      await postApi(`/api/requests/${requestId}`, { no_trapper_reason: reason }, { method: "PATCH" });
+      setActionMenuId(null);
+      setRefreshTrigger((n) => n + 1);
+      // Log to journal as system entry
+      postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "system",
+        tags: ["trapper_action"],
+        body: reason === "client_trapping"
+          ? "Marked as client trapping (trapper not needed)"
+          : reason === "not_needed"
+          ? "Marked as trapper not needed"
+          : `Trapper status updated: ${reason}`,
+      }).catch(() => {}); // fire-and-forget
     } catch (err) {
       console.error("Failed to update trapper reason:", err);
     }
@@ -931,11 +921,7 @@ function RequestsPageContent() {
     setBulkUpdating(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
-        fetch(`/api/requests/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: bulkStatusTarget }),
-        })
+        postApi(`/api/requests/${id}`, { status: bulkStatusTarget }, { method: "PATCH" })
       );
       await Promise.all(promises);
       setSelectedIds(new Set());
@@ -949,13 +935,8 @@ function RequestsPageContent() {
       params.set("sort_by", sc.by);
       params.set("sort_order", sc.order);
       params.set("limit", "100");
-      const response = await fetch(`/api/requests?${params.toString()}`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setRequests(result.data.requests || []);
-        }
-      }
+      const data = await fetchApi<{ requests: Request[] }>(`/api/requests?${params.toString()}`);
+      setRequests(data.requests || []);
     } catch (err) {
       alert("Error updating requests");
     } finally {
@@ -1022,13 +1003,8 @@ function RequestsPageContent() {
         params.set("sort_order", sortConfig.order);
         params.set("limit", "100");
 
-        const response = await fetch(`/api/requests?${params.toString()}`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            setRequests(result.data.requests || []);
-          }
-        }
+        const data = await fetchApi<{ requests: Request[] }>(`/api/requests?${params.toString()}`);
+        setRequests(data.requests || []);
       } catch (err) {
         console.error("Failed to fetch requests:", err);
       } finally {
@@ -1376,14 +1352,8 @@ function RequestsPageContent() {
             requests={requests}
             onStatusChange={async (requestId, newStatus) => {
               try {
-                const response = await fetch(`/api/requests/${requestId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: newStatus }),
-                });
-                if (response.ok) {
-                  setRefreshTrigger((n) => n + 1);
-                }
+                await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
+                setRefreshTrigger((n) => n + 1);
               } catch (err) {
                 console.error("Failed to update status:", err);
               }
@@ -1394,14 +1364,8 @@ function RequestsPageContent() {
             requests={requests}
             onStatusChange={async (requestId, newStatus) => {
               try {
-                const response = await fetch(`/api/requests/${requestId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: newStatus }),
-                });
-                if (response.ok) {
-                  setRefreshTrigger((n) => n + 1);
-                }
+                await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
+                setRefreshTrigger((n) => n + 1);
               } catch (err) {
                 console.error("Failed to update status:", err);
               }

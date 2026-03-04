@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { fetchApi, ApiError } from "@/lib/api-client";
 
 interface ClinicHQUploadModalProps {
   isOpen: boolean;
@@ -123,23 +124,11 @@ export default function ClinicHQUploadModal({
         formData.append("batch_id", batchId);
       }
 
-      const res = await fetch("/api/ingest/upload", {
+      // Note: fetchApi handles apiSuccess unwrapping and error throwing automatically
+      const data = await fetchApi<{ batch_id: string; upload_id: string }>("/api/ingest/upload", {
         method: "POST",
         body: formData,
       });
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        // Handle both string errors and { message, code } error objects
-        const errorMsg = typeof result.error === 'string'
-          ? result.error
-          : result.error?.message || "Upload failed";
-        throw new Error(errorMsg);
-      }
-
-      // API uses apiSuccess which wraps data in { success: true, data: {...} }
-      const data = result.data || result;
 
       // Store batch ID from first upload
       if (data.batch_id && !batchId) {
@@ -203,27 +192,21 @@ export default function ClinicHQUploadModal({
     pollingRef.current = setInterval(async () => {
       try {
         // Check batch status for completion
-        const batchRes = await fetch(`/api/ingest/batch/${batchIdToPoll}`);
-        if (!batchRes.ok) return;
-        const batchRaw = await batchRes.json();
-        // API uses apiSuccess which wraps data in { success: true, data: {...} }
-        const batchData = batchRaw.data || batchRaw;
+        const batchData = await fetchApi<{ status: string; error?: string; file_results?: Array<{ source_table: string; success: boolean; error?: string; rows_total?: number; rows_inserted?: number; post_processing?: Record<string, unknown> }> }>(`/api/ingest/batch/${batchIdToPoll}`);
 
         // Also get individual upload statuses for more detail
-        const uploadsRes = await fetch("/api/ingest/uploads");
-        if (uploadsRes.ok) {
-          const uploadsRaw = await uploadsRes.json();
-          const uploadsData = uploadsRaw.data || uploadsRaw;
+        try {
+          const uploadsData = await fetchApi<{ uploads: Array<{ batch_id?: string; status: string; source_table: string; post_processing_results?: Record<string, unknown> }> }>("/api/ingest/uploads");
           const batchUploads = uploadsData.uploads?.filter(
-            (u: { batch_id?: string }) => u.batch_id === batchIdToPoll
+            (u) => u.batch_id === batchIdToPoll
           ) || [];
 
           // Find which file is currently processing
           const processingFile = batchUploads.find(
-            (u: { status: string }) => u.status === "processing"
+            (u) => u.status === "processing"
           );
           const completedCount = batchUploads.filter(
-            (u: { status: string }) => u.status === "completed"
+            (u) => u.status === "completed"
           ).length;
 
           if (processingFile) {
@@ -239,6 +222,8 @@ export default function ClinicHQUploadModal({
               _file_progress: "All files processed",
             });
           }
+        } catch {
+          // Ignore upload status errors during polling
         }
 
         // Check if batch is done
@@ -254,9 +239,7 @@ export default function ClinicHQUploadModal({
           }
 
           // Fetch final results
-          const resultRes = await fetch(`/api/ingest/batch/${batchIdToPoll}`);
-          const finalRaw = await resultRes.json();
-          const finalResult = finalRaw.data || finalRaw;
+          const finalResult = await fetchApi<{ status: string; error?: string; file_results?: Array<{ source_table: string; success: boolean; error?: string; rows_total?: number; rows_inserted?: number; post_processing?: Record<string, unknown> }> }>(`/api/ingest/batch/${batchIdToPoll}`);
 
           setProcessing(false);
           setProcessingProgress(null);
@@ -298,6 +281,8 @@ export default function ClinicHQUploadModal({
 
     try {
       // Fire-and-forget: kick off processing
+      // Note: We use raw fetch here because this endpoint may return non-JSON
+      // responses (e.g., server timeout returns HTML) which fetchApi can't handle.
       const res = await fetch(`/api/ingest/batch/${batchId}/process`, {
         method: "POST",
       });
@@ -335,8 +320,8 @@ export default function ClinicHQUploadModal({
         throw new Error(errorMsg);
       }
 
-      // API uses apiSuccess which wraps data in { success: true, data: {...} }
-      const processData = result.data || result;
+      // Handle apiSuccess wrapper format
+      const processData = (result.success === true && "data" in result) ? result.data : result;
 
       // If we got an immediate response (non-async), use it
       if (processData.success !== undefined) {

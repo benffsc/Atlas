@@ -6,6 +6,7 @@ import { BackButton } from "@/components/common";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 import {
   EntryModeSelector,
   ActiveRequestWarning,
@@ -251,8 +252,7 @@ function NewRequestForm() {
   useEffect(() => {
     const placeId = searchParams.get("place_id");
     if (placeId && !selectedPlace) {
-      fetch(`/api/places/${placeId}`)
-        .then((res) => (res.ok ? res.json() : null))
+      fetchApi<{ place_id: string; display_name: string; formatted_address: string; locality: string }>(`/api/places/${placeId}`)
         .then((place) => {
           if (place) {
             setSelectedPlace({
@@ -276,10 +276,9 @@ function NewRequestForm() {
     setEntryMode("paper");
 
     // Fetch intake submission data
-    fetch(`/api/intake/${intakeId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((result) => {
-        const data = result?.data || result;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<{ submission: any }>(`/api/intake/${intakeId}`)
+      .then((data) => {
         if (!data?.submission) return;
         const s = data.submission;
 
@@ -294,16 +293,15 @@ function NewRequestForm() {
 
         // Pre-fill location (if place already resolved)
         if (s.matched_place_id) {
-          fetch(`/api/places/${s.matched_place_id}`)
-            .then((res) => (res.ok ? res.json() : null))
+          fetchApi<{ place_id: string; display_name: string; formatted_address?: string; locality?: string; place?: { place_id: string; display_name: string; formatted_address?: string; locality?: string } }>(`/api/places/${s.matched_place_id}`)
             .then((result) => {
-              const place = result?.data?.place || result?.place || result;
+              const place = result?.place || result;
               if (place?.place_id) {
                 setSelectedPlace({
                   place_id: place.place_id,
                   display_name: place.display_name,
-                  formatted_address: place.formatted_address || s.geo_formatted_address || s.cats_address,
-                  locality: place.locality || s.cats_city,
+                  formatted_address: place.formatted_address || (s.geo_formatted_address as string) || (s.cats_address as string),
+                  locality: place.locality || (s.cats_city as string),
                 });
               }
             })
@@ -350,14 +348,10 @@ function NewRequestForm() {
     const timer = setTimeout(async () => {
       setSearchingPeople(true);
       try {
-        const response = await fetch(
+        const data = await fetchApi<{ results: SearchResult[] }>(
           `/api/search?q=${encodeURIComponent(personSearch)}&type=person&limit=5`
         );
-        if (response.ok) {
-          const result = await response.json();
-          const data = result.data || result;
-          setPersonResults(data.results || []);
-        }
+        setPersonResults(data.results || []);
       } catch (err) {
         console.error("Person search error:", err);
       } finally {
@@ -378,16 +372,13 @@ function NewRequestForm() {
     const timer = setTimeout(async () => {
       setCheckingEmail(true);
       try {
-        const response = await fetch(
+        const data = await fetchApi<EmailCheckResult>(
           `/api/people/check-email?email=${encodeURIComponent(requestorEmail)}`
         );
-        if (response.ok) {
-          const data: EmailCheckResult = await response.json();
-          if (data.exists) {
-            setEmailWarning(data);
-          } else {
-            setEmailWarning(null);
-          }
+        if (data.exists) {
+          setEmailWarning(data);
+        } else {
+          setEmailWarning(null);
         }
       } catch (err) {
         console.error("Email check error:", err);
@@ -412,21 +403,12 @@ function NewRequestForm() {
 
     setCheckingDuplicates(true);
     try {
-      const response = await fetch("/api/requests/check-duplicates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          place_id: selectedPlace?.place_id || null,
-          phone: requestorPhone || null,
-          email: requestorEmail || null,
-        }),
+      const data = await postApi<{ active_requests: DuplicateMatch[] }>("/api/requests/check-duplicates", {
+        place_id: selectedPlace?.place_id || null,
+        phone: requestorPhone || null,
+        email: requestorEmail || null,
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setDuplicateMatches(data.active_requests || []);
-      }
+      setDuplicateMatches(data.active_requests || []);
     } catch (err) {
       console.error("Duplicate check error:", err);
     } finally {
@@ -457,50 +439,41 @@ function NewRequestForm() {
   const selectPerson = async (result: SearchResult) => {
     try {
       // Fetch person details and addresses in parallel
-      const [personResponse, addressResponse] = await Promise.all([
-        fetch(`/api/people/${result.entity_id}`),
-        fetch(`/api/people/${result.entity_id}/addresses`),
+      const [person, addressData] = await Promise.all([
+        fetchApi<{ person_id: string; display_name: string; identifiers?: { id_type: string; id_value: string }[] }>(`/api/people/${result.entity_id}`),
+        fetchApi<{ addresses: PersonAddress[] }>(`/api/people/${result.entity_id}/addresses`).catch(() => ({ addresses: [] as PersonAddress[] })),
       ]);
 
-      if (personResponse.ok) {
-        const person = await personResponse.json();
-        // Extract email and phone from identifiers (API returns id_value, not id_value_norm)
-        const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
-        const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
+      // Extract email and phone from identifiers (API returns id_value, not id_value_norm)
+      const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
+      const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
 
-        const email = emailId?.id_value || "";
-        const phone = phoneId?.id_value || "";
+      const email = emailId?.id_value || "";
+      const phone = phoneId?.id_value || "";
 
-        // Get addresses if available
-        let addresses: PersonAddress[] = [];
-        if (addressResponse.ok) {
-          const addressData = await addressResponse.json();
-          addresses = addressData.addresses || [];
-          console.log("[FFR] Fetched addresses for person:", person.display_name, addresses);
-        } else {
-          console.log("[FFR] Failed to fetch addresses:", addressResponse.status);
-        }
+      // Get addresses if available
+      const addresses: PersonAddress[] = addressData.addresses || [];
+      console.log("[FFR] Fetched addresses for person:", person.display_name, addresses);
 
-        setSelectedPerson({
-          person_id: person.person_id,
-          display_name: person.display_name,
-          email,
-          phone,
-          addresses,
-        });
-        // Pre-fill the fields
-        const nameParts = person.display_name?.split(" ") || [];
-        setRequestorFirstName(nameParts[0] || "");
-        setRequestorLastName(nameParts.slice(1).join(" ") || "");
-        setRequestorEmail(email);
-        setRequestorPhone(phone);
-        // Track original values for change detection
-        setOriginalContactInfo({ phone, email });
-        setEditingContactInfo(false);
-        setPersonSearch("");
-        setPersonResults([]);
-        setEmailWarning(null);
-      }
+      setSelectedPerson({
+        person_id: person.person_id,
+        display_name: person.display_name,
+        email,
+        phone,
+        addresses,
+      });
+      // Pre-fill the fields
+      const nameParts = person.display_name?.split(" ") || [];
+      setRequestorFirstName(nameParts[0] || "");
+      setRequestorLastName(nameParts.slice(1).join(" ") || "");
+      setRequestorEmail(email);
+      setRequestorPhone(phone);
+      // Track original values for change detection
+      setOriginalContactInfo({ phone, email });
+      setEditingContactInfo(false);
+      setPersonSearch("");
+      setPersonResults([]);
+      setEmailWarning(null);
     } catch (err) {
       console.error("Failed to fetch person details:", err);
     }
@@ -509,31 +482,29 @@ function NewRequestForm() {
   const useExistingPerson = () => {
     if (emailWarning?.person) {
       // Fetch the existing person's details
-      fetch(`/api/people/${emailWarning.person.person_id}`)
-        .then((res) => res.ok ? res.json() : null)
+      fetchApi<{ person_id: string; display_name: string; identifiers?: { id_type: string; id_value: string }[] }>(`/api/people/${emailWarning.person.person_id}`)
         .then((person) => {
-          if (person) {
-            const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
-            const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
-            const email = emailId?.id_value || "";
-            const phone = phoneId?.id_value || "";
-            setSelectedPerson({
-              person_id: person.person_id,
-              display_name: person.display_name,
-              email,
-              phone,
-            });
-            const nameParts = person.display_name?.split(" ") || [];
-            setRequestorFirstName(nameParts[0] || "");
-            setRequestorLastName(nameParts.slice(1).join(" ") || "");
-            setRequestorEmail(email || requestorEmail);
-            setRequestorPhone(phone || requestorPhone);
-            setOriginalContactInfo({ phone, email });
-            setEditingContactInfo(false);
-            setEmailWarning(null);
-            setRequestorMode("search");
-          }
-        });
+          const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
+          const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
+          const email = emailId?.id_value || "";
+          const phone = phoneId?.id_value || "";
+          setSelectedPerson({
+            person_id: person.person_id,
+            display_name: person.display_name,
+            email,
+            phone,
+          });
+          const nameParts = person.display_name?.split(" ") || [];
+          setRequestorFirstName(nameParts[0] || "");
+          setRequestorLastName(nameParts.slice(1).join(" ") || "");
+          setRequestorEmail(email || requestorEmail);
+          setRequestorPhone(phone || requestorPhone);
+          setOriginalContactInfo({ phone, email });
+          setEditingContactInfo(false);
+          setEmailWarning(null);
+          setRequestorMode("search");
+        })
+        .catch((err) => console.error("Failed to fetch person:", err));
     }
   };
 
@@ -585,101 +556,100 @@ function NewRequestForm() {
     setSubmitting(true);
 
     try {
-      const response = await fetch("/api/requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Request Purpose - send primary and all selected
-          // Priority: tnr > relocation > rescue > wellness (for primary)
-          request_purpose: hasTnr ? "tnr" : hasRelocation ? "relocation" : hasRescue ? "rescue" : "wellness",
-          request_purposes: requestPurposes, // Full array for notes/future use
-          // Location
-          place_id: selectedPlace?.place_id || null,
-          property_type: propertyType || null,
-          location_description: locationDescription || null,
-          // Contact - Requestor
-          requester_person_id: selectedPerson?.person_id || null,
-          raw_requester_name: !selectedPerson && (requestorFirstName || requestorLastName)
-            ? `${requestorFirstName} ${requestorLastName}`.trim()
-            : null,
-          raw_requester_phone: requestorPhone || null,
-          raw_requester_email: requestorEmail || null,
-          // Property authority
-          property_owner_name: !hasPropertyAuthority ? propertyOwnerName || null : null,
-          property_owner_phone: !hasPropertyAuthority ? propertyOwnerPhone || null : null,
-          authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
-          best_contact_times: bestContactTimes || null,
-          // Permission & Access
-          permission_status: permissionStatus,
-          access_notes: accessNotes || null,
-          traps_overnight_safe: trapsOvernightSafe,
-          access_without_contact: accessWithoutContact,
-          // About the Cats
-          estimated_cat_count: estimatedCatCount || null,
-          peak_count: peakCount || null,  // MIG_2532: Beacon critical
-          wellness_cat_count: hasWellness ? (wellnessCatCount || null) : null,
-          count_confidence: countConfidence,
-          colony_duration: colonyDuration,
-          awareness_duration: awarenessDuration,  // MIG_2532
-          eartip_count: showExactEartipCount ? (eartipCount || null) : null,
-          eartip_estimate: !showExactEartipCount ? eartipEstimate : null,
-          cats_are_friendly: catsAreFriendly,
-          // MIG_2532: Third-party tracking
-          is_third_party_report: isThirdPartyReport,
-          third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
-          // MIG_2532: Service area
-          county: county || "Sonoma",
-          // Kittens
-          has_kittens: hasKittens,
-          kitten_count: hasKittens ? (kittenCount || null) : null,
-          kitten_age_weeks: hasKittens ? (kittenAgeWeeks || null) : null,
-          kitten_age_estimate: hasKittens ? (kittenAgeEstimate || null) : null,
-          kitten_mixed_ages_description: hasKittens && kittenAgeEstimate === "mixed" ? (kittenMixedAgesDescription || null) : null,
-          kitten_behavior: hasKittens ? (kittenBehavior || null) : null,
-          kitten_contained: hasKittens ? (kittenContained || null) : null,
-          mom_present: hasKittens ? (momPresent || null) : null,
-          mom_fixed: hasKittens && momPresent === "yes" ? (momFixed || null) : null,
-          can_bring_in: hasKittens ? (canBringIn || null) : null,
-          kitten_notes: hasKittens ? (kittenNotes || null) : null,
-          // Feeding
-          is_being_fed: isBeingFed,
-          feeder_name: isBeingFed ? (feederName || null) : null,
-          feeding_schedule: isBeingFed ? (feedingSchedule || null) : null,
-          feeding_location: isBeingFed ? (feedingLocation || null) : null,  // MIG_2532
-          feeding_time: isBeingFed ? (feedingTime || null) : null,  // MIG_2532
-          best_times_seen: bestTimesSeen || null,
-          // Urgency
-          urgency_reasons: urgencyReasons.length > 0 ? urgencyReasons : null,
-          urgency_deadline: urgencyDeadline || null,
-          urgency_notes: urgencyNotes || null,
-          priority,
-          // Additional
-          summary: summary || null,
-          notes: notes || null,
-          internal_notes: internalNotes || null,
-          created_by: "app_user",
-          // Entry mode and completion data
-          entry_mode: entryMode,
-          initial_status: entryMode === "complete" ? "completed" : "new",
-          completion_data: entryMode === "complete" ? {
-            final_cat_count: completionData.final_cat_count || null,
-            eartips_observed: completionData.eartips_observed || null,
-            cats_altered_today: completionData.cats_altered_today || null,
-            observation_notes: completionData.observation_notes || null,
-            colony_complete: completionData.colony_complete,
-            requester_followup: completionData.requester_followup,
-            refer_partner: completionData.refer_partner,
-            partner_name: completionData.partner_name || null,
-          } : null,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok && !result.status) {
-        setError(result.error || "Failed to create request");
-        return;
+      interface RequestPipelineResult {
+        success: boolean;
+        status: "promoted" | "needs_review" | "rejected" | "pending";
+        request_id?: string;
+        raw_id?: string;
+        message?: string;
+        review_reason?: string;
+        errors?: Record<string, string>;
       }
+
+      const result = await postApi<RequestPipelineResult>("/api/requests", {
+        // Request Purpose - send primary and all selected
+        // Priority: tnr > relocation > rescue > wellness (for primary)
+        request_purpose: hasTnr ? "tnr" : hasRelocation ? "relocation" : hasRescue ? "rescue" : "wellness",
+        request_purposes: requestPurposes, // Full array for notes/future use
+        // Location
+        place_id: selectedPlace?.place_id || null,
+        property_type: propertyType || null,
+        location_description: locationDescription || null,
+        // Contact - Requestor
+        requester_person_id: selectedPerson?.person_id || null,
+        raw_requester_name: !selectedPerson && (requestorFirstName || requestorLastName)
+          ? `${requestorFirstName} ${requestorLastName}`.trim()
+          : null,
+        raw_requester_phone: requestorPhone || null,
+        raw_requester_email: requestorEmail || null,
+        // Property authority
+        property_owner_name: !hasPropertyAuthority ? propertyOwnerName || null : null,
+        property_owner_phone: !hasPropertyAuthority ? propertyOwnerPhone || null : null,
+        authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
+        best_contact_times: bestContactTimes || null,
+        // Permission & Access
+        permission_status: permissionStatus,
+        access_notes: accessNotes || null,
+        traps_overnight_safe: trapsOvernightSafe,
+        access_without_contact: accessWithoutContact,
+        // About the Cats
+        estimated_cat_count: estimatedCatCount || null,
+        peak_count: peakCount || null,  // MIG_2532: Beacon critical
+        wellness_cat_count: hasWellness ? (wellnessCatCount || null) : null,
+        count_confidence: countConfidence,
+        colony_duration: colonyDuration,
+        awareness_duration: awarenessDuration,  // MIG_2532
+        eartip_count: showExactEartipCount ? (eartipCount || null) : null,
+        eartip_estimate: !showExactEartipCount ? eartipEstimate : null,
+        cats_are_friendly: catsAreFriendly,
+        // MIG_2532: Third-party tracking
+        is_third_party_report: isThirdPartyReport,
+        third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
+        // MIG_2532: Service area
+        county: county || "Sonoma",
+        // Kittens
+        has_kittens: hasKittens,
+        kitten_count: hasKittens ? (kittenCount || null) : null,
+        kitten_age_weeks: hasKittens ? (kittenAgeWeeks || null) : null,
+        kitten_age_estimate: hasKittens ? (kittenAgeEstimate || null) : null,
+        kitten_mixed_ages_description: hasKittens && kittenAgeEstimate === "mixed" ? (kittenMixedAgesDescription || null) : null,
+        kitten_behavior: hasKittens ? (kittenBehavior || null) : null,
+        kitten_contained: hasKittens ? (kittenContained || null) : null,
+        mom_present: hasKittens ? (momPresent || null) : null,
+        mom_fixed: hasKittens && momPresent === "yes" ? (momFixed || null) : null,
+        can_bring_in: hasKittens ? (canBringIn || null) : null,
+        kitten_notes: hasKittens ? (kittenNotes || null) : null,
+        // Feeding
+        is_being_fed: isBeingFed,
+        feeder_name: isBeingFed ? (feederName || null) : null,
+        feeding_schedule: isBeingFed ? (feedingSchedule || null) : null,
+        feeding_location: isBeingFed ? (feedingLocation || null) : null,  // MIG_2532
+        feeding_time: isBeingFed ? (feedingTime || null) : null,  // MIG_2532
+        best_times_seen: bestTimesSeen || null,
+        // Urgency
+        urgency_reasons: urgencyReasons.length > 0 ? urgencyReasons : null,
+        urgency_deadline: urgencyDeadline || null,
+        urgency_notes: urgencyNotes || null,
+        priority,
+        // Additional
+        summary: summary || null,
+        notes: notes || null,
+        internal_notes: internalNotes || null,
+        created_by: "app_user",
+        // Entry mode and completion data
+        entry_mode: entryMode,
+        initial_status: entryMode === "complete" ? "completed" : "new",
+        completion_data: entryMode === "complete" ? {
+          final_cat_count: completionData.final_cat_count || null,
+          eartips_observed: completionData.eartips_observed || null,
+          cats_altered_today: completionData.cats_altered_today || null,
+          observation_notes: completionData.observation_notes || null,
+          colony_complete: completionData.colony_complete,
+          requester_followup: completionData.requester_followup,
+          refer_partner: completionData.refer_partner,
+          partner_name: completionData.partner_name || null,
+        } : null,
+      });
 
       // Handle the new pipeline response format
       setSubmissionResult({
@@ -700,7 +670,7 @@ function NewRequestForm() {
         }, 1500);
       }
     } catch (err) {
-      setError("Network error while creating request");
+      setError(err instanceof Error ? err.message : "Network error while creating request");
     } finally {
       setSubmitting(false);
     }

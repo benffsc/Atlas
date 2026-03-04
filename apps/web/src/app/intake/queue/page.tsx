@@ -8,6 +8,7 @@ import { CreateRequestWizard } from "@/components/forms";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -498,11 +499,7 @@ function IntakeQueueContent() {
     setBulkUpdating(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
-        fetch(`/api/intake/queue/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ submission_status: bulkStatusTarget }),
-        })
+        postApi(`/api/intake/queue/${id}`, { submission_status: bulkStatusTarget }, { method: "PATCH" })
       );
       await Promise.all(promises);
       setSelectedIds(new Set());
@@ -522,11 +519,7 @@ function IntakeQueueContent() {
     setBulkUpdating(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
-        fetch(`/api/intake/queue/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ submission_status: "archived" }),
-        })
+        postApi(`/api/intake/queue/${id}`, { submission_status: "archived" }, { method: "PATCH" })
       );
       await Promise.all(promises);
       setSelectedIds(new Set());
@@ -552,12 +545,8 @@ function IntakeQueueContent() {
       if (categoryFilter) params.set("category", categoryFilter);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
 
-      const response = await fetch(`/api/intake/queue?${params.toString()}`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setSubmissions(data.submissions || []);
-      }
+      const data = await fetchApi<{ submissions: IntakeSubmission[] }>(`/api/intake/queue?${params.toString()}`);
+      setSubmissions(data.submissions || []);
     } catch (err) {
       console.error("Failed to fetch submissions:", err);
     } finally {
@@ -581,10 +570,8 @@ function IntakeQueueContent() {
         router.replace("/intake/queue", { scroll: false });
       } else if (submissions.length > 0) {
         // Submission not in current list - fetch directly
-        fetch(`/api/intake/queue/${openSubmissionId}`)
-          .then(res => res.ok ? res.json() : null)
-          .then(result => {
-            const data = result?.data || result;
+        fetchApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${openSubmissionId}`)
+          .then((data) => {
             if (data?.submission) {
               openDetail(data.submission);
             }
@@ -600,8 +587,7 @@ function IntakeQueueContent() {
 
   // Fetch staff list on mount
   useEffect(() => {
-    fetch("/api/staff")
-      .then((res) => res.json())
+    fetchApi<{ staff: StaffMember[] }>("/api/staff")
       .then((data) => setStaffList(data.staff || []))
       .catch((err) => console.error("Failed to fetch staff:", err));
   }, []);
@@ -627,12 +613,8 @@ function IntakeQueueContent() {
   const fetchCommunicationLogs = async (submissionId: string) => {
     setLoadingLogs(true);
     try {
-      const response = await fetch(`/api/intake/${submissionId}/communications`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setCommunicationLogs(data.logs || []);
-      }
+      const data = await fetchApi<{ logs: CommunicationLog[] }>(`/api/intake/${submissionId}/communications`);
+      setCommunicationLogs(data.logs || []);
     } catch (err) {
       console.error("Failed to fetch communication logs:", err);
     } finally {
@@ -659,23 +641,16 @@ function IntakeQueueContent() {
     if (!contactModalSubmission) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/intake/${contactModalSubmission.submission_id}/communications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(contactForm),
+      await postApi(`/api/intake/${contactModalSubmission.submission_id}/communications`, contactForm);
+      // Refresh logs and submissions
+      fetchCommunicationLogs(contactModalSubmission.submission_id);
+      fetchSubmissions();
+      // Reset form but keep modal open to show updated logs
+      setContactForm({
+        ...contactForm,
+        notes: "",
+        is_journal_only: false,
       });
-
-      if (response.ok) {
-        // Refresh logs and submissions
-        fetchCommunicationLogs(contactModalSubmission.submission_id);
-        fetchSubmissions();
-        // Reset form but keep modal open to show updated logs
-        setContactForm({
-          ...contactForm,
-          notes: "",
-          is_journal_only: false,
-        });
-      }
     } catch (err) {
       console.error("Failed to submit contact log:", err);
     } finally {
@@ -694,26 +669,19 @@ function IntakeQueueContent() {
     if (!selectedSubmission) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/intake/${selectedSubmission.submission_id}/communications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(contactForm),
+      await postApi(`/api/intake/${selectedSubmission.submission_id}/communications`, contactForm);
+      // Refresh logs
+      fetchCommunicationLogs(selectedSubmission.submission_id);
+      fetchSubmissions();
+      // Reset form and close inline form
+      setContactForm({
+        ...contactForm,
+        notes: "",
+        is_journal_only: false,
       });
-
-      if (response.ok) {
-        // Refresh logs
-        fetchCommunicationLogs(selectedSubmission.submission_id);
-        fetchSubmissions();
-        // Reset form and close inline form
-        setContactForm({
-          ...contactForm,
-          notes: "",
-          is_journal_only: false,
-        });
-        setShowInlineContactForm(null);
-        setToastMessage("Entry added successfully");
-        setTimeout(() => setToastMessage(null), 3000);
-      }
+      setShowInlineContactForm(null);
+      setToastMessage("Entry added successfully");
+      setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
       console.error("Failed to submit contact log:", err);
     } finally {
@@ -724,12 +692,8 @@ function IntakeQueueContent() {
   const fetchEditHistory = async (submissionId: string) => {
     setLoadingHistory(true);
     try {
-      const response = await fetch(`/api/intake/queue/${submissionId}/history`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setEditHistory(data.history || []);
-      }
+      const data = await fetchApi<{ history: typeof editHistory }>(`/api/intake/queue/${submissionId}/history`);
+      setEditHistory(data.history || []);
     } catch (err) {
       console.error("Failed to fetch edit history:", err);
     } finally {
@@ -740,18 +704,11 @@ function IntakeQueueContent() {
   const handleQuickStatus = async (submissionId: string, field: string, value: string) => {
     setSaving(true);
     try {
-      const response = await fetch("/api/intake/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          submission_id: submissionId,
-          [field]: value || null,
-        }),
-      });
-
-      if (response.ok) {
-        fetchSubmissions();
-      }
+      await postApi("/api/intake/status", {
+        submission_id: submissionId,
+        [field]: value || null,
+      }, { method: "PATCH" });
+      fetchSubmissions();
     } catch (err) {
       console.error("Failed to update:", err);
     } finally {
@@ -776,24 +733,20 @@ function IntakeQueueContent() {
     const wasAlreadyScheduled = bookingSubmission.submission_status === "scheduled";
     setSaving(true);
     try {
-      const response = await fetch("/api/intake/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          submission_id: bookingSubmission.submission_id,
-          // Use unified status
-          submission_status: "scheduled",
-          appointment_date: bookingDate || null,
-          // Also update legacy fields for backward compatibility
-          legacy_submission_status: "Booked",
-          legacy_appointment_date: bookingDate || null,
-          legacy_notes: bookingNotes
-            ? (bookingSubmission.legacy_notes ? bookingSubmission.legacy_notes + "\n" + bookingNotes : bookingNotes)
-            : bookingSubmission.legacy_notes,
-        }),
-      });
+      await postApi("/api/intake/status", {
+        submission_id: bookingSubmission.submission_id,
+        // Use unified status
+        submission_status: "scheduled",
+        appointment_date: bookingDate || null,
+        // Also update legacy fields for backward compatibility
+        legacy_submission_status: "Booked",
+        legacy_appointment_date: bookingDate || null,
+        legacy_notes: bookingNotes
+          ? (bookingSubmission.legacy_notes ? bookingSubmission.legacy_notes + "\n" + bookingNotes : bookingNotes)
+          : bookingSubmission.legacy_notes,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
+      {
         const submitterName = normalizeName(bookingSubmission.submitter_name);
         setShowBookingModal(false);
         setBookingSubmission(null);
@@ -873,25 +826,19 @@ function IntakeQueueContent() {
     setSaving(true);
     try {
       // Use the [id] PATCH endpoint for unified status
-      const response = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Unified status fields
-          submission_status: statusEdits.submission_status || null,
-          appointment_date: statusEdits.appointment_date || null,
-          priority_override: statusEdits.priority_override || null,
-          // Legacy fields (keep for backward compatibility)
-          legacy_status: statusEdits.legacy_status || null,
-          legacy_submission_status: statusEdits.legacy_submission_status || null,
-          legacy_appointment_date: statusEdits.legacy_appointment_date || null,
-          legacy_notes: statusEdits.legacy_notes || null,
-        }),
-      });
+      const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+        // Unified status fields
+        submission_status: statusEdits.submission_status || null,
+        appointment_date: statusEdits.appointment_date || null,
+        priority_override: statusEdits.priority_override || null,
+        // Legacy fields (keep for backward compatibility)
+        legacy_status: statusEdits.legacy_status || null,
+        legacy_submission_status: statusEdits.legacy_submission_status || null,
+        legacy_appointment_date: statusEdits.legacy_appointment_date || null,
+        legacy_notes: statusEdits.legacy_notes || null,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
+      {
         setEditingStatus(false);
         setSelectedSubmission({
           ...selectedSubmission,
@@ -915,26 +862,20 @@ function IntakeQueueContent() {
     const noteText = `Urgent flag removed: ${reasonInfo?.label} - ${reasonInfo?.description}`;
 
     try {
-      const response = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          is_emergency: false,
-          review_notes: selectedSubmission.review_notes
-            ? `${selectedSubmission.review_notes}\n\n[${new Date().toLocaleDateString()}] ${noteText}`
-            : `[${new Date().toLocaleDateString()}] ${noteText}`,
-        }),
-      });
+      await postApi(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+        is_emergency: false,
+        review_notes: selectedSubmission.review_notes
+          ? `${selectedSubmission.review_notes}\n\n[${new Date().toLocaleDateString()}] ${noteText}`
+          : `[${new Date().toLocaleDateString()}] ${noteText}`,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        setShowUrgentDowngrade(false);
-        setUrgentDowngradeReason("");
-        setSelectedSubmission({
-          ...selectedSubmission,
-          is_emergency: false,
-        });
-        fetchSubmissions();
-      }
+      setShowUrgentDowngrade(false);
+      setUrgentDowngradeReason("");
+      setSelectedSubmission({
+        ...selectedSubmission,
+        is_emergency: false,
+      });
+      fetchSubmissions();
     } catch (err) {
       console.error("Failed to remove urgent flag:", err);
     } finally {
@@ -950,36 +891,25 @@ function IntakeQueueContent() {
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cats_address: addressEdits.cats_address.trim(),
-          cats_city: addressEdits.cats_city.trim() || null,
-          cats_zip: addressEdits.cats_zip.trim() || null,
-        }),
-      });
+      const data = await postApi<{ submission?: IntakeSubmission; address_relinked?: boolean }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+        cats_address: addressEdits.cats_address.trim(),
+        cats_city: addressEdits.cats_city.trim() || null,
+        cats_zip: addressEdits.cats_zip.trim() || null,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setEditingAddress(false);
-        // Update local state with refreshed submission data
-        if (data.submission) {
-          setSelectedSubmission(data.submission);
-        }
-        // Show success message
-        if (data.address_relinked) {
-          setToastMessage("Address updated and re-linked to place");
-        } else {
-          setToastMessage("Address updated");
-        }
-        setTimeout(() => setToastMessage(null), 5000);
-        fetchSubmissions();
-      } else {
-        const err = await response.json();
-        alert(err.error || "Failed to update address");
+      setEditingAddress(false);
+      // Update local state with refreshed submission data
+      if (data.submission) {
+        setSelectedSubmission(data.submission);
       }
+      // Show success message
+      if (data.address_relinked) {
+        setToastMessage("Address updated and re-linked to place");
+      } else {
+        setToastMessage("Address updated");
+      }
+      setTimeout(() => setToastMessage(null), 5000);
+      fetchSubmissions();
     } catch (err) {
       console.error("Failed to save address:", err);
       alert("Failed to save address");
@@ -990,20 +920,14 @@ function IntakeQueueContent() {
 
   const handleArchive = async (submissionId: string) => {
     try {
-      const response = await fetch("/api/intake/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          submission_id: submissionId,
-          submission_status: "archived",
-          status: "archived", // Keep legacy field updated too
-        }),
-      });
+      await postApi("/api/intake/status", {
+        submission_id: submissionId,
+        submission_status: "archived",
+        status: "archived", // Keep legacy field updated too
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        fetchSubmissions();
-        setSelectedSubmission(null);
-      }
+      fetchSubmissions();
+      setSelectedSubmission(null);
     } catch (err) {
       console.error("Failed to archive:", err);
     }
@@ -1863,30 +1787,23 @@ function IntakeQueueContent() {
                         onClick={async () => {
                           setSavingSection(true);
                           try {
-                            const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                first_name: contactEdits.first_name || null,
-                                last_name: contactEdits.last_name || null,
-                                email: contactEdits.email || null,
-                                phone: contactEdits.phone || null,
-                              }),
+                            const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+                              first_name: contactEdits.first_name || null,
+                              last_name: contactEdits.last_name || null,
+                              email: contactEdits.email || null,
+                              phone: contactEdits.phone || null,
+                            }, { method: "PATCH" });
+                            // Update local state with new name constructed from first/last
+                            const newName = `${contactEdits.first_name || ""} ${contactEdits.last_name || ""}`.trim();
+                            setSelectedSubmission({
+                              ...selectedSubmission,
+                              ...data.submission,
+                              submitter_name: newName || selectedSubmission.submitter_name,
+                              email: contactEdits.email || selectedSubmission.email,
+                              phone: contactEdits.phone || selectedSubmission.phone,
                             });
-                            if (res.ok) {
-                              const data = await res.json();
-                              // Update local state with new name constructed from first/last
-                              const newName = `${contactEdits.first_name || ""} ${contactEdits.last_name || ""}`.trim();
-                              setSelectedSubmission({
-                                ...selectedSubmission,
-                                ...data.submission,
-                                submitter_name: newName || selectedSubmission.submitter_name,
-                                email: contactEdits.email || selectedSubmission.email,
-                                phone: contactEdits.phone || selectedSubmission.phone,
-                              });
-                              setEditingContact(false);
-                              fetchSubmissions();
-                            }
+                            setEditingContact(false);
+                            fetchSubmissions();
                           } catch (err) {
                             console.error("Failed to save contact:", err);
                           } finally {
@@ -1997,20 +1914,13 @@ function IntakeQueueContent() {
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ is_emergency: true }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setSelectedSubmission({ ...selectedSubmission, ...data.submission, is_emergency: true });
-                      setSubmissions(submissions.map(s =>
-                        s.submission_id === selectedSubmission.submission_id
-                          ? { ...s, is_emergency: true }
-                          : s
-                      ));
-                    }
+                    const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { is_emergency: true }, { method: "PATCH" });
+                    setSelectedSubmission({ ...selectedSubmission, ...data.submission, is_emergency: true });
+                    setSubmissions(submissions.map(s =>
+                      s.submission_id === selectedSubmission.submission_id
+                        ? { ...s, is_emergency: true }
+                        : s
+                    ));
                   } catch (err) {
                     console.error("Failed to mark as urgent:", err);
                   }
@@ -2118,16 +2028,9 @@ function IntakeQueueContent() {
                       setStatusEdits({ ...statusEdits, submission_status: newStatus });
                       // Auto-save on change
                       try {
-                        const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ submission_status: newStatus }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          setSelectedSubmission({ ...selectedSubmission, ...data.submission, submission_status: newStatus });
-                          fetchSubmissions();
-                        }
+                        const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { submission_status: newStatus }, { method: "PATCH" });
+                        setSelectedSubmission({ ...selectedSubmission, ...data.submission, submission_status: newStatus });
+                        fetchSubmissions();
                       } catch (err) {
                         console.error("Failed to update status:", err);
                       }
@@ -2156,16 +2059,9 @@ function IntakeQueueContent() {
                       setStatusEdits({ ...statusEdits, priority_override: newPriority });
                       // Auto-save on change
                       try {
-                        const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ priority_override: newPriority || null }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          setSelectedSubmission({ ...selectedSubmission, ...data.submission, priority_override: newPriority || null });
-                          fetchSubmissions();
-                        }
+                        const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { priority_override: newPriority || null }, { method: "PATCH" });
+                        setSelectedSubmission({ ...selectedSubmission, ...data.submission, priority_override: newPriority || null });
+                        fetchSubmissions();
                       } catch (err) {
                         console.error("Failed to update priority:", err);
                       }
@@ -2190,16 +2086,9 @@ function IntakeQueueContent() {
                         setStatusEdits({ ...statusEdits, appointment_date: newDate });
                         // Auto-save on change
                         try {
-                          const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ appointment_date: newDate || null }),
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            setSelectedSubmission({ ...selectedSubmission, ...data.submission, appointment_date: newDate || null });
-                            fetchSubmissions();
-                          }
+                          const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { appointment_date: newDate || null }, { method: "PATCH" });
+                          setSelectedSubmission({ ...selectedSubmission, ...data.submission, appointment_date: newDate || null });
+                          fetchSubmissions();
                         } catch (err) {
                           console.error("Failed to update appointment:", err);
                         }
@@ -2383,23 +2272,16 @@ function IntakeQueueContent() {
                       onClick={async () => {
                         setSavingSection(true);
                         try {
-                          const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              cat_count_estimate: catsEdits.cat_count_estimate ? parseInt(catsEdits.cat_count_estimate) : null,
-                              ownership_status: catsEdits.ownership_status || null,
-                              fixed_status: catsEdits.fixed_status || null,
-                              has_kittens: catsEdits.has_kittens,
-                              has_medical_concerns: catsEdits.has_medical_concerns,
-                            }),
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            setSelectedSubmission({ ...selectedSubmission, ...data.submission });
-                            setEditingCats(false);
-                            fetchSubmissions();
-                          }
+                          const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+                            cat_count_estimate: catsEdits.cat_count_estimate ? parseInt(catsEdits.cat_count_estimate) : null,
+                            ownership_status: catsEdits.ownership_status || null,
+                            fixed_status: catsEdits.fixed_status || null,
+                            has_kittens: catsEdits.has_kittens,
+                            has_medical_concerns: catsEdits.has_medical_concerns,
+                          }, { method: "PATCH" });
+                          setSelectedSubmission({ ...selectedSubmission, ...data.submission });
+                          setEditingCats(false);
+                          fetchSubmissions();
                         } catch (err) {
                           console.error("Failed to save:", err);
                         } finally {
@@ -2511,17 +2393,10 @@ function IntakeQueueContent() {
                       onClick={async () => {
                         setSavingSection(true);
                         try {
-                          const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ situation_description: situationEdit }),
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            setSelectedSubmission({ ...selectedSubmission, ...data.submission });
-                            setEditingSituation(false);
-                            fetchSubmissions();
-                          }
+                          const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { situation_description: situationEdit }, { method: "PATCH" });
+                          setSelectedSubmission({ ...selectedSubmission, ...data.submission });
+                          setEditingSituation(false);
+                          fetchSubmissions();
                         } catch (err) {
                           console.error("Failed to save:", err);
                         } finally {
@@ -2675,20 +2550,13 @@ function IntakeQueueContent() {
                               onClick={async () => {
                                 if (!confirm(`Revert ${edit.field_name.replace(/_/g, " ")} back to "${edit.old_value}"?`)) return;
                                 try {
-                                  const res = await fetch(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      [edit.field_name]: edit.old_value,
-                                      edit_reason: "undo_change",
-                                    }),
-                                  });
-                                  if (res.ok) {
-                                    const data = await res.json();
-                                    setSelectedSubmission({ ...selectedSubmission, ...data.submission });
-                                    fetchEditHistory(selectedSubmission.submission_id);
-                                    fetchSubmissions();
-                                  }
+                                  const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
+                                    [edit.field_name]: edit.old_value,
+                                    edit_reason: "undo_change",
+                                  }, { method: "PATCH" });
+                                  setSelectedSubmission({ ...selectedSubmission, ...data.submission });
+                                  fetchEditHistory(selectedSubmission.submission_id);
+                                  fetchSubmissions();
                                 } catch (err) {
                                   console.error("Failed to undo:", err);
                                 }
@@ -3668,21 +3536,13 @@ function IntakeQueueContent() {
                   }
                   setDecliningSubmission(true);
                   try {
-                    const response = await fetch("/api/intake/decline", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        submission_id: declineSubmission.submission_id,
-                        reason_code: declineForm.reason_code,
-                        reason_notes: declineForm.reason_notes || null,
-                        referred_to_org: declineForm.referred_to_org || null,
-                        send_notification: declineForm.send_notification,
-                      }),
+                    await postApi("/api/intake/decline", {
+                      submission_id: declineSubmission.submission_id,
+                      reason_code: declineForm.reason_code,
+                      reason_notes: declineForm.reason_notes || null,
+                      referred_to_org: declineForm.referred_to_org || null,
+                      send_notification: declineForm.send_notification,
                     });
-                    if (!response.ok) {
-                      const err = await response.json();
-                      throw new Error(err.error || "Failed to decline submission");
-                    }
                     setShowDeclineModal(false);
                     if (selectedSubmission?.submission_id === declineSubmission.submission_id) {
                       setSelectedSubmission({ ...selectedSubmission, submission_status: "declined" });

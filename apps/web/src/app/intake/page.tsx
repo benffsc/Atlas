@@ -6,6 +6,7 @@ import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import { shouldBePerson } from "@/lib/guards";
+import { fetchApi, postApi } from "@/lib/api-client";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
   HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
@@ -299,10 +300,8 @@ function IntakeForm() {
   // Fetch custom fields when call_type changes
   useEffect(() => {
     if (formData.call_type) {
-      fetch(`/api/intake/custom-fields?call_type=${formData.call_type}`)
-        .then(res => res.json())
-        .then(result => {
-          const data = result.data || result;
+      fetchApi<{ fields: CustomField[] }>(`/api/intake/custom-fields?call_type=${formData.call_type}`)
+        .then((data) => {
           setCustomFields(data.fields || []);
         })
         .catch(() => setCustomFields([]));
@@ -324,13 +323,9 @@ function IntakeForm() {
 
     setPersonSearchLoading(true);
     try {
-      const response = await fetch(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setPersonSuggestions(data.people || []);
-        setShowPersonDropdown(data.people?.length > 0);
-      }
+      const data = await fetchApi<{ people: PersonSuggestion[] }>(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
+      setPersonSuggestions(data.people || []);
+      setShowPersonDropdown(data.people?.length > 0);
     } catch (err) {
       console.error("Person search error:", err);
     } finally {
@@ -384,9 +379,8 @@ function IntakeForm() {
       setShowAddressSelection(true);
     } else {
       // Fetch addresses separately if not included in search results
-      fetch(`/api/people/${person.person_id}/addresses`)
-        .then(res => res.json())
-        .then(data => {
+      fetchApi<{ addresses: PersonAddress[] }>(`/api/people/${person.person_id}/addresses`)
+        .then((data) => {
           if (data.addresses && data.addresses.length > 0) {
             setPersonAddresses(data.addresses);
             setShowAddressSelection(true);
@@ -720,110 +714,97 @@ function IntakeForm() {
       // Map form data to API format, deriving ownership_status from call_type
       const ownershipStatus = callTypeToOwnership(formData.call_type);
 
-      const response = await fetch("/api/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Contact
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          email: formData.email || undefined,
-          phone: formData.phone || undefined,
-          requester_address: formData.requester_address || undefined,
-          requester_city: formData.requester_city || undefined,
-          requester_zip: formData.requester_zip || undefined,
+      const result = await postApi<{ message: string; triage_category?: string }>("/api/intake", {
+        // Contact
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
+        requester_address: formData.requester_address || undefined,
+        requester_city: formData.requester_city || undefined,
+        requester_zip: formData.requester_zip || undefined,
 
-          // Person/Address linking (MIG_538)
-          existing_person_id: selectedPersonId || undefined,
-          selected_address_place_id: (selectedAddressId && selectedAddressId !== "new") ? selectedAddressId : undefined,
-          cats_at_requester_address: catsAtMyAddress,
+        // Person/Address linking (MIG_538)
+        existing_person_id: selectedPersonId || undefined,
+        selected_address_place_id: (selectedAddressId && selectedAddressId !== "new") ? selectedAddressId : undefined,
+        cats_at_requester_address: catsAtMyAddress,
 
-          // Third-party
-          is_third_party_report: formData.is_third_party_report,
-          third_party_relationship: formData.third_party_relationship || undefined,
-          property_owner_name: formData.property_owner_name || undefined,
-          property_owner_phone: formData.property_owner_phone || undefined,
-          property_owner_email: formData.property_owner_email || undefined,
+        // Third-party
+        is_third_party_report: formData.is_third_party_report,
+        third_party_relationship: formData.third_party_relationship || undefined,
+        property_owner_name: formData.property_owner_name || undefined,
+        property_owner_phone: formData.property_owner_phone || undefined,
+        property_owner_email: formData.property_owner_email || undefined,
 
-          // Location
-          cats_address: formData.cats_address,
-          cats_city: formData.cats_city || undefined,
-          cats_zip: formData.cats_zip || undefined,
-          county: formData.county || undefined,
+        // Location
+        cats_address: formData.cats_address,
+        cats_city: formData.cats_city || undefined,
+        cats_zip: formData.cats_zip || undefined,
+        county: formData.county || undefined,
 
-          // Cat info
-          ownership_status: ownershipStatus,
-          cat_count_estimate: parseInt(formData.cat_count) || 1,
-          cat_count_text: formData.cat_count,
-          // Cats needing TNR - separate from total for colony calls
-          cats_needing_tnr: formData.cats_needing_tnr ? parseInt(formData.cats_needing_tnr) : undefined,
-          peak_count: formData.peak_count ? parseInt(formData.peak_count) : undefined,
-          eartip_count_observed: formData.eartip_count ? parseInt(formData.eartip_count) : undefined,
-          fixed_status: formData.fixed_status || "unknown",
+        // Cat info
+        ownership_status: ownershipStatus,
+        cat_count_estimate: parseInt(formData.cat_count) || 1,
+        cat_count_text: formData.cat_count,
+        // Cats needing TNR - separate from total for colony calls
+        cats_needing_tnr: formData.cats_needing_tnr ? parseInt(formData.cats_needing_tnr) : undefined,
+        peak_count: formData.peak_count ? parseInt(formData.peak_count) : undefined,
+        eartip_count_observed: formData.eartip_count ? parseInt(formData.eartip_count) : undefined,
+        fixed_status: formData.fixed_status || "unknown",
 
-          // New handleability field
-          handleability: formData.handleability || undefined,
+        // New handleability field
+        handleability: formData.handleability || undefined,
 
-          // Kittens
-          has_kittens: formData.call_type === "kitten_rescue" || undefined,
-          kitten_count: formData.kitten_count ? parseInt(formData.kitten_count) : undefined,
-          kitten_age_estimate: formData.kitten_age || undefined,
-          kitten_behavior: formData.kitten_socialization || undefined,
-          mom_present: formData.mom_present || undefined,
+        // Kittens
+        has_kittens: formData.call_type === "kitten_rescue" || undefined,
+        kitten_count: formData.kitten_count ? parseInt(formData.kitten_count) : undefined,
+        kitten_age_estimate: formData.kitten_age || undefined,
+        kitten_behavior: formData.kitten_socialization || undefined,
+        mom_present: formData.mom_present || undefined,
 
-          // Medical
-          has_medical_concerns: formData.has_medical_concerns,
-          medical_description: formData.medical_description || undefined,
-          is_emergency: formData.is_emergency,
-          emergency_acknowledged: formData.emergency_acknowledged,
+        // Medical
+        has_medical_concerns: formData.has_medical_concerns,
+        medical_description: formData.medical_description || undefined,
+        is_emergency: formData.is_emergency,
+        emergency_acknowledged: formData.emergency_acknowledged,
 
-          // Property
-          is_property_owner: formData.is_property_owner === "yes",
-          has_property_access: formData.has_property_access === "yes",
+        // Property
+        is_property_owner: formData.is_property_owner === "yes",
+        has_property_access: formData.has_property_access === "yes",
 
-          // Notes (combine call type context + notes)
-          situation_description: [
-            `Call type: ${CALL_TYPE_OPTIONS.find(o => o.value === formData.call_type)?.label || formData.call_type}`,
-            formData.cat_name ? `Cat name: ${formData.cat_name}` : null,
-            formData.cat_description ? `Description: ${formData.cat_description}` : null,
-            formData.feeding_situation ? `Feeding: ${formData.feeding_situation}` : null,
-            formData.notes,
-          ].filter(Boolean).join("\n"),
+        // Notes (combine call type context + notes)
+        situation_description: [
+          `Call type: ${CALL_TYPE_OPTIONS.find(o => o.value === formData.call_type)?.label || formData.call_type}`,
+          formData.cat_name ? `Cat name: ${formData.cat_name}` : null,
+          formData.cat_description ? `Description: ${formData.cat_description}` : null,
+          formData.feeding_situation ? `Feeding: ${formData.feeding_situation}` : null,
+          formData.notes,
+        ].filter(Boolean).join("\n"),
 
-          referral_source: formData.referral_source || undefined,
+        referral_source: formData.referral_source || undefined,
 
-          // Source tracking
-          source_system: "web_intake_receptionist",
+        // Source tracking
+        source_system: "web_intake_receptionist",
 
-          // Custom fields (stored as JSON)
-          custom_fields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+        // Custom fields (stored as JSON)
+        custom_fields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
 
-          // Test mode flag
-          is_test: isTestMode,
-        }),
+        // Test mode flag
+        is_test: isTestMode,
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        clearDraft();
-        setSubmitted(true);
-        setSubmitResult({
-          success: true,
-          message: result.message,
-          triage_category: result.triage_category,
-        });
-      } else {
-        setSubmitResult({
-          success: false,
-          message: result.error || "Something went wrong",
-        });
-      }
+      clearDraft();
+      setSubmitted(true);
+      setSubmitResult({
+        success: true,
+        message: result.message,
+        triage_category: result.triage_category,
+      });
     } catch (err) {
       console.error("Submit error:", err);
       setSubmitResult({
         success: false,
-        message: "Network error. Please try again.",
+        message: err instanceof Error ? err.message : "Network error. Please try again.",
       });
     } finally {
       setSubmitting(false);

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { formatRelativeDate } from "@/lib/formatters";
 import ArchiveJournalModal from "@/components/modals/ArchiveJournalModal";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface StaffMember {
   staff_id: string;
@@ -175,13 +176,7 @@ export default function JournalSection({
   // Fetch staff list on mount (only needed if no auto-fill)
   useEffect(() => {
     if (!isStaffAutoFilled) {
-      fetch("/api/staff")
-        .then((res) => {
-          if (!res.ok) {
-            throw new Error(`Staff API returned ${res.status}: ${res.statusText}`);
-          }
-          return res.json();
-        })
+      fetchApi<{ staff: StaffMember[] }>("/api/staff")
         .then((data) => {
           if (!data.staff || data.staff.length === 0) {
             console.warn("JournalSection: No active staff found in database");
@@ -244,23 +239,13 @@ export default function JournalSection({
       else if (entityType === "place") payload.place_id = entityId;
       else if (entityType === "request") payload.request_id = entityId;
 
-      const response = await fetch("/api/journal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        setNewNote("");
-        setErrorMessage(null);
-        onEntryAdded();
-      } else {
-        const data = await response.json().catch(() => ({}));
-        setErrorMessage(data.error || `Failed to save (${response.status})`);
-      }
+      await postApi("/api/journal", payload);
+      setNewNote("");
+      setErrorMessage(null);
+      onEntryAdded();
     } catch (err) {
       console.error("Failed to add entry:", err);
-      setErrorMessage("Network error - please try again");
+      setErrorMessage(err instanceof Error ? err.message : "Network error - please try again");
     } finally {
       setAddingNote(false);
     }

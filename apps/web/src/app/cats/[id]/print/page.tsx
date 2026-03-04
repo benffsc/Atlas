@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { fetchApi } from "@/lib/api-client";
 
 interface CatPrint {
   cat_id: string;
@@ -55,14 +56,8 @@ export default function CatPrintPage() {
   useEffect(() => {
     async function fetchCat() {
       try {
-        const response = await fetch(`/api/cats/${id}`);
-        if (!response.ok) throw new Error("Failed to load cat");
-        const result = await response.json();
-        if (result.success) {
-          setCat(result.data);
-        } else {
-          throw new Error(result.error?.message || "Failed to load cat");
-        }
+        const data = await fetchApi<CatPrint>(`/api/cats/${id}`);
+        setCat(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading cat");
       } finally {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface OutlookAccount {
   account_id: string;
@@ -80,8 +81,12 @@ export function SendEmailModal({
   const fetchOptions = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/send-email");
-      const data = await response.json();
+      const data = await fetchApi<{
+        outlookAccounts: OutlookAccount[];
+        templates: EmailTemplate[];
+        hasOutlook: boolean;
+        hasResend: boolean;
+      }>("/api/admin/send-email");
 
       setOutlookAccounts(data.outlookAccounts || []);
       setTemplates(data.templates || []);
@@ -122,36 +127,26 @@ export function SendEmailModal({
     setSending(true);
 
     try {
-      const response = await fetch("/api/admin/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          outlookAccountId: selectedAccount || undefined,
-          templateKey: useCustom ? undefined : selectedTemplate,
-          to,
-          toName: toName || undefined,
-          customSubject: useCustom ? customSubject : undefined,
-          customBody: useCustom ? customBody : undefined,
-          placeholders: defaultPlaceholders,
-          submissionId,
-          personId,
-          requestId,
-        }),
+      await postApi("/api/admin/send-email", {
+        outlookAccountId: selectedAccount || undefined,
+        templateKey: useCustom ? undefined : selectedTemplate,
+        to,
+        toName: toName || undefined,
+        customSubject: useCustom ? customSubject : undefined,
+        customBody: useCustom ? customBody : undefined,
+        placeholders: defaultPlaceholders,
+        submissionId,
+        personId,
+        requestId,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: "success", text: "Email sent successfully!" });
-        setTimeout(() => {
-          onSuccess?.();
-          onClose();
-        }, 1500);
-      } else {
-        setMessage({ type: "error", text: data.error || "Failed to send email" });
-      }
+      setMessage({ type: "success", text: "Email sent successfully!" });
+      setTimeout(() => {
+        onSuccess?.();
+        onClose();
+      }, 1500);
     } catch (err) {
-      setMessage({ type: "error", text: "Failed to send email" });
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to send email" });
     } finally {
       setSending(false);
     }

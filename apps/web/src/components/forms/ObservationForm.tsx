@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postApi, ApiError } from "@/lib/api-client";
 
 interface ObservationFormProps {
   placeId?: string;
@@ -49,36 +50,31 @@ export function ObservationForm({
     setLoading(true);
 
     try {
-      const res = await fetch("/api/observations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          place_id: placeId || null,
-          request_id: requestId || null,
-          observation_date: new Date().toISOString().split("T")[0],
-          observation_time: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }),
-          time_of_day: timeOfDay || null,
-          cats_seen_total: catsSeen,
-          cats_seen_is_estimate: catsIsEstimate,
-          eartipped_seen: eartipped === "" ? null : eartipped,
-          eartipped_is_estimate: eartippedIsEstimate,
-          female_seen: femaleSeen === "" ? null : femaleSeen,
-          male_seen: maleSeen === "" ? null : maleSeen,
-          is_at_feeding_station: isAtFeedingStation,
-          confidence,
-          notes: notes || null,
-          observer_type: "trapper_field",
-        }),
+      await postApi("/api/observations", {
+        place_id: placeId || null,
+        request_id: requestId || null,
+        observation_date: new Date().toISOString().split("T")[0],
+        observation_time: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+        time_of_day: timeOfDay || null,
+        cats_seen_total: catsSeen,
+        cats_seen_is_estimate: catsIsEstimate,
+        eartipped_seen: eartipped === "" ? null : eartipped,
+        eartipped_is_estimate: eartippedIsEstimate,
+        female_seen: femaleSeen === "" ? null : femaleSeen,
+        male_seen: maleSeen === "" ? null : maleSeen,
+        is_at_feeding_station: isAtFeedingStation,
+        confidence,
+        notes: notes || null,
+        observer_type: "trapper_field",
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to submit observation");
-      }
 
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit observation");
+      if (err instanceof ApiError) {
+        setError(err.message || "Failed to submit observation");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to submit observation");
+      }
     } finally {
       setLoading(false);
     }

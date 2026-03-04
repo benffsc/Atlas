@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi } from "@/lib/api-client";
 
 interface TrapperSheetData {
   request_id: string;
@@ -119,14 +120,8 @@ export default function TrapperSheetPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const response = await fetch(`/api/requests/${id}`);
-        if (!response.ok) throw new Error("Failed to load request");
-        const result = await response.json();
-        if (result.success) {
-          setData(result.data);
-        } else {
-          throw new Error(result.error?.message || "Failed to load request");
-        }
+        const data = await fetchApi<TrapperSheetData>(`/api/requests/${id}`);
+        setData(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading request");
       } finally {

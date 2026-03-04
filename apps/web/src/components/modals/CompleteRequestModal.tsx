@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ResolutionReason {
   reason_code: string;
@@ -67,9 +68,7 @@ export default function CompleteRequestModal({
   async function fetchReasons() {
     setLoadingReasons(true);
     try {
-      const res = await fetch(`/api/resolution-reasons?status=${targetStatus}`);
-      if (!res.ok) throw new Error("Failed to fetch reasons");
-      const data = await res.json();
+      const data = await fetchApi<{ reasons: ResolutionReason[] }>(`/api/resolution-reasons?status=${targetStatus}`);
       setReasons(data.reasons || []);
     } catch (err) {
       console.error("Error fetching reasons:", err);
@@ -101,10 +100,8 @@ export default function CompleteRequestModal({
     try {
       // If observation data provided and we have a place, create site observation first
       if (showObservation && placeId && observation.cats_seen_total > 0) {
-        const obsRes = await fetch("/api/observations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        try {
+          await postApi("/api/observations", {
             place_id: placeId,
             request_id: requestId,
             observation_date: new Date().toISOString().split("T")[0],
@@ -115,34 +112,23 @@ export default function CompleteRequestModal({
             notes: observation.notes || `Final observation during request completion`,
             is_final_visit: true,
             observer_name: staffName,
-          }),
-        });
-
-        if (!obsRes.ok) {
+          });
+        } catch {
           console.warn("Failed to create observation, continuing with completion");
         }
       }
 
       // Update request status with resolution reason
-      const res = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: targetStatus,
-          resolution_reason: selectedReason,
-          resolution_notes: resolutionNotes || null,
-          skip_trip_report_check: true, // We're handling observation in this modal
-          // Also pass observation data for the existing completion logic
-          observation_cats_seen: showObservation ? observation.cats_seen_total : null,
-          observation_eartips_seen: showObservation ? observation.eartipped_seen : null,
-          observation_notes: showObservation ? observation.notes : null,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to complete request");
-      }
+      await postApi(`/api/requests/${requestId}`, {
+        status: targetStatus,
+        resolution_reason: selectedReason,
+        resolution_notes: resolutionNotes || null,
+        skip_trip_report_check: true, // We're handling observation in this modal
+        // Also pass observation data for the existing completion logic
+        observation_cats_seen: showObservation ? observation.cats_seen_total : null,
+        observation_eartips_seen: showObservation ? observation.eartipped_seen : null,
+        observation_notes: showObservation ? observation.notes : null,
+      }, { method: "PATCH" });
 
       onSuccess?.();
       handleClose();
