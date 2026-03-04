@@ -16,6 +16,7 @@ import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/la
 import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
 import { formatDateLocal, formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface Cat {
   cat_id: string;
@@ -214,33 +215,21 @@ export default function PlaceDetailPage() {
 
   const fetchPlace = useCallback(async () => {
     try {
-      const response = await fetch(`/api/places/${id}`);
-      if (response.status === 404) {
-        setError("Place not found");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Failed to fetch place details");
-      }
-      const result = await response.json();
-      if (result.success) {
-        setPlace(result.data);
-      } else {
-        throw new Error(result.error?.message || "Failed to fetch place details");
-      }
+      const data = await fetchApi<PlaceDetail>(`/api/places/${id}`);
+      setPlace(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (err instanceof ApiError && err.code === 404) {
+        setError("Place not found");
+      } else {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     }
   }, [id]);
 
   const fetchJournal = useCallback(async () => {
     try {
-      const response = await fetch(`/api/journal?place_id=${id}&limit=50`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setJournal(data.entries || []);
-      }
+      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?place_id=${id}&limit=50`);
+      setJournal(data.entries || []);
     } catch (err) {
       console.error("Failed to fetch journal:", err);
     }
@@ -248,13 +237,8 @@ export default function PlaceDetailPage() {
 
   const fetchRequests = useCallback(async () => {
     try {
-      const response = await fetch(`/api/requests?place_id=${id}&limit=10`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setRequests(result.data.requests || []);
-        }
-      }
+      const data = await fetchApi<{ requests: RelatedRequest[] }>(`/api/requests?place_id=${id}&limit=10`);
+      setRequests(data.requests || []);
     } catch (err) {
       console.error("Failed to fetch requests:", err);
     }
@@ -262,12 +246,8 @@ export default function PlaceDetailPage() {
 
   const fetchHeroMedia = useCallback(async () => {
     try {
-      const response = await fetch(`/api/places/${id}/media`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setHeroMedia(data.media || []);
-      }
+      const data = await fetchApi<{ media: (MediaItem & { is_hero?: boolean })[] }>(`/api/places/${id}/media`);
+      setHeroMedia(data.media || []);
     } catch (err) {
       console.error("Failed to fetch media:", err);
     }
@@ -288,10 +268,8 @@ export default function PlaceDetailPage() {
 
   const handleSetHero = async (mediaId: string) => {
     try {
-      const res = await fetch(`/api/media/${mediaId}/hero`, { method: "PATCH" });
-      if (res.ok) {
-        await fetchHeroMedia();
-      }
+      await postApi(`/api/media/${mediaId}/hero`, {}, { method: "PATCH" });
+      await fetchHeroMedia();
     } catch (err) {
       console.error("Failed to set hero:", err);
     }
@@ -322,26 +300,19 @@ export default function PlaceDetailPage() {
     setSaveError(null);
 
     try {
-      const response = await fetch(`/api/places/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: editDisplayName,
-          place_kind: editPlaceKind,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setSaveError(result.error || "Failed to save changes");
-        return;
-      }
+      await postApi(`/api/places/${id}`, {
+        display_name: editDisplayName,
+        place_kind: editPlaceKind,
+      }, { method: "PATCH" });
 
       await fetchPlace();
       setEditingDetails(false);
     } catch (err) {
-      setSaveError("Network error while saving");
+      if (err instanceof ApiError) {
+        setSaveError(err.message || "Failed to save changes");
+      } else {
+        setSaveError("Network error while saving");
+      }
     } finally {
       setSaving(false);
     }
@@ -386,32 +357,25 @@ export default function PlaceDetailPage() {
     const state = placeDetails.address_components.find(c => c.types.includes("administrative_area_level_1"))?.short_name || null;
 
     try {
-      const response = await fetch(`/api/places/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          formatted_address: placeDetails.formatted_address,
-          locality,
-          postal_code,
-          state_province: state,
-          latitude: placeDetails.geometry.location.lat,
-          longitude: placeDetails.geometry.location.lng,
-          change_reason: changeReason,
-          change_notes: changeNotes,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setSaveError(result.error || "Failed to save address correction");
-        return;
-      }
+      await postApi(`/api/places/${id}`, {
+        formatted_address: placeDetails.formatted_address,
+        locality,
+        postal_code,
+        state_province: state,
+        latitude: placeDetails.geometry.location.lat,
+        longitude: placeDetails.geometry.location.lng,
+        change_reason: changeReason,
+        change_notes: changeNotes,
+      }, { method: "PATCH" });
 
       await fetchPlace();
       setEditingAddress(false);
     } catch (err) {
-      setSaveError("Network error while saving");
+      if (err instanceof ApiError) {
+        setSaveError(err.message || "Failed to save address correction");
+      } else {
+        setSaveError("Network error while saving");
+      }
     } finally {
       setSaving(false);
     }
@@ -885,9 +849,7 @@ export default function PlaceDetailPage() {
                           type="button"
                           onClick={async () => {
                             try {
-                              const res = await fetch(`/api/places/${place.place_id}/suggest-type`);
-                              if (!res.ok) return;
-                              const data = await res.json();
+                              const data = await fetchApi<{ suggested_kind: string | null; confidence: number; reason: string }>(`/api/places/${place.place_id}/suggest-type`);
                               if (data.suggested_kind) {
                                 if (confirm(`Suggestion: ${data.suggested_kind.replace(/_/g, " ")} (${Math.round(data.confidence * 100)}% confidence)\n\nReason: ${data.reason}\n\nApply this?`)) {
                                   setEditPlaceKind(data.suggested_kind);

@@ -10,6 +10,7 @@ import { VerificationBadge, LastVerified, AtlasCatIdBadge, MicrochipStatusBadge 
 import { ReportDeceasedModal, RecordBirthModal, AppointmentDetailModal } from "@/components/modals";
 import { MediaGallery } from "@/components/media";
 import { formatDateLocal, formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { ProfileLayout } from "@/components/ProfileLayout";
 
 interface Owner {
@@ -564,21 +565,15 @@ export default function CatDetailPage() {
     const numVal = val === "" ? null : parseInt(val, 10);
     if (val !== "" && (isNaN(numVal!) || numVal! < 1 || numVal! > 999)) return;
     try {
-      const res = await fetch(`/api/appointments/${appointmentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clinic_day_number: numVal }),
-      });
-      if (res.ok) {
-        // Update local state
-        if (cat) {
-          const updated = cat.appointments?.map((a) =>
-            a.appointment_id === appointmentId
-              ? { ...a, clinic_day_number: numVal }
-              : a
-          );
-          setCat({ ...cat, appointments: updated || null });
-        }
+      await postApi(`/api/appointments/${appointmentId}`, { clinic_day_number: numVal }, { method: "PATCH" });
+      // Update local state
+      if (cat) {
+        const updated = cat.appointments?.map((a) =>
+          a.appointment_id === appointmentId
+            ? { ...a, clinic_day_number: numVal }
+            : a
+        );
+        setCat({ ...cat, appointments: updated || null });
       }
     } catch {
       // silent fail
@@ -588,33 +583,21 @@ export default function CatDetailPage() {
 
   const fetchCat = useCallback(async () => {
     try {
-      const response = await fetch(`/api/cats/${id}`);
-      if (response.status === 404) {
-        setError("Cat not found");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Failed to fetch cat details");
-      }
-      const result = await response.json();
-      if (result.success) {
-        setCat(result.data);
-      } else {
-        throw new Error(result.error?.message || "Failed to fetch cat details");
-      }
+      const data = await fetchApi<CatDetail>(`/api/cats/${id}`);
+      setCat(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (err instanceof ApiError && err.code === 404) {
+        setError("Cat not found");
+      } else {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     }
   }, [id]);
 
   const fetchAppointments = useCallback(async () => {
     try {
-      const response = await fetch(`/api/appointments?cat_id=${id}&limit=20`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setAppointments(data.appointments || []);
-      }
+      const data = await fetchApi<{ appointments: Appointment[] }>(`/api/appointments?cat_id=${id}&limit=20`);
+      setAppointments(data.appointments || []);
     } catch (err) {
       console.error("Failed to fetch appointments:", err);
     }
@@ -622,12 +605,8 @@ export default function CatDetailPage() {
 
   const fetchJournal = useCallback(async () => {
     try {
-      const response = await fetch(`/api/journal?cat_id=${id}&limit=50&include_related=true`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setJournal(data.entries || []);
-      }
+      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?cat_id=${id}&limit=50&include_related=true`);
+      setJournal(data.entries || []);
     } catch (err) {
       console.error("Failed to fetch journal:", err);
     }
@@ -679,32 +658,25 @@ export default function CatDetailPage() {
     setSaveError(null);
 
     try {
-      const response = await fetch(`/api/cats/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editForm.name || null,
-          sex: editForm.sex || null,
-          is_eartipped: editForm.is_eartipped,
-          color_pattern: editForm.color_pattern || null,
-          breed: editForm.breed || null,
-          notes: editForm.notes || null,
-          change_reason: "manual_edit",
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setSaveError(result.error || "Failed to save changes");
-        return;
-      }
+      await postApi(`/api/cats/${id}`, {
+        name: editForm.name || null,
+        sex: editForm.sex || null,
+        is_eartipped: editForm.is_eartipped,
+        color_pattern: editForm.color_pattern || null,
+        breed: editForm.breed || null,
+        notes: editForm.notes || null,
+        change_reason: "manual_edit",
+      }, { method: "PATCH" });
 
       // Refresh cat data
       await fetchCat();
       setEditingBasic(false);
     } catch (err) {
-      setSaveError("Network error while saving");
+      if (err instanceof ApiError) {
+        setSaveError(err.message || "Failed to save changes");
+      } else {
+        setSaveError("Network error while saving");
+      }
     } finally {
       setSaving(false);
     }
@@ -870,18 +842,15 @@ export default function CatDetailPage() {
                 ].filter(Boolean) as string[],
               }}
               onClinicDayNumber={cat.appointments?.length ? (apptId, num) => {
-                fetch(`/api/appointments/${apptId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ clinic_day_number: num }),
-                }).then((res) => {
-                  if (res.ok && cat) {
-                    const updated = cat.appointments?.map((a) =>
-                      a.appointment_id === apptId ? { ...a, clinic_day_number: num } : a
-                    );
-                    setCat({ ...cat, appointments: updated || null });
-                  }
-                }).catch(() => {});
+                postApi(`/api/appointments/${apptId}`, { clinic_day_number: num }, { method: "PATCH" })
+                  .then(() => {
+                    if (cat) {
+                      const updated = cat.appointments?.map((a) =>
+                        a.appointment_id === apptId ? { ...a, clinic_day_number: num } : a
+                      );
+                      setCat({ ...cat, appointments: updated || null });
+                    }
+                  }).catch(() => {});
               } : undefined}
               appointmentOptions={cat.appointments?.map((a) => ({
                 appointment_id: a.appointment_id,

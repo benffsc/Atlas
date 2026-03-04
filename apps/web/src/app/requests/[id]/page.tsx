@@ -14,6 +14,8 @@ import { ColonyEstimates } from "@/components/charts";
 import { ClassificationSuggestionBanner } from "@/components/admin";
 import { SmartField, YesNoSmartField, isLegacySource, TabBar, TabPanel } from "@/components/ui";
 import { formatPhone, formatAddress } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
+import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
 
 // MIG_2530: Simplified 4-state status system
@@ -222,11 +224,8 @@ export default function RequestDetailPage() {
 
   const fetchJournalEntries = useCallback(async () => {
     try {
-      const response = await fetch(`/api/journal?request_id=${requestId}&include_related=true`);
-      const data = await response.json();
-      if (response.ok) {
-        setJournalEntries(data.entries || []);
-      }
+      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?request_id=${requestId}&include_related=true`);
+      setJournalEntries(data.entries || []);
     } catch (err) {
       console.error("Failed to fetch journal entries:", err);
     }
@@ -235,24 +234,15 @@ export default function RequestDetailPage() {
   useEffect(() => {
     const fetchRequest = async () => {
       try {
-        const response = await fetch(`/api/requests/${requestId}`);
-        if (!response.ok) {
-          setError(response.status === 404 ? "Request not found" : "Failed to load request");
-          return;
-        }
-        const result = await response.json();
-        if (!result.success) {
-          setError(result.error?.message || "Failed to load request");
-          return;
-        }
-        const data = result.data;
+        const data = await fetchApi<RequestDetail>(`/api/requests/${requestId}`);
         setRequest(data);
         initEditForm(data);
         if (data.place_coordinates) {
           setMapUrl(`https://maps.googleapis.com/maps/api/staticmap?center=${data.place_coordinates.lat},${data.place_coordinates.lng}&zoom=16&size=400x200&markers=color:green%7C${data.place_coordinates.lat},${data.place_coordinates.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`);
         }
       } catch (err) {
-        setError("Failed to load request");
+        const apiErr = err as ApiError;
+        setError(apiErr.code === 404 ? "Request not found" : apiErr.message || "Failed to load request");
       } finally {
         setLoading(false);
       }
@@ -306,13 +296,12 @@ export default function RequestDetailPage() {
   };
 
   const refreshRequest = async () => {
-    const response = await fetch(`/api/requests/${requestId}`);
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success) {
-        setRequest(result.data);
-        initEditForm(result.data);
-      }
+    try {
+      const data = await fetchApi<RequestDetail>(`/api/requests/${requestId}`);
+      setRequest(data);
+      initEditForm(data);
+    } catch {
+      // Silent refresh failure - don't overwrite existing data
     }
   };
 
@@ -336,21 +325,12 @@ export default function RequestDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setError(data.error || "Failed to update status");
-        return;
-      }
+      await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
       setPreviousStatus(oldStatus);
       await refreshRequest();
     } catch (err) {
-      setError("Failed to update status");
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to update status");
     } finally {
       setSaving(false);
     }
@@ -361,18 +341,11 @@ export default function RequestDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(`/api/requests/${requestId}/archive`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setError(data.error?.message || data.error || "Failed to restore request");
-        return;
-      }
+      await fetchApi(`/api/requests/${requestId}/archive`, { method: "DELETE" });
       await refreshRequest();
     } catch (err) {
-      setError("Failed to restore request");
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to restore request");
     } finally {
       setSaving(false);
     }
@@ -387,15 +360,9 @@ export default function RequestDetailPage() {
     if (!renameValue.trim()) return;
     setSavingRename(true);
     try {
-      const response = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary: renameValue.trim() }),
-      });
-      if (response.ok) {
-        await refreshRequest();
-        setRenaming(false);
-      }
+      await postApi(`/api/requests/${requestId}`, { summary: renameValue.trim() }, { method: "PATCH" });
+      await refreshRequest();
+      setRenaming(false);
     } catch (err) {
       setError("Failed to rename");
     } finally {
@@ -448,21 +415,12 @@ export default function RequestDetailPage() {
         best_times_seen: editForm.best_times_seen || null,
         handleability: editForm.handleability || null,
       };
-      const response = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setError(data.error || "Failed to save changes");
-        return;
-      }
+      await postApi(`/api/requests/${requestId}`, payload, { method: "PATCH" });
       await refreshRequest();
       setEditing(false);
     } catch (err) {
-      setError("Failed to save changes");
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to save changes");
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface StaffUser {
   staff_id: string;
@@ -44,8 +45,9 @@ export function useCurrentUser(): UseCurrentUserResult {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/me");
-      const data = await res.json();
+      const data = await fetchApi<{ authenticated: boolean; staff?: StaffUser }>(
+        "/api/auth/me"
+      );
 
       if (data.authenticated && data.staff) {
         cachedUser = data.staff;

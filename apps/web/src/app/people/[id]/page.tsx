@@ -16,6 +16,7 @@ import { TabBar, TabPanel } from "@/components/ui";
 import { VerificationPanel } from "@/components/verification";
 import { validatePersonName } from "@/lib/validation";
 import { formatDateLocal, formatPhone, isValidPhone, extractPhones } from "@/lib/formatters";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Cat {
   cat_id: string;
@@ -305,33 +306,21 @@ export default function PersonDetailPage() {
 
   const fetchPerson = useCallback(async () => {
     try {
-      const response = await fetch(`/api/people/${id}`);
-      if (response.status === 404) {
-        setError("Person not found");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Failed to fetch person details");
-      }
-      const result = await response.json();
-      if (result.success) {
-        setPerson(result.data);
-      } else {
-        throw new Error(result.error?.message || "Failed to fetch person details");
-      }
+      const data = await fetchApi<PersonDetail>(`/api/people/${id}`);
+      setPerson(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (err instanceof Error && err.message.toLowerCase().includes("not found")) {
+        setError("Person not found");
+      } else {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     }
   }, [id]);
 
   const fetchJournal = useCallback(async () => {
     try {
-      const response = await fetch(`/api/journal?person_id=${id}&limit=50&include_related=true`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setJournal(data.entries || []);
-      }
+      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?person_id=${id}&limit=50&include_related=true`);
+      setJournal(data.entries || []);
     } catch (err) {
       console.error("Failed to fetch journal:", err);
     }
@@ -339,13 +328,8 @@ export default function PersonDetailPage() {
 
   const fetchRequests = useCallback(async () => {
     try {
-      const response = await fetch(`/api/requests?person_id=${id}&limit=10`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setRequests(result.data.requests || []);
-        }
-      }
+      const data = await fetchApi<{ requests: RelatedRequest[] }>(`/api/requests?person_id=${id}&limit=10`);
+      setRequests(data.requests || []);
     } catch (err) {
       console.error("Failed to fetch requests:", err);
     }
@@ -353,17 +337,11 @@ export default function PersonDetailPage() {
 
   const fetchTrapperInfo = useCallback(async () => {
     try {
-      const response = await fetch(`/api/people/${id}/trapper-stats`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setTrapperInfo({
-          trapper_type: data.trapper_type,
-          is_ffsc_trapper: data.is_ffsc_trapper,
-        });
-      } else {
-        setTrapperInfo(null);
-      }
+      const data = await fetchApi<{ trapper_type: string; is_ffsc_trapper: boolean }>(`/api/people/${id}/trapper-stats`);
+      setTrapperInfo({
+        trapper_type: data.trapper_type,
+        is_ffsc_trapper: data.is_ffsc_trapper,
+      });
     } catch {
       setTrapperInfo(null);
     }
@@ -371,14 +349,11 @@ export default function PersonDetailPage() {
 
   const fetchVolunteerRoles = useCallback(async () => {
     try {
-      const response = await fetch(`/api/people/${id}/roles`);
-      if (response.ok) {
-        const data: VolunteerRolesData = await response.json();
-        if (data.roles && data.roles.length > 0) {
-          setVolunteerRoles(data);
-        } else {
-          setVolunteerRoles(null);
-        }
+      const data = await fetchApi<VolunteerRolesData>(`/api/people/${id}/roles`);
+      if (data.roles && data.roles.length > 0) {
+        setVolunteerRoles(data);
+      } else {
+        setVolunteerRoles(null);
       }
     } catch {
       setVolunteerRoles(null);
@@ -406,19 +381,12 @@ export default function PersonDetailPage() {
     if (!pendingPlace) return;
     setSavingAddress(true);
     try {
-      const response = await fetch(`/api/people/${id}/address`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          place_id: pendingPlace.place_id,
-        }),
-      });
-
-      if (response.ok) {
-        await fetchPerson();
-        setEditingContact(false);
-        setPendingPlace(null);
-      }
+      await postApi(`/api/people/${id}/address`, {
+        place_id: pendingPlace.place_id,
+      }, { method: "PATCH" });
+      await fetchPerson();
+      setEditingContact(false);
+      setPendingPlace(null);
     } catch (err) {
       console.error("Failed to save address:", err);
     } finally {
@@ -431,13 +399,8 @@ export default function PersonDetailPage() {
 
     setSavingAddress(true);
     try {
-      const response = await fetch(`/api/people/${id}/address`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        await fetchPerson();
-      }
+      await postApi(`/api/people/${id}/address`, {}, { method: "DELETE" });
+      await fetchPerson();
     } catch (err) {
       console.error("Failed to remove address:", err);
     } finally {
@@ -466,27 +429,16 @@ export default function PersonDetailPage() {
     setIdentifierError(null);
 
     try {
-      const response = await fetch(`/api/people/${id}/identifiers`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: editPhone || null,
-          email: editEmail || null,
-          change_reason: "contact_update",
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setIdentifierError(result.error || "Failed to save changes");
-        return;
-      }
+      await postApi(`/api/people/${id}/identifiers`, {
+        phone: editPhone || null,
+        email: editEmail || null,
+        change_reason: "contact_update",
+      }, { method: "PATCH" });
 
       await fetchPerson();
       setEditingIdentifiers(false);
-    } catch {
-      setIdentifierError("Network error while saving");
+    } catch (err) {
+      setIdentifierError(err instanceof Error ? err.message : "Network error while saving");
     } finally {
       setSavingIdentifiers(false);
     }
@@ -529,27 +481,16 @@ export default function PersonDetailPage() {
     setNameWarning(null);
 
     try {
-      const response = await fetch(`/api/people/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: combinedName,
-          change_reason: "name_correction",
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setNameError(result.error || "Failed to save name");
-        return;
-      }
+      await postApi(`/api/people/${id}`, {
+        display_name: combinedName,
+        change_reason: "name_correction",
+      }, { method: "PATCH" });
 
       setNameWarning(`Previous name "${person?.display_name}" preserved as alias. Staff can still search by the old name.`);
       await fetchPerson();
       setEditingName(false);
-    } catch {
-      setNameError("Network error while saving");
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : "Network error while saving");
     } finally {
       setSavingName(false);
     }
@@ -563,23 +504,13 @@ export default function PersonDetailPage() {
     setAliasError(null);
 
     try {
-      const response = await fetch(`/api/people/${id}/aliases`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-
-      const result = await response.json();
-      if (!response.ok) {
-        setAliasError(result.error || "Failed to add alias");
-        return;
-      }
+      await postApi(`/api/people/${id}/aliases`, { name });
 
       setNewAliasName("");
       setAddingAlias(false);
       await fetchPerson();
-    } catch {
-      setAliasError("Network error");
+    } catch (err) {
+      setAliasError(err instanceof Error ? err.message : "Network error");
     } finally {
       setSavingAlias(false);
     }
@@ -587,15 +518,8 @@ export default function PersonDetailPage() {
 
   const handleDeleteAlias = async (aliasId: string) => {
     try {
-      const response = await fetch(`/api/people/${id}/aliases`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alias_id: aliasId }),
-      });
-
-      if (response.ok) {
-        await fetchPerson();
-      }
+      await postApi(`/api/people/${id}/aliases`, { alias_id: aliasId }, { method: "DELETE" });
+      await fetchPerson();
     } catch {
       // Silently fail — alias will remain visible
     }

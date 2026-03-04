@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { fetchApi } from "@/lib/api-client";
 import { EntityPreview } from "@/components/search";
 import { GroupedSearchResult } from "@/components/search";
 import { formatPhone } from "@/lib/formatters";
@@ -134,11 +135,9 @@ function SearchContent() {
     params.set("limit", "50");
 
     try {
-      const response = await fetch(`/api/search?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error("Search failed");
-      }
-      const result = await response.json();
+      const result = await fetchApi<SearchResponse | DeepSearchResponse>(
+        `/api/search?${params.toString()}`
+      );
       setData(result);
 
       // Update URL without reloading
