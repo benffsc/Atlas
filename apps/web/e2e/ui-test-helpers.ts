@@ -236,11 +236,9 @@ export async function expectTabExists(page: Page, label: string) {
  * Works with the standardized TabBar from @/components/ui
  */
 export async function switchToTabBarTab(page: Page, tabLabel: string) {
-  // Find tab button by text content (TabBar uses buttons with text labels)
-  const tab = page.locator(`button:has-text("${tabLabel}")`).first();
+  const tab = page.locator(`[role="tab"]:has-text("${tabLabel}")`).first();
   await tab.click();
   await page.waitForLoadState('networkidle');
-  // Short wait for tab panel transition
   await page.waitForTimeout(300);
 }
 
@@ -249,38 +247,17 @@ export async function switchToTabBarTab(page: Page, tabLabel: string) {
  * Looks for common tab labels used across entity detail pages
  */
 export async function expectTabBarVisible(page: Page) {
-  // TabBar contains multiple tab buttons - look for common tab patterns
-  const tabPatterns = [
-    'button:has-text("Details")',
-    'button:has-text("Activity")',
-    'button:has-text("Linked Cats")',
-    'button:has-text("Photos")',
-    'button:has-text("Admin")',
-    'button:has-text("History")',
-    'button:has-text("Requests")',
-    'button:has-text("Ecology")',
-    'button:has-text("Media")',
-  ];
-
-  // Check if at least 2 tab-like buttons are visible (indicates TabBar)
-  let tabCount = 0;
-  for (const pattern of tabPatterns) {
-    const tab = page.locator(pattern).first();
-    if (await tab.isVisible({ timeout: 1000 }).catch(() => false)) {
-      tabCount++;
-      if (tabCount >= 2) break;
-    }
-  }
-
-  expect(tabCount).toBeGreaterThanOrEqual(2);
+  const tablist = page.locator('[role="tablist"]').first();
+  await expect(tablist).toBeVisible({ timeout: 5000 });
+  const tabs = tablist.locator('[role="tab"]');
+  expect(await tabs.count()).toBeGreaterThanOrEqual(2);
 }
 
 /**
  * Get the currently active TabBar tab label
  */
 export async function getActiveTabBarTab(page: Page): Promise<string | null> {
-  // Active tab has fontWeight 600 and a specific border style
-  const activeTab = page.locator('button[style*="fontWeight: 600"]').first();
+  const activeTab = page.locator('[role="tab"][aria-selected="true"]').first();
   if (await activeTab.isVisible().catch(() => false)) {
     return await activeTab.textContent();
   }
@@ -291,7 +268,7 @@ export async function getActiveTabBarTab(page: Page): Promise<string | null> {
  * Get count badge value from a TabBar tab
  */
 export async function getTabBarBadgeCount(page: Page, tabLabel: string): Promise<number | null> {
-  const tab = page.locator(`button:has-text("${tabLabel}")`).first();
+  const tab = page.locator(`[role="tab"]:has-text("${tabLabel}")`).first();
   const badge = tab.locator('span[style*="borderRadius: 999px"]');
   if (await badge.isVisible().catch(() => false)) {
     const text = await badge.textContent();

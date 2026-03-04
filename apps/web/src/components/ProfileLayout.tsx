@@ -54,10 +54,13 @@ export function ProfileLayout({ header, tabs, defaultTab, children }: ProfileLay
       {header}
 
       {visibleTabs.length > 1 && (
-        <div className="profile-tabs">
+        <div className="profile-tabs" role="tablist">
           {visibleTabs.map((tab) => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              data-testid={`tab-${tab.id}`}
               className={`profile-tab${activeTab === tab.id ? " active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
             >

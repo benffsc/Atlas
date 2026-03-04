@@ -40,6 +40,7 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
 
   return (
     <div
+      role="tablist"
       style={{
         display: "flex",
         gap: "0.25rem",
@@ -52,6 +53,9 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
         return (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            data-testid={`tab-${tab.id}`}
             onClick={() => onTabChange(tab.id)}
             style={{
               padding,
@@ -110,7 +114,7 @@ interface TabPanelProps {
  */
 export function TabPanel({ children, tabId, activeTab }: TabPanelProps) {
   if (tabId !== activeTab) return null;
-  return <div>{children}</div>;
+  return <div role="tabpanel" data-testid={`tabpanel-${tabId}`}>{children}</div>;
 }
 
 export default TabBar;
