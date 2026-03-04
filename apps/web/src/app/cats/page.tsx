@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 
 interface Cat {
   cat_id: string;
@@ -71,21 +72,15 @@ function CatsPageContent() {
     params.set("offset", String(page * limit));
 
     try {
-      const response = await fetch(`/api/cats?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch cats");
-      const result = await response.json();
-      if (result.success) {
-        setData({
-          cats: result.data.cats || [],
-          total: result.meta?.total || 0,
-          limit: result.meta?.limit || limit,
-          offset: result.meta?.offset || 0,
-        });
-      } else {
-        throw new Error(result.error?.message || "Failed to fetch cats");
-      }
+      const result = await fetchApiWithMeta<{ cats: Cat[] }>(`/api/cats?${params.toString()}`);
+      setData({
+        cats: result.data.cats || [],
+        total: result.meta?.total || 0,
+        limit: result.meta?.limit || limit,
+        offset: result.meta?.offset || 0,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }

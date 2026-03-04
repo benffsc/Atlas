@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ReviewRecord {
   person_id: string;
@@ -50,9 +51,7 @@ export default function DataQualityReviewPage() {
         offset: String(page * limit),
       });
       if (sourceFilter) params.set("source", sourceFilter);
-      const response = await fetch(`/api/admin/data-quality/review?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch");
-      const result = await response.json();
+      const result = await fetchApi<ReviewResponse>(`/api/admin/data-quality/review?${params}`);
       setData(result);
       setError(null);
     } catch (err) {
@@ -76,15 +75,7 @@ export default function DataQualityReviewPage() {
       if (action === "merge" && mergeTarget[personId]) {
         body.merge_target_id = mergeTarget[personId];
       }
-      const response = await fetch("/api/admin/data-quality/review", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed");
-      }
+      await postApi("/api/admin/data-quality/review", body, { method: "PATCH" });
       // Remove from list
       if (data) {
         setData({

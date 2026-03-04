@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ReminderCard } from "@/components/cards";
 import { LookupViewerModal } from "@/components/modals";
-import { fetchApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Reminder {
   reminder_id: string;
@@ -68,19 +68,15 @@ export default function MyDashboardPage() {
   const fetchReminders = async (status: ReminderFilter) => {
     setLoadingReminders(true);
     try {
-      const res = await fetch(`/api/me/reminders?status=${status}`);
-      if (!res.ok) {
-        if (res.status === 401) {
-          setReminders([]);
-          return;
-        }
-        throw new Error("Failed to fetch");
-      }
-      const result = await res.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ reminders: Reminder[] }>(`/api/me/reminders?status=${status}`);
       setReminders(data.reminders || []);
     } catch (err) {
-      console.error("Error fetching reminders:", err);
+      // 401 means not logged in — just show empty
+      if (err instanceof Error && "code" in err && (err as { code: number }).code === 401) {
+        setReminders([]);
+      } else {
+        console.error("Error fetching reminders:", err);
+      }
     } finally {
       setLoadingReminders(false);
     }
@@ -88,19 +84,14 @@ export default function MyDashboardPage() {
 
   const fetchLookups = async () => {
     try {
-      const res = await fetch("/api/me/lookups");
-      if (!res.ok) {
-        if (res.status === 401) {
-          setLookups([]);
-          return;
-        }
-        throw new Error("Failed to fetch");
-      }
-      const result = await res.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ lookups: Lookup[] }>("/api/me/lookups");
       setLookups(data.lookups || []);
     } catch (err) {
-      console.error("Error fetching lookups:", err);
+      if (err instanceof Error && "code" in err && (err as { code: number }).code === 401) {
+        setLookups([]);
+      } else {
+        console.error("Error fetching lookups:", err);
+      }
     } finally {
       setLoadingLookups(false);
     }
@@ -109,20 +100,15 @@ export default function MyDashboardPage() {
   const fetchMessages = async (status: MessageFilter) => {
     setLoadingMessages(true);
     try {
-      const res = await fetch(`/api/me/messages?status=${status}`);
-      if (!res.ok) {
-        if (res.status === 401) {
-          setMessages([]);
-          return;
-        }
-        throw new Error("Failed to fetch");
-      }
-      const result = await res.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ messages: StaffMessage[]; unread_count: number }>(`/api/me/messages?status=${status}`);
       setMessages(data.messages || []);
       setUnreadCount(data.unread_count || 0);
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      if (err instanceof Error && "code" in err && (err as { code: number }).code === 401) {
+        setMessages([]);
+      } else {
+        console.error("Error fetching messages:", err);
+      }
     } finally {
       setLoadingMessages(false);
     }
@@ -143,56 +129,48 @@ export default function MyDashboardPage() {
   }, [messageFilter]);
 
   const handleComplete = async (id: string) => {
-    const res = await fetch(`/api/me/reminders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "completed" }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/reminders/${id}`, { status: "completed" }, { method: "PATCH" });
       fetchReminders(reminderFilter);
+    } catch (err) {
+      console.error("Error completing reminder:", err);
     }
   };
 
   const handleSnooze = async (id: string, until: string) => {
-    const res = await fetch(`/api/me/reminders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snooze_until: until }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/reminders/${id}`, { snooze_until: until }, { method: "PATCH" });
       fetchReminders(reminderFilter);
+    } catch (err) {
+      console.error("Error snoozing reminder:", err);
     }
   };
 
   const handleArchiveReminder = async (id: string) => {
-    const res = await fetch(`/api/me/reminders/${id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
+    try {
+      await fetchApi(`/api/me/reminders/${id}`, { method: "DELETE" });
       fetchReminders(reminderFilter);
+    } catch (err) {
+      console.error("Error archiving reminder:", err);
     }
   };
 
   const handleMarkMessageRead = async (id: string) => {
-    const res = await fetch(`/api/me/messages/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "read" }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/messages/${id}`, { status: "read" }, { method: "PATCH" });
       fetchMessages(messageFilter);
+    } catch (err) {
+      console.error("Error marking message as read:", err);
     }
   };
 
   const handleArchiveMessage = async (id: string) => {
-    const res = await fetch(`/api/me/messages/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "archived" }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/messages/${id}`, { status: "archived" }, { method: "PATCH" });
       fetchMessages(messageFilter);
       setSelectedMessage(null);
+    } catch (err) {
+      console.error("Error archiving message:", err);
     }
   };
 
@@ -218,12 +196,8 @@ export default function MyDashboardPage() {
   const handleViewLookup = async (lookup: Lookup) => {
     setLoadingLookupDetail(true);
     try {
-      const res = await fetch(`/api/me/lookups/${lookup.lookup_id}`);
-      if (res.ok) {
-        const result = await res.json();
-        const data = result.data || result;
-        setSelectedLookup(data.lookup);
-      }
+      const data = await fetchApi<{ lookup: Lookup }>(`/api/me/lookups/${lookup.lookup_id}`);
+      setSelectedLookup(data.lookup);
     } catch (err) {
       console.error("Error fetching lookup detail:", err);
     } finally {
@@ -232,22 +206,20 @@ export default function MyDashboardPage() {
   };
 
   const handleArchiveLookup = async (id: string) => {
-    const res = await fetch(`/api/me/lookups/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "archived" }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/lookups/${id}`, { status: "archived" }, { method: "PATCH" });
       fetchLookups();
+    } catch (err) {
+      console.error("Error archiving lookup:", err);
     }
   };
 
   const handleDeleteLookup = async (id: string) => {
-    const res = await fetch(`/api/me/lookups/${id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
+    try {
+      await fetchApi(`/api/me/lookups/${id}`, { method: "DELETE" });
       fetchLookups();
+    } catch (err) {
+      console.error("Error deleting lookup:", err);
     }
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -157,23 +158,15 @@ export default function DiseaseStatusSection({
       setError(null);
       setUnavailable(false);
 
-      const res = await fetch(`/api/places/${placeId}/disease-status`);
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        // If tables don't exist yet (MIG_814), show unavailable
-        if (res.status === 500 || res.status === 404) {
-          setUnavailable(true);
-          return;
-        }
-        throw new Error(body.error || "Failed to fetch disease status");
-      }
-
-      const result: DiseaseStatusResponse = await res.json();
+      const result = await fetchApi<DiseaseStatusResponse>(
+        `/api/places/${placeId}/disease-status`
+      );
       setData(result);
     } catch (err) {
-      // Catch network errors or table-not-found scenarios
-      if (
+      // If tables don't exist yet (MIG_814), show unavailable
+      if (err instanceof ApiError && (err.code === 500 || err.code === 404)) {
+        setUnavailable(true);
+      } else if (
         err instanceof Error &&
         (err.message.includes("relation") ||
           err.message.includes("does not exist") ||
@@ -201,21 +194,12 @@ export default function DiseaseStatusSection({
     setSaving(true);
 
     try {
-      const res = await fetch(`/api/places/${placeId}/disease-status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          disease_key: activeOverride.diseaseKey,
-          action: activeOverride.action,
-          notes: overrideNotes || null,
-          staff_id: "staff",
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to update disease status");
-      }
+      await postApi(`/api/places/${placeId}/disease-status`, {
+        disease_key: activeOverride.diseaseKey,
+        action: activeOverride.action,
+        notes: overrideNotes || null,
+        staff_id: "staff",
+      }, { method: "PATCH" });
 
       // Reset override UI
       setActiveOverride(null);
@@ -238,21 +222,12 @@ export default function DiseaseStatusSection({
     setAddSaving(true);
 
     try {
-      const res = await fetch(`/api/places/${placeId}/disease-status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          disease_key: addDiseaseKey,
-          action: "suspect",
-          notes: addNotes || null,
-          staff_id: "staff",
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to add disease flag");
-      }
+      await postApi(`/api/places/${placeId}/disease-status`, {
+        disease_key: addDiseaseKey,
+        action: "suspect",
+        notes: addNotes || null,
+        staff_id: "staff",
+      }, { method: "PATCH" });
 
       // Reset form
       setShowAddForm(false);

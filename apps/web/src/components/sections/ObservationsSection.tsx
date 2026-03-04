@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchApi } from '@/lib/api-client';
 import { LogObservationModal } from '@/components/modals';
 import { formatRelativeDate } from '@/lib/formatters';
 
@@ -46,9 +47,9 @@ export default function ObservationsSection({
   const fetchObservations = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/places/${placeId}/observations`);
-      if (!res.ok) throw new Error('Failed to fetch observations');
-      const data = await res.json();
+      const data = await fetchApi<{ observations: Observation[] }>(
+        `/api/places/${placeId}/observations`
+      );
       setObservations(data.observations || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

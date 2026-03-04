@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { fetchApi } from '@/lib/api-client';
 
 interface ClinicNote {
   account_id: string;
@@ -37,9 +38,9 @@ export default function ClinicNotesSection({ personId, placeId }: ClinicNotesSec
     if (placeId) params.set('place_id', placeId);
 
     try {
-      const res = await fetch(`/api/clinic-notes?${params}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await fetchApi<{ notes: ClinicNote[] }>(
+        `/api/clinic-notes?${params}`
+      );
       setNotes(data.notes || []);
     } catch {
       // silent fail

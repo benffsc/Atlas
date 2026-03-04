@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ProposedCorrection {
   correction_id: string;
@@ -66,9 +67,10 @@ export default function TippyCorrectionsPage() {
   const fetchCorrections = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/tippy-corrections?status=${activeTab}`);
-      if (!res.ok) throw new Error("Failed to fetch corrections");
-      const data = await res.json();
+      const data = await fetchApi<{
+        corrections: ProposedCorrection[];
+        stats: CorrectionStats;
+      }>(`/api/admin/tippy-corrections?status=${activeTab}`);
       setCorrections(data.corrections);
       setStats(data.stats);
     } catch (err) {
@@ -85,16 +87,10 @@ export default function TippyCorrectionsPage() {
   const updateStatus = async (correctionId: string, newStatus: string) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/tippy-corrections/${correctionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          review_notes: reviewNotes || null,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update");
+      await postApi(`/api/admin/tippy-corrections/${correctionId}`, {
+        status: newStatus,
+        review_notes: reviewNotes || null,
+      }, { method: "PATCH" });
 
       setSelectedCorrection(null);
       setReviewNotes("");
@@ -109,15 +105,7 @@ export default function TippyCorrectionsPage() {
   const applyCorrection = async (correctionId: string) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/tippy-corrections/${correctionId}/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to apply correction");
-      }
+      await postApi(`/api/admin/tippy-corrections/${correctionId}/apply`, {});
 
       setSelectedCorrection(null);
       fetchCorrections();

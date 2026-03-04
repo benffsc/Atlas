@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BackButton } from "@/components/common";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface PlaceUnit {
   place_id: string;
@@ -59,11 +60,7 @@ export default function LinkGoogleMapEntryPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/google-map-entries/${entryId}/nearby-places`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch entry data");
-      }
-      const result = await response.json();
+      const result = await fetchApi<EntryData>(`/api/google-map-entries/${entryId}/nearby-places`);
       setData(result);
 
       // Auto-select if AI suggestion exists
@@ -90,16 +87,7 @@ export default function LinkGoogleMapEntryPage() {
 
     setLinking(true);
     try {
-      const response = await fetch(`/api/google-map-entries/${entryId}/link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ place_id: placeToLink }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to link entry");
-      }
+      await postApi(`/api/google-map-entries/${entryId}/link`, { place_id: placeToLink });
 
       // Success - redirect back to map
       router.push("/map");

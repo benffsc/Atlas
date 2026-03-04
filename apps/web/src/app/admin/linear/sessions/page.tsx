@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { COLORS, SPACING, TYPOGRAPHY, BORDERS } from "@/lib/design-tokens";
 import { EmptyState, EmptySearchResults } from "@/components/feedback/EmptyState";
+import { fetchApi } from "@/lib/api-client";
 
 // ============================================================================
 // Types
@@ -330,15 +331,12 @@ export default function LinearSessionsPage() {
       if (search) params.set("q", search);
       if (statusFilter) params.set("status", statusFilter);
 
-      const res = await fetch(`/api/admin/linear/sessions?${params}`);
-      const result = await res.json();
+      const data = await fetchApi<{ sessions: Session[]; total: number }>(
+        `/api/admin/linear/sessions?${params}`
+      );
 
-      if (!res.ok || !result.success) {
-        throw new Error(result.error?.message || "Failed to fetch sessions");
-      }
-
-      setSessions(result.data.sessions);
-      setTotal(result.data.total);
+      setSessions(data.sessions);
+      setTotal(data.total);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ReminderCard } from "@/components/cards";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Reminder {
   reminder_id: string;
@@ -27,18 +28,15 @@ export function MyItemsWidget({ maxItems = 3 }: MyItemsWidgetProps) {
 
   const fetchReminders = async () => {
     try {
-      const res = await fetch("/api/me/reminders?status=pending");
-      if (!res.ok) {
-        if (res.status === 401) {
-          setReminders([]);
-          return;
-        }
-        throw new Error("Failed to fetch reminders");
-      }
-      const data = await res.json();
+      const data = await fetchApi<{ reminders: Reminder[] }>("/api/me/reminders?status=pending");
       setReminders(data.reminders || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      // 401 means not logged in — just show empty
+      if (err instanceof Error && "code" in err && (err as { code: number }).code === 401) {
+        setReminders([]);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to load");
+      }
     } finally {
       setLoading(false);
     }
@@ -49,24 +47,20 @@ export function MyItemsWidget({ maxItems = 3 }: MyItemsWidgetProps) {
   }, []);
 
   const handleComplete = async (id: string) => {
-    const res = await fetch(`/api/me/reminders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "completed" }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/reminders/${id}`, { status: "completed" }, { method: "PATCH" });
       setReminders((prev) => prev.filter((r) => r.reminder_id !== id));
+    } catch (err) {
+      console.error("Error completing reminder:", err);
     }
   };
 
   const handleSnooze = async (id: string, until: string) => {
-    const res = await fetch(`/api/me/reminders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ snooze_until: until }),
-    });
-    if (res.ok) {
+    try {
+      await postApi(`/api/me/reminders/${id}`, { snooze_until: until }, { method: "PATCH" });
       fetchReminders();
+    } catch (err) {
+      console.error("Error snoozing reminder:", err);
     }
   };
 

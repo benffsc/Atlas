@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface UnansweredQuestion {
   question_id: string;
@@ -74,9 +75,10 @@ export default function TippyGapsPage() {
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/tippy-gaps?status=${activeTab}`);
-      if (!res.ok) throw new Error("Failed to fetch questions");
-      const data = await res.json();
+      const data = await fetchApi<{
+        questions: UnansweredQuestion[];
+        stats: GapStats;
+      }>(`/api/admin/tippy-gaps?status=${activeTab}`);
       setQuestions(data.questions);
       setStats(data.stats);
     } catch (err) {
@@ -93,17 +95,11 @@ export default function TippyGapsPage() {
   const resolveQuestion = async (questionId: string, newStatus: string) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/tippy-gaps/${questionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resolution_status: newStatus,
-          resolution_notes: resolutionNotes || null,
-          related_view: relatedView || null,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update");
+      await postApi(`/api/admin/tippy-gaps/${questionId}`, {
+        resolution_status: newStatus,
+        resolution_notes: resolutionNotes || null,
+        related_view: relatedView || null,
+      }, { method: "PATCH" });
 
       setSelectedQuestion(null);
       setResolutionNotes("");

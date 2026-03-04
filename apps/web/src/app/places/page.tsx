@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 
 interface Place {
   place_id: string;
@@ -64,21 +65,15 @@ function PlacesPageContent() {
     params.set("offset", String(page * limit));
 
     try {
-      const response = await fetch(`/api/places?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch places");
-      const result = await response.json();
-      if (result.success) {
-        setData({
-          places: result.data.places || [],
-          total: result.meta?.total || 0,
-          limit: result.meta?.limit || limit,
-          offset: result.meta?.offset || 0,
-        });
-      } else {
-        throw new Error(result.error?.message || "Failed to fetch places");
-      }
+      const result = await fetchApiWithMeta<{ places: Place[] }>(`/api/places?${params.toString()}`);
+      setData({
+        places: result.data.places || [],
+        total: result.meta?.total || 0,
+        limit: result.meta?.limit || limit,
+        offset: result.meta?.offset || 0,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }

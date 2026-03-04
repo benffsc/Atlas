@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 
 interface Person {
   person_id: string;
@@ -55,21 +56,15 @@ function PeoplePageContent() {
     params.set("offset", String(page * limit));
 
     try {
-      const response = await fetch(`/api/people?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch people");
-      const result = await response.json();
-      if (result.success) {
-        setData({
-          people: result.data.people || [],
-          total: result.meta?.total || 0,
-          limit: result.meta?.limit || limit,
-          offset: result.meta?.offset || 0,
-        });
-      } else {
-        throw new Error(result.error?.message || "Failed to fetch people");
-      }
+      const result = await fetchApiWithMeta<{ people: Person[] }>(`/api/people?${params.toString()}`);
+      setData({
+        people: result.data.people || [],
+        total: result.meta?.total || 0,
+        limit: result.meta?.limit || limit,
+        offset: result.meta?.offset || 0,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
+import { fetchApi } from "@/lib/api-client";
 
 interface NearbyRequest {
   request_id: string;
@@ -120,11 +121,7 @@ export function NearbyEntities({ requestId, onCountsLoaded }: NearbyEntitiesProp
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/requests/${requestId}/nearby?radius=${radius}`);
-        if (!response.ok) {
-          throw new Error("Failed to load nearby entities");
-        }
-        const result = await response.json();
+        const result = await fetchApi<NearbyResponse>(`/api/requests/${requestId}/nearby?radius=${radius}`);
         setData(result);
 
         // Notify parent of counts

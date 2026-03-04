@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface Household {
   household_id: string;
@@ -40,9 +41,7 @@ export default function HouseholdsPage() {
   const fetchHouseholds = async (newOffset: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/data-engine/households?limit=${limit}&offset=${newOffset}`);
-      if (!res.ok) throw new Error("Failed to fetch households");
-      const data = await res.json();
+      const data = await fetchApi<{ households: Household[]; pagination?: { total: number } }>(`/api/admin/data-engine/households?limit=${limit}&offset=${newOffset}`);
       setHouseholds(data.households || []);
       setTotal(data.pagination?.total || 0);
       setOffset(newOffset);
@@ -60,9 +59,7 @@ export default function HouseholdsPage() {
   const loadHouseholdDetail = async (householdId: string) => {
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/admin/data-engine/households?household_id=${householdId}`);
-      if (!res.ok) throw new Error("Failed to fetch household");
-      const data = await res.json();
+      const data = await fetchApi<HouseholdDetail>(`/api/admin/data-engine/households?household_id=${householdId}`);
       setSelectedHousehold(data);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to load household");

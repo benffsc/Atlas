@@ -7,6 +7,7 @@ import {
   isTerminalStatus,
   type RequestStatus,
 } from "@/lib/request-status";
+import { postApi } from "@/lib/api-client";
 
 interface QuickAction {
   id: string;
@@ -115,14 +116,8 @@ function getRequestActions(
         icon: "▶️",
         onClick: async () => {
           try {
-            const response = await fetch(`/api/requests/${entityId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "working" }),
-            });
-            if (response.ok && onComplete) {
-              onComplete();
-            }
+            await postApi(`/api/requests/${entityId}`, { status: "working" }, { method: "PATCH" });
+            if (onComplete) onComplete();
           } catch (err) {
             console.error("Failed to update status:", err);
           }
@@ -200,14 +195,8 @@ function getRequestActions(
         icon: "▶️",
         onClick: async () => {
           try {
-            const response = await fetch(`/api/requests/${entityId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "working", hold_reason: null }),
-            });
-            if (response.ok && onComplete) {
-              onComplete();
-            }
+            await postApi(`/api/requests/${entityId}`, { status: "working", hold_reason: null }, { method: "PATCH" });
+            if (onComplete) onComplete();
           } catch (err) {
             console.error("Failed to update status:", err);
           }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface ClassificationSignal {
   value: string | number | boolean;
@@ -85,12 +86,9 @@ export function ClassificationSuggestionBanner({
   const handleAccept = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/classification-suggestion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept" }),
+      await postApi(`/api/requests/${requestId}/classification-suggestion`, {
+        action: "accept",
       });
-      if (!res.ok) throw new Error("Failed to accept suggestion");
       onUpdate();
     } catch (err) {
       console.error("Error accepting suggestion:", err);
@@ -107,17 +105,12 @@ export function ClassificationSuggestionBanner({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/classification-suggestion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "override",
-          override_classification: overrideValue,
-          reason: overrideReason,
-          authoritative_count: overrideValue === "individual_cats" && authoritativeCount ? authoritativeCount : null,
-        }),
+      await postApi(`/api/requests/${requestId}/classification-suggestion`, {
+        action: "override",
+        override_classification: overrideValue,
+        reason: overrideReason,
+        authoritative_count: overrideValue === "individual_cats" && authoritativeCount ? authoritativeCount : null,
       });
-      if (!res.ok) throw new Error("Failed to override suggestion");
       onUpdate();
     } catch (err) {
       console.error("Error overriding suggestion:", err);
@@ -131,12 +124,9 @@ export function ClassificationSuggestionBanner({
   const handleDismiss = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/requests/${requestId}/classification-suggestion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss" }),
+      await postApi(`/api/requests/${requestId}/classification-suggestion`, {
+        action: "dismiss",
       });
-      if (!res.ok) throw new Error("Failed to dismiss suggestion");
       onUpdate();
     } catch (err) {
       console.error("Error dismissing suggestion:", err);

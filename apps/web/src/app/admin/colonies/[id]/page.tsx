@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface ColonyDetail {
   colony_id: string;
@@ -191,16 +192,7 @@ export default function ColonyDetailPage() {
 
   const fetchColony = useCallback(async () => {
     try {
-      const response = await fetch(`/api/colonies/${id}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError("Colony not found");
-          return;
-        }
-        throw new Error("Failed to fetch colony");
-      }
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<ColonyDetail>(`/api/colonies/${id}`);
       setColony(data);
 
       // Initialize edit form
@@ -208,19 +200,19 @@ export default function ColonyDetailPage() {
       setEditStatus(data.status);
       setEditNotes(data.notes || "");
     } catch (err) {
+      if (err instanceof ApiError && err.code === 404) {
+        setError("Colony not found");
+        return;
+      }
       setError(err instanceof Error ? err.message : "Unknown error");
     }
   }, [id]);
 
   const fetchCats = useCallback(async () => {
     try {
-      const response = await fetch(`/api/colonies/${id}/cats`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = result.data || result;
-        setCats(data.cats || []);
-        setOwnedCats(data.owned_cats || []);
-      }
+      const data = await fetchApi<{ cats: LinkedCat[]; owned_cats: LinkedCat[] }>(`/api/colonies/${id}/cats`);
+      setCats(data.cats || []);
+      setOwnedCats(data.owned_cats || []);
     } catch (err) {
       console.error("Failed to fetch cats:", err);
     }
@@ -238,17 +230,11 @@ export default function ColonyDetailPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`/api/colonies/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          colony_name: editName,
-          status: editStatus,
-          notes: editNotes || null,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to update colony");
+      await postApi(`/api/colonies/${id}`, {
+        colony_name: editName,
+        status: editStatus,
+        notes: editNotes || null,
+      }, { method: "PATCH" });
 
       await fetchColony();
       setShowEditModal(false);
@@ -264,17 +250,11 @@ export default function ColonyDetailPage() {
 
     setAddingPlace(true);
     try {
-      const response = await fetch(`/api/colonies/${id}/places`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          place_id: selectedPlaceId,
-          is_primary: colony?.places.length === 0,
-          added_by: "staff",
-        }),
+      await postApi(`/api/colonies/${id}/places`, {
+        place_id: selectedPlaceId,
+        is_primary: colony?.places.length === 0,
+        added_by: "staff",
       });
-
-      if (!response.ok) throw new Error("Failed to add place");
 
       await Promise.all([fetchColony(), fetchCats()]);
       setShowAddPlace(false);
@@ -292,12 +272,10 @@ export default function ColonyDetailPage() {
     if (!confirm("Remove this place from the colony?")) return;
 
     try {
-      const response = await fetch(
+      await fetchApi(
         `/api/colonies/${id}/places?placeId=${placeId}`,
         { method: "DELETE" }
       );
-
-      if (!response.ok) throw new Error("Failed to remove place");
 
       await Promise.all([fetchColony(), fetchCats()]);
     } catch (err) {
@@ -310,30 +288,22 @@ export default function ColonyDetailPage() {
     setObsWarning(null);
 
     try {
-      const response = await fetch(`/api/colonies/${id}/observations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          observation_date: obsDate,
-          total_cats: obsTotalCats ? parseInt(obsTotalCats) : null,
-          total_cats_confidence: obsTotalConfidence,
-          fixed_cats: obsFixedCats ? parseInt(obsFixedCats) : null,
-          fixed_cats_confidence: obsFixedConfidence,
-          notes: obsNotes || null,
-          observed_by: "staff",
-          override_discrepancy: override,
-        }),
+      const data = await postApi<{ warning?: boolean; message?: string }>(`/api/colonies/${id}/observations`, {
+        observation_date: obsDate,
+        total_cats: obsTotalCats ? parseInt(obsTotalCats) : null,
+        total_cats_confidence: obsTotalConfidence,
+        fixed_cats: obsFixedCats ? parseInt(obsFixedCats) : null,
+        fixed_cats_confidence: obsFixedConfidence,
+        notes: obsNotes || null,
+        observed_by: "staff",
+        override_discrepancy: override,
       });
 
-      const data = await response.json();
-
       if (data.warning && !override) {
-        setObsWarning(data.message);
+        setObsWarning(data.message || null);
         setAddingObs(false);
         return;
       }
-
-      if (!response.ok) throw new Error(data.error || "Failed to add observation");
 
       await fetchColony();
       setShowAddObservation(false);

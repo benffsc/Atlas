@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface YearlyBreakdown {
   requests: number;
@@ -40,11 +41,9 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
   useEffect(() => {
     async function fetchHistory() {
       try {
-        const response = await fetch(`/api/places/${placeId}/alteration-history`);
-        if (!response.ok) {
-          throw new Error("Failed to load alteration history");
-        }
-        const data = await response.json();
+        const data = await fetchApi<AlterationHistory>(
+          `/api/places/${placeId}/alteration-history`
+        );
         setHistory(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading history");

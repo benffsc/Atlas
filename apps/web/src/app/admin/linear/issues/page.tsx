@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { COLORS, SPACING, TYPOGRAPHY, BORDERS } from "@/lib/design-tokens";
 import { EmptyState, EmptySearchResults } from "@/components/feedback";
+import { fetchApi } from "@/lib/api-client";
 
 // ============================================================================
 // Types
@@ -172,15 +173,12 @@ export default function LinearIssuesPage() {
       if (stateType) params.set("state_type", stateType);
       if (linked) params.set("linked", linked);
 
-      const res = await fetch(`/api/admin/linear/issues?${params}`);
-      const result = await res.json();
+      const data = await fetchApi<{ issues: LinearIssue[]; total: number }>(
+        `/api/admin/linear/issues?${params}`
+      );
 
-      if (!res.ok || !result.success) {
-        throw new Error(result.error?.message || "Failed to fetch issues");
-      }
-
-      setIssues(result.data.issues);
-      setTotal(result.data.total);
+      setIssues(data.issues);
+      setTotal(data.total);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

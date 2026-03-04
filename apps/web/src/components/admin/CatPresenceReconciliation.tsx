@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface CatPresence {
   cat_place_id: string;
@@ -89,9 +90,9 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
 
   const fetchPresence = useCallback(async () => {
     try {
-      const res = await fetch(`/api/places/${placeId}/cat-presence`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
+      const data = await fetchApi<{ cats: CatPresence[]; summary: ReconciliationSummary | null }>(
+        `/api/places/${placeId}/cat-presence`
+      );
       setCats(data.cats || []);
       setSummary(data.summary || null);
     } catch (error) {
@@ -112,20 +113,15 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
   ) => {
     setUpdating(catId);
     try {
-      const res = await fetch(`/api/places/${placeId}/cat-presence`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          updates: [
-            {
-              cat_id: catId,
-              presence_status: status,
-              departure_reason: reason,
-            },
-          ],
-        }),
+      await postApi(`/api/places/${placeId}/cat-presence`, {
+        updates: [
+          {
+            cat_id: catId,
+            presence_status: status,
+            departure_reason: reason,
+          },
+        ],
       });
-      if (!res.ok) throw new Error("Failed to update");
       await fetchPresence();
       onUpdate?.();
     } catch (error) {
@@ -142,12 +138,9 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
 
     setUpdating("bulk");
     try {
-      const res = await fetch(`/api/places/${placeId}/cat-presence`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "mark_old_as_departed" }),
-      });
-      if (!res.ok) throw new Error("Failed to update");
+      await postApi(`/api/places/${placeId}/cat-presence`, {
+        action: "mark_old_as_departed",
+      }, { method: "PATCH" });
       await fetchPresence();
       onUpdate?.();
     } catch (error) {

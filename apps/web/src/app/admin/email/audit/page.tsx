@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { fetchApi } from "@/lib/api-client";
 
 interface EmailAuditEntry {
   email_id: string;
@@ -64,9 +65,11 @@ export default function EmailAuditPage() {
       params.set("limit", String(limit));
       params.set("offset", String(offset));
 
-      const response = await fetch(`/api/admin/email-audit?${params}`);
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{
+        emails: EmailAuditEntry[];
+        total: number;
+        filters: { templates: FilterOption[]; senders: FilterOption[] };
+      }>(`/api/admin/email-audit?${params}`);
 
       setEmails(data.emails || []);
       setTotal(data.total || 0);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { fetchApi } from '@/lib/api-client';
 import { AppointmentDetailModal } from '@/components/modals';
 
 interface AppointmentRow {
@@ -54,9 +55,9 @@ export default function ClinicHistorySection({ personId, placeId }: ClinicHistor
     params.set('limit', '200');
 
     try {
-      const res = await fetch(`/api/appointments?${params}`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await fetchApi<{ appointments: AppointmentRow[]; total: number }>(
+        `/api/appointments?${params}`
+      );
       setAppointments(data.appointments || []);
       setTotal(data.total || 0);
     } catch {

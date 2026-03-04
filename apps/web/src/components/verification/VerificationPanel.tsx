@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 import RoleSelector, { RelationshipType } from "./RoleSelector";
 import VerificationStatusBadge from "./VerificationStatusBadge";
 import FinancialCommitmentBadge, { FINANCIAL_COMMITMENTS, FinancialCommitment } from "./FinancialCommitmentBadge";
@@ -53,18 +54,15 @@ export default function VerificationPanel({
   const fetchPlaces = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/people/${personId}/places`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Failed to fetch places");
-        return;
-      }
+      const data = await fetchApi<{
+        places: PlaceForPerson[];
+        summary: { total: number; verified: number; unverified: number; by_type: Record<string, number> } | null;
+      }>(`/api/people/${personId}/places`);
 
       setPlaces(data.places || []);
       setSummary(data.summary || null);
     } catch (err) {
-      setError("Failed to fetch places");
+      setError(err instanceof Error ? err.message : "Failed to fetch places");
     } finally {
       setLoading(false);
     }
@@ -78,22 +76,16 @@ export default function VerificationPanel({
   ) => {
     setVerifyingId(personPlaceId);
     try {
-      const response = await fetch(`/api/person-place/${personPlaceId}/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          verification_method: "ui_button",
-          relationship_type: currentType,
-          financial_commitment: financialCommitment || null,
-          notes: notes || null,
-        }),
+      await postApi(`/api/person-place/${personPlaceId}/verify`, {
+        verification_method: "ui_button",
+        relationship_type: currentType,
+        financial_commitment: financialCommitment || null,
+        notes: notes || null,
       });
 
-      if (response.ok) {
-        await fetchPlaces();
-        setExpandedId(null);
-        onVerify?.(personPlaceId);
-      }
+      await fetchPlaces();
+      setExpandedId(null);
+      onVerify?.(personPlaceId);
     } catch (err) {
       console.error("Verification failed:", err);
     } finally {
@@ -103,19 +95,15 @@ export default function VerificationPanel({
 
   const handleRoleChange = async (personPlaceId: string, newRole: RelationshipType) => {
     try {
-      const response = await fetch(`/api/person-place/${personPlaceId}/role`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ relationship_type: newRole }),
-      });
+      await postApi(`/api/person-place/${personPlaceId}/role`, {
+        relationship_type: newRole,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        setPlaces(prev => prev.map(p =>
-          p.person_place_id === personPlaceId
-            ? { ...p, relationship_type: newRole }
-            : p
-        ));
-      }
+      setPlaces(prev => prev.map(p =>
+        p.person_place_id === personPlaceId
+          ? { ...p, relationship_type: newRole }
+          : p
+      ));
     } catch (err) {
       console.error("Role update failed:", err);
     }

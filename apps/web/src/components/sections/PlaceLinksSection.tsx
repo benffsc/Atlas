@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { EntityLink } from "@/components/common";
 
 interface PlaceEdge {
@@ -60,11 +61,9 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
 
   const fetchEdges = useCallback(async () => {
     try {
-      const response = await fetch(`/api/places/${placeId}/edges`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch place links");
-      }
-      const data = await response.json();
+      const data = await fetchApi<{ edges: PlaceEdge[]; relationshipTypes: RelationshipType[] }>(
+        `/api/places/${placeId}/edges`
+      );
       setEdges(data.edges || []);
       setRelationshipTypes(data.relationshipTypes || []);
     } catch (err) {
@@ -88,18 +87,15 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/places?q=${encodeURIComponent(searchQuery)}&limit=10`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            // Filter out the current place and already linked places
-            const linkedPlaceIds = new Set(edges.map(e => e.related_place_id));
-            const filtered = (result.data.places || []).filter(
-              (p: PlaceSearchResult) => p.place_id !== placeId && !linkedPlaceIds.has(p.place_id)
-            );
-            setSearchResults(filtered);
-          }
-        }
+        const result = await fetchApi<{ places: PlaceSearchResult[] }>(
+          `/api/places?q=${encodeURIComponent(searchQuery)}&limit=10`
+        );
+        // Filter out the current place and already linked places
+        const linkedPlaceIds = new Set(edges.map(e => e.related_place_id));
+        const filtered = (result.places || []).filter(
+          (p: PlaceSearchResult) => p.place_id !== placeId && !linkedPlaceIds.has(p.place_id)
+        );
+        setSearchResults(filtered);
       } catch (err) {
         console.error("Search error:", err);
       } finally {
@@ -120,23 +116,12 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
     setSaveError(null);
 
     try {
-      const response = await fetch(`/api/places/${placeId}/edges`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          related_place_id: selectedPlace.place_id,
-          relationship_type: selectedRelType,
-          note: linkNote || null,
-          created_by: "web_user",
-        }),
+      await postApi(`/api/places/${placeId}/edges`, {
+        related_place_id: selectedPlace.place_id,
+        relationship_type: selectedRelType,
+        note: linkNote || null,
+        created_by: "web_user",
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setSaveError(result.error || "Failed to create link");
-        return;
-      }
 
       // Reset and close modal
       setShowAddModal(false);
@@ -149,7 +134,7 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
       // Refresh edges
       await fetchEdges();
     } catch (err) {
-      setSaveError("Network error");
+      setSaveError(err instanceof ApiError ? err.message : "Network error");
     } finally {
       setSaving(false);
     }
@@ -157,25 +142,15 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
 
   const handleDeleteLink = async (edgeId: string) => {
     try {
-      const response = await fetch(`/api/places/${placeId}/edges`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          edge_id: edgeId,
-          deleted_by: "web_user",
-        }),
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        console.error("Delete failed:", result.error);
-        return;
-      }
+      await postApi(`/api/places/${placeId}/edges`, {
+        edge_id: edgeId,
+        deleted_by: "web_user",
+      }, { method: "DELETE" });
 
       // Refresh edges
       await fetchEdges();
     } catch (err) {
-      console.error("Delete error:", err);
+      console.error("Delete error:", err instanceof Error ? err.message : err);
     } finally {
       setDeletingEdge(null);
     }

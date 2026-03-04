@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface TemplateSuggestion {
   suggestion_id: string;
@@ -38,9 +39,7 @@ export default function TemplateSuggestionsPage() {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
 
-      const response = await fetch(`/api/admin/email-templates/suggestions?${params}`);
-      const result = await response.json();
-      const data = result.data || result;
+      const data = await fetchApi<{ suggestions: TemplateSuggestion[] }>(`/api/admin/email-templates/suggestions?${params}`);
       setSuggestions(data.suggestions || []);
     } catch (err) {
       console.error("Failed to fetch suggestions:", err);
@@ -58,23 +57,17 @@ export default function TemplateSuggestionsPage() {
     setProcessing(true);
 
     try {
-      const response = await fetch(`/api/admin/email-templates/suggestions/${selectedSuggestion.suggestion_id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, review_notes: reviewNotes }),
-      });
+      await postApi(`/api/admin/email-templates/suggestions/${selectedSuggestion.suggestion_id}`, {
+        action,
+        review_notes: reviewNotes,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        setSelectedSuggestion(null);
-        setReviewNotes("");
-        fetchSuggestions();
-      } else {
-        const data = await response.json();
-        alert(data.error || "Failed to process suggestion");
-      }
+      setSelectedSuggestion(null);
+      setReviewNotes("");
+      fetchSuggestions();
     } catch (err) {
       console.error("Failed to process suggestion:", err);
-      alert("Failed to process suggestion");
+      alert(err instanceof Error ? err.message : "Failed to process suggestion");
     } finally {
       setProcessing(false);
     }

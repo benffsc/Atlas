@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface Staff {
   staff_id: string;
@@ -63,21 +64,16 @@ export default function StaffProfilePage() {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch(`/api/staff/${staffId}`);
-      if (!res.ok) {
-        if (res.status === 404) {
-          setError("Staff member not found");
-        } else {
-          setError("Failed to load profile");
-        }
-        return;
-      }
-      const data = await res.json();
+      const data = await fetchApi<{ staff: Staff }>(`/api/staff/${staffId}`);
       setStaff(data.staff);
       setFormData(data.staff);
     } catch (err) {
-      console.error("Error fetching staff:", err);
-      setError("Failed to load profile");
+      if (err instanceof ApiError && err.code === 404) {
+        setError("Staff member not found");
+      } else {
+        console.error("Error fetching staff:", err);
+        setError("Failed to load profile");
+      }
     } finally {
       setLoading(false);
     }
@@ -86,15 +82,7 @@ export default function StaffProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/staff/${staffId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to save");
-      }
+      await postApi(`/api/staff/${staffId}`, formData, { method: "PATCH" });
 
       await fetchStaff();
       setEditMode(false);
@@ -119,16 +107,7 @@ export default function StaffProfilePage() {
     setPasswordSaving(true);
     setPasswordMessage("");
     try {
-      const res = await fetch(`/api/admin/auth/set-password/${staffId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: newPassword }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to set password");
-      }
+      await postApi(`/api/admin/auth/set-password/${staffId}`, { password: newPassword });
 
       setPasswordMessage("Password updated successfully!");
       setNewPassword("");

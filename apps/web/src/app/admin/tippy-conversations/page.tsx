@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface TippyConversation {
   conversation_id: string;
@@ -76,9 +77,11 @@ export default function TippyConversationsPage() {
       if (filterTool) params.set("tool", filterTool);
       if (filterHasFeedback) params.set("has_feedback", "true");
 
-      const res = await fetch(`/api/admin/tippy-conversations?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch conversations");
-      const data = await res.json();
+      const data = await fetchApi<{
+        conversations: TippyConversation[];
+        stats: Stats;
+        tools: string[];
+      }>(`/api/admin/tippy-conversations?${params}`);
       setConversations(data.conversations);
       setStats(data.stats);
       setTools(data.tools);
@@ -96,9 +99,9 @@ export default function TippyConversationsPage() {
   const fetchDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
     try {
-      const res = await fetch(`/api/admin/tippy-conversations/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch conversation");
-      const data = await res.json();
+      const data = await fetchApi<ConversationDetail>(
+        `/api/admin/tippy-conversations/${id}`
+      );
       setDetail(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load conversation");

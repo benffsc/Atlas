@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface DataImprovement {
   improvement_id: string;
@@ -82,9 +83,10 @@ export default function DataImprovementsPage() {
   const fetchImprovements = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/data-improvements?status=${activeTab}`);
-      if (!res.ok) throw new Error("Failed to fetch improvements");
-      const data = await res.json();
+      const data = await fetchApi<{
+        improvements: DataImprovement[];
+        counts: ImprovementCounts;
+      }>(`/api/admin/data-improvements?status=${activeTab}`);
       setImprovements(data.improvements);
       setCounts(data.counts);
     } catch (err) {
@@ -101,14 +103,7 @@ export default function DataImprovementsPage() {
   const updateImprovement = async (id: string, updates: Record<string, unknown>) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/data-improvements/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-
-      if (!res.ok) throw new Error("Failed to update");
-
+      await postApi(`/api/admin/data-improvements/${id}`, updates, { method: "PATCH" });
       fetchImprovements();
       setSelectedImprovement(null);
     } catch (err) {
@@ -120,6 +115,7 @@ export default function DataImprovementsPage() {
 
   const exportImprovements = async (format: "json" | "markdown") => {
     try {
+      // Export endpoints return raw text/JSON for download, not apiSuccess format
       const res = await fetch(`/api/admin/data-improvements/export?format=${format}`);
       if (!res.ok) throw new Error("Failed to export");
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface TippyFeedback {
   feedback_id: string;
@@ -69,9 +70,10 @@ export default function TippyFeedbackPage() {
   const fetchFeedback = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/tippy-feedback?status=${activeTab}`);
-      if (!res.ok) throw new Error("Failed to fetch feedback");
-      const data = await res.json();
+      const data = await fetchApi<{
+        feedback: TippyFeedback[];
+        counts: FeedbackCounts;
+      }>(`/api/admin/tippy-feedback?status=${activeTab}`);
       setFeedback(data.feedback);
       setCounts(data.counts);
     } catch (err) {
@@ -88,16 +90,10 @@ export default function TippyFeedbackPage() {
   const updateStatus = async (feedbackId: string, newStatus: string) => {
     setUpdating(true);
     try {
-      const res = await fetch(`/api/admin/tippy-feedback/${feedbackId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          review_notes: reviewNotes || null,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update");
+      await postApi(`/api/admin/tippy-feedback/${feedbackId}`, {
+        status: newStatus,
+        review_notes: reviewNotes || null,
+      }, { method: "PATCH" });
 
       // Refresh list
       fetchFeedback();

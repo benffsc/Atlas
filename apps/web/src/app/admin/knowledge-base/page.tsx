@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface KnowledgeArticle {
   article_id: string;
@@ -66,16 +67,17 @@ export default function KnowledgeBasePage() {
   // Load articles
   const loadArticles = async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (filterCategory) params.set("category", filterCategory);
-    if (showUnpublished) params.set("is_published", "false");
-    params.set("limit", "100");
+    try {
+      const params = new URLSearchParams();
+      if (filterCategory) params.set("category", filterCategory);
+      if (showUnpublished) params.set("is_published", "false");
+      params.set("limit", "100");
 
-    const res = await fetch(`/api/knowledge?${params}`);
-    if (res.ok) {
-      const data = await res.json();
+      const data = await fetchApi<{ articles: KnowledgeArticle[]; category_counts: CategoryCount[] }>(`/api/knowledge?${params}`);
       setArticles(data.articles || []);
       setCategoryCounts(data.category_counts || []);
+    } catch (err) {
+      console.error("Failed to load articles:", err);
     }
     setLoading(false);
   };
@@ -114,10 +116,9 @@ export default function KnowledgeBasePage() {
 
   // Open editor for existing article
   const openEditArticle = async (article: KnowledgeArticle) => {
-    // Fetch full article content
-    const res = await fetch(`/api/knowledge/${article.article_id}`);
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      // Fetch full article content
+      const data = await fetchApi<{ article: KnowledgeArticle }>(`/api/knowledge/${article.article_id}`);
       const full = data.article;
       setEditingArticle(full);
       setEditorForm({
@@ -131,6 +132,8 @@ export default function KnowledgeBasePage() {
         is_published: full.is_published,
       });
       setShowEditor(true);
+    } catch (err) {
+      console.error("Failed to load article:", err);
     }
   };
 
@@ -156,26 +159,18 @@ export default function KnowledgeBasePage() {
       is_published: editorForm.is_published,
     };
 
-    const res = editingArticle
-      ? await fetch(`/api/knowledge/${editingArticle.article_id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-      : await fetch("/api/knowledge", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-    setSaving(false);
-
-    if (res.ok) {
+    try {
+      if (editingArticle) {
+        await postApi(`/api/knowledge/${editingArticle.article_id}`, payload, { method: "PATCH" });
+      } else {
+        await postApi("/api/knowledge", payload);
+      }
       setShowEditor(false);
       loadArticles();
-    } else {
-      const err = await res.json();
-      alert(err.error || "Failed to save article");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save article");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -185,10 +180,10 @@ export default function KnowledgeBasePage() {
       return;
     }
 
-    const res = await fetch(`/api/knowledge/${articleId}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await fetchApi(`/api/knowledge/${articleId}`, { method: "DELETE" });
       loadArticles();
-    } else {
+    } catch (err) {
       alert("Failed to delete article");
     }
   };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface EducationMaterial {
   material_id: string;
@@ -75,9 +76,7 @@ export default function TrapperMaterialsPage() {
       const params = new URLSearchParams();
       if (selectedCategory) params.set("category", selectedCategory);
 
-      const response = await fetch(`/api/trappers/materials?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch materials");
-      const result: MaterialsData = await response.json();
+      const result = await fetchApi<MaterialsData>(`/api/trappers/materials?${params.toString()}`);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -110,20 +109,14 @@ export default function TrapperMaterialsPage() {
     window.open(material.storage_url, "_blank");
 
     // Track view (fire and forget)
-    fetch(`/api/trappers/materials/${material.material_id}/track`, {
-      method: "POST",
-      body: JSON.stringify({ action: "view" }),
-    }).catch(() => {});
+    postApi(`/api/trappers/materials/${material.material_id}/track`, { action: "view" }).catch(() => {});
   };
 
   const handleDownload = async (material: EducationMaterial) => {
-    // Track download
-    fetch(`/api/trappers/materials/${material.material_id}/track`, {
-      method: "POST",
-      body: JSON.stringify({ action: "download" }),
-    }).catch(() => {});
+    // Track download (fire and forget)
+    postApi(`/api/trappers/materials/${material.material_id}/track`, { action: "download" }).catch(() => {});
 
-    // Download the file
+    // Download the file (external URL, use raw fetch)
     const response = await fetch(material.storage_url);
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);

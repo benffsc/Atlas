@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi } from "@/lib/api-client";
 
 interface EcologyConfig {
   config_key: string;
@@ -82,16 +83,17 @@ export default function ForecastsPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/beacon/forecasts?view=${view}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-
-      const json = await res.json();
+      const data = await fetchApi<{
+        forecasts?: PlaceForecast[];
+        summary?: ForecastSummary;
+        parameters?: Record<string, EcologyConfig[]>;
+      }>(`/api/admin/beacon/forecasts?view=${view}`);
 
       if (view === "forecasts") {
-        setForecasts(json.forecasts || []);
-        setSummary(json.summary || null);
+        setForecasts(data.forecasts || []);
+        setSummary(data.summary || null);
       } else if (view === "parameters") {
-        setParameters(json.parameters || {});
+        setParameters(data.parameters || {});
       }
     } catch (err) {
       console.error("Error fetching forecast data:", err);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi, postApi } from "@/lib/api-client";
 import RoleSelector, { RELATIONSHIP_TYPES, RelationshipType } from "./RoleSelector";
 import VerificationStatusBadge from "./VerificationStatusBadge";
 import FinancialCommitmentBadge from "./FinancialCommitmentBadge";
@@ -47,18 +48,15 @@ export default function AssociatedPeopleCard({
   const fetchPeople = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/places/${placeId}/people`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Failed to fetch people");
-        return;
-      }
+      const data = await fetchApi<{
+        people: PersonAtPlace[];
+        summary: { total: number; verified: number; unverified: number } | null;
+      }>(`/api/places/${placeId}/people`);
 
       setPeople(data.people || []);
       setSummary(data.summary || null);
     } catch (err) {
-      setError("Failed to fetch people");
+      setError(err instanceof Error ? err.message : "Failed to fetch people");
     } finally {
       setLoading(false);
     }
@@ -67,20 +65,14 @@ export default function AssociatedPeopleCard({
   const handleVerify = async (personPlaceId: string, currentType: string) => {
     setVerifyingId(personPlaceId);
     try {
-      const response = await fetch(`/api/person-place/${personPlaceId}/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          verification_method: "ui_button",
-          relationship_type: currentType,
-        }),
+      await postApi(`/api/person-place/${personPlaceId}/verify`, {
+        verification_method: "ui_button",
+        relationship_type: currentType,
       });
 
-      if (response.ok) {
-        // Refresh the list
-        await fetchPeople();
-        onVerify?.(personPlaceId);
-      }
+      // Refresh the list
+      await fetchPeople();
+      onVerify?.(personPlaceId);
     } catch (err) {
       console.error("Verification failed:", err);
     } finally {
@@ -90,20 +82,16 @@ export default function AssociatedPeopleCard({
 
   const handleRoleChange = async (personPlaceId: string, newRole: RelationshipType) => {
     try {
-      const response = await fetch(`/api/person-place/${personPlaceId}/role`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ relationship_type: newRole }),
-      });
+      await postApi(`/api/person-place/${personPlaceId}/role`, {
+        relationship_type: newRole,
+      }, { method: "PATCH" });
 
-      if (response.ok) {
-        // Update local state
-        setPeople(prev => prev.map(p =>
-          p.person_place_id === personPlaceId
-            ? { ...p, relationship_type: newRole }
-            : p
-        ));
-      }
+      // Update local state
+      setPeople(prev => prev.map(p =>
+        p.person_place_id === personPlaceId
+          ? { ...p, relationship_type: newRole }
+          : p
+      ));
     } catch (err) {
       console.error("Role update failed:", err);
     }

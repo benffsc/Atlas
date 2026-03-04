@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface MovementEvent {
   movement_id: string;
@@ -77,20 +78,22 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [movementRes, reunionRes] = await Promise.all([
-          fetch(`/api/cats/${catId}/movements`),
-          fetch(`/api/cats/${catId}/reunification`),
+        const [movementData, reunionData] = await Promise.all([
+          fetchApi<{ timeline: MovementEvent[]; pattern: MovementPattern | null }>(
+            `/api/cats/${catId}/movements`
+          ).catch(() => null),
+          fetchApi<{ reunifications: Reunification[] }>(
+            `/api/cats/${catId}/reunification`
+          ).catch(() => null),
         ]);
 
-        if (movementRes.ok) {
-          const data = await movementRes.json();
-          setTimeline(data.timeline || []);
-          setPattern(data.pattern || null);
+        if (movementData) {
+          setTimeline(movementData.timeline || []);
+          setPattern(movementData.pattern || null);
         }
 
-        if (reunionRes.ok) {
-          const data = await reunionRes.json();
-          setReunifications(data.reunifications || []);
+        if (reunionData) {
+          setReunifications(reunionData.reunifications || []);
         }
       } catch (err) {
         console.error("Error fetching movement data:", err);
@@ -105,27 +108,18 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
   const handleRecordReunion = async () => {
     setSavingReunion(true);
     try {
-      const response = await fetch(`/api/cats/${catId}/reunification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reunification_status: reunionStatus,
-          reunification_date: new Date().toISOString().split("T")[0],
-          how_identified: "microchip_scan",
-          notes: reunionNotes,
-        }),
+      await postApi(`/api/cats/${catId}/reunification`, {
+        reunification_status: reunionStatus,
+        reunification_date: new Date().toISOString().split("T")[0],
+        how_identified: "microchip_scan",
+        notes: reunionNotes,
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to record reunification");
-      }
-
       // Refresh data
-      const reunionRes = await fetch(`/api/cats/${catId}/reunification`);
-      if (reunionRes.ok) {
-        const data = await reunionRes.json();
-        setReunifications(data.reunifications || []);
-      }
+      const data = await fetchApi<{ reunifications: Reunification[] }>(
+        `/api/cats/${catId}/reunification`
+      );
+      setReunifications(data.reunifications || []);
 
       setShowReunionForm(false);
       setReunionNotes("");

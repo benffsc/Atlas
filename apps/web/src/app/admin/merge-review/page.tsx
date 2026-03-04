@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatPhone } from "@/lib/formatters";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface Tier4ReviewItem {
   duplicate_id: string;
@@ -108,8 +109,7 @@ export default function MergeReviewPage() {
       });
       if (matchType) params.set("match_type", matchType);
 
-      const res = await fetch(`/api/admin/merge-review?${params}`);
-      const result = await res.json();
+      const result = await fetchApi<ReviewResponse>(`/api/admin/merge-review?${params}`);
       setData(result);
     } catch (error) {
       console.error("Failed to fetch reviews:", error);
@@ -133,24 +133,22 @@ export default function MergeReviewPage() {
   ) => {
     setResolving(duplicateId);
     try {
-      const res = await fetch(`/api/admin/merge-review/${duplicateId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, resolved_by: "staff_ui" }),
+      await postApi(`/api/admin/merge-review/${duplicateId}`, {
+        action,
+        resolved_by: "staff_ui",
       });
-      if (res.ok) {
-        fetchReviews();
-        setSelected((prev) => {
-          const next = new Set(prev);
-          next.delete(duplicateId);
-          return next;
-        });
-      } else {
-        const err = await res.json();
-        alert(`Error: ${err.error}`);
-      }
+      fetchReviews();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(duplicateId);
+        return next;
+      });
     } catch (error) {
-      console.error("Failed to resolve:", error);
+      if (error instanceof ApiError) {
+        alert(`Error: ${error.message}`);
+      } else {
+        console.error("Failed to resolve:", error);
+      }
     } finally {
       setResolving(null);
     }
@@ -173,16 +171,11 @@ export default function MergeReviewPage() {
 
     for (const id of ids) {
       try {
-        const res = await fetch(`/api/admin/merge-review/${id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, resolved_by: "staff_ui_batch" }),
+        await postApi(`/api/admin/merge-review/${id}`, {
+          action,
+          resolved_by: "staff_ui_batch",
         });
-        if (res.ok) {
-          successCount++;
-        } else {
-          errorCount++;
-        }
+        successCount++;
       } catch {
         errorCount++;
       }

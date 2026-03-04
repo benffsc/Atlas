@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { DataQualityBadge } from "@/components/badges";
+import { fetchApi } from "@/lib/api-client";
 
 interface SeasonalDashboard {
   year: number;
@@ -88,19 +89,18 @@ export default function SeasonalAnalysisPage() {
       const params = new URLSearchParams({ view });
       if (yearFilter) params.set("year", yearFilter);
 
-      const res = await fetch(`/api/admin/beacon/seasonal?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-
-      const json = await res.json();
+      const result = await fetchApi<{
+        data: SeasonalDashboard[] | BreedingIndicator[] | KittenSurge[] | SeasonalAlert[];
+      }>(`/api/admin/beacon/seasonal?${params}`);
 
       if (view === "dashboard") {
-        setDashboardData(json.data);
+        setDashboardData(result.data as SeasonalDashboard[]);
       } else if (view === "breeding") {
-        setBreedingData(json.data);
+        setBreedingData(result.data as BreedingIndicator[]);
       } else if (view === "kittens") {
-        setKittenData(json.data);
+        setKittenData(result.data as KittenSurge[]);
       } else if (view === "alerts") {
-        setAlerts(json.data);
+        setAlerts(result.data as SeasonalAlert[]);
       }
     } catch (err) {
       console.error("Error fetching seasonal data:", err);

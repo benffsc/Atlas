@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchApi } from "@/lib/api-client";
 
 interface ActiveRequest {
   request_id: string;
@@ -196,8 +197,9 @@ export function PlaceContextPanel({
       setError(null);
 
       try {
-        const response = await fetch(`/api/places/${placeId}/context`);
-        const data = await response.json();
+        const data = await fetchApi<PlaceContext>(
+          `/api/places/${placeId}/context`
+        );
 
         if (data.error) {
           setError(data.error);

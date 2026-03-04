@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/common";
+import { postApi, ApiError } from "@/lib/api-client";
 
 export default function NewPlacePage() {
   const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
@@ -43,16 +44,7 @@ export default function NewPlacePage() {
           body.change_notes = placeNotes;
         }
 
-        const res = await fetch(`/api/places/${resolvedPlace.place_id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Failed to update place");
-        }
+        await postApi(`/api/places/${resolvedPlace.place_id}`, body, { method: "PATCH" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to update place");
         setSaving(false);

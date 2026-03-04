@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface AuthStats {
   total_staff: number;
@@ -37,9 +38,7 @@ export default function AdminAuthPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/auth/status");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
+      const data = await fetchApi<{ stats: AuthStats; staff: StaffAuth[] }>("/api/admin/auth/status");
       setStats(data.stats);
       setStaff(data.staff);
     } catch (err) {
@@ -62,12 +61,7 @@ export default function AdminAuthPage() {
     setMessage(null);
 
     try {
-      const res = await fetch("/api/admin/auth/set-default-passwords", {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error);
+      const data = await postApi<{ updated_count: number }>("/api/admin/auth/set-default-passwords", {});
 
       setMessage({
         type: "success",
@@ -93,12 +87,7 @@ export default function AdminAuthPage() {
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/admin/auth/reset-staff/${staffId}`, {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error);
+      await postApi(`/api/admin/auth/reset-staff/${staffId}`, {});
 
       setMessage({
         type: "success",

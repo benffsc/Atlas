@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -151,9 +152,7 @@ export default function RoleAuditPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/role-audit");
-      if (!res.ok) throw new Error("Failed to fetch role audit data");
-      const result: RoleAuditResponse = await res.json();
+      const result = await fetchApi<RoleAuditResponse>("/api/admin/role-audit");
       setData(result);
       setError(null);
     } catch (err) {
@@ -170,19 +169,11 @@ export default function RoleAuditPage() {
   const handleDeactivate = async (personId: string, role: string) => {
     setDeactivating(`${personId}-${role}`);
     try {
-      const res = await fetch(`/api/people/${personId}/roles`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role,
-          action: "deactivate",
-          notes: "Deactivated via role audit dashboard",
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to deactivate role");
-      }
+      await postApi(`/api/people/${personId}/roles`, {
+        role,
+        action: "deactivate",
+        notes: "Deactivated via role audit dashboard",
+      }, { method: "PATCH" });
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Deactivation failed");
