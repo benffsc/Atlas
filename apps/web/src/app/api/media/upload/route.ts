@@ -200,10 +200,17 @@ async function uploadSingleFile(
     RETURNING media_id
   `;
 
-  const result = await queryOne<{ media_id: string }>(sql, insertValues);
+  let result: { media_id: string } | null;
+  try {
+    result = await queryOne<{ media_id: string }>(sql, insertValues);
+  } catch (dbError) {
+    const detail = dbError instanceof Error ? dbError.message : String(dbError);
+    console.error("[media/upload] DB insert failed:", detail);
+    return { success: false, error: `Failed to save media record: ${detail}` };
+  }
 
   if (!result) {
-    return { success: false, error: "Failed to save media record" };
+    return { success: false, error: "Failed to save media record: INSERT returned no rows" };
   }
 
   return {
@@ -346,7 +353,8 @@ export async function POST(request: NextRequest) {
     return apiSuccess(response);
   } catch (error) {
     console.error("Error uploading media:", error);
-    return apiServerError("Failed to upload media");
+    const detail = error instanceof Error ? error.message : String(error);
+    return apiServerError(`Failed to upload media: ${detail}`);
   }
 }
 

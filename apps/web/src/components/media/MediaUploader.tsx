@@ -309,7 +309,8 @@ export function MediaUploader({
           let errorMessage = `Upload failed (${response.status})`;
           try {
             const data = await response.json();
-            errorMessage = data.error || errorMessage;
+            // API returns { success: false, error: { message: "...", code: N } }
+            errorMessage = data.error?.message || (typeof data.error === "string" ? data.error : null) || errorMessage;
           } catch {
             const text = await response.text().catch(() => "");
             if (text) errorMessage = text;
@@ -325,14 +326,14 @@ export function MediaUploader({
 
       // Upload files one at a time for reliable progress and to avoid body size limits
       const uploadedItems: MediaItem[] = [];
-      let failedCount = 0;
+      const failedItems: Array<{ filename: string; error: string }> = [];
 
       for (let i = 0; i < selectedFiles.length; i++) {
         const sf = selectedFiles[i];
         setProgress({
           total: selectedFiles.length,
           completed: uploadedItems.length,
-          failed: failedCount,
+          failed: failedItems.length,
           current: sf.file.name,
         });
 
@@ -352,23 +353,26 @@ export function MediaUploader({
             photo_group_id: result.result.photo_group_id,
           });
         } else {
-          failedCount++;
+          failedItems.push({ filename: sf.file.name, error: result.error });
         }
       }
 
       setProgress({
         total: selectedFiles.length,
         completed: uploadedItems.length,
-        failed: failedCount,
+        failed: failedItems.length,
         current: null,
       });
 
       if (uploadedItems.length === 0) {
-        throw new Error(`All ${failedCount} uploads failed`);
+        // Include the actual error details so users know WHY it failed
+        const reasons = [...new Set(failedItems.map((f) => f.error))];
+        throw new Error(reasons.length === 1 ? reasons[0] : `All ${failedItems.length} uploads failed: ${reasons.join("; ")}`);
       }
 
-      if (failedCount > 0) {
-        setError(`${uploadedItems.length} uploaded, ${failedCount} failed`);
+      if (failedItems.length > 0) {
+        const reasons = [...new Set(failedItems.map((f) => f.error))];
+        setError(`${uploadedItems.length} uploaded, ${failedItems.length} failed: ${reasons.join("; ")}`);
       }
 
       clearAllFiles();
