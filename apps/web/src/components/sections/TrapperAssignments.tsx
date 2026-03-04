@@ -171,7 +171,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         entry_kind: "system",
         tags: ["trapper_action"],
         body: `Assigned trapper: ${trapperName}${isPrimary ? " (primary)" : ""}`,
-      }).catch(() => {});
+      }).catch(() => { /* fire-and-forget: journal audit logging */ });
 
       setShowAddForm(false);
       setSelectedTrapperId("");
@@ -201,7 +201,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         entry_kind: "system",
         tags: ["trapper_action"],
         body: `Set no-trapper reason: ${label}`,
-      }).catch(() => {});
+      }).catch(() => { /* fire-and-forget: journal audit logging */ });
 
       setNoTrapperReason(reason);
       if (reason === "client_trapping") {
@@ -226,7 +226,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         entry_kind: "system",
         tags: ["trapper_action"],
         body: "Cleared no-trapper reason (trapper needed again)",
-      }).catch(() => {});
+      }).catch(() => { /* fire-and-forget: journal audit logging */ });
 
       setNoTrapperReason(null);
       setAssignmentStatus(trappers.length > 0 ? "assigned" : "pending");
@@ -253,7 +253,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
         entry_kind: "system",
         tags: ["trapper_action"],
         body: `Unassigned trapper: ${trapperName}`,
-      }).catch(() => {});
+      }).catch(() => { /* fire-and-forget: journal audit logging */ });
 
       fetchData();
       onAssignmentChange?.();

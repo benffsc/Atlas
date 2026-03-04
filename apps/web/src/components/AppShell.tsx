@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           setStaff(data.staff);
         }
       })
-      .catch(() => {});
+      .catch(() => { /* fire-and-forget: auth check for UI chrome */ });
   }, [isLoginPage]);
 
   // Close user menu when clicking outside

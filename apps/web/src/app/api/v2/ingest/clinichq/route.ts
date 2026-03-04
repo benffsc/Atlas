@@ -652,7 +652,7 @@ function getMicrochipFromRow(row: Record<string, unknown>): string | null {
         chip = num.toFixed(0);
       }
     } catch {
-      // Keep original
+      /* optional: scientific notation parse failed, keep original string */
     }
   }
 
@@ -713,7 +713,7 @@ function getDateFromRow(row: Record<string, unknown>): string | null {
       return date.toISOString().split("T")[0]; // YYYY-MM-DD
     }
   } catch {
-    // Fall through
+    /* optional: date parse failed, return raw string as-is */
   }
   return dateStr; // Return as-is if can't parse
 }

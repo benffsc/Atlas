@@ -371,7 +371,7 @@ export function RequestsSidebar({ children }: { children: React.ReactNode }) {
           }
         }
       } catch {
-        // Silently fail - counts are optional enhancement
+        /* optional: sidebar counts are a non-critical enhancement */
       }
     };
     fetchCounts();

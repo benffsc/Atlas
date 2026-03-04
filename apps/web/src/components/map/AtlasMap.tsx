@@ -1477,7 +1477,7 @@ export default function AtlasMap() {
           }
         }
       } catch {
-        // Fall through
+        /* optional: entity coordinate lookup failed, proceed without location */
       }
     }
 

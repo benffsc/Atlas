@@ -291,7 +291,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
         );
         setAddPersonResults(data.results || data.suggestions || []);
       } catch {
-        // silently fail
+        /* optional: person search is best-effort autocomplete */
       }
     }, 300);
   }, []);

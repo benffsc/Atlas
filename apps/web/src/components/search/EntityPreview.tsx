@@ -56,7 +56,7 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
       const endpoint = entityType === "cat" ? "cats" : entityType === "person" ? "people" : "places";
       fetchApi<EntityDetail>(`/api/${endpoint}/${entityId}`)
         .then((data) => setDetail(data))
-        .catch(() => {})
+        .catch(() => { /* fire-and-forget: preview is best-effort on hover */ })
         .finally(() => setLoading(false));
     }
   }, [isHovering, detail, loading, entityType, entityId]);

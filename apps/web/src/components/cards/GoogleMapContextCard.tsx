@@ -134,7 +134,7 @@ export function PersonPlaceGoogleContext({ personId, className = "" }: PersonPla
         const data = await fetchApi<{ contexts?: PersonPlaceContext[] }>(`/api/people/${personId}/google-map-context`);
         setContexts(data.contexts || []);
       } catch {
-        // Silently fail - this is supplementary info
+        /* optional: Google Map context is supplementary info */
       } finally {
         setLoading(false);
       }

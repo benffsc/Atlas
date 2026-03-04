@@ -305,7 +305,7 @@ function NewRequestForm() {
                 });
               }
             })
-            .catch(() => {});
+            .catch(() => { /* fire-and-forget: place pre-fill is best-effort */ });
         } else if (s.geo_formatted_address || s.cats_address) {
           // Use raw address - PlaceResolver will handle it
           setSelectedPlace({

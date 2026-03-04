@@ -43,7 +43,7 @@ export default function ClinicNotesSection({ personId, placeId }: ClinicNotesSec
       );
       setNotes(data.notes || []);
     } catch {
-      // silent fail
+      /* optional: clinic notes are supplementary, page works without them */
     } finally {
       setLoading(false);
     }

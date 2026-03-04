@@ -61,7 +61,7 @@ export default function ClinicHistorySection({ personId, placeId }: ClinicHistor
       setAppointments(data.appointments || []);
       setTotal(data.total || 0);
     } catch {
-      // silent fail
+      /* optional: clinic history is supplementary, page works without it */
     } finally {
       setLoading(false);
     }

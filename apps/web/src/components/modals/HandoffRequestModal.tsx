@@ -142,7 +142,7 @@ export function HandoffRequestModal({
       try {
         const data = await fetchApi<typeof requestSearchResults>(`/api/requests/search?q=${encodeURIComponent(requestSearchQuery)}&exclude=${requestId}`);
         setRequestSearchResults(data);
-      } catch { /* ignore */ }
+      } catch { /* optional: request search is best-effort autocomplete */ }
       setSearchingRequests(false);
     }, 300);
     return () => clearTimeout(timer);

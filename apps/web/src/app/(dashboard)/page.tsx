@@ -128,7 +128,7 @@ export default function Home() {
           setStaff(data.staff);
         }
       })
-      .catch(() => {})
+      .catch(() => { /* fire-and-forget: auth check for greeting */ })
       .finally(() => {
         // 2. Active requests
         fetchApi<{ requests: ActiveRequest[] }>("/api/requests?limit=8")
@@ -149,7 +149,7 @@ export default function Home() {
           .then(data => {
             if (data) setStats(data);
           })
-          .catch(() => {});
+          .catch(() => { /* fire-and-forget: stats are non-critical */ });
       });
 
     // 4. Recent intake (parallel, no auth dependency)

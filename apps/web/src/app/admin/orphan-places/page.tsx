@@ -37,7 +37,7 @@ export default function OrphanPlacesPage() {
       const result = await fetchApi<OrphanData>(`/api/admin/orphan-places?limit=${pageSize}&offset=${offset}`);
       setData(result);
     } catch {
-      // ignore
+      /* optional: orphan data load failed, page shows empty state */
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function OrphanPlacesPage() {
       // Refresh data
       fetchData(page * pageSize);
     } catch {
-      // ignore
+      /* optional: delete request failed, places remain */
     } finally {
       setDeleting(false);
     }

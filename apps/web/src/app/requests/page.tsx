@@ -851,7 +851,7 @@ function RequestsPageContent() {
           setCurrentStaffId(data.staff.staff_id);
         }
       })
-      .catch(() => {});
+      .catch(() => { /* fire-and-forget: staff info for saved filters */ });
   }, []);
 
   // Build current filters object for SavedFilters component
@@ -890,7 +890,7 @@ function RequestsPageContent() {
           : reason === "not_needed"
           ? "Marked as trapper not needed"
           : `Trapper status updated: ${reason}`,
-      }).catch(() => {}); // fire-and-forget
+      }).catch(() => { /* fire-and-forget: journal audit logging */ });
     } catch (err) {
       console.error("Failed to update trapper reason:", err);
     }

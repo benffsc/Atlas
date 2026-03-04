@@ -124,7 +124,7 @@ export default function EmailBatchesPage() {
         // Ignore category fetch errors
       }
     } catch {
-      // Ignore errors
+      /* optional: outlook accounts are supplementary for email batch creation */
     }
   }, []);
 

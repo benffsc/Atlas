@@ -118,7 +118,7 @@ export default function ColonyEstimatesPage() {
         await postApi(`/api/admin/beacon/colony-estimates?id=${id}`, {}, { method: "DELETE" });
         deleted++;
       } catch {
-        // Continue with others
+        /* optional: skip failed deletes, continue with remaining */
       }
     }
 

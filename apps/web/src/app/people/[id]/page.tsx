@@ -521,7 +521,7 @@ export default function PersonDetailPage() {
       await postApi(`/api/people/${id}/aliases`, { alias_id: aliasId }, { method: "DELETE" });
       await fetchPerson();
     } catch {
-      // Silently fail — alias will remain visible
+      /* optional: alias delete failed, alias remains visible until page refresh */
     }
   };
 

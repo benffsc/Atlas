@@ -251,7 +251,7 @@ export function useMapSearch({
             }
           }
         } catch {
-          // Fall through
+          /* optional: entity location lookup failed, proceed without coords */
         }
       }
 

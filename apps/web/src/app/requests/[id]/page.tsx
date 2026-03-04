@@ -301,7 +301,7 @@ export default function RequestDetailPage() {
       setRequest(data);
       initEditForm(data);
     } catch {
-      // Silent refresh failure - don't overwrite existing data
+      /* optional: refresh failure is non-critical, keep existing data */
     }
   };
 

@@ -1529,10 +1529,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         'Content-Type': 'application/json',
         ...(cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {}),
       },
-    }).catch(() => {});
+    }).catch(() => { /* fire-and-forget: geocoding runs async */ });
     results.geocoding_triggered = true;
   } catch {
-    // non-fatal
+    /* non-fatal: geocoding trigger failure doesn't block ingest */
   }
 
   // Beacon enrichment: birth events from lactating appointments

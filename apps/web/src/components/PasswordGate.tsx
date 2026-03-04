@@ -22,7 +22,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
           return;
         }
       } catch {
-        // Invalid stored value
+        /* optional: corrupt localStorage JSON, treat as unauthenticated */
       }
       localStorage.removeItem(STORAGE_KEY);
     }

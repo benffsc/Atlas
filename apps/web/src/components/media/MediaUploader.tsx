@@ -429,7 +429,7 @@ export function MediaUploader({
       try {
         const d = new Date(dateStr + "T12:00:00");
         return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-      } catch { return dateStr; }
+      } catch { return dateStr; /* fallback: return raw date string */ }
     };
 
     return (

@@ -576,7 +576,7 @@ export default function CatDetailPage() {
         setCat({ ...cat, appointments: updated || null });
       }
     } catch {
-      // silent fail
+      /* optional: clinic day number update is non-critical */
     }
     setEditingClinicNum(null);
   };
@@ -850,7 +850,7 @@ export default function CatDetailPage() {
                       );
                       setCat({ ...cat, appointments: updated || null });
                     }
-                  }).catch(() => {});
+                  }).catch(() => { /* fire-and-forget: clinic day number update is best-effort */ });
               } : undefined}
               appointmentOptions={cat.appointments?.map((a) => ({
                 appointment_id: a.appointment_id,

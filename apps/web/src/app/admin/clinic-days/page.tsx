@@ -283,7 +283,7 @@ export default function ClinicDaysPage() {
           setTrappers(data.trappers);
         }
       })
-      .catch(() => {});
+      .catch(() => { /* fire-and-forget: trapper dropdown is non-critical */ });
   }, []);
 
   // Load places for mass trapping target
@@ -292,7 +292,7 @@ export default function ClinicDaysPage() {
       .then((data) => {
         setPlaces(data.places || []);
       })
-      .catch(() => {});
+      .catch(() => { /* fire-and-forget: place dropdown is non-critical */ });
   }, []);
 
   // Load selected day
@@ -395,7 +395,7 @@ export default function ClinicDaysPage() {
       const listData = await fetchApi<{ clinic_days: ClinicDay[] }>("/api/admin/clinic-days?include_comparison=true&limit=90");
       setClinicDays(listData.clinic_days || []);
     } catch {
-      // Update failed silently
+      /* optional: clinic day edit is best-effort, UI shows stale data */
     }
   };
 
@@ -461,7 +461,7 @@ export default function ClinicDaysPage() {
       const dayData = await fetchApi<{ clinic_day: ClinicDay | null }>(`/api/admin/clinic-days/${selectedDate}`);
       setSelectedDay(dayData.clinic_day || null);
     } catch {
-      // Delete failed
+      /* optional: entry delete failed, will remain visible */
     }
   };
 
@@ -643,7 +643,7 @@ export default function ClinicDaysPage() {
           unlinked_count: data.unlinked_count || 0,
         });
       })
-      .catch(() => {});
+      .catch(() => { /* fire-and-forget: gallery refresh after upload */ });
     // Reset after a moment
     setTimeout(() => {
       setSelectedCatForUpload(null);

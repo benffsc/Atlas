@@ -109,12 +109,12 @@ export default function TrapperMaterialsPage() {
     window.open(material.storage_url, "_blank");
 
     // Track view (fire and forget)
-    postApi(`/api/trappers/materials/${material.material_id}/track`, { action: "view" }).catch(() => {});
+    postApi(`/api/trappers/materials/${material.material_id}/track`, { action: "view" }).catch(() => { /* fire-and-forget: analytics tracking */ });
   };
 
   const handleDownload = async (material: EducationMaterial) => {
     // Track download (fire and forget)
-    postApi(`/api/trappers/materials/${material.material_id}/track`, { action: "download" }).catch(() => {});
+    postApi(`/api/trappers/materials/${material.material_id}/track`, { action: "download" }).catch(() => { /* fire-and-forget: analytics tracking */ });
 
     // Download the file (external URL, use raw fetch)
     const response = await fetch(material.storage_url);
