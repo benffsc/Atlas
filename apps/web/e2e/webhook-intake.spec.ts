@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Webhook & Intake Submission Tests
@@ -49,7 +50,7 @@ test.describe('Webhook Intake Flow', () => {
     const response = await request.get('/api/intake/queue');
 
     expect(response.ok()).toBeTruthy();
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
     expect(data).toHaveProperty('submissions');
     expect(Array.isArray(data.submissions)).toBe(true);
   });
@@ -75,9 +76,9 @@ test.describe('Intake Workflow Actions', () => {
   test('intake detail modal can be opened', async ({ page, request }) => {
     // Get a submission from API
     const response = await request.get('/api/intake/queue?limit=5');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.submissions?.length) {
+    if (!(data.submissions as unknown[] | undefined)?.length) {
       test.skip();
       return;
     }
@@ -100,9 +101,9 @@ test.describe('Intake Workflow Actions', () => {
   test('status changes are reflected in UI', async ({ page, request }) => {
     // Get submissions
     const response = await request.get('/api/intake/queue?limit=10');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.submissions?.length) {
+    if (!(data.submissions as unknown[] | undefined)?.length) {
       test.skip();
       return;
     }

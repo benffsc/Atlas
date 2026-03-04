@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Stress tests for Place Context System and Tippy Integration
@@ -63,7 +64,7 @@ test.describe('Place Context UI Tests', () => {
     // Get a real place with contexts from API (read-only)
     const response = await page.request.get('/api/places?limit=10');
     expect(response.ok()).toBeTruthy();
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     if (data.places && data.places.length > 0) {
       const placeId = data.places[0].place_id;
@@ -86,7 +87,7 @@ test.describe('Place Context UI Tests', () => {
     // Get a place list first
     const listResponse = await request.get('/api/places?limit=5');
     expect(listResponse.ok()).toBeTruthy();
-    const listData = await listResponse.json();
+    const listData = unwrapApiResponse<Record<string, any>>(await listResponse.json());
 
     if (listData.places && listData.places.length > 0) {
       const placeId = listData.places[0].place_id;
@@ -95,7 +96,7 @@ test.describe('Place Context UI Tests', () => {
       const response = await request.get(`/api/places/${placeId}`);
       expect(response.ok()).toBeTruthy();
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Verify contexts field exists
       expect(data).toHaveProperty('contexts');
@@ -113,7 +114,7 @@ test.describe('Place Context UI Tests', () => {
 
   test('multiple place pages can be loaded rapidly', async ({ page }) => {
     const response = await page.request.get('/api/places?limit=10');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     if (data.places && data.places.length >= 3) {
       // Rapidly navigate between place pages
@@ -154,7 +155,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
     });
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
       expect(data).toBeDefined();
     }
   });
@@ -180,7 +181,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
     });
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
       expect(data).toBeDefined();
     }
   });
@@ -206,7 +207,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
     });
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
       expect(data).toBeDefined();
     }
   });
@@ -235,7 +236,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
     // Get a request to navigate to
     const response = await page.request.get('/api/requests?limit=1');
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
       if (data.requests && data.requests.length > 0) {
         // Navigate to detail
         await page.goto(`/requests/${data.requests[0].request_id}`);
@@ -254,7 +255,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
     // Get a person to navigate to
     const response = await page.request.get('/api/people?limit=1');
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
       if (data.people && data.people.length > 0) {
         // Navigate to detail
         await page.goto(`/people/${data.people[0].person_id}`);
@@ -273,7 +274,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
     // Get a cat to navigate to
     const response = await page.request.get('/api/cats?limit=1');
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
       if (data.cats && data.cats.length > 0) {
         // Navigate to detail
         await page.goto(`/cats/${data.cats[0].cat_id}`);
@@ -307,7 +308,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
 test.describe('Data Display Stress Tests', () => {
   test('place detail shows all sections without error', async ({ page }) => {
     const response = await page.request.get('/api/places?limit=1');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     if (data.places && data.places.length > 0) {
       await page.goto(`/places/${data.places[0].place_id}`);
@@ -327,14 +328,14 @@ test.describe('Data Display Stress Tests', () => {
   test('context badges display correctly for colony sites', async ({ request }) => {
     // Query places with colony_site context
     const response = await request.get('/api/places?limit=50');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     let placesWithContexts = 0;
 
     for (const place of data.places || []) {
       const detailResponse = await request.get(`/api/places/${place.place_id}`);
       if (detailResponse.ok()) {
-        const detail = await detailResponse.json();
+        const detail = unwrapApiResponse<Record<string, any>>(await detailResponse.json());
         if (detail.contexts && detail.contexts.length > 0) {
           placesWithContexts++;
           console.log(`Place ${detail.display_name}: ${detail.contexts.map((c: { context_type: string }) => c.context_type).join(', ')}`);

@@ -13,6 +13,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 test.describe("Entity Link Integrity", () => {
   test.describe("Appointment Links", () => {
@@ -24,7 +25,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       if (data.appointments) {
         // Cat link rate should be > 90% (some community cats have no microchip)
@@ -48,7 +49,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Fully linked should be > 85%
       const fullyLinkedPct =
@@ -76,7 +77,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Non-alteration services shouldn't require cat links
       console.log("Missing cat appointment reasons:");
@@ -98,7 +99,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Should have > 90% with contact info
       const contactRate =
@@ -114,7 +115,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // After Data Engine, should have 0 duplicate emails across people
       expect(data.duplicate_emails).toBe(0);
@@ -130,7 +131,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Should have review queue entries from MIG_931
       console.log(`Org/address review queue: ${data.org_person_review}`);
@@ -151,7 +152,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Should have > 95% with microchips (some euthanized before chipping)
       const chipRate = (data.with_microchip / data.total_unmerged_cats) * 100;
@@ -166,7 +167,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Most microchips should be valid format
       const validRate = (data.valid_format / data.total_microchips) * 100;
@@ -189,7 +190,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // Should have > 99% geocoded
       const geocodeRate = (data.geocoded / data.total_unmerged_places) * 100;
@@ -204,7 +205,7 @@ test.describe("Entity Link Integrity", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
       // After MIG_930, should have minimal clinic-classified places
       // (only actual clinics like 845 Todd Road)
@@ -223,7 +224,7 @@ test.describe("Data Engine Health", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     expect(data.status).toBe("healthy");
   });
@@ -236,7 +237,7 @@ test.describe("Data Engine Health", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     // High-priority reviews should be addressed promptly
     expect(data.length).toBeLessThan(10);
@@ -250,7 +251,7 @@ test.describe("Data Engine Health", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     // Should have rules for email, phone, name matching
     const ruleTypes = data.map((r: any) => r.signal_type);
@@ -268,7 +269,7 @@ test.describe("Merge Integrity", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     // No orphaned merges (pointing to non-existent records)
     expect(data.orphaned_person_merges).toBe(0);
@@ -284,7 +285,7 @@ test.describe("Merge Integrity", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     // Should have no circular references
     expect(data.person_cycles).toBe(0);
@@ -302,7 +303,7 @@ test.describe("Source System Consistency", () => {
       return;
       }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     // Only valid source systems should be used
     const validSources = [
@@ -329,7 +330,7 @@ test.describe("Source System Consistency", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
 
     // Most records should have source_record_id
     expect(data.missing_source_record_pct).toBeLessThan(5);

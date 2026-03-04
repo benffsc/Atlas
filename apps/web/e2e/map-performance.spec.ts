@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Map Performance Tests
@@ -140,7 +141,7 @@ test.describe('Map Performance', () => {
     const cacheControl = response.headers()['cache-control'];
     expect(cacheControl).toContain('s-maxage');
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // Should return atlas_pins array
     expect(data).toHaveProperty('atlas_pins');
@@ -156,7 +157,7 @@ test.describe('Map Performance', () => {
 
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
     expect(data).toHaveProperty('atlas_pins');
     expect(Array.isArray(data.atlas_pins)).toBeTruthy();
   });

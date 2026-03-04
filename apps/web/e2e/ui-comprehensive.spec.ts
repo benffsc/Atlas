@@ -12,6 +12,7 @@
  */
 
 import { test, expect, Page } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // Access code for PasswordGate
 const ACCESS_CODE = process.env.ATLAS_ACCESS_CODE || "ffsc2024";
@@ -113,7 +114,7 @@ test.describe("UI: Detail Page Loading", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
     if (!data.requests?.length) {
       test.skip();
       return;
@@ -134,7 +135,7 @@ test.describe("UI: Detail Page Loading", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
     if (!data.cats?.length) {
       test.skip();
       return;
@@ -155,7 +156,7 @@ test.describe("UI: Detail Page Loading", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
     if (!data.places?.length) {
       test.skip();
       return;
@@ -556,7 +557,7 @@ test.describe("UI: Loading States", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
     if (!data.requests?.length) {
       test.skip();
       return;

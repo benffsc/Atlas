@@ -12,6 +12,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from './helpers/api-response';
 
 test.describe("Entity Linking Health (MIG_2430-2435)", () => {
   test.setTimeout(30000);
@@ -24,8 +25,7 @@ test.describe("Entity Linking Health (MIG_2430-2435)", () => {
       return;
     }
 
-    const json = await response.json();
-    const data = json.data || json;
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // CRITICAL: No cats should ever be linked to the FFSC clinic addresses.
     // MIG_2430 removed the COALESCE fallback that was polluting data.
@@ -40,8 +40,7 @@ test.describe("Entity Linking Health (MIG_2430-2435)", () => {
       return;
     }
 
-    const json = await response.json();
-    const data = json.data || json;
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // Coverage should be > 50%. Current baseline is ~81%.
     // Cats without places are expected (PetLink-only, no contact info).
@@ -59,8 +58,7 @@ test.describe("Entity Linking Health (MIG_2430-2435)", () => {
       return;
     }
 
-    const json = await response.json();
-    const data = json.data || json;
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     expect(["healthy", "degraded"]).toContain(data.status);
   });
@@ -73,8 +71,7 @@ test.describe("Entity Linking Health (MIG_2430-2435)", () => {
       return;
     }
 
-    const json = await response.json();
-    const data = json.data || json;
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // If there are skipped reasons, they should be known categories
     const validReasons = [
@@ -107,8 +104,8 @@ test.describe("Appointment Link Integrity", () => {
       return;
     }
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<{ cats: unknown[] }>(await response.json());
+    const cats = data.cats || [];
 
     const clinicAddressPatterns = [
       /845\s*todd/i,

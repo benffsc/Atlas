@@ -11,6 +11,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // ============================================================================
 // SOURCE SYSTEM COMPLIANCE
@@ -35,7 +36,7 @@ test.describe("Source System Compliance", () => {
     const response = await request.get("/api/requests?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ requests: { source_system?: string }[] }>(await response.json());
     const allSources = [...DEFINED_SOURCES, ...KNOWN_ADDITIONAL_SOURCES];
     const unknownSources: string[] = [];
 
@@ -63,7 +64,7 @@ test.describe("Source System Compliance", () => {
     const response = await request.get("/api/people?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ people: { source_system?: string }[] }>(await response.json());
     const allSources = [...DEFINED_SOURCES, ...KNOWN_ADDITIONAL_SOURCES];
 
     for (const person of data.people || []) {
@@ -77,7 +78,7 @@ test.describe("Source System Compliance", () => {
     const response = await request.get("/api/cats?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ cats: { source_system?: string }[] }>(await response.json());
     const allSources = [...DEFINED_SOURCES, ...KNOWN_ADDITIONAL_SOURCES];
 
     for (const cat of data.cats || []) {
@@ -95,9 +96,9 @@ test.describe("Source System Compliance", () => {
       request.get("/api/cats?limit=100"),
     ]);
 
-    const requests = (await requestsRes.json()).requests || [];
-    const people = (await peopleRes.json()).people || [];
-    const cats = (await catsRes.json()).cats || [];
+    const requests = (unwrapApiResponse<{ requests: { source_system?: string }[] }>(await requestsRes.json())).requests || [];
+    const people = (unwrapApiResponse<{ people: { source_system?: string }[] }>(await peopleRes.json())).people || [];
+    const cats = (unwrapApiResponse<{ cats: { source_system?: string }[] }>(await catsRes.json())).cats || [];
 
     // Count entities with undefined/null source_system
     const undefinedRequests = requests.filter(
@@ -132,7 +133,7 @@ test.describe("Deduplication Compliance", () => {
     const response = await request.get("/api/people?limit=1000");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ people: { email?: string; person_id?: string }[] }>(await response.json());
     const emails = new Map<string, number>();
 
     for (const person of data.people || []) {
@@ -160,7 +161,7 @@ test.describe("Deduplication Compliance", () => {
     const response = await request.get("/api/cats?limit=1000");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ cats: { microchip?: string }[] }>(await response.json());
     const microchips = new Map<string, number>();
 
     for (const cat of data.cats || []) {
@@ -189,7 +190,7 @@ test.describe("Deduplication Compliance", () => {
     const response = await request.get("/api/places?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ places: { formatted_address?: string; address?: string; lat?: number; lng?: number }[] }>(await response.json());
     let geocodedCount = 0;
     let totalWithAddress = 0;
 
@@ -224,7 +225,7 @@ test.describe("Data Provenance Compliance", () => {
     const response = await request.get("/api/requests?limit=200");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ requests: { source_system?: string; source_record_id?: string }[] }>(await response.json());
     let externalRecords = 0;
     let withSourceId = 0;
 
@@ -253,7 +254,7 @@ test.describe("Data Provenance Compliance", () => {
     const response = await request.get("/api/requests?limit=100");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ requests: { source_created_at?: string; created_at?: string }[] }>(await response.json());
     let withSourceCreated = 0;
 
     for (const req of data.requests || []) {
@@ -291,7 +292,7 @@ test.describe("Phone Normalization Compliance", () => {
     const response = await request.get("/api/people?limit=200");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ people: { phone?: string }[] }>(await response.json());
     const phoneFormats = new Map<string, number>();
 
     for (const person of data.people || []) {
@@ -333,7 +334,7 @@ test.describe("Phone Normalization Compliance", () => {
     const response = await request.get("/api/people?limit=500");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ people: { phone?: string; person_id?: string }[] }>(await response.json());
     const phoneToPersons = new Map<string, string[]>();
 
     for (const person of data.people || []) {
@@ -380,7 +381,7 @@ test.describe("Intake Pipeline Compliance", () => {
     expect(response.status()).toBeLessThan(500);
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
       expect(Array.isArray(data.submissions || data)).toBeTruthy();
     }
   });
@@ -389,7 +390,7 @@ test.describe("Intake Pipeline Compliance", () => {
     const response = await request.get("/api/intake?limit=50");
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
       const submissions = data.submissions || data;
 
       for (const intake of submissions) {
@@ -417,7 +418,7 @@ test.describe("Intake Pipeline Compliance", () => {
     expect(response.status()).toBeLessThan(500);
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<{ requests: { source_system?: string; source_record_id?: string }[] }>(await response.json());
 
       // Web intake requests should have proper tracking
       for (const req of data.requests || []) {
@@ -441,7 +442,7 @@ test.describe("Clinic Data Compliance", () => {
     const response = await request.get("/api/beacon/summary");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ summary: { total_altered_cats?: number; total_verified_cats?: number } }>(await response.json());
 
     // Should have alteration counts from clinic data
     expect(data.summary?.total_altered_cats || data.summary?.total_verified_cats).toBeDefined();
@@ -452,7 +453,7 @@ test.describe("Clinic Data Compliance", () => {
     const response = await request.get("/api/cats?limit=200");
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<{ cats: { microchip?: string }[] }>(await response.json());
     let withMicrochip = 0;
 
     for (const cat of data.cats || []) {
@@ -488,10 +489,10 @@ test.describe("Ingest Compliance Summary", () => {
       request.get("/api/places?limit=100"),
     ]);
 
-    const requests = requestsRes.ok() ? (await requestsRes.json()).requests || [] : [];
-    const people = peopleRes.ok() ? (await peopleRes.json()).people || [] : [];
-    const cats = catsRes.ok() ? (await catsRes.json()).cats || [] : [];
-    const places = placesRes.ok() ? (await placesRes.json()).places || [] : [];
+    const requests = requestsRes.ok() ? (unwrapApiResponse<{ requests: unknown[] }>(await requestsRes.json())).requests || [] : [];
+    const people = peopleRes.ok() ? (unwrapApiResponse<{ people: unknown[] }>(await peopleRes.json())).people || [] : [];
+    const cats = catsRes.ok() ? (unwrapApiResponse<{ cats: unknown[] }>(await catsRes.json())).cats || [] : [];
+    const places = placesRes.ok() ? (unwrapApiResponse<{ places: unknown[] }>(await placesRes.json())).places || [] : [];
 
     // Calculate compliance metrics
     const metrics = {

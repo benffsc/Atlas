@@ -11,6 +11,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 test.describe("Categorization Gap Detection", () => {
   test.describe("SCAS Pattern Detection Gaps", () => {
@@ -29,7 +30,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
       // Check for SCAS pattern misses
       if (data.scas_pattern_misses) {
@@ -57,7 +58,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       const unexpectedFormats: string[] = [];
       const validPattern = /^[AS]-?\d+$/i;
@@ -90,7 +91,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
       if (data.lmfm_pattern_misses) {
         console.log(`LMFM pattern misses: ${data.lmfm_pattern_misses}`);
@@ -124,7 +125,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
       if (data.marker_without_category) {
         expect(data.marker_without_category).toBe(0);
@@ -143,7 +144,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
       if (data.foster_ownership_misses) {
         // This should be 0 - if not, we have a gap
@@ -163,7 +164,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
       // Log any unrecognized variations
       if (data.unrecognized_patterns) {
@@ -184,7 +185,7 @@ test.describe("Categorization Gap Detection", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       // Should have minimum patterns
       const expectedPatterns = [
@@ -218,7 +219,7 @@ test.describe("Categorization Consistency", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // Should have 0 inconsistencies
     expect(data.inconsistencies || 0).toBe(0);
@@ -232,7 +233,7 @@ test.describe("Categorization Consistency", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // Regular should be majority (>80%)
     expect(data.regular_pct).toBeGreaterThan(80);
@@ -260,7 +261,7 @@ test.describe("Trigger Stability", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     expect(data.enabled).toBe(true);
     expect(data.fires_on).toContain("INSERT");
@@ -278,7 +279,7 @@ test.describe("Trigger Stability", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     expect(data.enabled).toBe(true);
     expect(data.fires_on).toContain("UPDATE");

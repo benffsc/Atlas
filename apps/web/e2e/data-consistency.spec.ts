@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Data Consistency Tests
@@ -16,7 +17,7 @@ test.describe('Data Consistency', () => {
     test('requests API returns valid data', async ({ request }) => {
       const response = await request.get('/api/requests?limit=10');
       expect(response.ok()).toBeTruthy();
-      const data = await response.json();
+      const data = unwrapApiResponse<{ requests: unknown[] }>(await response.json());
       expect(data).toHaveProperty('requests');
       expect(Array.isArray(data.requests)).toBe(true);
     });
@@ -24,7 +25,7 @@ test.describe('Data Consistency', () => {
     test('places API returns valid data', async ({ request }) => {
       const response = await request.get('/api/places?limit=10');
       expect(response.ok()).toBeTruthy();
-      const data = await response.json();
+      const data = unwrapApiResponse<{ places: unknown[] }>(await response.json());
       expect(data).toHaveProperty('places');
       expect(Array.isArray(data.places)).toBe(true);
     });
@@ -32,7 +33,7 @@ test.describe('Data Consistency', () => {
     test('people API returns valid data', async ({ request }) => {
       const response = await request.get('/api/people?limit=10');
       expect(response.ok()).toBeTruthy();
-      const data = await response.json();
+      const data = unwrapApiResponse<{ people: unknown[] }>(await response.json());
       expect(data).toHaveProperty('people');
       expect(Array.isArray(data.people)).toBe(true);
     });
@@ -40,7 +41,7 @@ test.describe('Data Consistency', () => {
     test('cats API returns valid data', async ({ request }) => {
       const response = await request.get('/api/cats?limit=10');
       expect(response.ok()).toBeTruthy();
-      const data = await response.json();
+      const data = unwrapApiResponse<{ cats: unknown[] }>(await response.json());
       expect(data).toHaveProperty('cats');
       expect(Array.isArray(data.cats)).toBe(true);
     });
@@ -51,7 +52,7 @@ test.describe('Data Consistency', () => {
     test('place detail page loads for valid place', async ({ page, request }) => {
       // Get a place from API
       const placesResponse = await request.get('/api/places?limit=5');
-      const placesData = await placesResponse.json();
+      const placesData = unwrapApiResponse<{ places: Record<string, unknown>[] }>(await placesResponse.json());
 
       if (!placesData.places?.length) {
         test.skip();
@@ -74,7 +75,7 @@ test.describe('Data Consistency', () => {
     test('request detail page loads for valid request', async ({ page, request }) => {
       // Get a request from API
       const requestsResponse = await request.get('/api/requests?limit=5');
-      const requestsData = await requestsResponse.json();
+      const requestsData = unwrapApiResponse<{ requests: Record<string, unknown>[] }>(await requestsResponse.json());
 
       if (!requestsData.requests?.length) {
         test.skip();
@@ -94,7 +95,7 @@ test.describe('Data Consistency', () => {
     test('person detail page loads for valid person', async ({ page, request }) => {
       // Get a person from API
       const peopleResponse = await request.get('/api/people?limit=5');
-      const peopleData = await peopleResponse.json();
+      const peopleData = unwrapApiResponse<{ people: Record<string, unknown>[] }>(await peopleResponse.json());
 
       if (!peopleData.people?.length) {
         test.skip();
@@ -118,7 +119,7 @@ test.describe('Data Consistency', () => {
     test('colony estimates API returns data for place', async ({ request }) => {
       // Get places
       const placesResponse = await request.get('/api/places?limit=10');
-      const placesData = await placesResponse.json();
+      const placesData = unwrapApiResponse<{ places: Record<string, unknown>[] }>(await placesResponse.json());
 
       if (!placesData.places?.length) {
         test.skip();
@@ -130,7 +131,7 @@ test.describe('Data Consistency', () => {
         const colonyResponse = await request.get(`/api/places/${place.place_id}/colony-estimates`);
 
         if (colonyResponse.ok()) {
-          const colonyData = await colonyResponse.json();
+          const colonyData = unwrapApiResponse<Record<string, unknown>>(await colonyResponse.json());
           expect(colonyData).toHaveProperty('place_id');
           return; // Test passed
         }
@@ -160,7 +161,7 @@ test.describe('Beacon Data Integrity', () => {
     expect([200, 500].includes(response.status())).toBe(true);
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<{ vitals: unknown }>(await response.json());
       // If successful, should have expected structure
       expect(data).toHaveProperty('vitals');
     }
@@ -172,7 +173,7 @@ test.describe('Beacon Data Integrity', () => {
     expect([200, 500].includes(response.status())).toBe(true);
 
     if (response.ok()) {
-      const data = await response.json();
+      const data = unwrapApiResponse<{ total_events: unknown }>(await response.json());
       expect(data).toHaveProperty('total_events');
     }
   });

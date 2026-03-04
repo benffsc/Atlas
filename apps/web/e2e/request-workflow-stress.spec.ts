@@ -20,6 +20,7 @@ import {
   mockAllWrites,
   waitForLoaded,
 } from './ui-test-helpers';
+import { unwrapApiResponse } from './helpers/api-response';
 
 // ============================================================================
 // API ENDPOINT TESTS
@@ -30,12 +31,12 @@ test.describe('API: Request Counts', () => {
     const response = await request.get('/api/requests/counts');
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    expect(data.success).toBe(true);
-    expect(data.data).toBeDefined();
+    const wrapped = await response.json();
+    expect((wrapped as any).success).toBe(true);
+    expect((wrapped as any).data).toBeDefined();
 
     // Verify all expected count keys exist
-    const counts = data.data;
+    const counts = unwrapApiResponse<Record<string, number>>(wrapped);
     expect(typeof counts.new).toBe('number');
     expect(typeof counts.working).toBe('number');
     expect(typeof counts.paused).toBe('number');
@@ -53,13 +54,13 @@ test.describe('API: Request Counts', () => {
   test('Counts are consistent with request list', async ({ request }) => {
     // Get counts
     const countsResponse = await request.get('/api/requests/counts');
-    const countsData = await countsResponse.json();
+    const countsData = unwrapApiResponse<Record<string, number>>(await countsResponse.json());
 
     // Get request list
     const listResponse = await request.get('/api/requests?limit=500');
-    const listData = await listResponse.json();
+    const listData = unwrapApiResponse<Record<string, unknown>>(await listResponse.json());
 
-    if (!listData.requests || listData.requests.length === 0) {
+    if (!listData.requests || (listData.requests as any[]).length === 0) {
       test.skip(true, 'No requests in database');
       return;
     }
@@ -82,7 +83,7 @@ test.describe('API: Request Counts', () => {
     };
 
     const listCounts = { new: 0, working: 0, paused: 0, completed: 0 };
-    for (const req of listData.requests) {
+    for (const req of listData.requests as any[]) {
       const primary = statusMap[req.status] || req.status;
       if (primary in listCounts) {
         listCounts[primary as keyof typeof listCounts]++;
@@ -91,9 +92,9 @@ test.describe('API: Request Counts', () => {
 
     // Allow some tolerance for race conditions
     const tolerance = 5;
-    expect(Math.abs(countsData.data.new - listCounts.new)).toBeLessThanOrEqual(tolerance);
-    expect(Math.abs(countsData.data.working - listCounts.working)).toBeLessThanOrEqual(tolerance);
-    expect(Math.abs(countsData.data.paused - listCounts.paused)).toBeLessThanOrEqual(tolerance);
+    expect(Math.abs(countsData.new - listCounts.new)).toBeLessThanOrEqual(tolerance);
+    expect(Math.abs(countsData.working - listCounts.working)).toBeLessThanOrEqual(tolerance);
+    expect(Math.abs(countsData.paused - listCounts.paused)).toBeLessThanOrEqual(tolerance);
   });
 });
 
@@ -114,7 +115,7 @@ test.describe('API: Person-Place Verification', () => {
     const response = await request.get(`/api/places/${placeId}/people`);
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
     expect(data.place).toBeDefined();
     expect(data.people).toBeDefined();
     expect(Array.isArray(data.people)).toBe(true);
@@ -139,7 +140,7 @@ test.describe('API: Person-Place Verification', () => {
     const response = await request.get(`/api/people/${personId}/places`);
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, any>>(await response.json());
     expect(data.person).toBeDefined();
     expect(data.places).toBeDefined();
     expect(Array.isArray(data.places)).toBe(true);
@@ -162,7 +163,7 @@ test.describe('API: Person-Place Verification', () => {
     // First get a valid person_place_id
     if (!personPlaceId && personId) {
       const placesResponse = await request.get(`/api/people/${personId}/places`);
-      const placesData = await placesResponse.json();
+      const placesData = unwrapApiResponse<Record<string, any>>(await placesResponse.json());
       if (placesData.places?.length > 0) {
         personPlaceId = placesData.places[0].person_place_id;
       }
@@ -173,8 +174,9 @@ test.describe('API: Person-Place Verification', () => {
     const response = await request.get(`/api/person-place/${personPlaceId}/role`);
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
-    expect(data.success).toBe(true);
+    const wrapped = await response.json();
+    expect((wrapped as any).success).toBe(true);
+    const data = unwrapApiResponse<Record<string, any>>(wrapped);
     expect(data.relationship).toBeDefined();
     expect(data.valid_roles).toBeDefined();
     expect(Array.isArray(data.valid_roles)).toBe(true);
@@ -189,7 +191,7 @@ test.describe('API: Intake Decline (mocked writes)', () => {
     });
 
     expect(response.status()).toBe(400);
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
     expect(data.error).toContain('submission_id');
   });
 
@@ -199,7 +201,7 @@ test.describe('API: Intake Decline (mocked writes)', () => {
     });
 
     expect(response.status()).toBe(400);
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
     expect(data.error).toContain('reason_code');
   });
 
@@ -427,7 +429,7 @@ test.describe('UI: Intake Queue Interactions', () => {
   test('Decline modal opens from queue (if available)', async ({ page, request }) => {
     // First check if there are any intake submissions
     const intakeResponse = await request.get('/api/intake/queue?limit=1');
-    const intakeData = await intakeResponse.json();
+    const intakeData = unwrapApiResponse<Record<string, any>>(await intakeResponse.json());
 
     if (!intakeData.submissions || intakeData.submissions.length === 0) {
       test.skip(true, 'No intake submissions in queue');
@@ -472,7 +474,7 @@ test.describe('Stress: Rapid Navigation', () => {
 
     // Get multiple request IDs
     const listResponse = await request.get('/api/requests?limit=5');
-    const listData = await listResponse.json();
+    const listData = unwrapApiResponse<Record<string, any>>(await listResponse.json());
 
     if (!listData.requests || listData.requests.length < 2) {
       test.skip(true, 'Not enough requests for stress test');
@@ -542,11 +544,13 @@ test.describe('Stress: Concurrent API Calls', () => {
     }
 
     // All should return same structure
-    const firstData = await responses[0].json();
+    const firstWrapped = await responses[0].json();
+    const firstData = unwrapApiResponse<Record<string, unknown>>(firstWrapped);
     for (const response of responses.slice(1)) {
-      const data = await response.json();
-      expect(data.success).toBe(firstData.success);
-      expect(Object.keys(data.data)).toEqual(Object.keys(firstData.data));
+      const wrapped = await response.json();
+      expect((wrapped as any).success).toBe((firstWrapped as any).success);
+      const data = unwrapApiResponse<Record<string, unknown>>(wrapped);
+      expect(Object.keys(data)).toEqual(Object.keys(firstData));
     }
   });
 

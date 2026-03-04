@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Clinic Data Verification Tests
@@ -40,7 +41,7 @@ test.describe('Clinic Data Cross-Reference', () => {
     const response = await request.get('/api/cats?limit=50');
     expect(response.ok()).toBeTruthy();
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
     expect(data.cats).toBeDefined();
 
     // Find cats with microchips
@@ -54,7 +55,7 @@ test.describe('Clinic Data Cross-Reference', () => {
   test('random cat detail matches API data', async ({ page, request }) => {
     // Get cats from API
     const response = await request.get('/api/cats?limit=20');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     if (!data.cats?.length) {
       test.skip();
@@ -93,7 +94,7 @@ test.describe('Clinic Data Cross-Reference', () => {
   test('person with cats shows correct cat count', async ({ page, request }) => {
     // Get people with cats
     const response = await request.get('/api/people?limit=50');
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // Find a person with cats
     const personWithCats = data.people.find((p: Person) => (p.cat_count || 0) > 0);
@@ -120,7 +121,7 @@ test.describe('Clinic Data Cross-Reference', () => {
   test('cat appointments show in UI', async ({ page, request }) => {
     // Get cats
     const catsResponse = await request.get('/api/cats?limit=30');
-    const catsData = await catsResponse.json();
+    const catsData = unwrapApiResponse<Record<string, unknown>>(await catsResponse.json());
 
     if (!catsData.cats?.length) {
       test.skip();
@@ -133,7 +134,7 @@ test.describe('Clinic Data Cross-Reference', () => {
       const appointmentsResponse = await request.get(`/api/cats/${cat.cat_id}/appointments`);
 
       if (appointmentsResponse.ok()) {
-        const appointments = await appointmentsResponse.json();
+        const appointments = unwrapApiResponse<Record<string, unknown>>(await appointmentsResponse.json());
 
         if (appointments.length > 0) {
           // Navigate to cat detail
@@ -163,7 +164,7 @@ test.describe('Microchip Data Verification', () => {
   test('microchip search returns correct cat', async ({ request }) => {
     // Get a cat with microchip
     const catsResponse = await request.get('/api/cats?limit=100');
-    const catsData = await catsResponse.json();
+    const catsData = unwrapApiResponse<Record<string, unknown>>(await catsResponse.json());
 
     const catWithChip = catsData.cats.find((c: Cat) => c.microchip_id);
 
@@ -177,7 +178,7 @@ test.describe('Microchip Data Verification', () => {
     const searchResponse = await request.get(`/api/cats?search=${catWithChip.microchip_id}`);
 
     if (searchResponse.ok()) {
-      const searchData = await searchResponse.json();
+      const searchData = unwrapApiResponse<Record<string, unknown>>(await searchResponse.json());
       // Should find the cat
       const found = searchData.cats.some((c: Cat) => c.cat_id === catWithChip.cat_id);
       expect(found).toBe(true);
@@ -187,14 +188,14 @@ test.describe('Microchip Data Verification', () => {
   test('clinic visit count matches appointments', async ({ request }) => {
     // Get cats
     const catsResponse = await request.get('/api/cats?limit=20');
-    const catsData = await catsResponse.json();
+    const catsData = unwrapApiResponse<Record<string, unknown>>(await catsResponse.json());
 
     for (const cat of catsData.cats.slice(0, 5)) {
       // Get appointments for this cat
       const appointmentsResponse = await request.get(`/api/cats/${cat.cat_id}/appointments`);
 
       if (appointmentsResponse.ok()) {
-        const appointments = await appointmentsResponse.json();
+        const appointments = unwrapApiResponse<Record<string, unknown>>(await appointmentsResponse.json());
         const appointmentCount = Array.isArray(appointments) ? appointments.length : 0;
 
         // If cat has clinic_visit_count, it should match or be close
@@ -215,7 +216,7 @@ test.describe('Owner-Cat Relationship Verification', () => {
   test('cat owner link is bidirectional', async ({ request }) => {
     // Get a cat
     const catsResponse = await request.get('/api/cats?limit=50');
-    const catsData = await catsResponse.json();
+    const catsData = unwrapApiResponse<Record<string, unknown>>(await catsResponse.json());
 
     // Find a cat (we'll check if it has an owner)
     for (const cat of catsData.cats.slice(0, 10)) {
@@ -223,7 +224,7 @@ test.describe('Owner-Cat Relationship Verification', () => {
       const catDetailResponse = await request.get(`/api/cats/${cat.cat_id}`);
 
       if (catDetailResponse.ok()) {
-        const catDetail = await catDetailResponse.json();
+        const catDetail = unwrapApiResponse<Record<string, unknown>>(await catDetailResponse.json());
 
         // If cat has an owner_person_id, verify the link
         if (catDetail.owner_person_id) {
@@ -231,7 +232,7 @@ test.describe('Owner-Cat Relationship Verification', () => {
           const ownerCatsResponse = await request.get(`/api/people/${catDetail.owner_person_id}/cats`);
 
           if (ownerCatsResponse.ok()) {
-            const ownerCats = await ownerCatsResponse.json();
+            const ownerCats = unwrapApiResponse<Record<string, unknown>>(await ownerCatsResponse.json());
             const catInOwnerList = Array.isArray(ownerCats) &&
               ownerCats.some((c: Cat) => c.cat_id === cat.cat_id);
 

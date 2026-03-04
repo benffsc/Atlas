@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * UI Workflow Tests - Comprehensive User Journey Testing
@@ -171,14 +172,14 @@ test.describe('Request Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.requests || data.requests.length === 0) {
+    if (!data.requests || (data.requests as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    const requestId = data.requests[0].request_id;
+    const requestId = (data.requests as Record<string, unknown>[])[0].request_id;
 
     // Navigate to request detail
     await page.goto(`/requests/${requestId}`);
@@ -200,14 +201,14 @@ test.describe('Request Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.requests || data.requests.length === 0) {
+    if (!data.requests || (data.requests as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/requests/${data.requests[0].request_id}`);
+    await page.goto(`/requests/${(data.requests as Record<string, unknown>[])[0].request_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Check for expandable sections or tabs
@@ -261,15 +262,16 @@ test.describe('Place & Colony Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.places || data.places.length === 0) {
+    if (!data.places || (data.places as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
     // Find a place with cat activity
-    const placeWithCats = data.places.find((p: { has_cat_activity?: boolean }) => p.has_cat_activity) || data.places[0];
+    const places = data.places as Record<string, unknown>[];
+    const placeWithCats = places.find((p) => p.has_cat_activity) || places[0];
 
     await page.goto(`/places/${placeWithCats.place_id}`);
     await page.waitForLoadState('domcontentloaded');
@@ -290,9 +292,9 @@ test.describe('Place & Colony Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.places || data.places.length === 0) {
+    if (!data.places || (data.places as unknown[]).length === 0) {
       test.skip();
       return;
     }
@@ -300,7 +302,7 @@ test.describe('Place & Colony Workflows', () => {
     // Check a few places for context badges
     let foundBadges = false;
 
-    for (const place of data.places.slice(0, 5)) {
+    for (const place of (data.places as Record<string, unknown>[]).slice(0, 5)) {
       await page.goto(`/places/${place.place_id}`);
       await page.waitForLoadState('domcontentloaded');
 
@@ -325,14 +327,14 @@ test.describe('Place & Colony Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.places || data.places.length === 0) {
+    if (!data.places || (data.places as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/places/${data.places[0].place_id}`);
+    await page.goto(`/places/${(data.places as Record<string, unknown>[])[0].place_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Look for statistics section
@@ -358,14 +360,14 @@ test.describe('Observation Logging Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.places || data.places.length === 0) {
+    if (!data.places || (data.places as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/places/${data.places[0].place_id}`);
+    await page.goto(`/places/${(data.places as Record<string, unknown>[])[0].place_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Look for observation button or form
@@ -392,14 +394,14 @@ test.describe('Observation Logging Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.places || data.places.length === 0) {
+    if (!data.places || (data.places as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/places/${data.places[0].place_id}`);
+    await page.goto(`/places/${(data.places as Record<string, unknown>[])[0].place_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Try to find and click observation button
@@ -433,14 +435,14 @@ test.describe('Cat Detail Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.cats || data.cats.length === 0) {
+    if (!data.cats || (data.cats as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/cats/${data.cats[0].cat_id}`);
+    await page.goto(`/cats/${(data.cats as Record<string, unknown>[])[0].cat_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Should show cat page content
@@ -459,14 +461,14 @@ test.describe('Cat Detail Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.cats || data.cats.length === 0) {
+    if (!data.cats || (data.cats as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/cats/${data.cats[0].cat_id}`);
+    await page.goto(`/cats/${(data.cats as Record<string, unknown>[])[0].cat_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Look for appointment or clinic history section
@@ -492,14 +494,14 @@ test.describe('Person Detail Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.people || data.people.length === 0) {
+    if (!data.people || (data.people as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/people/${data.people[0].person_id}`);
+    await page.goto(`/people/${(data.people as Record<string, unknown>[])[0].person_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     await expect(page.locator('h1').first()).toBeVisible();
@@ -517,14 +519,14 @@ test.describe('Person Detail Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.people || data.people.length === 0) {
+    if (!data.people || (data.people as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/people/${data.people[0].person_id}`);
+    await page.goto(`/people/${(data.people as Record<string, unknown>[])[0].person_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Look for related data sections
@@ -559,14 +561,14 @@ test.describe('Intake Queue Workflows', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.submissions || data.submissions.length === 0) {
+    if (!data.submissions || (data.submissions as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/intake/queue/${data.submissions[0].submission_id}`);
+    await page.goto(`/intake/queue/${(data.submissions as Record<string, unknown>[])[0].submission_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Should show submission details
@@ -690,14 +692,14 @@ test.describe('Button Interactions', () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
-    if (!data.requests || data.requests.length === 0) {
+    if (!data.requests || (data.requests as unknown[]).length === 0) {
       test.skip();
       return;
     }
 
-    await page.goto(`/requests/${data.requests[0].request_id}`);
+    await page.goto(`/requests/${(data.requests as Record<string, unknown>[])[0].request_id}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Find tab buttons

@@ -10,6 +10,7 @@
 
 import { test, expect, APIRequestContext } from '@playwright/test';
 import { findRealEntity } from './ui-test-helpers';
+import { unwrapApiResponse } from './helpers/api-response';
 
 // ============================================================================
 // REALISTIC DUMMY DATA - Based on actual Sonoma County TNR scenarios
@@ -98,8 +99,8 @@ async function createTestRequest(
     return null;
   }
 
-  const result = await response.json();
-  const requestId = result.request_id;
+  const result = unwrapApiResponse<Record<string, unknown>>(await response.json());
+  const requestId = result.request_id as string;
 
   if (requestId) {
     cleanup.requestIds.push(requestId);
@@ -169,11 +170,11 @@ test.describe('Real API: Request Creation with All Scenarios', () => {
     const getResponse = await request.get(`/api/requests/${requestId}`);
     expect(getResponse.ok()).toBeTruthy();
 
-    const data = await getResponse.json();
-    expect(data.data.request_id).toBe(requestId);
-    expect(data.data.estimated_cat_count).toBe(12);
-    expect(data.data.has_kittens).toBe(true);
-    expect(data.data.priority).toBe('high');
+    const data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.request_id).toBe(requestId);
+    expect(data.estimated_cat_count).toBe(12);
+    expect(data.has_kittens).toBe(true);
+    expect(data.priority).toBe('high');
   });
 
   test('Create urban complex request', async ({ request }) => {
@@ -185,9 +186,9 @@ test.describe('Real API: Request Creation with All Scenarios', () => {
     const getResponse = await request.get(`/api/requests/${requestId}`);
     expect(getResponse.ok()).toBeTruthy();
 
-    const data = await getResponse.json();
-    expect(data.data.estimated_cat_count).toBe(5);
-    expect(data.data.has_kittens).toBe(false);
+    const data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.estimated_cat_count).toBe(5);
+    expect(data.has_kittens).toBe(false);
   });
 
   test('Create friendly stray request', async ({ request }) => {
@@ -199,9 +200,9 @@ test.describe('Real API: Request Creation with All Scenarios', () => {
     const getResponse = await request.get(`/api/requests/${requestId}`);
     expect(getResponse.ok()).toBeTruthy();
 
-    const data = await getResponse.json();
-    expect(data.data.estimated_cat_count).toBe(1);
-    expect(data.data.has_kittens).toBe(false);
+    const data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.estimated_cat_count).toBe(1);
+    expect(data.has_kittens).toBe(false);
   });
 
   test('Create emergency kittens request', async ({ request }) => {
@@ -213,9 +214,9 @@ test.describe('Real API: Request Creation with All Scenarios', () => {
     const getResponse = await request.get(`/api/requests/${requestId}`);
     expect(getResponse.ok()).toBeTruthy();
 
-    const data = await getResponse.json();
-    expect(data.data.priority).toBe('urgent');
-    expect(data.data.has_kittens).toBe(true);
+    const data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.priority).toBe('urgent');
+    expect(data.has_kittens).toBe(true);
   });
 
   test('Create minimal request', async ({ request }) => {
@@ -251,8 +252,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
 
     // Verify initial state
     let getResponse = await request.get(`/api/requests/${requestId}`);
-    let data = await getResponse.json();
-    expect(data.data.status).toBe('new');
+    let data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.status).toBe('new');
 
     // 2. TRIAGE
     let updateResponse = await request.patch(`/api/requests/${requestId}`, {
@@ -265,8 +266,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     getResponse = await request.get(`/api/requests/${requestId}`);
-    data = await getResponse.json();
-    expect(['triaged', 'new']).toContain(data.data.status); // Some systems may not have triaged status
+    data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(['triaged', 'new']).toContain(data.status); // Some systems may not have triaged status
 
     // 3. SCHEDULE (set to working)
     updateResponse = await request.patch(`/api/requests/${requestId}`, {
@@ -278,8 +279,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     getResponse = await request.get(`/api/requests/${requestId}`);
-    data = await getResponse.json();
-    expect(['working', 'scheduled', 'in_progress']).toContain(data.data.status);
+    data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(['working', 'scheduled', 'in_progress']).toContain(data.status);
 
     // 4. UPDATE PROGRESS
     updateResponse = await request.patch(`/api/requests/${requestId}`, {
@@ -300,8 +301,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     getResponse = await request.get(`/api/requests/${requestId}`);
-    data = await getResponse.json();
-    expect(['paused', 'on_hold']).toContain(data.data.status);
+    data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(['paused', 'on_hold']).toContain(data.status);
 
     // 6. RESUME
     updateResponse = await request.patch(`/api/requests/${requestId}`, {
@@ -324,9 +325,9 @@ test.describe('Real API: Full Request Lifecycle', () => {
 
     // Verify final state
     getResponse = await request.get(`/api/requests/${requestId}`);
-    data = await getResponse.json();
-    expect(data.data.status).toBe('completed');
-    expect(data.data.resolved_at).toBeDefined();
+    data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.status).toBe('completed');
+    expect(data.resolved_at).toBeDefined();
 
     console.log(`Lifecycle test completed successfully for request ${requestId}`);
   });
@@ -348,8 +349,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     const getResponse = await request.get(`/api/requests/${requestId}`);
-    const data = await getResponse.json();
-    expect(['redirected', 'handed_off']).toContain(data.data.status);
+    const data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(['redirected', 'handed_off']).toContain(data.status);
   });
 
   test('Emergency path: urgent → immediate action → complete', async ({ request }) => {
@@ -360,8 +361,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
 
     // Verify urgent priority
     let getResponse = await request.get(`/api/requests/${requestId}`);
-    let data = await getResponse.json();
-    expect(data.data.priority).toBe('urgent');
+    let data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.priority).toBe('urgent');
     // Note: is_emergency not included in minimal INSERT, skip this check
 
     // Move to working immediately
@@ -384,8 +385,8 @@ test.describe('Real API: Full Request Lifecycle', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     getResponse = await request.get(`/api/requests/${requestId}`);
-    data = await getResponse.json();
-    expect(data.data.status).toBe('completed');
+    data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.status).toBe('completed');
   });
 });
 
@@ -410,7 +411,7 @@ test.describe('Real API: Request Updates and Field Persistence', () => {
 
     // Get initial state
     let getResponse = await request.get(`/api/requests/${requestId}`);
-    const initial = await getResponse.json();
+    const initial = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
 
     // Update some fields
     const updateResponse = await request.patch(`/api/requests/${requestId}`, {
@@ -424,18 +425,18 @@ test.describe('Real API: Request Updates and Field Persistence', () => {
 
     // Verify updated fields changed AND other fields persisted
     getResponse = await request.get(`/api/requests/${requestId}`);
-    const updated = await getResponse.json();
+    const updated = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
 
     // Changed fields
-    expect(updated.data.estimated_cat_count).toBe(8);
-    expect(updated.data.notes).toContain('Updated notes');
-    expect(updated.data.access_notes).toContain('5678');
+    expect(updated.estimated_cat_count).toBe(8);
+    expect(updated.notes).toContain('Updated notes');
+    expect(updated.access_notes).toContain('5678');
 
     // Unchanged fields should persist
-    expect(updated.data.has_kittens).toBe(initial.data.has_kittens);
-    expect(updated.data.kitten_count).toBe(initial.data.kitten_count);
-    expect(updated.data.priority).toBe(initial.data.priority);
-    expect(updated.data.is_being_fed).toBe(initial.data.is_being_fed);
+    expect(updated.has_kittens).toBe(initial.has_kittens);
+    expect(updated.kitten_count).toBe(initial.kitten_count);
+    expect(updated.priority).toBe(initial.priority);
+    expect(updated.is_being_fed).toBe(initial.is_being_fed);
   });
 
   test('Priority can be changed', async ({ request }) => {
@@ -451,8 +452,8 @@ test.describe('Real API: Request Updates and Field Persistence', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     let getResponse = await request.get(`/api/requests/${requestId}`);
-    let data = await getResponse.json();
-    expect(data.data.priority).toBe('high');
+    let data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.priority).toBe('high');
 
     // Escalate to urgent
     updateResponse = await request.patch(`/api/requests/${requestId}`, {
@@ -464,8 +465,8 @@ test.describe('Real API: Request Updates and Field Persistence', () => {
     expect(updateResponse.ok()).toBeTruthy();
 
     getResponse = await request.get(`/api/requests/${requestId}`);
-    data = await getResponse.json();
-    expect(data.data.priority).toBe('urgent');
+    data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.priority).toBe('urgent');
   });
 });
 
@@ -492,8 +493,8 @@ test.describe('Real API: Request Appears in List', () => {
     const listResponse = await request.get('/api/requests?limit=100');
     expect(listResponse.ok()).toBeTruthy();
 
-    const listData = await listResponse.json();
-    const requests = listData.data?.requests || listData.requests || [];
+    const listData = unwrapApiResponse<{ requests: unknown[] }>(await listResponse.json());
+    const requests = listData.requests;
 
     const found = requests.find((r: { request_id: string }) => r.request_id === requestId);
     expect(found).toBeTruthy();
@@ -511,8 +512,8 @@ test.describe('Real API: Request Appears in List', () => {
     const newListResponse = await request.get('/api/requests?status=new&limit=100');
     expect(newListResponse.ok()).toBeTruthy();
 
-    const newListData = await newListResponse.json();
-    const newRequests = newListData.data?.requests || newListData.requests || [];
+    const newListData = unwrapApiResponse<{ requests: unknown[] }>(await newListResponse.json());
+    const newRequests = newListData.requests;
 
     const foundInNew = newRequests.find((r: { request_id: string }) => r.request_id === requestId);
     expect(foundInNew).toBeTruthy();
@@ -540,7 +541,8 @@ test.describe('Real API: Cleanup Verification', () => {
     });
     expect(createResponse.ok()).toBeTruthy();
 
-    const { request_id: requestId } = await createResponse.json();
+    const createResult = unwrapApiResponse<Record<string, unknown>>(await createResponse.json());
+    const requestId = createResult.request_id as string;
     expect(requestId).toBeTruthy();
 
     // Cancel it
@@ -551,9 +553,9 @@ test.describe('Real API: Cleanup Verification', () => {
 
     // Verify it's cancelled
     const getResponse = await request.get(`/api/requests/${requestId}`);
-    const data = await getResponse.json();
-    expect(data.data.status).toBe('cancelled');
-    expect(data.data.resolved_at).toBeDefined();
+    const data = unwrapApiResponse<Record<string, unknown>>(await getResponse.json());
+    expect(data.status).toBe('cancelled');
+    expect(data.resolved_at).toBeDefined();
 
     console.log(`Cleanup verification passed for request ${requestId}`);
   });

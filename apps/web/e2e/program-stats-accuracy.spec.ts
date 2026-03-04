@@ -12,6 +12,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // Helper to convert string numbers from PostgreSQL to actual numbers
 function num(value: any): number {
@@ -43,7 +44,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
       expect(data).toBeDefined();
 
       // Validate 2025 data exists
@@ -72,7 +73,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       // Aggregate Q1 (months 1-3) and Q3 (months 7-9)
       const q1Months = data.filter(
@@ -110,7 +111,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       // Invariant: alterations can never exceed total appointments
       for (const row of data) {
@@ -136,7 +137,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
       expect(data).toBeDefined();
 
       const ytd2025 = data.find((r: any) => num(r.year) === 2025);
@@ -157,7 +158,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       // Some SCAS cats should be bridged to ShelterLuv
       const ytd2025 = data.find((r: any) => num(r.year) === 2025);
@@ -180,7 +181,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       for (const row of data) {
         // Calculate total from components
@@ -213,7 +214,7 @@ test.describe("Program Statistics Accuracy", () => {
         return;
       }
 
-      const data = await response.json();
+      const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
       // All categories should be represented
       const categories = data.map((r: any) => r.source_category);
@@ -245,7 +246,7 @@ test.describe("Appointment Categorization Accuracy", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
 
     // After MIG_569, all appointments should be categorized
     if (data.appointment_categories) {
@@ -264,7 +265,7 @@ test.describe("Appointment Categorization Accuracy", () => {
       return;
     }
 
-    const data = await response.json();
+    const data = unwrapApiResponse<Record<string, unknown>[]>(await response.json());
 
     // All SCAS cats should have scas_animal_id
     for (const row of data) {

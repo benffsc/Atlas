@@ -10,6 +10,7 @@
 
 import { test, expect } from "@playwright/test";
 import { navigateTo, findRealEntity } from "./ui-test-helpers";
+import { unwrapApiResponse } from "./helpers/api-response";
 
 // ============================================================================
 // INV-9: CAT IDENTITY FALLBACK CHAIN
@@ -26,8 +27,8 @@ test.describe("Cat Identity Fallback Chain (INV-9)", () => {
       return;
     }
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const cats = (data.cats as unknown[]) || [];
     test.skip(cats.length === 0, "No cats in database");
 
     const catsWithMicrochip = cats.filter((c: Record<string, unknown>) => c.has_microchip || c.microchip);
@@ -54,8 +55,8 @@ test.describe("Cat Identity Fallback Chain (INV-9)", () => {
       return;
     }
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const cats = (data.cats as unknown[]) || [];
     test.skip(cats.length === 0, "No cats in database");
 
     // Every cat should have a source_system
@@ -80,8 +81,8 @@ test.describe("Merge-Aware Queries (INV-7)", () => {
       return;
     }
 
-    const json = await response.json();
-    const people = json.data?.people || json.people || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const people = (data.people as unknown[]) || [];
 
     // No person in the list should be a merged record
     for (const person of people) {
@@ -99,8 +100,8 @@ test.describe("Merge-Aware Queries (INV-7)", () => {
       return;
     }
 
-    const json = await response.json();
-    const places = json.data?.places || json.places || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const places = (data.places as unknown[]) || [];
 
     for (const place of places) {
       expect(
@@ -117,8 +118,8 @@ test.describe("Merge-Aware Queries (INV-7)", () => {
       return;
     }
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const cats = (data.cats as unknown[]) || [];
 
     for (const cat of cats) {
       expect(
@@ -174,8 +175,8 @@ test.describe("Pagination Validation (INV-47)", () => {
     const response = await request.get("/api/cats?limit=-1");
     expect(response.ok()).toBe(true);
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const cats = (data.cats as unknown[]) || [];
     // Should return results (defaulted to safe value), not crash
     expect(cats.length).toBeGreaterThanOrEqual(0);
   });
@@ -189,8 +190,8 @@ test.describe("Pagination Validation (INV-47)", () => {
     const response = await request.get("/api/cats?limit=999999");
     expect(response.ok()).toBe(true);
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const cats = (data.cats as unknown[]) || [];
     // Should be capped, not return 999999 results
     expect(cats.length).toBeLessThanOrEqual(250);
   });
@@ -275,8 +276,8 @@ test.describe("Place Is The Anchor (INV-11)", () => {
       return;
     }
 
-    const json = await response.json();
-    const places = json.data?.places || json.places || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const places = (data.places as unknown[]) || [];
     test.skip(places.length === 0, "No places in database");
 
     // Places should have cat_count field
@@ -313,8 +314,8 @@ test.describe("Source System Values", () => {
       return;
     }
 
-    const json = await response.json();
-    const cats = json.data?.cats || json.cats || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const cats = (data.cats as unknown[]) || [];
     test.skip(cats.length === 0, "No cats in database");
 
     for (const cat of cats) {
@@ -353,8 +354,8 @@ test.describe("Request Lifecycle (Status Validation)", () => {
       return;
     }
 
-    const json = await response.json();
-    const requests = json.data?.requests || json.requests || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const requests = (data.requests as unknown[]) || [];
     test.skip(requests.length === 0, "No requests in database");
 
     for (const req of requests) {
@@ -375,8 +376,8 @@ test.describe("Request Lifecycle (Status Validation)", () => {
       return;
     }
 
-    const json = await response.json();
-    const requests = json.data?.requests || json.requests || [];
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    const requests = (data.requests as unknown[]) || [];
 
     for (const req of requests) {
       if (req.status === "completed") {
