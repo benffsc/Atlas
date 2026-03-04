@@ -99,7 +99,7 @@ async function getRealData(page: Page) {
 // BASIC TIPPY FUNCTIONALITY TESTS
 // ============================================================================
 
-test.describe('Tippy Basic Functionality', () => {
+test.describe('Tippy Basic Functionality @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -136,7 +136,7 @@ test.describe('Tippy Basic Functionality', () => {
 // PLACE & COLONY DATA TESTS
 // ============================================================================
 
-test.describe('Place & Colony Data Queries', () => {
+test.describe('Place & Colony Data Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -207,7 +207,7 @@ test.describe('Place & Colony Data Queries', () => {
 // CAT JOURNEY & MICROCHIP TESTS
 // ============================================================================
 
-test.describe('Cat Journey & Microchip Queries', () => {
+test.describe('Cat Journey & Microchip Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -296,7 +296,7 @@ test.describe('Cat Journey & Microchip Queries', () => {
 // FOSTER & ADOPTER RELATIONSHIP TESTS
 // ============================================================================
 
-test.describe('Foster & Adopter Relationship Queries', () => {
+test.describe('Foster & Adopter Relationship Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -345,7 +345,7 @@ test.describe('Foster & Adopter Relationship Queries', () => {
 // REGIONAL & STATISTICS QUERIES
 // ============================================================================
 
-test.describe('Regional Statistics Queries', () => {
+test.describe('Regional Statistics Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -394,7 +394,7 @@ test.describe('Regional Statistics Queries', () => {
 // COMPLEX MULTI-PART QUERIES
 // ============================================================================
 
-test.describe('Complex Multi-Part Queries', () => {
+test.describe('Complex Multi-Part Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -460,7 +460,7 @@ test.describe('Complex Multi-Part Queries', () => {
 // DATA QUALITY & DISCREPANCY DETECTION
 // ============================================================================
 
-test.describe('Data Quality & Discrepancy Detection', () => {
+test.describe('Data Quality & Discrepancy Detection @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -513,7 +513,7 @@ test.describe('Data Quality & Discrepancy Detection', () => {
 // KNOWLEDGE BASE & PROCEDURES
 // ============================================================================
 
-test.describe('Knowledge Base Queries', () => {
+test.describe('Knowledge Base Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -542,7 +542,7 @@ test.describe('Knowledge Base Queries', () => {
 // ERROR HANDLING & EDGE CASES
 // ============================================================================
 
-test.describe('Error Handling & Edge Cases', () => {
+test.describe('Error Handling & Edge Cases @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -584,7 +584,7 @@ test.describe('Error Handling & Edge Cases', () => {
 // PERSON HISTORY QUERIES
 // ============================================================================
 
-test.describe('Person History Queries', () => {
+test.describe('Person History Queries @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });
@@ -616,7 +616,7 @@ test.describe('Person History Queries', () => {
 // SUMMARY REPORT
 // ============================================================================
 
-test.describe('Data Pipeline Summary', () => {
+test.describe('Data Pipeline Summary @real-api', () => {
   test.beforeEach(async ({ page }) => {
     await fullLogin(page);
   });

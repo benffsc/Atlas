@@ -120,7 +120,7 @@ async function getRealPerson(request: {
 // These test the exact class of bug reported: vague address queries
 // ============================================================================
 
-test.describe("Tippy: Human-Style Address Questions", () => {
+test.describe("Tippy: Human-Style Address Questions @real-api", () => {
   test.setTimeout(120000); // 2 min — Tippy needs time for tool calls
 
   let place: PlaceEntity | null = null;
@@ -214,7 +214,7 @@ test.describe("Tippy: Human-Style Address Questions", () => {
 // PERSON LOOKUP TESTS
 // ============================================================================
 
-test.describe("Tippy: Human-Style Person Questions", () => {
+test.describe("Tippy: Human-Style Person Questions @real-api", () => {
   test.setTimeout(120000);
 
   let person: PersonEntity | null = null;
@@ -252,7 +252,7 @@ test.describe("Tippy: Human-Style Person Questions", () => {
 // GENERAL STATS & OVERVIEW QUESTIONS
 // ============================================================================
 
-test.describe("Tippy: Human-Style Stats Questions", () => {
+test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
   test.setTimeout(120000);
 
   test("How are we doing overall?", async ({ request }) => {
@@ -314,7 +314,7 @@ test.describe("Tippy: Human-Style Stats Questions", () => {
 // GRACEFUL FAILURE TESTS
 // ============================================================================
 
-test.describe("Tippy: Graceful Handling", () => {
+test.describe("Tippy: Graceful Handling @real-api", () => {
   test.setTimeout(120000);
 
   test("Handles non-existent address gracefully", async ({ request }) => {
@@ -367,7 +367,7 @@ test.describe("Tippy: Graceful Handling", () => {
 // FEEDBACK API TESTS
 // ============================================================================
 
-test.describe("Tippy: Feedback Submission", () => {
+test.describe("Tippy: Feedback Submission @real-api", () => {
   test.setTimeout(30000);
 
   test("Valid feedback submission succeeds", async ({ request }) => {

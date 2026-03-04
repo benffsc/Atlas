@@ -70,7 +70,7 @@ async function timedTippyRequest(
 // Single-table queries that should be fast
 // ============================================================================
 
-test.describe("Tippy Performance: Simple Lookups @smoke", () => {
+test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
   test.setTimeout(60000);
 
   test("Count query completes within benchmark", async ({ request }) => {
@@ -131,7 +131,7 @@ test.describe("Tippy Performance: Simple Lookups @smoke", () => {
 // Multi-source queries
 // ============================================================================
 
-test.describe("Tippy Performance: Comprehensive Lookups @smoke", () => {
+test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () => {
   test.setTimeout(60000);
 
   test("comprehensive_person_lookup within benchmark", async ({ request }) => {
@@ -191,7 +191,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke", () => {
 // Complex queries requiring inference
 // ============================================================================
 
-test.describe("Tippy Performance: Cross-Source Deductions @stress @slow", () => {
+test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-api", () => {
   test.setTimeout(90000);
 
   test("Person role evolution query within benchmark", async ({ request }) => {
@@ -248,7 +248,7 @@ test.describe("Tippy Performance: Cross-Source Deductions @stress @slow", () => 
 // View catalog operations
 // ============================================================================
 
-test.describe("Tippy Performance: Schema Navigation @smoke", () => {
+test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
   test.setTimeout(60000);
 
   test("discover_views within benchmark", async ({ request }) => {
@@ -293,7 +293,7 @@ test.describe("Tippy Performance: Schema Navigation @smoke", () => {
 // Multiple queries in sequence
 // ============================================================================
 
-test.describe("Tippy Performance: Sustained Load @stress @slow", () => {
+test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () => {
   test.setTimeout(120000);
 
   test("5 sequential queries maintain performance", async ({ request }) => {
@@ -351,7 +351,7 @@ test.describe("Tippy Performance: Sustained Load @stress @slow", () => {
 // PERFORMANCE REGRESSION SUMMARY
 // ============================================================================
 
-test.describe("Tippy Performance: Summary", () => {
+test.describe("Tippy Performance: Summary @real-api", () => {
   test.setTimeout(120000);
 
   test("Log benchmark summary", async ({ request }) => {

@@ -52,7 +52,7 @@ async function runCrossSourceTest(
 // PERSON CROSS-SOURCE TESTS
 // ============================================================================
 
-test.describe("Tippy Cross-Source: Person Questions", () => {
+test.describe("Tippy Cross-Source: Person Questions @real-api", () => {
   test("Person: comprehensive lookup returns data", async ({ page }) => {
     const question = PERSON_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "person-complete-lookup"
@@ -112,7 +112,7 @@ test.describe("Tippy Cross-Source: Person Questions", () => {
 // CAT JOURNEY TESTS
 // ============================================================================
 
-test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
+test.describe("Tippy Cross-Source: Cat Journey Questions @real-api", () => {
   test("Cat: microchip trace returns history", async ({ page }) => {
     const question = CAT_JOURNEY_QUESTIONS.find(
       (q) => q.id === "cat-microchip-trace"
@@ -168,7 +168,7 @@ test.describe("Tippy Cross-Source: Cat Journey Questions", () => {
 // PLACE-CENTRIC TESTS
 // ============================================================================
 
-test.describe("Tippy Cross-Source: Place Questions", () => {
+test.describe("Tippy Cross-Source: Place Questions @real-api", () => {
   test("Place: activity history by address", async ({ page }) => {
     const question = PLACE_CROSS_SOURCE_QUESTIONS.find(
       (q) => q.id === "place-activity-history"
@@ -222,7 +222,7 @@ test.describe("Tippy Cross-Source: Place Questions", () => {
 // DATA QUALITY TESTS (MIG_487 Functions)
 // ============================================================================
 
-test.describe("Tippy Cross-Source: Data Quality Questions", () => {
+test.describe("Tippy Cross-Source: Data Quality Questions @real-api", () => {
   test("Data Quality: check_data_quality for person", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
       (q) => q.id === "quality-person-check"
@@ -300,7 +300,7 @@ test.describe("Tippy Cross-Source: Data Quality Questions", () => {
 // BEACON ANALYTICS QUESTIONS (via Tippy)
 // ============================================================================
 
-test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
+test.describe("Tippy Cross-Source: Beacon Analytics Questions @real-api", () => {
   test("Beacon: overall impact metrics", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(
       (q) => q.id === "beacon-overall-impact"
@@ -376,7 +376,7 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions", () => {
 // COMPREHENSIVE LOOKUP FUNCTION TESTS
 // ============================================================================
 
-test.describe("Tippy Comprehensive Lookups", () => {
+test.describe("Tippy Comprehensive Lookups @real-api", () => {
   test("comprehensive_person_lookup returns multi-source data", async ({
     page,
   }) => {
@@ -416,7 +416,7 @@ test.describe("Tippy Comprehensive Lookups", () => {
 // ERROR HANDLING TESTS
 // ============================================================================
 
-test.describe("Tippy Error Handling", () => {
+test.describe("Tippy Error Handling @real-api", () => {
   test("Handles empty question gracefully", async ({ page }) => {
     // Empty message should get a validation error, not a 500
     const response = await page.request.post("/api/tippy/chat", {

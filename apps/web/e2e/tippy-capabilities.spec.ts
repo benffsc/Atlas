@@ -24,7 +24,7 @@ import { askTippyAuthenticated, TippyResponse } from "./helpers/auth-api";
 // These are Tippy's core strengths - instant database queries
 // ============================================================================
 
-test.describe("Tippy: Point-in-Time Lookups", () => {
+test.describe("Tippy: Point-in-Time Lookups @real-api", () => {
   test("Can answer 'How many cats at [address]?'", async ({ page }) => {
     const response = await askTippyAuthenticated(
       page,
@@ -104,7 +104,7 @@ test.describe("Tippy: Point-in-Time Lookups", () => {
 // These tools aggregate data from multiple sources
 // ============================================================================
 
-test.describe("Tippy: Comprehensive Lookups", () => {
+test.describe("Tippy: Comprehensive Lookups @real-api", () => {
   test("comprehensive_person_lookup works", async ({ page }) => {
     const response = await askTippyAuthenticated(
       page,
@@ -147,7 +147,7 @@ test.describe("Tippy: Comprehensive Lookups", () => {
 // These help staff maintain data integrity
 // ============================================================================
 
-test.describe("Tippy: Data Quality Tools", () => {
+test.describe("Tippy: Data Quality Tools @real-api", () => {
   test("Can check entity data quality", async ({ page }) => {
     const response = await askTippyAuthenticated(
       page,
@@ -204,7 +204,7 @@ test.describe("Tippy: Data Quality Tools", () => {
 // Population ecology queries
 // ============================================================================
 
-test.describe("Tippy: Beacon Analytics", () => {
+test.describe("Tippy: Beacon Analytics @real-api", () => {
   test("Can query overall alteration rate", async ({ page }) => {
     const response = await askTippyAuthenticated(
       page,
@@ -252,7 +252,7 @@ test.describe("Tippy: Beacon Analytics", () => {
 // Run subset of fixture questions to verify capabilities
 // ============================================================================
 
-test.describe("Tippy: Person Cross-Source Questions (Easy)", () => {
+test.describe("Tippy: Person Cross-Source Questions (Easy) @real-api", () => {
   const easyQuestions = PERSON_CROSS_SOURCE_QUESTIONS.filter(
     (q) => q.difficulty === "easy"
   );
@@ -271,7 +271,7 @@ test.describe("Tippy: Person Cross-Source Questions (Easy)", () => {
   }
 });
 
-test.describe("Tippy: Cat Journey Questions (Easy)", () => {
+test.describe("Tippy: Cat Journey Questions (Easy) @real-api", () => {
   const easyQuestions = CAT_JOURNEY_QUESTIONS.filter(
     (q) => q.difficulty === "easy"
   );
@@ -289,7 +289,7 @@ test.describe("Tippy: Cat Journey Questions (Easy)", () => {
   }
 });
 
-test.describe("Tippy: Place Questions (Easy)", () => {
+test.describe("Tippy: Place Questions (Easy) @real-api", () => {
   const easyQuestions = PLACE_CROSS_SOURCE_QUESTIONS.filter(
     (q) => q.difficulty === "easy"
   );
@@ -307,7 +307,7 @@ test.describe("Tippy: Place Questions (Easy)", () => {
   }
 });
 
-test.describe("Tippy: Data Quality Questions (Easy)", () => {
+test.describe("Tippy: Data Quality Questions (Easy) @real-api", () => {
   const easyQuestions = DATA_QUALITY_QUESTIONS.filter(
     (q) => q.difficulty === "easy"
   );
@@ -325,7 +325,7 @@ test.describe("Tippy: Data Quality Questions (Easy)", () => {
   }
 });
 
-test.describe("Tippy: Beacon Questions (Easy)", () => {
+test.describe("Tippy: Beacon Questions (Easy) @real-api", () => {
   const easyQuestions = BEACON_QUESTIONS.filter(
     (q) => q.difficulty === "easy"
   );
@@ -348,7 +348,7 @@ test.describe("Tippy: Beacon Questions (Easy)", () => {
 // Test that Tippy maintains context across messages
 // ============================================================================
 
-test.describe("Tippy: Conversation Context", () => {
+test.describe("Tippy: Conversation Context @real-api", () => {
   test("Maintains conversation ID", async ({ page }) => {
     const response1 = await askTippyAuthenticated(
       page,

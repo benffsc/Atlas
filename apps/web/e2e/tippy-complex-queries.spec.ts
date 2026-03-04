@@ -40,7 +40,7 @@ async function askTippy(
   return await response.json();
 }
 
-test.describe("Tippy Complex Queries - Program Statistics", () => {
+test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
   test("can compare foster Q1 vs Q3 2025", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -128,7 +128,7 @@ test.describe("Tippy Complex Queries - Program Statistics", () => {
   });
 });
 
-test.describe("Tippy Complex Queries - Year-over-Year", () => {
+test.describe("Tippy Complex Queries - Year-over-Year @real-api", () => {
   test("can compare 2024 vs 2025 foster program", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -173,7 +173,7 @@ test.describe("Tippy Complex Queries - Year-over-Year", () => {
   });
 });
 
-test.describe("Tippy Complex Queries - Multi-Source", () => {
+test.describe("Tippy Complex Queries - Multi-Source @real-api", () => {
   test("can query person with foster + clinic history", async ({ request }) => {
     // This requires joining VolunteerHub (foster role) + ClinicHQ (appointments)
     const response = await askTippy(
@@ -203,7 +203,7 @@ test.describe("Tippy Complex Queries - Multi-Source", () => {
   });
 });
 
-test.describe("Tippy Complex Queries - Data Quality", () => {
+test.describe("Tippy Complex Queries - Data Quality @real-api", () => {
   test("can identify appointments missing cat links", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -255,7 +255,7 @@ test.describe("Tippy Complex Queries - Data Quality", () => {
   });
 });
 
-test.describe("Tippy Complex Queries - Staff Workflow", () => {
+test.describe("Tippy Complex Queries - Staff Workflow @real-api", () => {
   test("can answer 'who is our top foster parent'", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -337,7 +337,7 @@ test.describe("Tippy Complex Queries - Staff Workflow", () => {
   });
 });
 
-test.describe("Tippy Response Accuracy - Cross-Validation", () => {
+test.describe("Tippy Response Accuracy - Cross-Validation @real-api", () => {
   test("foster count matches view data", async ({ request }) => {
     // Get Tippy's answer
     const tippyResponse = await askTippy(

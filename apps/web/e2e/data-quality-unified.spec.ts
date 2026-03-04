@@ -56,7 +56,7 @@ function extractResponseText(data: unknown): string {
 // DATA QUALITY API ENDPOINT TESTS
 // ============================================================================
 
-test.describe("Data Quality: API Endpoints", () => {
+test.describe("Data Quality: API Endpoints @real-api", () => {
   test("GET /api/admin/data-engine/review returns review queue", async ({
     request,
   }) => {
@@ -91,7 +91,7 @@ test.describe("Data Quality: API Endpoints", () => {
 // CHECK_DATA_QUALITY FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: check_data_quality Function", () => {
+test.describe("Data Quality: check_data_quality Function @real-api", () => {
   test("Check data quality for a person entity", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -156,7 +156,7 @@ test.describe("Data Quality: check_data_quality Function", () => {
 // FIND_POTENTIAL_DUPLICATES FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: find_potential_duplicates Function", () => {
+test.describe("Data Quality: find_potential_duplicates Function @real-api", () => {
   test("Find potential duplicate people", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -206,7 +206,7 @@ test.describe("Data Quality: find_potential_duplicates Function", () => {
 // QUERY_MERGE_HISTORY FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_merge_history Function", () => {
+test.describe("Data Quality: query_merge_history Function @real-api", () => {
   test("Query merge history for people", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -256,7 +256,7 @@ test.describe("Data Quality: query_merge_history Function", () => {
 // QUERY_DATA_LINEAGE FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_data_lineage Function", () => {
+test.describe("Data Quality: query_data_lineage Function @real-api", () => {
   test("Query data lineage for a person", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -317,7 +317,7 @@ test.describe("Data Quality: query_data_lineage Function", () => {
 // QUERY_VOLUNTEERHUB_DATA FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_volunteerhub_data Function", () => {
+test.describe("Data Quality: query_volunteerhub_data Function @real-api", () => {
   test("Query volunteer hours", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -369,7 +369,7 @@ test.describe("Data Quality: query_volunteerhub_data Function", () => {
 // QUERY_SOURCE_EXTENSION FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_source_extension Function", () => {
+test.describe("Data Quality: query_source_extension Function @real-api", () => {
   test("Query ClinicHQ extension data", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -419,7 +419,7 @@ test.describe("Data Quality: query_source_extension Function", () => {
 // COMPREHENSIVE LOOKUP FUNCTION TESTS
 // ============================================================================
 
-test.describe("Data Quality: Comprehensive Lookups", () => {
+test.describe("Data Quality: Comprehensive Lookups @real-api", () => {
   test("comprehensive_person_lookup returns multi-source data", async ({
     request,
   }) => {
@@ -462,7 +462,7 @@ test.describe("Data Quality: Comprehensive Lookups", () => {
 // SOURCE CONFIDENCE AND SURVIVORSHIP TESTS
 // ============================================================================
 
-test.describe("Data Quality: Source Confidence", () => {
+test.describe("Data Quality: Source Confidence @real-api", () => {
   test("Query source identity confidence levels", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -509,7 +509,7 @@ test.describe("Data Quality: Source Confidence", () => {
 // DATA INTEGRITY VALIDATION TESTS
 // ============================================================================
 
-test.describe("Data Quality: Integrity Validation", () => {
+test.describe("Data Quality: Integrity Validation @real-api", () => {
   test("Check for orphaned records", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -559,7 +559,7 @@ test.describe("Data Quality: Integrity Validation", () => {
 // ERROR HANDLING TESTS
 // ============================================================================
 
-test.describe("Data Quality: Error Handling", () => {
+test.describe("Data Quality: Error Handling @real-api", () => {
   test("Handles non-existent entity gracefully", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -600,7 +600,7 @@ test.describe("Data Quality: Error Handling", () => {
 // CROSS-SOURCE DATA CONSISTENCY TESTS
 // ============================================================================
 
-test.describe("Data Quality: Cross-Source Consistency", () => {
+test.describe("Data Quality: Cross-Source Consistency @real-api", () => {
   test("Verify person data matches across sources", async ({ request }) => {
     const response = await askTippy(
       request,

@@ -58,7 +58,7 @@ async function testQuestion(
   };
 }
 
-test.describe("Tippy Staff Workflows - Easy Questions", () => {
+test.describe("Tippy Staff Workflows - Easy Questions @real-api", () => {
   for (const question of EASY_QUESTIONS) {
     test(`[${question.id}] ${question.description}`, async ({ request }) => {
       const result = await testQuestion(request, question);
@@ -71,7 +71,7 @@ test.describe("Tippy Staff Workflows - Easy Questions", () => {
   }
 });
 
-test.describe("Tippy Staff Workflows - Medium Questions", () => {
+test.describe("Tippy Staff Workflows - Medium Questions @real-api", () => {
   for (const question of MEDIUM_QUESTIONS) {
     test(`[${question.id}] ${question.description}`, async ({ request }) => {
       const result = await testQuestion(request, question);
@@ -84,7 +84,7 @@ test.describe("Tippy Staff Workflows - Medium Questions", () => {
   }
 });
 
-test.describe("Tippy Staff Workflows - Hard Questions", () => {
+test.describe("Tippy Staff Workflows - Hard Questions @real-api", () => {
   for (const question of HARD_QUESTIONS) {
     test(`[${question.id}] ${question.description}`, async ({ request }) => {
       const result = await testQuestion(request, question);
@@ -99,7 +99,7 @@ test.describe("Tippy Staff Workflows - Hard Questions", () => {
   }
 });
 
-test.describe("Tippy Response Quality", () => {
+test.describe("Tippy Response Quality @real-api", () => {
   test("responses contain specific numbers, not vague answers", async ({
     request,
   }) => {
@@ -177,7 +177,7 @@ test.describe("Tippy Response Quality", () => {
   });
 });
 
-test.describe("Tippy Edge Cases", () => {
+test.describe("Tippy Edge Cases @real-api", () => {
   test("handles future date queries gracefully", async ({ request }) => {
     const result = await askTippy(
       request,
@@ -238,7 +238,7 @@ test.describe("Tippy Edge Cases", () => {
   });
 });
 
-test.describe("Tippy Tool Usage", () => {
+test.describe("Tippy Tool Usage @real-api", () => {
   test("uses discover_views for unknown queries", async ({ request }) => {
     // This is a meta-test to verify Tippy's tool selection
     // Note: This requires access to tool call logs

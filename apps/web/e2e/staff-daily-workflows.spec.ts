@@ -79,7 +79,7 @@ function runStaffQuestionTest(question: StaffQuestion) {
 // Questions asked every morning when opening Atlas
 // ============================================================================
 
-test.describe("Daily Coordinator Workflow", () => {
+test.describe("Daily Coordinator Workflow @real-api", () => {
   test.describe("Morning Intake Review", () => {
     for (const question of INTAKE_QUESTIONS) {
       runStaffQuestionTest(question);
@@ -98,7 +98,7 @@ test.describe("Daily Coordinator Workflow", () => {
 // Questions for managing trapper assignments and performance
 // ============================================================================
 
-test.describe("Trapper Management Workflow", () => {
+test.describe("Trapper Management Workflow @real-api", () => {
   for (const question of TRAPPER_QUESTIONS) {
     runStaffQuestionTest(question);
   }
@@ -109,7 +109,7 @@ test.describe("Trapper Management Workflow", () => {
 // Questions for data verification and duplicate detection
 // ============================================================================
 
-test.describe("Data Entry Workflow", () => {
+test.describe("Data Entry Workflow @real-api", () => {
   for (const question of DATA_ENTRY_QUESTIONS) {
     runStaffQuestionTest(question);
   }
@@ -120,7 +120,7 @@ test.describe("Data Entry Workflow", () => {
 // Questions for monthly/quarterly reporting
 // ============================================================================
 
-test.describe("Reporting Workflow", () => {
+test.describe("Reporting Workflow @real-api", () => {
   for (const question of REPORTING_QUESTIONS) {
     runStaffQuestionTest(question);
   }
@@ -131,7 +131,7 @@ test.describe("Reporting Workflow", () => {
 // Questions about finding things in Atlas
 // ============================================================================
 
-test.describe("Navigation Help", () => {
+test.describe("Navigation Help @real-api", () => {
   for (const question of NAVIGATION_QUESTIONS) {
     runStaffQuestionTest(question);
   }
@@ -142,7 +142,7 @@ test.describe("Navigation Help", () => {
 // Questions during urgent situations
 // ============================================================================
 
-test.describe("Emergency Handling", () => {
+test.describe("Emergency Handling @real-api", () => {
   for (const question of EMERGENCY_QUESTIONS) {
     runStaffQuestionTest(question);
   }
@@ -153,7 +153,7 @@ test.describe("Emergency Handling", () => {
 // These test realistic multi-turn conversations
 // ============================================================================
 
-test.describe("Workflow Scenarios", () => {
+test.describe("Workflow Scenarios @real-api", () => {
   test("Intake triage workflow", async ({ request }) => {
     // Step 1: Check pending intakes
     const step1 = await askTippy(request, "How many pending intakes do we have?");
@@ -253,7 +253,7 @@ test.describe("Workflow Scenarios", () => {
 // Aggregate tests to quantify working vs gap questions
 // ============================================================================
 
-test.describe("Capability Coverage", () => {
+test.describe("Capability Coverage @real-api", () => {
   test("Daily questions working count", async ({ request }) => {
     const dailyQuestions = getDailyQuestions();
     const workingDaily = dailyQuestions.filter(
@@ -293,7 +293,7 @@ test.describe("Capability Coverage", () => {
 // Explicitly list all gaps with their reasons
 // ============================================================================
 
-test.describe("Documented Gaps (Expected Failures)", () => {
+test.describe("Documented Gaps (Expected Failures) @real-api", () => {
   const gapQuestions = getGapQuestions();
 
   for (const question of gapQuestions) {

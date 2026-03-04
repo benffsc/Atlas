@@ -82,7 +82,7 @@ function runIdentityQuestionTest(question: IdentityResolutionQuestion) {
 // FELLEGI-SUNTER SCORING EXPLANATIONS
 // ============================================================================
 
-test.describe("Tippy: F-S Scoring Explanations", () => {
+test.describe("Tippy: F-S Scoring Explanations @real-api", () => {
   test.setTimeout(30000);
 
   for (const question of FS_SCORING_QUESTIONS) {
@@ -94,7 +94,7 @@ test.describe("Tippy: F-S Scoring Explanations", () => {
 // IDENTITY GRAPH EXPLANATIONS
 // ============================================================================
 
-test.describe("Tippy: Identity Graph Explanations", () => {
+test.describe("Tippy: Identity Graph Explanations @real-api", () => {
   test.setTimeout(30000);
 
   for (const question of IDENTITY_GRAPH_QUESTIONS) {
@@ -106,7 +106,7 @@ test.describe("Tippy: Identity Graph Explanations", () => {
 // REVIEW WORKFLOW GUIDANCE
 // ============================================================================
 
-test.describe("Tippy: Review Workflow Guidance", () => {
+test.describe("Tippy: Review Workflow Guidance @real-api", () => {
   test.setTimeout(30000);
 
   for (const question of REVIEW_WORKFLOW_QUESTIONS) {
@@ -118,7 +118,7 @@ test.describe("Tippy: Review Workflow Guidance", () => {
 // SPECIFIC MATCH EXPLANATIONS
 // ============================================================================
 
-test.describe("Tippy: Match Scenario Explanations", () => {
+test.describe("Tippy: Match Scenario Explanations @real-api", () => {
   test.setTimeout(30000);
 
   for (const question of MATCH_EXPLANATION_QUESTIONS) {
@@ -130,7 +130,7 @@ test.describe("Tippy: Match Scenario Explanations", () => {
 // MULTI-TURN CONVERSATIONS
 // ============================================================================
 
-test.describe("Tippy: Identity Resolution Conversations", () => {
+test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
   test.setTimeout(45000);
 
   test("Can explain F-S then answer follow-up about thresholds", async ({
@@ -211,7 +211,7 @@ test.describe("Tippy: Identity Resolution Conversations", () => {
 // STAFF WORKFLOW SCENARIOS
 // ============================================================================
 
-test.describe("Tippy: Staff Identity Review Workflow", () => {
+test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
   test.setTimeout(60000);
 
   test("Morning review workflow: Check queue and prioritize", async ({
@@ -282,7 +282,7 @@ test.describe("Tippy: Staff Identity Review Workflow", () => {
 // CAPABILITY COVERAGE
 // ============================================================================
 
-test.describe("Identity Resolution Capability Coverage", () => {
+test.describe("Identity Resolution Capability Coverage @real-api", () => {
   test("Basic questions working count", async ({ request }) => {
     const basicQuestions = getBasicIdentityQuestions();
     const workingBasic = basicQuestions.filter(
@@ -316,7 +316,7 @@ test.describe("Identity Resolution Capability Coverage", () => {
 // PHASE 3-4 SPECIFIC VERIFICATION
 // ============================================================================
 
-test.describe("Phase 3-4 Verification: Tippy Knowledge", () => {
+test.describe("Phase 3-4 Verification: Tippy Knowledge @real-api", () => {
   test.setTimeout(30000);
 
   test("Tippy knows about Fellegi-Sunter scoring", async ({ request }) => {

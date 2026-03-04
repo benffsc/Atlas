@@ -45,7 +45,7 @@ async function askTippy(
 // Tippy can answer "all time" questions but NOT time-bounded questions
 // ============================================================================
 
-test.describe("Gap: Temporal Queries - Trapper Stats by Date Range", () => {
+test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", () => {
   /**
    * GAP: query_trapper_stats returns career totals only
    * FIX NEEDED: Add date range parameters to query_trapper_stats tool
@@ -96,7 +96,7 @@ test.describe("Gap: Temporal Queries - Trapper Stats by Date Range", () => {
   });
 });
 
-test.describe("Gap: Temporal Queries - Monthly Trends", () => {
+test.describe("Gap: Temporal Queries - Monthly Trends @real-api", () => {
   /**
    * GAP: query_ffr_impact only returns yearly buckets
    * FIX NEEDED: Add monthly aggregation option to query_ffr_impact
@@ -139,7 +139,7 @@ test.describe("Gap: Temporal Queries - Monthly Trends", () => {
 // Tippy can count activities but NOT calculate efficiency
 // ============================================================================
 
-test.describe("Gap: Efficiency Metrics", () => {
+test.describe("Gap: Efficiency Metrics @real-api", () => {
   /**
    * GAP: No cross-join between VolunteerHub hours and trapping stats
    * FIX NEEDED: New view joining volunteer hours to cats trapped
@@ -192,7 +192,7 @@ test.describe("Gap: Efficiency Metrics", () => {
 // Tippy cannot answer questions about organizational goals
 // ============================================================================
 
-test.describe("Gap: Goal Tracking", () => {
+test.describe("Gap: Goal Tracking @real-api", () => {
   /**
    * GAP: No organization_goals table exists
    * FIX NEEDED: Add organization_goals table with targets
@@ -235,7 +235,7 @@ test.describe("Gap: Goal Tracking", () => {
 // Tippy cannot predict future states based on current rates
 // ============================================================================
 
-test.describe("Gap: Forecasting", () => {
+test.describe("Gap: Forecasting @real-api", () => {
   /**
    * GAP: No forecasting logic based on current alteration rates
    * FIX NEEDED: Add predict_completion_date tool
@@ -278,7 +278,7 @@ test.describe("Gap: Forecasting", () => {
 // Tippy cannot help with resource allocation decisions
 // ============================================================================
 
-test.describe("Gap: Workload Balancing", () => {
+test.describe("Gap: Workload Balancing @real-api", () => {
   /**
    * GAP: No current workload calculation per trapper
    * FIX NEEDED: Add v_trapper_current_workload view
@@ -322,7 +322,7 @@ test.describe("Gap: Workload Balancing", () => {
 // Tippy has basic location queries but lacks route optimization
 // ============================================================================
 
-test.describe("Gap: Geographic Analysis", () => {
+test.describe("Gap: Geographic Analysis @real-api", () => {
   /**
    * GAP: No route optimization or clustering analysis
    * FIX NEEDED: Tools for efficient visit planning
@@ -354,7 +354,7 @@ test.describe("Gap: Geographic Analysis", () => {
 // Tippy cannot proactively alert about important conditions
 // ============================================================================
 
-test.describe("Gap: Proactive Alerts", () => {
+test.describe("Gap: Proactive Alerts @real-api", () => {
   /**
    * GAP: No alerting rules or thresholds defined
    * FIX NEEDED: Alert conditions table + proactive check tool
@@ -386,7 +386,7 @@ test.describe("Gap: Proactive Alerts", () => {
 // Tippy struggles with multi-entity comparisons
 // ============================================================================
 
-test.describe("Gap: Comparative Analysis", () => {
+test.describe("Gap: Comparative Analysis @real-api", () => {
   /**
    * GAP: No tools designed for entity comparison
    * FIX NEEDED: compare_entities tool

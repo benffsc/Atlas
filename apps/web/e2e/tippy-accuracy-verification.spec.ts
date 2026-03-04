@@ -161,7 +161,7 @@ async function runAccuracyTest(
 // ENTITY COUNT ACCURACY TESTS
 // ============================================================================
 
-test.describe("Tippy Accuracy: Entity Counts @nightly", () => {
+test.describe("Tippy Accuracy: Entity Counts @nightly @real-api", () => {
   test.setTimeout(60000);
 
   for (const testCase of ENTITY_COUNT_TESTS) {
@@ -175,7 +175,7 @@ test.describe("Tippy Accuracy: Entity Counts @nightly", () => {
 // ALTERATION RATE ACCURACY TESTS
 // ============================================================================
 
-test.describe("Tippy Accuracy: Alteration Rates @nightly", () => {
+test.describe("Tippy Accuracy: Alteration Rates @nightly @real-api", () => {
   test.setTimeout(60000);
 
   for (const testCase of ALTERATION_TESTS) {
@@ -189,7 +189,7 @@ test.describe("Tippy Accuracy: Alteration Rates @nightly", () => {
 // COLONY STATUS ACCURACY TESTS
 // ============================================================================
 
-test.describe("Tippy Accuracy: Colony Status @nightly", () => {
+test.describe("Tippy Accuracy: Colony Status @nightly @real-api", () => {
   test.setTimeout(60000);
 
   for (const testCase of COLONY_TESTS) {
@@ -204,7 +204,7 @@ test.describe("Tippy Accuracy: Colony Status @nightly", () => {
 // Hand-written tests for specific known values
 // ============================================================================
 
-test.describe("Tippy Accuracy: Manual Verification @smoke", () => {
+test.describe("Tippy Accuracy: Manual Verification @smoke @real-api", () => {
   test.setTimeout(60000);
 
   test("Reports non-zero cat count", async ({ request }) => {
@@ -299,7 +299,7 @@ test.describe("Tippy Accuracy: Manual Verification @smoke", () => {
 // Verify Tippy doesn't make up impossible data
 // ============================================================================
 
-test.describe("Tippy Accuracy: Sanity Checks @smoke", () => {
+test.describe("Tippy Accuracy: Sanity Checks @smoke @real-api", () => {
   test.setTimeout(60000);
 
   test("Does not claim more altered cats than total cats", async ({

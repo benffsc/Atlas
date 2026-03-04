@@ -104,7 +104,7 @@ async function runEdgeCaseTest(
 // Tests how Tippy handles records with incomplete information
 // ============================================================================
 
-test.describe("Tippy Edge Cases: Missing Data @stress", () => {
+test.describe("Tippy Edge Cases: Missing Data @stress @real-api", () => {
   test.setTimeout(60000);
 
   for (const scenario of MISSING_DATA_SCENARIOS) {
@@ -119,7 +119,7 @@ test.describe("Tippy Edge Cases: Missing Data @stress", () => {
 // Tests how Tippy handles records with different values across sources
 // ============================================================================
 
-test.describe("Tippy Edge Cases: Conflicting Data @stress", () => {
+test.describe("Tippy Edge Cases: Conflicting Data @stress @real-api", () => {
   test.setTimeout(60000);
 
   for (const scenario of CONFLICTING_DATA_SCENARIOS) {
@@ -134,7 +134,7 @@ test.describe("Tippy Edge Cases: Conflicting Data @stress", () => {
 // Tests how Tippy handles multi-hop merged entity relationships
 // ============================================================================
 
-test.describe("Tippy Edge Cases: Merge Chains @stress", () => {
+test.describe("Tippy Edge Cases: Merge Chains @stress @real-api", () => {
   test.setTimeout(60000);
 
   for (const scenario of MERGE_CHAIN_SCENARIOS) {
@@ -149,7 +149,7 @@ test.describe("Tippy Edge Cases: Merge Chains @stress", () => {
 // Hand-crafted tests for known problematic scenarios
 // ============================================================================
 
-test.describe("Tippy Edge Cases: Regression Tests @smoke", () => {
+test.describe("Tippy Edge Cases: Regression Tests @smoke @real-api", () => {
   // Tippy queries can take 30+ seconds for complex lookups
   test.setTimeout(60000);
 
@@ -236,7 +236,7 @@ test.describe("Tippy Edge Cases: Regression Tests @smoke", () => {
 // Tests edge cases with numeric boundaries
 // ============================================================================
 
-test.describe("Tippy Edge Cases: Boundary Values @stress", () => {
+test.describe("Tippy Edge Cases: Boundary Values @stress @real-api", () => {
   test.setTimeout(60000);
 
   test("Handles query for zero results gracefully", async ({ request }) => {

@@ -56,7 +56,7 @@ async function askTippy(
 // Person data spanning ClinicHQ + ShelterLuv + VolunteerHub + Airtable
 // ============================================================================
 
-test.describe("Tippy Stress: Person Across 4+ Sources @stress @slow", () => {
+test.describe("Tippy Stress: Person Across 4+ Sources @stress @slow @real-api", () => {
   // Complex cross-source queries can take 60+ seconds
   test.setTimeout(90000);
 
@@ -148,7 +148,7 @@ test.describe("Tippy Stress: Person Across 4+ Sources @stress @slow", () => {
 // Request → Trapping → Clinic → Foster → Adoption
 // ============================================================================
 
-test.describe("Tippy Stress: Cat Full Lifecycle @stress @slow", () => {
+test.describe("Tippy Stress: Cat Full Lifecycle @stress @slow @real-api", () => {
   test.setTimeout(90000);
 
   test("Trace cat from original request to adoption", async ({ request }) => {
@@ -224,7 +224,7 @@ test.describe("Tippy Stress: Cat Full Lifecycle @stress @slow", () => {
 // Requests + Cats + Appointments + Colony estimates + Context + Trappers
 // ============================================================================
 
-test.describe("Tippy Stress: Place Complete History @stress @slow", () => {
+test.describe("Tippy Stress: Place Complete History @stress @slow @real-api", () => {
   test.setTimeout(90000);
 
   test("Full place history across all sources", async ({ request }) => {
@@ -307,7 +307,7 @@ test.describe("Tippy Stress: Place Complete History @stress @slow", () => {
 // Questions requiring inference across multiple data points
 // ============================================================================
 
-test.describe("Tippy Stress: Complex Deductions @stress @slow", () => {
+test.describe("Tippy Stress: Complex Deductions @stress @slow @real-api", () => {
   test.setTimeout(90000);
 
   test("Deduce effective trapper-place combinations", async ({ request }) => {
@@ -402,7 +402,7 @@ test.describe("Tippy Stress: Complex Deductions @stress @slow", () => {
 // Questions about matching records across systems
 // ============================================================================
 
-test.describe("Tippy Stress: Data Reconciliation @stress", () => {
+test.describe("Tippy Stress: Data Reconciliation @stress @real-api", () => {
   test.setTimeout(60000);
 
   test("Match ClinicHQ records to Atlas people", async ({ request }) => {
