@@ -210,19 +210,14 @@ test.describe("API Error Handling", () => {
 });
 
 test.describe("Tippy API Resilience", () => {
-  test("Tippy API handles missing auth gracefully", async ({ request }) => {
-    // Use standalone request (no auth cookies)
-    const response = await request.post("/api/tippy/chat", {
-      data: { message: "Hello" },
+  test("Tippy API handles missing message gracefully", async ({ page }) => {
+    // Test that Tippy rejects requests without a message (no real API call)
+    const response = await page.request.post("/api/tippy/chat", {
+      data: { message: "" },
     });
 
     // Should not return 500
     expect(response.status()).not.toBe(500);
-
-    const data = await response.json();
-    // Should return a helpful message, not an error
-    expect(data.message).toBeTruthy();
-    expect(data.message.length).toBeGreaterThan(10);
   });
 
   test("Tippy API handles empty message", async ({ page }) => {

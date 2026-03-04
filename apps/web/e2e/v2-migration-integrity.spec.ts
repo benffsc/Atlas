@@ -606,11 +606,12 @@ test.describe('V2 Migration: Cross-Reference Integrity', () => {
   });
 });
 
-test.describe('V2 Migration: Tippy Tools', () => {
+test.describe('V2 Migration: Tippy Tools @real-api', () => {
   test.setTimeout(60000);
 
   test('tippy entity exploration uses V2 relationship tables', async ({ request }) => {
     // Test the tippy tools API if available
+    // NOTE: This calls the real Anthropic API — tagged @real-api to prevent accidental runs
     const res = await request.post('/api/tippy/chat', {
       data: {
         messages: [{ role: 'user', content: 'How many cats are linked to places?' }],

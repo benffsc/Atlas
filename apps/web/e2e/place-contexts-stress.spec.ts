@@ -131,10 +131,10 @@ test.describe('Place Context UI Tests', () => {
 });
 
 test.describe('Tippy API Stress Tests (Mocked)', () => {
-  test('tippy chat API handles place context query', async ({ page, request }) => {
+  test('tippy chat API handles place context query', async ({ page }) => {
     // Mock Tippy response to avoid hitting real AI
+    // IMPORTANT: Use page.request (not standalone request fixture) so page.route() mock applies
     await page.route('**/api/tippy/chat', async (route) => {
-      console.log('Intercepted Tippy chat - returning mock response');
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -146,22 +146,20 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
       });
     });
 
-    const response = await request.post('/api/tippy/chat', {
+    const response = await page.request.post('/api/tippy/chat', {
       data: {
         message: 'Show me colony sites in Petaluma',
         sessionId: `test-${Date.now()}`,
       },
     });
 
-    // May return 200 or need auth
     if (response.ok()) {
       const data = await response.json();
       expect(data).toBeDefined();
-      console.log('Tippy response received');
     }
   });
 
-  test('tippy chat API handles foster query', async ({ page, request }) => {
+  test('tippy chat API handles foster query', async ({ page }) => {
     await page.route('**/api/tippy/chat', async (route) => {
       await route.fulfill({
         status: 200,
@@ -174,7 +172,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
       });
     });
 
-    const response = await request.post('/api/tippy/chat', {
+    const response = await page.request.post('/api/tippy/chat', {
       data: {
         message: 'How many cats have been fostered?',
         sessionId: `test-${Date.now()}`,
@@ -187,7 +185,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
     }
   });
 
-  test('tippy chat API handles cat journey query', async ({ page, request }) => {
+  test('tippy chat API handles cat journey query', async ({ page }) => {
     await page.route('**/api/tippy/chat', async (route) => {
       await route.fulfill({
         status: 200,
@@ -200,7 +198,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
       });
     });
 
-    const response = await request.post('/api/tippy/chat', {
+    const response = await page.request.post('/api/tippy/chat', {
       data: {
         message: 'What is the journey of a cat named Whiskers?',
         sessionId: `test-${Date.now()}`,
@@ -362,7 +360,7 @@ test.describe('Error Resilience', () => {
   });
 
   test('API handles malformed requests gracefully', async ({ request }) => {
-    // Test tippy with empty message
+    // Test tippy with empty message — route rejects before calling Anthropic (no cost)
     const response = await request.post('/api/tippy/chat', {
       data: {
         message: '',
