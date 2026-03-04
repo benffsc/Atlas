@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { unwrapApiResponse } from './helpers/api-response';
+import { passPasswordGate } from './ui-test-helpers';
 
 /**
  * UI Workflow Tests - Comprehensive User Journey Testing
@@ -12,46 +13,15 @@ import { unwrapApiResponse } from './helpers/api-response';
  * - Interacting with places, cats, and people
  * - Testing forms and buttons (with mocking for destructive actions)
  *
- * Uses test account: test@forgottenfelines.com
- * Access code: ffsc2024
+ * Auth is handled by Playwright's storageState (set in auth.setup.ts).
  */
 
 // Increase timeout for all tests in this file
 test.setTimeout(60000);
 
-// Test account credentials
+// Test account credentials (used only by Authentication Workflows tests)
 const TEST_EMAIL = 'test@forgottenfelines.com';
 const TEST_PASSWORD = 'testpass123';
-const ACCESS_CODE = 'ffsc2024';
-
-// Helper to pass the password gate
-async function passPasswordGate(page: Page) {
-  const gateVisible = await page.locator('input[placeholder*="code" i], input[name="accessCode"]').isVisible().catch(() => false);
-  if (gateVisible) {
-    await page.fill('input[placeholder*="code" i], input[name="accessCode"]', ACCESS_CODE);
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(500);
-  }
-}
-
-// Helper to perform full login
-async function fullLogin(page: Page) {
-  await page.goto('/');
-  await passPasswordGate(page);
-  await page.goto('/login');
-  await page.waitForLoadState('domcontentloaded');
-
-  // Check if already logged in
-  const loginForm = await page.locator('form').isVisible().catch(() => false);
-  if (!loginForm) {
-    return; // Already logged in
-  }
-
-  await page.fill('input#email, input[name="email"], input[type="email"]', TEST_EMAIL);
-  await page.fill('input#password, input[name="password"], input[type="password"]', TEST_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('/', { timeout: 30000 });
-}
 
 // ============================================================================
 // LOGIN & AUTHENTICATION TESTS
@@ -91,9 +61,7 @@ test.describe('Authentication Workflows', () => {
 // ============================================================================
 
 test.describe('Dashboard Navigation', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('dashboard loads with key sections', async ({ page }) => {
     await page.goto('/');
@@ -159,9 +127,7 @@ test.describe('Dashboard Navigation', () => {
 // ============================================================================
 
 test.describe('Request Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can view request list and click into detail', async ({ page }) => {
     // Get a request from API
@@ -250,9 +216,7 @@ test.describe('Request Workflows', () => {
 // ============================================================================
 
 test.describe('Place & Colony Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can view place detail with colony info', async ({ page }) => {
     const response = await page.request.get('/api/places?limit=10');
@@ -348,9 +312,7 @@ test.describe('Place & Colony Workflows', () => {
 // ============================================================================
 
 test.describe('Observation Logging Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('observation form elements exist on place page', async ({ page }) => {
     const response = await page.request.get('/api/places?limit=5');
@@ -423,9 +385,7 @@ test.describe('Observation Logging Workflows', () => {
 // ============================================================================
 
 test.describe('Cat Detail Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can view cat detail with microchip info', async ({ page }) => {
     const response = await page.request.get('/api/cats?limit=5');
@@ -482,9 +442,7 @@ test.describe('Cat Detail Workflows', () => {
 // ============================================================================
 
 test.describe('Person Detail Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can view person detail', async ({ page }) => {
     const response = await page.request.get('/api/people?limit=5');
@@ -540,9 +498,7 @@ test.describe('Person Detail Workflows', () => {
 // ============================================================================
 
 test.describe('Intake Queue Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can view intake queue', async ({ page }) => {
     await page.goto('/intake/queue');
@@ -582,9 +538,7 @@ test.describe('Intake Queue Workflows', () => {
 // ============================================================================
 
 test.describe('Admin Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can access admin dashboard', async ({ page }) => {
     await page.goto('/admin');
@@ -610,9 +564,7 @@ test.describe('Admin Workflows', () => {
 // ============================================================================
 
 test.describe('Personal Dashboard Workflows', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('can access my dashboard', async ({ page }) => {
     await page.goto('/me');
@@ -638,9 +590,7 @@ test.describe('Personal Dashboard Workflows', () => {
 // ============================================================================
 
 test.describe('Button Interactions', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('expand/collapse buttons work without errors', async ({ page }) => {
     await page.goto('/requests');
@@ -724,9 +674,7 @@ test.describe('Button Interactions', () => {
 // ============================================================================
 
 test.describe('Form Validation', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('forms show validation errors for required fields', async ({ page }) => {
     // Mock form submission to test validation

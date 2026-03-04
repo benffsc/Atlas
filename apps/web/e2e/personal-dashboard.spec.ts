@@ -1,66 +1,17 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 /**
  * E2E Tests for Personal Dashboard (/me)
  *
  * Tests the reminders, lookups, and My Items widget functionality.
- * Uses test account to avoid modifying production data.
- *
- * Authentication flow:
- * 1. Pass PasswordGate (site access code)
- * 2. Login with staff email/password
+ * Auth is handled by Playwright's storageState (set in auth.setup.ts).
  */
-
-const TEST_EMAIL = "test@forgottenfelines.com";
-const TEST_PASSWORD = "testpass123";
-const ACCESS_CODE = process.env.ATLAS_ACCESS_CODE || "ffsc2024";
-
-/**
- * Pass through the PasswordGate access code screen
- */
-async function passPasswordGate(page: Page) {
-  // Check if we're on the access code screen
-  const accessCodeInput = page.locator('input[placeholder="Access code"]');
-
-  if (await accessCodeInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await accessCodeInput.fill(ACCESS_CODE);
-    await page.click('button:has-text("Enter")');
-    // Wait for gate to pass
-    await page.waitForSelector('input[placeholder="Access code"]', {
-      state: "hidden",
-      timeout: 5000,
-    });
-  }
-}
-
-/**
- * Full login flow: pass gate then authenticate
- */
-async function fullLogin(page: Page) {
-  // First, go to the app - this will show PasswordGate
-  await page.goto("/");
-
-  // Pass the access code gate
-  await passPasswordGate(page);
-
-  // Now navigate to login page
-  await page.goto("/login");
-
-  // Wait for login form to appear
-  await page.waitForSelector('input#email', { timeout: 10000 });
-
-  // Fill in credentials
-  await page.fill("input#email", TEST_EMAIL);
-  await page.fill("input#password", TEST_PASSWORD);
-  await page.click('button[type="submit"]');
-
-  // Wait for redirect to dashboard
-  await page.waitForURL("/", { timeout: 30000 });
-}
 
 test.describe("Personal Dashboard", () => {
+  // Auth handled by storageState from auth.setup.ts
   test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
+    await page.goto("/");
+    await page.waitForLoadState("domcontentloaded");
   });
 
   test.describe("My Items Widget on Dashboard", () => {
@@ -238,9 +189,7 @@ test.describe("Personal Dashboard", () => {
 });
 
 test.describe("Tippy Chat Integration", () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test("Tippy chat widget is present", async ({ page }) => {
     // Look for Tippy button/icon or chat panel
@@ -260,9 +209,7 @@ test.describe("Tippy Chat Integration", () => {
 });
 
 test.describe("Navigation", () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test("user menu has My Dashboard link", async ({ page }) => {
     // Click user menu (look for user name or avatar button)

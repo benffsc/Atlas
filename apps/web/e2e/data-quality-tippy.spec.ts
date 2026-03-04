@@ -1,5 +1,6 @@
 // @real-api - This test file calls the real Anthropic API
 import { test, expect, Page } from '@playwright/test';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * Data Quality Tippy Tests - AI-Assisted Data Pipeline Verification
@@ -13,49 +14,16 @@ import { test, expect, Page } from '@playwright/test';
  * - Finding discrepancies between raw and processed data
  * - Asking simple and complex multi-part questions
  *
- * Uses test account: test@forgottenfelines.com
+ * Auth is handled by Playwright's storageState (set in auth.setup.ts).
  */
 
 // Increase default test timeout since Tippy API calls with tool use can take a while
 test.setTimeout(60000);
 
-// Test account credentials
-const TEST_EMAIL = 'test@forgottenfelines.com';
-const TEST_PASSWORD = 'testpass123';
-const ACCESS_CODE = 'ffsc2024';
-
 interface TippyResponse {
   message: string;  // API returns 'message', not 'response'
   toolsUsed?: string[];
   error?: string;
-}
-
-// Helper to pass the password gate
-async function passPasswordGate(page: Page) {
-  const gateVisible = await page.locator('input[placeholder*="code" i], input[name="accessCode"]').isVisible().catch(() => false);
-  if (gateVisible) {
-    await page.fill('input[placeholder*="code" i], input[name="accessCode"]', ACCESS_CODE);
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(500);
-  }
-}
-
-// Helper to perform full login
-async function fullLogin(page: Page) {
-  await page.goto('/');
-  await passPasswordGate(page);
-  await page.goto('/login');
-  await page.waitForLoadState('networkidle');
-
-  const loginForm = await page.locator('form').isVisible().catch(() => false);
-  if (!loginForm) {
-    return;
-  }
-
-  await page.fill('input#email, input[name="email"], input[type="email"]', TEST_EMAIL);
-  await page.fill('input#password, input[name="password"], input[type="password"]', TEST_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('/', { timeout: 30000 });
 }
 
 // Helper to ask Tippy a question via API
@@ -88,11 +56,15 @@ async function getRealData(page: Page) {
     page.request.get('/api/people?limit=50'),
   ]);
 
-  const cats = catsRes.ok() ? (await catsRes.json()).cats || [] : [];
-  const places = placesRes.ok() ? (await placesRes.json()).places || [] : [];
-  const people = peopleRes.ok() ? (await peopleRes.json()).people || [] : [];
+  const catsData = catsRes.ok() ? unwrapApiResponse<Record<string, any>>(await catsRes.json()) : {};
+  const placesData = placesRes.ok() ? unwrapApiResponse<Record<string, any>>(await placesRes.json()) : {};
+  const peopleData = peopleRes.ok() ? unwrapApiResponse<Record<string, any>>(await peopleRes.json()) : {};
 
-  return { cats, places, people };
+  return {
+    cats: catsData.cats || [],
+    places: placesData.places || [],
+    people: peopleData.people || [],
+  };
 }
 
 // ============================================================================
@@ -100,9 +72,7 @@ async function getRealData(page: Page) {
 // ============================================================================
 
 test.describe('Tippy Basic Functionality @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy responds to simple greeting', async ({ page }) => {
     const result = await askTippy(page, 'Hello, can you help me?');
@@ -137,9 +107,7 @@ test.describe('Tippy Basic Functionality @real-api', () => {
 // ============================================================================
 
 test.describe('Place & Colony Data Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can query cats at a real address', async ({ page }) => {
     const { places } = await getRealData(page);
@@ -208,9 +176,7 @@ test.describe('Place & Colony Data Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Cat Journey & Microchip Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can look up a cat by microchip', async ({ page }) => {
     const { cats } = await getRealData(page);
@@ -297,9 +263,7 @@ test.describe('Cat Journey & Microchip Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Foster & Adopter Relationship Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can query foster homes in an area', async ({ page }) => {
     const result = await askTippy(page, 'Show me foster homes in Petaluma');
@@ -346,9 +310,7 @@ test.describe('Foster & Adopter Relationship Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Regional Statistics Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can provide stats for Santa Rosa', async ({ page }) => {
     const result = await askTippy(page, 'How many cats have we fixed in Santa Rosa?');
@@ -395,9 +357,7 @@ test.describe('Regional Statistics Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Complex Multi-Part Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy handles multi-part question about an address', async ({ page }) => {
     const { places } = await getRealData(page);
@@ -461,9 +421,7 @@ test.describe('Complex Multi-Part Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Data Quality & Discrepancy Detection @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can identify data quality issues', async ({ page }) => {
     const result = await askTippy(page, 'Are there any addresses that need geocoding or have data quality issues?');
@@ -514,9 +472,7 @@ test.describe('Data Quality & Discrepancy Detection @real-api', () => {
 // ============================================================================
 
 test.describe('Knowledge Base Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can answer procedural questions', async ({ page }) => {
     const result = await askTippy(page, 'How do we set traps for TNR?');
@@ -543,9 +499,7 @@ test.describe('Knowledge Base Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Error Handling & Edge Cases @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy handles empty query gracefully', async ({ page }) => {
     const result = await askTippy(page, '');
@@ -585,9 +539,7 @@ test.describe('Error Handling & Edge Cases @real-api', () => {
 // ============================================================================
 
 test.describe('Person History Queries @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can look up person history', async ({ page }) => {
     const { people } = await getRealData(page);
@@ -617,9 +569,7 @@ test.describe('Person History Queries @real-api', () => {
 // ============================================================================
 
 test.describe('Data Pipeline Summary @real-api', () => {
-  test.beforeEach(async ({ page }) => {
-    await fullLogin(page);
-  });
+  // Auth handled by storageState from auth.setup.ts
 
   test('Tippy can provide overall FFR impact summary', async ({ page }) => {
     const result = await askTippy(page, 'Give me a summary of our FFR impact - total cats helped, alteration rates, and requests completed.');
