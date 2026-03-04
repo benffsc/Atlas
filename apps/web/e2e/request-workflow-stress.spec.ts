@@ -323,7 +323,7 @@ test.describe('UI: Verification Panel on Person Page', () => {
       const collapsedSections = page.locator('[class*="collapsed"], [class*="Collapsed"]');
       const sectionCount = await collapsedSections.count();
       // Just verify page loaded without errors
-      await expect(page.locator('h1')).toBeVisible({ timeout: 5000 });
+      await expect(page.locator('h1').first()).toBeVisible({ timeout: 5000 });
     }
   });
 
@@ -377,7 +377,7 @@ test.describe('UI: Associated People Card on Place Page', () => {
     const hasVerification = await verificationSection.isVisible({ timeout: 10000 }).catch(() => false);
 
     // Verify page loaded successfully
-    await expect(page.locator('h1')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('Associated People Card shows verification status', async ({ page, request }) => {
@@ -489,7 +489,7 @@ test.describe('Stress: Rapid Navigation', () => {
       await page.waitForTimeout(200); // Minimal wait
 
       // Verify page loaded
-      const h1 = page.locator('h1');
+      const h1 = page.locator('h1').first();
       await expect(h1).toBeVisible({ timeout: 10000 });
     }
 

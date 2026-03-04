@@ -73,7 +73,7 @@ test.describe('Place Context UI Tests', () => {
       await page.waitForLoadState('networkidle');
 
       // Check page loaded
-      await expect(page.locator('h1')).toBeVisible();
+      await expect(page.locator('h1').first()).toBeVisible();
 
       // Check for badge container (contexts may or may not exist)
       const badges = page.locator('.badge');
@@ -230,7 +230,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
     await page.goto('/requests');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
 
     // Get a request to navigate to
     const response = await page.request.get('/api/requests?limit=1');
@@ -240,7 +240,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
         // Navigate to detail
         await page.goto(`/requests/${data.requests[0].request_id}`);
         await page.waitForLoadState('networkidle');
-        await expect(page.locator('h1')).toBeVisible();
+        await expect(page.locator('h1').first()).toBeVisible();
       }
     }
   });
@@ -249,7 +249,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
     await page.goto('/people');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
 
     // Get a person to navigate to
     const response = await page.request.get('/api/people?limit=1');
@@ -259,7 +259,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
         // Navigate to detail
         await page.goto(`/people/${data.people[0].person_id}`);
         await page.waitForLoadState('networkidle');
-        await expect(page.locator('h1')).toBeVisible();
+        await expect(page.locator('h1').first()).toBeVisible();
       }
     }
   });
@@ -268,7 +268,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
     await page.goto('/cats');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
 
     // Get a cat to navigate to
     const response = await page.request.get('/api/cats?limit=1');
@@ -278,7 +278,7 @@ test.describe('UI Tab Navigation Stress Tests', () => {
         // Navigate to detail
         await page.goto(`/cats/${data.cats[0].cat_id}`);
         await page.waitForLoadState('networkidle');
-        await expect(page.locator('h1')).toBeVisible();
+        await expect(page.locator('h1').first()).toBeVisible();
       }
     }
   });

@@ -43,7 +43,7 @@ test.describe('UI: Request Detail Interactions', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
   });
 
   // -------------------------------------------------------------------------

@@ -110,7 +110,7 @@ test.describe('Dashboard Navigation', () => {
     await page.goto('/requests');
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
 
     // Should have request list or empty state
     const hasContent = await page.content();
@@ -121,21 +121,21 @@ test.describe('Dashboard Navigation', () => {
     await page.goto('/places');
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
   });
 
   test('can navigate to cats page', async ({ page }) => {
     await page.goto('/cats');
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
   });
 
   test('can navigate to people page', async ({ page }) => {
     await page.goto('/people');
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
   });
 
   test('can navigate between tabs rapidly', async ({ page }) => {
@@ -275,7 +275,7 @@ test.describe('Place & Colony Workflows', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Should show place details
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
 
     // Check for place-related content
     const content = await page.content();
@@ -502,7 +502,7 @@ test.describe('Person Detail Workflows', () => {
     await page.goto(`/people/${data.people[0].person_id}`);
     await page.waitForLoadState('domcontentloaded');
 
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
 
     // Check for person-related content
     const content = await page.content();
