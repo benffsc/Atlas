@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { SafeLinkingIndicator, MatchReasonBadge, ConfidenceMeter } from "@/components/admin";
 
 interface LinkedCat {
@@ -51,11 +52,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
   useEffect(() => {
     async function fetchStats() {
       try {
-        const response = await fetch(`/api/requests/${requestId}/alteration-stats`);
-        if (!response.ok) {
-          throw new Error("Failed to load alteration stats");
-        }
-        const data = await response.json();
+        const data = await fetchApi<AlterationStats>(`/api/requests/${requestId}/alteration-stats`);
         setStats(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading stats");

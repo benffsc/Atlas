@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, ApiError } from "@/lib/api-client";
 import { TrapperBadge } from "@/components/badges";
 
 interface TrapperStats {
@@ -259,19 +260,15 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
   useEffect(() => {
     async function fetchStats() {
       try {
-        const response = await fetch(`/api/people/${personId}/trapper-stats`);
-        if (response.status === 404) {
-          // Not a trapper
-          setStats(null);
-          return;
-        }
-        if (!response.ok) {
-          throw new Error("Failed to load trapper stats");
-        }
-        const data = await response.json();
+        const data = await fetchApi<TrapperStats>(`/api/people/${personId}/trapper-stats`);
         setStats(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Error loading stats");
+        if (err instanceof ApiError && err.code === 404) {
+          // Not a trapper
+          setStats(null);
+        } else {
+          setError(err instanceof Error ? err.message : "Error loading stats");
+        }
       } finally {
         setLoading(false);
       }

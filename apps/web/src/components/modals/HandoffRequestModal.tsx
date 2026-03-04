@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface HandoffRequestModalProps {
   isOpen: boolean;
@@ -139,11 +140,8 @@ export function HandoffRequestModal({
     const timer = setTimeout(async () => {
       setSearchingRequests(true);
       try {
-        const res = await fetch(`/api/requests/search?q=${encodeURIComponent(requestSearchQuery)}&exclude=${requestId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRequestSearchResults(data);
-        }
+        const data = await fetchApi<typeof requestSearchResults>(`/api/requests/search?q=${encodeURIComponent(requestSearchQuery)}&exclude=${requestId}`);
+        setRequestSearchResults(data);
       } catch { /* ignore */ }
       setSearchingRequests(false);
     }, 300);
@@ -159,11 +157,8 @@ export function HandoffRequestModal({
     setSearchingPeople(true);
     setShowResults(true);
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=8`);
-      if (response.ok) {
-        const data = await response.json();
-        setPersonResults(data.results || []);
-      }
+      const data = await fetchApi<{ results: PersonSearchResult[] }>(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=8`);
+      setPersonResults(data.results || []);
     } catch (err) {
       console.error("Failed to search people:", err);
     } finally {
@@ -241,41 +236,31 @@ export function HandoffRequestModal({
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`/api/requests/${requestId}/handoff`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          handoff_reason:
-            handoffReason === "other"
-              ? customReason
-              : HANDOFF_REASONS.find((r) => r.value === handoffReason)?.label,
-          existing_target_request_id: linkToExisting ? targetRequestId : undefined,
-          new_address: resolvedPlace?.formatted_address || resolvedPlace?.display_name || "",
-          new_place_id: resolvedPlace?.place_id || null,
-          // If person selected, pass their ID; otherwise pass name fields
-          existing_person_id: selectedPerson?.entity_id || null,
-          new_requester_first_name: newRequesterFirstName || null,
-          new_requester_last_name: newRequesterLastName || null,
-          new_requester_phone: newRequesterPhone || null,
-          new_requester_email: newRequesterEmail || null,
-          summary: summary || null,
-          notes: notes || null,
-          estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
-          // Kitten assessment fields
-          has_kittens: hasKittens,
-          kitten_count: kittenCount === "" ? null : kittenCount,
-          kitten_age_weeks: kittenAgeWeeks === "" ? null : kittenAgeWeeks,
-          kitten_assessment_status: kittenAssessmentStatus || null,
-          kitten_assessment_outcome: kittenAssessmentOutcome || null,
-          kitten_not_needed_reason: kittenNotNeededReason || null,
-        }),
+      const data = await postApi<{ new_request_id: string }>(`/api/requests/${requestId}/handoff`, {
+        handoff_reason:
+          handoffReason === "other"
+            ? customReason
+            : HANDOFF_REASONS.find((r) => r.value === handoffReason)?.label,
+        existing_target_request_id: linkToExisting ? targetRequestId : undefined,
+        new_address: resolvedPlace?.formatted_address || resolvedPlace?.display_name || "",
+        new_place_id: resolvedPlace?.place_id || null,
+        // If person selected, pass their ID; otherwise pass name fields
+        existing_person_id: selectedPerson?.entity_id || null,
+        new_requester_first_name: newRequesterFirstName || null,
+        new_requester_last_name: newRequesterLastName || null,
+        new_requester_phone: newRequesterPhone || null,
+        new_requester_email: newRequesterEmail || null,
+        summary: summary || null,
+        notes: notes || null,
+        estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
+        // Kitten assessment fields
+        has_kittens: hasKittens,
+        kitten_count: kittenCount === "" ? null : kittenCount,
+        kitten_age_weeks: kittenAgeWeeks === "" ? null : kittenAgeWeeks,
+        kitten_assessment_status: kittenAssessmentStatus || null,
+        kitten_assessment_outcome: kittenAssessmentOutcome || null,
+        kitten_not_needed_reason: kittenNotNeededReason || null,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to hand off request");
-      }
 
       setSuccess(true);
       setTimeout(() => {

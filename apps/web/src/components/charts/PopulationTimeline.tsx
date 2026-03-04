@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 import Link from "next/link";
 
 interface PopulationEvent {
@@ -44,12 +45,9 @@ export function PopulationTimeline({ placeId }: PopulationTimelineProps) {
   useEffect(() => {
     async function fetchEvents() {
       try {
-        const res = await fetch(`/api/places/${placeId}/population-events`);
-        if (res.ok) {
-          const data = await res.json();
-          setEvents(data.events || []);
-          setSummary(data.summary || null);
-        }
+        const data = await fetchApi<{ events?: PopulationEvent[]; summary?: PopulationSummary }>(`/api/places/${placeId}/population-events`);
+        setEvents(data.events || []);
+        setSummary(data.summary || null);
       } catch (err) {
         console.error("Error fetching population events:", err);
       } finally {

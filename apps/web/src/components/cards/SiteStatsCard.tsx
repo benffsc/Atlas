@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface SiteStats {
   is_part_of_site: boolean;
@@ -35,11 +36,7 @@ export function SiteStatsCard({ placeId }: SiteStatsCardProps) {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(`/api/places/${placeId}/site-stats`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch site stats");
-        }
-        const data = await response.json();
+        const data = await fetchApi<SiteStats>(`/api/places/${placeId}/site-stats`);
         setStats(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");

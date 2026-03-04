@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface RedirectRequestModalProps {
   isOpen: boolean;
@@ -97,11 +98,8 @@ export function RedirectRequestModal({
     const timer = setTimeout(async () => {
       setSearchingRequests(true);
       try {
-        const res = await fetch(`/api/requests/search?q=${encodeURIComponent(requestSearchQuery)}&exclude=${requestId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRequestSearchResults(data);
-        }
+        const data = await fetchApi<typeof requestSearchResults>(`/api/requests/search?q=${encodeURIComponent(requestSearchQuery)}&exclude=${requestId}`);
+        setRequestSearchResults(data);
       } catch { /* ignore */ }
       setSearchingRequests(false);
     }, 300);
@@ -136,37 +134,27 @@ export function RedirectRequestModal({
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`/api/requests/${requestId}/redirect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          redirect_reason:
-            redirectReason === "other"
-              ? customReason
-              : REDIRECT_REASONS.find((r) => r.value === redirectReason)?.label,
-          existing_target_request_id: linkToExisting ? targetRequestId : undefined,
-          new_address: newAddress,
-          new_requester_name: newRequesterName || null,
-          new_requester_phone: newRequesterPhone || null,
-          new_requester_email: newRequesterEmail || null,
-          summary: summary || null,
-          notes: notes || null,
-          estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
-          // Kitten assessment fields
-          has_kittens: hasKittens,
-          kitten_count: kittenCount === "" ? null : kittenCount,
-          kitten_age_weeks: kittenAgeWeeks === "" ? null : kittenAgeWeeks,
-          kitten_assessment_status: kittenAssessmentStatus || null,
-          kitten_assessment_outcome: kittenAssessmentOutcome || null,
-          kitten_not_needed_reason: kittenNotNeededReason || null,
-        }),
+      const data = await postApi<{ new_request_id: string }>(`/api/requests/${requestId}/redirect`, {
+        redirect_reason:
+          redirectReason === "other"
+            ? customReason
+            : REDIRECT_REASONS.find((r) => r.value === redirectReason)?.label,
+        existing_target_request_id: linkToExisting ? targetRequestId : undefined,
+        new_address: newAddress,
+        new_requester_name: newRequesterName || null,
+        new_requester_phone: newRequesterPhone || null,
+        new_requester_email: newRequesterEmail || null,
+        summary: summary || null,
+        notes: notes || null,
+        estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
+        // Kitten assessment fields
+        has_kittens: hasKittens,
+        kitten_count: kittenCount === "" ? null : kittenCount,
+        kitten_age_weeks: kittenAgeWeeks === "" ? null : kittenAgeWeeks,
+        kitten_assessment_status: kittenAssessmentStatus || null,
+        kitten_assessment_outcome: kittenAssessmentOutcome || null,
+        kitten_not_needed_reason: kittenNotNeededReason || null,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to redirect request");
-      }
 
       setSuccess(true);
       setTimeout(() => {

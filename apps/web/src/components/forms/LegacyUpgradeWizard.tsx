@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postApi, ApiError } from "@/lib/api-client";
 
 interface LegacyRequest {
   request_id: string;
@@ -69,10 +70,9 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
     setError(null);
 
     try {
-      const response = await fetch(`/api/requests/${request.request_id}/upgrade`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await postApi<{ new_request_id: string }>(
+        `/api/requests/${request.request_id}/upgrade`,
+        {
           permission_status: formData.permission_status,
           access_notes: formData.access_notes || null,
           traps_overnight_safe: formData.traps_overnight_safe,
@@ -91,21 +91,16 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
           urgency_notes: formData.urgency_notes || null,
           kittens_already_taken: formData.kittens_already_taken,
           already_assessed: formData.already_assessed,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = result.details
-          ? `${result.error}: ${result.details}`
-          : result.error || "Failed to upgrade request";
-        throw new Error(errorMsg);
-      }
+        }
+      );
 
       onComplete(result.new_request_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (err instanceof ApiError) {
+        setError(err.details ? `${err.message}: ${err.details}` : err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     } finally {
       setSaving(false);
     }

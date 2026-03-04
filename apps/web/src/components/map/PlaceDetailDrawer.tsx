@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { unwrapApiResponse } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface GoogleNote {
   entry_id: string;
@@ -160,13 +160,9 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     setShowWatchlistForm(false);
     setWatchlistReason("");
 
-    fetch(`/api/places/${placeId}/map-details`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load place details");
-        return res.json();
-      })
-      .then((json) => {
-        setPlace(unwrapApiResponse<PlaceDetails>(json));
+    fetchApi<PlaceDetails>(`/api/places/${placeId}/map-details`)
+      .then((data) => {
+        setPlace(data);
         setLoading(false);
       })
       .catch((err) => {
@@ -225,16 +221,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     setWatchlistLoading(true);
 
     try {
-      const res = await fetch(`/api/places/${place.place_id}/watchlist`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          watch_list: !place.watch_list,
-          reason: watchlistReason.trim(),
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update watchlist");
+      await postApi(`/api/places/${place.place_id}/watchlist`, {
+        watch_list: !place.watch_list,
+        reason: watchlistReason.trim(),
+      }, { method: "PUT" });
 
       // Update local state
       setPlace({
@@ -256,9 +246,9 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   // Refetch place details (used after adding journal entries)
   const refetchPlace = () => {
     if (!placeId) return;
-    fetch(`/api/places/${placeId}/map-details`)
-      .then((res) => res.ok ? res.json() : null)
-      .then((json) => { if (json) setPlace(unwrapApiResponse<PlaceDetails>(json)); });
+    fetchApi<PlaceDetails>(`/api/places/${placeId}/map-details`)
+      .then((data) => { setPlace(data); })
+      .catch(() => { /* silently fail on refetch */ });
   };
 
   // Handle journal entry creation
@@ -266,17 +256,12 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     if (!place || !journalBody.trim()) return;
     setJournalSaving(true);
     try {
-      const res = await fetch("/api/journal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          primary_place_id: place.place_id,
-          body: journalBody.trim(),
-          entry_kind: "note",
-          created_by: "staff",
-        }),
+      await postApi("/api/journal", {
+        primary_place_id: place.place_id,
+        body: journalBody.trim(),
+        entry_kind: "note",
+        created_by: "staff",
       });
-      if (!res.ok) throw new Error("Failed to save");
       setJournalBody("");
       refetchPlace();
     } catch {
@@ -298,9 +283,12 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     }
     searchTimerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=person&suggestions=true&limit=5`);
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await fetchApi<{
+          results?: Array<{ entity_id: string; display_name: string; subtitle: string | null }>;
+          suggestions?: Array<{ entity_id: string; display_name: string; subtitle: string | null }>;
+        }>(
+          `/api/search?q=${encodeURIComponent(query.trim())}&type=person&suggestions=true&limit=5`
+        );
         setAddPersonResults(data.results || data.suggestions || []);
       } catch {
         // silently fail
@@ -313,12 +301,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     if (!place || !addPersonSelected) return;
     setAddPersonLoading(true);
     try {
-      const res = await fetch(`/api/places/${place.place_id}/people`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ person_id: addPersonSelected.entity_id, role: addPersonRole }),
+      await postApi(`/api/places/${place.place_id}/people`, {
+        person_id: addPersonSelected.entity_id,
+        role: addPersonRole,
       });
-      if (!res.ok) throw new Error("Failed to link person");
       // Reset form and refetch
       setShowAddPerson(false);
       setAddPersonQuery("");
@@ -338,11 +324,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
     if (!place) return;
     if (!confirm("Remove this person link?")) return;
     try {
-      const res = await fetch(
+      await fetchApi(
         `/api/places/${place.place_id}/people?person_id=${encodeURIComponent(personId)}&role=${encodeURIComponent(role || "")}`,
         { method: "DELETE" }
       );
-      if (!res.ok) throw new Error("Failed to remove person");
       refetchPlace();
     } catch {
       alert("Failed to remove person link");

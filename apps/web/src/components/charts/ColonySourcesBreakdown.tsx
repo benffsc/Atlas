@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface SourceBreakdown {
   estimate_id: string;
@@ -117,11 +118,7 @@ export function ColonySourcesBreakdown({ placeId }: ColonySourcesBreakdownProps)
   useEffect(() => {
     async function fetchSources() {
       try {
-        const response = await fetch(`/api/places/${placeId}/colony-sources`);
-        if (!response.ok) {
-          throw new Error("Failed to load colony sources");
-        }
-        const result = await response.json();
+        const result = await fetchApi<ColonySourcesResponse>(`/api/places/${placeId}/colony-sources`);
         setData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading sources");

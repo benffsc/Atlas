@@ -2,6 +2,7 @@
 
 import { useState, useCallback, ReactNode } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface EditableSectionProps {
   title: string;
@@ -59,17 +60,14 @@ export function EditableSection({
 
     // Try to acquire lock
     try {
-      const response = await fetch(`/api/entities/${entityType}/${entityId}/edit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await postApi<{ success: boolean; error?: string }>(
+        `/api/entities/${entityType}/${entityId}/edit`,
+        {
           user_id: userId,
           user_name: userName,
           reason: `Editing ${title}`,
-        }),
-      });
-
-      const data = await response.json();
+        }
+      );
 
       if (data.success) {
         setIsEditing(true);
@@ -85,7 +83,7 @@ export function EditableSection({
   const handleCancelClick = useCallback(async () => {
     // Release lock
     try {
-      await fetch(`/api/entities/${entityType}/${entityId}/edit?user_id=${encodeURIComponent(userId)}`, {
+      await fetchApi(`/api/entities/${entityType}/${entityId}/edit?user_id=${encodeURIComponent(userId)}`, {
         method: "DELETE",
       });
     } catch {
@@ -108,7 +106,7 @@ export function EditableSection({
       await onSave([]);
 
       // Release lock after save
-      await fetch(`/api/entities/${entityType}/${entityId}/edit?user_id=${encodeURIComponent(userId)}`, {
+      await fetchApi(`/api/entities/${entityType}/${entityId}/edit?user_id=${encodeURIComponent(userId)}`, {
         method: "DELETE",
       });
 

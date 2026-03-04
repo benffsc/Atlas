@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface ArchiveRequestModalProps {
   requestId: string;
@@ -51,25 +52,14 @@ export default function ArchiveRequestModal({
     setError(null);
 
     try {
-      const response = await fetch(`/api/requests/${requestId}/archive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reason,
-          notes: notes.trim() || null,
-        }),
+      await postApi(`/api/requests/${requestId}/archive`, {
+        reason,
+        notes: notes.trim() || null,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error?.message || data.error || "Failed to archive request");
-        return;
-      }
 
       onComplete();
     } catch (err) {
-      setError("Network error - please try again");
+      setError(err instanceof Error ? err.message : "Network error - please try again");
     } finally {
       setSaving(false);
     }

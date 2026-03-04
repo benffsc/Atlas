@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { postApi } from '@/lib/api-client';
 
 interface ReportDeceasedModalProps {
   isOpen: boolean;
@@ -85,24 +86,15 @@ export default function ReportDeceasedModal({
       const ageCat = AGE_CATEGORIES.find(a => a.value === ageCategory);
       const estimatedAgeMonths = ageCat?.months ?? null;
 
-      const response = await fetch(`/api/cats/${catId}/mortality`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          death_date: deathDate || null,
-          death_date_precision: datePrecision,
-          death_cause: deathCause,
-          death_cause_notes: deathCauseNotes.trim() || null,
-          death_age_months: estimatedAgeMonths,
-          place_id: placeId || null,
-          notes: notes.trim() || null,
-        }),
+      await postApi(`/api/cats/${catId}/mortality`, {
+        death_date: deathDate || null,
+        death_date_precision: datePrecision,
+        death_cause: deathCause,
+        death_cause_notes: deathCauseNotes.trim() || null,
+        death_age_months: estimatedAgeMonths,
+        place_id: placeId || null,
+        notes: notes.trim() || null,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to report death');
-      }
 
       setSuccess(true);
       onSuccess?.();

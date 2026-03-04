@@ -7,6 +7,7 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "@/styles/atlas-map.css";
 import { useMapData } from "@/hooks/useMapData";
+import { fetchApi } from "@/lib/api-client";
 import {
   createPinMarker,
   createCircleMarker,
@@ -1370,13 +1371,12 @@ export default function AtlasMap() {
     setSearchLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`);
-        if (res.ok) {
-          const data = await res.json();
-          // Show all results — those with coordinates navigate on map,
-          // those without link to the entity detail page
-          setAtlasSearchResults(data.suggestions || []);
-        }
+        const data = await fetchApi<{ suggestions?: AtlasSearchResult[] }>(
+          `/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`
+        );
+        // Show all results — those with coordinates navigate on map,
+        // those without link to the entity detail page
+        setAtlasSearchResults(data.suggestions || []);
       } catch (err) {
         console.error("Atlas search error:", err);
       } finally {
@@ -1398,11 +1398,10 @@ export default function AtlasMap() {
     const timer = setTimeout(async () => {
       if (atlasSearchResults.length < 3) {
         try {
-          const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(searchQuery)}`);
-          if (res.ok) {
-            const data = await res.json();
-            setGoogleSuggestions(data.predictions || []);
-          }
+          const data = await fetchApi<{ predictions?: PlacePrediction[] }>(
+            `/api/places/autocomplete?input=${encodeURIComponent(searchQuery)}`
+          );
+          setGoogleSuggestions(data.predictions || []);
         } catch (err) {
           console.error("Google Places error:", err);
         }
@@ -1451,27 +1450,28 @@ export default function AtlasMap() {
         const apiPath = result.entity_type === "cat" ? "cats"
           : result.entity_type === "person" ? "people"
           : "places";
-        const res = await fetch(`/api/${apiPath}/${result.entity_id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.coordinates?.lat && (!lat || !lng)) {
-            lat = data.coordinates.lat;
-            lng = data.coordinates.lng;
-          }
+        const data = await fetchApi<{
+          coordinates?: { lat: number; lng: number };
+          associated_places?: { place_id: string }[];
+          places?: { place_id: string }[];
+        }>(`/api/${apiPath}/${result.entity_id}`);
+        if (data.coordinates?.lat && (!lat || !lng)) {
+          lat = data.coordinates.lat;
+          lng = data.coordinates.lng;
+        }
 
-          // Resolve linked place for person/cat (Place→Entity stacking)
-          if (result.entity_type !== "place") {
-            const plId = data.associated_places?.[0]?.place_id
-              || data.places?.[0]?.place_id
-              || null;
-            if (plId) {
-              linkedPlaceId = plId;
-              if (!lat || !lng) {
-                const pin = atlasPinsRef.current.find((p) => p.id === plId);
-                if (pin?.lat && pin?.lng) {
-                  lat = pin.lat;
-                  lng = pin.lng;
-                }
+        // Resolve linked place for person/cat (Place→Entity stacking)
+        if (result.entity_type !== "place") {
+          const plId = data.associated_places?.[0]?.place_id
+            || data.places?.[0]?.place_id
+            || null;
+          if (plId) {
+            linkedPlaceId = plId;
+            if (!lat || !lng) {
+              const pin = atlasPinsRef.current.find((p) => p.id === plId);
+              if (pin?.lat && pin?.lng) {
+                lat = pin.lat;
+                lng = pin.lng;
               }
             }
           }
@@ -1506,20 +1506,19 @@ export default function AtlasMap() {
   // Handle Google Places selection - navigate to arbitrary address
   const handleGooglePlaceSelect = async (prediction: PlacePrediction) => {
     try {
-      const res = await fetch(`/api/places/details?place_id=${prediction.place_id}`);
-      if (res.ok) {
-        const data = await res.json();
-        const place = data.place;
-        if (place?.geometry?.location) {
-          const { lat, lng } = place.geometry.location;
-          setNavigatedLocation({
-            lat,
-            lng,
-            address: place.formatted_address || prediction.description
-          });
-          if (mapRef.current) {
-            mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
-          }
+      const data = await fetchApi<{
+        place?: { geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string };
+      }>(`/api/places/details?place_id=${prediction.place_id}`);
+      const place = data.place;
+      if (place?.geometry?.location) {
+        const { lat, lng } = place.geometry.location;
+        setNavigatedLocation({
+          lat,
+          lng,
+          address: place.formatted_address || prediction.description
+        });
+        if (mapRef.current) {
+          mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
         }
       }
     } catch (err) {
@@ -1804,8 +1803,7 @@ export default function AtlasMap() {
   // Annotations: fetch and render
   const fetchAnnotations = useCallback(async () => {
     try {
-      const res = await fetch('/api/annotations');
-      const data = await res.json();
+      const data = await fetchApi<{ annotations?: Annotation[] }>('/api/annotations');
       setAnnotations(data.annotations || []);
     } catch (e) {
       console.error('Failed to fetch annotations:', e);

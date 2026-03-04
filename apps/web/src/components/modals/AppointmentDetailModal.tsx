@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatPhone } from '@/lib/formatters';
+import { fetchApi } from '@/lib/api-client';
 
 /**
  * Check if a raw ClinicHQ field value indicates a positive/true condition.
@@ -208,12 +209,7 @@ export default function AppointmentDetailModal({ appointmentId, onClose }: Appoi
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/appointments/${id}`);
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to fetch');
-      }
-      const result = await response.json();
+      const result = await fetchApi<AppointmentDetail>(`/api/appointments/${id}`);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load appointment');

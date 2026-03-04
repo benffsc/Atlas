@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface HoldRequestModalProps {
   isOpen: boolean;
@@ -62,20 +63,11 @@ export default function HoldRequestModal({
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "paused",  // MIG_2530: using 'paused' instead of 'on_hold'
-          hold_reason: selectedReason,
-          hold_reason_notes: holdNotes || null,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to pause request");
-      }
+      await postApi(`/api/requests/${requestId}`, {
+        status: "paused",  // MIG_2530: using 'paused' instead of 'on_hold'
+        hold_reason: selectedReason,
+        hold_reason_notes: holdNotes || null,
+      }, { method: "PATCH" });
 
       onSuccess?.();
       handleClose();

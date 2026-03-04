@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 
 interface Person {
   person_id: string;
@@ -50,8 +51,9 @@ export function OwnershipTransferWizard({
   useEffect(() => {
     async function loadSuggestions() {
       try {
-        const response = await fetch(`/api/entities/cat/${catId}/edit`);
-        const data = await response.json();
+        const data = await fetchApi<{ suggestions?: { nearby_people?: Person[] } }>(
+          `/api/entities/cat/${catId}/edit`
+        );
 
         if (data.suggestions?.nearby_people) {
           setNearbyPeople(data.suggestions.nearby_people);
@@ -74,10 +76,9 @@ export function OwnershipTransferWizard({
     }
 
     try {
-      const response = await fetch(
+      const data = await fetchApi<{ people?: Person[] }>(
         `/api/people/search?q=${encodeURIComponent(searchQuery)}&limit=10`
       );
-      const data = await response.json();
       setSearchResults(data.people || []);
     } catch (err) {
       console.error("Search failed:", err);
@@ -96,10 +97,9 @@ export function OwnershipTransferWizard({
     setError(null);
 
     try {
-      const response = await fetch(`/api/entities/cat/${catId}/edit`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await postApi<{ success: boolean; error?: string }>(
+        `/api/entities/cat/${catId}/edit`,
+        {
           edit_type: "ownership_transfer",
           cat_id: catId,
           new_owner_id: selectedPerson.person_id,
@@ -108,10 +108,9 @@ export function OwnershipTransferWizard({
           notes,
           editor_id: "current_user",
           editor_name: "Current User",
-        }),
-      });
-
-      const data = await response.json();
+        },
+        { method: "PATCH" }
+      );
 
       if (data.success) {
         setStep("complete");

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { postApi } from '@/lib/api-client';
 
 interface LogObservationModalProps {
   isOpen: boolean;
@@ -86,24 +87,14 @@ export default function LogObservationModal({
     setSubmitting(true);
 
     try {
-      const response = await fetch(`/api/places/${placeId}/observations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cats_seen: Number(catsSeen),
-          eartips_seen: Number(eartipsSeen),
-          time_of_day: timeOfDay || undefined,
-          at_feeding_station: atFeedingStation || undefined,
-          notes: notes.trim() || undefined,
-        }),
+      const data = await postApi<ObservationResult>(`/api/places/${placeId}/observations`, {
+        cats_seen: Number(catsSeen),
+        eartips_seen: Number(eartipsSeen),
+        time_of_day: timeOfDay || undefined,
+        at_feeding_station: atFeedingStation || undefined,
+        notes: notes.trim() || undefined,
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to log observation');
-      }
-
-      const data: ObservationResult = await response.json();
       setResult(data);
       onSuccess?.();
     } catch (err) {

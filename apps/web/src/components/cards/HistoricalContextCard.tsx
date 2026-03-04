@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchApi, ApiError } from '@/lib/api-client';
 
 /**
  * Historical Context Card
@@ -71,18 +72,14 @@ export function HistoricalContextCard({ placeId, className = '' }: Props) {
     async function fetchHistory() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/places/${placeId}/history`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            setData(null);
-            return;
-          }
-          throw new Error('Failed to fetch history');
-        }
-        const json = await res.json();
+        const json = await fetchApi<HistoricalContext>(`/api/places/${placeId}/history`);
         setData(json);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        if (err instanceof ApiError && err.code === 404) {
+          setData(null);
+        } else {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
       } finally {
         setLoading(false);
       }

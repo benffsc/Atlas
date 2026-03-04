@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { MediaUploader, MediaItem } from "./MediaUploader";
 import { MediaLightbox } from "./MediaLightbox";
 import { PhotoGroupingPanel } from "./PhotoGroupingPanel";
-import { unwrapApiResponse } from "@/lib/api-client";
+import { fetchApi } from "@/lib/api-client";
 
 interface Cat {
   cat_id: string;
@@ -87,13 +87,7 @@ export function MediaGallery({
         const pathSegment = entityType === "person" ? "people" : `${entityType}s`;
         url = `/api/${pathSegment}/${entityId}/media`;
       }
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("Failed to fetch media");
-      }
-      const json = await response.json();
-      // Handle apiSuccess format: { success: true, data: { media: [...] } }
-      const data = unwrapApiResponse<{ media: ExtendedMediaItem[] }>(json);
+      const data = await fetchApi<{ media: ExtendedMediaItem[] }>(url);
       setMedia(data.media || []);
     } catch (err) {
       console.error("Error fetching media:", err);
@@ -120,12 +114,10 @@ export function MediaGallery({
   // Set a photo as the main/hero photo
   const handleSetHero = useCallback(async (mediaId: string) => {
     try {
-      const res = await fetch(`/api/media/${mediaId}/hero`, { method: "PATCH" });
-      if (res.ok) {
-        // Re-fetch to get updated sort order
-        fetchMedia();
-        setLightboxIndex(null);
-      }
+      await fetchApi(`/api/media/${mediaId}/hero`, { method: "PATCH" });
+      // Re-fetch to get updated sort order
+      fetchMedia();
+      setLightboxIndex(null);
     } catch (err) {
       console.error("Error setting hero:", err);
     }

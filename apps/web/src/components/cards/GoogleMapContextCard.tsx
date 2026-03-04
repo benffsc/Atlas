@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface GoogleMapEntry {
   entry_id: string;
@@ -31,9 +32,7 @@ export function GoogleMapContextCard({ placeId, className = "" }: GoogleMapConte
   useEffect(() => {
     async function fetchContext() {
       try {
-        const res = await fetch(`/api/places/${placeId}/google-map-context`);
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
+        const data = await fetchApi<{ entries?: GoogleMapEntry[] }>(`/api/places/${placeId}/google-map-context`);
         setEntries(data.entries || []);
       } catch (err) {
         setError("Failed to load historical context");
@@ -132,9 +131,7 @@ export function PersonPlaceGoogleContext({ personId, className = "" }: PersonPla
   useEffect(() => {
     async function fetchContext() {
       try {
-        const res = await fetch(`/api/people/${personId}/google-map-context`);
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
+        const data = await fetchApi<{ contexts?: PersonPlaceContext[] }>(`/api/people/${personId}/google-map-context`);
         setContexts(data.contexts || []);
       } catch {
         // Silently fail - this is supplementary info

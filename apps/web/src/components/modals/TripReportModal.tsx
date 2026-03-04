@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface TripReportModalProps {
   isOpen: boolean;
@@ -70,32 +71,22 @@ export function TripReportModal({
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`/api/requests/${requestId}/trip-report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          trapper_person_id: trapperPersonId,
-          visit_date: visitDate,
-          arrival_time: arrivalTime || null,
-          departure_time: departureTime || null,
-          cats_trapped: catsTrapped,
-          cats_returned: catsReturned,
-          traps_set: trapsSet === "" ? null : trapsSet,
-          traps_retrieved: trapsRetrieved === "" ? null : trapsRetrieved,
-          cats_seen: catsSeen === "" ? null : catsSeen,
-          eartipped_seen: eartippedSeen === "" ? null : eartippedSeen,
-          issues_encountered: issues,
-          issue_details: issueDetails || null,
-          site_notes: siteNotes || null,
-          is_final_visit: isFinal,
-        }),
+      await postApi(`/api/requests/${requestId}/trip-report`, {
+        trapper_person_id: trapperPersonId,
+        visit_date: visitDate,
+        arrival_time: arrivalTime || null,
+        departure_time: departureTime || null,
+        cats_trapped: catsTrapped,
+        cats_returned: catsReturned,
+        traps_set: trapsSet === "" ? null : trapsSet,
+        traps_retrieved: trapsRetrieved === "" ? null : trapsRetrieved,
+        cats_seen: catsSeen === "" ? null : catsSeen,
+        eartipped_seen: eartippedSeen === "" ? null : eartippedSeen,
+        issues_encountered: issues,
+        issue_details: issueDetails || null,
+        site_notes: siteNotes || null,
+        is_final_visit: isFinal,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to submit report");
-      }
 
       setSuccess(true);
       setTimeout(() => {

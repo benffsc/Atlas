@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { postApi, fetchApi } from '@/lib/api-client';
 
 interface RecordBirthModalProps {
   isOpen: boolean;
@@ -116,26 +117,17 @@ export default function RecordBirthModal({
     setSubmitting(true);
 
     try {
-      const response = await fetch(`/api/cats/${catId}/birth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          birth_date: birthDate || null,
-          birth_date_precision: datePrecision,
-          birth_year: birthYear ? parseInt(birthYear) : null,
-          birth_month: birthMonth ? parseInt(birthMonth) : null,
-          birth_season: birthSeason || null,
-          place_id: placeId || null,
-          kitten_count_in_litter: kittenCount ? parseInt(kittenCount) : null,
-          survived_to_weaning: survivedToWeaning,
-          notes: notes.trim() || null,
-        }),
+      await postApi(`/api/cats/${catId}/birth`, {
+        birth_date: birthDate || null,
+        birth_date_precision: datePrecision,
+        birth_year: birthYear ? parseInt(birthYear) : null,
+        birth_month: birthMonth ? parseInt(birthMonth) : null,
+        birth_season: birthSeason || null,
+        place_id: placeId || null,
+        kitten_count_in_litter: kittenCount ? parseInt(kittenCount) : null,
+        survived_to_weaning: survivedToWeaning,
+        notes: notes.trim() || null,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to record birth');
-      }
 
       setSuccess(true);
       onSuccess?.();
@@ -151,14 +143,7 @@ export default function RecordBirthModal({
 
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/cats/${catId}/birth`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to remove birth record');
-      }
+      await fetchApi(`/api/cats/${catId}/birth`, { method: 'DELETE' });
 
       setSuccess(true);
       onSuccess?.();

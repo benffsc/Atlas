@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { ColonySourcesBreakdown } from "@/components/charts";
 import { EcologyMethodologyPanel } from "@/components/admin";
 
@@ -143,11 +144,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
   const fetchEstimates = async () => {
     try {
-      const response = await fetch(`/api/places/${placeId}/colony-estimates`);
-      if (!response.ok) {
-        throw new Error("Failed to load colony estimates");
-      }
-      const result = await response.json();
+      const result = await fetchApi<ColonyEstimatesResponse>(`/api/places/${placeId}/colony-estimates`);
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading estimates");
@@ -163,20 +160,11 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
   const handleSetOverride = async () => {
     setSavingOverride(true);
     try {
-      const response = await fetch(`/api/places/${placeId}/colony-override`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          count: overrideCount,
-          altered: overrideAltered,
-          note: overrideNote || undefined,
-        }),
+      await postApi(`/api/places/${placeId}/colony-override`, {
+        count: overrideCount,
+        altered: overrideAltered,
+        note: overrideNote || undefined,
       });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || "Failed to set override");
-      }
 
       setShowOverrideForm(false);
       setLoading(true);
@@ -195,14 +183,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
 
     setSavingOverride(true);
     try {
-      const response = await fetch(`/api/places/${placeId}/colony-override`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || "Failed to clear override");
-      }
+      await postApi(`/api/places/${placeId}/colony-override`, {}, { method: "DELETE" });
 
       setLoading(true);
       await fetchEstimates();
@@ -232,20 +213,11 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
   const handleSetClassification = async () => {
     setSavingClassification(true);
     try {
-      const response = await fetch(`/api/places/${placeId}/classification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classification: classificationValue,
-          reason: classificationReason || null,
-          authoritative_count: classificationValue === "individual_cats" ? authoritativeCount : null,
-        }),
+      await postApi(`/api/places/${placeId}/classification`, {
+        classification: classificationValue,
+        reason: classificationReason || null,
+        authoritative_count: classificationValue === "individual_cats" ? authoritativeCount : null,
       });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || "Failed to set classification");
-      }
 
       setShowClassificationForm(false);
       setLoading(true);

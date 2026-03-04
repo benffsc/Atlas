@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface MediaItem {
   media_id: string;
@@ -65,11 +66,10 @@ export function PhotoGroupingPanel({
   // Fetch groups
   const fetchGroups = useCallback(async () => {
     try {
-      const response = await fetch(`/api/media/group?request_id=${requestId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setGroups(data.groups || []);
-      }
+      const data = await fetchApi<{ groups?: PhotoGroup[] }>(
+        `/api/media/group?request_id=${requestId}`
+      );
+      setGroups(data.groups || []);
     } catch (err) {
       console.error("Error fetching groups:", err);
     } finally {
@@ -110,27 +110,22 @@ export function PhotoGroupingPanel({
     setError(null);
 
     try {
-      const response = await fetch("/api/media/group", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          request_id: requestId,
-          name: newGroupName.trim(),
-          media_ids: Array.from(selectedMediaIds),
-        }),
+      await postApi("/api/media/group", {
+        request_id: requestId,
+        name: newGroupName.trim(),
+        media_ids: Array.from(selectedMediaIds),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create group");
-      }
 
       setNewGroupName("");
       setSelectedMediaIds(new Set());
       await fetchGroups();
       onMediaUpdated?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create group");
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to create group");
+      }
     } finally {
       setCreatingGroup(false);
     }
@@ -160,26 +155,18 @@ export function PhotoGroupingPanel({
     try {
       if (groupId) {
         // Add to group
-        await fetch("/api/media/group", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            collection_id: groupId,
-            add_media_ids: [mediaId],
-          }),
-        });
+        await postApi("/api/media/group", {
+          collection_id: groupId,
+          add_media_ids: [mediaId],
+        }, { method: "PATCH" });
       } else {
         // Remove from current group (move to ungrouped)
         const currentMedia = media.find((m) => m.media_id === mediaId);
         if (currentMedia?.photo_group_id) {
-          await fetch("/api/media/group", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              collection_id: currentMedia.photo_group_id,
-              remove_media_ids: [mediaId],
-            }),
-          });
+          await postApi("/api/media/group", {
+            collection_id: currentMedia.photo_group_id,
+            remove_media_ids: [mediaId],
+          }, { method: "PATCH" });
         }
       }
 
@@ -199,27 +186,22 @@ export function PhotoGroupingPanel({
       const groupMedia = getGroupMedia(groupId);
       if (groupMedia.length === 0) return;
 
-      const response = await fetch(`/api/media/${groupMedia[0].media_id}/identify`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cat_id: selectedCatId,
-          confidence: selectedConfidence,
-          apply_to_group: true,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to identify group");
-      }
+      await postApi(`/api/media/${groupMedia[0].media_id}/identify`, {
+        cat_id: selectedCatId,
+        confidence: selectedConfidence,
+        apply_to_group: true,
+      }, { method: "PATCH" });
 
       setIdentifyingGroup(null);
       setSelectedCatId("");
       await fetchGroups();
       onMediaUpdated?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to identify group");
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to identify group");
+      }
     }
   };
 
@@ -228,13 +210,9 @@ export function PhotoGroupingPanel({
     if (!confirm("Delete this group? Photos will be moved to ungrouped.")) return;
 
     try {
-      const response = await fetch(`/api/media/group?collection_id=${groupId}`, {
+      await fetchApi(`/api/media/group?collection_id=${groupId}`, {
         method: "DELETE",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete group");
-      }
 
       await fetchGroups();
       onMediaUpdated?.();

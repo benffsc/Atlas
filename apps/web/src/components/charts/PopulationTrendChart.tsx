@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api-client";
 
 interface TrendData {
   year: string;
@@ -21,24 +22,19 @@ export function PopulationTrendChart({ placeId }: PopulationTrendChartProps) {
     async function fetchData() {
       try {
         // Fetch alteration history for yearly data
-        const historyRes = await fetch(`/api/places/${placeId}/alteration-history`);
-        if (historyRes.ok) {
-          const history = await historyRes.json();
-          if (history.yearly_breakdown) {
-            type YearlyBreakdown = Record<string, { caught: number; altered: number }>;
-            const breakdown = history.yearly_breakdown as YearlyBreakdown;
-            const yearlyData = Object.entries(breakdown)
-              .map(([year, data]) => ({
-                year,
-                cats_caught: data.caught,
-                cats_altered: data.altered,
-                colony_estimate: null as number | null,
-              }))
-              .sort((a, b) => parseInt(a.year) - parseInt(b.year));
+        const history = await fetchApi<{ yearly_breakdown?: Record<string, { caught: number; altered: number }> }>(`/api/places/${placeId}/alteration-history`);
+        if (history.yearly_breakdown) {
+          const yearlyData = Object.entries(history.yearly_breakdown)
+            .map(([year, d]) => ({
+              year,
+              cats_caught: d.caught,
+              cats_altered: d.altered,
+              colony_estimate: null as number | null,
+            }))
+            .sort((a, b) => parseInt(a.year) - parseInt(b.year));
 
-            // Only show last 5 years
-            setData(yearlyData.slice(-5));
-          }
+          // Only show last 5 years
+          setData(yearlyData.slice(-5));
         }
       } catch (err) {
         console.error("Failed to load trend data:", err);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { postApi } from "@/lib/api-client";
 
 interface ArchiveJournalModalProps {
   isOpen: boolean;
@@ -63,19 +64,10 @@ export default function ArchiveJournalModal({
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/journal/${entryId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reason: selectedReason,
-          notes: archiveNotes.trim() || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to archive entry");
-      }
+      await postApi(`/api/journal/${entryId}`, {
+        reason: selectedReason,
+        notes: archiveNotes.trim() || undefined,
+      }, { method: "DELETE" });
 
       onSuccess?.();
       handleClose();
