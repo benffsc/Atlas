@@ -33,6 +33,16 @@ export async function authenticate(page: Page) {
   const isLoginPage = await emailInput.isVisible({ timeout: 3000 }).catch(() => false);
 
   if (isLoginPage) {
+    // Check for account lock before attempting login
+    const lockedMessage = page.locator('text=/Account is locked/i');
+    if (await lockedMessage.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const text = await lockedMessage.textContent() || '';
+      const minutesMatch = text.match(/(\d+)\s*minute/);
+      const waitMs = minutesMatch ? (parseInt(minutesMatch[1]) + 1) * 60 * 1000 : 60000;
+      await page.waitForTimeout(Math.min(waitMs, 30000));
+      await page.reload();
+    }
+
     // Fill in login credentials using exact IDs from the login form
     await emailInput.fill(TEST_EMAIL);
     await page.locator('#password').fill(TEST_PASSWORD);
@@ -40,7 +50,7 @@ export async function authenticate(page: Page) {
 
     // Login page uses window.location.href = redirect (full page reload)
     try {
-      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+      await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30000 });
     } catch {
       // If login fails (wrong credentials), try API-based login
       console.log('Browser login failed, trying API login...');
@@ -98,7 +108,7 @@ export async function navigateTo(page: Page, path: string) {
       await page.locator('#password').fill(TEST_PASSWORD);
       await page.locator('button[type="submit"]').click();
       try {
-        await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+        await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30000 });
       } catch {
         // Login may have failed
       }

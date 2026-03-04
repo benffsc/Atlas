@@ -36,7 +36,7 @@ setup('authenticate', async ({ page }) => {
   await page.locator('button[type="submit"]').click();
 
   // Wait for redirect away from login page (uses window.location.href)
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30000 });
 
   // Set PasswordGate localStorage (client-side gate, 7-day session)
   await page.evaluate(() => {

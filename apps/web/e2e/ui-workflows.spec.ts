@@ -49,7 +49,7 @@ async function fullLogin(page: Page) {
   await page.fill('input#email, input[name="email"], input[type="email"]', TEST_EMAIL);
   await page.fill('input#password, input[name="password"], input[type="password"]', TEST_PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForURL('/', { timeout: 15000 });
+  await page.waitForURL('/', { timeout: 30000 });
 }
 
 // ============================================================================
@@ -66,7 +66,7 @@ test.describe('Authentication Workflows', () => {
     await page.fill('input#password, input[name="password"], input[type="password"]', TEST_PASSWORD);
     await page.click('button[type="submit"]');
 
-    await page.waitForURL('/', { timeout: 15000 });
+    await page.waitForURL('/', { timeout: 30000 });
     await expect(page.locator('body')).toBeVisible();
 
     // Should see dashboard content

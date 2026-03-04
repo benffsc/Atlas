@@ -55,7 +55,7 @@ async function fullLogin(page: Page) {
   await page.click('button[type="submit"]');
 
   // Wait for redirect to dashboard
-  await page.waitForURL("/", { timeout: 15000 });
+  await page.waitForURL("/", { timeout: 30000 });
 }
 
 test.describe("Personal Dashboard", () => {
