@@ -108,10 +108,17 @@ export const createTestJournalEntry = (overrides = {}) => ({
 });
 
 // Cleanup query - removes all test records
+// Order matters: relationships first, then entities
 export const CLEANUP_QUERIES = [
+  // Relationship tables (must be deleted before entity tables)
+  `DELETE FROM sot.cat_place_relationships WHERE evidence_type = 'e2e_test'`,
+  `DELETE FROM sot.person_cat_relationships WHERE evidence_type = 'e2e_test'`,
+  `DELETE FROM sot.person_place_relationships WHERE evidence_type = 'e2e_test'`,
+  // Operational records
   `DELETE FROM ops.journal_entries WHERE created_by = 'e2e_test' OR body LIKE 'e2e-test-%'`,
   `DELETE FROM ops.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'`,
   `DELETE FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'`,
+  // Core entities
   `DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%'`,
   `DELETE FROM sot.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%'`,
   `DELETE FROM sot.people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%'`,
