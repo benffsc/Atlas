@@ -93,9 +93,42 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
+function buildJournalBody(data: {
+  trapperName: string;
+  visitDate: string;
+  catsTrapped: number;
+  catsReturned: number;
+  remainingEstimate?: number | null;
+  catsSeen?: number | null;
+  eartippedSeen?: number | null;
+  moreSessionsNeeded?: string | null;
+  isFinal?: boolean;
+  siteNotes?: string | null;
+}): string {
+  const lines: string[] = [];
+  lines.push(`**Trapping Session** by ${data.trapperName} on ${data.visitDate}`);
+  lines.push(`Trapped: ${data.catsTrapped} | Returned: ${data.catsReturned}`);
+  if (data.catsSeen != null) {
+    lines.push(`Cats seen: ${data.catsSeen}${data.eartippedSeen != null ? ` (${data.eartippedSeen} eartipped)` : ""}`);
+  }
+  if (data.remainingEstimate != null) {
+    lines.push(`Estimated remaining: ${data.remainingEstimate}`);
+  }
+  if (data.moreSessionsNeeded && data.moreSessionsNeeded !== "unknown") {
+    lines.push(`More sessions needed: ${data.moreSessionsNeeded}`);
+  }
+  if (data.isFinal) {
+    lines.push("**Final visit for this request**");
+  }
+  if (data.siteNotes) {
+    lines.push(`\nNotes: ${data.siteNotes}`);
+  }
+  return lines.join("\n");
+}
+
 /**
  * POST /api/requests/[id]/trip-report
- * Submit a new trip report
+ * Submit a new trip report with colony estimates, journal entry, and request updates
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -110,6 +143,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const {
       trapper_person_id,
+      trapper_name,
       visit_date,
       arrival_time,
       departure_time,
@@ -125,6 +159,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       equipment_used,
       is_final_visit,
       submitted_from,
+      // FFS-143: New session report fields
+      remaining_estimate,
+      estimate_confidence,
+      update_request_estimate,
+      trapper_total_estimate,
+      more_sessions_needed,
     } = body;
 
     // Validate trapper_person_id
@@ -132,17 +172,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return apiBadRequest("trapper_person_id is required");
     }
 
-    // Verify the request exists
-    const requestExists = await queryOne(
-      `SELECT request_id, status FROM ops.requests WHERE request_id = $1`,
+    // Fetch request with place_id for colony estimate + Chapman
+    const requestData = await queryOne<{
+      request_id: string;
+      status: string;
+      place_id: string | null;
+      estimated_cat_count: number | null;
+    }>(
+      `SELECT request_id, status, place_id, estimated_cat_count FROM ops.requests WHERE request_id = $1`,
       [requestId]
     );
 
-    if (!requestExists) {
+    if (!requestData) {
       return apiNotFound("Request", requestId);
     }
 
-    // Insert the trip report
+    const effectiveVisitDate = visit_date || new Date().toISOString().split("T")[0];
+
+    // Insert the trip report with new FFS-143 columns
     const report = await queryOne<{ report_id: string; created_at: string }>(
       `
       INSERT INTO ops.trapper_trip_reports (
@@ -162,14 +209,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         site_notes,
         equipment_used,
         is_final_visit,
-        submitted_from
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        submitted_from,
+        remaining_estimate,
+        estimate_confidence,
+        trapper_total_estimate,
+        more_sessions_needed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING report_id, created_at
       `,
       [
         requestId,
         trapper_person_id,
-        visit_date || new Date().toISOString().split("T")[0],
+        effectiveVisitDate,
         arrival_time || null,
         departure_time || null,
         cats_trapped || 0,
@@ -184,6 +235,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         equipment_used ? JSON.stringify(equipment_used) : null,
         is_final_visit || false,
         submitted_from || "web_ui",
+        remaining_estimate ?? null,
+        estimate_confidence || null,
+        trapper_total_estimate ?? null,
+        more_sessions_needed || null,
       ]
     );
 
@@ -199,8 +254,110 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // A. Update request estimate if requested
+    if (update_request_estimate && remaining_estimate != null) {
+      await query(
+        `UPDATE ops.requests
+         SET estimated_cat_count = $1, count_confidence = $2,
+             last_activity_at = NOW(), last_activity_type = 'session_report'
+         WHERE request_id = $3`,
+        [remaining_estimate, estimate_confidence || null, requestId]
+      );
+    } else {
+      // Still update activity timestamp
+      await query(
+        `UPDATE ops.requests
+         SET last_activity_at = NOW(), last_activity_type = 'session_report'
+         WHERE request_id = $1`,
+        [requestId]
+      );
+    }
+
+    // B. Write colony estimate if we have observation data and a place
+    if (requestData.place_id && (cats_seen != null || trapper_total_estimate != null)) {
+      try {
+        await query(
+          `INSERT INTO sot.colony_estimates (
+            place_id, total_cats, eartip_count_observed, source_type,
+            source_entity_type, source_entity_id, reported_by_person_id,
+            observation_date, notes, source_system, source_record_id, created_by
+          ) VALUES ($1, $2, $3, 'trapper_field_report', 'trip_report', $4, $5, $6, $7, 'atlas_ui', $8, $9)`,
+          [
+            requestData.place_id,
+            trapper_total_estimate ?? cats_seen,
+            eartipped_seen || null,
+            report.report_id,
+            trapper_person_id,
+            effectiveVisitDate,
+            site_notes || null,
+            report.report_id,
+            session.display_name || "Trip Report",
+          ]
+        );
+      } catch (err) {
+        console.error("Colony estimate write failed (non-fatal):", err);
+      }
+    }
+
+    // C. Create journal entry
+    let journalEntryId: string | null = null;
+    try {
+      const journalBody = buildJournalBody({
+        trapperName: trapper_name || "Unknown trapper",
+        visitDate: effectiveVisitDate,
+        catsTrapped: cats_trapped || 0,
+        catsReturned: cats_returned || 0,
+        remainingEstimate: remaining_estimate,
+        catsSeen: cats_seen,
+        eartippedSeen: eartipped_seen,
+        moreSessionsNeeded: more_sessions_needed,
+        isFinal: is_final_visit,
+        siteNotes: site_notes,
+      });
+
+      const journalResult = await queryOne<{ id: string }>(
+        `INSERT INTO ops.journal_entries (
+          body, entry_kind, primary_request_id, created_by,
+          source_system, tags
+        ) VALUES ($1, 'trap_attempt', $2, $3, 'atlas_ui', $4)
+        RETURNING id`,
+        [
+          journalBody,
+          requestId,
+          session.display_name || "Trip Report",
+          ["session_report", is_final_visit ? "final_visit" : "trapping"],
+        ]
+      );
+      journalEntryId = journalResult?.id || null;
+    } catch (err) {
+      console.error("Journal entry creation failed (non-fatal):", err);
+    }
+
+    // D. Chapman estimate (try/catch, non-fatal)
+    let chapmanEstimate: { estimated_population: number; ci_lower: number; ci_upper: number } | null = null;
+    if (cats_seen != null && eartipped_seen != null && eartipped_seen > 0 && requestData.place_id) {
+      try {
+        chapmanEstimate = await queryOne<{
+          estimated_population: number;
+          ci_lower: number;
+          ci_upper: number;
+        }>(
+          `SELECT estimated_population, ci_lower, ci_upper
+           FROM beacon.calculate_chapman_estimate($1, $2, $3)`,
+          [eartipped_seen, cats_seen, eartipped_seen > 0 ? eartipped_seen : 0]
+        );
+      } catch (err) {
+        console.error("Chapman estimate failed (non-fatal):", err);
+      }
+    }
+
     return apiSuccess({
       report_id: report.report_id,
+      journal_entry_id: journalEntryId,
+      remaining_estimate: remaining_estimate ?? null,
+      chapman_estimate: chapmanEstimate?.estimated_population ?? null,
+      confidence_low: chapmanEstimate?.ci_lower ?? null,
+      confidence_high: chapmanEstimate?.ci_upper ?? null,
       message: is_final_visit
         ? "Final trip report submitted. Request can now be completed."
         : "Trip report submitted successfully.",

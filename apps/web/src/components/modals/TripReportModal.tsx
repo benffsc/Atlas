@@ -3,6 +3,16 @@
 import { useState, useEffect } from "react";
 import { postApi } from "@/lib/api-client";
 
+interface TripReportResult {
+  report_id: string;
+  journal_entry_id: string | null;
+  remaining_estimate: number | null;
+  chapman_estimate: number | null;
+  confidence_low: number | null;
+  confidence_high: number | null;
+  message: string;
+}
+
 interface TripReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -10,7 +20,10 @@ interface TripReportModalProps {
   trapperPersonId: string;
   trapperName: string;
   isFinalVisit?: boolean;
-  onSuccess?: () => void;
+  estimatedCatCount?: number | null;
+  placeId?: string | null;
+  placeName?: string | null;
+  onSuccess?: (result: TripReportResult) => void;
 }
 
 const ISSUE_OPTIONS = [
@@ -24,6 +37,18 @@ const ISSUE_OPTIONS = [
   { value: "other", label: "Other issue" },
 ];
 
+const CONFIDENCE_OPTIONS = [
+  { value: "counted", label: "Counted" },
+  { value: "good_guess", label: "Good guess" },
+  { value: "rough_guess", label: "Rough guess" },
+] as const;
+
+const MORE_SESSIONS_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "unknown", label: "Unsure" },
+] as const;
+
 export function TripReportModal({
   isOpen,
   onClose,
@@ -31,6 +56,9 @@ export function TripReportModal({
   trapperPersonId,
   trapperName,
   isFinalVisit = false,
+  estimatedCatCount,
+  placeId,
+  placeName,
   onSuccess,
 }: TripReportModalProps) {
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split("T")[0]);
@@ -48,7 +76,13 @@ export function TripReportModal({
   const [isFinal, setIsFinal] = useState(isFinalVisit);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  // FFS-143: New state
+  const [remainingEstimate, setRemainingEstimate] = useState<number | "">("");
+  const [estimateConfidence, setEstimateConfidence] = useState<string>("good_guess");
+  const [updateRequestEstimate, setUpdateRequestEstimate] = useState(true);
+  const [trapperTotalEstimate, setTrapperTotalEstimate] = useState<number | "">("");
+  const [moreSessionsNeeded, setMoreSessionsNeeded] = useState<string>("unknown");
+  const [result, setResult] = useState<TripReportResult | null>(null);
 
   // Reset isFinal when modal opens with isFinalVisit prop
   useEffect(() => {
@@ -56,6 +90,13 @@ export function TripReportModal({
       setIsFinal(isFinalVisit);
     }
   }, [isOpen, isFinalVisit]);
+
+  // Auto-calculate remaining estimate when cats trapped changes
+  useEffect(() => {
+    if (estimatedCatCount != null && estimatedCatCount > 0 && catsTrapped > 0) {
+      setRemainingEstimate(Math.max(0, estimatedCatCount - catsTrapped));
+    }
+  }, [catsTrapped, estimatedCatCount]);
 
   const toggleIssue = (issueValue: string) => {
     setIssues((prev) =>
@@ -65,14 +106,36 @@ export function TripReportModal({
     );
   };
 
+  const resetForm = () => {
+    setVisitDate(new Date().toISOString().split("T")[0]);
+    setArrivalTime("");
+    setDepartureTime("");
+    setCatsTrapped(0);
+    setCatsReturned(0);
+    setTrapsSet("");
+    setTrapsRetrieved("");
+    setCatsSeen("");
+    setEartippedSeen("");
+    setIssues([]);
+    setIssueDetails("");
+    setSiteNotes("");
+    setRemainingEstimate("");
+    setEstimateConfidence("good_guess");
+    setUpdateRequestEstimate(true);
+    setTrapperTotalEstimate("");
+    setMoreSessionsNeeded("unknown");
+    setResult(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
 
     try {
-      await postApi(`/api/requests/${requestId}/trip-report`, {
+      const response = await postApi<TripReportResult>(`/api/requests/${requestId}/trip-report`, {
         trapper_person_id: trapperPersonId,
+        trapper_name: trapperName,
         visit_date: visitDate,
         arrival_time: arrivalTime || null,
         departure_time: departureTime || null,
@@ -86,32 +149,28 @@ export function TripReportModal({
         issue_details: issueDetails || null,
         site_notes: siteNotes || null,
         is_final_visit: isFinal,
+        // FFS-143 fields
+        remaining_estimate: remainingEstimate === "" ? null : remainingEstimate,
+        estimate_confidence: estimateConfidence,
+        update_request_estimate: updateRequestEstimate,
+        trapper_total_estimate: trapperTotalEstimate === "" ? null : trapperTotalEstimate,
+        more_sessions_needed: moreSessionsNeeded,
       });
 
-      setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        onSuccess?.();
-        // Reset form
-        setVisitDate(new Date().toISOString().split("T")[0]);
-        setArrivalTime("");
-        setDepartureTime("");
-        setCatsTrapped(0);
-        setCatsReturned(0);
-        setTrapsSet("");
-        setTrapsRetrieved("");
-        setCatsSeen("");
-        setEartippedSeen("");
-        setIssues([]);
-        setIssueDetails("");
-        setSiteNotes("");
-        setSuccess(false);
-      }, 1500);
+      setResult(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit report");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleDone = () => {
+    onClose();
+    if (result) {
+      onSuccess?.(result);
+    }
+    resetForm();
   };
 
   if (!isOpen) return null;
@@ -161,7 +220,7 @@ export function TripReportModal({
               {isFinal ? "Final Trip Report" : "Trip Report"}
             </div>
             <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-              {trapperName}
+              {trapperName}{placeName ? ` — ${placeName}` : ""}
             </div>
           </div>
           <button
@@ -178,16 +237,91 @@ export function TripReportModal({
           </button>
         </div>
 
-        {success ? (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "12px" }}>
-              Report Submitted!
+        {result ? (
+          /* Enhanced success state */
+          <div style={{ padding: "20px" }}>
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "4px" }}>
+                Report Submitted
+              </div>
+              <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                {result.message}
+              </div>
             </div>
-            <div style={{ color: "var(--muted)" }}>
-              {isFinal
-                ? "Final report recorded. Request can now be completed."
-                : "Trip report recorded successfully."}
+
+            {/* Summary card */}
+            <div
+              style={{
+                background: "var(--section-bg, #f9fafb)",
+                border: "1px solid var(--card-border, #e5e7eb)",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                marginBottom: "12px",
+              }}
+            >
+              <div style={{ fontWeight: 500, marginBottom: "6px", fontSize: "0.85rem" }}>Session Summary</div>
+              <div style={{ display: "flex", gap: "16px", fontSize: "0.9rem" }}>
+                <span>Trapped: <strong>{catsTrapped}</strong></span>
+                <span>Returned: <strong>{catsReturned}</strong></span>
+              </div>
+              {result.remaining_estimate != null && (
+                <div style={{ marginTop: "4px", fontSize: "0.9rem" }}>
+                  Estimated remaining: <strong>{result.remaining_estimate}</strong>
+                </div>
+              )}
             </div>
+
+            {/* Chapman estimate card */}
+            {result.chapman_estimate != null && (
+              <div
+                style={{
+                  background: "#e3f2fd",
+                  border: "1px solid #90caf9",
+                  borderRadius: "8px",
+                  padding: "1rem",
+                  marginBottom: "12px",
+                }}
+              >
+                <div style={{ fontWeight: 600, color: "#1565c0", marginBottom: "0.25rem" }}>
+                  Chapman Population Estimate
+                </div>
+                <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#1565c0" }}>
+                  ~{Math.round(result.chapman_estimate)} cats
+                </div>
+                {result.confidence_low != null && result.confidence_high != null && (
+                  <div style={{ color: "#1976d2", fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                    95% CI: {Math.round(result.confidence_low)} - {Math.round(result.confidence_high)}
+                  </div>
+                )}
+                <div style={{ color: "#1976d2", fontSize: "0.75rem", marginTop: "0.5rem" }}>
+                  Based on mark-resight calculation using clinic data
+                </div>
+              </div>
+            )}
+
+            {/* Journal entry confirmation */}
+            {result.journal_entry_id && (
+              <div style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center", marginBottom: "12px" }}>
+                Journal entry created
+              </div>
+            )}
+
+            <button
+              onClick={handleDone}
+              style={{
+                width: "100%",
+                padding: "14px",
+                background: "var(--primary)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Done
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ padding: "20px" }}>
@@ -318,6 +452,116 @@ export function TripReportModal({
                     style={inputStyle}
                   />
                 </div>
+              </div>
+              {/* Trapper total estimate */}
+              <div style={{ marginTop: "8px" }}>
+                <label style={{ ...labelStyle, fontSize: "0.75rem" }}>Trapper&apos;s total colony estimate</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={trapperTotalEstimate}
+                  onChange={(e) =>
+                    setTrapperTotalEstimate(e.target.value === "" ? "" : parseInt(e.target.value) || 0)
+                  }
+                  placeholder="Optional — trapper's best guess of total cats at site"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {/* Estimate Strip — only shown when we have a previous estimate */}
+            {estimatedCatCount != null && estimatedCatCount > 0 && (
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: "#fef3c7",
+                  border: "1px solid #fbbf24",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                }}
+              >
+                <div style={{ fontSize: "0.8rem", fontWeight: 500, marginBottom: "8px", color: "#92400e" }}>
+                  Remaining Cats Estimate
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", fontSize: "0.85rem" }}>
+                  <span>Previous: <strong>{estimatedCatCount}</strong></span>
+                  <span style={{ color: "#92400e" }}>-</span>
+                  <span>Trapped: <strong>{catsTrapped}</strong></span>
+                  <span style={{ color: "#92400e" }}>=</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 500, whiteSpace: "nowrap" }}>Remaining:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={remainingEstimate}
+                    onChange={(e) =>
+                      setRemainingEstimate(e.target.value === "" ? "" : parseInt(e.target.value) || 0)
+                    }
+                    style={{ ...inputStyle, width: "80px", textAlign: "center", fontWeight: 600 }}
+                  />
+                </div>
+                {/* Confidence selector */}
+                <div style={{ marginBottom: "10px" }}>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 500, display: "block", marginBottom: "4px" }}>Confidence</label>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {CONFIDENCE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEstimateConfidence(opt.value)}
+                        style={{
+                          padding: "4px 10px",
+                          background: estimateConfidence === opt.value ? "#f59e0b" : "white",
+                          color: estimateConfidence === opt.value ? "white" : "#78716c",
+                          border: `1px solid ${estimateConfidence === opt.value ? "#f59e0b" : "#d6d3d1"}`,
+                          borderRadius: "16px",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          fontWeight: estimateConfidence === opt.value ? 600 : 400,
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Update request checkbox */}
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={updateRequestEstimate}
+                    onChange={(e) => setUpdateRequestEstimate(e.target.checked)}
+                    style={{ width: "16px", height: "16px" }}
+                  />
+                  Update request cat count to {remainingEstimate === "" ? "..." : remainingEstimate}
+                </label>
+              </div>
+            )}
+
+            {/* More Sessions Needed */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>More sessions needed?</label>
+              <div style={{ display: "flex", gap: "6px" }}>
+                {MORE_SESSIONS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setMoreSessionsNeeded(opt.value)}
+                    style={{
+                      padding: "6px 14px",
+                      background: moreSessionsNeeded === opt.value ? "var(--primary)" : "var(--section-bg)",
+                      color: moreSessionsNeeded === opt.value ? "white" : "inherit",
+                      border: `1px solid ${moreSessionsNeeded === opt.value ? "var(--primary)" : "var(--border)"}`,
+                      borderRadius: "20px",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontWeight: moreSessionsNeeded === opt.value ? 600 : 400,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
