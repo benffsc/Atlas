@@ -228,7 +228,7 @@ export default function PlaceDetailPage() {
 
   const fetchJournal = useCallback(async () => {
     try {
-      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?place_id=${id}&limit=50`);
+      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?place_id=${id}&limit=50&include_related=true`);
       setJournal(data.entries || []);
     } catch (err) {
       console.error("Failed to fetch journal:", err);

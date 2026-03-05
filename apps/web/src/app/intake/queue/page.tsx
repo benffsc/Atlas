@@ -79,6 +79,15 @@ function IntakeQueueContent() {
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [declineSubmission, setDeclineSubmission] = useState<IntakeSubmission | null>(null);
 
+  // Mobile responsive state (FFS-131)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -338,13 +347,14 @@ function IntakeQueueContent() {
   };
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 60px)" }}>
-      {/* Main Queue Panel */}
+    <div style={{ display: "flex", height: "calc(100vh - 60px)", flexDirection: isMobile ? "column" : "row" }}>
+      {/* Main Queue Panel — hidden on mobile when detail is open */}
       <div style={{
-        flex: selectedSubmission ? "0 0 45%" : "1",
+        flex: isMobile ? "1" : (selectedSubmission ? "0 0 45%" : "1"),
         overflow: "auto",
-        padding: "0 1rem 1rem 0",
+        padding: isMobile ? "0 0.75rem 1rem" : "0 1rem 1rem 0",
         transition: "flex 0.2s ease-in-out",
+        display: isMobile && selectedSubmission ? "none" : undefined,
       }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Intake Queue</h1>
@@ -795,42 +805,76 @@ function IntakeQueueContent() {
                   </span>
                 </h3>
               )}
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: "40px", textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.size === sortedSubmissions.length && sortedSubmissions.length > 0}
-                    onChange={() => toggleSelectAll(sortedSubmissions)}
-                  />
-                </th>
-                <th style={{ width: "60px" }}>Type</th>
-                <th style={{ width: "180px" }}>Submitter</th>
-                <th style={{ width: "200px" }}>Location</th>
-                <th style={{ width: "80px" }}>Cats</th>
-                <th style={{ width: "120px" }}>Status</th>
-                <th style={{ width: "80px" }}>Submitted</th>
-                <th style={{ width: "200px" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          {isMobile ? (
+            /* Mobile: Card layout */
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {groupSubs.map((sub) => (
-                <IntakeQueueRow
+                <div
                   key={sub.submission_id}
-                  submission={sub}
-                  isSelected={selectedIds.has(sub.submission_id)}
-                  onSelect={() => toggleSelect(sub.submission_id)}
-                  onOpenDetail={() => openDetail(sub)}
-                  onOpenContactModal={() => openContactModal(sub)}
-                  onQuickStatus={handleQuickStatus}
-                  onSchedule={() => handleMarkBooked(sub)}
-                  onChangeAppointment={() => handleChangeAppointment(sub)}
-                  saving={saving}
-                />
+                  onClick={() => openDetail(sub)}
+                  style={{
+                    padding: "0.75rem",
+                    border: "1px solid var(--border)",
+                    borderLeft: `3px solid ${sub.is_emergency ? COLORS.error : sub.overdue ? COLORS.warning : "transparent"}`,
+                    borderRadius: "6px",
+                    background: selectedIds.has(sub.submission_id) ? COLORS.primaryLight : "var(--background)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{normalizeName(sub.submitter_name)}</span>
+                    <SubmissionStatusBadge status={sub.submission_status} />
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
+                    {sub.geo_formatted_address || sub.cats_address}
+                  </div>
+                  <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.7rem", color: "var(--muted)" }}>
+                    <span>{sub.cat_count_estimate ?? "?"} cats</span>
+                    <span>{formatDate(sub.submitted_at)}</span>
+                    {sub.is_emergency && <span style={{ color: COLORS.error, fontWeight: 600 }}>URGENT</span>}
+                    {sub.overdue && <span style={{ color: COLORS.warning }}>STALE</span>}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            /* Desktop: Table layout */
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: "40px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === sortedSubmissions.length && sortedSubmissions.length > 0}
+                      onChange={() => toggleSelectAll(sortedSubmissions)}
+                    />
+                  </th>
+                  <th style={{ width: "180px" }}>Submitter</th>
+                  <th style={{ width: "200px" }}>Location</th>
+                  <th style={{ width: "80px" }}>Cats</th>
+                  <th style={{ width: "120px" }}>Status</th>
+                  <th style={{ width: "80px" }}>Submitted</th>
+                  <th style={{ width: "200px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupSubs.map((sub) => (
+                  <IntakeQueueRow
+                    key={sub.submission_id}
+                    submission={sub}
+                    isSelected={selectedIds.has(sub.submission_id)}
+                    onSelect={() => toggleSelect(sub.submission_id)}
+                    onOpenDetail={() => openDetail(sub)}
+                    onOpenContactModal={() => openContactModal(sub)}
+                    onQuickStatus={handleQuickStatus}
+                    onSchedule={() => handleMarkBooked(sub)}
+                    onChangeAppointment={() => handleChangeAppointment(sub)}
+                    saving={saving}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
             </div>
           ))}
         </div>
@@ -863,6 +907,7 @@ function IntakeQueueContent() {
           onArchive={handleArchive}
           toastMessage={toastMessage}
           setToastMessage={setToastMessage}
+          isMobile={isMobile}
         />
       )}
 

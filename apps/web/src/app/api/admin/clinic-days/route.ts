@@ -74,11 +74,11 @@ export async function GET(request: NextRequest) {
         COALESCE(cd.clinic_day_id, gen_random_uuid()) AS clinic_day_id,
         a.appointment_date AS clinic_date,
         COALESCE(cd.clinic_type, 'regular') AS clinic_type,
-        COALESCE(INITCAP(cd.clinic_type::TEXT), 'Regular') AS clinic_type_label,
-        NULL AS target_place_id,
-        NULL AS target_place_name,
-        NULL AS target_place_address,
-        NULL AS max_capacity,
+        INITCAP(REPLACE(COALESCE(cd.clinic_type, 'regular'), '_', ' ')) AS clinic_type_label,
+        cd.target_place_id,
+        tp.display_name AS target_place_name,
+        tp.formatted_address AS target_place_address,
+        cd.max_appointments AS max_capacity,
         MAX(a.vet_name) AS vet_name,
         EXTRACT(DOW FROM a.appointment_date)::INT AS day_of_week,
         COUNT(*)::INT AS total_cats,
@@ -105,8 +105,9 @@ export async function GET(request: NextRequest) {
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN ops.clinic_days cd ON cd.clinic_date = a.appointment_date
+      LEFT JOIN sot.places tp ON tp.place_id = cd.target_place_id
       ${whereClause}
-      GROUP BY a.appointment_date, cd.clinic_day_id, cd.clinic_type, cd.notes
+      GROUP BY a.appointment_date, cd.clinic_day_id, cd.clinic_type, cd.target_place_id, tp.display_name, tp.formatted_address, cd.max_appointments, cd.notes
       ORDER BY a.appointment_date DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex}
       `,

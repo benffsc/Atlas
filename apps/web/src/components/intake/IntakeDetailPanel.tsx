@@ -37,6 +37,7 @@ export interface IntakeDetailPanelProps {
   onArchive: (submissionId: string) => Promise<void>;
   toastMessage: string | null;
   setToastMessage: (msg: string | null) => void;
+  isMobile?: boolean;
 }
 
 export function IntakeDetailPanel({
@@ -56,6 +57,7 @@ export function IntakeDetailPanel({
   onArchive,
   toastMessage,
   setToastMessage,
+  isMobile = false,
 }: IntakeDetailPanelProps) {
   // Status editing state
   const [editingStatus, setEditingStatus] = useState(false);
@@ -284,32 +286,33 @@ export function IntakeDetailPanel({
   return (
     <div
       style={{
-        flex: "0 0 55%",
-        borderLeft: "1px solid var(--border)",
+        flex: isMobile ? "1" : "0 0 55%",
+        borderLeft: isMobile ? "none" : "1px solid var(--border)",
         background: "var(--background)",
         overflow: "auto",
-        padding: "1.5rem",
+        padding: isMobile ? "1rem 0.75rem" : "1.5rem",
         position: "relative",
       }}
     >
-      {/* Close button */}
+      {/* Back / Close button */}
       <button
         onClick={onClose}
         style={{
-          position: "absolute",
-          top: "1rem",
-          right: "1rem",
+          position: isMobile ? "relative" : "absolute",
+          top: isMobile ? undefined : "1rem",
+          right: isMobile ? undefined : "1rem",
           background: "transparent",
           border: "none",
-          fontSize: "1.5rem",
+          fontSize: isMobile ? "0.9rem" : "1.5rem",
           cursor: "pointer",
           color: "var(--muted)",
-          padding: "0.25rem 0.5rem",
+          padding: isMobile ? "0.5rem 0" : "0.25rem 0.5rem",
           lineHeight: 1,
+          marginBottom: isMobile ? "0.5rem" : undefined,
         }}
         title="Close panel (Esc)"
       >
-        ×
+        {isMobile ? "← Back to queue" : "×"}
       </button>
       <div>
         {/* Header with Contact Editing */}

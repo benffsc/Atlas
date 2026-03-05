@@ -518,21 +518,9 @@ export async function GET(
       ORDER BY a.cat_id, a.appointment_date DESC
     `;
 
-    // Fetch partner organizations this cat has been associated with
-    // V2: Uses 'name' and 'short_name' columns (not org_name, org_name_short)
-    const partnerOrgsSql = `
-      SELECT
-        po.org_id,
-        po.name AS org_name,
-        po.short_name AS org_name_short,
-        MIN(a.appointment_date)::TEXT as first_seen,
-        COUNT(*)::INT as appointment_count
-      FROM ops.appointments a
-      JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
-      WHERE a.cat_id = $1
-      GROUP BY po.org_id, po.name, po.short_name
-      ORDER BY first_seen
-    `;
+    // Partner organizations: partner_org_id column doesn't exist on ops.appointments
+    // and no ingest populates it, so we return an empty array (FFS-125)
+    const partnerOrgs: PartnerOrg[] = [];
 
     // Enhanced clinic history with origin addresses and partner orgs
     // V2: Uses sot.person_place and po.short_name
@@ -548,14 +536,13 @@ export async function GET(
         a.owner_phone as client_phone,
         NULL::TEXT as ownership_type,
         pl2.formatted_address as origin_address,
-        po.short_name as partner_org_short
+        NULL::TEXT as partner_org_short
       FROM ops.appointments a
       LEFT JOIN sot.people p ON p.person_id = a.person_id
       LEFT JOIN ops.clinic_accounts coa ON coa.account_id = a.owner_account_id
       -- FFS-122: Removed unbounded person_place JOIN that caused cartesian product
       LEFT JOIN sot.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
         AND pl2.merged_into_place_id IS NULL
-      LEFT JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
       ORDER BY a.appointment_date DESC
     `;
@@ -585,7 +572,7 @@ export async function GET(
       }
     }
 
-    const [clinicHistory, vitals, conditions, tests, procedures, appointments, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, partnerOrgs, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
+    const [clinicHistory, vitals, conditions, tests, procedures, appointments, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
       safeQueryRows<ClinicAppointment>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
@@ -655,7 +642,6 @@ export async function GET(
         notes: string | null;
       }>(movementsSql, [id]),
       safeQueryRows<OriginPlace>(originPlaceSql, [id]),
-      safeQueryRows<PartnerOrg>(partnerOrgsSql, [id]),
       safeQueryRows<EnhancedClinicAppointment>(enhancedClinicHistorySql, [id]),
       safeQueryRows<CatFieldSources>(fieldSourcesSql, [id]),
     ]);

@@ -1048,7 +1048,7 @@ function RequestsPageContent() {
             Enter Call Sheet
           </a>
           <a
-            href="/requests/print/full"
+            href="/requests/print"
             style={{
               padding: "0.5rem 1rem",
               background: "#27ae60",

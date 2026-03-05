@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { geocodeAddress, buildAddressString } from "@/lib/geocoding";
 
 interface IntakeSubmission {
   // Source tracking
@@ -323,6 +324,39 @@ export async function POST(request: NextRequest) {
     } catch (err: unknown) {
       console.error("Place linking error:", err);
       // Non-fatal: submission was already saved, place linking can be retried
+    }
+
+    // FFS-128: Inline geocoding — geocode the address immediately so map shows pin
+    // Don't block submission on geocoding failure; cron will retry later
+    if (body.cats_address && !body.selected_address_place_id) {
+      try {
+        const addressStr = buildAddressString(body.cats_address, body.cats_city, body.cats_zip);
+        const geoResult = await geocodeAddress(addressStr);
+        if (geoResult?.success) {
+          // Update the submission with geocoded coordinates
+          await queryOne(
+            `UPDATE ops.intake_submissions
+             SET geo_lat = $1, geo_lng = $2, geo_formatted_address = $3,
+                 geo_confidence = 1.0, updated_at = NOW()
+             WHERE submission_id = $4`,
+            [geoResult.lat, geoResult.lng, geoResult.formatted_address, data.submission_id]
+          );
+          // Also update the linked place if one was created
+          await queryOne(
+            `UPDATE sot.places
+             SET location = ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+                 formatted_address = COALESCE(formatted_address, $3),
+                 updated_at = NOW()
+             WHERE place_id = (
+               SELECT place_id FROM ops.intake_submissions WHERE submission_id = $4
+             )
+             AND location IS NULL`,
+            [geoResult.lat, geoResult.lng, geoResult.formatted_address, data.submission_id]
+          );
+        }
+      } catch (geoErr: unknown) {
+        console.error("Inline geocoding error (non-fatal):", geoErr);
+      }
     }
 
     // Return success with submission ID and triage info

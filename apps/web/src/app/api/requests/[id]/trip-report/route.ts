@@ -106,8 +106,12 @@ function buildJournalBody(data: {
   siteNotes?: string | null;
 }): string {
   const lines: string[] = [];
-  lines.push(`**Trapping Session** by ${data.trapperName} on ${data.visitDate}`);
-  lines.push(`Trapped: ${data.catsTrapped} | Returned: ${data.catsReturned}`);
+  const isTrapping = data.catsTrapped > 0;
+  const header = isTrapping ? "Trapping Session" : "Field Report";
+  lines.push(`**${header}** by ${data.trapperName} on ${data.visitDate}`);
+  if (isTrapping) {
+    lines.push(`Trapped: ${data.catsTrapped} | Returned: ${data.catsReturned}`);
+  }
   if (data.catsSeen != null) {
     lines.push(`Cats seen: ${data.catsSeen}${data.eartippedSeen != null ? ` (${data.eartippedSeen} eartipped)` : ""}`);
   }
@@ -144,6 +148,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const {
       trapper_person_id,
       trapper_name,
+      reported_by_name,
       visit_date,
       arrival_time,
       departure_time,
@@ -167,10 +172,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       more_sessions_needed,
     } = body;
 
-    // Validate trapper_person_id
-    if (!trapper_person_id) {
-      return apiBadRequest("trapper_person_id is required");
-    }
+    // Resolve display name: trapper name > reported_by_name > staff name
+    const effectiveReporterName = trapper_name || reported_by_name || "Unknown reporter";
 
     // Fetch request with place_id for colony estimate + Chapman
     const requestData = await queryOne<{
@@ -195,6 +198,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       INSERT INTO ops.trapper_trip_reports (
         request_id,
         trapper_person_id,
+        reported_by_name,
         visit_date,
         arrival_time,
         departure_time,
@@ -214,12 +218,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         estimate_confidence,
         trapper_total_estimate,
         more_sessions_needed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING report_id, created_at
       `,
       [
         requestId,
-        trapper_person_id,
+        trapper_person_id || null,
+        reported_by_name || effectiveReporterName,
         effectiveVisitDate,
         arrival_time || null,
         departure_time || null,
@@ -303,7 +308,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let journalEntryId: string | null = null;
     try {
       const journalBody = buildJournalBody({
-        trapperName: trapper_name || "Unknown trapper",
+        trapperName: effectiveReporterName,
         visitDate: effectiveVisitDate,
         catsTrapped: cats_trapped || 0,
         catsReturned: cats_returned || 0,

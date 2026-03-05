@@ -751,7 +751,6 @@ export default function RequestDetailPage() {
 
           {/* Actions */}
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-            <a href={`/requests/${request.request_id}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: "0.85rem", background: "#166534", color: "#fff" }}>Trapper Sheet</a>
             <button onClick={() => setEditing(true)} className="btn btn-secondary" style={{ fontSize: "0.85rem" }}>Edit</button>
             <button onClick={() => setShowHistory(!showHistory)} className="btn btn-secondary" style={{ fontSize: "0.85rem" }}>{showHistory ? "Hide History" : "History"}</button>
           </div>
@@ -1119,8 +1118,8 @@ export default function RequestDetailPage() {
           <TripReportModal
             isOpen={true}
             requestId={requestId}
-            trapperPersonId={primaryTrapper?.trapper_person_id || ""}
-            trapperName={primaryTrapper?.trapper_name || "Unknown"}
+            trapperPersonId={primaryTrapper?.trapper_person_id}
+            trapperName={primaryTrapper?.trapper_name}
             estimatedCatCount={request.estimated_cat_count}
             placeId={request.place_id}
             placeName={request.place_name}

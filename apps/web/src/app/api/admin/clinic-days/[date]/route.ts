@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const clinicDay = await queryOne(
       `
       WITH clinic_day_record AS (
-        SELECT clinic_day_id, clinic_date, clinic_type, notes
+        SELECT clinic_day_id, clinic_date, clinic_type, max_appointments, notes
         FROM ops.clinic_days
         WHERE clinic_date = $1
       ),
@@ -72,10 +72,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         COALESCE(cd.clinic_day_id, gen_random_uuid()) AS clinic_day_id,
         COALESCE(cd.clinic_date, s.clinic_date) AS clinic_date,
         COALESCE(cd.clinic_type, 'regular') AS clinic_type,
-        COALESCE(INITCAP(cd.clinic_type::TEXT), 'Regular') AS clinic_type_label,
+        INITCAP(REPLACE(COALESCE(cd.clinic_type, 'regular'), '_', ' ')) AS clinic_type_label,
         NULL AS target_place_id,
         NULL AS target_place_name,
-        NULL AS max_capacity,
+        cd.max_appointments AS max_capacity,
         s.vet_name,
         s.day_of_week,
         COALESCE(s.total_cats, 0) AS total_cats,

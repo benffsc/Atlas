@@ -536,7 +536,7 @@ test.describe('UI: TNR Call Sheet Printing', () => {
     const requestId = await findRealEntity(request, 'requests');
     test.skip(!requestId, 'No requests in database');
 
-    await navigateTo(page, `/requests/print/full?id=${requestId}`);
+    await navigateTo(page, `/requests/print?id=${requestId}`);
 
     await page.waitForTimeout(2000);
     await expect(page.locator('body')).not.toBeEmpty();

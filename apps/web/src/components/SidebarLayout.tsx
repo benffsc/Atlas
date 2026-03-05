@@ -390,7 +390,7 @@ export function RequestsSidebar({ children }: { children: React.ReactNode }) {
       title: "Quick Actions",
       items: [
         { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "📞" },
-        { label: "Print Call Sheet", href: "/requests/print/full", icon: "🖨️" },
+        { label: "Print Call Sheet", href: "/requests/print", icon: "🖨️" },
         { label: "New Request", href: "/requests/new", icon: "➕" },
       ],
     },

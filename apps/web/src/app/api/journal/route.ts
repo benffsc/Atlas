@@ -74,7 +74,7 @@ const WINDOW_CONDITION = `
        AND COALESCE(r.resolved_at, NOW()) + INTERVAL '2 months')`;
 
 function buildCrossRefQuery(
-  entityType: "request" | "person" | "cat",
+  entityType: "request" | "person" | "cat" | "place",
   entityId: string,
   includeArchived: boolean,
   entryKind: string | null,
@@ -149,8 +149,7 @@ function buildCrossRefQuery(
         AND je.primary_person_id IS DISTINCT FROM $1
         ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
     `);
-  } else {
-    // cat
+  } else if (entityType === "cat") {
     // Direct entries on this cat
     unions.push(`
       SELECT je.*, NULL::TEXT AS cross_ref_source
@@ -165,6 +164,23 @@ function buildCrossRefQuery(
       JOIN ops.requests r ON r.request_id = rcl.request_id
       WHERE rcl.cat_id = $1
         AND je.primary_cat_id IS DISTINCT FROM $1
+        ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
+    `);
+  } else {
+    // place
+    // Direct entries on this place
+    unions.push(`
+      SELECT je.*, NULL::TEXT AS cross_ref_source
+      FROM ops.journal_entries je
+      WHERE je.primary_place_id = $1 ${archivedFilter} ${kindFilter}
+    `);
+    // Request entries where this place is the location
+    unions.push(`
+      SELECT je.*, 'request'::TEXT AS cross_ref_source
+      FROM ops.journal_entries je
+      JOIN ops.requests r ON r.request_id = je.primary_request_id
+      WHERE r.place_id = $1
+        AND je.primary_place_id IS DISTINCT FROM $1
         ${crossRefArchived} ${noQuickNotes} ${kindFilter} ${WINDOW_CONDITION}
     `);
   }
@@ -247,19 +263,19 @@ export async function GET(request: NextRequest) {
   // also fetch entries from linked entities within a 2-month attribution window.
   const singleEntityForCrossRef =
     includeRelated &&
-    !submissionId && !annotationId && !placeId &&
-    [requestId, personId, catId].filter(Boolean).length === 1;
+    !submissionId && !annotationId &&
+    [requestId, personId, catId, placeId].filter(Boolean).length === 1;
 
   if (singleEntityForCrossRef) {
-    const entityType = requestId ? "request" : personId ? "person" : "cat";
-    const entityId = (requestId || personId || catId)!;
+    const entityType = requestId ? "request" : personId ? "person" : catId ? "cat" : "place";
+    const entityId = (requestId || personId || catId || placeId)!;
     if (!isValidUUID(entityId)) {
       return apiSuccess({ entries: [], total: 0 });
     }
 
     try {
       const { sql, countSql, params } = buildCrossRefQuery(
-        entityType as "request" | "person" | "cat",
+        entityType as "request" | "person" | "cat" | "place",
         entityId,
         includeArchived,
         entryKind,

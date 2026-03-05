@@ -71,33 +71,6 @@ export function IntakeQueueRow({
         />
       </td>
 
-      {/* Type (Legacy/Native + TEST) */}
-      <td>
-        <span
-          style={{
-            fontSize: "0.65rem",
-            padding: "2px 6px",
-            borderRadius: "3px",
-            background: sub.is_legacy ? COLORS.gray500 : COLORS.success,
-            color: COLORS.white,
-          }}
-        >
-          {sub.is_legacy ? "Legacy" : "Native"}
-        </span>
-        {sub.is_test && (
-          <span style={{
-            fontSize: "0.65rem",
-            background: COLORS.error,
-            color: "#fff",
-            padding: "1px 4px",
-            borderRadius: "3px",
-            marginLeft: "4px",
-          }}>
-            TEST
-          </span>
-        )}
-      </td>
-
       {/* Name / Contact */}
       <td>
         <div

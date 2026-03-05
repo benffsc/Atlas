@@ -17,8 +17,8 @@ interface TripReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   requestId: string;
-  trapperPersonId: string;
-  trapperName: string;
+  trapperPersonId?: string | null;
+  trapperName?: string | null;
   isFinalVisit?: boolean;
   estimatedCatCount?: number | null;
   placeId?: string | null;
@@ -61,6 +61,8 @@ export function TripReportModal({
   placeName,
   onSuccess,
 }: TripReportModalProps) {
+  const hasTrapper = !!(trapperPersonId && trapperName);
+  const [reportedByName, setReportedByName] = useState(trapperName || "");
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split("T")[0]);
   const [arrivalTime, setArrivalTime] = useState("");
   const [departureTime, setDepartureTime] = useState("");
@@ -107,6 +109,7 @@ export function TripReportModal({
   };
 
   const resetForm = () => {
+    setReportedByName(trapperName || "");
     setVisitDate(new Date().toISOString().split("T")[0]);
     setArrivalTime("");
     setDepartureTime("");
@@ -134,8 +137,9 @@ export function TripReportModal({
 
     try {
       const response = await postApi<TripReportResult>(`/api/requests/${requestId}/trip-report`, {
-        trapper_person_id: trapperPersonId,
-        trapper_name: trapperName,
+        trapper_person_id: trapperPersonId || null,
+        trapper_name: hasTrapper ? trapperName : null,
+        reported_by_name: reportedByName || null,
         visit_date: visitDate,
         arrival_time: arrivalTime || null,
         departure_time: departureTime || null,
@@ -217,10 +221,10 @@ export function TripReportModal({
         >
           <div>
             <div style={{ fontWeight: 600, fontSize: "1.1rem" }}>
-              {isFinal ? "Final Trip Report" : "Trip Report"}
+              {isFinal ? "Final Trip Report" : "Session / Field Report"}
             </div>
             <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-              {trapperName}{placeName ? ` — ${placeName}` : ""}
+              {hasTrapper ? trapperName : placeName || "New report"}{hasTrapper && placeName ? ` — ${placeName}` : ""}
             </div>
           </div>
           <button
@@ -325,6 +329,25 @@ export function TripReportModal({
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ padding: "20px" }}>
+            {/* Reported By — shown when no trapper assigned */}
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>Reported by {!hasTrapper && "*"}</label>
+              {hasTrapper ? (
+                <div style={{ padding: "10px 12px", background: "var(--section-bg, #f9fafb)", borderRadius: "8px", fontSize: "0.9rem" }}>
+                  {trapperName}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={reportedByName}
+                  onChange={(e) => setReportedByName(e.target.value)}
+                  placeholder="Who reported this? (neighbor, caretaker, requester...)"
+                  required={!hasTrapper}
+                  style={inputStyle}
+                />
+              )}
+            </div>
+
             {/* Visit Date */}
             <div style={{ marginBottom: "16px" }}>
               <label style={labelStyle}>Visit Date *</label>
