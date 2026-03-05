@@ -244,6 +244,11 @@ interface CreateRequestBody {
   // Status & Priority
   status?: string;
   priority?: string;
+  initial_status?: string; // Form sends this for Quick Complete mode
+
+  // Request Purpose (MIG_2817)
+  request_purpose?: string;
+  request_purposes?: string[];
 
   // Location
   place_id?: string;
@@ -264,26 +269,31 @@ interface CreateRequestBody {
   colony_duration?: string;
   awareness_duration?: string;
   eartip_count?: number;
+  eartip_estimate?: string;
   cats_are_friendly?: boolean;
   fixed_status?: string;
   cat_name?: string;
   cat_description?: string;
   handleability?: string;
+  wellness_cat_count?: number;
 
   // Kittens
   has_kittens?: boolean;
   kitten_count?: number;
   kitten_age_estimate?: string;
+  kitten_age_weeks?: number;
+  kitten_mixed_ages_description?: string;
   kitten_behavior?: string;
-  mom_present?: boolean;
-  kitten_contained?: boolean;
-  mom_fixed?: boolean;
-  can_bring_in?: boolean;
+  kitten_notes?: string;
+  mom_present?: string;
+  kitten_contained?: string;
+  mom_fixed?: string;
+  can_bring_in?: string;
 
   // Feeding
   is_being_fed?: boolean;
   feeder_name?: string;
-  feeding_schedule?: string;
+  feeding_schedule?: string; // Form name → maps to DB feeding_frequency
   feeding_location?: string;
   feeding_time?: string;
   best_times_seen?: string;
@@ -297,9 +307,15 @@ interface CreateRequestBody {
   has_property_access?: boolean;
   access_notes?: string;
   permission_status?: string;
-  dogs_on_site?: boolean;
-  trap_savvy?: boolean;
-  previous_tnr?: boolean;
+  traps_overnight_safe?: boolean;
+  access_without_contact?: boolean;
+  property_owner_name?: string;
+  property_owner_phone?: string;
+  authorization_pending?: boolean;
+  best_contact_times?: string;
+  dogs_on_site?: string;
+  trap_savvy?: string;
+  previous_tnr?: string;
 
   // Third Party
   is_third_party_report?: boolean;
@@ -309,6 +325,11 @@ interface CreateRequestBody {
   county?: string;
   is_emergency?: boolean;
 
+  // Urgency (MIG_2817)
+  urgency_reasons?: string[];
+  urgency_deadline?: string;
+  urgency_notes?: string;
+
   // Triage
   triage_category?: string;
   received_by?: string;
@@ -316,17 +337,29 @@ interface CreateRequestBody {
   // Notes
   summary?: string;
   notes?: string;
+  internal_notes?: string;
   important_notes?: string;
+
+  // Entry Metadata (MIG_2817)
+  entry_mode?: string;
+  completion_data?: Record<string, unknown>;
 
   // Provenance
   created_by?: string;
+
+  // Raw contact fallbacks (FFS-146: for future auto-resolution)
+  raw_requester_name?: string;
+  raw_requester_phone?: string;
+  raw_requester_email?: string;
 }
 
 /**
  * POST /api/requests
  *
  * Creates a new request by directly inserting into ops.requests.
- * All 50+ fields are mapped to ensure complete data capture.
+ * All form fields are mapped to DB columns (MIG_2817 added missing ones).
+ * Field name mismatches are mapped: feeding_schedule→feeding_frequency,
+ * eartip_count→eartip_count_observed, initial_status→status.
  */
 export async function POST(request: NextRequest) {
   let body: CreateRequestBody;
@@ -341,8 +374,13 @@ export async function POST(request: NextRequest) {
     return apiBadRequest("Either place_id or summary is required");
   }
 
+  // Map form field names to database column names
+  const status = body.initial_status || body.status || "new";
+  const eartipCount = body.eartip_count ?? null;
+  const feedingFrequency = body.feeding_schedule ?? null;
+
   // Validate enum values to return 400 instead of 500 on CHECK constraint violation
-  if (body.status && !VALID_STATUS.includes(body.status as typeof VALID_STATUS[number])) {
+  if (status && !VALID_STATUS.includes(status as typeof VALID_STATUS[number])) {
     return apiBadRequest(`Invalid status. Must be one of: ${VALID_STATUS.join(', ')}`);
   }
 
@@ -351,69 +389,89 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Map form field names to database column names
-    // Form sends initial_status (Quick Complete mode), eartip_count, feeding_schedule
-    // DB has status, eartip_count_observed, feeding_frequency
-    const status = (body as Record<string, unknown>).initial_status as string || body.status || "new";
-    const eartipCount = (body as Record<string, unknown>).eartip_count as number ?? body.eartip_count ?? null;
-    const feedingFrequency = (body as Record<string, unknown>).feeding_schedule as string ?? body.feeding_schedule ?? null;
-
     const result = await queryOne<{ request_id: string }>(
       `INSERT INTO ops.requests (
         status, priority, place_id, requester_person_id,
         site_contact_person_id, requester_is_site_contact, requester_role_at_submission,
         summary, notes, internal_notes, source_system,
+        -- Request purpose (MIG_2817)
+        request_purpose, request_purposes,
         -- Cat info
         estimated_cat_count, total_cats_reported, peak_count, count_confidence,
-        colony_duration, awareness_duration, eartip_count_observed,
-        cat_name, cat_description, handleability, fixed_status,
+        colony_duration, awareness_duration, eartip_count_observed, eartip_estimate,
+        cats_are_friendly, cat_name, cat_description, handleability, fixed_status,
+        wellness_cat_count,
         -- Kittens
-        has_kittens, kitten_count, kitten_age_estimate, kitten_behavior,
+        has_kittens, kitten_count, kitten_age_estimate, kitten_age_weeks,
+        kitten_mixed_ages_description, kitten_behavior, kitten_notes,
         mom_present, kitten_contained, mom_fixed, can_bring_in,
         -- Feeding
         is_being_fed, feeder_name, feeding_frequency, feeding_location, feeding_time,
+        best_times_seen,
         -- Medical
         has_medical_concerns, medical_description,
-        -- Property & Access
-        property_type, is_property_owner, has_property_access, access_notes,
+        -- Property & Access (MIG_2817 additions)
+        property_type, location_description, is_property_owner, has_property_access,
+        access_notes, permission_status, traps_overnight_safe, access_without_contact,
+        property_owner_name, property_owner_phone, authorization_pending, best_contact_times,
         dogs_on_site, trap_savvy, previous_tnr,
         -- Third party & location meta
         is_third_party_report, third_party_relationship, county, is_emergency,
+        -- Urgency (MIG_2817)
+        urgency_reasons, urgency_deadline, urgency_notes,
         -- Triage
-        triage_category, received_by
+        triage_category, received_by,
+        -- Entry metadata (MIG_2817)
+        entry_mode, completion_data
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-        $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-        $23, $24, $25, $26, $27, $28, $29, $30,
-        $31, $32, $33, $34, $35,
-        $36, $37,
-        $38, $39, $40, $41, $42, $43, $44,
-        $45, $46, $47, $48,
-        $49, $50
+        $12, $13,
+        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+        $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
+        $39, $40, $41, $42, $43, $44,
+        $45, $46,
+        $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58,
+        $59, $60, $61,
+        $62, $63, $64, $65,
+        $66, $67, $68,
+        $69, $70,
+        $71, $72
       )
       RETURNING request_id::TEXT`,
       [
+        // Core: $1-$11
         status, body.priority || "normal", body.place_id ?? null, body.requester_person_id ?? null,
         body.site_contact_person_id ?? null, body.requester_is_site_contact ?? null, body.requester_role_at_submission ?? null,
-        body.summary ?? null, body.notes ?? null, (body as Record<string, unknown>).internal_notes as string ?? null, "atlas_ui",
-        // Cat info
+        body.summary ?? null, body.notes ?? null, body.internal_notes ?? null, "atlas_ui",
+        // Request purpose: $12-$13
+        body.request_purpose ?? null, body.request_purposes ?? null,
+        // Cat info: $14-$27
         body.estimated_cat_count ?? null, body.total_cats_reported ?? null, body.peak_count ?? null, body.count_confidence ?? null,
-        body.colony_duration ?? null, body.awareness_duration ?? null, eartipCount,
-        body.cat_name ?? null, body.cat_description ?? null, body.handleability ?? null, body.fixed_status ?? null,
-        // Kittens
-        body.has_kittens ?? false, body.kitten_count ?? null, body.kitten_age_estimate ?? null, body.kitten_behavior ?? null,
+        body.colony_duration ?? null, body.awareness_duration ?? null, eartipCount, body.eartip_estimate ?? null,
+        body.cats_are_friendly ?? null, body.cat_name ?? null, body.cat_description ?? null, body.handleability ?? null, body.fixed_status ?? null,
+        body.wellness_cat_count ?? null,
+        // Kittens: $28-$38
+        body.has_kittens ?? false, body.kitten_count ?? null, body.kitten_age_estimate ?? null, body.kitten_age_weeks ?? null,
+        body.kitten_mixed_ages_description ?? null, body.kitten_behavior ?? null, body.kitten_notes ?? null,
         body.mom_present ?? null, body.kitten_contained ?? null, body.mom_fixed ?? null, body.can_bring_in ?? null,
-        // Feeding
+        // Feeding: $39-$44
         body.is_being_fed ?? null, body.feeder_name ?? null, feedingFrequency, body.feeding_location ?? null, body.feeding_time ?? null,
-        // Medical
+        body.best_times_seen ?? null,
+        // Medical: $45-$46
         body.has_medical_concerns ?? false, body.medical_description ?? null,
-        // Property & Access
-        body.property_type ?? null, body.is_property_owner ?? null, body.has_property_access ?? null, body.access_notes ?? null,
+        // Property & Access: $47-$61
+        body.property_type ?? null, body.location_description ?? null, body.is_property_owner ?? null, body.has_property_access ?? null,
+        body.access_notes ?? null, body.permission_status ?? null, body.traps_overnight_safe ?? null, body.access_without_contact ?? null,
+        body.property_owner_name ?? null, body.property_owner_phone ?? null, body.authorization_pending ?? null, body.best_contact_times ?? null,
         body.dogs_on_site ?? null, body.trap_savvy ?? null, body.previous_tnr ?? null,
-        // Third party & location meta
+        // Third party & location meta: $62-$65
         body.is_third_party_report ?? false, body.third_party_relationship ?? null, body.county ?? null, body.is_emergency ?? false,
-        // Triage
+        // Urgency: $66-$68
+        body.urgency_reasons ?? null, body.urgency_deadline ?? null, body.urgency_notes ?? null,
+        // Triage: $69-$70
         body.triage_category ?? null, body.received_by ?? null,
+        // Entry metadata: $71-$72
+        body.entry_mode ?? null, body.completion_data ? JSON.stringify(body.completion_data) : null,
       ]
     );
 
