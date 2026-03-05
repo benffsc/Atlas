@@ -19,6 +19,7 @@ import {
   createAnnotationMarker,
 } from "@/lib/map-markers";
 import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
+import { MAP_Z_INDEX } from "@/lib/design-tokens";
 import {
   buildPlacePopup,
   buildGooglePinPopup,
@@ -1963,7 +1964,7 @@ export default function AtlasMap() {
           position: "absolute",
           top: 12,
           left: 16,
-          zIndex: 1000,
+          zIndex: MAP_Z_INDEX.searchBox,
         }}>
           <button
             onClick={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); searchInputRef.current?.focus(); }}
@@ -1992,7 +1993,7 @@ export default function AtlasMap() {
         top: 16,
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 1000,
+        zIndex: MAP_Z_INDEX.searchBox,
         width: "100%",
         maxWidth: 600,
         padding: "0 16px",
@@ -2269,7 +2270,7 @@ export default function AtlasMap() {
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: 1001,
+          zIndex: MAP_Z_INDEX.drawer,
           background: "white",
           borderRadius: "16px 16px 0 0",
           boxShadow: "0 -4px 20px rgba(0,0,0,0.2)",
@@ -2279,7 +2280,7 @@ export default function AtlasMap() {
           position: "absolute",
           top: 16,
           right: 180,
-          zIndex: 1000,
+          zIndex: MAP_Z_INDEX.drawerMobile,
           background: "white",
           borderRadius: 12,
           boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
@@ -2709,7 +2710,7 @@ export default function AtlasMap() {
           position: "absolute",
           bottom: 24,
           left: 16,
-          zIndex: 1000,
+          zIndex: MAP_Z_INDEX.statsBar,
           background: "white",
           borderRadius: 12,
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
@@ -2740,7 +2741,7 @@ export default function AtlasMap() {
           top: 16,
           left: "50%",
           transform: "translateX(-50%)",
-          zIndex: 1001,
+          zIndex: MAP_Z_INDEX.notification,
           background: "#2563eb",
           color: "white",
           padding: "10px 20px",
@@ -2809,7 +2810,7 @@ export default function AtlasMap() {
           color: "#b91c1c",
           padding: "16px 24px",
           borderRadius: 12,
-          zIndex: 1001,
+          zIndex: MAP_Z_INDEX.notification,
         }}>
           {error}
         </div>
@@ -2820,7 +2821,7 @@ export default function AtlasMap() {
         position: "absolute",
         bottom: 24,
         right: 16,
-        zIndex: 999,
+        zIndex: MAP_Z_INDEX.keyboardHelp,
         background: "rgba(255,255,255,0.9)",
         borderRadius: 6,
         boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
@@ -2849,7 +2850,7 @@ export default function AtlasMap() {
 
       {/* Street View Panel (hidden in cone-only mode — drawer handles the panorama) */}
       {streetViewCoords && streetViewUrl && !streetViewConeOnly && (
-        <div className="street-view-panel">
+        <div className={`street-view-panel${streetViewFullscreen ? " fullscreen" : ""}`}>
           <div className="street-view-header">
             <div className="street-view-title">
               <span className="street-view-icon">📷</span>

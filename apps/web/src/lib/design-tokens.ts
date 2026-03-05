@@ -276,6 +276,24 @@ export const TRANSITIONS = {
 } as const;
 
 // ============================================================================
+// MAP Z-INDEX
+// (specific layering for map UI elements)
+// ============================================================================
+
+export const MAP_Z_INDEX = {
+  keyboardHelp: 999,
+  controls: 1000,
+  searchBox: 1000,
+  statsBar: 1000,
+  panel: 1000,
+  legend: 1002,
+  drawer: 1001,
+  drawerMobile: 1000,
+  notification: 1001,
+  streetViewFullscreen: 2000,
+} as const;
+
+// ============================================================================
 // REQUEST STATUS COLORS
 // (specific to Atlas request workflow)
 // ============================================================================

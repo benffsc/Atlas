@@ -4,12 +4,14 @@
  * Badge standardization applied (FFS-112): 3 visual tiers.
  */
 
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
+
 // Consistent badge styling
 const badgeBase: React.CSSProperties = {
-  fontSize: "0.7rem",
-  padding: "2px 8px",
-  borderRadius: "4px",
-  fontWeight: 500,
+  fontSize: TYPOGRAPHY.size['2xs'],
+  padding: `2px ${SPACING.sm}`,
+  borderRadius: BORDERS.radius.md,
+  fontWeight: TYPOGRAPHY.weight.medium,
   display: "inline-block",
   lineHeight: 1.4,
 };
@@ -17,7 +19,7 @@ const badgeBase: React.CSSProperties = {
 export function TriageBadge({ category, score, isLegacy }: { category: string | null; score: number | null; isLegacy: boolean }) {
   if (!category && isLegacy) {
     return (
-      <span style={{ ...badgeBase, background: "#6c757d", color: "#fff" }}>
+      <span style={{ ...badgeBase, background: COLORS.gray500, color: COLORS.white }}>
         Legacy
       </span>
     );
@@ -26,14 +28,14 @@ export function TriageBadge({ category, score, isLegacy }: { category: string | 
   if (!category) return null;
 
   const colors: Record<string, { bg: string; color: string }> = {
-    high_priority_tnr: { bg: "#dc3545", color: "#fff" },   // urgent tier
-    standard_tnr: { bg: "#0d6efd", color: "#fff" },        // info tier
-    wellness_only: { bg: "#20c997", color: "#000" },        // info tier
-    owned_cat_low: { bg: "#6c757d", color: "#fff" },        // info tier
-    out_of_county: { bg: "#adb5bd", color: "#000" },        // info tier
-    needs_review: { bg: "#ffc107", color: "#000" },         // warning tier
+    high_priority_tnr: { bg: COLORS.error, color: COLORS.white },
+    standard_tnr: { bg: COLORS.primary, color: COLORS.white },
+    wellness_only: { bg: COLORS.success, color: COLORS.black },
+    owned_cat_low: { bg: COLORS.gray500, color: COLORS.white },
+    out_of_county: { bg: COLORS.gray400, color: COLORS.black },
+    needs_review: { bg: COLORS.warning, color: COLORS.black },
   };
-  const style = colors[category] || { bg: "#6c757d", color: "#fff" };
+  const style = colors[category] || { bg: COLORS.gray500, color: COLORS.white };
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -51,13 +53,13 @@ export function TriageBadge({ category, score, isLegacy }: { category: string | 
 
 export function SubmissionStatusBadge({ status }: { status: string | null }) {
   const colors: Record<string, { bg: string; color: string; label: string }> = {
-    "new": { bg: "#0d6efd", color: "#fff", label: "New" },
-    "in_progress": { bg: "#fd7e14", color: "#000", label: "In Progress" },
-    "scheduled": { bg: "#198754", color: "#fff", label: "Scheduled" },
-    "complete": { bg: "#20c997", color: "#000", label: "Complete" },
-    "archived": { bg: "#6c757d", color: "#fff", label: "Archived" },
+    "new": { bg: COLORS.primary, color: COLORS.white, label: "New" },
+    "in_progress": { bg: COLORS.warning, color: COLORS.black, label: "In Progress" },
+    "scheduled": { bg: COLORS.success, color: COLORS.white, label: "Scheduled" },
+    "complete": { bg: COLORS.successLight, color: COLORS.black, label: "Complete" },
+    "archived": { bg: COLORS.gray500, color: COLORS.white, label: "Archived" },
   };
-  const style = colors[status || "new"] || { bg: "#6c757d", color: "#fff", label: status || "Unknown" };
+  const style = colors[status || "new"] || { bg: COLORS.gray500, color: COLORS.white, label: status || "Unknown" };
 
   return (
     <span style={{ ...badgeBase, background: style.bg, color: style.color }}>
@@ -70,13 +72,13 @@ export function LegacyStatusBadge({ status }: { status: string | null }) {
   const displayStatus = status || "New";
 
   const colors: Record<string, { bg: string; color: string }> = {
-    "New": { bg: "#0dcaf0", color: "#000" },
-    "Pending Review": { bg: "#ffc107", color: "#000" },
-    "Booked": { bg: "#198754", color: "#fff" },
-    "Declined": { bg: "#dc3545", color: "#fff" },
-    "Complete": { bg: "#20c997", color: "#000" },
+    "New": { bg: COLORS.info, color: COLORS.black },
+    "Pending Review": { bg: COLORS.warning, color: COLORS.black },
+    "Booked": { bg: COLORS.success, color: COLORS.white },
+    "Declined": { bg: COLORS.error, color: COLORS.white },
+    "Complete": { bg: COLORS.successLight, color: COLORS.black },
   };
-  const style = colors[displayStatus] || { bg: "#6c757d", color: "#fff" };
+  const style = colors[displayStatus] || { bg: COLORS.gray500, color: COLORS.white };
 
   return (
     <span style={{ ...badgeBase, background: style.bg, color: style.color }}>

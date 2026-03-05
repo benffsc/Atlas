@@ -5,6 +5,7 @@
  * Import from '@/components/sections' for cleaner imports.
  */
 
+export { CaseSection } from './CaseSection';
 export { CatMovementSection } from './CatMovementSection';
 export { default as ClinicHistorySection } from './ClinicHistorySection';
 export { default as ClinicNotesSection } from './ClinicNotesSection';

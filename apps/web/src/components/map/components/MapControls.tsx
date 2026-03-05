@@ -1,5 +1,7 @@
 "use client";
 
+import { MAP_Z_INDEX } from "@/lib/design-tokens";
+
 /**
  * MapControls - Control buttons for Atlas Map
  *
@@ -57,7 +59,7 @@ export function MapControls({
         position: "absolute",
         top: 16,
         right: 16,
-        zIndex: 1000,
+        zIndex: MAP_Z_INDEX.controls,
         display: "flex",
         flexDirection: "column",
         gap: 8,

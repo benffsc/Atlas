@@ -18,6 +18,7 @@ import {
   formatDate,
   normalizeName,
 } from "@/components/intake/IntakeBadges";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 export interface IntakeDetailPanelProps {
   submission: IntakeSubmission;
@@ -350,7 +351,7 @@ export function IntakeDetailPanel({
                     <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>
                       Phone
                       {contactEdits.phone && !isValidPhone(contactEdits.phone) && (
-                        <span style={{ color: "#dc3545", marginLeft: "4px" }}>⚠ Invalid</span>
+                        <span style={{ color: COLORS.error, marginLeft: "4px" }}>⚠ Invalid</span>
                       )}
                     </label>
                     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
@@ -375,7 +376,7 @@ export function IntakeDetailPanel({
                             <button
                               type="button"
                               onClick={() => setContactEdits({ ...contactEdits, phone: phones[0] })}
-                              style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                              style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: COLORS.success, color: COLORS.white, border: "none", borderRadius: "4px", cursor: "pointer" }}
                               title={`Fix to: ${formatPhone(phones[0])}`}
                             >
                               Fix
@@ -388,7 +389,7 @@ export function IntakeDetailPanel({
                             key={p}
                             type="button"
                             onClick={() => setContactEdits({ ...contactEdits, phone: p })}
-                            style={{ padding: "0.25rem 0.5rem", fontSize: "0.7rem", background: i === 0 ? "#198754" : "#0d6efd", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                            style={{ padding: "0.25rem 0.5rem", fontSize: "0.7rem", background: i === 0 ? COLORS.success : COLORS.primary, color: COLORS.white, border: "none", borderRadius: "4px", cursor: "pointer" }}
                             title={`Use: ${formatPhone(p)}`}
                           >
                             {i === 0 ? "Primary" : `Alt ${i}`}: {formatPhone(p)}
@@ -427,7 +428,7 @@ export function IntakeDetailPanel({
                       }
                     }}
                     disabled={savingSection}
-                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: COLORS.success, color: COLORS.white, border: "none", borderRadius: "4px", cursor: "pointer" }}
                   >
                     {savingSection ? "..." : "Save"}
                   </button>
@@ -470,7 +471,7 @@ export function IntakeDetailPanel({
                       {` | ${formatPhone(submission.phone)}`}
                       {!isValidPhone(submission.phone) && (
                         <span
-                          style={{ fontSize: "0.7rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px", marginLeft: "4px", cursor: "help" }}
+                          style={{ fontSize: "0.7rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px", marginLeft: "4px", cursor: "help" }}
                           title={extractPhone(submission.phone) ? `Click Edit to fix. Likely: ${formatPhone(extractPhone(submission.phone))}` : "Invalid phone - click Edit to correct"}
                         >
                           ⚠ Invalid
@@ -487,12 +488,12 @@ export function IntakeDetailPanel({
           </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             {submission.is_test && (
-              <span style={{ background: "#dc3545", color: "#fff", padding: "0.25rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>
+              <span style={{ background: COLORS.error, color: COLORS.white, padding: "0.25rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>
                 TEST
               </span>
             )}
             {submission.is_legacy && (
-              <span style={{ background: "#6c757d", color: "#fff", padding: "0.25rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem" }}>
+              <span style={{ background: COLORS.gray500, color: COLORS.white, padding: "0.25rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem" }}>
                 Legacy
               </span>
             )}
@@ -504,7 +505,7 @@ export function IntakeDetailPanel({
           <div style={{ background: "rgba(220, 53, 69, 0.15)", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", border: "1px solid rgba(220, 53, 69, 0.3)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <span style={{ color: "#dc3545", fontWeight: "bold" }}>MARKED AS URGENT</span>
+                <span style={{ color: COLORS.error, fontWeight: "bold" }}>MARKED AS URGENT</span>
                 <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#856404" }}>
                   True emergencies (injury, illness) should be referred to a pet hospital. We are a spay/neuter clinic, not an emergency vet.
                 </p>
@@ -515,8 +516,8 @@ export function IntakeDetailPanel({
                   padding: "0.375rem 0.75rem",
                   fontSize: "0.8rem",
                   background: "#fff",
-                  border: "1px solid #dc3545",
-                  color: "#dc3545",
+                  border: `1px solid ${COLORS.error}`,
+                  color: COLORS.error,
                   borderRadius: "4px",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
@@ -541,8 +542,8 @@ export function IntakeDetailPanel({
               padding: "0.375rem 0.75rem",
               fontSize: "0.8rem",
               background: "transparent",
-              border: "1px dashed #dc3545",
-              color: "#dc3545",
+              border: `1px dashed ${COLORS.error}`,
+              color: COLORS.error,
               borderRadius: "4px",
               cursor: "pointer",
               marginBottom: "1rem",
@@ -612,8 +613,8 @@ export function IntakeDetailPanel({
                 style={{
                   padding: "0.375rem 0.75rem",
                   fontSize: "0.85rem",
-                  background: urgentDowngradeReason ? "#198754" : "#6c757d",
-                  color: "#fff",
+                  background: urgentDowngradeReason ? COLORS.success : COLORS.gray500,
+                  color: COLORS.white,
                   border: "none",
                   borderRadius: "4px",
                   cursor: urgentDowngradeReason ? "pointer" : "not-allowed",
@@ -776,8 +777,8 @@ export function IntakeDetailPanel({
                   style={{
                     padding: "0.25rem 0.5rem",
                     fontSize: "0.75rem",
-                    background: "#198754",
-                    color: "#fff",
+                    background: COLORS.success,
+                    color: COLORS.white,
                     border: "none",
                     borderRadius: "4px",
                     cursor: "pointer",
@@ -799,7 +800,7 @@ export function IntakeDetailPanel({
                 </p>
               )}
               {!submission.geo_formatted_address && submission.geo_confidence === null && (
-                <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#fd7e14" }}>
+                <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: COLORS.warning }}>
                   ⚠ Address needs geocoding - consider correcting if vague
                 </p>
               )}
@@ -901,7 +902,7 @@ export function IntakeDetailPanel({
                     }
                   }}
                   disabled={savingSection}
-                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: COLORS.success, color: COLORS.white, border: "none", borderRadius: "4px", cursor: "pointer" }}
                 >
                   {savingSection ? "..." : "Save"}
                 </button>
@@ -979,8 +980,8 @@ export function IntakeDetailPanel({
               <div><strong>Count:</strong> {submission.cat_count_estimate ?? "Unknown"}</div>
               {submission.ownership_status && <div><strong>Type:</strong> {submission.ownership_status.replace(/_/g, " ")}</div>}
               {submission.fixed_status && <div><strong>Fixed:</strong> {submission.fixed_status.replace(/_/g, " ")}</div>}
-              {submission.has_kittens && <div style={{ color: "#fd7e14" }}><strong>Kittens present</strong></div>}
-              {submission.has_medical_concerns && <div style={{ color: "#dc3545" }}><strong>Medical concerns</strong></div>}
+              {submission.has_kittens && <div style={{ color: COLORS.warning }}><strong>Kittens present</strong></div>}
+              {submission.has_medical_concerns && <div style={{ color: COLORS.error }}><strong>Medical concerns</strong></div>}
             </div>
           )}
         </div>
@@ -1016,7 +1017,7 @@ export function IntakeDetailPanel({
                     }
                   }}
                   disabled={savingSection}
-                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: COLORS.success, color: COLORS.white, border: "none", borderRadius: "4px", cursor: "pointer" }}
                 >
                   {savingSection ? "..." : "Save"}
                 </button>
@@ -1145,11 +1146,11 @@ export function IntakeDetailPanel({
                         </span>
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem", color: "var(--muted)" }}>
-                        <span style={{ textDecoration: "line-through", color: "#dc3545" }}>
+                        <span style={{ textDecoration: "line-through", color: COLORS.error }}>
                           {edit.old_value === null ? "(empty)" : String(edit.old_value)}
                         </span>
                         <span>→</span>
-                        <span style={{ color: "#198754" }}>
+                        <span style={{ color: COLORS.success }}>
                           {edit.new_value === null ? "(empty)" : String(edit.new_value)}
                         </span>
                       </div>
@@ -1179,7 +1180,7 @@ export function IntakeDetailPanel({
                             fontSize: "0.7rem",
                             background: "#fff",
                             border: "1px solid #fd7e14",
-                            color: "#fd7e14",
+                            color: COLORS.warning,
                             borderRadius: "3px",
                             cursor: "pointer",
                           }}
@@ -1222,7 +1223,7 @@ export function IntakeDetailPanel({
                   onClose();
                   onOpenBookingModal(submission);
                 }}
-                style={{ padding: "0.5rem 1rem", background: "#198754", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                style={{ padding: "0.5rem 1rem", background: COLORS.success, color: COLORS.white, border: "none", borderRadius: "6px", cursor: "pointer" }}
               >
                 Schedule Appointment
               </button>
@@ -1232,7 +1233,7 @@ export function IntakeDetailPanel({
                   onClose();
                   onChangeAppointment(submission);
                 }}
-                style={{ padding: "0.5rem 1rem", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                style={{ padding: "0.5rem 1rem", background: COLORS.primary, color: COLORS.white, border: "none", borderRadius: "6px", cursor: "pointer" }}
               >
                 Change Appointment {submission.appointment_date && `(${formatDate(submission.appointment_date)})`}
               </button>
@@ -1273,8 +1274,8 @@ export function IntakeDetailPanel({
                 }}
                 style={{
                   padding: "0.35rem 0.75rem",
-                  background: showInlineContactForm === "note" ? "#0d6efd" : "transparent",
-                  color: showInlineContactForm === "note" ? "#fff" : "#0d6efd",
+                  background: showInlineContactForm === "note" ? COLORS.primary : "transparent",
+                  color: showInlineContactForm === "note" ? "#fff" : COLORS.primary,
                   border: "1px solid #0d6efd",
                   borderRadius: "4px",
                   cursor: "pointer",
@@ -1384,8 +1385,8 @@ export function IntakeDetailPanel({
                   disabled={saving || !contactForm.notes.trim() || !contactForm.contacted_by}
                   style={{
                     padding: "0.4rem 0.75rem",
-                    background: showInlineContactForm === "note" ? "#0d6efd" : "#6f42c1",
-                    color: "#fff",
+                    background: showInlineContactForm === "note" ? COLORS.primary : "#6f42c1",
+                    color: COLORS.white,
                     border: "none",
                     borderRadius: "4px",
                     cursor: saving || !contactForm.notes.trim() || !contactForm.contacted_by ? "not-allowed" : "pointer",
@@ -1437,7 +1438,7 @@ export function IntakeDetailPanel({
                       padding: "0.5rem 0.65rem",
                       background: "var(--background)",
                       borderRadius: "4px",
-                      borderLeft: `3px solid ${isNote ? "#0d6efd" : "#6f42c1"}`,
+                      borderLeft: `3px solid ${isNote ? COLORS.primary : "#6f42c1"}`,
                       fontSize: "0.85rem"
                     }}
                   >
@@ -1450,8 +1451,8 @@ export function IntakeDetailPanel({
                         width: "22px",
                         height: "22px",
                         borderRadius: "50%",
-                        background: isNote ? "#0d6efd" : "#6f42c1",
-                        color: "#fff",
+                        background: isNote ? COLORS.primary : "#6f42c1",
+                        color: COLORS.white,
                         fontSize: "0.6rem",
                         fontWeight: "bold"
                       }}>{initials}</span>
@@ -1462,8 +1463,8 @@ export function IntakeDetailPanel({
                         borderRadius: "3px",
                         fontSize: "0.65rem",
                         fontWeight: 500,
-                        background: isNote ? "#0d6efd" : "#6f42c1",
-                        color: "#fff"
+                        background: isNote ? COLORS.primary : "#6f42c1",
+                        color: COLORS.white
                       }}>
                         {isNote ? "Note" : "Contact"}
                       </span>
@@ -1523,7 +1524,7 @@ export function IntakeDetailPanel({
                 display: "inline-block",
                 padding: "0.5rem 1rem",
                 background: "#6610f2",
-                color: "#fff",
+                color: COLORS.white,
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
@@ -1546,12 +1547,12 @@ export function IntakeDetailPanel({
             marginBottom: "1rem"
           }}>
             <p style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ color: "#198754", fontSize: "1.25rem" }}>✓</span>
+              <span style={{ color: COLORS.success, fontSize: "1.25rem" }}>✓</span>
               <span>
                 Request created.{" "}
                 <a
                   href={`/requests/${submission.created_request_id}`}
-                  style={{ color: "#198754", fontWeight: 500 }}
+                  style={{ color: COLORS.success, fontWeight: 500 }}
                 >
                   View Request →
                 </a>
@@ -1568,7 +1569,7 @@ export function IntakeDetailPanel({
                 onArchive(submission.submission_id);
               }
             }}
-            style={{ padding: "0.5rem 1rem", background: "#6c757d", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+            style={{ padding: "0.5rem 1rem", background: COLORS.gray500, color: COLORS.white, border: "none", borderRadius: "6px", cursor: "pointer" }}
           >
             Archive
           </button>
@@ -1577,7 +1578,7 @@ export function IntakeDetailPanel({
           {submission.submission_status !== "declined" && !submission.created_request_id && (
             <button
               onClick={() => onOpenDeclineModal(submission)}
-              style={{ padding: "0.5rem 1rem", background: "#dc3545", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
+              style={{ padding: "0.5rem 1rem", background: COLORS.error, color: COLORS.white, border: "none", borderRadius: "6px", cursor: "pointer" }}
             >
               Decline
             </button>
@@ -1587,7 +1588,7 @@ export function IntakeDetailPanel({
             href={`/intake/print/${submission.submission_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ padding: "0.5rem 1rem", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", textDecoration: "none", display: "inline-block" }}
+            style={{ padding: "0.5rem 1rem", background: COLORS.primary, color: COLORS.white, border: "none", borderRadius: "6px", cursor: "pointer", textDecoration: "none", display: "inline-block" }}
           >
             Print / PDF
           </a>
@@ -1620,7 +1621,7 @@ export function IntakeDetailPanel({
                   setTimeout(() => setToastMessage(null), 5000);
                 }
               }}
-              style={{ padding: "0.5rem 1rem", background: "#ffc107", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
+              style={{ padding: "0.5rem 1rem", background: COLORS.warning, color: COLORS.black, border: "none", borderRadius: "6px", cursor: "pointer" }}
             >
               Reset to New
             </button>

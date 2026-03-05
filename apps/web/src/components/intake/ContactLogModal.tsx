@@ -6,6 +6,7 @@ import { CONTACT_METHODS, CONTACT_RESULTS } from "@/lib/intake-types";
 import { normalizeName } from "@/components/intake/IntakeBadges";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS, Z_INDEX } from "@/lib/design-tokens";
 
 interface ContactLogModalProps {
   submission: IntakeSubmission;
@@ -86,23 +87,20 @@ export function ContactLogModal({
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        inset: 0,
         background: "rgba(0,0,0,0.5)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 1001,
+        zIndex: Z_INDEX.modal,
       }}
       onClick={onClose}
     >
       <div
         style={{
           background: "var(--background)",
-          borderRadius: "12px",
-          padding: "1.5rem",
+          borderRadius: BORDERS.radius.xl,
+          padding: SPACING.xl,
           maxWidth: "600px",
           width: "90%",
           maxHeight: "85vh",

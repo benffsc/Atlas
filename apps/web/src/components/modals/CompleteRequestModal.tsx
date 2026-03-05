@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { Modal } from "@/components/ui";
+import { COLORS, SPACING, BORDERS } from "@/lib/design-tokens";
 
 interface ResolutionReason {
   reason_code: string;
@@ -159,409 +161,354 @@ export default function CompleteRequestModal({
 
   const statusLabel = targetStatus === "completed" ? "Complete" : "Cancel";
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={handleClose}
+        disabled={loading}
+        style={{
+          padding: `${SPACING.sm} ${SPACING.lg}`,
+          border: "1px solid var(--border)",
+          borderRadius: BORDERS.radius.lg,
+          background: "var(--card-bg, #fff)",
+          fontSize: "0.9rem",
+          cursor: loading ? "not-allowed" : "pointer",
+        }}
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form="complete-request-form"
+        disabled={loading || loadingReasons}
+        style={{
+          padding: `${SPACING.sm} ${SPACING.lg}`,
+          border: "none",
+          borderRadius: BORDERS.radius.lg,
+          background: targetStatus === "completed" ? COLORS.success : COLORS.warning,
+          color: targetStatus === "completed" ? COLORS.white : COLORS.black,
+          fontSize: "0.9rem",
+          fontWeight: 500,
+          cursor: loading || loadingReasons ? "not-allowed" : "pointer",
+          opacity: loading || loadingReasons ? 0.6 : 1,
+        }}
+      >
+        {loading ? "Processing..." : `${statusLabel} Request`}
+      </button>
+    </>
+  );
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "16px",
-      }}
-      onClick={handleClose}
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={`${statusLabel} Request`}
+      size="md"
+      footer={footer}
     >
-      <div
-        style={{
-          background: "var(--card-bg, #fff)",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: "500px",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600 }}>
-              {statusLabel} Request
-            </h2>
-            {staffName && (
-              <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
-                Recording as: {staffName}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleClose}
-            disabled={loading}
+      {staffName && (
+        <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.85rem", color: "var(--muted)" }}>
+          Recording as: {staffName}
+        </p>
+      )}
+
+      <form id="complete-request-form" onSubmit={handleSubmit}>
+        {/* Resolution Reason */}
+        <div style={{ marginBottom: SPACING.lg }}>
+          <label
             style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: loading ? "not-allowed" : "pointer",
-              color: "var(--muted)",
-              lineHeight: 1,
+              display: "block",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              marginBottom: SPACING.xs,
             }}
           >
-            &times;
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: "20px 24px" }}>
-          {/* Resolution Reason */}
-          <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                marginBottom: "6px",
-              }}
-            >
-              {statusLabel === "Complete" ? "Completion" : "Cancellation"} Reason{" "}
-              <span style={{ color: "#dc3545" }}>*</span>
-            </label>
-            {loadingReasons ? (
-              <div style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-                Loading reasons...
-              </div>
-            ) : (
-              <select
-                value={selectedReason}
-                onChange={(e) => setSelectedReason(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-                required
-              >
-                <option value="">Select a reason...</option>
-                {reasons.map((reason) => (
-                  <option key={reason.reason_code} value={reason.reason_code}>
-                    {reason.reason_label}
-                  </option>
-                ))}
-              </select>
-            )}
-            {selectedReasonObj?.reason_description && (
-              <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                {selectedReasonObj.reason_description}
-              </p>
-            )}
-          </div>
-
-          {/* Resolution Notes */}
-          <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                marginBottom: "6px",
-              }}
-            >
-              Resolution Notes
-              {requiresNotes && <span style={{ color: "#dc3545" }}> *</span>}
-            </label>
-            <textarea
-              value={resolutionNotes}
-              onChange={(e) => setResolutionNotes(e.target.value)}
-              rows={3}
-              placeholder="Additional details about the resolution..."
+            {statusLabel === "Complete" ? "Completion" : "Cancellation"} Reason{" "}
+            <span style={{ color: COLORS.error }}>*</span>
+          </label>
+          {loadingReasons ? (
+            <div style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+              Loading reasons...
+            </div>
+          ) : (
+            <select
+              value={selectedReason}
+              onChange={(e) => setSelectedReason(e.target.value)}
               style={{
                 width: "100%",
-                padding: "10px 12px",
+                padding: `${SPACING.sm} ${SPACING.md}`,
                 border: "1px solid var(--border)",
-                borderRadius: "8px",
+                borderRadius: BORDERS.radius.lg,
                 fontSize: "0.9rem",
-                resize: "vertical",
                 background: "var(--input-bg, #fff)",
               }}
-              required={requiresNotes}
-            />
-          </div>
+              required
+            >
+              <option value="">Select a reason...</option>
+              {reasons.map((reason) => (
+                <option key={reason.reason_code} value={reason.reason_code}>
+                  {reason.reason_label}
+                </option>
+              ))}
+            </select>
+          )}
+          {selectedReasonObj?.reason_description && (
+            <p style={{ margin: `${SPACING.xs} 0 0`, fontSize: "0.8rem", color: "var(--muted)" }}>
+              {selectedReasonObj.reason_description}
+            </p>
+          )}
+        </div>
 
-          {/* Final Site Visit Observation (optional, only for completed) */}
-          {targetStatus === "completed" && placeId && (
-            <div
+        {/* Resolution Notes */}
+        <div style={{ marginBottom: SPACING.lg }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              marginBottom: SPACING.xs,
+            }}
+          >
+            Resolution Notes
+            {requiresNotes && <span style={{ color: COLORS.error }}> *</span>}
+          </label>
+          <textarea
+            value={resolutionNotes}
+            onChange={(e) => setResolutionNotes(e.target.value)}
+            rows={3}
+            placeholder="Additional details about the resolution..."
+            style={{
+              width: "100%",
+              padding: `${SPACING.sm} ${SPACING.md}`,
+              border: "1px solid var(--border)",
+              borderRadius: BORDERS.radius.lg,
+              fontSize: "0.9rem",
+              resize: "vertical",
+              background: "var(--input-bg, #fff)",
+              boxSizing: "border-box",
+            }}
+            required={requiresNotes}
+          />
+        </div>
+
+        {/* Final Site Visit Observation (optional, only for completed) */}
+        {targetStatus === "completed" && placeId && (
+          <div
+            style={{
+              borderTop: "1px solid var(--border)",
+              paddingTop: SPACING.lg,
+              marginTop: SPACING.lg,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowObservation(!showObservation)}
               style={{
-                borderTop: "1px solid var(--border)",
-                paddingTop: "16px",
-                marginTop: "16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "0",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                fontWeight: 500,
+                color: "var(--foreground)",
               }}
             >
-              <button
-                type="button"
-                onClick={() => setShowObservation(!showObservation)}
+              <span>Final Site Observation (optional)</span>
+              <span>{showObservation ? "\u25B2" : "\u25BC"}</span>
+            </button>
+            <p style={{ margin: `${SPACING.xs} 0 0`, fontSize: "0.8rem", color: "var(--muted)" }}>
+              Log final cat counts for Beacon population estimates
+            </p>
+
+            {showObservation && (
+              <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  padding: "0",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
-                  fontWeight: 500,
-                  color: "var(--foreground)",
+                  marginTop: SPACING.md,
+                  padding: SPACING.lg,
+                  background: "var(--section-bg, #f8f9fa)",
+                  borderRadius: BORDERS.radius.lg,
                 }}
               >
-                <span>Final Site Observation (optional)</span>
-                <span>{showObservation ? "▲" : "▼"}</span>
-              </button>
-              <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                Log final cat counts for Beacon population estimates
-              </p>
+                {placeName && (
+                  <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem", color: "var(--foreground)" }}>
+                    Location: <strong>{placeName}</strong>
+                  </p>
+                )}
 
-              {showObservation && (
-                <div
-                  style={{
-                    marginTop: "12px",
-                    padding: "16px",
-                    background: "var(--section-bg, #f8f9fa)",
-                    borderRadius: "8px",
-                  }}
-                >
-                  {placeName && (
-                    <p style={{ margin: "0 0 12px", fontSize: "0.9rem", color: "var(--foreground)" }}>
-                      Location: <strong>{placeName}</strong>
-                    </p>
-                  )}
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "0.8rem",
-                          fontWeight: 500,
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Cats Observed
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={observation.cats_seen_total}
-                        onChange={(e) =>
-                          setObservation({
-                            ...observation,
-                            cats_seen_total: parseInt(e.target.value) || 0,
-                          })
-                        }
-                        style={{
-                          width: "100%",
-                          padding: "8px 10px",
-                          border: "1px solid var(--border)",
-                          borderRadius: "6px",
-                          fontSize: "0.9rem",
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "0.8rem",
-                          fontWeight: 500,
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Ear-Tipped
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={observation.cats_seen_total}
-                        value={observation.eartipped_seen}
-                        onChange={(e) =>
-                          setObservation({
-                            ...observation,
-                            eartipped_seen: parseInt(e.target.value) || 0,
-                          })
-                        }
-                        style={{
-                          width: "100%",
-                          padding: "8px 10px",
-                          border: "1px solid var(--border)",
-                          borderRadius: "6px",
-                          fontSize: "0.9rem",
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "12px" }}>
-                    <div>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "0.8rem",
-                          fontWeight: 500,
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Time of Day
-                      </label>
-                      <select
-                        value={observation.time_of_day}
-                        onChange={(e) =>
-                          setObservation({
-                            ...observation,
-                            time_of_day: e.target.value,
-                          })
-                        }
-                        style={{
-                          width: "100%",
-                          padding: "8px 10px",
-                          border: "1px solid var(--border)",
-                          borderRadius: "6px",
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                        <option value="morning">Morning</option>
-                        <option value="afternoon">Afternoon</option>
-                        <option value="evening">Evening</option>
-                        <option value="night">Night</option>
-                      </select>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: "8px" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem" }}>
-                        <input
-                          type="checkbox"
-                          checked={observation.is_at_feeding_station}
-                          onChange={(e) =>
-                            setObservation({
-                              ...observation,
-                              is_at_feeding_station: e.target.checked,
-                            })
-                          }
-                        />
-                        At feeding station
-                      </label>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
+                  <div>
                     <label
                       style={{
                         display: "block",
                         fontSize: "0.8rem",
                         fontWeight: 500,
-                        marginBottom: "4px",
+                        marginBottom: SPACING.xs,
                       }}
                     >
-                      Observation Notes
+                      Cats Observed
                     </label>
-                    <textarea
-                      value={observation.notes}
+                    <input
+                      type="number"
+                      min="0"
+                      value={observation.cats_seen_total}
                       onChange={(e) =>
                         setObservation({
                           ...observation,
-                          notes: e.target.value,
+                          cats_seen_total: parseInt(e.target.value) || 0,
                         })
                       }
-                      rows={2}
-                      placeholder="Additional notes about the observation..."
                       style={{
                         width: "100%",
-                        padding: "8px 10px",
+                        padding: `${SPACING.xs} ${SPACING.sm}`,
                         border: "1px solid var(--border)",
-                        borderRadius: "6px",
+                        borderRadius: BORDERS.radius.md,
                         fontSize: "0.9rem",
-                        resize: "vertical",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        marginBottom: SPACING.xs,
+                      }}
+                    >
+                      Ear-Tipped
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={observation.cats_seen_total}
+                      value={observation.eartipped_seen}
+                      onChange={(e) =>
+                        setObservation({
+                          ...observation,
+                          eartipped_seen: parseInt(e.target.value) || 0,
+                        })
+                      }
+                      style={{
+                        width: "100%",
+                        padding: `${SPACING.xs} ${SPACING.sm}`,
+                        border: "1px solid var(--border)",
+                        borderRadius: BORDERS.radius.md,
+                        fontSize: "0.9rem",
+                        boxSizing: "border-box",
                       }}
                     />
                   </div>
                 </div>
-              )}
-            </div>
-          )}
 
-          {/* Error message */}
-          {error && (
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "12px",
-                background: "#f8d7da",
-                border: "1px solid #f5c6cb",
-                borderRadius: "8px",
-              }}
-            >
-              <p style={{ margin: 0, fontSize: "0.9rem", color: "#721c24" }}>{error}</p>
-            </div>
-          )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md, marginTop: SPACING.md }}>
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        marginBottom: SPACING.xs,
+                      }}
+                    >
+                      Time of Day
+                    </label>
+                    <select
+                      value={observation.time_of_day}
+                      onChange={(e) =>
+                        setObservation({
+                          ...observation,
+                          time_of_day: e.target.value,
+                        })
+                      }
+                      style={{
+                        width: "100%",
+                        padding: `${SPACING.xs} ${SPACING.sm}`,
+                        border: "1px solid var(--border)",
+                        borderRadius: BORDERS.radius.md,
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <option value="morning">Morning</option>
+                      <option value="afternoon">Afternoon</option>
+                      <option value="evening">Evening</option>
+                      <option value="night">Night</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: SPACING.xs }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: SPACING.xs, fontSize: "0.8rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={observation.is_at_feeding_station}
+                        onChange={(e) =>
+                          setObservation({
+                            ...observation,
+                            is_at_feeding_station: e.target.checked,
+                          })
+                        }
+                      />
+                      At feeding station
+                    </label>
+                  </div>
+                </div>
 
-          {/* Actions */}
+                <div style={{ marginTop: SPACING.md }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.8rem",
+                      fontWeight: 500,
+                      marginBottom: SPACING.xs,
+                    }}
+                  >
+                    Observation Notes
+                  </label>
+                  <textarea
+                    value={observation.notes}
+                    onChange={(e) =>
+                      setObservation({
+                        ...observation,
+                        notes: e.target.value,
+                      })
+                    }
+                    rows={2}
+                    placeholder="Additional notes about the observation..."
+                    style={{
+                      width: "100%",
+                      padding: `${SPACING.xs} ${SPACING.sm}`,
+                      border: "1px solid var(--border)",
+                      borderRadius: BORDERS.radius.md,
+                      fontSize: "0.9rem",
+                      resize: "vertical",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Error message */}
+        {error && (
           <div
             style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "12px",
-              marginTop: "20px",
-              paddingTop: "16px",
-              borderTop: "1px solid var(--border)",
+              marginTop: SPACING.lg,
+              padding: SPACING.md,
+              background: COLORS.errorLight,
+              border: `1px solid ${COLORS.error}20`,
+              borderRadius: BORDERS.radius.lg,
             }}
           >
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              style={{
-                padding: "10px 20px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                background: "var(--card-bg, #fff)",
-                fontSize: "0.9rem",
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || loadingReasons}
-              style={{
-                padding: "10px 20px",
-                border: "none",
-                borderRadius: "8px",
-                background: targetStatus === "completed" ? "#28a745" : "#ffc107",
-                color: targetStatus === "completed" ? "#fff" : "#000",
-                fontSize: "0.9rem",
-                fontWeight: 500,
-                cursor: loading || loadingReasons ? "not-allowed" : "pointer",
-                opacity: loading || loadingReasons ? 0.6 : 1,
-              }}
-            >
-              {loading ? "Processing..." : `${statusLabel} Request`}
-            </button>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: COLORS.errorDark }}>{error}</p>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </Modal>
   );
 }

@@ -7,6 +7,8 @@ import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
+import { INPUT, MB_LG, MB_XL, FLEX_WRAP, SECTION_DIVIDER } from "../styles";
 import {
   EntryModeSelector,
   ActiveRequestWarning,
@@ -713,20 +715,20 @@ function NewRequestForm() {
                   style={{
                     width: "64px",
                     height: "64px",
-                    borderRadius: "50%",
-                    background: "#28a745",
+                    borderRadius: BORDERS.radius.full,
+                    background: COLORS.success,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    margin: "0 auto 1rem",
-                    color: "#fff",
-                    fontSize: "2rem",
+                    margin: `0 auto ${SPACING.lg}`,
+                    color: COLORS.white,
+                    fontSize: TYPOGRAPHY.size['4xl'],
                   }}
                 >
                   &#10003;
                 </div>
                 <h2 style={{ marginBottom: "0.5rem" }}>Request Created</h2>
-                <p className="text-muted" style={{ marginBottom: "1rem" }}>
+                <p className="text-muted" style={MB_LG}>
                   Your request has been saved and is ready for review.
                 </p>
                 <p className="text-sm text-muted">Redirecting...</p>
@@ -740,20 +742,20 @@ function NewRequestForm() {
                   style={{
                     width: "64px",
                     height: "64px",
-                    borderRadius: "50%",
-                    background: "#ffc107",
+                    borderRadius: BORDERS.radius.full,
+                    background: COLORS.warning,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    margin: "0 auto 1rem",
-                    color: "#000",
-                    fontSize: "2rem",
+                    margin: `0 auto ${SPACING.lg}`,
+                    color: COLORS.black,
+                    fontSize: TYPOGRAPHY.size['4xl'],
                   }}
                 >
                   !
                 </div>
                 <h2 style={{ marginBottom: "0.5rem" }}>Request Saved - Needs Review</h2>
-                <p className="text-muted" style={{ marginBottom: "1rem" }}>
+                <p className="text-muted" style={MB_LG}>
                   {submissionResult.message || "Your request has been saved but requires human review before activation."}
                 </p>
                 {submissionResult.review_reason && (
@@ -795,20 +797,20 @@ function NewRequestForm() {
                   style={{
                     width: "64px",
                     height: "64px",
-                    borderRadius: "50%",
-                    background: "#dc3545",
+                    borderRadius: BORDERS.radius.full,
+                    background: COLORS.error,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    margin: "0 auto 1rem",
-                    color: "#fff",
-                    fontSize: "2rem",
+                    margin: `0 auto ${SPACING.lg}`,
+                    color: COLORS.white,
+                    fontSize: TYPOGRAPHY.size['4xl'],
                   }}
                 >
                   &#10005;
                 </div>
                 <h2 style={{ marginBottom: "0.5rem" }}>Validation Failed</h2>
-                <p className="text-muted" style={{ marginBottom: "1rem" }}>
+                <p className="text-muted" style={MB_LG}>
                   {submissionResult.message || "The request failed validation and cannot be created."}
                 </p>
                 {submissionResult.errors && Object.keys(submissionResult.errors).length > 0 && (
@@ -847,23 +849,23 @@ function NewRequestForm() {
                   style={{
                     width: "64px",
                     height: "64px",
-                    borderRadius: "50%",
-                    background: "#17a2b8",
+                    borderRadius: BORDERS.radius.full,
+                    background: COLORS.info,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    margin: "0 auto 1rem",
-                    color: "#fff",
-                    fontSize: "2rem",
+                    margin: `0 auto ${SPACING.lg}`,
+                    color: COLORS.white,
+                    fontSize: TYPOGRAPHY.size['4xl'],
                   }}
                 >
                   &#8987;
                 </div>
                 <h2 style={{ marginBottom: "0.5rem" }}>Request Saved</h2>
-                <p className="text-muted" style={{ marginBottom: "1rem" }}>
+                <p className="text-muted" style={MB_LG}>
                   {submissionResult.message || "Your request has been saved and is awaiting processing."}
                 </p>
-                <p className="text-sm text-muted" style={{ marginBottom: "1rem" }}>
+                <p className="text-sm text-muted" style={MB_LG}>
                   Reference ID: {submissionResult.raw_id?.slice(0, 8)}...
                 </p>
                 <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
@@ -888,9 +890,40 @@ function NewRequestForm() {
         </div>
       )}
 
+      {/* Step indicator */}
+      <div style={{
+        display: 'flex',
+        gap: SPACING.xs,
+        marginBottom: SPACING.xl,
+        padding: `${SPACING.sm} 0`,
+        overflowX: 'auto',
+      }}>
+        {['Location', 'Requestor', 'Access', 'Cats', 'Kittens', 'Feeding', 'Urgency', 'Details'].map((step, i) => (
+          <a
+            key={step}
+            href={`#section-${i + 1}`}
+            style={{
+              padding: `${SPACING.xs} ${SPACING.sm}`,
+              fontSize: TYPOGRAPHY.size.xs,
+              fontWeight: TYPOGRAPHY.weight.medium,
+              color: COLORS.textSecondary,
+              background: COLORS.gray100,
+              borderRadius: BORDERS.radius.full,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              transition: `background ${TRANSITIONS.fast}`,
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = COLORS.gray200; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = COLORS.gray100; }}
+          >
+            {i + 1}. {step}
+          </a>
+        ))}
+      </div>
+
       <form onSubmit={handleSubmit}>
         {/* SECTION 1: Location */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-1" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Cat Location</h2>
 
           {/* Known addresses from selected person */}
@@ -1018,7 +1051,7 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 2: Requestor */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-2" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Requestor</h2>
 
           {/* Mode toggle */}
@@ -1116,7 +1149,7 @@ function NewRequestForm() {
           {/* Contact fields - different display for existing vs new person */}
           {selectedPerson && !editingContactInfo ? (
             /* Read-only contact display for existing person */
-            <div style={{ marginBottom: "1rem" }}>
+            <div style={MB_LG}>
               <div
                 style={{
                   padding: "1rem",
@@ -1235,7 +1268,7 @@ function NewRequestForm() {
 
               {/* Cancel edit button when editing existing person */}
               {selectedPerson && editingContactInfo && (
-                <div style={{ marginBottom: "1rem" }}>
+                <div style={MB_LG}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1444,7 +1477,7 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 3: Permission & Access */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-3" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Permission & Access</h2>
 
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
@@ -1553,7 +1586,7 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 4: About the Cats */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-4" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>About the Cats</h2>
 
           {/* Request Purpose Selector - Multi-select */}
@@ -1735,7 +1768,7 @@ function NewRequestForm() {
 
           {/* Smart ear-tip input - only for TNR (context for how many are already done) */}
           {hasTnr && (
-            <div style={{ marginBottom: "1rem" }}>
+            <div style={MB_LG}>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 Ear-tipped at location {showExactEartipCount ? "(exact count)" : "(estimate)"}
               </label>
@@ -1812,7 +1845,7 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 5: Kittens */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-5" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
             <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Kittens</h2>
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
@@ -1882,7 +1915,7 @@ function NewRequestForm() {
               </div>
 
               {kittenAgeEstimate === "mixed" && (
-                <div style={{ marginBottom: "1rem" }}>
+                <div style={MB_LG}>
                   <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                     Describe the ages
                   </label>
@@ -1896,7 +1929,7 @@ function NewRequestForm() {
                 </div>
               )}
 
-              <div style={{ marginBottom: "1rem" }}>
+              <div style={MB_LG}>
                 <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
                   Kitten behavior/socialization
                 </label>
@@ -2049,10 +2082,10 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 6: Feeding */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-6" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Feeding</h2>
 
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
               Are the cats being fed regularly?
             </label>
@@ -2168,10 +2201,10 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 7: Urgency */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-7" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Urgency</h2>
 
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
               Priority Level
             </label>
@@ -2187,7 +2220,7 @@ function NewRequestForm() {
             </select>
           </div>
 
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
               Urgency factors (select all that apply)
             </label>
@@ -2253,10 +2286,10 @@ function NewRequestForm() {
         </div>
 
         {/* SECTION 8: Additional Details */}
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div id="section-8" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Additional Details</h2>
 
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
               Request Title
             </label>
@@ -2272,7 +2305,7 @@ function NewRequestForm() {
             </small>
           </div>
 
-          <div style={{ marginBottom: "1rem" }}>
+          <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
               Case Info
             </label>

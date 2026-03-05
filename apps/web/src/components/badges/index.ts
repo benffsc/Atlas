@@ -24,6 +24,9 @@ export { MicrochipStatusBadge, UnknownChipBadge } from './MicrochipStatusBadge';
 // Verification badges
 export { VerificationBadge, VerificationDot, LastVerified } from './VerificationBadge';
 
+// General-purpose badge
+export { Badge } from './Badge';
+
 // Data quality badges
 export { DataQualityBadge, AIParsedBadge, BeaconBadge, SourceBadge } from './DataQualityBadge';
 

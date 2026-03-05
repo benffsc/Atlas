@@ -3,35 +3,36 @@
 import { useState } from "react";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { formatDateLocal } from "@/lib/formatters";
+import { REQUEST_STATUS_COLORS } from "@/lib/design-tokens";
 
 // MIG_2530: Simplified 4-state status system
 const KANBAN_COLUMNS = [
   {
     status: "new",
     label: "New",
-    color: "#3b82f6",
-    bgColor: "#dbeafe",
+    color: REQUEST_STATUS_COLORS.new.border,
+    bgColor: REQUEST_STATUS_COLORS.new.bg,
     description: "Awaiting initial review"
   },
   {
     status: "working",
     label: "Working",
-    color: "#f59e0b",
-    bgColor: "#fef3c7",
+    color: REQUEST_STATUS_COLORS.working.border,
+    bgColor: REQUEST_STATUS_COLORS.working.bg,
     description: "Actively being handled"
   },
   {
     status: "paused",
     label: "Paused",
-    color: "#ec4899",
-    bgColor: "#fce7f3",
+    color: REQUEST_STATUS_COLORS.paused.border,
+    bgColor: REQUEST_STATUS_COLORS.paused.bg,
     description: "On hold"
   },
   {
     status: "completed",
     label: "Completed",
-    color: "#10b981",
-    bgColor: "#d1fae5",
+    color: REQUEST_STATUS_COLORS.completed.border,
+    bgColor: REQUEST_STATUS_COLORS.completed.bg,
     description: "Finished"
   },
 ];
@@ -100,7 +101,7 @@ function KanbanCard({
     <div
       style={{
         background: "var(--card-bg, white)",
-        border: `1px solid ${isPriority ? "#f59e0b" : "var(--card-border, #e5e7eb)"}`,
+        border: `1px solid ${isPriority ? REQUEST_STATUS_COLORS.working.border : "var(--card-border, #e5e7eb)"}`,
         borderRadius: "8px",
         padding: "0.75rem",
         marginBottom: "0.5rem",

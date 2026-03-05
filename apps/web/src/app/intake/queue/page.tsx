@@ -18,6 +18,7 @@ import { BookingModal } from "@/components/intake/BookingModal";
 import { DeclineModal } from "@/components/intake/DeclineModal";
 import { IntakeQueueRow } from "@/components/intake/IntakeQueueRow";
 import { IntakeDetailPanel } from "@/components/intake/IntakeDetailPanel";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 function IntakeQueueContent() {
   const searchParams = useSearchParams();
@@ -586,34 +587,34 @@ function IntakeQueueContent() {
 
       {/* Quick stats for current tab */}
       {stats.total > 0 && (
-        <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: SPACING.md, marginBottom: SPACING.lg, flexWrap: "wrap" }}>
           {stats.new > 0 && (
-            <span style={{ padding: "0.25rem 0.75rem", background: "#0d6efd", color: "#fff", borderRadius: "12px", fontSize: "0.8rem" }}>
+            <span style={{ padding: `${SPACING.xs} ${SPACING.md}`, background: COLORS.primary, color: COLORS.white, borderRadius: BORDERS.radius['2xl'], fontSize: TYPOGRAPHY.size.sm }}>
               {stats.new} New
             </span>
           )}
           {stats.inProgress > 0 && (
-            <span style={{ padding: "0.25rem 0.75rem", background: "#fd7e14", color: "#000", borderRadius: "12px", fontSize: "0.8rem" }}>
+            <span style={{ padding: `${SPACING.xs} ${SPACING.md}`, background: COLORS.warning, color: COLORS.black, borderRadius: BORDERS.radius['2xl'], fontSize: TYPOGRAPHY.size.sm }}>
               {stats.inProgress} In Progress
             </span>
           )}
           {stats.scheduled > 0 && (
-            <span style={{ padding: "0.25rem 0.75rem", background: "#198754", color: "#fff", borderRadius: "12px", fontSize: "0.8rem" }}>
+            <span style={{ padding: `${SPACING.xs} ${SPACING.md}`, background: COLORS.success, color: COLORS.white, borderRadius: BORDERS.radius['2xl'], fontSize: TYPOGRAPHY.size.sm }}>
               {stats.scheduled} Scheduled
             </span>
           )}
           {activeTab !== "active" && stats.complete > 0 && (
-            <span style={{ padding: "0.25rem 0.75rem", background: "#20c997", color: "#000", borderRadius: "12px", fontSize: "0.8rem" }}>
+            <span style={{ padding: `${SPACING.xs} ${SPACING.md}`, background: COLORS.successLight, color: COLORS.black, borderRadius: BORDERS.radius['2xl'], fontSize: TYPOGRAPHY.size.sm }}>
               {stats.complete} Complete
             </span>
           )}
           {stats.highPriority > 0 && (
-            <span style={{ padding: "0.25rem 0.75rem", background: "#dc3545", color: "#fff", borderRadius: "12px", fontSize: "0.8rem" }}>
+            <span style={{ padding: `${SPACING.xs} ${SPACING.md}`, background: COLORS.error, color: COLORS.white, borderRadius: BORDERS.radius['2xl'], fontSize: TYPOGRAPHY.size.sm }}>
               {stats.highPriority} High Priority
             </span>
           )}
           {stats.thirdParty > 0 && (
-            <span style={{ padding: "0.25rem 0.75rem", background: "#ffc107", color: "#000", borderRadius: "12px", fontSize: "0.8rem" }}>
+            <span style={{ padding: `${SPACING.xs} ${SPACING.md}`, background: COLORS.warning, color: COLORS.black, borderRadius: BORDERS.radius['2xl'], fontSize: TYPOGRAPHY.size.sm }}>
               {stats.thirdParty} Third-Party
             </span>
           )}
@@ -621,18 +622,29 @@ function IntakeQueueContent() {
       )}
 
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          Loading...
+        <div style={{ display: 'flex', flexDirection: 'column', gap: SPACING.sm }}>
+          {[1,2,3,4,5].map(i => (
+            <div key={i} style={{
+              height: '4rem',
+              background: COLORS.gray100,
+              borderRadius: BORDERS.radius.lg,
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }} />
+          ))}
         </div>
       ) : submissions.length === 0 ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
+        <div style={{ padding: SPACING['3xl'], textAlign: "center", color: "var(--muted)" }}>
           {activeTab === "active" ? (
             <>
-              <p style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>All caught up!</p>
-              <p>No new submissions need attention right now.</p>
+              <p style={{ fontSize: TYPOGRAPHY.size.xl, marginBottom: SPACING.sm }}>All caught up!</p>
+              <p style={{ color: COLORS.textSecondary }}>No new submissions need attention right now.</p>
             </>
+          ) : activeTab === "scheduled" ? (
+            <p style={{ color: COLORS.textSecondary }}>No scheduled intakes at this time.</p>
+          ) : activeTab === "completed" ? (
+            <p style={{ color: COLORS.textSecondary }}>No completed intakes to display.</p>
           ) : (
-            <p>No submissions found</p>
+            <p style={{ color: COLORS.textSecondary }}>No submissions found.</p>
           )}
         </div>
       ) : (() => {

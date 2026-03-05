@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { MAP_Z_INDEX } from "@/lib/design-tokens";
 
 interface NearbyPlace {
   place_id: string;
@@ -186,7 +187,7 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
       boxShadow: '-2px 0 8px rgba(0,0,0,0.15)',
       display: 'flex',
       flexDirection: 'column',
-      zIndex: 1000,
+      zIndex: MAP_Z_INDEX.panel,
     }}>
       {/* Header */}
       <div style={{

@@ -8,6 +8,8 @@ import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
+import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
 
 interface Request {
   request_id: string;
@@ -53,19 +55,19 @@ function ColonySizeBadge({ count }: { count: number | null }) {
   let style: { bg: string; color: string; label: string };
 
   if (catCount >= 20) {
-    style = { bg: "#dc3545", color: "#fff", label: `${catCount}+ cats` };
+    style = { bg: COLORS.errorDark, color: COLORS.white, label: `${catCount}+ cats` };
   } else if (catCount >= 7) {
-    style = { bg: "#fd7e14", color: "#000", label: `${catCount} cats` };
+    style = { bg: COLORS.warning, color: COLORS.black, label: `${catCount} cats` };
   } else if (catCount >= 2) {
-    style = { bg: "#0d6efd", color: "#fff", label: `${catCount} cats` };
+    style = { bg: COLORS.primary, color: COLORS.white, label: `${catCount} cats` };
   } else {
-    style = { bg: "#6c757d", color: "#fff", label: catCount ? `${catCount} cat` : "?" };
+    style = { bg: COLORS.gray500, color: COLORS.white, label: catCount ? `${catCount} cat` : "?" };
   }
 
   return (
     <span
       className="badge"
-      style={{ background: style.bg, color: style.color, fontSize: "0.75rem" }}
+      style={{ background: style.bg, color: style.color, fontSize: TYPOGRAPHY.size.xs }}
     >
       {style.label}
     </span>
@@ -73,10 +75,10 @@ function ColonySizeBadge({ count }: { count: number | null }) {
 }
 
 const FLAG_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  no_trapper: { label: "Needs trapper", bg: "#fef3c7", color: "#92400e" },
-  client_trapping: { label: "Client trapping", bg: "#d1fae5", color: "#065f46" },
-  no_geometry: { label: "No map pin", bg: "#dbeafe", color: "#1e40af" },
-  stale_30d: { label: "Stale 30d", bg: "#fee2e2", color: "#991b1b" },
+  no_trapper: { label: "Needs trapper", bg: COLORS.warningLight, color: getStatusColor('warning').text },
+  client_trapping: { label: "Client trapping", bg: COLORS.successLight, color: COLORS.successDark },
+  no_geometry: { label: "No map pin", bg: COLORS.infoLight, color: COLORS.infoDark },
+  stale_30d: { label: "Stale 30d", bg: COLORS.errorLight, color: getStatusColor('error').text },
   no_requester: { label: "No requester", bg: "#e0e7ff", color: "#3730a3" },
 };
 
@@ -473,7 +475,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
             {request.has_kittens && (
               <span
                 className="badge"
-                style={{ background: "#fd7e14", color: "#000", fontSize: "0.7rem" }}
+                style={{ background: COLORS.warning, color: COLORS.black, fontSize: TYPOGRAPHY.size['2xs'] }}
               >
                 +kittens
               </span>
@@ -481,7 +483,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
             {request.is_archived && (
               <span
                 className="badge"
-                style={{ background: "#6b7280", color: "#fff", fontSize: "0.7rem" }}
+                style={{ background: COLORS.gray500, color: COLORS.white, fontSize: TYPOGRAPHY.size['2xs'] }}
               >
                 Archived
               </span>
@@ -808,8 +810,11 @@ function StatusGroupedCards({
 
       {/* Empty state for when all groups are empty */}
       {Object.values(grouped).every(g => g.length === 0) && (
-        <div className="empty">
-          <p>No requests found</p>
+        <div className="empty" style={{ padding: SPACING['3xl'], textAlign: 'center' }}>
+          <div style={{ fontSize: TYPOGRAPHY.size['2xl'], marginBottom: SPACING.sm, opacity: 0.5 }}>No requests found</div>
+          <p style={{ color: COLORS.textSecondary, fontSize: TYPOGRAPHY.size.sm }}>
+            Try adjusting your filters or create a new request.
+          </p>
         </div>
       )}
     </div>
@@ -1332,11 +1337,23 @@ function RequestsPageContent() {
 
       {/* Request list */}
       {loading ? (
-        <div className="loading">Loading requests...</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: SPACING.lg, marginTop: SPACING.lg }}>
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className="card" style={{ padding: SPACING.md, borderRadius: BORDERS.radius.xl }}>
+              <div style={{ ...SKELETON_BLOCK, height: '140px', marginBottom: SPACING.sm }} />
+              <div style={{ ...SKELETON_LINE, width: '60%', marginBottom: SPACING.sm }} />
+              <div style={{ ...SKELETON_LINE, width: '80%', marginBottom: SPACING.xs }} />
+              <div style={{ ...SKELETON_LINE, width: '40%' }} />
+            </div>
+          ))}
+        </div>
       ) : requests.length === 0 ? (
-        <div className="empty">
-          <p>No requests found</p>
-          <a href="/requests/new">Create your first request</a>
+        <div className="empty" style={{ padding: SPACING['3xl'], textAlign: 'center' }}>
+          <div style={{ fontSize: TYPOGRAPHY.size['2xl'], marginBottom: SPACING.sm, opacity: 0.5 }}>No requests found</div>
+          <p style={{ color: COLORS.textSecondary, fontSize: TYPOGRAPHY.size.sm, marginBottom: SPACING.lg }}>
+            Get started by creating your first request.
+          </p>
+          <a href="/requests/new" className="btn" style={{ background: COLORS.primary, color: COLORS.white }}>Create Request</a>
         </div>
       ) : filters.view === "cards" ? (
         <StatusGroupedCards

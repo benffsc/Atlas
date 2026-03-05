@@ -8,6 +8,7 @@
  */
 
 import { generateLegendPinSvg } from "@/lib/map-markers";
+import { MAP_Z_INDEX } from "@/lib/design-tokens";
 
 interface MapLegendProps {
   showLegend: boolean;
@@ -43,7 +44,7 @@ export function MapLegend({ showLegend, onToggle, isMobile }: MapLegendProps) {
         position: "absolute",
         bottom: 24,
         left: 16,
-        zIndex: 1002,
+        zIndex: MAP_Z_INDEX.legend,
       }}
     >
       <button

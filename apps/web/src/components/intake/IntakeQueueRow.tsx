@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import type { IntakeSubmission } from "@/lib/intake-types";
 import { SubmissionStatusBadge, formatAge, formatDate, normalizeName } from "@/components/intake/IntakeBadges";
 import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
+import { COLORS, TYPOGRAPHY } from "@/lib/design-tokens";
 
 interface IntakeQueueRowProps {
   submission: IntakeSubmission;
@@ -33,21 +34,21 @@ export function IntakeQueueRow({
 
   // Priority left-border color
   const borderColor = sub.is_emergency
-    ? "#dc3545"  // urgent = red
+    ? COLORS.error
     : sub.overdue
-    ? "#ffc107"  // stale = amber
+    ? COLORS.warning
     : "transparent";
 
   // Primary action by status
   const primaryAction = (() => {
     if (sub.submission_status === "new" || sub.submission_status === "in_progress") {
-      return { label: "Schedule", bg: "#198754", color: "#fff", onClick: onSchedule };
+      return { label: "Schedule", bg: COLORS.success, color: COLORS.white, onClick: onSchedule };
     }
     if (sub.submission_status === "scheduled") {
       return {
         label: "Complete",
-        bg: "#20c997",
-        color: "#000",
+        bg: COLORS.successLight,
+        color: COLORS.black,
         onClick: () => onQuickStatus(sub.submission_id, "submission_status", "complete"),
       };
     }
@@ -57,7 +58,7 @@ export function IntakeQueueRow({
   return (
     <tr
       style={{
-        background: isSelected ? "#dbeafe" : undefined,
+        background: isSelected ? COLORS.primaryLight : undefined,
         borderLeft: `3px solid ${borderColor}`,
       }}
     >
@@ -77,8 +78,8 @@ export function IntakeQueueRow({
             fontSize: "0.65rem",
             padding: "2px 6px",
             borderRadius: "3px",
-            background: sub.is_legacy ? "#6c757d" : "#198754",
-            color: "#fff",
+            background: sub.is_legacy ? COLORS.gray500 : COLORS.success,
+            color: COLORS.white,
           }}
         >
           {sub.is_legacy ? "Legacy" : "Native"}
@@ -86,7 +87,7 @@ export function IntakeQueueRow({
         {sub.is_test && (
           <span style={{
             fontSize: "0.65rem",
-            background: "#dc3545",
+            background: COLORS.error,
             color: "#fff",
             padding: "1px 4px",
             borderRadius: "3px",
@@ -111,7 +112,7 @@ export function IntakeQueueRow({
             {formatPhone(sub.phone)}
             {!isValidPhone(sub.phone) && (
               <span
-                style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px", cursor: "help" }}
+                style={{ fontSize: "0.6rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px", cursor: "help" }}
                 title={extractPhone(sub.phone) ? `Likely: ${formatPhone(extractPhone(sub.phone))}` : "Invalid phone format"}
               >
                 !
@@ -120,7 +121,7 @@ export function IntakeQueueRow({
           </div>
         )}
         {sub.is_third_party_report && (
-          <span style={{ fontSize: "0.65rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px" }}>
+          <span style={{ fontSize: "0.65rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px" }}>
             3RD PARTY
           </span>
         )}
@@ -140,7 +141,7 @@ export function IntakeQueueRow({
           <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.cats_city}</div>
         )}
         {!sub.geo_formatted_address && sub.geo_confidence === null && (
-          <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "2px" }}>
+          <span style={{ fontSize: "0.6rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "2px" }}>
             needs geocoding
           </span>
         )}
@@ -149,7 +150,7 @@ export function IntakeQueueRow({
       {/* Cat count */}
       <td>
         <div>{sub.cat_count_estimate ?? "?"}</div>
-        {sub.has_kittens && <span style={{ fontSize: "0.7rem", color: "#fd7e14" }}>+kittens</span>}
+        {sub.has_kittens && <span style={{ fontSize: TYPOGRAPHY.size['2xs'], color: COLORS.warning }}>+kittens</span>}
       </td>
 
       {/* Status — simplified per FFS-108 */}
@@ -159,7 +160,7 @@ export function IntakeQueueRow({
             <SubmissionStatusBadge status={sub.submission_status} />
             {sub.overdue && (
               <span
-                style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px" }}
+                style={{ fontSize: "0.6rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px" }}
                 title="No activity for 48+ hours"
               >
                 STALE
@@ -179,12 +180,12 @@ export function IntakeQueueRow({
           )}
           {/* Appointment date only when scheduled (FFS-108) */}
           {sub.submission_status === "scheduled" && sub.appointment_date && (
-            <span style={{ fontSize: "0.7rem", color: "#198754" }}>
+            <span style={{ fontSize: TYPOGRAPHY.size['2xs'], color: COLORS.success }}>
               {formatDate(sub.appointment_date)}
             </span>
           )}
           {sub.is_emergency && (
-            <span style={{ color: "#dc3545", fontSize: "0.7rem", fontWeight: "bold" }}>URGENT</span>
+            <span style={{ color: COLORS.error, fontSize: TYPOGRAPHY.size['2xs'], fontWeight: TYPOGRAPHY.weight.bold }}>URGENT</span>
           )}
         </div>
       </td>

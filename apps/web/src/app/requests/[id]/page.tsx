@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { JournalSection, LinkedCatsSection, TrapperAssignments } from "@/components/sections";
+import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
 import { LegacyUpgradeWizard } from "@/components/forms";
@@ -17,6 +17,13 @@ import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS, REQUEST_STATUS_COLORS, getStatusColor } from "@/lib/design-tokens";
+import {
+  PAGE_CONTAINER, FIELD_LABEL, FIELD_HINT, FIELD_VALUE, FIELD_VALUE_EMPTY,
+  INPUT, GRID_2COL, GRID_3COL, GRID_AUTO, FLEX_CENTER, FLEX_CENTER_SM,
+  FLEX_BETWEEN, FLEX_WRAP_SM, ACTIONS_ROW, WARNING_BANNER, ERROR_BANNER,
+  MB_LG, MT_LG, SKELETON_LINE, SKELETON_BLOCK, quickStatusButton,
+} from "../styles";
 
 // MIG_2530: Simplified 4-state status system
 const STATUS_OPTIONS = [
@@ -37,7 +44,7 @@ const PRIORITY_OPTIONS = [
 
 function LegacyBadge() {
   return (
-    <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.75rem", padding: "0.25rem 0.5rem", border: "1px solid #ced4da" }} title="Imported from Airtable">
+    <span className="badge" style={{ background: COLORS.gray100, color: COLORS.gray600, fontSize: TYPOGRAPHY.size.xs, padding: `${SPACING.xs} ${SPACING.sm}`, border: `1px solid ${COLORS.gray300}` }} title="Imported from Airtable">
       Legacy
     </span>
   );
@@ -55,19 +62,17 @@ function Field({ label, value, hint, fullWidth, editable, onEdit }: {
   const isEmpty = value === null || value === undefined || value === "" || value === "Unknown";
   return (
     <div style={{ gridColumn: fullWidth ? "1 / -1" : undefined }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginBottom: "0.25rem" }}>
-        <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.025em" }}>
-          {label}
-        </span>
-        {hint && <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>({hint})</span>}
+      <div style={{ ...FLEX_CENTER_SM, marginBottom: SPACING.xs }}>
+        <span style={FIELD_LABEL}>{label}</span>
+        {hint && <span style={FIELD_HINT}>({hint})</span>}
         {editable && onEdit && (
           <button onClick={onEdit} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.7rem", color: "#6366f1", padding: 0, marginLeft: "auto" }}>
             Edit
           </button>
         )}
       </div>
-      <div style={{ fontWeight: 500, color: isEmpty ? "#9ca3af" : "#1f2937", fontStyle: isEmpty ? "italic" : "normal" }}>
-        {isEmpty ? "—" : value}
+      <div style={isEmpty ? FIELD_VALUE_EMPTY : FIELD_VALUE}>
+        {isEmpty ? "\u2014" : value}
       </div>
     </div>
   );
@@ -76,52 +81,14 @@ function Field({ label, value, hint, fullWidth, editable, onEdit }: {
 // Yes/No/Unknown field
 function YesNoField({ label, value, hint }: { label: string; value: boolean | null; hint?: string }) {
   const display = value === true ? "Yes" : value === false ? "No" : "Unknown";
-  const color = value === true ? "#059669" : value === false ? "#dc2626" : "#9ca3af";
+  const color = value === true ? COLORS.successDark : value === false ? COLORS.errorDark : COLORS.textMuted;
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginBottom: "0.25rem" }}>
-        <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.025em" }}>
-          {label}
-        </span>
-        {hint && <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>({hint})</span>}
+      <div style={{ ...FLEX_CENTER_SM, marginBottom: SPACING.xs }}>
+        <span style={FIELD_LABEL}>{label}</span>
+        {hint && <span style={FIELD_HINT}>({hint})</span>}
       </div>
-      <div style={{ fontWeight: 600, color }}>{display}</div>
-    </div>
-  );
-}
-
-// Section wrapper
-function CaseSection({ title, icon, children, actions, color = "#166534", collapsed, onToggle }: {
-  title: string;
-  icon?: string;
-  children: React.ReactNode;
-  actions?: React.ReactNode;
-  color?: string;
-  collapsed?: boolean;
-  onToggle?: () => void;
-}) {
-  return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: "0.75rem",
-        paddingBottom: "0.5rem",
-        borderBottom: `2px solid ${color}20`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          {onToggle && (
-            <button onClick={onToggle} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "0.9rem" }}>
-              {collapsed ? "▶" : "▼"}
-            </button>
-          )}
-          {icon && <span style={{ fontSize: "1.1rem" }}>{icon}</span>}
-          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color }}>{title}</h3>
-        </div>
-        {actions}
-      </div>
-      {!collapsed && children}
+      <div style={{ fontWeight: TYPOGRAPHY.weight.semibold, color }}>{display}</div>
     </div>
   );
 }
@@ -428,35 +395,19 @@ export default function RequestDetailPage() {
 
   const getQuickStatusOptions = () => {
     if (!request) return [];
+    const working = { value: "working", label: "Start Working", color: REQUEST_STATUS_COLORS.working.border };
+    const resume = { value: "working", label: "Resume", color: REQUEST_STATUS_COLORS.working.border };
+    const pause = { value: "paused", label: "Pause", color: REQUEST_STATUS_COLORS.paused.border };
+    const complete = { value: "completed", label: "Complete", color: REQUEST_STATUS_COLORS.completed.border };
+    const reopen = { value: "new", label: "Reopen", color: REQUEST_STATUS_COLORS.new.border };
     switch (request.status) {
-      case "new": return [
-        { value: "working", label: "Start Working", color: "#f59e0b" },
-        { value: "paused", label: "Pause", color: "#ec4899" },
-        { value: "completed", label: "Complete", color: "#10b981" },
-      ];
-      case "working": return [
-        { value: "completed", label: "Complete", color: "#10b981" },
-        { value: "paused", label: "Pause", color: "#ec4899" },
-      ];
-      case "paused": return [
-        { value: "working", label: "Resume", color: "#f59e0b" },
-        { value: "completed", label: "Complete", color: "#10b981" },
-      ];
-      case "completed": case "cancelled": return [
-        { value: "new", label: "Reopen", color: "#3b82f6" },
-      ];
-      case "triaged": return [
-        { value: "working", label: "Start Working", color: "#f59e0b" },
-        { value: "completed", label: "Complete", color: "#10b981" },
-      ];
-      case "scheduled": case "in_progress": return [
-        { value: "completed", label: "Complete", color: "#10b981" },
-        { value: "paused", label: "Pause", color: "#ec4899" },
-      ];
-      case "on_hold": return [
-        { value: "working", label: "Resume", color: "#f59e0b" },
-        { value: "completed", label: "Complete", color: "#10b981" },
-      ];
+      case "new": return [working, pause, complete];
+      case "working": return [complete, pause];
+      case "paused": return [resume, complete];
+      case "completed": case "cancelled": return [reopen];
+      case "triaged": return [working, complete];
+      case "scheduled": case "in_progress": return [complete, pause];
+      case "on_hold": return [resume, complete];
       default: return [];
     }
   };
@@ -467,9 +418,18 @@ export default function RequestDetailPage() {
 
   if (loading) {
     return (
-      <div>
+      <div style={PAGE_CONTAINER}>
         <BackButton fallbackHref="/requests" />
-        <div className="loading" style={{ marginTop: "2rem" }}>Loading request...</div>
+        <div style={{ marginTop: SPACING['2xl'] }}>
+          <div style={{ ...SKELETON_LINE, width: '40%', height: '1.5rem', marginBottom: SPACING.lg }} />
+          <div style={{ display: 'flex', gap: SPACING.sm, marginBottom: SPACING.xl }}>
+            <div style={{ ...SKELETON_LINE, width: '5rem', borderRadius: BORDERS.radius.full }} />
+            <div style={{ ...SKELETON_LINE, width: '4rem', borderRadius: BORDERS.radius.full }} />
+          </div>
+          <div style={{ ...SKELETON_BLOCK, marginBottom: SPACING.lg }} />
+          <div style={{ ...SKELETON_BLOCK, height: '4rem', marginBottom: SPACING.lg }} />
+          <div style={{ ...SKELETON_BLOCK, marginBottom: SPACING.lg }} />
+        </div>
       </div>
     );
   }
@@ -501,20 +461,20 @@ export default function RequestDetailPage() {
             <button onClick={handleSave} disabled={saving} className="btn">{saving ? "Saving..." : "Save Changes"}</button>
           </div>
         </div>
-        {error && <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{error}</div>}
+        {error && <div className="alert alert-error" style={MB_LG}>{error}</div>}
 
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Status & Priority</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <h3 style={MB_LG}>Status & Priority</h3>
+          <div style={GRID_2COL}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Status</label>
-              <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} style={INPUT}>
                 {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Priority</label>
-              <select value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })} style={INPUT}>
                 {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
@@ -522,35 +482,35 @@ export default function RequestDetailPage() {
         </div>
 
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Case Summary</h3>
-          <div style={{ marginBottom: "1rem" }}>
+          <h3 style={MB_LG}>Case Summary</h3>
+          <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Title</label>
-            <input type="text" value={editForm.summary} onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })} placeholder="Brief description of the request..." style={{ width: "100%", padding: "0.5rem" }} />
+            <input type="text" value={editForm.summary} onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })} placeholder="Brief description of the request..." style={INPUT} />
           </div>
           <div>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Notes</label>
-            <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Additional details about the situation..." rows={4} style={{ width: "100%", padding: "0.5rem" }} />
+            <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Additional details about the situation..." rows={4} style={INPUT} />
           </div>
         </div>
 
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Colony Assessment</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+          <h3 style={MB_LG}>Colony Assessment</h3>
+          <div style={GRID_3COL}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Adult Cats Needing TNR</label>
-              <input type="number" value={editForm.estimated_cat_count} onChange={(e) => setEditForm({ ...editForm, estimated_cat_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="number" value={editForm.estimated_cat_count} onChange={(e) => setEditForm({ ...editForm, estimated_cat_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Eartipped</label>
-              <input type="number" value={editForm.eartip_count} onChange={(e) => setEditForm({ ...editForm, eartip_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="number" value={editForm.eartip_count} onChange={(e) => setEditForm({ ...editForm, eartip_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Peak Count Observed</label>
-              <input type="number" value={editForm.peak_count} onChange={(e) => setEditForm({ ...editForm, peak_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="number" value={editForm.peak_count} onChange={(e) => setEditForm({ ...editForm, peak_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Handleability</label>
-              <select value={editForm.handleability} onChange={(e) => setEditForm({ ...editForm, handleability: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.handleability} onChange={(e) => setEditForm({ ...editForm, handleability: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="friendly">Friendly / Carrier OK</option>
                 <option value="trap_needed">Trap Needed</option>
@@ -559,7 +519,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Colony Duration</label>
-              <select value={editForm.colony_duration} onChange={(e) => setEditForm({ ...editForm, colony_duration: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.colony_duration} onChange={(e) => setEditForm({ ...editForm, colony_duration: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="less_than_1_month">Less than 1 month</option>
                 <option value="1_to_6_months">1-6 months</option>
@@ -569,7 +529,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>County</label>
-              <select value={editForm.county} onChange={(e) => setEditForm({ ...editForm, county: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.county} onChange={(e) => setEditForm({ ...editForm, county: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="sonoma">Sonoma</option>
                 <option value="marin">Marin</option>
@@ -593,11 +553,11 @@ export default function RequestDetailPage() {
         </div>
 
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Trapping Logistics</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+          <h3 style={MB_LG}>Trapping Logistics</h3>
+          <div style={GRID_3COL}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Property Access</label>
-              <select value={editForm.permission_status} onChange={(e) => setEditForm({ ...editForm, permission_status: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.permission_status} onChange={(e) => setEditForm({ ...editForm, permission_status: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="granted">Granted</option>
                 <option value="pending">Pending</option>
@@ -606,7 +566,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Property Type</label>
-              <select value={editForm.property_type} onChange={(e) => setEditForm({ ...editForm, property_type: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.property_type} onChange={(e) => setEditForm({ ...editForm, property_type: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="house">House</option>
                 <option value="apartment">Apartment</option>
@@ -616,7 +576,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Dogs on Site</label>
-              <select value={editForm.dogs_on_site} onChange={(e) => setEditForm({ ...editForm, dogs_on_site: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.dogs_on_site} onChange={(e) => setEditForm({ ...editForm, dogs_on_site: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -625,7 +585,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Trap-Savvy Cats</label>
-              <select value={editForm.trap_savvy} onChange={(e) => setEditForm({ ...editForm, trap_savvy: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.trap_savvy} onChange={(e) => setEditForm({ ...editForm, trap_savvy: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -634,7 +594,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Previous TNR</label>
-              <select value={editForm.previous_tnr} onChange={(e) => setEditForm({ ...editForm, previous_tnr: e.target.value })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.previous_tnr} onChange={(e) => setEditForm({ ...editForm, previous_tnr: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -643,7 +603,7 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Traps Safe Overnight</label>
-              <select value={editForm.traps_overnight_safe === null ? "" : editForm.traps_overnight_safe ? "yes" : "no"} onChange={(e) => setEditForm({ ...editForm, traps_overnight_safe: e.target.value === "" ? null : e.target.value === "yes" })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.traps_overnight_safe === null ? "" : editForm.traps_overnight_safe ? "yes" : "no"} onChange={(e) => setEditForm({ ...editForm, traps_overnight_safe: e.target.value === "" ? null : e.target.value === "yes" })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -652,26 +612,26 @@ export default function RequestDetailPage() {
           </div>
           <div style={{ marginTop: "1rem" }}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Access Notes</label>
-            <textarea value={editForm.access_notes} onChange={(e) => setEditForm({ ...editForm, access_notes: e.target.value })} placeholder="Gate codes, parking, hazards..." rows={2} style={{ width: "100%", padding: "0.5rem" }} />
+            <textarea value={editForm.access_notes} onChange={(e) => setEditForm({ ...editForm, access_notes: e.target.value })} placeholder="Gate codes, parking, hazards..." rows={2} style={INPUT} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Best Times Seen</label>
-              <input type="text" value={editForm.best_times_seen} onChange={(e) => setEditForm({ ...editForm, best_times_seen: e.target.value })} placeholder="e.g., Early morning, dusk" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="text" value={editForm.best_times_seen} onChange={(e) => setEditForm({ ...editForm, best_times_seen: e.target.value })} placeholder="e.g., Early morning, dusk" style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Best Trapping Time</label>
-              <input type="text" value={editForm.best_trapping_time} onChange={(e) => setEditForm({ ...editForm, best_trapping_time: e.target.value })} placeholder="e.g., Weekday mornings" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="text" value={editForm.best_trapping_time} onChange={(e) => setEditForm({ ...editForm, best_trapping_time: e.target.value })} placeholder="e.g., Weekday mornings" style={INPUT} />
             </div>
           </div>
         </div>
 
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Feeding Information</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+          <h3 style={MB_LG}>Feeding Information</h3>
+          <div style={GRID_3COL}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Being Fed?</label>
-              <select value={editForm.is_being_fed === null ? "" : editForm.is_being_fed ? "yes" : "no"} onChange={(e) => setEditForm({ ...editForm, is_being_fed: e.target.value === "" ? null : e.target.value === "yes" })} style={{ width: "100%", padding: "0.5rem" }}>
+              <select value={editForm.is_being_fed === null ? "" : editForm.is_being_fed ? "yes" : "no"} onChange={(e) => setEditForm({ ...editForm, is_being_fed: e.target.value === "" ? null : e.target.value === "yes" })} style={INPUT}>
                 <option value="">Unknown</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -679,15 +639,15 @@ export default function RequestDetailPage() {
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeder Name</label>
-              <input type="text" value={editForm.feeder_name} onChange={(e) => setEditForm({ ...editForm, feeder_name: e.target.value })} style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="text" value={editForm.feeder_name} onChange={(e) => setEditForm({ ...editForm, feeder_name: e.target.value })} style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Schedule</label>
-              <input type="text" value={editForm.feeding_schedule} onChange={(e) => setEditForm({ ...editForm, feeding_schedule: e.target.value })} placeholder="e.g., 7am and 5pm" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="text" value={editForm.feeding_schedule} onChange={(e) => setEditForm({ ...editForm, feeding_schedule: e.target.value })} placeholder="e.g., 7am and 5pm" style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Location</label>
-              <input type="text" value={editForm.feeding_location} onChange={(e) => setEditForm({ ...editForm, feeding_location: e.target.value })} placeholder="e.g., Back porch" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="text" value={editForm.feeding_location} onChange={(e) => setEditForm({ ...editForm, feeding_location: e.target.value })} placeholder="e.g., Back porch" style={INPUT} />
             </div>
           </div>
         </div>
@@ -707,21 +667,21 @@ export default function RequestDetailPage() {
           {editForm.has_medical_concerns && (
             <div style={{ marginTop: "1rem" }}>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Describe Medical Concerns</label>
-              <textarea value={editForm.medical_description} onChange={(e) => setEditForm({ ...editForm, medical_description: e.target.value })} rows={2} style={{ width: "100%", padding: "0.5rem" }} />
+              <textarea value={editForm.medical_description} onChange={(e) => setEditForm({ ...editForm, medical_description: e.target.value })} rows={2} style={INPUT} />
             </div>
           )}
         </div>
 
         <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Scheduling</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <h3 style={MB_LG}>Scheduling</h3>
+          <div style={GRID_2COL}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Scheduled Date</label>
-              <input type="date" value={editForm.scheduled_date} onChange={(e) => setEditForm({ ...editForm, scheduled_date: e.target.value })} style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="date" value={editForm.scheduled_date} onChange={(e) => setEditForm({ ...editForm, scheduled_date: e.target.value })} style={INPUT} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Time Range</label>
-              <input type="text" value={editForm.scheduled_time_range} onChange={(e) => setEditForm({ ...editForm, scheduled_time_range: e.target.value })} placeholder="e.g., Morning, 8am-12pm" style={{ width: "100%", padding: "0.5rem" }} />
+              <input type="text" value={editForm.scheduled_time_range} onChange={(e) => setEditForm({ ...editForm, scheduled_time_range: e.target.value })} placeholder="e.g., Morning, 8am-12pm" style={INPUT} />
             </div>
           </div>
         </div>
@@ -732,16 +692,16 @@ export default function RequestDetailPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Cats Trapped</label>
-                <input type="number" value={editForm.cats_trapped} onChange={(e) => setEditForm({ ...editForm, cats_trapped: e.target.value ? Number(e.target.value) : "" })} min="0" style={{ width: "100%", padding: "0.5rem" }} />
+                <input type="number" value={editForm.cats_trapped} onChange={(e) => setEditForm({ ...editForm, cats_trapped: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
               </div>
               <div>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Cats Returned</label>
-                <input type="number" value={editForm.cats_returned} onChange={(e) => setEditForm({ ...editForm, cats_returned: e.target.value ? Number(e.target.value) : "" })} min="0" style={{ width: "100%", padding: "0.5rem" }} />
+                <input type="number" value={editForm.cats_returned} onChange={(e) => setEditForm({ ...editForm, cats_returned: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
               </div>
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Resolution Notes</label>
-              <textarea value={editForm.resolution_notes} onChange={(e) => setEditForm({ ...editForm, resolution_notes: e.target.value })} rows={3} style={{ width: "100%", padding: "0.5rem" }} />
+              <textarea value={editForm.resolution_notes} onChange={(e) => setEditForm({ ...editForm, resolution_notes: e.target.value })} rows={3} style={INPUT} />
             </div>
           </div>
         )}
@@ -782,8 +742,8 @@ export default function RequestDetailPage() {
               <StatusBadge status={request.status} size="lg" />
               <PriorityBadge priority={request.priority} />
               {request.property_type && <PropertyTypeBadge type={request.property_type} />}
-              {request.hold_reason && <span className="badge" style={{ background: "#ffc107", color: "#000" }}>Hold: {request.hold_reason.replace(/_/g, " ")}</span>}
-              {request.is_archived && <span className="badge" style={{ background: "#6b7280", color: "#fff" }}>Archived</span>}
+              {request.hold_reason && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black }}>Hold: {request.hold_reason.replace(/_/g, " ")}</span>}
+              {request.is_archived && <span className="badge" style={{ background: COLORS.gray500, color: COLORS.white }}>Archived</span>}
             </div>
           </div>
 
@@ -796,17 +756,17 @@ export default function RequestDetailPage() {
         </div>
 
         {/* Quick Status Actions */}
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Actions:</span>
+        <div style={{ ...ACTIONS_ROW, marginBottom: SPACING.lg }}>
+          <span style={{ fontSize: TYPOGRAPHY.size.sm, color: "var(--muted)" }}>Actions:</span>
           {getQuickStatusOptions().map((opt) => (
-            <button key={opt.value} onClick={() => handleQuickStatusChange(opt.value)} disabled={saving} style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem", background: opt.color, color: "#fff", border: "none", borderRadius: "4px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+            <button key={opt.value} onClick={() => handleQuickStatusChange(opt.value)} disabled={saving} style={quickStatusButton(opt.color, saving)}>
               {opt.label}
             </button>
           ))}
           {previousStatus && previousStatus !== request.status && (
-            <button onClick={() => handleQuickStatusChange(previousStatus)} disabled={saving} style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem", background: "transparent", color: "#6c757d", border: "1px dashed #6c757d", borderRadius: "4px", cursor: "pointer" }}>↩ Undo</button>
+            <button onClick={() => handleQuickStatusChange(previousStatus)} disabled={saving} style={{ padding: `0.35rem ${SPACING.md}`, fontSize: TYPOGRAPHY.size.sm, background: "transparent", color: COLORS.gray500, border: `1px dashed ${COLORS.gray500}`, borderRadius: BORDERS.radius.md, cursor: "pointer" }}>Undo</button>
           )}
-          <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
+          <div style={{ marginLeft: "auto", display: "flex", gap: SPACING.sm }}>
             <button onClick={() => setShowObservationModal(true)} className="btn btn-sm btn-secondary">Log Visit</button>
             {request.requester_email && <button onClick={() => setShowEmailModal(true)} className="btn btn-sm btn-secondary">Email</button>}
             {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
@@ -816,11 +776,11 @@ export default function RequestDetailPage() {
               </>
             )}
             {request.is_archived ? (
-              <button onClick={handleRestore} disabled={saving} className="btn btn-sm" style={{ background: "#10b981", color: "#fff" }}>
+              <button onClick={handleRestore} disabled={saving} className="btn btn-sm" style={{ background: COLORS.success, color: COLORS.white }}>
                 {saving ? "Restoring..." : "Restore"}
               </button>
             ) : (
-              <button onClick={() => setShowArchiveModal(true)} className="btn btn-sm" style={{ background: "#6b7280", color: "#fff" }}>Archive</button>
+              <button onClick={() => setShowArchiveModal(true)} className="btn btn-sm" style={{ background: COLORS.gray500, color: COLORS.white }}>Archive</button>
             )}
           </div>
         </div>
@@ -882,8 +842,8 @@ export default function RequestDetailPage() {
 
         {/* Safety concerns */}
         {(request.place_safety_concerns?.length || request.place_safety_notes) && (
-          <div style={{ marginTop: "1rem", padding: "0.5rem 0.75rem", background: "rgba(255, 193, 7, 0.15)", border: "1px solid #ffc107", borderRadius: "4px", fontSize: "0.85rem" }}>
-            <span style={{ fontWeight: 500, color: "#856404" }}>⚠️ Safety: </span>
+          <div style={WARNING_BANNER}>
+            <span style={{ fontWeight: TYPOGRAPHY.weight.medium, color: getStatusColor('warning').text }}>Safety: </span>
             {request.place_safety_concerns?.join(", ").replace(/_/g, " ")}
             {request.place_safety_notes && ` - ${request.place_safety_notes}`}
           </div>
@@ -891,13 +851,13 @@ export default function RequestDetailPage() {
 
         {/* Urgency/Emergency banner */}
         {(request.urgency_reasons?.length || request.is_emergency || request.has_medical_concerns) && (
-          <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px" }}>
-            <div style={{ fontWeight: 600, color: "#991b1b", marginBottom: "0.25rem" }}>
-              {request.is_emergency ? "🚨 EMERGENCY" : "⚠️ URGENT"}
+          <div style={ERROR_BANNER}>
+            <div style={{ fontWeight: TYPOGRAPHY.weight.semibold, color: getStatusColor('error').text, marginBottom: SPACING.xs }}>
+              {request.is_emergency ? "EMERGENCY" : "URGENT"}
             </div>
-            {request.urgency_reasons?.length && <div style={{ fontSize: "0.9rem", color: "#7f1d1d" }}>{request.urgency_reasons.map(r => r.replace(/_/g, " ")).join(" • ")}</div>}
-            {request.has_medical_concerns && request.medical_description && <div style={{ fontSize: "0.9rem", color: "#7f1d1d", marginTop: "0.25rem" }}>Medical: {request.medical_description}</div>}
-            {request.urgency_deadline && <div style={{ fontSize: "0.85rem", color: "#9a3412", marginTop: "0.25rem" }}>Deadline: {new Date(request.urgency_deadline).toLocaleDateString()}</div>}
+            {request.urgency_reasons?.length && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: getStatusColor('error').text }}>{request.urgency_reasons.map(r => r.replace(/_/g, " ")).join(" \u2022 ")}</div>}
+            {request.has_medical_concerns && request.medical_description && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: getStatusColor('error').text, marginTop: SPACING.xs }}>Medical: {request.medical_description}</div>}
+            {request.urgency_deadline && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: '#9a3412', marginTop: SPACING.xs }}>Deadline: {new Date(request.urgency_deadline).toLocaleDateString()}</div>}
           </div>
         )}
       </div>
@@ -905,7 +865,7 @@ export default function RequestDetailPage() {
       {/* Show history panel if open */}
       {showHistory && (
         <div className="card" style={{ marginBottom: "1.5rem", padding: "1rem" }}>
-          <h3 style={{ marginBottom: "1rem" }}>Edit History</h3>
+          <h3 style={MB_LG}>Edit History</h3>
           <EditHistory entityType="request" entityId={requestId} limit={20} />
         </div>
       )}
