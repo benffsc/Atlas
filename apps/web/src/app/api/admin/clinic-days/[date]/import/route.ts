@@ -114,6 +114,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           is_walkin,
           is_already_altered,
           fee_code,
+          -- FFS-101: Include test_requested and test_result
+          test_requested,
+          test_result,
           notes,
           status,
           source_system,
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           contact_phone,
           alt_contact_name,
           alt_contact_phone
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)`,
         [
           clinicDay.clinic_day_id,
           entry.line_number,
@@ -148,8 +151,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           entry.is_walkin,
           entry.is_already_altered,
           entry.fee_code,
+          entry.test_requested,
+          entry.test_result,
           entry.notes,
-          "completed",
+          // FFS-102: Use parsed status instead of hardcoded "completed"
+          entry.status || "completed",
           "master_list",
           session.staff_id,
           // Extended fields
@@ -461,7 +467,8 @@ function extractOwnerName(clientName: string | null): string | null {
   let name = clientName
     .replace(/\s*-\s*Trp\s+.+$/i, "")
     .replace(/"[^"]+"/g, "")
-    .replace(/'[^"']+"/g, "")
+    // FFS-104: Fix mismatched quote regex
+    .replace(/['"][^"']+['"]/g, "")
     .replace(/\s*\([^)]+\)/g, "")
     .trim();
 
@@ -481,11 +488,8 @@ function extractTrapperName(clientName: string | null): string | null {
 function extractCatName(clientName: string | null): string | null {
   if (!clientName) return null;
 
-  let match = clientName.match(/"+"?([^"']+)"+"?/);
-  if (match) {
-    return match[1].trim();
-  }
-  match = clientName.match(/'([^"']+)"/);
+  // FFS-104: Fix regex to handle both single and double quotes consistently
+  let match = clientName.match(/["']([^"']+)["']/);
   if (match) {
     return match[1].trim();
   }

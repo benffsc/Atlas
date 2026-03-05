@@ -56,8 +56,9 @@ async function askTippy(
 }
 
 /**
- * Execute a read-only SQL query via the admin API
- * Note: This requires the test environment to have admin access
+ * Execute a read-only SQL query via the admin SQL endpoint (FFS-91).
+ * Uses /api/admin/sql instead of asking Tippy to run SQL,
+ * saving one API call per accuracy test verification.
  */
 async function executeSqlQuery(
   request: {
@@ -66,39 +67,49 @@ async function executeSqlQuery(
       options: { data: unknown }
     ) => Promise<{
       ok: () => boolean;
-      json: () => Promise<{ rows?: Record<string, unknown>[]; error?: string }>;
+      json: () => Promise<{
+        data?: { rows?: Record<string, unknown>[] };
+        rows?: Record<string, unknown>[];
+        error?: { message?: string } | string;
+      }>;
     }>;
   },
   query: string
 ): Promise<{ ok: boolean; value: number | string | null; error?: string }> {
-  // Use the discover_views tool through Tippy to get counts
-  // This is safer than direct SQL and doesn't require special admin API
-  const response = await request.post("/api/tippy/chat", {
-    data: {
-      message: `Run this exact SQL query and give me ONLY the numeric result, nothing else: ${query}`,
-    },
+  const response = await request.post("/api/admin/sql", {
+    data: { query, readOnly: true },
   });
 
   const ok = response.ok();
   const data = await response.json();
 
-  if (!ok || data.error) {
-    return { ok: false, value: null, error: data.error || "Query failed" };
+  if (!ok) {
+    const errorMsg =
+      typeof data.error === "string"
+        ? data.error
+        : data.error?.message || "Query failed";
+    return { ok: false, value: null, error: errorMsg };
   }
 
-  const responseText =
-    typeof data === "string"
-      ? data
-      : data.message || data.response || data.content || "";
-
-  // Extract numeric value from response
-  const match = responseText.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)/);
-  if (match) {
-    const value = parseFloat(match[1].replace(/,/g, ""));
-    return { ok: true, value };
+  // Unwrap apiSuccess response: { data: { rows: [...] } } or { rows: [...] }
+  const rows = data.data?.rows || data.rows;
+  if (!rows || rows.length === 0) {
+    return { ok: true, value: null, error: "No rows returned" };
   }
 
-  return { ok: true, value: null, error: "Could not extract number from response" };
+  // Extract first value from first row
+  const firstRow = rows[0];
+  const firstValue = Object.values(firstRow)[0];
+
+  if (typeof firstValue === "number") {
+    return { ok: true, value: firstValue };
+  }
+  if (typeof firstValue === "string") {
+    const parsed = parseFloat(firstValue.replace(/,/g, ""));
+    return { ok: true, value: isNaN(parsed) ? firstValue : parsed };
+  }
+
+  return { ok: true, value: null, error: "Could not extract value from row" };
 }
 
 // Generic test runner for accuracy tests

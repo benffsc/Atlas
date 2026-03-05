@@ -855,7 +855,11 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         owner_email = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
         owner_phone = sot.norm_phone_us(
           COALESCE(NULLIF(sr.payload->>'Owner Phone', ''), sr.payload->>'Owner Cell Phone')
-        )
+        ),
+        -- FFS-114: Populate owner name/address fields for link_appointments_to_places() Step 1
+        owner_first_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), a.owner_first_name),
+        owner_last_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), a.owner_last_name),
+        owner_address = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Address'), ''), a.owner_address)
       FROM ops.staged_records sr
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
@@ -865,6 +869,9 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           a.client_name IS NULL
           OR a.owner_email IS NULL
           OR a.owner_phone IS NULL
+          OR a.owner_first_name IS NULL
+          OR a.owner_last_name IS NULL
+          OR a.owner_address IS NULL
         )
         AND (
           sr.payload->>'Owner First Name' IS NOT NULL
@@ -872,6 +879,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           OR sr.payload->>'Owner Email' IS NOT NULL
           OR sr.payload->>'Owner Phone' IS NOT NULL
           OR sr.payload->>'Owner Cell Phone' IS NOT NULL
+          OR sr.payload->>'Owner Address' IS NOT NULL
         )
     `, [uploadId]);
     results.owner_fields_backfilled = ownerFieldsBackfill.rowCount || 0;

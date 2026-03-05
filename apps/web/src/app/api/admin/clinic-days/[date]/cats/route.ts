@@ -29,6 +29,8 @@ interface ClinicDayCat {
   booked_as: string | null;
   trapper_name: string | null;
   place_address: string | null;
+  // FFS-97: Original booking address from ClinicHQ (where cat came from)
+  booking_address: string | null;
   // Weight
   weight_lbs: number | null;
   // Deceased and health status fields
@@ -90,10 +92,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           c.secondary_color AS cat_secondary_color,
           -- needs_microchip: TRUE if cat had spay/neuter but no microchip
           -- Cats that get altered should typically be microchipped
-          CASE WHEN (a.is_spay OR a.is_neuter) AND COALESCE(ci_mc.id_value, c.microchip) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
+          CASE WHEN (a.is_spay OR a.is_neuter) AND COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = a.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
           -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
-          COALESCE(ci_mc.id_value, c.microchip) AS microchip,
-          COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
+          -- MIG_2602: Use LIMIT 1 subqueries instead of JOIN to prevent duplicate rows
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = a.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) AS microchip,
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = a.cat_id AND ci.id_type = 'clinichq_animal_id' LIMIT 1),
+            c.clinichq_animal_id
+          ) AS clinichq_animal_id,
           -- Get photo for this cat with priority: 1) hero (main photo), 2) most recent
           (
             SELECT rm.storage_path
@@ -107,6 +119,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           -- DATA_GAP_053: Original booking name from clinic_accounts (may differ from resolved owner_name)
           ca.display_name AS booked_as,
           pl.formatted_address AS place_address,
+          -- FFS-97: Original booking address from ClinicHQ
+          a.owner_address AS booking_address,
           NULL AS trapper_name,
           a.cat_weight_lbs AS weight_lbs,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
@@ -139,8 +153,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           ) AS fiv_status
         FROM ops.appointments a
         LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-        LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
-        LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
         LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
         LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
@@ -170,10 +182,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           c.secondary_color AS cat_secondary_color,
           -- needs_microchip: TRUE if cat had spay/neuter but no microchip
           -- Cats that get altered should typically be microchipped
-          CASE WHEN (a.is_spay OR a.is_neuter) AND COALESCE(ci_mc.id_value, c.microchip) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
+          CASE WHEN (a.is_spay OR a.is_neuter) AND COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = a.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
           -- Use COALESCE to fall back to denormalized columns if cat_identifiers is empty
-          COALESCE(ci_mc.id_value, c.microchip) AS microchip,
-          COALESCE(ci_chq.id_value, c.clinichq_animal_id) AS clinichq_animal_id,
+          -- MIG_2602: Use LIMIT 1 subqueries instead of JOIN to prevent duplicate rows
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = a.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) AS microchip,
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = a.cat_id AND ci.id_type = 'clinichq_animal_id' LIMIT 1),
+            c.clinichq_animal_id
+          ) AS clinichq_animal_id,
           -- Get photo for this cat with priority: 1) hero (main photo), 2) most recent
           (
             SELECT rm.storage_path
@@ -187,6 +209,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           -- DATA_GAP_053: Original booking name from clinic_accounts (may differ from resolved owner_name)
           ca.display_name AS booked_as,
           pl.formatted_address AS place_address,
+          -- FFS-97: Original booking address from ClinicHQ
+          a.owner_address AS booking_address,
           NULL AS trapper_name,
           a.cat_weight_lbs AS weight_lbs,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
@@ -201,8 +225,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           NULL AS fiv_status
         FROM ops.appointments a
         LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-        LEFT JOIN sot.cat_identifiers ci_mc ON ci_mc.cat_id = a.cat_id AND ci_mc.id_type = 'microchip'
-        LEFT JOIN sot.cat_identifiers ci_chq ON ci_chq.cat_id = a.cat_id AND ci_chq.id_type = 'clinichq_animal_id'
         LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
         LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL

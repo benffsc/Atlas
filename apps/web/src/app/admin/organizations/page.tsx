@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import PlaceResolver from "@/components/forms/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface Org {
   id: string;
@@ -639,6 +641,7 @@ function CreateOrgModal({
   onCreated: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [addressPlace, setAddressPlace] = useState<ResolvedPlace | null>(null);
   const [form, setForm] = useState({
     name: "",
     short_name: "",
@@ -646,7 +649,6 @@ function CreateOrgModal({
     email: "",
     phone: "",
     website: "",
-    address: "",
     notes: "",
   });
 
@@ -655,7 +657,11 @@ function CreateOrgModal({
 
     setSaving(true);
     try {
-      await postApi("/api/admin/orgs", form);
+      await postApi("/api/admin/orgs", {
+        ...form,
+        address: addressPlace?.formatted_address || addressPlace?.display_name || "",
+        place_id: addressPlace?.place_id || undefined,
+      });
       onCreated();
     } catch (err) {
       console.error("Failed to create:", err);
@@ -732,11 +738,10 @@ function CreateOrgModal({
 
           <div>
             <label style={{ fontSize: "0.8rem", fontWeight: 500 }}>Address</label>
-            <input
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="Street address (will create place)"
-              style={{ width: "100%", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "6px" }}
+            <PlaceResolver
+              value={addressPlace}
+              onChange={setAddressPlace}
+              placeholder="Search for address (will create place)"
             />
           </div>
 

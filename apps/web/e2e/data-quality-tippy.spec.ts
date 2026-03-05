@@ -71,36 +71,10 @@ async function getRealData(page: Page) {
 // BASIC TIPPY FUNCTIONALITY TESTS
 // ============================================================================
 
-test.describe('Tippy Basic Functionality @real-api', () => {
-  // Auth handled by storageState from auth.setup.ts
-
-  test('Tippy responds to simple greeting', async ({ page }) => {
-    const result = await askTippy(page, 'Hello, can you help me?');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-    expect(result.message.length).toBeGreaterThan(10);
-  });
-
-  test('Tippy can answer "How many cats have we helped?"', async ({ page }) => {
-    const result = await askTippy(page, 'How many cats have we helped overall?');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-
-    // Response should mention cats and likely include a number
-    expect(result.message.toLowerCase()).toMatch(/cat|helped|fixed|altered/i);
-    console.log('Cats helped response:', result.message.substring(0, 200));
-  });
-
-  test('Tippy can explain what FFSC does', async ({ page }) => {
-    const result = await askTippy(page, 'What does FFSC do?');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-    expect(result.message.toLowerCase()).toMatch(/cat|feline|tnr|trap|neuter|spay/i);
-  });
-});
+// FFS-91: Removed "Tippy Basic Functionality" section (3 tests)
+// - "responds to simple greeting" → covered by infrastructure mocked tests
+// - "How many cats have we helped?" → dup of accuracy-verification "Reports non-zero cat count"
+// - "can explain what FFSC does" → low value for API cost
 
 // ============================================================================
 // PLACE & COLONY DATA TESTS
@@ -131,24 +105,7 @@ test.describe('Place & Colony Data Queries @real-api', () => {
     console.log(`Query for ${placeWithCats.formatted_address}:`, result.message.substring(0, 300));
   });
 
-  test('Tippy can provide colony status for an address', async ({ page }) => {
-    const { places } = await getRealData(page);
-
-    const placeWithCats = places.find((p: { has_cat_activity?: boolean; formatted_address?: string }) =>
-      p.has_cat_activity && p.formatted_address
-    );
-
-    if (!placeWithCats) {
-      test.skip();
-      return;
-    }
-
-    const result = await askTippy(page, `What's the colony status at ${placeWithCats.formatted_address}?`);
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-    console.log('Colony status response:', result.message.substring(0, 300));
-  });
+  // FFS-91: Removed "colony status for address" — dup of human-questions "Colony status at [address]"
 
   test('Tippy can find colony sites in a city', async ({ page }) => {
     const result = await askTippy(page, 'Show me colony sites in Santa Rosa');
@@ -224,16 +181,7 @@ test.describe('Cat Journey & Microchip Queries @real-api', () => {
     console.log('Cat journey response:', result.message.substring(0, 400));
   });
 
-  test('Tippy handles invalid microchip gracefully', async ({ page }) => {
-    const result = await askTippy(page, 'Look up microchip 000000000000000');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-
-    // Should either explain not found or provide helpful response
-    // Tippy may say "no cats found", "no results", "not found", etc.
-    console.log('Invalid microchip response:', result.message.substring(0, 200));
-  });
+  // FFS-91: Removed "invalid microchip" — dup of cross-source error handling
 
   test('Tippy can compare clinic records with Atlas data', async ({ page }) => {
     const { cats } = await getRealData(page);
@@ -312,15 +260,7 @@ test.describe('Foster & Adopter Relationship Queries @real-api', () => {
 test.describe('Regional Statistics Queries @real-api', () => {
   // Auth handled by storageState from auth.setup.ts
 
-  test('Tippy can provide stats for Santa Rosa', async ({ page }) => {
-    const result = await askTippy(page, 'How many cats have we fixed in Santa Rosa?');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-
-    // Should include a number or statistic
-    console.log('Santa Rosa stats:', result.message.substring(0, 300));
-  });
+  // FFS-91: Removed "stats for Santa Rosa" — dup of capabilities "Can query regional stats"
 
   test('Tippy understands "west county"', async ({ page }) => {
     const result = await askTippy(page, 'What\'s the cat situation in west county?');
@@ -340,16 +280,7 @@ test.describe('Regional Statistics Queries @real-api', () => {
     console.log('Region comparison:', result.message.substring(0, 400));
   });
 
-  test('Tippy can provide pending request stats', async ({ page }) => {
-    const result = await askTippy(page, 'How many requests are pending right now?');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-
-    // Should mention requests and possibly a number
-    expect(result.message.toLowerCase()).toMatch(/request|pending/i);
-    console.log('Pending requests:', result.message.substring(0, 200));
-  });
+  // FFS-91: Removed "pending request stats" — dup of performance/accuracy
 });
 
 // ============================================================================
@@ -501,27 +432,8 @@ test.describe('Knowledge Base Queries @real-api', () => {
 test.describe('Error Handling & Edge Cases @real-api', () => {
   // Auth handled by storageState from auth.setup.ts
 
-  test('Tippy handles empty query gracefully', async ({ page }) => {
-    const result = await askTippy(page, '');
-
-    // Should either handle gracefully or return an error
-    expect(result.message || result.error).toBeTruthy();
-  });
-
-  test('Tippy handles very long query', async ({ page }) => {
-    const longQuery = 'Tell me about ' + 'cats '.repeat(100);
-    const result = await askTippy(page, longQuery);
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-  });
-
-  test('Tippy handles special characters in query', async ({ page }) => {
-    const result = await askTippy(page, 'What about cats at 123 O\'Brien St. #5?');
-
-    expect(result.error).toBeUndefined();
-    expect(result.message).toBeTruthy();
-  });
+  // FFS-91: Removed "empty query", "very long query", "special characters" —
+  // all dup of infrastructure mocked tests and edge-cases boundary mocked tests
 
   test('Tippy handles misspelled city names', async ({ page }) => {
     const result = await askTippy(page, 'How many cats in Peteluma?'); // Misspelled

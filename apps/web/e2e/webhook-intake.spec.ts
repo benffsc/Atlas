@@ -121,6 +121,86 @@ test.describe('Intake Workflow Actions', () => {
 
 });
 
+test.describe('Intake Convert API (FFS-107)', () => {
+
+  test('convert endpoint requires submission_id', async ({ request }) => {
+    const response = await request.post('/api/intake/convert', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {},
+    });
+
+    // Should return 400 for missing submission_id
+    expect(response.status()).toBe(400);
+    const json = await response.json();
+    expect(JSON.stringify(json)).toContain('submission_id');
+  });
+
+  test('convert endpoint returns 404 for nonexistent submission', async ({ request }) => {
+    const response = await request.post('/api/intake/convert', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { submission_id: '00000000-0000-0000-0000-000000000000' },
+    });
+
+    // Should return 404 (not found) or 500 (DB error) — not a generic 400
+    expect([404, 500].includes(response.status())).toBe(true);
+  });
+
+  test('convert endpoint classifies errors properly', async ({ request }) => {
+    // POST with an invalid UUID format to trigger an error
+    const response = await request.post('/api/intake/convert', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { submission_id: 'not-a-valid-uuid' },
+    });
+
+    // Should get an error response (not 200)
+    expect(response.ok()).toBeFalsy();
+    const json = await response.json();
+    // Should have a structured error
+    expect(json.success === false || json.error !== undefined || response.status() >= 400).toBeTruthy();
+  });
+
+});
+
+test.describe('Intake Queue API Modes (FFS-111)', () => {
+
+  test('queue API supports mode=active', async ({ request }) => {
+    const response = await request.get('/api/intake/queue?mode=active&limit=5');
+    expect(response.ok()).toBeTruthy();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    expect(data).toHaveProperty('submissions');
+    expect(Array.isArray(data.submissions)).toBe(true);
+  });
+
+  test('queue API supports mode=scheduled', async ({ request }) => {
+    const response = await request.get('/api/intake/queue?mode=scheduled&limit=5');
+    expect(response.ok()).toBeTruthy();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    expect(data).toHaveProperty('submissions');
+  });
+
+  test('queue API supports mode=completed', async ({ request }) => {
+    const response = await request.get('/api/intake/queue?mode=completed&limit=5');
+    expect(response.ok()).toBeTruthy();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    expect(data).toHaveProperty('submissions');
+  });
+
+  test('queue API supports mode=all', async ({ request }) => {
+    const response = await request.get('/api/intake/queue?mode=all&limit=5');
+    expect(response.ok()).toBeTruthy();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    expect(data).toHaveProperty('submissions');
+  });
+
+  test('queue API supports include_legacy filter', async ({ request }) => {
+    const response = await request.get('/api/intake/queue?mode=active&include_legacy=true&limit=5');
+    expect(response.ok()).toBeTruthy();
+    const data = unwrapApiResponse<Record<string, unknown>>(await response.json());
+    expect(data).toHaveProperty('submissions');
+  });
+
+});
+
 test.describe('Accidental Action Prevention (Read-Only)', () => {
 
   test('identify buttons but dont click dangerous ones', async ({ page }) => {

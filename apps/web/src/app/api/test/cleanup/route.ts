@@ -51,6 +51,9 @@ export async function POST(request: Request) {
       DELETE FROM ops.requests
       WHERE source_system = 'e2e_test'
          OR request_id LIKE 'e2e-test-%'
+         OR summary LIKE 'E2E Test -%'
+         OR notes LIKE '%E2E_TEST_MARKER%'
+         OR internal_notes LIKE '%E2E_TEST_MARKER%'
       RETURNING request_id
     `);
     results.requests_deleted = requestsResult.rowCount || 0;
@@ -105,7 +108,7 @@ export async function GET(request: Request) {
     const result = await query(`
       SELECT
         (SELECT COUNT(*) FROM ops.intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com') as test_submissions,
-        (SELECT COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%') as test_requests,
+        (SELECT COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%') as test_requests,
         (SELECT COUNT(*) FROM sot.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%') as test_places,
         (SELECT COUNT(*) FROM sot.people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%') as test_people,
         (SELECT COUNT(*) FROM sot.cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%') as test_cats

@@ -1,399 +1,259 @@
 # Atlas
 
-**Trapper Operations Data Platform** — A stable, trustworthy system for managing trapping locations, requests, and clinic schedules.
+**TNR Management System for Forgotten Felines of Sonoma County**
+
+Atlas is the operational backbone for FFSC's Trap-Neuter-Return program, tracking cats, locations, requests, and clinic operations across Sonoma County.
 
 **Live at:** [atlas.forgottenfelines.com](https://atlas.forgottenfelines.com)
 
-## What Atlas Is
+---
 
-Atlas is the operational backbone for FFSC trapping operations and the foundation for **Beacon** (TNR prioritization analytics). It consolidates data from:
-- **ClinicHQ** — 47,000+ historical appointments and surgery records (primary data source)
-- **Airtable** — Current operational workflows for requests (re-exportable)
-- **Form submissions** — Appointment requests from Typeform/Jotform
-- **Atlas native** — Direct request intake and data collection
+## Current Status (March 2026)
 
-Atlas provides:
-1. **Unified Search** — Find cats, people, places by any identifier (microchip, phone, address)
-2. **Canonical Data** — Deduplicated people, places, and addresses (SoT layer)
-3. **Clean Identity Linking** — Cats linked to people and places with quality safeguards
-4. **Review Queues** — Surfaces for human triage and data cleanup
-5. **Native Data Collection** — Request intake forms with validation pipeline
-6. **Foundation for Beacon** — Accurate cat counts per location for TNR prioritization
+| Phase | Status |
+|-------|--------|
+| V2 Data Overhaul | ✅ Complete |
+| E2E Test Stabilization | 🔄 In Progress |
+| Production Ready | ⏳ Upcoming |
 
-## Guiding Principles
+**Recent milestones:**
+- 3-layer data architecture deployed (source → ops → sot)
+- Entity linking pipeline with monitoring
+- API standardization complete
+- 592/1132 E2E tests passing (stabilization in progress)
 
-### 1. Airtable Stays Primary (For Now)
-Airtable is the trusted operational system until Atlas proves itself. We run both in parallel during transition. Atlas reads from Airtable; it does not (yet) write back.
+---
 
-### 2. Location Ambiguity Is Real
-Cats aren't always at a clean street address. Trail segments, parks, "behind the barn" — these are real locations. Atlas preserves "anchor locations" that capture context without pretending precision.
+## What Atlas Does
 
-### 3. No Destructive Operations
-We never DROP, DELETE, or TRUNCATE production data. Migrations are additive. Bad data goes to review queues, not the void.
+### For Staff
+- **Unified Search** — Find cats, people, places by microchip, phone, address, or name
+- **Intake Queue** — Process public TNR submissions through triage, scheduling, and conversion to requests
+- **Request Management** — Track TNR requests from intake to completion
+- **Clinic Operations** — Schedule clinic days, process ClinicHQ data
+- **Data Quality** — Review queues for duplicates, uncertain matches
 
-### 4. Small, Shippable Steps
-Each change should be small, testable, and independently valuable. Prefer incremental progress over ambitious rewrites.
+### For Trappers
+- **Location Info** — Safety notes, access details, cat counts per location
+- **Assignment Tracking** — Which requests are assigned, scheduled, in progress
 
-### 5. Secrets Never Committed
-DATABASE_URL, API keys, and tokens stay in `.env` files (gitignored). Never commit secrets, even in "test" configs.
+### For Beacon (Analytics)
+- **Population Modeling** — Colony estimates using Chapman mark-recapture
+- **TNR Progress** — Alteration rates by location and service zone
+- **Disease Tracking** — FeLV/FIV prevalence by geographic area
+
+---
+
+## Architecture
+
+Atlas uses a **3-layer data architecture** to ensure data quality and full auditability:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 1: SOURCE                                             │
+│ Raw data from external systems (immutable audit trail)      │
+│ Tables: source.staged_records, source.clinichq_raw          │
+└─────────────────────────────────────────────────────────────┘
+                    ↓ Data Engine (Identity Resolution)
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 2: OPS                                                │
+│ Operational workflows, staff-facing data                    │
+│ Tables: ops.appointments, ops.clinic_accounts               │
+└─────────────────────────────────────────────────────────────┘
+                    ↓ Entity Linking
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 3: SOT (Source of Truth)                              │
+│ Canonical deduplicated entities                             │
+│ Tables: sot.people, sot.cats, sot.places, sot.requests      │
+└─────────────────────────────────────────────────────────────┘
+                    ↓ Analytics
+┌─────────────────────────────────────────────────────────────┐
+│ BEACON                                                      │
+│ Population modeling, TNR prioritization                     │
+│ Views: ops.v_beacon_summary, beacon.colony_estimates        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Data Sources
+
+| System | What It Provides | Authority |
+|--------|------------------|-----------|
+| **ClinicHQ** | Appointments, microchips, medical records | Cats, procedures |
+| **VolunteerHub** | Trappers, volunteers, group memberships | Volunteer status |
+| **ShelterLuv** | Adoptions, foster data, outcomes | Program animals |
+| **Airtable** | Legacy requests, Project 75 | Historical data |
+| **Web Intake** | Public TNR request submissions | New requests |
+
+---
 
 ## Quick Start
 
-### Run Locally
 ```bash
-cd apps/web
+# Clone and install
+git clone <repo>
+cd Atlas
 npm install
-cp .env.example .env.local  # Add DATABASE_URL and GOOGLE_MAPS_API_KEY
+cd apps/web && npm install
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with DATABASE_URL, GOOGLE_PLACES_API_KEY, etc.
+
+# Start dev server
 npm run dev
 # Open http://localhost:3000
 ```
 
-### Deploy to Production
-See [docs/runbooks/DEPLOYMENT.md](docs/runbooks/DEPLOYMENT.md) for Vercel setup.
+### Environment Variables
 
-### Full Setup Guide
-See [docs/runbooks/START_HERE.md](docs/runbooks/START_HERE.md) for:
-- Repository structure
-- How to run migrations
-- Data ingestion process
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `STAFF_DEFAULT_PASSWORD` | Yes | Default password for new staff |
+| `GOOGLE_PLACES_API_KEY` | Yes | For geocoding and address validation |
+| `ANTHROPIC_API_KEY` | No | For Tippy AI assistant |
+
+See `apps/web/.env.example` for complete list.
+
+---
+
+## Core Invariants
+
+These rules are non-negotiable. Breaking them causes cascading data quality issues.
+
+1. **No Data Disappears** — Use `merged_into_*` chains, never hard delete
+2. **Manual > AI** — Staff-verified data cannot be overwritten by automation
+3. **Identity By Identifier Only** — Match people by email/phone, NEVER by name alone
+4. **Merge-Aware Queries** — All queries MUST filter `merged_into_*_id IS NULL`
+5. **Provenance Required** — Every record needs `source_system`, `source_record_id`, `source_created_at`
+6. **Centralized Functions** — Never INSERT directly to `sot.*` tables; use `find_or_create_*` functions
+
+**Full invariants:** See `CLAUDE.md` in repo root.
+
+---
+
+## Address Input Standards
+
+All address fields that write to the database MUST use the `PlaceResolver` component (`@/components/forms/PlaceResolver`). Plain `<input>` fields allow bad data — PlaceResolver validates against both existing Atlas places and Google Places API.
+
+| Component | Use Case |
+|-----------|----------|
+| **PlaceResolver** | Any form creating/linking a place (requests, intake, org creation, map panel, redirects) |
+| **AddressAutocomplete** | ONLY for correcting an existing place's address (needs raw Google Place Details for lat/lng/components) |
+| **Plain `<input>`** | ONLY for non-address text (feeding location descriptions) or print-only forms |
+
+**Resilience:** `usePlaceResolver` uses `Promise.allSettled` for parallel Atlas + Google search. If Google's API fails (expired key, quota), Atlas results still appear. See FFS-117.
+
+**Coverage (16 PlaceResolver fields):** `/requests/new`, `/intake/call-sheet`, `/intake/queue`, `/intake` (2x), `/intake/queue/new`, `/admin/intake/call`, `/places/new`, `/people/[id]`, `/admin/colonies/[id]`, `/admin/organizations` (create modal), `/components/map/PlacementPanel`, `/components/modals/RedirectRequestModal`, `/components/modals/HandoffRequestModal`
+
+---
+
+## Known Pitfalls
+
+### ClinicHQ Data ≠ People Data
+ClinicHQ tells us about **CATS and PLACES**, not necessarily people. The person who booked an appointment is often a trapper or caretaker, not where the cat lives.
+
+- **46.5%** of person links are unreliable (trappers, caretakers, FFSC staff)
+- **Place is the anchor** — Show cats on map via place, NOT person→place chain
+
+### Phone Matching Requires Address Check
+Never match people by phone alone across different addresses. Same phone + different address = household members, not same person.
+
+### PetLink Emails Are Fabricated
+Always filter `confidence >= 0.5` when querying `person_identifiers`. PetLink generates fake emails.
+
+### Cell Phones Are Shared
+Always use `COALESCE(Owner Phone, Owner Cell Phone)` — cell phones are often shared by household members.
+
+---
 
 ## Directory Structure
 
 ```
 Atlas/
-├── apps/
-│   └── web/            # Next.js UI (deployed to Vercel)
-│       └── src/
-│           ├── app/        # Pages and API routes
-│           │   ├── api/    # Backend API endpoints
-│           │   ├── cats/   # Cat profile pages
-│           │   ├── people/ # Person profile pages
-│           │   └── requests/ # Request management
-│           ├── components/ # Shared React components
-│           └── lib/        # Database and utilities
-├── docs/
-│   ├── reality/        # Workflow constraints, Airtable/ClinicHQ truths
-│   ├── runbooks/       # How to ingest, migrate, deploy
-│   └── ops/            # Operational documentation
-├── sql/
-│   ├── migrations/     # Ordered, manual-apply migrations
-│   └── schema/
-│       ├── sot/        # Canonical entities + data quality migrations
-│       ├── raw/        # Raw staging tables
-│       └── review/     # Review queue tables
-├── scripts/
-│   └── ingest/         # Source-specific data ingests (Node.js)
-├── data/               # LOCAL ONLY - never committed
-└── archive/            # Curated reference files
+├── apps/web/               # Next.js application
+│   ├── src/app/            # Pages and API routes
+│   ├── src/components/     # React components
+│   │   └── intake/         # Intake queue components (FFS-107–112)
+│   │       ├── IntakeQueueRow.tsx      # Table row with actions
+│   │       ├── IntakeDetailPanel.tsx   # Side panel for submission detail
+│   │       ├── IntakeBadges.tsx        # Status/triage badge components
+│   │       ├── ContactLogModal.tsx     # Communication log modal
+│   │       ├── BookingModal.tsx        # Appointment booking modal
+│   │       └── DeclineModal.tsx        # Decline submission modal
+│   ├── src/lib/            # Utilities, types, DB helpers
+│   │   └── intake-types.ts # Shared intake types & constants
+│   └── e2e/                # Playwright E2E tests
+├── sql/schema/v2/          # Database migrations (253 files)
+├── scripts/pipeline/       # Data quality scripts
+├── docs/                   # Documentation
+└── CLAUDE.md               # Development rules (START HERE)
 ```
-
-## Data Architecture
-
-Atlas follows a **Raw → Normalize → SoT** pipeline to ensure data integrity:
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Raw Intake    │────▶│   Normalizer    │────▶│   SoT Tables    │
-│  (append-only)  │     │  (validation)   │     │   (canonical)   │
-└─────────────────┘     └────────┬────────┘     └─────────────────┘
-                                 │
-                                 ▼
-                        ┌─────────────────┐
-                        │  Review Queue   │
-                        │ (needs human)   │
-                        └─────────────────┘
-```
-
-### Centralized Processing Pipeline (MIG_312, MIG_313)
-
-All data ingestion flows through a unified job queue for consistent processing:
-
-```
-   CLI Scripts        UI Upload        Airtable Sync       Web Intake
-        │                 │                  │                  │
-        └────────────────┬┴──────────────────┴──────────────────┘
-                         │
-                         ▼
-              ┌─────────────────────┐
-              │   staged_records    │  ◀── Immutable audit trail
-              │   + file_uploads    │
-              └──────────┬──────────┘
-                         │
-                         ▼
-              ┌─────────────────────┐
-              │   processing_jobs   │  ◀── Job queue (MIG_312)
-              │                     │
-              │   status: queued    │
-              │   → processing      │
-              │   → linking         │
-              │   → completed       │
-              └──────────┬──────────┘
-                         │
-                         ▼
-              ┌─────────────────────┐
-              │  SQL ORCHESTRATOR   │  ◀── process_next_job()
-              │                     │
-              │  - Claims job       │
-              │  - Routes to        │
-              │    SQL processor    │
-              │  - Runs entity      │
-              │    linking          │
-              └──────────┬──────────┘
-                         │
-         ┌───────────────┼───────────────┐
-         ▼               ▼               ▼
-    ┌─────────┐    ┌─────────┐    ┌─────────┐
-    │ClinicHQ │    │Airtable │    │ Intake  │
-    │Processor│    │Processor│    │Processor│
-    └────┬────┘    └────┬────┘    └────┬────┘
-         │              │              │
-         └──────────────┼──────────────┘
-                        │
-                        ▼
-              ┌─────────────────────┐
-              │  ENTITY LINKING     │  ◀── run_all_entity_linking()
-              │  (cats↔places,      │
-              │   cats↔requests)    │
-              └─────────────────────┘
-```
-
-**Key Components:**
-- **`processing_jobs` table** — Centralized job queue with retry logic
-- **`enqueue_processing()`** — Queue jobs for processing
-- **`process_next_job()`** — Main orchestrator (called by cron every 10 min)
-- **`process_clinichq_owner_info()`** — Backfills owner_email, links person_id
-- **`run_all_entity_linking()`** — Links cats to places and requests
-
-**Endpoints:**
-- `POST /api/ingest/process` — Unified processor (cron every 10 min)
-- `GET /api/health/processing` — Monitoring dashboard with data integrity checks
-
-**Benefits:**
-- All data flows through same pipeline regardless of entry point
-- Automatic post-processing (no manual steps after ingestion)
-- Order-independent processing (can ingest files in any order)
-- Idempotent (safe to re-run any step)
-- Observable via health endpoint and `v_processing_dashboard` view
-
-### Data Engine (MIG_314-317)
-
-The **Data Engine** is Atlas's unified identity resolution system. It provides robust person matching with:
-
-- **Multi-signal weighted scoring**: Combines email (40%), phone (25%), name similarity (25%), and address (10%)
-- **Household modeling**: Recognizes multiple people at the same address sharing identifiers
-- **Configurable matching rules**: 9 default rules with adjustable thresholds stored in database
-- **Review queue**: Uncertain matches (score 0.50-0.94) flagged for human review
-- **Full audit trail**: Every matching decision logged with reasoning and score breakdown
-
-```
-                    Incoming Identity Data
-                            │
-                            ▼
-                ┌───────────────────────┐
-                │   DATA ENGINE         │
-                │   IDENTITY RESOLVER   │
-                │                       │
-                │  ┌─────────────────┐  │
-                │  │ Score Candidates│  │
-                │  │ • Email match   │  │
-                │  │ • Phone match   │  │
-                │  │ • Name similarity│  │
-                │  │ • Address match │  │
-                │  └────────┬────────┘  │
-                │           │           │
-                │     ┌─────┴─────┐     │
-                │     ▼           ▼     │
-                │  ≥0.95       0.50-0.94│
-                │  Auto        Review   │
-                │  Match       Queue    │
-                └───────────────────────┘
-```
-
-**Decision Types:**
-| Score | Decision | Action |
-|-------|----------|--------|
-| ≥ 0.95 | `auto_match` | Link to existing person |
-| 0.50 - 0.94 | `review_pending` | Create new, flag for review |
-| < 0.50 | `new_entity` | Create new person |
-
-**Endpoints:**
-- `GET /api/health/data-engine` — Health check
-- `GET /api/admin/data-engine/stats` — Statistics
-- `GET /api/admin/data-engine/review` — Pending reviews
-- `GET /api/admin/data-engine/households` — Household data
-
-### Key Invariants
-1. **No UI route writes directly to SoT tables** — All data goes through raw intake first
-2. **Append-only raw tables** — Updates create new rows with `supersedes_raw_id`
-3. **Validation before promotion** — Garbage names, invalid data caught before SoT
-4. **Audit trail** — Every SoT write logged to `intake_audit_log`
-5. **Stable keys** — Microchips always preserved, never overwritten
-
-### Request Intake Fields
-The enhanced request form captures comprehensive TNR data:
-- **Location**: Place selection/creation, property type, location description
-- **Contact**: Requester, property owner, best contact times
-- **Permission & Access**: Permission status, overnight traps, access notes
-- **Cat Details**: Count, confidence, colony duration, ear-tip status, friendliness
-- **Kittens**: Count, age in weeks
-- **Feeding**: Feeder info, schedule, best times seen
-- **Urgency**: Reasons, deadline, priority level
-
-## Data Quality
-
-Atlas includes safeguards to ensure clean, trustworthy data:
-
-### Identity Linking Rules
-- **Phone Blacklist**: Shared phones (FFSC main line, Animal Services) are excluded from person linking to prevent "mega-persons"
-- **Name Exclusions**: FFSC programs, locations, placeholders filtered from person profiles
-- **See**: `sql/schema/sot/MIG_157__clean_identity_linking.sql`
-
-### Place Deduplication
-- Coordinate-proximity matching (within 50m)
-- Exact address matching
-- Exclusion patterns for non-places
-- **See**: `sql/schema/sot/MIG_156__deduplicate_places.sql`, `MIG_158__clean_places.sql`
-
-### Backup & Recovery
-All cleanup migrations create backup tables (`backup_*_mig15X`) for data rescue if needed.
-
-### Operational Features (MIG_182)
-- **Request Status Tracking**: new, needs_review, triaged, scheduled, in_progress, active, on_hold, completed, partial, cancelled
-- **Hold Reasons**: weather, callback_pending, access_issue, resource_constraint, client_unavailable, scheduling_conflict, trap_shy
-- **Safety Notes**: Per-place safety concerns and notes for trappers
-- **Staleness Detection**: `v_stale_requests` view flags inactive requests
-- **Hotspot Detection**: `v_place_hotspots` identifies locations with multiple active requests
-- **Status History**: Full audit trail of status changes
-
-### Intake Pipeline (MIG_183, MIG_184)
-- `raw_intake_request` — Append-only request intake
-- `raw_intake_person` — New person submissions
-- `raw_intake_place` — New place submissions
-- `review_queue` — Items needing human review
-- `intake_audit_log` — Promotion audit trail
-- `promote_intake_request()` — Validates and promotes to SoT
-- `is_garbage_name()` — Prevents invalid people creation
-
-## Authentication
-
-Atlas uses session-based authentication for staff access. See [docs/AUTH.md](docs/AUTH.md) for details.
-
-### Quick Setup
-1. Staff accounts are pre-created from Airtable sync
-2. Default password is set via `STAFF_DEFAULT_PASSWORD` env var
-3. All staff must change password on first login
-4. Admins can reset passwords via `/admin/auth`
-
-### Roles
-| Role | Access |
-|------|--------|
-| `admin` | Full access to all features including Claude Code assistant |
-| `staff` | Workflow access (requests, cats, people, places, journal) |
-| `volunteer` | Read-only access with field observations |
-
-### AI Assistants
-- **Tippy** (`/tippy`) - Staff-facing AI that answers operational questions, looks up data, and logs field events
-- **Claude Code** (`/admin/claude-code`) - Admin-only development assistant for codebase questions
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | Supabase PostgreSQL connection string |
-| `STAFF_DEFAULT_PASSWORD` | Yes | Default password for new staff (they must change on first login) |
-| `ANTHROPIC_API_KEY` | Yes* | For Tippy AI and Claude Code (*optional if AI disabled) |
-| `GOOGLE_PLACES_API_KEY` | Yes | For geocoding and address validation |
-| `SUPABASE_URL` | No | For file storage (media uploads) |
-| `SUPABASE_SERVICE_ROLE_KEY` | No | For file storage |
-| `AIRTABLE_PAT` | No | For Airtable sync |
-| `CRON_SECRET` | No | For authenticating cron job requests |
-| `RESEND_API_KEY` | No | For sending emails |
-
-See `apps/web/.env.example` for complete list with setup instructions.
-
-## Key Docs
-
-- [DEPLOYMENT.md](docs/runbooks/DEPLOYMENT.md) — Deploy to Vercel
-- [START_HERE.md](docs/runbooks/START_HERE.md) — Full onboarding guide
-- [ATLAS_REPO_MAP.md](docs/ATLAS_REPO_MAP.md) — Where things live
-- [DECISIONS.md](docs/DECISIONS.md) — Architecture decision records
-- [TECHNICAL_METHODOLOGY.md](docs/TECHNICAL_METHODOLOGY.md) — Population estimation, data quality, and known limitations
-- [COMPREHENSIVE_DATA_AUDIT_2026_01_17.md](docs/COMPREHENSIVE_DATA_AUDIT_2026_01_17.md) — Data pipeline audit and fixes
-- [INGEST_GUIDELINES.md](docs/INGEST_GUIDELINES.md) — Ingestion rules and centralized functions
-
-## Architecture: Atlas + Beacon
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        BEACON                               │
-│  TNR prioritization, population estimates, alteration rates │
-│  Vortex model simulations, strategic targeting              │
-└─────────────────────────────────────────────────────────────┘
-                              ▲
-                              │ Clean data + equations
-┌─────────────────────────────────────────────────────────────┐
-│                        ATLAS                                │
-│  Unified search, canonical data, identity linking           │
-│  Staff lookup tool, data collection, review queues          │
-│  Colony estimates, Chapman mark-recapture, observation data │
-└─────────────────────────────────────────────────────────────┘
-                              ▲
-                              │ Ingest
-┌──────────────┬──────────────┬──────────────┬───────────────┐
-│  ClinicHQ    │   Airtable   │    Forms     │  Atlas Native │
-│  (primary)   │  (requests)  │  (intake)    │   (active)    │
-└──────────────┴──────────────┴──────────────┴───────────────┘
-```
-
-### Ground Truth Principle
-
-**FFSC is the ONLY dedicated spay/neuter clinic for community cats in Sonoma County.** Other organizations do small quantities; FFSC does mass quantities (4,000+/year). Therefore:
-
-- **FFSC clinic data = verified alterations (ground truth)**
-- External alteration rate ≈ 2% (negligible)
-- Alteration Rate = `FFSC_altered / Population_estimate`
-
-### Service Zones (Beacon Readiness)
-
-All places are assigned to service zones for geographic analysis:
-
-| Zone | Description |
-|------|-------------|
-| Santa Rosa | City of Santa Rosa |
-| Petaluma | City of Petaluma |
-| Rohnert Park/Cotati | Rohnert Park and Cotati areas |
-| Sebastopol | City of Sebastopol |
-| Healdsburg/Windsor | Healdsburg and Windsor areas |
-| Sonoma Valley | Sonoma, Glen Ellen, Kenwood |
-| North County | Cloverdale, Geyserville, rural north |
-| Coastal | Bodega Bay, Jenner, Sea Ranch, coastal areas |
-| Rural/Unincorporated | Other unincorporated Sonoma County |
-| Out of Area | Marin, Napa, Lake, Mendocino counties |
-
-Zones enable Beacon to calculate per-zone TNR progress, identify under-served areas, and prioritize resources.
-
-### Key Equations (Beacon Population Model)
-
-Based on Boone et al. 2019 (Vortex model):
-
-```
-Chapman Estimator:  N̂ = ((M+1)(C+1)/(R+1)) - 1
-                    Where M = FFSC verified alterations
-
-Alteration Rate:    p = A / N
-
-Population Growth:  N(t+1) = N(t) + Births - Deaths + Immigration
-
-Key Finding:        75% TNR intensity → 70% population reduction in 6 years
-                    50% TNR intensity → minimal reduction
-```
-
-All parameters are configurable via admin panel with scientific defaults. See:
-- [ATLAS_MISSION_CONTRACT.md](docs/ATLAS_MISSION_CONTRACT.md) — Full equations and Beacon alignment
-- [TODO.md](docs/TODO.md) — Beacon-aligned implementation priorities
-- `MIG_220` — Ecology configuration table
-- `MIG_288` — Vortex population model parameters
 
 ---
 
-*Atlas: Making messy trapping locations make sense in data, powering Beacon for strategic TNR.*
+## Key Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `CLAUDE.md` | **START HERE** — All development rules and invariants |
+| `docs/CENTRALIZED_FUNCTIONS.md` | Function signatures for entity operations |
+| `docs/DATA_FLOW_ARCHITECTURE.md` | How data moves through the system |
+| `docs/INGEST_GUIDELINES.md` | Rules for data ingestion |
+
+---
+
+## Testing
+
+```bash
+# Fast tests (no API costs)
+npm run test:e2e
+
+# Specific file
+npx playwright test e2e/ui-workflows.spec.ts --debug
+
+# Full suite (includes Tippy, uses Claude credits)
+npm run test:e2e:full
+```
+
+---
+
+## Ground Truth Principle
+
+**FFSC is the ONLY dedicated spay/neuter clinic for community cats in Sonoma County.**
+
+- FFSC clinic data = verified alterations (ground truth)
+- Chapman mark-recapture: `N = ((M+1)(C+1)/(R+1)) - 1`
+- 75% TNR intensity → 70% population reduction in 6 years
+
+---
+
+## Future Scope
+
+### Near Term (E2E Stabilization)
+- Fix remaining test failures (~340 tests)
+- Deploy missing database views
+- Entity linking fortification
+
+### Medium Term
+- Real-time ClinicHQ sync (vs batch upload)
+- Mobile-friendly trapper interface
+- Automated scheduling suggestions
+
+### Long Term (Beacon Full)
+- Predictive colony growth modeling
+- Resource allocation optimization
+- Cross-county data sharing
+
+---
+
+## Contributing
+
+1. Read `CLAUDE.md` first — it contains all development rules
+2. Check Linear for current issues: [linear.app/ffsc/project/atlas](https://linear.app/ffsc)
+3. Use centralized functions; never INSERT directly to `sot.*` tables
+4. Run E2E tests before submitting PRs
+
+---
+
+*Atlas: Making TNR data trustworthy, powering Beacon for strategic prioritization.*

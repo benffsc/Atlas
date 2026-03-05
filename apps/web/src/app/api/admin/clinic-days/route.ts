@@ -67,14 +67,14 @@ export async function GET(request: NextRequest) {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // Get clinic days directly from V2 ops.appointments
+    // FFS-103: Use ops.clinic_days if record exists, fall back to appointment-derived
     const clinicDays = await queryRows<ClinicDay>(
       `
       SELECT
-        gen_random_uuid() AS clinic_day_id,
+        COALESCE(cd.clinic_day_id, gen_random_uuid()) AS clinic_day_id,
         a.appointment_date AS clinic_date,
-        'regular' AS clinic_type,
-        'Regular' AS clinic_type_label,
+        COALESCE(cd.clinic_type, 'regular') AS clinic_type,
+        COALESCE(INITCAP(cd.clinic_type::TEXT), 'Regular') AS clinic_type_label,
         NULL AS target_place_id,
         NULL AS target_place_name,
         NULL AS target_place_address,
@@ -87,20 +87,26 @@ export async function GET(request: NextRequest) {
         COUNT(*) FILTER (WHERE c.sex IS NULL OR c.sex NOT IN ('Female', 'Male'))::INT AS total_unknown_sex,
         0 AS total_no_shows,
         0 AS total_cancelled,
-        NULL AS notes,
+        cd.notes,
         NULL AS finalized_at,
         NULL AS finalized_by,
         MIN(a.created_at) AS created_at,
         COUNT(*)::INT AS clinichq_cats,
-        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NOT NULL)::INT AS chipped_count,
-        -- V2: sot.cats doesn't have needs_microchip column, just count cats without microchip
-        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND ci.id_value IS NULL)::INT AS unchipped_count,
+        -- FFS-96: Use LIMIT 1 subquery instead of JOIN to prevent cartesian product
+        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND (
+          SELECT ci.id_value FROM sot.cat_identifiers ci
+          WHERE ci.cat_id = a.cat_id AND ci.id_type = 'microchip' LIMIT 1
+        ) IS NOT NULL)::INT AS chipped_count,
+        COUNT(*) FILTER (WHERE a.cat_id IS NOT NULL AND (
+          SELECT ci.id_value FROM sot.cat_identifiers ci
+          WHERE ci.cat_id = a.cat_id AND ci.id_type = 'microchip' LIMIT 1
+        ) IS NULL)::INT AS unchipped_count,
         COUNT(*) FILTER (WHERE a.cat_id IS NULL)::INT AS unlinked_count
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = a.cat_id AND ci.id_type = 'microchip'
+      LEFT JOIN ops.clinic_days cd ON cd.clinic_date = a.appointment_date
       ${whereClause}
-      GROUP BY a.appointment_date
+      GROUP BY a.appointment_date, cd.clinic_day_id, cd.clinic_type, cd.notes
       ORDER BY a.appointment_date DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex}
       `,

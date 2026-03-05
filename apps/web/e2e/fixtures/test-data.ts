@@ -119,7 +119,7 @@ export const CLEANUP_QUERIES = [
   `DELETE FROM ops.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'`,
   `DELETE FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'`,
   // Core entities
-  `DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%'`,
+  `DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%'`,
   `DELETE FROM sot.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%'`,
   `DELETE FROM sot.people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%'`,
   `DELETE FROM sot.cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%'`,
@@ -129,6 +129,6 @@ export const CLEANUP_QUERIES = [
 export const COUNT_TEST_RECORDS = `
   SELECT
     (SELECT COUNT(*) FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%') as test_submissions,
-    (SELECT COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test') as test_requests,
+    (SELECT COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%') as test_requests,
     (SELECT COUNT(*) FROM sot.places WHERE source_system = 'e2e_test') as test_places
 `;

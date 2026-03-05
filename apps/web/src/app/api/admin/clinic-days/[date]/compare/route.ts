@@ -18,6 +18,8 @@ interface ClinicHQAppointment {
   place_address: string | null;
   service_type: string | null;
   owner_name: string | null;
+  // FFS-97: Original booking address from ClinicHQ
+  booking_address: string | null;
 }
 
 interface LoggedEntry {
@@ -110,7 +112,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         COALESCE(a.inferred_place_id, a.place_id) as place_id,
         p.formatted_address as place_address,
         a.service_type,
-        per.display_name as owner_name
+        per.display_name as owner_name,
+        -- FFS-97: Original booking address from ClinicHQ
+        a.owner_address as booking_address
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id) AND p.merged_into_place_id IS NULL

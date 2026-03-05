@@ -52,21 +52,7 @@ test.describe("Tippy: Point-in-Time Lookups @real-api", () => {
     expect(response.message.length).toBeGreaterThan(30);
   });
 
-  test("Can query colony status", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "What's the colony status at any address in Santa Rosa?"
-    );
-
-    expect(response.message).toBeTruthy();
-    // Should mention alteration rate or status terms
-    expect(
-      response.message.toLowerCase().includes("alter") ||
-      response.message.toLowerCase().includes("managed") ||
-      response.message.toLowerCase().includes("colony") ||
-      response.message.toLowerCase().includes("rate")
-    ).toBeTruthy();
-  });
+  // FFS-91: Removed "Can query colony status" — dup of human-questions "Colony status at [address]"
 
   test("Can query trapper career stats", async ({ page }) => {
     const response = await askTippyAuthenticated(
@@ -205,20 +191,7 @@ test.describe("Tippy: Data Quality Tools @real-api", () => {
 // ============================================================================
 
 test.describe("Tippy: Beacon Analytics @real-api", () => {
-  test("Can query overall alteration rate", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "What's our overall alteration rate across all colonies?"
-    );
-
-    expect(response.message).toBeTruthy();
-    // Should mention rate or percentage
-    expect(
-      response.message.includes("%") ||
-      response.message.toLowerCase().includes("rate") ||
-      response.message.match(/\d+/)
-    ).toBeTruthy();
-  });
+  // FFS-91: Removed "Can query overall alteration rate" — dup of accuracy-verification
 
   test("Can query colony status breakdown", async ({ page }) => {
     const response = await askTippyAuthenticated(

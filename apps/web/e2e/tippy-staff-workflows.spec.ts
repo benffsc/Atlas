@@ -103,10 +103,11 @@ test.describe("Tippy Response Quality @real-api", () => {
   test("responses contain specific numbers, not vague answers", async ({
     request,
   }) => {
+    // FFS-91: Unique questions to avoid duplicating complex-queries tests
     const questions = [
-      "How many foster cats in 2025?",
-      "How many SCAS cats this year?",
-      "How many LMFM appointments?",
+      "How many intake forms were submitted this year?",
+      "How many clinic days have we had in 2025?",
+      "How many volunteer hours were logged this month?",
     ];
 
     for (const q of questions) {
@@ -155,14 +156,14 @@ test.describe("Tippy Response Quality @real-api", () => {
   });
 
   test("handles follow-up questions correctly", async ({ request }) => {
-    // First question
-    const q1 = await askTippy(request, "How many foster cats in 2025?");
+    // FFS-91: Changed first question to unique variant (was dup of complex-queries)
+    const q1 = await askTippy(request, "How many clinic days have we scheduled this year?");
     expect(q1.message).toBeDefined();
 
     // Follow-up that references previous context
     const q2 = await askTippy(
       request,
-      "What about county cats? How does that compare?"
+      "What about last year? How does that compare?"
     );
     expect(q2.message).toBeDefined();
 

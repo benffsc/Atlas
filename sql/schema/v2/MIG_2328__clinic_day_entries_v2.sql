@@ -123,7 +123,8 @@ LEFT JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
 LEFT JOIN ops.appointments a ON a.appointment_id = e.matched_appointment_id
 LEFT JOIN sot.cats c ON c.cat_id = e.cat_id
 LEFT JOIN sot.people trapper ON trapper.person_id = e.trapper_person_id
-LEFT JOIN sot.places pl ON pl.place_id = a.inferred_place_id OR pl.place_id = a.place_id
+-- FFS-98: Use COALESCE instead of OR to prevent cartesian product when both place IDs exist
+LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
 LEFT JOIN ops.staff staff ON staff.person_id = e.entered_by;
 
 COMMENT ON TABLE ops.clinic_day_entries IS 'Master list entries for clinic days - supports parsing and matching workflow';

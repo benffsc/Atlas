@@ -542,7 +542,8 @@ export async function GET(
         a.appointment_date::TEXT as appointment_date,
         a.appointment_number as appt_number,
         COALESCE(p.display_name, coa.display_name) as client_name,
-        COALESCE(pl.formatted_address, a.owner_address) as client_address,
+        -- FFS-123: Use inferred place (pl2) instead of person's home (pl) for client_address
+        COALESCE(pl2.formatted_address, a.owner_address) as client_address,
         a.owner_email as client_email,
         a.owner_phone as client_phone,
         NULL::TEXT as ownership_type,
@@ -551,9 +552,9 @@ export async function GET(
       FROM ops.appointments a
       LEFT JOIN sot.people p ON p.person_id = a.person_id
       LEFT JOIN ops.clinic_accounts coa ON coa.account_id = a.owner_account_id
-      LEFT JOIN sot.person_place ppr ON ppr.person_id = a.person_id
-      LEFT JOIN sot.places pl ON pl.place_id = ppr.place_id
+      -- FFS-122: Removed unbounded person_place JOIN that caused cartesian product
       LEFT JOIN sot.places pl2 ON pl2.place_id = COALESCE(a.inferred_place_id, a.place_id)
+        AND pl2.merged_into_place_id IS NULL
       LEFT JOIN ops.partner_organizations po ON po.org_id = a.partner_org_id
       WHERE a.cat_id = $1
       ORDER BY a.appointment_date DESC

@@ -44,31 +44,50 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { date } = await params;
 
-    // V2: Get clinic day stats directly from appointments
+    // FFS-103: Read from ops.clinic_days first, fall back to appointment-derived stats
     const clinicDay = await queryOne(
       `
+      WITH clinic_day_record AS (
+        SELECT clinic_day_id, clinic_date, clinic_type, notes
+        FROM ops.clinic_days
+        WHERE clinic_date = $1
+      ),
+      appt_stats AS (
+        SELECT
+          a.appointment_date AS clinic_date,
+          MAX(a.vet_name) AS vet_name,
+          EXTRACT(DOW FROM a.appointment_date)::INT AS day_of_week,
+          COUNT(*)::INT AS total_cats,
+          COUNT(*) FILTER (WHERE c.sex = 'Female' OR a.is_spay = TRUE)::INT AS total_females,
+          COUNT(*) FILTER (WHERE c.sex = 'Male' OR a.is_neuter = TRUE)::INT AS total_males,
+          COUNT(*) FILTER (WHERE c.sex IS NULL OR c.sex NOT IN ('Female', 'Male'))::INT AS total_unknown_sex,
+          COUNT(*)::INT AS clinichq_cats,
+          COUNT(*)::INT AS clinichq_appointments
+        FROM ops.appointments a
+        LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+        WHERE a.appointment_date = $1
+        GROUP BY a.appointment_date
+      )
       SELECT
-        gen_random_uuid() AS clinic_day_id,
-        a.appointment_date AS clinic_date,
-        'regular' AS clinic_type,
-        'Regular' AS clinic_type_label,
+        COALESCE(cd.clinic_day_id, gen_random_uuid()) AS clinic_day_id,
+        COALESCE(cd.clinic_date, s.clinic_date) AS clinic_date,
+        COALESCE(cd.clinic_type, 'regular') AS clinic_type,
+        COALESCE(INITCAP(cd.clinic_type::TEXT), 'Regular') AS clinic_type_label,
         NULL AS target_place_id,
         NULL AS target_place_name,
         NULL AS max_capacity,
-        MAX(a.vet_name) AS vet_name,
-        EXTRACT(DOW FROM a.appointment_date)::INT AS day_of_week,
-        COUNT(*)::INT AS total_cats,
-        COUNT(*) FILTER (WHERE c.sex = 'Female' OR a.is_spay = TRUE)::INT AS total_females,
-        COUNT(*) FILTER (WHERE c.sex = 'Male' OR a.is_neuter = TRUE)::INT AS total_males,
-        COUNT(*) FILTER (WHERE c.sex IS NULL OR c.sex NOT IN ('Female', 'Male'))::INT AS total_unknown_sex,
-        NULL AS notes,
+        s.vet_name,
+        s.day_of_week,
+        COALESCE(s.total_cats, 0) AS total_cats,
+        COALESCE(s.total_females, 0) AS total_females,
+        COALESCE(s.total_males, 0) AS total_males,
+        COALESCE(s.total_unknown_sex, 0) AS total_unknown_sex,
+        cd.notes,
         NULL AS finalized_at,
-        COUNT(*)::INT AS clinichq_cats,
-        COUNT(*)::INT AS clinichq_appointments
-      FROM ops.appointments a
-      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-      WHERE a.appointment_date = $1
-      GROUP BY a.appointment_date
+        COALESCE(s.clinichq_cats, 0) AS clinichq_cats,
+        COALESCE(s.clinichq_appointments, 0) AS clinichq_appointments
+      FROM appt_stats s
+      FULL OUTER JOIN clinic_day_record cd ON cd.clinic_date = s.clinic_date
       `,
       [date]
     );

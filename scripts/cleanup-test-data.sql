@@ -22,7 +22,7 @@ DELETE FROM ops.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e
 DELETE FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com';
 
 -- 3. Delete core entities
-DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id::text LIKE 'e2e-test-%';
+DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id::text LIKE 'e2e-test-%' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%';
 DELETE FROM sot.places WHERE source_system = 'e2e_test' OR id::text LIKE 'e2e-test-%';
 DELETE FROM sot.people WHERE source_system = 'e2e_test' OR id::text LIKE 'e2e-test-%';
 DELETE FROM sot.cats WHERE source_system = 'e2e_test' OR id::text LIKE 'e2e-test-%';
@@ -36,7 +36,7 @@ SELECT 'map_annotations', COUNT(*) FROM ops.map_annotations WHERE created_by = '
 UNION ALL
 SELECT 'intake_submissions', COUNT(*) FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%'
 UNION ALL
-SELECT 'requests', COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test'
+SELECT 'requests', COUNT(*) FROM ops.requests WHERE source_system = 'e2e_test' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%'
 UNION ALL
 SELECT 'places', COUNT(*) FROM sot.places WHERE source_system = 'e2e_test'
 UNION ALL

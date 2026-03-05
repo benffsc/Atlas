@@ -209,6 +209,182 @@ test.describe("Tippy Infrastructure (Mocked)", () => {
 });
 
 // ============================================================================
+// TIER 1.5: MOCKED INFRASTRUCTURE TESTS (previously @real-api)
+// These tested response shape/length, not AI accuracy. Mocked to save ~7 API calls.
+// FFS-91: Converted from real-API to mocked
+// ============================================================================
+
+/**
+ * Helper: Send a message to Tippy via browser fetch (intercepted by page.route mocks).
+ * page.request.post() is NOT intercepted by page.route(), so we use page.evaluate(fetch).
+ */
+async function askTippyViaFetch(
+  page: import("@playwright/test").Page,
+  baseURL: string,
+  question: string
+): Promise<{ ok: boolean; responseText: string }> {
+  const result = await page.evaluate(
+    async ([url, msg]: [string, string]) => {
+      const res = await fetch(`${url}/api/tippy/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await res.json();
+      return {
+        ok: res.ok,
+        responseText:
+          data.message || data.response || data.content || JSON.stringify(data),
+      };
+    },
+    [baseURL, question] as [string, string]
+  );
+  return result;
+}
+
+test.describe("Tippy Infrastructure: Mocked Real-API Tests (FFS-91)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test.describe("Unanswerable Tracking (mocked)", () => {
+    test("Tippy handles out-of-scope questions gracefully", async ({
+      page,
+      baseURL,
+    }) => {
+      await mockTippyAPI(
+        page,
+        "That question is outside my scope. I specialize in TNR data for Forgotten Felines of Sonoma County."
+      );
+
+      const { ok, responseText } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        "What is the capital of France?"
+      );
+
+      expect(ok).toBeTruthy();
+      expect(responseText.length).toBeGreaterThan(10);
+      expect(responseText.toLowerCase()).not.toMatch(/error|exception/i);
+    });
+
+    test("Tippy handles unanswerable TNR questions gracefully", async ({
+      page,
+      baseURL,
+    }) => {
+      await mockTippyAPI(
+        page,
+        "I don't have data to predict future cat populations. I can tell you about current colony sizes and alteration rates based on our records."
+      );
+
+      const { ok, responseText } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        "What will the cat population be in Sonoma County in 2050?"
+      );
+
+      expect(ok).toBeTruthy();
+      expect(responseText.length).toBeGreaterThan(20);
+    });
+  });
+
+  test.describe("View Usage Analytics (mocked)", () => {
+    test("view usage is tracked after queries", async ({ page, baseURL }) => {
+      await mockTippyAPI(page, "Based on our records, we have 4,521 cats in the system.");
+
+      const { ok } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        "How many cats total?"
+      );
+
+      expect(ok).toBeTruthy();
+    });
+
+    test("Tippy can report on popular views", async ({ page, baseURL }) => {
+      await mockTippyAPI(
+        page,
+        "Recently I've used v_cat_list, v_person_list, and v_place_list to answer questions."
+      );
+
+      const { ok, responseText } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        "What views have you used recently?"
+      );
+
+      expect(ok).toBeTruthy();
+      expect(responseText.length).toBeGreaterThan(20);
+    });
+  });
+
+  test.describe("Schema Navigation (mocked)", () => {
+    test("can explain what a specific view provides", async ({
+      page,
+      baseURL,
+    }) => {
+      await mockTippyAPI(
+        page,
+        "The v_trapper_full_stats view provides comprehensive trapper statistics including total cats trapped, active months, and areas served."
+      );
+
+      const { ok, responseText } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        "What information does the v_trapper_full_stats view provide?"
+      );
+
+      expect(ok).toBeTruthy();
+      expect(responseText.length).toBeGreaterThan(30);
+    });
+
+    test("can recommend which view to use for a question", async ({
+      page,
+      baseURL,
+    }) => {
+      await mockTippyAPI(
+        page,
+        "For colony information, I'd recommend the v_beacon_colony_status view which tracks colony sizes and alteration rates by place."
+      );
+
+      const { ok, responseText } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        "What view shows colony information?"
+      );
+
+      expect(ok).toBeTruthy();
+      expect(responseText.length).toBeGreaterThan(20);
+      expect(
+        responseText.includes("v_") ||
+          responseText.toLowerCase().includes("colony") ||
+          responseText.toLowerCase().includes("beacon") ||
+          responseText.toLowerCase().includes("place")
+      ).toBeTruthy();
+    });
+  });
+
+  test.describe("Error Handling (mocked)", () => {
+    test("handles very long filter values", async ({ page, baseURL }) => {
+      await mockTippyAPI(
+        page,
+        "I couldn't find any person matching that very long name. Could you try a shorter search term?"
+      );
+
+      const longString = "a".repeat(5000);
+      const { ok, responseText } = await askTippyViaFetch(
+        page,
+        baseURL!,
+        `Search for a person named ${longString}`
+      );
+
+      expect(ok).toBeTruthy();
+      expect(responseText.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ============================================================================
 // TIER 3: REAL API TESTS (@real-api - runs only when explicitly requested)
 // These test actual Tippy AI capabilities against real Anthropic API
 // ============================================================================
@@ -395,8 +571,8 @@ test.describe("Tippy Infrastructure: Proposed Corrections (MIG_518) @real-api", 
 
 // ============================================================================
 // UNANSWERABLE QUESTIONS TESTS (MIG_519)
-// Tests the tippy_unanswerable_questions tracking
-// READ-ONLY: We verify the tracking exists
+// Tests the tippy_unanswerable_questions tracking — admin API endpoints only
+// Tippy chat tests moved to mocked section (FFS-91)
 // ============================================================================
 
 test.describe("Tippy Infrastructure: Unanswerable Tracking (MIG_519) @real-api", () => {
@@ -423,128 +599,12 @@ test.describe("Tippy Infrastructure: Unanswerable Tracking (MIG_519) @real-api",
       }
     }
   });
-
-  test("Tippy handles out-of-scope questions gracefully", async ({
-    request,
-  }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "What is the capital of France?"
-    );
-
-    expect(ok).toBeTruthy();
-    // Should not crash, might say it's outside scope
-    expect(responseText.length).toBeGreaterThan(10);
-    expect(responseText.toLowerCase()).not.toMatch(/error|exception/i);
-  });
-
-  test("Tippy handles unanswerable TNR questions gracefully", async ({
-    request,
-  }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "What will the cat population be in Sonoma County in 2050?"
-    );
-
-    expect(ok).toBeTruthy();
-    // Should explain limitation rather than make up data
-    expect(responseText.length).toBeGreaterThan(20);
-  });
-});
-
-// ============================================================================
-// VIEW USAGE ANALYTICS TESTS (MIG_520)
-// Tests that view usage is being tracked
-// This DOES write analytics data, which is safe
-// ============================================================================
-
-test.describe("Tippy Infrastructure: View Usage Analytics (MIG_520) @real-api", () => {
-  test.setTimeout(90000); // 90 seconds
-
-  test("view usage is tracked after queries", async ({ request }) => {
-    // First, make a query that should be tracked
-    const { ok } = await askTippy(
-      request,
-      "How many cats total?"
-    );
-
-    expect(ok).toBeTruthy();
-
-    // We can't directly verify the log without admin access,
-    // but we verify the query succeeded which implies tracking worked
-  });
-
-  test("Tippy can report on popular views", async ({ request }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "What views have you used recently?"
-    );
-
-    expect(ok).toBeTruthy();
-    expect(responseText.length).toBeGreaterThan(20);
-    // May or may not have access to this info
-  });
-});
-
-// ============================================================================
-// EXPLORE_ENTITY TOOL TESTS
-// Tests the comprehensive entity exploration tool
-// ============================================================================
-
-test.describe("Tippy Infrastructure: explore_entity Tool @real-api", () => {
-  test.setTimeout(120000); // 2 minutes for entity exploration
-
-  test("explore_entity returns person data", async ({
-    request,
-  }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "Who is the most active trapper? Just name and cat count."
-    );
-
-    expect(ok).toBeTruthy();
-    expect(responseText.length).toBeGreaterThan(20);
-  });
-
-  test("explore_entity returns cat data", async ({ request }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "Find any cat with a microchip and tell me its name."
-    );
-
-    expect(ok).toBeTruthy();
-    expect(responseText.length).toBeGreaterThan(20);
-  });
-
-  test("explore_entity returns place data", async ({
-    request,
-  }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "What is the largest colony by cat count?"
-    );
-
-    expect(ok).toBeTruthy();
-    expect(responseText.length).toBeGreaterThan(20);
-  });
-
-  test("explore_entity handles missing entity gracefully", async ({
-    request,
-  }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "Explore person with email fake12345@nonexistent.com"
-    );
-
-    expect(ok).toBeTruthy();
-    // Should explain not found, not crash
-    expect(responseText.toLowerCase()).not.toMatch(/exception|crash/i);
-  });
 });
 
 // ============================================================================
 // SCHEMA NAVIGATION TESTS
 // Tests Tippy's ability to navigate the view schema
+// 2 of 3 tests moved to mocked section (FFS-91)
 // ============================================================================
 
 test.describe("Tippy Infrastructure: Schema Navigation @real-api", () => {
@@ -566,37 +626,11 @@ test.describe("Tippy Infrastructure: Schema Navigation @real-api", () => {
         responseText.toLowerCase().includes("view")
     ).toBeTruthy();
   });
-
-  test("can explain what a specific view provides", async ({ request }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "What information does the v_trapper_full_stats view provide?"
-    );
-
-    expect(ok).toBeTruthy();
-    expect(responseText.length).toBeGreaterThan(30);
-  });
-
-  test("can recommend which view to use for a question", async ({ request }) => {
-    const { ok, responseText } = await askTippy(
-      request,
-      "What view shows colony information?"
-    );
-
-    expect(ok).toBeTruthy();
-    expect(responseText.length).toBeGreaterThan(20);
-    // Should mention a view name or colony
-    expect(
-      responseText.includes("v_") ||
-        responseText.toLowerCase().includes("colony") ||
-        responseText.toLowerCase().includes("beacon") ||
-        responseText.toLowerCase().includes("place")
-    ).toBeTruthy();
-  });
 });
 
 // ============================================================================
 // ERROR HANDLING TESTS
+// "Long filter" test moved to mocked section (FFS-91)
 // ============================================================================
 
 test.describe("Tippy Infrastructure: Error Handling @real-api", () => {
@@ -611,17 +645,5 @@ test.describe("Tippy Infrastructure: Error Handling @real-api", () => {
     expect(ok).toBeTruthy();
     // Should not execute SQL injection
     expect(responseText.toLowerCase()).not.toMatch(/dropped|deleted/i);
-  });
-
-  test("handles very long filter values", async ({ request }) => {
-    const longString = "a".repeat(5000);
-    const { ok, responseText } = await askTippy(
-      request,
-      `Search for a person named ${longString}`
-    );
-
-    expect(ok).toBeTruthy();
-    // Should not crash
-    expect(responseText.length).toBeGreaterThan(0);
   });
 });

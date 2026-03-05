@@ -58,9 +58,10 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category");
   const statusFilter = searchParams.get("status_filter");
   const sourceFilter = searchParams.get("source"); // 'legacy', 'new', or ''
-  const mode = searchParams.get("mode"); // 'attention', 'recent', 'legacy', 'test', or ''
+  const mode = searchParams.get("mode"); // 'active', 'scheduled', 'completed', 'all' (+ legacy compat)
   const includeOld = searchParams.get("include_old") === "true";
   const includeTest = searchParams.get("include_test") === "true";
+  const includeLegacy = searchParams.get("include_legacy") === "true";
   const searchQuery = searchParams.get("search");
   const limitParam = searchParams.get("limit");
 
@@ -90,30 +91,32 @@ export async function GET(request: NextRequest) {
     }
 
     // Mode-based filtering using unified submission_status
-    if (mode === "attention") {
-      // "Needs Attention" tab: New and in-progress items
+    // New tab system (FFS-111): active, scheduled, completed, all
+    // Legacy tab names still supported for backward compatibility
+    if (mode === "active" || mode === "attention") {
+      // "Active" tab: New and in-progress items
       conditions.push(`submission_status IN ('new', 'in_progress')`);
     } else if (mode === "scheduled") {
       // "Scheduled" tab: Appointments booked
       conditions.push(`submission_status = 'scheduled'`);
+    } else if (mode === "completed" || mode === "complete") {
+      // "Completed" tab: Done + archived items
+      conditions.push(`submission_status IN ('complete', 'archived')`);
     } else if (mode === "recent") {
-      // "All Recent" tab: Everything from recent period
+      // Legacy "Recent" tab - maps to active behavior
       conditions.push(`(
         is_legacy = FALSE
         OR submitted_at >= '2025-10-01'
         OR submission_status IN ('new', 'in_progress', 'scheduled')
       )`);
-    } else if (mode === "complete") {
-      // "Complete" tab: Done items
-      conditions.push(`submission_status = 'complete'`);
     } else if (mode === "all") {
       // "All Submissions" tab: Everything except archived
       // View already filters out archived
     } else if (mode === "legacy") {
-      // "Legacy" tab: All legacy data
+      // Legacy filter (backward compat)
       conditions.push(`is_legacy = TRUE`);
     } else if (mode === "test") {
-      // "Test" tab: Only test submissions
+      // Test filter (backward compat)
       conditions.push(`is_test = TRUE`);
     } else {
       // Default: Show actionable items (new + in_progress + scheduled)
@@ -138,9 +141,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Exclude test submissions from production views unless explicitly included or viewing test mode
+    // Exclude test submissions unless explicitly included or viewing test mode
     if (mode !== "test" && !includeTest) {
       conditions.push(`COALESCE(is_test, FALSE) = FALSE`);
+    }
+
+    // Exclude legacy submissions unless filter chip is on (FFS-111)
+    // Only applies to tabs that don't already filter by legacy status
+    if (!includeLegacy && mode !== "legacy" && mode !== "all") {
+      conditions.push(`is_legacy = FALSE`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

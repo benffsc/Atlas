@@ -5,335 +5,19 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { CreateRequestWizard } from "@/components/forms";
-import { PlaceResolver } from "@/components/forms";
-import { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
+import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
-
-interface IntakeSubmission {
-  submission_id: string;
-  submitted_at: string;
-  submitter_name: string;
-  first_name?: string;  // Optional - may come from detail fetch
-  last_name?: string;   // Optional - may come from detail fetch
-  email: string;
-  phone: string | null;
-  cats_address: string;
-  cats_city: string | null;
-  cats_zip: string | null;
-  ownership_status: string;
-  cat_count_estimate: number | null;
-  fixed_status: string;
-  has_kittens: boolean | null;
-  kitten_count: number | null;
-  has_property_access: boolean | null;
-  has_medical_concerns: boolean | null;
-  is_emergency: boolean;
-  situation_description: string | null;
-  triage_category: string | null;
-  triage_score: number | null;
-  triage_reasons: string[] | null;
-  // Unified status (primary)
-  submission_status: string | null;
-  appointment_date: string | null;
-  priority_override: string | null;
-  // Native status (kept for transition)
-  native_status: string;
-  final_category: string | null;
-  created_request_id: string | null;
-  age: string;
-  overdue: boolean;
-  is_third_party_report: boolean | null;
-  third_party_relationship: string | null;
-  property_owner_name: string | null;
-  property_owner_phone: string | null;
-  property_owner_email: string | null;
-  is_legacy: boolean;
-  legacy_status: string | null;
-  legacy_submission_status: string | null;
-  legacy_appointment_date: string | null;
-  legacy_notes: string | null;
-  legacy_source_id: string | null;
-  review_notes: string | null;
-  matched_person_id: string | null;
-  intake_source: string | null;
-  geo_formatted_address: string | null;
-  geo_latitude: number | null;
-  geo_longitude: number | null;
-  geo_confidence: string | null;
-  last_contacted_at: string | null;
-  contact_attempt_count: number | null;
-  is_test: boolean;
-  // MIG_2531/2532: Additional intake fields for request conversion
-  county: string | null;
-  peak_count: number | null;
-  awareness_duration: string | null;
-  medical_description: string | null;
-  feeding_location: string | null;
-  feeding_time: string | null;
-  dogs_on_site: boolean | null;
-  preferred_appointment_time: string | null;
-  trap_savvy: boolean | null;
-  cats_captured_before: boolean | null;
-  how_long_feeding: string | null;
-  previous_tnr: boolean | null;
-  kitten_age_estimate: string | null;
-  kitten_behavior: string | null;
-}
-
-interface CommunicationLog {
-  log_id: string;
-  submission_id: string;
-  contact_method: string;
-  contact_result: string;
-  notes: string | null;
-  contacted_at: string;
-  contacted_by: string | null;
-  // New fields from journal integration
-  entry_kind?: string;
-  created_by_staff_name?: string | null;
-  created_by_staff_role?: string | null;
-}
-
-interface StaffMember {
-  staff_id: string;
-  display_name: string;
-  role: string;
-}
-
-// Contact method options
-const CONTACT_METHODS = [
-  { value: "phone", label: "Phone Call" },
-  { value: "email", label: "Email" },
-  { value: "text", label: "Text Message" },
-  { value: "voicemail", label: "Voicemail" },
-  { value: "in_person", label: "In Person" },
-];
-
-// Contact result options
-const CONTACT_RESULTS = [
-  { value: "answered", label: "Answered / Spoke" },
-  { value: "no_answer", label: "No Answer" },
-  { value: "left_voicemail", label: "Left Voicemail" },
-  { value: "sent", label: "Sent (email/text)" },
-  { value: "scheduled", label: "Scheduled Appointment" },
-  { value: "other", label: "Other" },
-];
-
-// Contact status options (for tracking outreach)
-const CONTACT_STATUSES = [
-  { value: "", label: "(none)" },
-  { value: "Contacted", label: "Contacted" },
-  { value: "Contacted multiple times", label: "Contacted multiple times" },
-  { value: "Call/Email/No response", label: "No response" },
-  { value: "An appointment has been booked", label: "Appointment booked" },
-  { value: "Out of County - no appts avail", label: "Out of County" },
-  { value: "Sent to Diane/Out of County", label: "Sent to Diane" },
-];
-
-// Submission status options (legacy workflow state)
-const SUBMISSION_STATUSES = [
-  { value: "", label: "(none)" },
-  { value: "Pending Review", label: "Pending Review" },
-  { value: "Booked", label: "Booked" },
-  { value: "Declined", label: "Declined" },
-  { value: "Complete", label: "Complete" },
-];
-
-// Unified submission status options (new workflow)
-const UNIFIED_STATUSES = [
-  { value: "new", label: "New", description: "Just submitted, needs attention" },
-  { value: "in_progress", label: "In Progress", description: "Being worked on" },
-  { value: "scheduled", label: "Scheduled", description: "Appointment booked" },
-  { value: "complete", label: "Complete", description: "Done" },
-  { value: "archived", label: "Archived", description: "Hidden from queue" },
-];
-
-// Priority override options
-const PRIORITY_OPTIONS = [
-  { value: "", label: "Auto", description: "Use triage score" },
-  { value: "high", label: "High", description: "Prioritize this request" },
-  { value: "normal", label: "Normal", description: "Standard priority" },
-  { value: "low", label: "Low", description: "Lower priority" },
-];
-
-// Reasons for removing urgent/emergency flag
-// These cover 99% of situations where someone incorrectly marks as urgent
-const URGENT_DOWNGRADE_REASONS = [
-  {
-    value: "not_tnr_related",
-    label: "Not TNR-related",
-    description: "Request is for services outside our spay/neuter mission (parasite treatment, vaccines, general vet care)",
-  },
-  {
-    value: "needs_emergency_vet",
-    label: "Needs emergency vet",
-    description: "True emergency (injury, illness, poisoning) - referred to pet hospital",
-  },
-  {
-    value: "stable_situation",
-    label: "Situation is stable",
-    description: "Cats are being fed, no immediate danger - can be scheduled normally",
-  },
-  {
-    value: "routine_spay_neuter",
-    label: "Routine spay/neuter",
-    description: "Owned pet or single cat needing standard scheduling, not urgent",
-  },
-  {
-    value: "already_altered",
-    label: "Cat(s) already altered",
-    description: "Cat is already fixed - no TNR needed, may need other services",
-  },
-  {
-    value: "duplicate_request",
-    label: "Duplicate request",
-    description: "Same cats/location already being handled in another submission",
-  },
-  {
-    value: "misunderstood_form",
-    label: "Form misunderstanding",
-    description: "Requester misunderstood what 'urgent' means - normal priority is fine",
-  },
-];
-
-type TabType = "attention" | "scheduled" | "recent" | "complete" | "all" | "legacy" | "test";
-
-function TriageBadge({ category, score, isLegacy }: { category: string | null; score: number | null; isLegacy: boolean }) {
-  if (!category && isLegacy) {
-    return (
-      <span
-        className="badge"
-        style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}
-      >
-        Legacy
-      </span>
-    );
-  }
-
-  if (!category) return null;
-
-  const colors: Record<string, { bg: string; color: string }> = {
-    high_priority_tnr: { bg: "#dc3545", color: "#fff" },
-    standard_tnr: { bg: "#0d6efd", color: "#fff" },
-    wellness_only: { bg: "#20c997", color: "#000" },
-    owned_cat_low: { bg: "#6c757d", color: "#fff" },
-    out_of_county: { bg: "#adb5bd", color: "#000" },
-    needs_review: { bg: "#ffc107", color: "#000" },
-  };
-  const style = colors[category] || { bg: "#6c757d", color: "#fff" };
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-      <span className="badge" style={{ background: style.bg, color: style.color }}>
-        {category.replace(/_/g, " ")}
-      </span>
-      {score !== null && (
-        <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-          {score}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// Unified status badge for the new submission_status field
-function SubmissionStatusBadge({ status }: { status: string | null }) {
-  const colors: Record<string, { bg: string; color: string; label: string }> = {
-    "new": { bg: "#0d6efd", color: "#fff", label: "New" },
-    "in_progress": { bg: "#fd7e14", color: "#000", label: "In Progress" },
-    "scheduled": { bg: "#198754", color: "#fff", label: "Scheduled" },
-    "complete": { bg: "#20c997", color: "#000", label: "Complete" },
-    "archived": { bg: "#6c757d", color: "#fff", label: "Archived" },
-  };
-  const style = colors[status || "new"] || { bg: "#6c757d", color: "#fff", label: status || "Unknown" };
-
-  return (
-    <span className="badge" style={{ background: style.bg, color: style.color, fontSize: "0.7rem" }}>
-      {style.label}
-    </span>
-  );
-}
-
-function LegacyStatusBadge({ status }: { status: string | null }) {
-  // Show "New" for null/empty status instead of nothing
-  const displayStatus = status || "New";
-
-  const colors: Record<string, { bg: string; color: string }> = {
-    "New": { bg: "#0dcaf0", color: "#000" },
-    "Pending Review": { bg: "#ffc107", color: "#000" },
-    "Booked": { bg: "#198754", color: "#fff" },
-    "Declined": { bg: "#dc3545", color: "#fff" },
-    "Complete": { bg: "#20c997", color: "#000" },
-  };
-  const style = colors[displayStatus] || { bg: "#6c757d", color: "#fff" };
-
-  return (
-    <span className="badge" style={{ background: style.bg, color: style.color, fontSize: "0.7rem" }}>
-      {displayStatus}
-    </span>
-  );
-}
-
-function ContactStatusBadge({ status }: { status: string | null }) {
-  if (!status) return null;
-
-  const shortLabel: Record<string, string> = {
-    "Contacted": "Contacted",
-    "Contacted multiple times": "Multiple attempts",
-    "Call/Email/No response": "No response",
-    "An appointment has been booked": "Appt booked",
-    "Out of County - no appts avail": "Out of County",
-    "Sent to Diane/Out of County": "Sent to Diane",
-  };
-
-  return (
-    <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-      {shortLabel[status] || status}
-    </span>
-  );
-}
-
-function formatAge(age: unknown): string {
-  if (!age) return "";
-  const ageStr = typeof age === "string" ? age : String(age);
-
-  const daysMatch = ageStr.match(/(\d+)\s+days?/);
-  const timeMatch = ageStr.match(/(\d+):(\d+):(\d+)/);
-
-  if (daysMatch) {
-    const days = parseInt(daysMatch[1]);
-    if (days >= 7) return `${Math.floor(days / 7)}w ${days % 7}d`;
-    return `${days}d`;
-  }
-
-  if (timeMatch) {
-    const hours = parseInt(timeMatch[1]);
-    if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-    if (hours > 0) return `${hours}h`;
-    return `${parseInt(timeMatch[2])}m`;
-  }
-
-  return ageStr;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString();
-}
-
-function normalizeName(name: string | null): string {
-  if (!name) return "";
-  if (name === name.toUpperCase() || name === name.toLowerCase()) {
-    return name
-      .toLowerCase()
-      .split(" ")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  }
-  return name;
-}
+import type { IntakeSubmission, StaffMember, TabType } from "@/lib/intake-types";
+import {
+  SubmissionStatusBadge,
+  formatDate,
+  normalizeName,
+} from "@/components/intake/IntakeBadges";
+import { ContactLogModal } from "@/components/intake/ContactLogModal";
+import { BookingModal } from "@/components/intake/BookingModal";
+import { DeclineModal } from "@/components/intake/DeclineModal";
+import { IntakeQueueRow } from "@/components/intake/IntakeQueueRow";
+import { IntakeDetailPanel } from "@/components/intake/IntakeDetailPanel";
 
 function IntakeQueueContent() {
   const searchParams = useSearchParams();
@@ -344,12 +28,14 @@ function IntakeQueueContent() {
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const { filters, setFilter } = useUrlFilters({
-    tab: "attention",
+    tab: "active",
     category: "",
     q: "",
     sort: "date",
     order: "desc",
     group: "",
+    legacy: "",
+    test: "",
   });
   const activeTab = filters.tab as TabType;
   const setActiveTab = (v: TabType) => setFilter("tab", v);
@@ -357,46 +43,20 @@ function IntakeQueueContent() {
   const setCategoryFilter = (v: string) => setFilter("category", v);
   const searchQuery = filters.q;
   const [searchInput, setSearchInput] = useState(filters.q);
-  const sortBy = filters.sort as "date" | "category" | "type";
-  const setSortBy = (v: "date" | "category" | "type") => setFilter("sort", v);
+  const sortBy = filters.sort as "date" | "category" | "type" | "priority";
+  const setSortBy = (v: "date" | "category" | "type" | "priority") => setFilter("sort", v);
   const sortOrder = filters.order as "asc" | "desc";
   const setSortOrder = (v: "asc" | "desc") => setFilter("order", v);
   const groupBy = filters.group as "" | "category" | "type" | "status";
-  const setGroupBy = (v: "" | "category" | "type" | "status") => setFilter("group", v);
+  const showLegacy = filters.legacy === "1";
+  const showTest = filters.test === "1";
   const [selectedSubmission, setSelectedSubmission] = useState<IntakeSubmission | null>(null);
   const [saving, setSaving] = useState(false);
-  const [editingStatus, setEditingStatus] = useState(false);
-  const [statusEdits, setStatusEdits] = useState({
-    // Unified status fields (primary)
-    submission_status: "",
-    appointment_date: "",
-    priority_override: "",
-    // Legacy fields (for backward compatibility)
-    legacy_status: "",
-    legacy_submission_status: "",
-    legacy_appointment_date: "",
-    legacy_notes: "",
-  });
   const [initialOpenHandled, setInitialOpenHandled] = useState(false);
 
-  // Communication log state
+  // Communication log modal state (shared between queue table and detail panel)
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactModalSubmission, setContactModalSubmission] = useState<IntakeSubmission | null>(null);
-  const [communicationLogs, setCommunicationLogs] = useState<CommunicationLog[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
-
-  // Urgent downgrade state
-  const [showUrgentDowngrade, setShowUrgentDowngrade] = useState(false);
-  const [urgentDowngradeReason, setUrgentDowngradeReason] = useState("");
-  const [savingUrgentDowngrade, setSavingUrgentDowngrade] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    contact_method: "phone",
-    contact_result: "answered",
-    notes: "",
-    contacted_by: "",
-    is_journal_only: false,
-  });
-  const [showInlineContactForm, setShowInlineContactForm] = useState<"note" | "call" | null>(null);
 
   // Staff list for dropdown
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
@@ -417,57 +77,6 @@ function IntakeQueueContent() {
   // Decline modal state
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [declineSubmission, setDeclineSubmission] = useState<IntakeSubmission | null>(null);
-  const [declineForm, setDeclineForm] = useState({
-    reason_code: "",
-    reason_notes: "",
-    referred_to_org: "",
-    send_notification: false,
-  });
-  const [decliningSubmission, setDecliningSubmission] = useState(false);
-
-  // Address edit state
-  const [editingAddress, setEditingAddress] = useState(false);
-  const [addressEdits, setAddressEdits] = useState({
-    cats_address: "",
-    cats_city: "",
-    cats_zip: "",
-  });
-  const [resolvedQueuePlace, setResolvedQueuePlace] = useState<ResolvedPlace | null>(null);
-
-  // Edit history state
-  const [editHistory, setEditHistory] = useState<Array<{
-    edit_id: string;
-    field_name: string;
-    old_value: unknown;
-    new_value: unknown;
-    edited_at: string;
-    edited_by: string;
-    edit_reason: string | null;
-  }>>([]);
-  const [showEditHistory, setShowEditHistory] = useState(false);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-
-  // Editable sections state
-  const [editingCats, setEditingCats] = useState(false);
-  const [catsEdits, setCatsEdits] = useState({
-    cat_count_estimate: "",
-    ownership_status: "",
-    fixed_status: "",
-    has_kittens: false,
-    has_medical_concerns: false,
-  });
-  const [editingSituation, setEditingSituation] = useState(false);
-  const [situationEdit, setSituationEdit] = useState("");
-  const [savingSection, setSavingSection] = useState(false);
-
-  // Contact info editing state
-  const [editingContact, setEditingContact] = useState(false);
-  const [contactEdits, setContactEdits] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
-  });
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -536,14 +145,13 @@ function IntakeQueueContent() {
     try {
       const params = new URLSearchParams();
 
-      // Tab-based filtering using mode parameter
-      // "attention" = actionable items (new + legacy pending/contacted)
-      // "recent" = all recent including booked
-      // "legacy" = all legacy data for reference
+      // Map new tab names to API mode parameter
       params.set("mode", activeTab);
 
       if (categoryFilter) params.set("category", categoryFilter);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (showLegacy) params.set("include_legacy", "true");
+      if (showTest) params.set("include_test", "true");
 
       const data = await fetchApi<{ submissions: IntakeSubmission[] }>(`/api/intake/queue?${params.toString()}`);
       setSubmissions(data.submissions || []);
@@ -552,7 +160,7 @@ function IntakeQueueContent() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, categoryFilter, searchQuery]);
+  }, [activeTab, categoryFilter, searchQuery, showLegacy, showTest]);
 
   useEffect(() => {
     fetchSubmissions();
@@ -592,113 +200,15 @@ function IntakeQueueContent() {
       .catch((err) => console.error("Failed to fetch staff:", err));
   }, []);
 
-  // Reset editing states when submission changes
-  useEffect(() => {
-    setEditingAddress(false);
-    setResolvedQueuePlace(null);
-    setShowInlineContactForm(null);
-  }, [selectedSubmission?.submission_id]);
-
-  // Fetch communication logs when detail modal opens
-  useEffect(() => {
-    if (selectedSubmission?.submission_id) {
-      fetchCommunicationLogs(selectedSubmission.submission_id);
-    } else {
-      setCommunicationLogs([]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSubmission?.submission_id]);
-
-  // Fetch communication logs for a submission
-  const fetchCommunicationLogs = async (submissionId: string) => {
-    setLoadingLogs(true);
-    try {
-      const data = await fetchApi<{ logs: CommunicationLog[] }>(`/api/intake/${submissionId}/communications`);
-      setCommunicationLogs(data.logs || []);
-    } catch (err) {
-      console.error("Failed to fetch communication logs:", err);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
   // Open contact modal for a submission
   const openContactModal = (sub: IntakeSubmission) => {
     setContactModalSubmission(sub);
-    setContactForm({
-      contact_method: "phone",
-      contact_result: "answered",
-      notes: "",
-      contacted_by: currentUser?.display_name || "",
-      is_journal_only: false,
-    });
     setShowContactModal(true);
-    fetchCommunicationLogs(sub.submission_id);
-  };
-
-  // Submit new communication log
-  const handleSubmitContactLog = async () => {
-    if (!contactModalSubmission) return;
-    setSaving(true);
-    try {
-      await postApi(`/api/intake/${contactModalSubmission.submission_id}/communications`, contactForm);
-      // Refresh logs and submissions
-      fetchCommunicationLogs(contactModalSubmission.submission_id);
-      fetchSubmissions();
-      // Reset form but keep modal open to show updated logs
-      setContactForm({
-        ...contactForm,
-        notes: "",
-        is_journal_only: false,
-      });
-    } catch (err) {
-      console.error("Failed to submit contact log:", err);
-    } finally {
-      setSaving(false);
-    }
   };
 
   const closeContactModal = () => {
     setShowContactModal(false);
     setContactModalSubmission(null);
-    setCommunicationLogs([]);
-  };
-
-  // Submit inline contact/journal entry (for detail modal)
-  const handleInlineContactSubmit = async () => {
-    if (!selectedSubmission) return;
-    setSaving(true);
-    try {
-      await postApi(`/api/intake/${selectedSubmission.submission_id}/communications`, contactForm);
-      // Refresh logs
-      fetchCommunicationLogs(selectedSubmission.submission_id);
-      fetchSubmissions();
-      // Reset form and close inline form
-      setContactForm({
-        ...contactForm,
-        notes: "",
-        is_journal_only: false,
-      });
-      setShowInlineContactForm(null);
-      setToastMessage("Entry added successfully");
-      setTimeout(() => setToastMessage(null), 3000);
-    } catch (err) {
-      console.error("Failed to submit contact log:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const fetchEditHistory = async (submissionId: string) => {
-    setLoadingHistory(true);
-    try {
-      const data = await fetchApi<{ history: typeof editHistory }>(`/api/intake/queue/${submissionId}/history`);
-      setEditHistory(data.history || []);
-    } catch (err) {
-      console.error("Failed to fetch edit history:", err);
-    } finally {
-      setLoadingHistory(false);
-    }
   };
 
   const handleQuickStatus = async (submissionId: string, field: string, value: string) => {
@@ -716,10 +226,6 @@ function IntakeQueueContent() {
     }
   };
 
-  const handleMarkContacted = (sub: IntakeSubmission) => {
-    handleQuickStatus(sub.submission_id, "legacy_status", "Contacted");
-  };
-
   const handleMarkBooked = (sub: IntakeSubmission) => {
     // Show booking modal instead of immediately setting status
     setBookingSubmission(sub);
@@ -728,50 +234,43 @@ function IntakeQueueContent() {
     setShowBookingModal(true);
   };
 
-  const handleConfirmBooking = async () => {
+  const handleConfirmBookingFromModal = async (date: string, notes: string) => {
     if (!bookingSubmission) return;
     const wasAlreadyScheduled = bookingSubmission.submission_status === "scheduled";
     setSaving(true);
     try {
       await postApi("/api/intake/status", {
         submission_id: bookingSubmission.submission_id,
-        // Use unified status
         submission_status: "scheduled",
-        appointment_date: bookingDate || null,
-        // Also update legacy fields for backward compatibility
+        appointment_date: date || null,
         legacy_submission_status: "Booked",
-        legacy_appointment_date: bookingDate || null,
-        legacy_notes: bookingNotes
-          ? (bookingSubmission.legacy_notes ? bookingSubmission.legacy_notes + "\n" + bookingNotes : bookingNotes)
+        legacy_appointment_date: date || null,
+        legacy_notes: notes
+          ? (bookingSubmission.legacy_notes ? bookingSubmission.legacy_notes + "\n" + notes : notes)
           : bookingSubmission.legacy_notes,
       }, { method: "PATCH" });
 
-      {
-        const submitterName = normalizeName(bookingSubmission.submitter_name);
-        setShowBookingModal(false);
-        setBookingSubmission(null);
-        fetchSubmissions();
+      const submitterName = normalizeName(bookingSubmission.submitter_name);
+      setShowBookingModal(false);
+      setBookingSubmission(null);
+      fetchSubmissions();
 
-        // Update selected submission if viewing it
-        if (selectedSubmission?.submission_id === bookingSubmission.submission_id) {
-          setSelectedSubmission({
-            ...selectedSubmission,
-            submission_status: "scheduled",
-            appointment_date: bookingDate || null,
-            legacy_submission_status: "Booked",
-            legacy_appointment_date: bookingDate || null,
-          });
-        }
-
-        // Show toast notification
-        if (wasAlreadyScheduled) {
-          setToastMessage(`Updated appointment for ${submitterName}`);
-        } else {
-          setToastMessage(`Scheduled ${submitterName}. Find in "Scheduled" tab.`);
-        }
-        // Auto-clear toast after 5 seconds
-        setTimeout(() => setToastMessage(null), 5000);
+      if (selectedSubmission?.submission_id === bookingSubmission.submission_id) {
+        setSelectedSubmission({
+          ...selectedSubmission,
+          submission_status: "scheduled",
+          appointment_date: date || null,
+          legacy_submission_status: "Booked",
+          legacy_appointment_date: date || null,
+        });
       }
+
+      if (wasAlreadyScheduled) {
+        setToastMessage(`Updated appointment for ${submitterName}`);
+      } else {
+        setToastMessage(`Scheduled ${submitterName}. Find in "Scheduled" tab.`);
+      }
+      setTimeout(() => setToastMessage(null), 5000);
     } catch (err) {
       console.error("Failed to schedule:", err);
     } finally {
@@ -794,128 +293,8 @@ function IntakeQueueContent() {
     setBookingNotes("");
   };
 
-  const handleMarkNoResponse = (sub: IntakeSubmission) => {
-    handleQuickStatus(sub.submission_id, "legacy_status", "Call/Email/No response");
-  };
-
   const openDetail = (sub: IntakeSubmission) => {
     setSelectedSubmission(sub);
-    setStatusEdits({
-      // Unified status fields
-      submission_status: sub.submission_status || "new",
-      appointment_date: sub.appointment_date || "",
-      priority_override: sub.priority_override || "",
-      // Legacy fields
-      legacy_status: sub.legacy_status || "",
-      legacy_submission_status: sub.legacy_submission_status || "",
-      legacy_appointment_date: sub.legacy_appointment_date || "",
-      legacy_notes: sub.legacy_notes || "",
-    });
-    setEditingStatus(false);
-    // Reset edit history when opening a new submission
-    setShowEditHistory(false);
-    setEditHistory([]);
-    // Reset section edit states
-    setEditingCats(false);
-    setEditingSituation(false);
-    setEditingContact(false);
-  };
-
-  const handleSaveStatus = async () => {
-    if (!selectedSubmission) return;
-    setSaving(true);
-    try {
-      // Use the [id] PATCH endpoint for unified status
-      const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-        // Unified status fields
-        submission_status: statusEdits.submission_status || null,
-        appointment_date: statusEdits.appointment_date || null,
-        priority_override: statusEdits.priority_override || null,
-        // Legacy fields (keep for backward compatibility)
-        legacy_status: statusEdits.legacy_status || null,
-        legacy_submission_status: statusEdits.legacy_submission_status || null,
-        legacy_appointment_date: statusEdits.legacy_appointment_date || null,
-        legacy_notes: statusEdits.legacy_notes || null,
-      }, { method: "PATCH" });
-
-      {
-        setEditingStatus(false);
-        setSelectedSubmission({
-          ...selectedSubmission,
-          ...data.submission,
-        });
-        fetchSubmissions();
-      }
-    } catch (err) {
-      console.error("Failed to save:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Handler for removing urgent flag with reason
-  const handleUrgentDowngrade = async () => {
-    if (!selectedSubmission || !urgentDowngradeReason) return;
-    setSavingUrgentDowngrade(true);
-
-    const reasonInfo = URGENT_DOWNGRADE_REASONS.find(r => r.value === urgentDowngradeReason);
-    const noteText = `Urgent flag removed: ${reasonInfo?.label} - ${reasonInfo?.description}`;
-
-    try {
-      await postApi(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-        is_emergency: false,
-        review_notes: selectedSubmission.review_notes
-          ? `${selectedSubmission.review_notes}\n\n[${new Date().toLocaleDateString()}] ${noteText}`
-          : `[${new Date().toLocaleDateString()}] ${noteText}`,
-      }, { method: "PATCH" });
-
-      setShowUrgentDowngrade(false);
-      setUrgentDowngradeReason("");
-      setSelectedSubmission({
-        ...selectedSubmission,
-        is_emergency: false,
-      });
-      fetchSubmissions();
-    } catch (err) {
-      console.error("Failed to remove urgent flag:", err);
-    } finally {
-      setSavingUrgentDowngrade(false);
-    }
-  };
-
-  const handleSaveAddress = async () => {
-    if (!selectedSubmission) return;
-    if (!addressEdits.cats_address.trim()) {
-      alert("Street address is required");
-      return;
-    }
-    setSaving(true);
-    try {
-      const data = await postApi<{ submission?: IntakeSubmission; address_relinked?: boolean }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-        cats_address: addressEdits.cats_address.trim(),
-        cats_city: addressEdits.cats_city.trim() || null,
-        cats_zip: addressEdits.cats_zip.trim() || null,
-      }, { method: "PATCH" });
-
-      setEditingAddress(false);
-      // Update local state with refreshed submission data
-      if (data.submission) {
-        setSelectedSubmission(data.submission);
-      }
-      // Show success message
-      if (data.address_relinked) {
-        setToastMessage("Address updated and re-linked to place");
-      } else {
-        setToastMessage("Address updated");
-      }
-      setTimeout(() => setToastMessage(null), 5000);
-      fetchSubmissions();
-    } catch (err) {
-      console.error("Failed to save address:", err);
-      alert("Failed to save address");
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleArchive = async (submissionId: string) => {
@@ -931,13 +310,6 @@ function IntakeQueueContent() {
     } catch (err) {
       console.error("Failed to archive:", err);
     }
-  };
-
-  const handleOpenRequestWizard = (submission: IntakeSubmission) => {
-    setWizardSubmission(submission);
-    setShowRequestWizard(true);
-    // Close the detail modal if open
-    setSelectedSubmission(null);
   };
 
   const handleRequestWizardComplete = (requestId: string) => {
@@ -1058,17 +430,14 @@ function IntakeQueueContent() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "1rem" }}>
-        {[
-          { id: "attention" as TabType, label: "Needs Attention", count: null },
-          { id: "scheduled" as TabType, label: "Scheduled", count: null },
-          { id: "recent" as TabType, label: "Recent", count: null },
-          { id: "complete" as TabType, label: "Complete", count: null },
-          { id: "all" as TabType, label: "All", count: null },
-          { id: "legacy" as TabType, label: "Legacy", count: null },
-          { id: "test" as TabType, label: "Test", count: null },
-        ].map((tab) => (
+      {/* Tabs (FFS-111: reduced to 4) */}
+      <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "0.5rem" }}>
+        {([
+          { id: "active" as TabType, label: "Active" },
+          { id: "scheduled" as TabType, label: "Scheduled" },
+          { id: "completed" as TabType, label: "Completed" },
+          { id: "all" as TabType, label: "All" },
+        ]).map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -1088,6 +457,38 @@ function IntakeQueueContent() {
             {tab.label}
           </button>
         ))}
+      </div>
+
+      {/* Filter chips (FFS-111: legacy/test as toggleable chips) */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+        <button
+          onClick={() => setFilter("legacy", showLegacy ? "" : "1")}
+          style={{
+            padding: "0.25rem 0.75rem",
+            fontSize: "0.8rem",
+            border: `1px solid ${showLegacy ? "#6c757d" : "var(--border)"}`,
+            borderRadius: "16px",
+            background: showLegacy ? "#6c757d" : "transparent",
+            color: showLegacy ? "#fff" : "var(--muted)",
+            cursor: "pointer",
+          }}
+        >
+          Legacy {showLegacy ? "On" : "Off"}
+        </button>
+        <button
+          onClick={() => setFilter("test", showTest ? "" : "1")}
+          style={{
+            padding: "0.25rem 0.75rem",
+            fontSize: "0.8rem",
+            border: `1px solid ${showTest ? "#dc3545" : "var(--border)"}`,
+            borderRadius: "16px",
+            background: showTest ? "#dc3545" : "transparent",
+            color: showTest ? "#fff" : "var(--muted)",
+            cursor: "pointer",
+          }}
+        >
+          Test {showTest ? "On" : "Off"}
+        </button>
       </div>
 
       {/* Search and Filter */}
@@ -1154,27 +555,16 @@ function IntakeQueueContent() {
           <option value="needs_review">Needs Review</option>
         </select>
 
-        {/* Sort controls */}
+        {/* Sort controls (FFS-111: simplified, added Priority) */}
         <select
           value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "date" | "category" | "type")}
+          onChange={(e) => setSortBy(e.target.value as "date" | "category" | "type" | "priority")}
           style={{ padding: "0.5rem", minWidth: "130px" }}
         >
           <option value="date">Sort by Date</option>
+          <option value="priority">Sort by Priority</option>
           <option value="category">Sort by Category</option>
           <option value="type">Sort by Type</option>
-        </select>
-
-        {/* Group by */}
-        <select
-          value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as "" | "category" | "type" | "status")}
-          style={{ padding: "0.5rem", minWidth: "120px" }}
-        >
-          <option value="">No grouping</option>
-          <option value="category">Group by Category</option>
-          <option value="type">Group by Type</option>
-          <option value="status">Group by Status</option>
         </select>
 
         <button
@@ -1212,7 +602,7 @@ function IntakeQueueContent() {
               {stats.scheduled} Scheduled
             </span>
           )}
-          {activeTab !== "attention" && stats.complete > 0 && (
+          {activeTab !== "active" && stats.complete > 0 && (
             <span style={{ padding: "0.25rem 0.75rem", background: "#20c997", color: "#000", borderRadius: "12px", fontSize: "0.8rem" }}>
               {stats.complete} Complete
             </span>
@@ -1236,7 +626,7 @@ function IntakeQueueContent() {
         </div>
       ) : submissions.length === 0 ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          {activeTab === "attention" ? (
+          {activeTab === "active" ? (
             <>
               <p style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>All caught up!</p>
               <p>No new submissions need attention right now.</p>
@@ -1251,6 +641,11 @@ function IntakeQueueContent() {
           let comparison = 0;
           if (sortBy === "date") {
             comparison = new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+          } else if (sortBy === "priority") {
+            // Urgent first, then by triage score (higher = more urgent)
+            const aUrgent = a.is_emergency ? 1 : 0;
+            const bUrgent = b.is_emergency ? 1 : 0;
+            comparison = bUrgent - aUrgent || (b.triage_score || 0) - (a.triage_score || 0);
           } else if (sortBy === "category") {
             comparison = (a.triage_category || "zzz").localeCompare(b.triage_category || "zzz");
           } else if (sortBy === "type") {
@@ -1409,248 +804,18 @@ function IntakeQueueContent() {
             </thead>
             <tbody>
               {groupSubs.map((sub) => (
-                <tr
+                <IntakeQueueRow
                   key={sub.submission_id}
-                  style={{
-                    background: selectedIds.has(sub.submission_id)
-                      ? "#dbeafe"
-                      : sub.is_emergency
-                      ? "rgba(220, 53, 69, 0.1)"
-                      : sub.submission_status === "scheduled"
-                      ? "rgba(25, 135, 84, 0.05)"
-                      : sub.submission_status === "complete"
-                      ? "rgba(32, 201, 151, 0.05)"
-                      : undefined,
-                  }}
-                >
-                  <td style={{ textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(sub.submission_id)}
-                      onChange={() => toggleSelect(sub.submission_id)}
-                    />
-                  </td>
-                  <td>
-                    <span
-                      className="badge"
-                      style={{
-                        background: sub.is_legacy ? "#6c757d" : "#198754",
-                        color: "#fff",
-                        fontSize: "0.65rem",
-                      }}
-                    >
-                      {sub.is_legacy ? "Legacy" : "Native"}
-                    </span>
-                  </td>
-                  <td>
-                    <div
-                      style={{ fontWeight: 500, cursor: "pointer" }}
-                      onClick={() => openDetail(sub)}
-                    >
-                      {normalizeName(sub.submitter_name)}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.email}</div>
-                    {sub.phone && (
-                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-                        {formatPhone(sub.phone)}
-                        {!isValidPhone(sub.phone) && (
-                          <span
-                            style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px", cursor: "help" }}
-                            title={extractPhone(sub.phone) ? `Likely: ${formatPhone(extractPhone(sub.phone))}` : "Invalid phone format"}
-                          >
-                            ⚠
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {sub.is_third_party_report && (
-                      <span style={{ fontSize: "0.65rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px" }}>
-                        3RD PARTY
-                      </span>
-                    )}
-                    {sub.is_test && (
-                      <span style={{ fontSize: "0.65rem", background: "#dc3545", color: "#fff", padding: "1px 4px", borderRadius: "3px", marginLeft: "4px" }}>
-                        TEST
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <div style={{ cursor: "pointer" }} onClick={() => openDetail(sub)}>
-                      {/* Show geocoded address if available, otherwise original */}
-                      {sub.geo_formatted_address || sub.cats_address}
-                    </div>
-                    {sub.geo_formatted_address && sub.geo_formatted_address !== sub.cats_address && (
-                      <div style={{ fontSize: "0.65rem", color: "var(--muted)", fontStyle: "italic" }}>
-                        (original: {sub.cats_address})
-                      </div>
-                    )}
-                    {!sub.geo_formatted_address && sub.cats_city && (
-                      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.cats_city}</div>
-                    )}
-                    {!sub.geo_formatted_address && sub.geo_confidence === null && (
-                      <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "2px" }}>
-                        needs geocoding
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <div>{sub.cat_count_estimate ?? "?"}</div>
-                    {sub.has_kittens && <span style={{ fontSize: "0.7rem", color: "#fd7e14" }}>+kittens</span>}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                      {/* Unified status badge */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <SubmissionStatusBadge status={sub.submission_status} />
-                        {sub.overdue && (
-                          <span style={{ fontSize: "0.6rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px" }} title="No activity for 48+ hours">
-                            STALE
-                          </span>
-                        )}
-                      </div>
-                      {/* Triage category if available */}
-                      {sub.triage_category && (
-                        <span
-                          className="badge"
-                          style={{
-                            background: sub.triage_category === "high_priority_tnr" ? "#dc3545" :
-                                       sub.triage_category === "standard_tnr" ? "#0d6efd" :
-                                       "#6c757d",
-                            color: "#fff",
-                            fontSize: "0.6rem",
-                          }}
-                        >
-                          {sub.triage_category.replace(/_/g, " ")}
-                        </span>
-                      )}
-                      {/* Appointment date if scheduled */}
-                      {sub.appointment_date && (
-                        <span style={{ fontSize: "0.7rem", color: "#198754" }}>
-                          {formatDate(sub.appointment_date)}
-                        </span>
-                      )}
-                      {sub.is_emergency && (
-                        <span style={{ color: "#dc3545", fontSize: "0.7rem", fontWeight: "bold" }}>URGENT</span>
-                      )}
-                      {sub.is_test && (
-                        <span style={{
-                          background: "#0dcaf0",
-                          color: "#000",
-                          fontSize: "0.65rem",
-                          fontWeight: "bold",
-                          padding: "1px 4px",
-                          borderRadius: "3px"
-                        }}>TEST</span>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                    {formatDate(sub.submitted_at)}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                      {/* Log Contact button - always visible */}
-                      <button
-                        onClick={() => openContactModal(sub)}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.7rem",
-                          background: "#6f42c1",
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                        }}
-                        title={sub.contact_attempt_count ? `${sub.contact_attempt_count} contact attempts` : "Log a contact attempt"}
-                      >
-                        Log {sub.contact_attempt_count ? `(${sub.contact_attempt_count})` : ""}
-                      </button>
-                      {/* Status-based actions */}
-                      {sub.submission_status === "new" && (
-                        <button
-                          onClick={() => handleQuickStatus(sub.submission_id, "submission_status", "in_progress")}
-                          disabled={saving}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.7rem",
-                            background: "#fd7e14",
-                            color: "#000",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Working
-                        </button>
-                      )}
-                      {(sub.submission_status === "new" || sub.submission_status === "in_progress") && (
-                        <button
-                          onClick={() => handleMarkBooked(sub)}
-                          disabled={saving}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.7rem",
-                            background: "#198754",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Schedule
-                        </button>
-                      )}
-                      {sub.submission_status === "scheduled" && (
-                        <>
-                          <button
-                            onClick={() => handleChangeAppointment(sub)}
-                            disabled={saving}
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.7rem",
-                              background: "#0d6efd",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                            }}
-                            title={sub.appointment_date ? `Appt: ${formatDate(sub.appointment_date)}` : "No date set"}
-                          >
-                            Edit Date
-                          </button>
-                          <button
-                            onClick={() => handleQuickStatus(sub.submission_id, "submission_status", "complete")}
-                            disabled={saving}
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.7rem",
-                              background: "#20c997",
-                              color: "#000",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            Done
-                          </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => openDetail(sub)}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.7rem",
-                          background: "transparent",
-                          border: "1px solid var(--border)",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Details
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                  submission={sub}
+                  isSelected={selectedIds.has(sub.submission_id)}
+                  onSelect={() => toggleSelect(sub.submission_id)}
+                  onOpenDetail={() => openDetail(sub)}
+                  onOpenContactModal={() => openContactModal(sub)}
+                  onQuickStatus={handleQuickStatus}
+                  onSchedule={() => handleMarkBooked(sub)}
+                  onChangeAppointment={() => handleChangeAppointment(sub)}
+                  saving={saving}
+                />
               ))}
             </tbody>
           </table>
@@ -1663,1635 +828,43 @@ function IntakeQueueContent() {
       </div>
       {/* End Queue Panel */}
 
+
       {/* Detail Side Panel */}
       {selectedSubmission && (
-        <div
-          style={{
-            flex: "0 0 55%",
-            borderLeft: "1px solid var(--border)",
-            background: "var(--background)",
-            overflow: "auto",
-            padding: "1.5rem",
-            position: "relative",
+        <IntakeDetailPanel
+          submission={selectedSubmission}
+          currentUser={currentUser}
+          staffList={staffList}
+          saving={saving}
+          setSaving={setSaving}
+          onClose={() => setSelectedSubmission(null)}
+          onRefresh={fetchSubmissions}
+          onSubmissionUpdate={(updated) => setSelectedSubmission(updated)}
+          onOpenContactModal={openContactModal}
+          onOpenBookingModal={handleMarkBooked}
+          onOpenDeclineModal={(sub) => {
+            setDeclineSubmission(sub);
+            setShowDeclineModal(true);
           }}
-        >
-          {/* Close button */}
-          <button
-            onClick={() => setSelectedSubmission(null)}
-            style={{
-              position: "absolute",
-              top: "1rem",
-              right: "1rem",
-              background: "transparent",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "var(--muted)",
-              padding: "0.25rem 0.5rem",
-              lineHeight: 1,
-            }}
-            title="Close panel (Esc)"
-          >
-            ×
-          </button>
-          <div>
-            {/* Header with Contact Editing */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "1rem" }}>
-              <div style={{ flex: 1 }}>
-                {editingContact ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>First Name</label>
-                        <input
-                          type="text"
-                          value={contactEdits.first_name}
-                          onChange={(e) => setContactEdits({ ...contactEdits, first_name: e.target.value })}
-                          style={{ width: "100%", padding: "0.375rem", fontSize: "0.9rem", borderRadius: "4px", border: "1px solid var(--border)" }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>Last Name</label>
-                        <input
-                          type="text"
-                          value={contactEdits.last_name}
-                          onChange={(e) => setContactEdits({ ...contactEdits, last_name: e.target.value })}
-                          style={{ width: "100%", padding: "0.375rem", fontSize: "0.9rem", borderRadius: "4px", border: "1px solid var(--border)" }}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>Email</label>
-                        <input
-                          type="email"
-                          value={contactEdits.email}
-                          onChange={(e) => setContactEdits({ ...contactEdits, email: e.target.value })}
-                          style={{ width: "100%", padding: "0.375rem", fontSize: "0.9rem", borderRadius: "4px", border: "1px solid var(--border)" }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.125rem" }}>
-                          Phone
-                          {contactEdits.phone && !isValidPhone(contactEdits.phone) && (
-                            <span style={{ color: "#dc3545", marginLeft: "4px" }}>⚠ Invalid</span>
-                          )}
-                        </label>
-                        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                          <input
-                            type="tel"
-                            value={contactEdits.phone}
-                            onChange={(e) => setContactEdits({ ...contactEdits, phone: e.target.value })}
-                            style={{
-                              flex: 1,
-                              minWidth: "140px",
-                              padding: "0.375rem",
-                              fontSize: "0.9rem",
-                              borderRadius: "4px",
-                              border: `1px solid ${contactEdits.phone && !isValidPhone(contactEdits.phone) ? "#dc3545" : "var(--border)"}`,
-                            }}
-                          />
-                          {contactEdits.phone && !isValidPhone(contactEdits.phone) && (() => {
-                            const phones = extractPhones(contactEdits.phone);
-                            if (phones.length === 0) return null;
-                            if (phones.length === 1) {
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => setContactEdits({ ...contactEdits, phone: phones[0] })}
-                                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                                  title={`Fix to: ${formatPhone(phones[0])}`}
-                                >
-                                  Fix
-                                </button>
-                              );
-                            }
-                            // Multiple phones found - show options
-                            return phones.map((p, i) => (
-                              <button
-                                key={p}
-                                type="button"
-                                onClick={() => setContactEdits({ ...contactEdits, phone: p })}
-                                style={{ padding: "0.25rem 0.5rem", fontSize: "0.7rem", background: i === 0 ? "#198754" : "#0d6efd", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                                title={`Use: ${formatPhone(p)}`}
-                              >
-                                {i === 0 ? "Primary" : `Alt ${i}`}: {formatPhone(p)}
-                              </button>
-                            ));
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.25rem" }}>
-                      <button
-                        onClick={async () => {
-                          setSavingSection(true);
-                          try {
-                            const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                              first_name: contactEdits.first_name || null,
-                              last_name: contactEdits.last_name || null,
-                              email: contactEdits.email || null,
-                              phone: contactEdits.phone || null,
-                            }, { method: "PATCH" });
-                            // Update local state with new name constructed from first/last
-                            const newName = `${contactEdits.first_name || ""} ${contactEdits.last_name || ""}`.trim();
-                            setSelectedSubmission({
-                              ...selectedSubmission,
-                              ...data.submission,
-                              submitter_name: newName || selectedSubmission.submitter_name,
-                              email: contactEdits.email || selectedSubmission.email,
-                              phone: contactEdits.phone || selectedSubmission.phone,
-                            });
-                            setEditingContact(false);
-                            fetchSubmissions();
-                          } catch (err) {
-                            console.error("Failed to save contact:", err);
-                          } finally {
-                            setSavingSection(false);
-                          }
-                        }}
-                        disabled={savingSection}
-                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                      >
-                        {savingSection ? "..." : "Save"}
-                      </button>
-                      <button
-                        onClick={() => setEditingContact(false)}
-                        style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <h2 style={{ margin: 0 }}>{normalizeName(selectedSubmission.submitter_name)}</h2>
-                      <button
-                        onClick={() => {
-                          // Parse submitter_name into first/last name
-                          const nameParts = (selectedSubmission.submitter_name || "").trim().split(" ");
-                          const firstName = nameParts[0] || "";
-                          const lastName = nameParts.slice(1).join(" ") || "";
-                          setContactEdits({
-                            first_name: selectedSubmission.first_name || firstName,
-                            last_name: selectedSubmission.last_name || lastName,
-                            email: selectedSubmission.email || "",
-                            phone: selectedSubmission.phone || "",
-                          });
-                          setEditingContact(true);
-                        }}
-                        style={{ padding: "0.125rem 0.375rem", fontSize: "0.7rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer", color: "var(--muted)" }}
-                        title="Edit contact info"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
-                      {selectedSubmission.email}
-                      {selectedSubmission.phone && (
-                        <>
-                          {` | ${formatPhone(selectedSubmission.phone)}`}
-                          {!isValidPhone(selectedSubmission.phone) && (
-                            <span
-                              style={{ fontSize: "0.7rem", background: "#ffc107", color: "#000", padding: "1px 4px", borderRadius: "3px", marginLeft: "4px", cursor: "help" }}
-                              title={extractPhone(selectedSubmission.phone) ? `Click Edit to fix. Likely: ${formatPhone(extractPhone(selectedSubmission.phone))}` : "Invalid phone - click Edit to correct"}
-                            >
-                              ⚠ Invalid
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </p>
-                  </>
-                )}
-                <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.8rem" }}>
-                  Submitted {formatDate(selectedSubmission.submitted_at)}
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                {selectedSubmission.is_test && (
-                  <span style={{ background: "#dc3545", color: "#fff", padding: "0.25rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>
-                    TEST
-                  </span>
-                )}
-                {selectedSubmission.is_legacy && (
-                  <span style={{ background: "#6c757d", color: "#fff", padding: "0.25rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem" }}>
-                    Legacy
-                  </span>
-                )}
-                <SubmissionStatusBadge status={selectedSubmission.submission_status} />
-              </div>
-            </div>
-
-            {selectedSubmission.is_emergency ? (
-              <div style={{ background: "rgba(220, 53, 69, 0.15)", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", border: "1px solid rgba(220, 53, 69, 0.3)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <span style={{ color: "#dc3545", fontWeight: "bold" }}>MARKED AS URGENT</span>
-                    <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#856404" }}>
-                      True emergencies (injury, illness) should be referred to a pet hospital. We are a spay/neuter clinic, not an emergency vet.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowUrgentDowngrade(true)}
-                    style={{
-                      padding: "0.375rem 0.75rem",
-                      fontSize: "0.8rem",
-                      background: "#fff",
-                      border: "1px solid #dc3545",
-                      color: "#dc3545",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Remove Urgent Flag
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={async () => {
-                  try {
-                    const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { is_emergency: true }, { method: "PATCH" });
-                    setSelectedSubmission({ ...selectedSubmission, ...data.submission, is_emergency: true });
-                    setSubmissions(submissions.map(s =>
-                      s.submission_id === selectedSubmission.submission_id
-                        ? { ...s, is_emergency: true }
-                        : s
-                    ));
-                  } catch (err) {
-                    console.error("Failed to mark as urgent:", err);
-                  }
-                }}
-                style={{
-                  padding: "0.375rem 0.75rem",
-                  fontSize: "0.8rem",
-                  background: "transparent",
-                  border: "1px dashed #dc3545",
-                  color: "#dc3545",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  marginBottom: "1rem",
-                }}
-              >
-                + Mark as Urgent
-              </button>
-            )}
-
-            {/* Urgent downgrade reason picker */}
-            {showUrgentDowngrade && (
-              <div style={{
-                background: "#fff",
-                border: "1px solid #dee2e6",
-                borderRadius: "8px",
-                padding: "1rem",
-                marginBottom: "1rem",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              }}>
-                <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.9rem" }}>Why is this not urgent?</h4>
-                <p style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                  Select a reason to help track common misunderstandings and improve our intake form.
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
-                  {URGENT_DOWNGRADE_REASONS.map((reason) => (
-                    <label
-                      key={reason.value}
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: "0.5rem",
-                        padding: "0.5rem",
-                        background: urgentDowngradeReason === reason.value ? "rgba(25, 135, 84, 0.1)" : "var(--bg-muted, #f8f9fa)",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        border: urgentDowngradeReason === reason.value ? "1px solid #198754" : "1px solid transparent",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="urgentReason"
-                        value={reason.value}
-                        checked={urgentDowngradeReason === reason.value}
-                        onChange={(e) => setUrgentDowngradeReason(e.target.value)}
-                        style={{ marginTop: "0.2rem" }}
-                      />
-                      <div>
-                        <div style={{ fontWeight: 500, fontSize: "0.85rem" }}>{reason.label}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{reason.description}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                  <button
-                    onClick={() => {
-                      setShowUrgentDowngrade(false);
-                      setUrgentDowngradeReason("");
-                    }}
-                    style={{ padding: "0.375rem 0.75rem", fontSize: "0.85rem" }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleUrgentDowngrade}
-                    disabled={!urgentDowngradeReason || savingUrgentDowngrade}
-                    style={{
-                      padding: "0.375rem 0.75rem",
-                      fontSize: "0.85rem",
-                      background: urgentDowngradeReason ? "#198754" : "#6c757d",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: urgentDowngradeReason ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    {savingUrgentDowngrade ? "Saving..." : "Remove Urgent Flag"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Status Section - Unified workflow */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <h3 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Status & Priority</h3>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                {/* Status dropdown - always visible, saves on change */}
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Status</label>
-                  <select
-                    value={statusEdits.submission_status || selectedSubmission.submission_status || "new"}
-                    onChange={async (e) => {
-                      const newStatus = e.target.value;
-                      setStatusEdits({ ...statusEdits, submission_status: newStatus });
-                      // Auto-save on change
-                      try {
-                        const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { submission_status: newStatus }, { method: "PATCH" });
-                        setSelectedSubmission({ ...selectedSubmission, ...data.submission, submission_status: newStatus });
-                        fetchSubmissions();
-                      } catch (err) {
-                        console.error("Failed to update status:", err);
-                      }
-                    }}
-                    style={{ width: "100%", padding: "0.5rem", fontWeight: 500 }}
-                  >
-                    {UNIFIED_STATUSES.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Priority dropdown */}
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Priority {selectedSubmission.triage_score && !statusEdits.priority_override && (
-                      <span style={{ fontWeight: 400, color: "var(--muted)" }}>
-                        (Score: {selectedSubmission.triage_score})
-                      </span>
-                    )}
-                  </label>
-                  <select
-                    value={statusEdits.priority_override || selectedSubmission.priority_override || ""}
-                    onChange={async (e) => {
-                      const newPriority = e.target.value;
-                      setStatusEdits({ ...statusEdits, priority_override: newPriority });
-                      // Auto-save on change
-                      try {
-                        const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { priority_override: newPriority || null }, { method: "PATCH" });
-                        setSelectedSubmission({ ...selectedSubmission, ...data.submission, priority_override: newPriority || null });
-                        fetchSubmissions();
-                      } catch (err) {
-                        console.error("Failed to update priority:", err);
-                      }
-                    }}
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  >
-                    {PRIORITY_OPTIONS.map((p) => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Appointment date - shown when status is scheduled */}
-                {(statusEdits.submission_status === "scheduled" || selectedSubmission.submission_status === "scheduled") && (
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>Appointment Date</label>
-                    <input
-                      type="date"
-                      value={statusEdits.appointment_date || selectedSubmission.appointment_date || ""}
-                      onChange={async (e) => {
-                        const newDate = e.target.value;
-                        setStatusEdits({ ...statusEdits, appointment_date: newDate });
-                        // Auto-save on change
-                        try {
-                          const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { appointment_date: newDate || null }, { method: "PATCH" });
-                          setSelectedSubmission({ ...selectedSubmission, ...data.submission, appointment_date: newDate || null });
-                          fetchSubmissions();
-                        } catch (err) {
-                          console.error("Failed to update appointment:", err);
-                        }
-                      }}
-                      style={{ width: "100%", padding: "0.5rem" }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Legacy status section - collapsible for backward compatibility */}
-              {selectedSubmission.is_legacy && (
-                <details style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-                  <summary style={{ cursor: "pointer", color: "var(--muted)" }}>
-                    Legacy Status Fields
-                  </summary>
-                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(0,0,0,0.03)", borderRadius: "4px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                      <div><strong>Contact:</strong> {selectedSubmission.legacy_status || "(none)"}</div>
-                      <div><strong>Status:</strong> {selectedSubmission.legacy_submission_status || "(none)"}</div>
-                      {selectedSubmission.legacy_appointment_date && (
-                        <div><strong>Appt:</strong> {formatDate(selectedSubmission.legacy_appointment_date)}</div>
-                      )}
-                    </div>
-                  </div>
-                </details>
-              )}
-            </div>
-
-            {/* Location */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <h3 style={{ margin: 0, fontSize: "1rem" }}>Location</h3>
-                {!editingAddress ? (
-                  <button
-                    onClick={() => {
-                      setAddressEdits({
-                        cats_address: selectedSubmission.cats_address || "",
-                        cats_city: selectedSubmission.cats_city || "",
-                        cats_zip: "",
-                      });
-                      setEditingAddress(true);
-                    }}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      fontSize: "0.75rem",
-                      background: "transparent",
-                      border: "1px solid var(--muted)",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Edit Address
-                  </button>
-                ) : (
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      onClick={() => setEditingAddress(false)}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        fontSize: "0.75rem",
-                        background: "transparent",
-                        border: "1px solid var(--muted)",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveAddress}
-                      disabled={saving}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        fontSize: "0.75rem",
-                        background: "#198754",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {!editingAddress ? (
-                <>
-                  <p style={{ margin: 0 }}>{selectedSubmission.cats_address}</p>
-                  {selectedSubmission.cats_city && <p style={{ margin: 0, color: "var(--muted)" }}>{selectedSubmission.cats_city}</p>}
-                  {selectedSubmission.geo_formatted_address && selectedSubmission.geo_formatted_address !== selectedSubmission.cats_address && (
-                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                      Geocoded: {selectedSubmission.geo_formatted_address}
-                    </p>
-                  )}
-                  {!selectedSubmission.geo_formatted_address && selectedSubmission.geo_confidence === null && (
-                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#fd7e14" }}>
-                      ⚠ Address needs geocoding - consider correcting if vague
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
-                      Street Address * (start typing for suggestions)
-                    </label>
-                    <PlaceResolver
-                      value={resolvedQueuePlace}
-                      onChange={(place) => {
-                        setResolvedQueuePlace(place);
-                        if (place) {
-                          setAddressEdits({
-                            cats_address: place.formatted_address || place.display_name || "",
-                            cats_city: place.locality || "",
-                            cats_zip: "",
-                          });
-                        }
-                      }}
-                      placeholder="Start typing address..."
-                    />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "0.5rem" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        value={addressEdits.cats_city}
-                        onChange={(e) => setAddressEdits({ ...addressEdits, cats_city: e.target.value })}
-                        placeholder="Santa Rosa"
-                        style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid var(--muted)" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem", color: "var(--muted)" }}>
-                        ZIP
-                      </label>
-                      <input
-                        type="text"
-                        value={addressEdits.cats_zip}
-                        onChange={(e) => setAddressEdits({ ...addressEdits, cats_zip: e.target.value })}
-                        placeholder="95401"
-                        style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid var(--muted)" }}
-                      />
-                    </div>
-                  </div>
-                  <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-                    Select from suggestions or type manually. Address will be linked to the correct place.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Cats */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <h3 style={{ margin: 0, fontSize: "1rem" }}>Cats</h3>
-                {!editingCats ? (
-                  <button
-                    onClick={() => {
-                      setCatsEdits({
-                        cat_count_estimate: selectedSubmission.cat_count_estimate?.toString() || "",
-                        ownership_status: selectedSubmission.ownership_status || "",
-                        fixed_status: selectedSubmission.fixed_status || "",
-                        has_kittens: selectedSubmission.has_kittens || false,
-                        has_medical_concerns: selectedSubmission.has_medical_concerns || false,
-                      });
-                      setEditingCats(true);
-                    }}
-                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
-                  >
-                    Edit
-                  </button>
-                ) : (
-                  <div style={{ display: "flex", gap: "0.25rem" }}>
-                    <button
-                      onClick={async () => {
-                        setSavingSection(true);
-                        try {
-                          const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                            cat_count_estimate: catsEdits.cat_count_estimate ? parseInt(catsEdits.cat_count_estimate) : null,
-                            ownership_status: catsEdits.ownership_status || null,
-                            fixed_status: catsEdits.fixed_status || null,
-                            has_kittens: catsEdits.has_kittens,
-                            has_medical_concerns: catsEdits.has_medical_concerns,
-                          }, { method: "PATCH" });
-                          setSelectedSubmission({ ...selectedSubmission, ...data.submission });
-                          setEditingCats(false);
-                          fetchSubmissions();
-                        } catch (err) {
-                          console.error("Failed to save:", err);
-                        } finally {
-                          setSavingSection(false);
-                        }
-                      }}
-                      disabled={savingSection}
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                    >
-                      {savingSection ? "..." : "Save"}
-                    </button>
-                    <button
-                      onClick={() => setEditingCats(false)}
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-              {editingCats ? (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>Count</label>
-                    <input
-                      type="number"
-                      value={catsEdits.cat_count_estimate}
-                      onChange={(e) => setCatsEdits({ ...catsEdits, cat_count_estimate: e.target.value })}
-                      style={{ width: "100%", padding: "0.375rem", fontSize: "0.85rem" }}
-                      min="1"
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>Type</label>
-                    <select
-                      value={catsEdits.ownership_status}
-                      onChange={(e) => setCatsEdits({ ...catsEdits, ownership_status: e.target.value })}
-                      style={{ width: "100%", padding: "0.375rem", fontSize: "0.85rem" }}
-                    >
-                      <option value="">Select...</option>
-                      <option value="unknown_stray">Stray cat</option>
-                      <option value="community_colony">Community/Colony</option>
-                      <option value="newcomer">Newcomer</option>
-                      <option value="neighbors_cat">Neighbor's cat</option>
-                      <option value="my_cat">My own pet</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.25rem" }}>Fixed Status</label>
-                    <select
-                      value={catsEdits.fixed_status}
-                      onChange={(e) => setCatsEdits({ ...catsEdits, fixed_status: e.target.value })}
-                      style={{ width: "100%", padding: "0.375rem", fontSize: "0.85rem" }}
-                    >
-                      <option value="">Select...</option>
-                      <option value="none_fixed">None fixed</option>
-                      <option value="some_fixed">Some fixed</option>
-                      <option value="all_fixed">All fixed</option>
-                      <option value="unknown">Unknown</option>
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}>
-                      <input
-                        type="checkbox"
-                        checked={catsEdits.has_kittens}
-                        onChange={(e) => setCatsEdits({ ...catsEdits, has_kittens: e.target.checked })}
-                      />
-                      Kittens present
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}>
-                      <input
-                        type="checkbox"
-                        checked={catsEdits.has_medical_concerns}
-                        onChange={(e) => setCatsEdits({ ...catsEdits, has_medical_concerns: e.target.checked })}
-                      />
-                      Medical concerns
-                    </label>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  <div><strong>Count:</strong> {selectedSubmission.cat_count_estimate ?? "Unknown"}</div>
-                  {selectedSubmission.ownership_status && <div><strong>Type:</strong> {selectedSubmission.ownership_status.replace(/_/g, " ")}</div>}
-                  {selectedSubmission.fixed_status && <div><strong>Fixed:</strong> {selectedSubmission.fixed_status.replace(/_/g, " ")}</div>}
-                  {selectedSubmission.has_kittens && <div style={{ color: "#fd7e14" }}><strong>Kittens present</strong></div>}
-                  {selectedSubmission.has_medical_concerns && <div style={{ color: "#dc3545" }}><strong>Medical concerns</strong></div>}
-                </div>
-              )}
-            </div>
-
-            {/* Situation */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <h3 style={{ margin: 0, fontSize: "1rem" }}>Situation</h3>
-                {!editingSituation ? (
-                  <button
-                    onClick={() => {
-                      setSituationEdit(selectedSubmission.situation_description || "");
-                      setEditingSituation(true);
-                    }}
-                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
-                  >
-                    Edit
-                  </button>
-                ) : (
-                  <div style={{ display: "flex", gap: "0.25rem" }}>
-                    <button
-                      onClick={async () => {
-                        setSavingSection(true);
-                        try {
-                          const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, { situation_description: situationEdit }, { method: "PATCH" });
-                          setSelectedSubmission({ ...selectedSubmission, ...data.submission });
-                          setEditingSituation(false);
-                          fetchSubmissions();
-                        } catch (err) {
-                          console.error("Failed to save:", err);
-                        } finally {
-                          setSavingSection(false);
-                        }
-                      }}
-                      disabled={savingSection}
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                    >
-                      {savingSection ? "..." : "Save"}
-                    </button>
-                    <button
-                      onClick={() => setEditingSituation(false)}
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-              {editingSituation ? (
-                <textarea
-                  value={situationEdit}
-                  onChange={(e) => setSituationEdit(e.target.value)}
-                  rows={8}
-                  style={{ width: "100%", padding: "0.5rem", resize: "vertical", fontSize: "0.9rem", fontFamily: "inherit" }}
-                  placeholder="Describe the situation..."
-                />
-              ) : selectedSubmission.situation_description ? (
-                <p style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "0.9rem" }}>{selectedSubmission.situation_description}</p>
-              ) : (
-                <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>No situation description provided.</p>
-              )}
-            </div>
-
-            {/* Third Party */}
-            {selectedSubmission.is_third_party_report && (
-              <div style={{ background: "rgba(255, 193, 7, 0.15)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem", border: "1px solid rgba(255, 193, 7, 0.5)" }}>
-                <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem" }}>Third-Party Report</h3>
-                <p style={{ margin: 0 }}>Reported by: {selectedSubmission.third_party_relationship?.replace(/_/g, " ")}</p>
-                {selectedSubmission.property_owner_name && (
-                  <p style={{ margin: "0.25rem 0 0" }}>Property owner: {selectedSubmission.property_owner_name}</p>
-                )}
-                {selectedSubmission.property_owner_phone && (
-                  <p style={{ margin: "0.25rem 0 0" }}>Owner phone: {formatPhone(selectedSubmission.property_owner_phone)}</p>
-                )}
-              </div>
-            )}
-
-            {/* Triage */}
-            {selectedSubmission.triage_reasons && selectedSubmission.triage_reasons.length > 0 && (
-              <div style={{ background: "rgba(13, 110, 253, 0.1)", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-                <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem" }}>
-                  Triage: {selectedSubmission.triage_category?.replace(/_/g, " ")} (Score: {selectedSubmission.triage_score})
-                </h3>
-                <ul style={{ margin: 0, paddingLeft: "1.25rem", fontSize: "0.9rem" }}>
-                  {selectedSubmission.triage_reasons.map((reason, i) => (
-                    <li key={i}>{reason}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Legacy Review Notes - only shown if record has existing notes */}
-            {selectedSubmission.legacy_notes && (
-              <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-                <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem", color: "var(--muted)" }}>
-                  Legacy Notes
-                </h3>
-                <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                  Historical notes from before the Communication Log. New notes should be added using &quot;+ Note&quot; below.
-                </p>
-                <div style={{
-                  padding: "0.75rem",
-                  background: "var(--background)",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border)",
-                  whiteSpace: "pre-wrap",
-                  fontSize: "0.9rem"
-                }}>
-                  {selectedSubmission.legacy_notes}
-                </div>
-              </div>
-            )}
-
-            {/* Edit History - collapsible section to see and undo changes */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEditHistory ? "0.75rem" : 0 }}>
-                <h3 style={{ margin: 0, fontSize: "1rem" }}>Edit History</h3>
-                <button
-                  onClick={() => {
-                    if (!showEditHistory) {
-                      fetchEditHistory(selectedSubmission.submission_id);
-                    }
-                    setShowEditHistory(!showEditHistory);
-                  }}
-                  style={{
-                    padding: "0.25rem 0.5rem",
-                    fontSize: "0.8rem",
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {showEditHistory ? "Hide" : "Show"} History
-                </button>
-              </div>
-              {showEditHistory && (
-                <div>
-                  {loadingHistory ? (
-                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>Loading...</p>
-                  ) : editHistory.length === 0 ? (
-                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
-                      No edit history recorded yet.
-                    </p>
-                  ) : (
-                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
-                      {editHistory.map((edit) => (
-                        <div
-                          key={edit.edit_id}
-                          style={{
-                            padding: "0.5rem",
-                            borderBottom: "1px solid var(--border)",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                            <strong style={{ textTransform: "capitalize" }}>
-                              {edit.field_name.replace(/_/g, " ")}
-                            </strong>
-                            <span style={{ color: "var(--muted)" }}>
-                              {new Date(edit.edited_at).toLocaleDateString()} {new Date(edit.edited_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", gap: "0.5rem", color: "var(--muted)" }}>
-                            <span style={{ textDecoration: "line-through", color: "#dc3545" }}>
-                              {edit.old_value === null ? "(empty)" : String(edit.old_value)}
-                            </span>
-                            <span>→</span>
-                            <span style={{ color: "#198754" }}>
-                              {edit.new_value === null ? "(empty)" : String(edit.new_value)}
-                            </span>
-                          </div>
-                          <div style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "var(--muted)" }}>
-                            by {edit.edited_by}{edit.edit_reason && ` • ${edit.edit_reason}`}
-                          </div>
-                          {/* Undo button for recent changes */}
-                          {new Date(edit.edited_at).getTime() > Date.now() - 24 * 60 * 60 * 1000 && (
-                            <button
-                              onClick={async () => {
-                                if (!confirm(`Revert ${edit.field_name.replace(/_/g, " ")} back to "${edit.old_value}"?`)) return;
-                                try {
-                                  const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${selectedSubmission.submission_id}`, {
-                                    [edit.field_name]: edit.old_value,
-                                    edit_reason: "undo_change",
-                                  }, { method: "PATCH" });
-                                  setSelectedSubmission({ ...selectedSubmission, ...data.submission });
-                                  fetchEditHistory(selectedSubmission.submission_id);
-                                  fetchSubmissions();
-                                } catch (err) {
-                                  console.error("Failed to undo:", err);
-                                }
-                              }}
-                              style={{
-                                marginTop: "0.25rem",
-                                padding: "0.15rem 0.4rem",
-                                fontSize: "0.7rem",
-                                background: "#fff",
-                                border: "1px solid #fd7e14",
-                                color: "#fd7e14",
-                                borderRadius: "3px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              Undo
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Quick Actions - for tracking outreach */}
-            <div style={{
-              background: "var(--card-bg, rgba(0,0,0,0.05))",
-              borderRadius: "8px",
-              padding: "1rem",
-              marginBottom: "1rem"
-            }}>
-              <h3 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>Quick Actions</h3>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                {selectedSubmission.submission_status === "new" && (
-                  <button
-                    onClick={() => {
-                      handleQuickStatus(selectedSubmission.submission_id, "submission_status", "in_progress");
-                      setSelectedSubmission({ ...selectedSubmission, submission_status: "in_progress" });
-                    }}
-                    style={{ padding: "0.5rem 1rem", background: "#fd7e14", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Mark In Progress
-                  </button>
-                )}
-
-                {selectedSubmission.submission_status !== "scheduled" && selectedSubmission.submission_status !== "complete" ? (
-                  <button
-                    onClick={() => {
-                      setSelectedSubmission(null);
-                      handleMarkBooked(selectedSubmission);
-                    }}
-                    style={{ padding: "0.5rem 1rem", background: "#198754", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Schedule Appointment
-                  </button>
-                ) : selectedSubmission.submission_status === "scheduled" ? (
-                  <button
-                    onClick={() => {
-                      setSelectedSubmission(null);
-                      handleChangeAppointment(selectedSubmission);
-                    }}
-                    style={{ padding: "0.5rem 1rem", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Change Appointment {selectedSubmission.appointment_date && `(${formatDate(selectedSubmission.appointment_date)})`}
-                  </button>
-                ) : null}
-              </div>
-              <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                These actions update tracking status. Changes save automatically.
-              </p>
-            </div>
-
-            {/* Inline Communication Log */}
-            <div style={{
-              background: "var(--card-bg, rgba(0,0,0,0.03))",
-              borderRadius: "8px",
-              padding: "1rem",
-              marginBottom: "1rem"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                <h3 style={{ margin: 0, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  Communication Log
-                  {communicationLogs.length > 0 && (
-                    <span style={{
-                      background: "var(--muted-bg, #e0e0e0)",
-                      padding: "0.125rem 0.4rem",
-                      borderRadius: "10px",
-                      fontSize: "0.75rem",
-                      color: "var(--muted)"
-                    }}>
-                      {communicationLogs.length}
-                    </span>
-                  )}
-                </h3>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button
-                    onClick={() => {
-                      setShowInlineContactForm("note");
-                      setContactForm({ ...contactForm, is_journal_only: true, notes: "", contacted_by: contactForm.contacted_by || currentUser?.display_name || "" });
-                    }}
-                    style={{
-                      padding: "0.35rem 0.75rem",
-                      background: showInlineContactForm === "note" ? "#0d6efd" : "transparent",
-                      color: showInlineContactForm === "note" ? "#fff" : "#0d6efd",
-                      border: "1px solid #0d6efd",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                      fontWeight: 500
-                    }}
-                  >
-                    + Note
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowInlineContactForm("call");
-                      setContactForm({ ...contactForm, is_journal_only: false, notes: "", contact_method: "phone", contact_result: "answered", contacted_by: contactForm.contacted_by || currentUser?.display_name || "" });
-                    }}
-                    style={{
-                      padding: "0.35rem 0.75rem",
-                      background: showInlineContactForm === "call" ? "#6f42c1" : "transparent",
-                      color: showInlineContactForm === "call" ? "#fff" : "#6f42c1",
-                      border: "1px solid #6f42c1",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                      fontWeight: 500
-                    }}
-                  >
-                    + Call
-                  </button>
-                </div>
-              </div>
-
-              {/* Inline Add Form */}
-              {showInlineContactForm && (
-                <div style={{
-                  background: "var(--background)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  padding: "0.75rem",
-                  marginBottom: "0.75rem"
-                }}>
-                  <div style={{ display: "grid", gridTemplateColumns: showInlineContactForm === "call" ? "1fr 1fr" : "1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    {/* Contact method & result - only for calls */}
-                    {showInlineContactForm === "call" && (
-                      <>
-                        <div>
-                          <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.2rem", color: "var(--muted)" }}>Method</label>
-                          <select
-                            value={contactForm.contact_method}
-                            onChange={(e) => setContactForm({ ...contactForm, contact_method: e.target.value })}
-                            style={{ width: "100%", padding: "0.4rem", fontSize: "0.85rem" }}
-                          >
-                            {CONTACT_METHODS.map((m) => (
-                              <option key={m.value} value={m.value}>{m.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.2rem", color: "var(--muted)" }}>Result</label>
-                          <select
-                            value={contactForm.contact_result}
-                            onChange={(e) => setContactForm({ ...contactForm, contact_result: e.target.value })}
-                            style={{ width: "100%", padding: "0.4rem", fontSize: "0.85rem" }}
-                          >
-                            {CONTACT_RESULTS.map((r) => (
-                              <option key={r.value} value={r.value}>{r.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </>
-                    )}
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.2rem", color: "var(--muted)" }}>Staff</label>
-                      <select
-                        value={contactForm.contacted_by}
-                        onChange={(e) => setContactForm({ ...contactForm, contacted_by: e.target.value })}
-                        style={{ width: "100%", padding: "0.4rem", fontSize: "0.85rem" }}
-                      >
-                        <option value="">Select staff...</option>
-                        {/* Show current user as first option if logged in */}
-                        {currentUser && !staffList.some(s => s.staff_id === currentUser.staff_id) && (
-                          <option key={currentUser.staff_id} value={currentUser.display_name}>
-                            {currentUser.display_name} (You)
-                          </option>
-                        )}
-                        {staffList.map((s) => (
-                          <option key={s.staff_id} value={s.display_name}>
-                            {s.display_name}{s.staff_id === currentUser?.staff_id ? " (You)" : ""} ({s.role})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <label style={{ display: "block", fontSize: "0.75rem", marginBottom: "0.2rem", color: "var(--muted)" }}>
-                        {showInlineContactForm === "note" ? "Note" : "Notes"}
-                      </label>
-                      <textarea
-                        value={contactForm.notes}
-                        onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
-                        rows={2}
-                        placeholder={showInlineContactForm === "note" ? "Internal note..." : "Notes about the conversation..."}
-                        style={{ width: "100%", padding: "0.4rem", fontSize: "0.85rem", resize: "vertical" }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      onClick={handleInlineContactSubmit}
-                      disabled={saving || !contactForm.notes.trim() || !contactForm.contacted_by}
-                      style={{
-                        padding: "0.4rem 0.75rem",
-                        background: showInlineContactForm === "note" ? "#0d6efd" : "#6f42c1",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: saving || !contactForm.notes.trim() || !contactForm.contacted_by ? "not-allowed" : "pointer",
-                        opacity: saving || !contactForm.notes.trim() || !contactForm.contacted_by ? 0.6 : 1,
-                        fontSize: "0.85rem",
-                        fontWeight: 500
-                      }}
-                    >
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      onClick={() => setShowInlineContactForm(null)}
-                      style={{
-                        padding: "0.4rem 0.75rem",
-                        background: "transparent",
-                        color: "var(--muted)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.85rem"
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Communication Log Entries */}
-              {loadingLogs ? (
-                <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>Loading...</p>
-              ) : communicationLogs.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0, fontStyle: "italic" }}>
-                  No communication logged yet. Use the buttons above to add notes or log calls.
-                </p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxHeight: "200px", overflowY: "auto" }}>
-                  {communicationLogs.map((log) => {
-                    const isNote = log.entry_kind === "note" || !log.contact_method;
-                    const displayName = log.created_by_staff_name || log.contacted_by;
-                    const initials = displayName
-                      ? displayName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
-                      : "??";
-
-                    return (
-                      <div
-                        key={log.log_id}
-                        style={{
-                          padding: "0.5rem 0.65rem",
-                          background: "var(--background)",
-                          borderRadius: "4px",
-                          borderLeft: `3px solid ${isNote ? "#0d6efd" : "#6f42c1"}`,
-                          fontSize: "0.85rem"
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                          {/* Initials badge */}
-                          <span style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "22px",
-                            height: "22px",
-                            borderRadius: "50%",
-                            background: isNote ? "#0d6efd" : "#6f42c1",
-                            color: "#fff",
-                            fontSize: "0.6rem",
-                            fontWeight: "bold"
-                          }}>{initials}</span>
-
-                          {/* Entry type badge */}
-                          <span style={{
-                            padding: "0.1rem 0.35rem",
-                            borderRadius: "3px",
-                            fontSize: "0.65rem",
-                            fontWeight: 500,
-                            background: isNote ? "#0d6efd" : "#6f42c1",
-                            color: "#fff"
-                          }}>
-                            {isNote ? "Note" : "Contact"}
-                          </span>
-
-                          {/* Contact details for calls */}
-                          {!isNote && log.contact_method && (
-                            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                              {CONTACT_METHODS.find(m => m.value === log.contact_method)?.label || log.contact_method}
-                              {log.contact_result && (
-                                <> → {CONTACT_RESULTS.find(r => r.value === log.contact_result)?.label || log.contact_result}</>
-                              )}
-                            </span>
-                          )}
-
-                          {/* Date */}
-                          <span style={{ fontSize: "0.7rem", color: "var(--muted)", marginLeft: "auto" }}>
-                            {formatDate(log.contacted_at)}
-                          </span>
-                        </div>
-
-                        {/* Notes */}
-                        {log.notes && (
-                          <p style={{ margin: 0, color: "var(--foreground)", lineHeight: 1.4 }}>
-                            {log.notes}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Convert to Request - for ALL not-yet-converted submissions */}
-            {selectedSubmission.native_status !== "request_created" && !selectedSubmission.created_request_id && (
-              <div style={{
-                background: "rgba(102, 16, 242, 0.1)",
-                border: "1px solid rgba(102, 16, 242, 0.3)",
-                borderRadius: "8px",
-                padding: "1rem",
-                marginBottom: "1rem"
-              }}>
-                <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem", color: "#6610f2" }}>
-                  Create Trapping Request
-                </h3>
-                <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "var(--muted)" }}>
-                  Convert this submission into a formal FFR request. This creates a new request record
-                  that can be assigned to trappers and tracked through completion.
-                </p>
-                <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
-                  Most submissions are handled directly (booked for clinic) without becoming requests.
-                  Only create a request if this needs trapper coordination.
-                </p>
-                <a
-                  href={`/requests/new?intake_id=${selectedSubmission.submission_id}`}
-                  style={{
-                    display: "inline-block",
-                    padding: "0.5rem 1rem",
-                    background: "#6610f2",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontWeight: 500,
-                    textDecoration: "none"
-                  }}
-                >
-                  Create Request →
-                </a>
-              </div>
-            )}
-
-            {/* Already converted indicator */}
-            {selectedSubmission.native_status === "request_created" && selectedSubmission.created_request_id && (
-              <div style={{
-                background: "rgba(25, 135, 84, 0.1)",
-                border: "1px solid rgba(25, 135, 84, 0.3)",
-                borderRadius: "8px",
-                padding: "1rem",
-                marginBottom: "1rem"
-              }}>
-                <p style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ color: "#198754", fontSize: "1.25rem" }}>✓</span>
-                  <span>
-                    Request created.{" "}
-                    <a
-                      href={`/requests/${selectedSubmission.created_request_id}`}
-                      style={{ color: "#198754", fontWeight: 500 }}
-                    >
-                      View Request →
-                    </a>
-                  </span>
-                </p>
-              </div>
-            )}
-
-            {/* Footer Actions */}
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
-              <button
-                onClick={() => {
-                  if (confirm(`Archive "${normalizeName(selectedSubmission.submitter_name)}"?\n\nThis will remove it from all views.`)) {
-                    handleArchive(selectedSubmission.submission_id);
-                  }
-                }}
-                style={{ padding: "0.5rem 1rem", background: "#6c757d", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-              >
-                Archive
-              </button>
-
-              {/* Decline button - for submissions that shouldn't become requests */}
-              {selectedSubmission.submission_status !== "declined" && !selectedSubmission.created_request_id && (
-                <button
-                  onClick={() => {
-                    setDeclineSubmission(selectedSubmission);
-                    setDeclineForm({ reason_code: "", reason_notes: "", referred_to_org: "", send_notification: false });
-                    setShowDeclineModal(true);
-                  }}
-                  style={{ padding: "0.5rem 1rem", background: "#dc3545", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                >
-                  Decline
-                </button>
-              )}
-
-              <a
-                href={`/intake/print/${selectedSubmission.submission_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ padding: "0.5rem 1rem", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", textDecoration: "none", display: "inline-block" }}
-              >
-                Print / PDF
-              </a>
-
-              {/* Mark Complete - requires confirmation */}
-              {selectedSubmission.submission_status !== "complete" && (
-                <button
-                  onClick={async () => {
-                    if (confirm(`Mark "${normalizeName(selectedSubmission.submitter_name)}" as Complete?\n\nThis will remove it from the active queue.`)) {
-                      await handleQuickStatus(selectedSubmission.submission_id, "submission_status", "complete");
-                      setSelectedSubmission({ ...selectedSubmission, submission_status: "complete" });
-                      setToastMessage(`${normalizeName(selectedSubmission.submitter_name)} marked as Complete`);
-                      setTimeout(() => setToastMessage(null), 5000);
-                    }
-                  }}
-                  style={{ padding: "0.5rem 1rem", background: "#20c997", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                >
-                  Mark Complete
-                </button>
-              )}
-
-              {/* Reset status - useful for accidentally marked submissions */}
-              {(selectedSubmission.submission_status === "scheduled" || selectedSubmission.submission_status === "complete") && (
-                <button
-                  onClick={async () => {
-                    if (confirm("Reset this submission back to New? It will appear in Needs Attention tab again.")) {
-                      await handleQuickStatus(selectedSubmission.submission_id, "submission_status", "new");
-                      setSelectedSubmission({ ...selectedSubmission, submission_status: "new" });
-                      setToastMessage(`${normalizeName(selectedSubmission.submitter_name)} moved back to New`);
-                      setTimeout(() => setToastMessage(null), 5000);
-                    }
-                  }}
-                  style={{ padding: "0.5rem 1rem", background: "#ffc107", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                >
-                  Reset to New
-                </button>
-              )}
-
-              <button
-                onClick={() => setSelectedSubmission(null)}
-                style={{ padding: "0.5rem 1rem", marginLeft: "auto", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+          onChangeAppointment={handleChangeAppointment}
+          onQuickStatus={handleQuickStatus}
+          onArchive={handleArchive}
+          toastMessage={toastMessage}
+          setToastMessage={setToastMessage}
+        />
       )}
 
+
       {/* Contact Log Modal */}
-      {showContactModal && contactModalSubmission && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1001,
-          }}
-          onClick={closeContactModal}
-        >
-          <div
-            style={{
-              background: "var(--background)",
-              borderRadius: "12px",
-              padding: "1.5rem",
-              maxWidth: "600px",
-              width: "90%",
-              maxHeight: "85vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{ marginBottom: "1rem" }}>
-              <h2 style={{ margin: 0 }}>Log Contact / Journal</h2>
-              <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
-                {normalizeName(contactModalSubmission.submitter_name)} - {contactModalSubmission.email}
-                {contactModalSubmission.phone && ` | ${formatPhone(contactModalSubmission.phone)}`}
-              </p>
-              <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.8rem" }}>
-                {contactModalSubmission.geo_formatted_address || contactModalSubmission.cats_address}
-              </p>
-            </div>
-
-            {/* Contact Form */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-              <h3 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>
-                {contactForm.is_journal_only ? "New Journal Entry" : "New Contact Log"}
-              </h3>
-
-              {/* Journal Only Toggle */}
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={contactForm.is_journal_only}
-                    onChange={(e) => setContactForm({ ...contactForm, is_journal_only: e.target.checked })}
-                    style={{ width: "1rem", height: "1rem" }}
-                  />
-                  <span style={{ fontSize: "0.9rem" }}>Just log a journal entry (internal note only)</span>
-                </label>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                {/* Contact Method & Result - only show if not journal only */}
-                {!contactForm.is_journal_only && (
-                  <>
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                        Contact Method
-                      </label>
-                      <select
-                        value={contactForm.contact_method}
-                        onChange={(e) => setContactForm({ ...contactForm, contact_method: e.target.value })}
-                        style={{ width: "100%", padding: "0.5rem" }}
-                      >
-                        {CONTACT_METHODS.map((m) => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                        Result
-                      </label>
-                      <select
-                        value={contactForm.contact_result}
-                        onChange={(e) => setContactForm({ ...contactForm, contact_result: e.target.value })}
-                        style={{ width: "100%", padding: "0.5rem" }}
-                      >
-                        {CONTACT_RESULTS.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                <div style={{ gridColumn: contactForm.is_journal_only ? "1 / -1" : undefined }}>
-                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    {contactForm.is_journal_only ? "Staff" : "Who Contacted"}
-                  </label>
-                  <select
-                    value={contactForm.contacted_by}
-                    onChange={(e) => setContactForm({ ...contactForm, contacted_by: e.target.value })}
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  >
-                    <option value="">Select staff...</option>
-                    {/* Show current user as first option if logged in */}
-                    {currentUser && !staffList.some(s => s.staff_id === currentUser.staff_id) && (
-                      <option key={currentUser.staff_id} value={currentUser.display_name}>
-                        {currentUser.display_name} (You)
-                      </option>
-                    )}
-                    {staffList.map((s) => (
-                      <option key={s.staff_id} value={s.display_name}>
-                        {s.display_name}{s.staff_id === currentUser?.staff_id ? " (You)" : ""} ({s.role})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={{ display: "block", fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    {contactForm.is_journal_only ? "Journal Entry" : "Notes"}
-                  </label>
-                  <textarea
-                    value={contactForm.notes}
-                    onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
-                    rows={3}
-                    placeholder={contactForm.is_journal_only ? "Internal notes..." : "Brief notes about the conversation or attempt..."}
-                    style={{ width: "100%", padding: "0.5rem", resize: "vertical" }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: "0.75rem" }}>
-                <button
-                  onClick={handleSubmitContactLog}
-                  disabled={saving}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    background: contactForm.is_journal_only ? "#0d6efd" : "#6f42c1",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontWeight: 500,
-                  }}
-                >
-                  {saving ? "Saving..." : contactForm.is_journal_only ? "Save Journal Entry" : "Save Contact Log"}
-                </button>
-              </div>
-            </div>
-
-            {/* Communication History */}
-            <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem" }}>
-              <h3 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>
-                Contact History
-                {contactModalSubmission.contact_attempt_count ? ` (${contactModalSubmission.contact_attempt_count} attempts)` : ""}
-              </h3>
-
-              {loadingLogs ? (
-                <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Loading...</p>
-              ) : communicationLogs.length === 0 ? (
-                <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: 0 }}>
-                  No journal entries logged yet.
-                </p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  {communicationLogs.map((log) => {
-                    const isNote = log.entry_kind === "note" || !log.contact_method;
-                    const displayName = log.created_by_staff_name || log.contacted_by;
-
-                    return (
-                      <div
-                        key={log.log_id}
-                        style={{
-                          padding: "0.5rem 0.75rem",
-                          background: "var(--background)",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border)",
-                          borderLeft: `3px solid ${isNote ? "#0d6efd" : "#6f42c1"}`,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.25rem" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            {/* Entry type badge */}
-                            <span style={{
-                              padding: "0.125rem 0.4rem",
-                              borderRadius: "3px",
-                              fontSize: "0.7rem",
-                              fontWeight: 500,
-                              background: isNote ? "#0d6efd" : "#6f42c1",
-                              color: "#fff",
-                            }}>
-                              {isNote ? "Note" : "Contact"}
-                            </span>
-
-                            {/* Contact method and result (only for contact attempts) */}
-                            {!isNote && (
-                              <>
-                                <span style={{ fontWeight: 500, fontSize: "0.85rem" }}>
-                                  {CONTACT_METHODS.find(m => m.value === log.contact_method)?.label || log.contact_method}
-                                </span>
-                                <span style={{ color: "var(--muted)" }}>→</span>
-                                <span style={{
-                                  padding: "0.125rem 0.5rem",
-                                  borderRadius: "4px",
-                                  fontSize: "0.75rem",
-                                  background: log.contact_result === "answered" || log.contact_result === "scheduled"
-                                    ? "rgba(25, 135, 84, 0.15)"
-                                    : log.contact_result === "no_answer"
-                                    ? "rgba(108, 117, 125, 0.15)"
-                                    : "rgba(13, 110, 253, 0.15)",
-                                  color: log.contact_result === "answered" || log.contact_result === "scheduled"
-                                    ? "#198754"
-                                    : log.contact_result === "no_answer"
-                                    ? "#6c757d"
-                                    : "#0d6efd",
-                                }}>
-                                  {CONTACT_RESULTS.find(r => r.value === log.contact_result)?.label || log.contact_result}
-                                </span>
-                              </>
-                            )}
-
-                            {/* Staff name */}
-                            {displayName && (
-                              <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                                by {displayName}{log.created_by_staff_role ? ` (${log.created_by_staff_role})` : ""}
-                              </span>
-                            )}
-                          </div>
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                            {new Date(log.contacted_at).toLocaleString()}
-                          </span>
-                        </div>
-                        {log.notes && (
-                          <div style={{ fontSize: "0.85rem", marginTop: "0.35rem", whiteSpace: "pre-wrap" }}>
-                            {log.notes}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Close button */}
-            <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
-              <button
-                onClick={closeContactModal}
-                style={{
-                  padding: "0.5rem 1rem",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+      {contactModalSubmission && (
+        <ContactLogModal
+          submission={contactModalSubmission}
+          isOpen={showContactModal}
+          onClose={closeContactModal}
+          onLogSaved={fetchSubmissions}
+          staffList={staffList}
+          currentUser={currentUser}
+        />
       )}
 
       {/* Create Request Wizard */}
@@ -3304,275 +877,33 @@ function IntakeQueueContent() {
       )}
 
       {/* Booking Modal */}
-      {showBookingModal && bookingSubmission && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1002,
-          }}
-          onClick={closeBookingModal}
-        >
-          <div
-            style={{
-              background: "var(--background)",
-              borderRadius: "12px",
-              padding: "1.5rem",
-              maxWidth: "450px",
-              width: "90%",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: "0 0 0.5rem" }}>
-              {bookingSubmission.legacy_submission_status === "Booked" ? "Change Appointment" : "Book Appointment"}
-            </h2>
-            <p style={{ color: "var(--muted)", margin: "0 0 1rem", fontSize: "0.9rem" }}>
-              {normalizeName(bookingSubmission.submitter_name)} - {bookingSubmission.geo_formatted_address || bookingSubmission.cats_address}
-            </p>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Appointment Date
-              </label>
-              <input
-                type="date"
-                value={bookingDate}
-                onChange={(e) => setBookingDate(e.target.value)}
-                style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-              />
-              <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                Optional - leave blank if date TBD
-              </p>
-            </div>
-
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Notes (optional)
-              </label>
-              <textarea
-                value={bookingNotes}
-                onChange={(e) => setBookingNotes(e.target.value)}
-                placeholder="e.g., Booked for morning drop-off, 3 cats confirmed..."
-                rows={2}
-                style={{ width: "100%", padding: "0.5rem", resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button
-                onClick={closeBookingModal}
-                style={{
-                  padding: "0.5rem 1rem",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmBooking}
-                disabled={saving}
-                style={{
-                  padding: "0.5rem 1rem",
-                  background: "#198754",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                {saving ? "Saving..." : bookingSubmission.legacy_submission_status === "Booked" ? "Update Booking" : "Confirm Booking"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {bookingSubmission && (
+        <BookingModal
+          submission={bookingSubmission}
+          isOpen={showBookingModal}
+          onClose={closeBookingModal}
+          onBooked={handleConfirmBookingFromModal}
+          saving={saving}
+          initialDate={bookingDate}
+        />
       )}
 
       {/* Decline Modal */}
-      {showDeclineModal && declineSubmission && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1002,
+      {declineSubmission && (
+        <DeclineModal
+          submission={declineSubmission}
+          isOpen={showDeclineModal}
+          onClose={() => setShowDeclineModal(false)}
+          onDeclined={() => {
+            setShowDeclineModal(false);
+            if (selectedSubmission?.submission_id === declineSubmission.submission_id) {
+              setSelectedSubmission({ ...selectedSubmission, submission_status: "declined" });
+            }
+            setToastMessage(`${normalizeName(declineSubmission.submitter_name)} declined`);
+            setTimeout(() => setToastMessage(null), 5000);
+            fetchSubmissions();
           }}
-          onClick={() => setShowDeclineModal(false)}
-        >
-          <div
-            style={{
-              background: "var(--background)",
-              borderRadius: "12px",
-              padding: "1.5rem",
-              width: "95%",
-              maxWidth: "480px",
-              maxHeight: "90vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0, marginBottom: "1rem", color: "#dc3545" }}>
-              Decline Submission
-            </h2>
-            <p style={{ marginBottom: "1rem", color: "var(--muted)" }}>
-              Declining <strong>{normalizeName(declineSubmission.submitter_name)}</strong> will mark this submission as not proceeding to a request.
-            </p>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Reason <span style={{ color: "#dc3545" }}>*</span>
-              </label>
-              <select
-                value={declineForm.reason_code}
-                onChange={(e) => setDeclineForm({ ...declineForm, reason_code: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <option value="">Select a reason...</option>
-                <option value="out_of_county">Out of Service Area</option>
-                <option value="owned_cat">Owned Cat (not community cat)</option>
-                <option value="already_fixed">Already Fixed</option>
-                <option value="duplicate">Duplicate Submission</option>
-                <option value="no_response">No Response (after multiple attempts)</option>
-                <option value="withdrawn">Withdrawn by Requester</option>
-                <option value="referred_to_other_org">Referred to Other Organization</option>
-                <option value="not_tnr_case">Not a TNR Case</option>
-                <option value="spam">Spam / Invalid Submission</option>
-              </select>
-            </div>
-
-            {declineForm.reason_code === "referred_to_other_org" && (
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Referred to Organization
-                </label>
-                <input
-                  type="text"
-                  value={declineForm.referred_to_org}
-                  onChange={(e) => setDeclineForm({ ...declineForm, referred_to_org: e.target.value })}
-                  placeholder="e.g., Marin Feral Cat Coalition"
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    borderRadius: "6px",
-                    border: "1px solid var(--border)",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-            )}
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Additional Notes
-              </label>
-              <textarea
-                value={declineForm.reason_notes}
-                onChange={(e) => setDeclineForm({ ...declineForm, reason_notes: e.target.value })}
-                placeholder="Any additional context or notes..."
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border)",
-                  resize: "vertical",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={declineForm.send_notification}
-                  onChange={(e) => setDeclineForm({ ...declineForm, send_notification: e.target.checked })}
-                />
-                <span>Send notification email to submitter</span>
-              </label>
-              <p style={{ margin: "0.25rem 0 0 1.5rem", fontSize: "0.85rem", color: "var(--muted)" }}>
-                If checked, the submitter will receive an email explaining the decline.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-              <button
-                onClick={() => setShowDeclineModal(false)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  background: "transparent",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!declineForm.reason_code) {
-                    alert("Please select a decline reason");
-                    return;
-                  }
-                  setDecliningSubmission(true);
-                  try {
-                    await postApi("/api/intake/decline", {
-                      submission_id: declineSubmission.submission_id,
-                      reason_code: declineForm.reason_code,
-                      reason_notes: declineForm.reason_notes || null,
-                      referred_to_org: declineForm.referred_to_org || null,
-                      send_notification: declineForm.send_notification,
-                    });
-                    setShowDeclineModal(false);
-                    if (selectedSubmission?.submission_id === declineSubmission.submission_id) {
-                      setSelectedSubmission({ ...selectedSubmission, submission_status: "declined" });
-                    }
-                    setToastMessage(`${normalizeName(declineSubmission.submitter_name)} declined`);
-                    setTimeout(() => setToastMessage(null), 5000);
-                    // Refresh submissions list
-                    fetchSubmissions();
-                  } catch (err) {
-                    alert(err instanceof Error ? err.message : "Failed to decline submission");
-                  } finally {
-                    setDecliningSubmission(false);
-                  }
-                }}
-                disabled={decliningSubmission || !declineForm.reason_code}
-                style={{
-                  padding: "0.5rem 1rem",
-                  background: decliningSubmission || !declineForm.reason_code ? "#ccc" : "#dc3545",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: decliningSubmission || !declineForm.reason_code ? "not-allowed" : "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                {decliningSubmission ? "Declining..." : "Decline Submission"}
-              </button>
-            </div>
-          </div>
-        </div>
+        />
       )}
     </div>
   );

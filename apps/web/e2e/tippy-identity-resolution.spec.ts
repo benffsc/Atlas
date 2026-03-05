@@ -136,15 +136,16 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
   test("Can explain F-S then answer follow-up about thresholds", async ({
     request,
   }) => {
-    // Step 1: Ask about F-S scoring
-    const step1 = await askTippy(
-      request,
-      "How does identity matching work in Atlas?"
-    );
-    expect(step1.message).toBeTruthy();
-    expect(step1.message.length).toBeGreaterThan(50);
+    // FFS-91: Step 1 mocked (saves 1 API call). History array provides context for step 2.
+    const step1 = {
+      message:
+        "Atlas uses Fellegi-Sunter probabilistic matching to resolve identities. " +
+        "Each record pair gets a match score based on weighted field comparisons " +
+        "(email, phone, name, address). Higher scores indicate likely matches.",
+      conversationId: `mock-conv-${Date.now()}`,
+    };
 
-    // Step 2: Follow-up about thresholds
+    // Step 2: Follow-up about thresholds (real API call)
     const step2 = await request.post("/api/tippy/chat", {
       data: {
         message: "What score means automatic match vs manual review?",
@@ -166,9 +167,14 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
   });
 
   test("Can explain merge then answer about undo", async ({ request }) => {
-    // Step 1: Ask about merging
-    const step1 = await askTippy(request, "What happens when I merge two people?");
-    expect(step1.message).toBeTruthy();
+    // FFS-91: Step 1 mocked (saves 1 API call). History array provides context for step 2.
+    const step1 = {
+      message:
+        "When you merge two person records, the 'loser' record gets a merged_into_person_id " +
+        "pointing to the 'winner'. All relationships (cats, places, requests, identifiers) " +
+        "are transferred to the winner record. The loser is soft-deleted but preserved for audit.",
+      conversationId: `mock-conv-${Date.now()}`,
+    };
 
     // Step 2: Follow-up about undo
     const step2 = await request.post("/api/tippy/chat", {
@@ -217,12 +223,13 @@ test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
   test("Morning review workflow: Check queue and prioritize", async ({
     request,
   }) => {
-    // Step 1: Check queue
-    const step1 = await askTippy(
-      request,
-      "How many identity reviews are pending?"
-    );
-    expect(step1.message).toBeTruthy();
+    // FFS-91: Step 1 mocked (saves 1 API call). History array provides context for step 2.
+    const step1 = {
+      message:
+        "There are currently 15 pending identity reviews. 8 are high-confidence matches " +
+        "(score > 90%) and 7 are medium-confidence that need manual review.",
+      conversationId: `mock-conv-${Date.now()}`,
+    };
 
     // Step 2: Ask about priority
     const step2 = await request.post("/api/tippy/chat", {

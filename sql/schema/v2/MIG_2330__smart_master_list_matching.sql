@@ -26,6 +26,8 @@ BEGIN
       JOIN ops.appointments a ON a.appointment_date = cd.clinic_date
       JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.people owner ON owner.person_id = a.person_id AND owner.merged_into_person_id IS NULL
+      -- FFS-99: Also match against clinic_accounts.display_name and appointments.client_name
+      LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id
       WHERE cd.clinic_date = p_clinic_date
         AND e2.matched_appointment_id IS NULL
         AND e2.parsed_owner_name IS NOT NULL
@@ -33,6 +35,8 @@ BEGIN
         AND (
           LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(owner.display_name))
           OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(CONCAT(owner.first_name, ' ', owner.last_name)))
+          OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(ca.display_name))
+          OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(a.client_name))
         )
         AND similarity(LOWER(e2.parsed_cat_name), LOWER(c.name)) > 0.5
         AND NOT EXISTS (
@@ -62,12 +66,16 @@ BEGIN
       JOIN ops.clinic_days cd ON cd.clinic_day_id = e2.clinic_day_id
       JOIN ops.appointments a ON a.appointment_date = cd.clinic_date
       LEFT JOIN sot.people owner ON owner.person_id = a.person_id AND owner.merged_into_person_id IS NULL
+      -- FFS-99: Also match against clinic_accounts.display_name and appointments.client_name
+      LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id
       WHERE cd.clinic_date = p_clinic_date
         AND e2.matched_appointment_id IS NULL
         AND e2.parsed_owner_name IS NOT NULL
         AND (
           LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(owner.display_name))
           OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(CONCAT(owner.first_name, ' ', owner.last_name)))
+          OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(ca.display_name))
+          OR LOWER(TRIM(e2.parsed_owner_name)) = LOWER(TRIM(a.client_name))
         )
         AND NOT EXISTS (
           SELECT 1 FROM ops.clinic_day_entries e3
@@ -262,7 +270,7 @@ BEGIN
     RETURN 0;
   END IF;
 
-  -- Greedy match: pair by best similarity score
+  -- FFS-100: Greedy match with sex/name disambiguation (not just line order)
   FOR r IN (
     SELECT DISTINCT ON (e.entry_id)
       e.entry_id,
@@ -274,7 +282,13 @@ BEGIN
       COALESCE(
         similarity(LOWER(COALESCE(e.parsed_owner_name, '')), LOWER(COALESCE(owner.display_name, ''))),
         0
-      ) AS combined_score
+      ) +
+      -- Sex compatibility bonus: +0.5 if entry sex matches cat sex
+      CASE
+        WHEN e.female_count > 0 AND e.male_count = 0 AND c.sex = 'Female' THEN 0.5
+        WHEN e.male_count > 0 AND e.female_count = 0 AND c.sex = 'Male' THEN 0.5
+        ELSE 0
+      END AS combined_score
     FROM ops.clinic_day_entries e
     JOIN ops.appointments a ON a.appointment_date = p_clinic_date
     LEFT JOIN sot.cats c ON c.cat_id = a.cat_id

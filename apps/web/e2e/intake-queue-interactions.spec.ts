@@ -3,16 +3,24 @@
  *
  * Tests UI interactions on the /intake/queue page including:
  * - Page loading and content visibility
+ * - Tab navigation (Active, Scheduled, Completed, All)
+ * - Filter chips (Legacy, Test toggles)
  * - Search input functionality
  * - Category filter dropdown
- * - Sort controls (sort by dropdown and sort order toggle)
- * - Submission list rendering
- * - Detail panel opening via submission click
+ * - Sort controls (sort by dropdown including Priority, sort order toggle)
+ * - Submission list rendering with IntakeQueueRow component
+ * - Row action buttons (Log, primary action, overflow menu)
+ * - Detail panel (IntakeDetailPanel) opening via submission click
  * - Detail panel content verification
  * - Status action buttons in the detail panel
  * - Closing the detail panel
  *
  * ALL WRITES ARE MOCKED via mockAllWrites(page) in beforeEach.
+ *
+ * Component structure (FFS-110 refactor):
+ *   queue/page.tsx → IntakeQueueRow.tsx, IntakeDetailPanel.tsx,
+ *   ContactLogModal.tsx, BookingModal.tsx, DeclineModal.tsx,
+ *   IntakeBadges.tsx, intake-types.ts
  */
 
 import { test, expect } from '@playwright/test';
@@ -41,7 +49,95 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 2. Search input accepts text
+  // 2. Four tabs are visible (FFS-111)
+  // --------------------------------------------------------------------------
+  test('Four tabs are visible: Active, Scheduled, Completed, All', async ({ page }) => {
+    await navigateTo(page, '/intake/queue');
+    await waitForLoaded(page);
+
+    // Tabs are plain <button> elements with text labels
+    const activeTab = page.locator('button').filter({ hasText: /^Active$/ });
+    const scheduledTab = page.locator('button').filter({ hasText: /^Scheduled$/ });
+    const completedTab = page.locator('button').filter({ hasText: /^Completed$/ });
+    const allTab = page.locator('button').filter({ hasText: /^All$/ });
+
+    await expect(activeTab.first()).toBeVisible({ timeout: 5000 });
+    await expect(scheduledTab.first()).toBeVisible();
+    await expect(completedTab.first()).toBeVisible();
+    await expect(allTab.first()).toBeVisible();
+  });
+
+  // --------------------------------------------------------------------------
+  // 3. Tab switching works
+  // --------------------------------------------------------------------------
+  test('Clicking tabs switches the active tab', async ({ page }) => {
+    await navigateTo(page, '/intake/queue');
+    await waitForLoaded(page);
+
+    // Click "Scheduled" tab
+    const scheduledTab = page.locator('button').filter({ hasText: /^Scheduled$/ }).first();
+    await scheduledTab.click();
+    await page.waitForTimeout(500);
+
+    // URL should update with tab=scheduled
+    expect(page.url()).toContain('tab=scheduled');
+
+    // Click "All" tab
+    const allTab = page.locator('button').filter({ hasText: /^All$/ }).first();
+    await allTab.click();
+    await page.waitForTimeout(500);
+
+    expect(page.url()).toContain('tab=all');
+
+    // Click back to "Active" (default tab — URL may omit the param or show tab=active)
+    const activeTab = page.locator('button').filter({ hasText: /^Active$/ }).first();
+    await activeTab.click();
+    await page.waitForTimeout(500);
+
+    // "active" is the default tab, so the URL may not include tab= at all
+    const finalUrl = page.url();
+    expect(finalUrl.includes('tab=active') || !finalUrl.includes('tab=')).toBeTruthy();
+  });
+
+  // --------------------------------------------------------------------------
+  // 4. Filter chips toggle (FFS-111)
+  // --------------------------------------------------------------------------
+  test('Legacy and Test filter chips toggle on/off', async ({ page }) => {
+    await navigateTo(page, '/intake/queue');
+    await waitForLoaded(page);
+
+    // Filter chips show "Legacy Off" and "Test Off" by default
+    const legacyChip = page.locator('button').filter({ hasText: /Legacy/i }).first();
+    const testChip = page.locator('button').filter({ hasText: /Test/i }).first();
+
+    if (!(await legacyChip.isVisible({ timeout: 5000 }).catch(() => false))) {
+      test.skip();
+      return;
+    }
+
+    // Verify initial "Off" state
+    const legacyText = await legacyChip.textContent();
+    expect(legacyText).toContain('Off');
+
+    // Click to toggle on
+    await legacyChip.click();
+    await page.waitForTimeout(500);
+
+    // Should now show "On" and URL should have legacy=1
+    const legacyTextAfter = await legacyChip.textContent();
+    expect(legacyTextAfter).toContain('On');
+    expect(page.url()).toContain('legacy=1');
+
+    // Click again to toggle off
+    await legacyChip.click();
+    await page.waitForTimeout(500);
+
+    const legacyTextOff = await legacyChip.textContent();
+    expect(legacyTextOff).toContain('Off');
+  });
+
+  // --------------------------------------------------------------------------
+  // 5. Search input accepts text
   // --------------------------------------------------------------------------
   test('Search input accepts text', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
@@ -71,14 +167,13 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 3. Category filter dropdown works
+  // 6. Category filter dropdown works
   // --------------------------------------------------------------------------
   test('Category filter dropdown works', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
     await waitForLoaded(page);
 
-    // The category filter is a <select> with options like "All Categories",
-    // "High Priority FFR", "Standard FFR", etc.
+    // The category filter is a <select> with "All Categories" option
     const selects = page.locator('select');
     const selectCount = await selects.count();
 
@@ -99,13 +194,11 @@ test.describe('UI: Intake Queue Interactions', () => {
     }
 
     if (!categorySelect) {
-      // Fallback: just use the first select that has multiple options
       categorySelect = selects.first();
     }
 
     await expect(categorySelect).toBeVisible();
 
-    // Verify it has options
     const options = categorySelect.locator('option');
     const optionCount = await options.count();
     expect(optionCount).toBeGreaterThan(1);
@@ -119,13 +212,12 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 4. Sort by dropdown changes sort
+  // 7. Sort by dropdown includes Priority option (FFS-111)
   // --------------------------------------------------------------------------
-  test('Sort by dropdown changes sort', async ({ page }) => {
+  test('Sort by dropdown changes sort and includes Priority', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
     await waitForLoaded(page);
 
-    // The sort dropdown contains options "Sort by Date", "Sort by Category", "Sort by Type"
     const selects = page.locator('select');
     const selectCount = await selects.count();
 
@@ -151,13 +243,17 @@ test.describe('UI: Intake Queue Interactions', () => {
 
     await expect(sortSelect).toBeVisible();
 
+    // Verify "Sort by Priority" option exists (FFS-111 addition)
+    const optionTexts = await sortSelect.locator('option').allTextContents();
+    expect(optionTexts.some((t) => t.toLowerCase().includes('priority'))).toBeTruthy();
+
+    // Change to "priority" sort
+    await sortSelect.selectOption('priority');
+    await expect(sortSelect).toHaveValue('priority');
+
     // Change to "category" sort
     await sortSelect.selectOption('category');
     await expect(sortSelect).toHaveValue('category');
-
-    // Change to "type" sort
-    await sortSelect.selectOption('type');
-    await expect(sortSelect).toHaveValue('type');
 
     // Change back to "date" sort
     await sortSelect.selectOption('date');
@@ -165,13 +261,13 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 5. Sort order toggle works
+  // 8. Sort order toggle works
   // --------------------------------------------------------------------------
   test('Sort order toggle works', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
     await waitForLoaded(page);
 
-    // The sort order button shows ↑/↓ with title "Oldest first" or "Newest first"
+    // The sort order button shows arrow with title "Oldest first" or "Newest first"
     const sortButton = page.locator('button[title*="first"]').first();
 
     if (!(await sortButton.isVisible({ timeout: 5000 }).catch(() => false))) {
@@ -190,7 +286,7 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 6. Submission list items render
+  // 9. Submission list items render
   // --------------------------------------------------------------------------
   test('Submission list items render', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
@@ -199,35 +295,59 @@ test.describe('UI: Intake Queue Interactions', () => {
     // Wait for data to load
     await page.waitForTimeout(3000);
 
-    // The page uses a <table> with <tbody><tr> for submissions
+    // The page uses a <table> with <tbody><tr> for submissions (IntakeQueueRow components)
     const tableRows = page.locator('table tbody tr');
-    const submissionCards = page.locator(
-      '[data-testid*="submission"], .submission-card, .submission-row'
-    );
 
     const rowCount = await tableRows.count();
-    const cardCount = await submissionCards.count();
-    const totalItems = rowCount + cardCount;
 
-    if (totalItems === 0) {
+    if (rowCount === 0) {
       // Queue might be empty - check for empty state message
-      const emptyMessage = page.locator('text=No submissions found, text=All caught up, text=No new submissions');
+      const emptyMessage = page.locator('text=No submissions found, text=All caught up');
       const hasEmptyMessage = await emptyMessage.count();
       if (hasEmptyMessage > 0) {
-        // Empty state is valid
         expect(hasEmptyMessage).toBeGreaterThan(0);
         return;
       }
-      // Might still be loading; skip if we truly have nothing
       test.skip();
       return;
     }
 
-    expect(totalItems).toBeGreaterThan(0);
+    expect(rowCount).toBeGreaterThan(0);
   });
 
   // --------------------------------------------------------------------------
-  // 7. Clicking submission opens detail
+  // 10. Queue rows have action buttons (FFS-109)
+  // --------------------------------------------------------------------------
+  test('Queue rows have Log button and overflow menu', async ({ page }) => {
+    await navigateTo(page, '/intake/queue');
+    await waitForLoaded(page);
+    await page.waitForTimeout(3000);
+
+    const firstRow = page.locator('table tbody tr').first();
+    if (!(await firstRow.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip();
+      return;
+    }
+
+    // Each row should have a "Log" button (always visible per FFS-109)
+    const logButton = firstRow.locator('button').filter({ hasText: /^Log/ });
+    await expect(logButton).toBeVisible();
+
+    // Each row should have an overflow "..." menu button
+    const overflowButton = firstRow.locator('button[title="More actions"]');
+    await expect(overflowButton).toBeVisible();
+
+    // Click overflow to reveal menu
+    await overflowButton.click();
+    await page.waitForTimeout(300);
+
+    // Overflow menu should have a "Details" option
+    const detailsOption = page.locator('button').filter({ hasText: /^Details$/ });
+    await expect(detailsOption.first()).toBeVisible({ timeout: 2000 });
+  });
+
+  // --------------------------------------------------------------------------
+  // 11. Clicking submission opens detail panel
   // --------------------------------------------------------------------------
   test('Clicking submission opens detail', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
@@ -240,12 +360,10 @@ test.describe('UI: Intake Queue Interactions', () => {
 
     let clicked = false;
 
-    // Try clicking the submitter name (cursor: pointer div inside table row)
     if (await clickableSubmitter.isVisible({ timeout: 3000 }).catch(() => false)) {
       await clickableSubmitter.click();
       clicked = true;
     } else if (await tableRow.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Fallback: click the table row itself
       await tableRow.click();
       clicked = true;
     }
@@ -257,21 +375,19 @@ test.describe('UI: Intake Queue Interactions', () => {
 
     await page.waitForTimeout(1000);
 
-    // The detail panel is a fixed overlay modal that appears when a submission is selected.
-    // Look for the modal overlay or detail content.
-    const detailPanel = page.locator(
-      'div[style*="position: fixed"][style*="z-index"]'
-    ).first();
-    const modalContent = page.locator('h2, h3').filter({ hasText: /.+/ });
+    // The detail panel is an IntakeDetailPanel component rendered as a side panel.
+    // It uses a flex layout (not a fixed overlay), but look for the panel content.
+    const detailPanel = page.locator('div[style*="overflow: auto"]').last();
+    const hasH2 = page.locator('h2').filter({ hasText: /.+/ });
 
     const panelVisible = await detailPanel.isVisible({ timeout: 5000 }).catch(() => false);
-    const hasModalContent = (await modalContent.count()) > 0;
+    const hasContent = (await hasH2.count()) > 0;
 
-    expect(panelVisible || hasModalContent).toBeTruthy();
+    expect(panelVisible || hasContent).toBeTruthy();
   });
 
   // --------------------------------------------------------------------------
-  // 8. Detail panel shows submission info
+  // 12. Detail panel shows submission info
   // --------------------------------------------------------------------------
   test('Detail panel shows submission info', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
@@ -293,24 +409,14 @@ test.describe('UI: Intake Queue Interactions', () => {
 
     await page.waitForTimeout(1500);
 
-    // Verify the detail panel shows submission information:
-    // - submitter name (h2 element)
-    // - email or phone
-    // - "Submitted" date text
-    // - SubmissionStatusBadge (a span with status text)
-    // - Address info
     const bodyText = await page.locator('body').textContent() || '';
 
     const hasSubmittedDate = bodyText.includes('Submitted');
     const hasStatusInfo =
-      bodyText.includes('new') ||
-      bodyText.includes('in_progress') ||
+      bodyText.includes('New') ||
       bodyText.includes('In Progress') ||
-      bodyText.includes('scheduled') ||
       bodyText.includes('Scheduled') ||
-      bodyText.includes('complete') ||
-      bodyText.includes('Complete') ||
-      bodyText.includes('New');
+      bodyText.includes('Complete');
     const hasEmail = bodyText.includes('@');
     const hasAddress = bodyText.toLowerCase().includes('address') ||
       bodyText.toLowerCase().includes('location') ||
@@ -324,7 +430,7 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 9. Status action buttons are present in detail
+  // 13. Status action buttons are present in detail
   // --------------------------------------------------------------------------
   test('Status action buttons are present in detail', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
@@ -346,12 +452,12 @@ test.describe('UI: Intake Queue Interactions', () => {
 
     await page.waitForTimeout(1500);
 
-    // Look for action buttons in the detail panel
+    // Look for action buttons in the detail panel (IntakeDetailPanel)
     // Quick Actions section has buttons like:
     //   "Mark In Progress", "Schedule Appointment", "Change Appointment",
     //   "Mark as Complete", "Reset to New", "Archive", "Close"
     const actionButtons = page.locator('button').filter({
-      hasText: /Mark In Progress|Schedule Appointment|Change Appointment|Mark.*Complete|Reset to New|Archive|Close|Mark as Urgent|Remove Urgent|Create Request/i,
+      hasText: /Mark In Progress|Schedule Appointment|Change Appointment|Mark.*Complete|Reset to New|Archive|Close|Mark as Urgent|Remove Urgent|Create Request|Decline/i,
     });
 
     const actionCount = await actionButtons.count();
@@ -371,7 +477,7 @@ test.describe('UI: Intake Queue Interactions', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 10. Back to list from detail works
+  // 14. Back to list from detail works
   // --------------------------------------------------------------------------
   test('Back to list from detail works', async ({ page }) => {
     await navigateTo(page, '/intake/queue');
@@ -393,15 +499,6 @@ test.describe('UI: Intake Queue Interactions', () => {
 
     await page.waitForTimeout(1500);
 
-    // Verify the detail panel (modal overlay) is open
-    const modalOverlay = page.locator('div[style*="position: fixed"][style*="z-index"]').first();
-    const overlayVisible = await modalOverlay.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (!overlayVisible) {
-      test.skip();
-      return;
-    }
-
     // Try closing via the Close button
     const closeButton = page.locator('button').filter({ hasText: /^Close$/ }).first();
     const closeVisible = await closeButton.isVisible({ timeout: 3000 }).catch(() => false);
@@ -409,27 +506,41 @@ test.describe('UI: Intake Queue Interactions', () => {
     if (closeVisible) {
       await closeButton.click();
     } else {
-      // Fallback: press Escape to close the modal
+      // Fallback: press Escape
       await page.keyboard.press('Escape');
     }
 
     await page.waitForTimeout(1000);
 
-    // After closing, the table / list should be visible again and the fixed overlay
-    // should be gone (or at least the table is still there)
+    // After closing, the table should be visible
     const tableVisible = await page.locator('table').first().isVisible({ timeout: 5000 }).catch(() => false);
-    const bodyVisible = await page.locator('body').isVisible();
+    expect(tableVisible).toBeTruthy();
+  });
 
-    expect(tableVisible || bodyVisible).toBeTruthy();
+  // --------------------------------------------------------------------------
+  // 15. Table headers match expected columns
+  // --------------------------------------------------------------------------
+  test('Table has correct column headers', async ({ page }) => {
+    await navigateTo(page, '/intake/queue');
+    await waitForLoaded(page);
+    await page.waitForTimeout(3000);
 
-    // The fixed overlay should no longer be visible
-    // (it was conditionally rendered based on selectedSubmission state)
-    const overlayStillVisible = await modalOverlay.isVisible({ timeout: 1000 }).catch(() => false);
+    const headers = page.locator('table thead th');
+    const headerCount = await headers.count();
 
-    // If we clicked Close and it worked, the overlay should be gone.
-    // If Escape was used, it may or may not have closed. Either way, the page is functional.
-    if (closeVisible) {
-      expect(overlayStillVisible).toBeFalsy();
+    if (headerCount === 0) {
+      test.skip();
+      return;
     }
+
+    const headerTexts = await headers.allTextContents();
+    const normalized = headerTexts.map(t => t.trim().toLowerCase());
+
+    // Expected column headers from IntakeQueueRow: checkbox, Type, Submitter, Location, Cats, Status, Submitted, Actions
+    expect(normalized).toContain('type');
+    expect(normalized).toContain('submitter');
+    expect(normalized).toContain('location');
+    expect(normalized).toContain('status');
+    expect(normalized).toContain('actions');
   });
 });

@@ -98,7 +98,7 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
       setShowDropdown(true);
 
       try {
-        const [atlasData, googleData] = await Promise.all([
+        const [atlasResult, googleResult] = await Promise.allSettled([
           fetchApi<{ results?: AtlasPlace[]; suggestions?: AtlasPlace[] }>(
             `/api/search?q=${encodeURIComponent(query)}&type=place&limit=${atlasLimit}`
           ),
@@ -107,8 +107,19 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
           ),
         ]);
 
-        setAtlasResults(atlasData.results || atlasData.suggestions || []);
-        setGoogleResults((googleData.predictions || []).slice(0, googleLimit));
+        if (atlasResult.status === "fulfilled") {
+          setAtlasResults(atlasResult.value.results || atlasResult.value.suggestions || []);
+        } else {
+          console.warn("Atlas search failed:", atlasResult.reason);
+          setAtlasResults([]);
+        }
+
+        if (googleResult.status === "fulfilled") {
+          setGoogleResults((googleResult.value.predictions || []).slice(0, googleLimit));
+        } else {
+          console.warn("Google Places search failed:", googleResult.reason);
+          setGoogleResults([]);
+        }
       } catch (err) {
         console.error("PlaceResolver search error:", err);
       } finally {

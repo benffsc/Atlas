@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import PlaceResolver from "@/components/forms/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface NearbyPlace {
   place_id: string;
@@ -27,7 +29,6 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
   // Place mode state
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [loadingNearby, setLoadingNearby] = useState(false);
-  const [typedAddress, setTypedAddress] = useState("");
   const [creatingPlace, setCreatingPlace] = useState(false);
 
   // Annotation mode state
@@ -86,34 +87,12 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
     }
   }, [coordinates, onPlaceSelected]);
 
-  // Handle creating place from typed address
-  const handleCreateFromAddress = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!typedAddress.trim()) return;
-
-    setCreatingPlace(true);
-    try {
-      const res = await fetch('/api/places', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address: typedAddress,
-          lat: coordinates.lat,
-          lng: coordinates.lng,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to create place");
-
-      const data = await res.json();
-      onPlaceSelected(data.place_id);
-    } catch (err) {
-      console.error("Error creating place from address:", err);
-      alert("Failed to create place from address");
-    } finally {
-      setCreatingPlace(false);
+  // Handle place resolved via PlaceResolver
+  const handlePlaceResolved = useCallback((place: ResolvedPlace | null) => {
+    if (place) {
+      onPlaceSelected(place.place_id);
     }
-  }, [typedAddress, coordinates, onPlaceSelected]);
+  }, [onPlaceSelected]);
 
   // Handle photo upload
   const handlePhotoUpload = useCallback(async (file: File) => {
@@ -331,40 +310,12 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
               <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '12px' }}>
                 Or type an address:
               </h3>
-              <form onSubmit={handleCreateFromAddress}>
-                <input
-                  type="text"
-                  value={typedAddress}
-                  onChange={(e) => setTypedAddress(e.target.value)}
-                  placeholder="123 Main St, City, CA"
-                  disabled={creatingPlace}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    marginBottom: '8px',
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!typedAddress.trim() || creatingPlace}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    backgroundColor: typedAddress.trim() && !creatingPlace ? '#059669' : '#d1d5db',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    cursor: typedAddress.trim() && !creatingPlace ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  {creatingPlace ? 'Creating...' : 'Create Place'}
-                </button>
-              </form>
+              <PlaceResolver
+                value={null}
+                onChange={handlePlaceResolved}
+                placeholder="123 Main St, City, CA"
+                disabled={creatingPlace}
+              />
             </div>
           </>
         ) : (

@@ -2,6 +2,46 @@
 
 Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of Sonoma County (FFSC).
 
+## Linear Tracking (MANDATORY)
+
+**All work MUST be tracked in Linear.** Project: [linear.app/ffsc/project/atlas](https://linear.app/ffsc)
+
+### Before Starting Any Work
+1. Check Linear for existing issues: `mcp__linear__list_issues` with project "Atlas"
+2. If issue exists, move to "In Progress" and add comment with approach
+3. If no issue exists, create one with full code references BEFORE writing code
+
+### During Work
+- Add comments with file paths and line numbers being modified
+- Reference specific functions, not just "the code"
+- Include actual code snippets, not descriptions
+
+### After Completing Work
+1. Add comment with commit hash and files changed
+2. Include verification steps that were run
+3. Move issue to "Done"
+4. Create follow-up issues for any new problems discovered
+
+### What Every Issue MUST Have
+- **File paths with line numbers** (e.g., `src/app/api/beacon/health/route.ts:54`)
+- **Actual code snippets** showing current vs proposed
+- **Root cause** — WHY the issue exists, not just symptoms
+- **Verification steps** — Commands to confirm the fix works
+
+### Commit Messages
+```
+fix(scope): Brief description
+
+- Specific change with file reference
+- Another change with file reference
+
+Fixes FFS-XX
+```
+
+See Linear document "Development Workflow Standards" for full details.
+
+---
+
 ## Core Invariants
 
 These apply to ALL changes across ALL layers:

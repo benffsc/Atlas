@@ -41,6 +41,22 @@ This plan consolidates all remaining work into prioritized chunks.
 | Request, Place, Person pages standardized | ✅ |
 | Duplicate TabNav implementations removed | ✅ |
 
+### E2E Test Fixes (In Progress) 📍
+
+| Chunk | Description | Status |
+|-------|-------------|--------|
+| 10 | Critical API Bug Fixes | ✅ COMPLETE (2026-03-03) |
+| 11 | Deploy Missing Database Views | ⏳ PENDING |
+| 12 | Test Suite Infrastructure | ✅ Already implemented |
+| 13 | API Response Format Fixes | ✅ COMPLETE (2026-03-03) |
+| 14 | UI Selector Updates | 📍 **NEXT UP** |
+| 15 | Auth/Login Timeout Fixes | ⏳ PENDING |
+| 16 | Entity Linking Fortification | ⏳ PENDING |
+| 17 | Volunteer Temporal Tracking | ⏳ PENDING |
+| 18 | Test Data Cleanup | ⏳ PENDING |
+
+**Current Position:** Chunk 14 (UI Selector Updates) is next. Chunks 10 and 13 completed on 2026-03-03.
+
 ---
 
 ## NEW CHUNKS (E2E Test Findings + Remaining Work)

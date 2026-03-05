@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { queryOne } from "@/lib/db";
-import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { query, queryOne } from "@/lib/db";
+import { apiSuccess, apiBadRequest, apiNotFound, apiConflict, apiServerError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,9 +22,57 @@ export async function POST(request: NextRequest) {
       return apiServerError("Failed to convert submission to request");
     }
 
+    // Forward wizard form data to the created request (FFS-107)
+    // The CreateRequestWizard sends these fields that the SQL function doesn't handle
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let paramIdx = 1;
+
+    const fieldMap: Record<string, string> = {
+      priority: "priority",
+      permission_status: "permission_status",
+      access_notes: "access_notes",
+      traps_overnight_safe: "traps_overnight_safe",
+      best_contact_times: "best_contact_times",
+      urgency_notes: "urgency_notes",
+      trapper_notes: "notes",
+      summary: "summary",
+    };
+
+    for (const [bodyField, dbColumn] of Object.entries(fieldMap)) {
+      if (body[bodyField] !== undefined && body[bodyField] !== null && body[bodyField] !== "") {
+        setClauses.push(`${dbColumn} = $${paramIdx}`);
+        values.push(body[bodyField]);
+        paramIdx++;
+      }
+    }
+
+    // urgency_reasons is TEXT[] - handle separately
+    if (body.urgency_reasons && Array.isArray(body.urgency_reasons) && body.urgency_reasons.length > 0) {
+      setClauses.push(`urgency_reasons = $${paramIdx}::text[]`);
+      values.push(body.urgency_reasons);
+      paramIdx++;
+    }
+
+    if (setClauses.length > 0) {
+      values.push(result.request_id);
+      await query(
+        `UPDATE ops.requests SET ${setClauses.join(", ")} WHERE request_id = $${paramIdx}`,
+        values
+      );
+    }
+
     return apiSuccess({ request_id: result.request_id });
   } catch (err) {
-    console.error("Convert error:", err);
-    return apiBadRequest(err instanceof Error ? err.message : "Invalid request");
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Convert error:", msg);
+
+    if (msg.includes("not found")) {
+      return apiNotFound("intake submission");
+    }
+    if (msg.includes("already converted")) {
+      return apiConflict(msg);
+    }
+    return apiServerError(msg);
   }
 }

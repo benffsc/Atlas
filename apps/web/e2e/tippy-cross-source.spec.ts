@@ -150,7 +150,7 @@ test.describe("Tippy Cross-Source: Cat Journey Questions @real-api", () => {
   });
 
   test("Cat: cross-source matching (ShelterLuv + ClinicHQ)", async ({
-    request,
+    page,
   }) => {
     const question = CAT_JOURNEY_QUESTIONS.find(
       (q) => q.id === "cat-shelterluv-clinic-match"
@@ -259,17 +259,7 @@ test.describe("Tippy Cross-Source: Data Quality Questions @real-api", () => {
     await runCrossSourceTest(page, question);
   });
 
-  test("Data Quality: query_merge_history", async ({ page }) => {
-    const question = DATA_QUALITY_QUESTIONS.find(
-      (q) => q.id === "quality-merge-history"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
+  // FFS-91: Removed "query_merge_history" — dup of capabilities "Can query merge history"
 
   test("Data Quality: query_data_lineage", async ({ page }) => {
     const question = DATA_QUALITY_QUESTIONS.find(
@@ -372,78 +362,67 @@ test.describe("Tippy Cross-Source: Beacon Analytics Questions @real-api", () => 
   });
 });
 
+// FFS-91: Removed "Comprehensive Lookups" section (3 tests) — dup of capabilities
+// FFS-91: Removed "Error Handling" section (3 tests) — dups of infrastructure/data-quality
+
 // ============================================================================
-// COMPREHENSIVE LOOKUP FUNCTION TESTS
+// STRESS TESTS (merged from tippy-cross-source-stress.spec.ts, FFS-91)
+// 4 unique tests that were not duplicated in the main cross-source file
 // ============================================================================
 
-test.describe("Tippy Comprehensive Lookups @real-api", () => {
-  test("comprehensive_person_lookup returns multi-source data", async ({
-    page,
-  }) => {
+test.describe("Tippy Cross-Source: Stress Scenarios @stress @real-api", () => {
+  test.setTimeout(90000);
+
+  test("Cat returned after adoption and re-fostered", async ({ page }) => {
     const data = await askTippyAuthenticated(
       page,
-      "Get complete information about any active trapper"
+      `Find any cats that were adopted out through ShelterLuv,
+       then returned, and entered foster care again.
+       What was the timeline for these cats?`
     );
 
     expect(data).toBeDefined();
     expect(data.message).toBeTruthy();
+    expect(data.message.length).toBeGreaterThan(30);
   });
 
-  test("comprehensive_cat_lookup returns journey data", async ({ page }) => {
+  test("Identify seasonal patterns across all sources", async ({ page }) => {
     const data = await askTippyAuthenticated(
       page,
-      "What is the complete history of any cat with a microchip?"
+      `Looking at data from all sources, identify seasonal patterns:
+       - When do most requests come in?
+       - When is clinic busiest?
+       - When do kitten surges happen?
+       What month should we expect the most activity?`
     );
 
     expect(data).toBeDefined();
     expect(data.message).toBeTruthy();
+    expect(data.message.length).toBeGreaterThan(50);
   });
 
-  test("comprehensive_place_lookup returns activity data", async ({
-    page,
-  }) => {
+  test("Match ClinicHQ records to Atlas people", async ({ page }) => {
     const data = await askTippyAuthenticated(
       page,
-      "Show me everything about any active colony location"
+      `How many ClinicHQ appointment records have we successfully matched
+       to Atlas person records? What percentage remain unmatched?`
     );
 
     expect(data).toBeDefined();
     expect(data.message).toBeTruthy();
-  });
-});
-
-// ============================================================================
-// ERROR HANDLING TESTS
-// ============================================================================
-
-test.describe("Tippy Error Handling @real-api", () => {
-  test("Handles empty question gracefully", async ({ page }) => {
-    // Empty message should get a validation error, not a 500
-    const response = await page.request.post("/api/tippy/chat", {
-      data: { message: "" },
-    });
-
-    // Should return 400 for validation error, not 500
-    expect(response.status()).toBeLessThan(500);
+    expect(data.message.length).toBeGreaterThan(30);
   });
 
-  test("Handles non-existent entity lookup gracefully", async ({ page }) => {
+  test("Predict which colonies need attention next", async ({ page }) => {
     const data = await askTippyAuthenticated(
       page,
-      "Find person with email nonexistent12345@fake.com"
+      `Based on historical patterns, which colonies are most likely to need
+       attention in the next 3 months? Consider time since last activity,
+       incomplete alteration rate, and known unaltered cats.`
     );
 
-    // Should return a message (not found) rather than error
+    expect(data).toBeDefined();
     expect(data.message).toBeTruthy();
-  });
-
-  test("Handles invalid microchip lookup gracefully", async ({ page }) => {
-    const data = await askTippyAuthenticated(
-      page,
-      "Trace cat with microchip 000000000000000"
-    );
-
-    // Should return a message rather than error
-    expect(data.message).toBeTruthy();
+    expect(data.message.length).toBeGreaterThan(50);
   });
 });

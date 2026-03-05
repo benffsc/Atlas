@@ -22,7 +22,7 @@ export async function POST() {
     { label: "journal_entries", sql: "DELETE FROM ops.journal_entries WHERE created_by = 'e2e_test' OR body LIKE 'e2e-test-%'" },
     { label: "map_annotations", sql: "DELETE FROM ops.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'" },
     { label: "intake_submissions", sql: "DELETE FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'" },
-    { label: "requests", sql: "DELETE FROM ops.requests WHERE source_system = 'e2e_test'" },
+    { label: "requests", sql: "DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%'" },
     { label: "places", sql: "DELETE FROM sot.places WHERE source_system = 'e2e_test'" },
     { label: "people", sql: "DELETE FROM sot.people WHERE source_system = 'e2e_test'" },
     { label: "cats", sql: "DELETE FROM sot.cats WHERE source_system = 'e2e_test'" },

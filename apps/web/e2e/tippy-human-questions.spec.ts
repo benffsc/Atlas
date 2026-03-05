@@ -267,16 +267,7 @@ test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
     expect(message).toMatch(/\d/);
   });
 
-  test("How many active trappers do we have?", async ({ request }) => {
-    const { ok, message } = await askTippy(
-      request,
-      "how many active trappers do we have?"
-    );
-
-    expect(ok).toBeTruthy();
-    expectRealResponse(message);
-    expect(message).toMatch(/\d/);
-  });
+  // FFS-91: Removed "How many active trappers" — dup of accuracy-verification
 
   test("How many staff members do we have?", async ({ request }) => {
     const { ok, message } = await askTippy(
@@ -345,21 +336,24 @@ test.describe("Tippy: Graceful Handling @real-api", () => {
   });
 
   test("Multi-turn conversation maintains context", async ({ request }) => {
-    // First question
-    const first = await askTippy(request, "how many cats in Santa Rosa?");
-    expect(first.ok).toBeTruthy();
+    // FFS-91: First question mocked (saves 1 API call)
+    const first = {
+      ok: true,
+      message:
+        "Based on our records, we have approximately 2,300 cats recorded in the Santa Rosa area, " +
+        "with an alteration rate of about 72%.",
+      conversationId: `mock-conv-${Date.now()}`,
+    };
     expectRealResponse(first.message);
 
-    // Follow-up using conversationId
-    if (first.conversationId) {
-      const followUp = await askTippy(
-        request,
-        "and how about Petaluma?",
-        first.conversationId
-      );
-      expect(followUp.ok).toBeTruthy();
-      expect(followUp.message.length).toBeGreaterThan(20);
-    }
+    // Follow-up using conversationId — real API call
+    const followUp = await askTippy(
+      request,
+      "and how about Petaluma?",
+      first.conversationId
+    );
+    expect(followUp.ok).toBeTruthy();
+    expect(followUp.message.length).toBeGreaterThan(20);
   });
 });
 

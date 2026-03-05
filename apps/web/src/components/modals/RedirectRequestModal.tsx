@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import PlaceResolver from "@/components/forms/PlaceResolver";
+import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
 interface RedirectRequestModalProps {
   isOpen: boolean;
@@ -33,7 +35,7 @@ export function RedirectRequestModal({
 }: RedirectRequestModalProps) {
   const [redirectReason, setRedirectReason] = useState("");
   const [customReason, setCustomReason] = useState("");
-  const [newAddress, setNewAddress] = useState("");
+  const [newAddressPlace, setNewAddressPlace] = useState<ResolvedPlace | null>(null);
   const [newRequesterName, setNewRequesterName] = useState("");
   const [newRequesterPhone, setNewRequesterPhone] = useState("");
   const [newRequesterEmail, setNewRequesterEmail] = useState("");
@@ -66,7 +68,7 @@ export function RedirectRequestModal({
     if (isOpen) {
       setRedirectReason("");
       setCustomReason("");
-      setNewAddress("");
+      setNewAddressPlace(null);
       setNewRequesterName("");
       setNewRequesterPhone("");
       setNewRequesterEmail("");
@@ -126,8 +128,8 @@ export function RedirectRequestModal({
       return;
     }
 
-    if (!linkToExisting && !newAddress.trim()) {
-      setError("Please enter the new address");
+    if (!linkToExisting && !newAddressPlace) {
+      setError("Please select the new address");
       return;
     }
 
@@ -140,7 +142,8 @@ export function RedirectRequestModal({
             ? customReason
             : REDIRECT_REASONS.find((r) => r.value === redirectReason)?.label,
         existing_target_request_id: linkToExisting ? targetRequestId : undefined,
-        new_address: newAddress,
+        new_address: newAddressPlace?.formatted_address || newAddressPlace?.display_name || "",
+        new_place_id: newAddressPlace?.place_id || undefined,
         new_requester_name: newRequesterName || null,
         new_requester_phone: newRequesterPhone || null,
         new_requester_email: newRequesterEmail || null,
@@ -368,19 +371,10 @@ export function RedirectRequestModal({
             >
               New Address *
             </label>
-            <input
-              type="text"
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              placeholder="Enter the correct address"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                background: "var(--input-bg, #fff)",
-              }}
+            <PlaceResolver
+              value={newAddressPlace}
+              onChange={setNewAddressPlace}
+              placeholder="Search for the correct address"
             />
           </div>
 

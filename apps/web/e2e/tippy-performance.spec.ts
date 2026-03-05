@@ -73,10 +73,11 @@ async function timedTippyRequest(
 test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
   test.setTimeout(60000);
 
+  // FFS-91: Questions changed to avoid duplicating accuracy/capabilities tests
   test("Count query completes within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "How many cats total?"
+      "How many cat appointments were recorded last month?"
     );
 
     console.log(`Simple count query: ${durationMs}ms`);
@@ -91,7 +92,7 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
   }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "Who are the top 5 trappers?"
+      "How many places have active colony tags?"
     );
 
     console.log(`Single entity lookup: ${durationMs}ms`);
@@ -104,7 +105,7 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
   test("Status query completes within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "How many pending requests are there?"
+      "How many appointments happened this year?"
     );
 
     console.log(`Status query: ${durationMs}ms`);
@@ -116,7 +117,7 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
   test("Simple filter query completes within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "How many cats at any Santa Rosa address?"
+      "How many people have phone numbers on file?"
     );
 
     console.log(`Filter query: ${durationMs}ms`);
@@ -134,10 +135,11 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
 test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () => {
   test.setTimeout(60000);
 
+  // FFS-91: Questions changed to avoid duplicating capabilities tests
   test("comprehensive_person_lookup within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "Tell me everything about any staff member"
+      "Give me a detailed overview of any person who is both a volunteer and trapper"
     );
 
     console.log(`Comprehensive person lookup: ${durationMs}ms`);
@@ -150,7 +152,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
   test("comprehensive_place_lookup within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "Tell me everything about any active colony"
+      "What is the full activity history for any place with more than 5 cats?"
     );
 
     console.log(`Comprehensive place lookup: ${durationMs}ms`);
@@ -163,7 +165,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
   test("comprehensive_cat_lookup within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "Trace the journey of any cat with a microchip"
+      "Show me the complete timeline for any cat with clinic visits and a foster record"
     );
 
     console.log(`Comprehensive cat lookup: ${durationMs}ms`);
@@ -176,7 +178,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
   test("trapper stats lookup within benchmark", async ({ request }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       request,
-      "Show me full statistics for any active trapper"
+      "What is the detailed service history for any trapper who has worked in multiple areas?"
     );
 
     console.log(`Trapper stats lookup: ${durationMs}ms`);
@@ -297,12 +299,13 @@ test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () =>
   test.setTimeout(120000);
 
   test("5 sequential queries maintain performance", async ({ request }) => {
+    // FFS-91: Unique questions to avoid duplicating other test files
     const questions = [
-      "How many cats total?",
-      "Who are the top trappers?",
-      "What colonies need attention?",
-      "How many pending requests?",
-      "What's the overall alteration rate?",
+      "How many cat appointments this year?",
+      "How many people are in the system?",
+      "How many places have cat activity?",
+      "How many requests were completed this month?",
+      "How many cats have been microchipped?",
     ];
 
     const durations: number[] = [];
@@ -328,7 +331,7 @@ test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () =>
   });
 
   test("Repeated same query is consistent", async ({ request }) => {
-    const question = "How many cats are in the system?";
+    const question = "How many unresolved requests are there?";
     const durations: number[] = [];
 
     for (let i = 0; i < 3; i++) {
@@ -355,11 +358,12 @@ test.describe("Tippy Performance: Summary @real-api", () => {
   test.setTimeout(120000);
 
   test("Log benchmark summary", async ({ request }) => {
+    // FFS-91: Unique questions to avoid duplicating other test files
     const testCases = [
-      { name: "Simple count", question: "How many cats?" },
-      { name: "Top N query", question: "Top 3 trappers" },
-      { name: "Comprehensive lookup", question: "Tell me about any trapper" },
-      { name: "Cross-source", question: "Find volunteer who became trapper" },
+      { name: "Simple count", question: "How many appointments total?" },
+      { name: "Top N query", question: "How many people have foster records?" },
+      { name: "Comprehensive lookup", question: "Describe any place with recent activity" },
+      { name: "Cross-source", question: "Find a cat that has been to the clinic more than once" },
     ];
 
     console.log("\n=== Performance Benchmark Summary ===\n");
