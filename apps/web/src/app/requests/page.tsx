@@ -238,36 +238,34 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
 }) {
   const [mapUrl, setMapUrl] = useState<string | null>(cachedMapUrl || null);
   const [nearbyData, setNearbyData] = useState<NearbyData | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const fetchFreshMap = async () => {
+    try {
+      const data = await fetchApi<{
+        map_url: string;
+        nearby_count?: number;
+        nearby_requests?: NearbyData["requests"];
+        nearby_places?: NearbyData["places"];
+      }>(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
+      const nearby: NearbyData = {
+        count: data.nearby_count || 0,
+        requests: data.nearby_requests || { count: 0, by_size: { large: 0, medium: 0, small: 0, tiny: 0 } },
+        places: data.nearby_places || { count: 0, by_style: { disease: 0, watch_list: 0, active: 0 } },
+      };
+      setMapUrl(data.map_url);
+      setNearbyData(nearby);
+    } catch (err) {
+      console.error("Failed to fetch map:", err);
+    }
+  };
 
   useEffect(() => {
     // If we have a cached URL, use it immediately (already set in initial state)
     // Only fetch dynamically if no cached URL AND we have coordinates
     if (cachedMapUrl || !latitude || !longitude) return;
-
-    const fetchMap = async () => {
-      try {
-        // HTTP Cache-Control handles caching (stale-while-revalidate)
-        const data = await fetchApi<{
-          map_url: string;
-          nearby_count?: number;
-          nearby_requests?: NearbyData["requests"];
-          nearby_places?: NearbyData["places"];
-        }>(`/api/requests/${requestId}/map?width=400&height=200&zoom=15&scale=2`);
-        const url = data.map_url;
-        const nearby: NearbyData = {
-          count: data.nearby_count || 0,
-          requests: data.nearby_requests || { count: 0, by_size: { large: 0, medium: 0, small: 0, tiny: 0 } },
-          places: data.nearby_places || { count: 0, by_style: { disease: 0, watch_list: 0, active: 0 } },
-        };
-        setMapUrl(url);
-        setNearbyData(nearby);
-      } catch (err) {
-        console.error("Failed to fetch map:", err);
-      }
-    };
-
-    fetchMap();
-  }, [requestId, latitude, longitude, cachedMapUrl]);
+    fetchFreshMap();
+  }, [requestId, latitude, longitude, cachedMapUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!latitude || !longitude) {
     return (
@@ -395,6 +393,14 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
           objectFit: "cover",
           borderRadius: "8px",
         }}
+        onError={() => {
+          // Cached URL expired/broken — fetch a fresh one (once)
+          if (!imgFailed && latitude && longitude) {
+            setImgFailed(true);
+            setMapUrl(null);
+            fetchFreshMap();
+          }
+        }}
       />
       {badgeText && (
         <div
@@ -431,31 +437,35 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
   onToggleMenu?: (id: string | null) => void;
 }) {
   return (
-    <a
-      href={`/requests/${request.request_id}`}
+    <div
+      className="card"
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        // Don't navigate if clicking interactive elements (buttons, links, inputs)
+        const target = e.target as HTMLElement;
+        if (target.closest("button, a, input, select, [role=menu]")) return;
+        window.location.href = `/requests/${request.request_id}`;
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") window.location.href = `/requests/${request.request_id}`;
+      }}
       style={{
-        display: "block",
-        textDecoration: "none",
-        color: "inherit",
+        border: "1px solid var(--card-border)",
+        borderRadius: "12px",
+        overflow: "hidden",
+        transition: "transform 0.15s, box-shadow 0.15s",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "none";
+        e.currentTarget.style.boxShadow = "none";
       }}
     >
-      <div
-        className="card"
-        style={{
-          border: "1px solid var(--card-border)",
-          borderRadius: "12px",
-          overflow: "hidden",
-          transition: "transform 0.15s, box-shadow 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "none";
-          e.currentTarget.style.boxShadow = "none";
-        }}
-      >
         {/* Map Preview */}
         <RequestMapPreview
           requestId={request.request_id}
@@ -602,8 +612,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
             <span>{formatDateLocal(request.source_created_at || request.created_at)}</span>
           </div>
         </div>
-      </div>
-    </a>
+    </div>
   );
 }
 
