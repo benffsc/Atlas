@@ -607,10 +607,32 @@ export async function PATCH(
       paramIndex++;
     }
 
+    // Resolution notes (FFS-155) — body sends `resolution_notes`, DB column is `resolution`
+    if (body.resolution_notes !== undefined) {
+      if (body.resolution_notes === null) {
+        updates.push(`resolution = NULL`);
+      } else {
+        updates.push(`resolution = $${paramIndex}`);
+        values.push(body.resolution_notes);
+        paramIndex++;
+      }
+    }
+
+    // Resolution reason (FFS-155)
+    if (body.resolution_reason !== undefined) {
+      if (body.resolution_reason === null) {
+        updates.push(`resolution_reason = NULL`);
+      } else {
+        updates.push(`resolution_reason = $${paramIndex}`);
+        values.push(body.resolution_reason);
+        paramIndex++;
+      }
+    }
+
     // V1 columns that were dropped are silently ignored:
     // - cats_are_friendly, preferred_contact_method, assigned_to, assigned_trapper_type
-    // - assignment_notes, scheduled_date, scheduled_time_range, resolution_notes
-    // - resolution_reason, cats_trapped, cats_returned, hold_reason_notes
+    // - assignment_notes, scheduled_date, scheduled_time_range
+    // - cats_trapped, cats_returned, hold_reason_notes
     // - permission_status, traps_overnight_safe, access_without_contact
     // - urgency_reasons, urgency_deadline, urgency_notes, kitten_age_weeks
     // - kitten_assessment_status, kitten_assessment_outcome

@@ -21,14 +21,6 @@ interface ResolutionReason {
   outcome_category: string | null;
 }
 
-interface ObservationData {
-  cats_seen_total: number;
-  eartipped_seen: number;
-  time_of_day: string;
-  notes: string;
-  is_at_feeding_station: boolean;
-}
-
 interface CloseRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -39,7 +31,7 @@ interface CloseRequestModalProps {
   onSuccess?: () => void;
 }
 
-type Step = "outcome" | "reason" | "observation" | "notes";
+type Step = "outcome" | "reason" | "notes";
 
 const OUTCOME_DESCRIPTIONS: Record<ResolutionOutcome, string> = {
   successful: "All or most cats in the colony were fixed",
@@ -63,14 +55,9 @@ export function CloseRequestModal({
   const [reasons, setReasons] = useState<ResolutionReason[]>([]);
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [resolutionNotes, setResolutionNotes] = useState("");
-  const [showObservation, setShowObservation] = useState(false);
-  const [observation, setObservation] = useState<ObservationData>({
-    cats_seen_total: 0,
-    eartipped_seen: 0,
-    time_of_day: "afternoon",
-    notes: "",
-    is_at_feeding_station: false,
-  });
+  // Simple cat counts — feeds into record_completion_observation via PATCH
+  const [catsSeen, setCatsSeen] = useState<number | "">("");
+  const [eartipsSeen, setEartipsSeen] = useState<number | "">("");
   const [loading, setLoading] = useState(false);
   const [loadingReasons, setLoadingReasons] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,18 +88,12 @@ export function CloseRequestModal({
   const requiresNotes = selectedReasonObj?.requires_notes ||
     selectedOutcome === "unable_to_complete";
 
-  // Determine which steps to show
-  const showObservationStep = (selectedOutcome === "successful" || selectedOutcome === "partial") && placeId;
+  // Show cat count fields for successful/partial outcomes with a place
+  const showCatCounts = (selectedOutcome === "successful" || selectedOutcome === "partial") && placeId;
 
-  function getSteps(): Step[] {
-    const steps: Step[] = ["outcome", "reason"];
-    if (showObservationStep) steps.push("observation");
-    steps.push("notes");
-    return steps;
-  }
+  const steps: Step[] = ["outcome", "reason", "notes"];
 
   function nextStep() {
-    const steps = getSteps();
     const idx = steps.indexOf(step);
     if (idx < steps.length - 1) {
       setStep(steps[idx + 1]);
@@ -120,7 +101,6 @@ export function CloseRequestModal({
   }
 
   function prevStep() {
-    const steps = getSteps();
     const idx = steps.indexOf(step);
     if (idx > 0) {
       setStep(steps[idx - 1]);
@@ -133,36 +113,19 @@ export function CloseRequestModal({
     setLoading(true);
 
     try {
-      // Create site observation if provided
-      if (showObservation && placeId && observation.cats_seen_total > 0) {
-        try {
-          await postApi("/api/observations", {
-            place_id: placeId,
-            request_id: requestId,
-            observation_date: new Date().toISOString().split("T")[0],
-            time_of_day: observation.time_of_day,
-            cats_seen_total: observation.cats_seen_total,
-            eartipped_seen: observation.eartipped_seen,
-            is_at_feeding_station: observation.is_at_feeding_station,
-            notes: observation.notes || `Final observation during case closure`,
-            is_final_visit: true,
-            observer_name: staffName,
-          });
-        } catch {
-          console.warn("Failed to create observation, continuing with closure");
-        }
-      }
+      // Close the request — cat counts go through PATCH → record_completion_observation
+      const catsSeenNum = typeof catsSeen === "number" ? catsSeen : null;
+      const eartipsSeenNum = typeof eartipsSeen === "number" ? eartipsSeen : null;
 
-      // Close the request
       await postApi(`/api/requests/${requestId}`, {
         status: "completed",
         resolution_outcome: selectedOutcome,
         resolution_reason: selectedReason || null,
         resolution_notes: resolutionNotes || null,
-        skip_trip_report_check: true, // Modal flow replaces the hard check; warning text reminds staff
-        observation_cats_seen: showObservation ? observation.cats_seen_total : null,
-        observation_eartips_seen: showObservation ? observation.eartipped_seen : null,
-        observation_notes: showObservation ? observation.notes : null,
+        skip_trip_report_check: true,
+        observation_cats_seen: catsSeenNum,
+        observation_eartips_seen: eartipsSeenNum,
+        observation_notes: resolutionNotes || null,
       }, { method: "PATCH" });
 
       onSuccess?.();
@@ -181,19 +144,12 @@ export function CloseRequestModal({
     setSelectedOutcome(null);
     setSelectedReason("");
     setResolutionNotes("");
-    setShowObservation(false);
-    setObservation({
-      cats_seen_total: 0,
-      eartipped_seen: 0,
-      time_of_day: "afternoon",
-      notes: "",
-      is_at_feeding_station: false,
-    });
+    setCatsSeen("");
+    setEartipsSeen("");
     setError(null);
     onClose();
   }
 
-  const steps = getSteps();
   const currentStepIdx = steps.indexOf(step);
   const isLastStep = currentStepIdx === steps.length - 1;
 
@@ -416,135 +372,7 @@ export function CloseRequestModal({
         </div>
       )}
 
-      {/* Step 3: Observation (for successful/partial only) */}
-      {step === "observation" && selectedOutcome && (
-        <div>
-          <div style={{
-            display: "inline-flex",
-            padding: `2px ${SPACING.sm}`,
-            borderRadius: BORDERS.radius.md,
-            background: RESOLUTION_OUTCOME_COLORS[selectedOutcome].bg,
-            color: RESOLUTION_OUTCOME_COLORS[selectedOutcome].color,
-            fontSize: "0.8rem",
-            fontWeight: 500,
-            marginBottom: SPACING.md,
-          }}>
-            {RESOLUTION_OUTCOME_LABELS[selectedOutcome]}
-          </div>
-          <p style={{ margin: `0 0 ${SPACING.sm}`, fontSize: "0.9rem", fontWeight: 500 }}>
-            Final Site Observation (optional)
-          </p>
-          <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.8rem", color: "var(--muted)" }}>
-            Log final cat counts for Beacon population estimates
-          </p>
-
-          <label style={{ display: "flex", alignItems: "center", gap: SPACING.sm, marginBottom: SPACING.md, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={showObservation}
-              onChange={(e) => setShowObservation(e.target.checked)}
-            />
-            <span style={{ fontSize: "0.9rem" }}>Record site observation</span>
-          </label>
-
-          {showObservation && (
-            <div style={{
-              padding: SPACING.lg,
-              background: "var(--section-bg, #f8f9fa)",
-              borderRadius: BORDERS.radius.lg,
-            }}>
-              {placeName && (
-                <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem" }}>
-                  Location: <strong>{placeName}</strong>
-                </p>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
-                    Cats Observed
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={observation.cats_seen_total}
-                    onChange={(e) => setObservation({ ...observation, cats_seen_total: parseInt(e.target.value) || 0 })}
-                    style={{
-                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
-                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
-                      fontSize: "0.9rem", boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
-                    Ear-Tipped
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max={observation.cats_seen_total}
-                    value={observation.eartipped_seen}
-                    onChange={(e) => setObservation({ ...observation, eartipped_seen: parseInt(e.target.value) || 0 })}
-                    style={{
-                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
-                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
-                      fontSize: "0.9rem", boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md, marginTop: SPACING.md }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
-                    Time of Day
-                  </label>
-                  <select
-                    value={observation.time_of_day}
-                    onChange={(e) => setObservation({ ...observation, time_of_day: e.target.value })}
-                    style={{
-                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
-                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md, fontSize: "0.9rem",
-                    }}
-                  >
-                    <option value="morning">Morning</option>
-                    <option value="afternoon">Afternoon</option>
-                    <option value="evening">Evening</option>
-                    <option value="night">Night</option>
-                  </select>
-                </div>
-                <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: SPACING.xs }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: SPACING.xs, fontSize: "0.8rem" }}>
-                    <input
-                      type="checkbox"
-                      checked={observation.is_at_feeding_station}
-                      onChange={(e) => setObservation({ ...observation, is_at_feeding_station: e.target.checked })}
-                    />
-                    At feeding station
-                  </label>
-                </div>
-              </div>
-              <div style={{ marginTop: SPACING.md }}>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
-                  Observation Notes
-                </label>
-                <textarea
-                  value={observation.notes}
-                  onChange={(e) => setObservation({ ...observation, notes: e.target.value })}
-                  rows={2}
-                  placeholder="Additional notes about the observation..."
-                  style={{
-                    width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
-                    border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
-                    fontSize: "0.9rem", resize: "vertical", boxSizing: "border-box",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Step 4: Notes */}
+      {/* Step 3: Cat counts + notes */}
       {step === "notes" && selectedOutcome && (
         <div>
           <div style={{
@@ -561,17 +389,57 @@ export function CloseRequestModal({
             {selectedReasonObj && ` \u2014 ${selectedReasonObj.reason_label}`}
           </div>
 
-          {selectedOutcome === "successful" && (
+          {/* Simple cat counts for Beacon — only for successful/partial with a place */}
+          {showCatCounts && (
             <div style={{
               padding: SPACING.md,
-              background: "#fef3c7",
-              border: "1px solid #fcd34d",
+              background: "var(--section-bg, #f8f9fa)",
               borderRadius: BORDERS.radius.lg,
-              marginBottom: SPACING.md,
-              fontSize: "0.85rem",
-              color: "#92400e",
+              marginBottom: SPACING.lg,
             }}>
-              A trip report is required for successful outcomes. Make sure a final session has been logged.
+              <p style={{ margin: `0 0 ${SPACING.sm}`, fontSize: "0.85rem", fontWeight: 500 }}>
+                Last known cat count (optional)
+              </p>
+              <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.8rem", color: "var(--muted)" }}>
+                Helps Beacon track colony size over time
+                {placeName && <> at <strong>{placeName}</strong></>}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
+                    Cats Seen
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={catsSeen}
+                    onChange={(e) => setCatsSeen(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+                    placeholder="0"
+                    style={{
+                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
+                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
+                      fontSize: "0.9rem", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
+                    Ear-Tipped
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={eartipsSeen}
+                    onChange={(e) => setEartipsSeen(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+                    placeholder="0"
+                    style={{
+                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
+                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
+                      fontSize: "0.9rem", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
