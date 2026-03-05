@@ -116,7 +116,7 @@ export const UpdateRequestSchema = z.object({
   has_kittens: z.boolean().optional(),
   // Hold management
   hold_reason: z.enum(HOLD_REASON).nullable().optional(),
-  hold_reason_notes: z.string().max(2000).optional(),
+  hold_reason_notes: z.string().max(2000).nullable().optional(),
   // Assignment
   no_trapper_reason: z.enum(NO_TRAPPER_REASON).nullable().optional(),
   // Intake fields

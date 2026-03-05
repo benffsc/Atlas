@@ -629,16 +629,16 @@ export async function PATCH(
       }
     }
 
-    // V1 columns that were dropped are silently ignored:
+    // V1 columns that are silently ignored (no DB column or deprecated):
     // - cats_are_friendly, preferred_contact_method, assigned_to, assigned_trapper_type
     // - assignment_notes, scheduled_date, scheduled_time_range
-    // - cats_trapped, cats_returned, hold_reason_notes
+    // - cats_trapped, cats_returned
     // - permission_status, traps_overnight_safe, access_without_contact
     // - urgency_reasons, urgency_deadline, urgency_notes, kitten_age_weeks
     // - kitten_assessment_status, kitten_assessment_outcome
     // Use POST /api/requests/[id]/trappers for trapper assignment
 
-    // Hold management (hold_reason exists in V2)
+    // Hold management (hold_reason + hold_reason_notes exist in V2 via MIG_2495)
     if (body.hold_reason !== undefined && body.hold_reason !== current.hold_reason) {
       auditChanges.push({ field: "hold_reason", oldValue: current.hold_reason, newValue: body.hold_reason });
       if (body.hold_reason === null) {
@@ -646,6 +646,17 @@ export async function PATCH(
       } else {
         updates.push(`hold_reason = $${paramIndex}`);
         values.push(body.hold_reason);
+        paramIndex++;
+      }
+    }
+
+    // Hold reason notes (MIG_2495 column, used by HoldRequestModal)
+    if (body.hold_reason_notes !== undefined) {
+      if (body.hold_reason_notes === null) {
+        updates.push(`hold_reason_notes = NULL`);
+      } else {
+        updates.push(`hold_reason_notes = $${paramIndex}`);
+        values.push(body.hold_reason_notes);
         paramIndex++;
       }
     }
@@ -958,9 +969,9 @@ export async function PATCH(
       return apiNotFound("Request", id);
     }
 
-    // If request was completed/partial with observation data, record observation with feedback loop (MIG_563)
+    // If request was completed/partial with observation data, record colony estimate (FFS-155)
+    // Uses V2 table sot.place_colony_estimates (MIG_2029 schema)
     let observationCreated = false;
-    let chapmanEstimate: number | null = null;
     if (
       (body.status === "completed" || body.status === "partial") &&
       body.observation_cats_seen !== undefined &&
@@ -968,35 +979,6 @@ export async function PATCH(
       body.observation_cats_seen > 0
     ) {
       try {
-        // Use the new record_completion_observation function which:
-        // 1. Creates the observation record
-        // 2. Computes Chapman estimate if mark-resight data available
-        // 3. Verifies prior estimates against this observation
-        // 4. Updates source accuracy statistics
-        const obsResult = await queryOne<{ record_completion_observation: string | null }>(
-          `SELECT ops.record_completion_observation($1, $2, $3, $4) AS record_completion_observation`,
-          [
-            id,
-            body.observation_cats_seen,
-            body.observation_eartips_seen || 0,
-            body.observation_notes || null,
-          ]
-        );
-
-        if (obsResult?.record_completion_observation) {
-          observationCreated = true;
-
-          // Get the Chapman estimate if one was computed
-          const estimateResult = await queryOne<{ total_cats: number | null }>(
-            `SELECT total_cats FROM sot.place_colony_estimates WHERE estimate_id = $1`,
-            [obsResult.record_completion_observation]
-          );
-          chapmanEstimate = estimateResult?.total_cats || null;
-        }
-      } catch (obsErr) {
-        // Fall back to simple insert if function doesn't exist yet
-        console.error("[completion] record_completion_observation failed, using fallback:", obsErr);
-
         const placeResult = await queryOne<{ place_id: string | null }>(
           `SELECT place_id FROM ops.requests WHERE request_id = $1`,
           [id]
@@ -1006,34 +988,29 @@ export async function PATCH(
           await query(
             `INSERT INTO sot.place_colony_estimates (
               place_id,
-              total_cats_observed,
+              total_count_observed,
               eartip_count_observed,
-              observation_date,
-              notes,
-              source_type,
-              source_system,
-              source_record_id,
-              is_firsthand,
-              created_by
+              observed_date,
+              observer_notes,
+              estimate_method,
+              source_system
             ) VALUES (
               $1, $2, $3, CURRENT_DATE, $4,
-              'trapper_site_visit',
-              'atlas_ui',
-              $5,
-              TRUE,
-              'request_completion'
-            )
-            ON CONFLICT DO NOTHING`,
+              'direct_count',
+              'atlas_ui'
+            )`,
             [
               placeResult.place_id,
               body.observation_cats_seen,
               body.observation_eartips_seen || 0,
-              body.observation_notes || `Observation logged during request completion`,
-              id,
+              body.observation_notes || `Colony count at request completion`,
             ]
           );
           observationCreated = true;
         }
+      } catch (obsErr) {
+        // Don't fail the request closure if observation insert fails
+        console.error("[completion] Colony estimate insert failed:", obsErr);
       }
     }
 
@@ -1045,7 +1022,6 @@ export async function PATCH(
     return apiSuccess({
       request: result,
       observation_created: observationCreated,
-      chapman_estimate: chapmanEstimate,
     });
   } catch (error) {
     // Handle validation errors from requireValidUUID
