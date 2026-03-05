@@ -37,6 +37,10 @@ interface DataQualityMetrics {
   export_health_status: string | null;
   export_microchips: number | null;
   export_ear_tips: number | null;
+  // Regression monitoring (FFS-141)
+  duplicate_place_groups: number;
+  unpropagated_matches: number;
+  mislinked_appointments: number;
 }
 
 interface Alert {
@@ -121,7 +125,28 @@ export async function GET(request: NextRequest) {
          ORDER BY week DESC LIMIT 1) as export_microchips,
         (SELECT ear_tips FROM ops.v_clinichq_export_health
          WHERE week >= CURRENT_DATE - INTERVAL '14 days'
-         ORDER BY week DESC LIMIT 1) as export_ear_tips
+         ORDER BY week DESC LIMIT 1) as export_ear_tips,
+
+        -- Regression monitoring (FFS-141)
+        (SELECT COUNT(*)::int FROM (
+          SELECT normalized_address
+          FROM sot.places
+          WHERE merged_into_place_id IS NULL
+            AND normalized_address IS NOT NULL
+          GROUP BY normalized_address
+          HAVING COUNT(*) > 1
+        ) dupes) as duplicate_place_groups,
+        (SELECT COUNT(*)::int FROM ops.clinic_day_entries
+         WHERE matched_appointment_id IS NOT NULL
+           AND appointment_id IS NULL) as unpropagated_matches,
+        (SELECT COUNT(*)::int FROM ops.appointments a
+         JOIN sot.places p ON p.place_id = a.inferred_place_id
+         WHERE a.inferred_place_id IS NOT NULL
+           AND a.owner_address IS NOT NULL
+           AND p.normalized_address IS NOT NULL
+           AND p.merged_into_place_id IS NULL
+           AND sot.normalize_address(a.owner_address) != p.normalized_address
+        ) as mislinked_appointments
     `);
 
     if (!metrics) {
@@ -197,6 +222,39 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Critical: Duplicate places (FFS-141)
+    if (metrics.duplicate_place_groups > 0) {
+      alerts.push({
+        level: "critical",
+        metric: "duplicate_place_groups",
+        current: metrics.duplicate_place_groups,
+        threshold: 0,
+        message: `${metrics.duplicate_place_groups} normalized addresses have multiple active places. Unique index should prevent this — investigate.`,
+      });
+    }
+
+    // Warning: Unpropagated matches (FFS-141)
+    if (metrics.unpropagated_matches > 0) {
+      alerts.push({
+        level: "warning",
+        metric: "unpropagated_matches",
+        current: metrics.unpropagated_matches,
+        threshold: 0,
+        message: `${metrics.unpropagated_matches} clinic day entries matched but not propagated. Match propagation may not be running.`,
+      });
+    }
+
+    // Warning: Mislinked appointments (FFS-141)
+    if (metrics.mislinked_appointments > 50) {
+      alerts.push({
+        level: metrics.mislinked_appointments > 200 ? "critical" : "warning",
+        metric: "mislinked_appointments",
+        current: metrics.mislinked_appointments,
+        threshold: 50,
+        message: `${metrics.mislinked_appointments} appointments where owner_address doesn't match inferred place.`,
+      });
+    }
+
     const hasAlerts = alerts.length > 0;
     const hasCritical = alerts.some((a) => a.level === "critical");
 
@@ -231,6 +289,10 @@ export async function GET(request: NextRequest) {
         export_health_status: metrics.export_health_status,
         export_microchips: metrics.export_microchips,
         export_ear_tips: metrics.export_ear_tips,
+        // Regression monitoring (FFS-141)
+        duplicate_place_groups: metrics.duplicate_place_groups,
+        unpropagated_matches: metrics.unpropagated_matches,
+        mislinked_appointments: metrics.mislinked_appointments,
       },
       alerts,
       alert_count: alerts.length,

@@ -70,9 +70,48 @@ export async function GET() {
       LIMIT 5
     `).catch(() => []);
 
+    // Duplicate places: normalized_address groups with >1 active place (FFS-141)
+    const duplicatePlaces = await queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int as count
+      FROM (
+        SELECT normalized_address
+        FROM sot.places
+        WHERE merged_into_place_id IS NULL
+          AND normalized_address IS NOT NULL
+        GROUP BY normalized_address
+        HAVING COUNT(*) > 1
+      ) dupes
+    `);
+
+    // Unpropagated matches: clinic_day_entries matched but not linked (FFS-141)
+    const unpropagatedMatches = await queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int as count
+      FROM ops.clinic_day_entries
+      WHERE matched_appointment_id IS NOT NULL
+        AND appointment_id IS NULL
+    `);
+
+    // Mislinked appointments: owner_address != inferred place address (FFS-141)
+    const mislinkedAppointments = await queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int as count
+      FROM ops.appointments a
+      JOIN sot.places p ON p.place_id = a.inferred_place_id
+      WHERE a.inferred_place_id IS NOT NULL
+        AND a.owner_address IS NOT NULL
+        AND p.normalized_address IS NOT NULL
+        AND p.merged_into_place_id IS NULL
+        AND sot.normalize_address(a.owner_address) != p.normalized_address
+    `);
+
+    const duplicatePlacesCount = duplicatePlaces?.count ?? 0;
+    const unpropagatedMatchesCount = unpropagatedMatches?.count ?? 0;
+    const mislinkedAppointmentsCount = mislinkedAppointments?.count ?? 0;
+
     const isHealthy =
       (clinicLeakage?.count ?? 0) === 0 &&
-      (coverage?.coverage_pct ?? 0) > 50;
+      (coverage?.coverage_pct ?? 0) > 50 &&
+      duplicatePlacesCount === 0 &&
+      unpropagatedMatchesCount === 0;
 
     return apiSuccess({
       status: isHealthy ? "healthy" : "degraded",
@@ -82,6 +121,9 @@ export async function GET() {
         cats_with_place: coverage?.cats_with_place ?? 0,
         coverage_pct: coverage?.coverage_pct ?? 0,
       },
+      duplicate_places: duplicatePlacesCount,
+      unpropagated_matches: unpropagatedMatchesCount,
+      mislinked_appointments: mislinkedAppointmentsCount,
       skipped_reasons: skippedSummary,
       recent_runs: recentRuns,
     });

@@ -913,6 +913,82 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.appointments_linked_to_accounts = accountLinks.rowCount || 0;
 
+    // Step 4d: Owner change detection (FFS-116, ported from v2 route)
+    // Detects when an appointment's owner identifiers differ from the linked person's
+    // known identifiers, queuing mismatches for review in ops.review_queue
+    await saveProgress('Detecting owner changes...');
+    const ownerChanges = await query(`
+      INSERT INTO ops.review_queue (
+        entity_type, entity_id, review_type, priority, status, notes,
+        old_person_id, match_confidence, change_context,
+        source_system, source_record_id
+      )
+      SELECT
+        'person',
+        a.person_id,
+        CASE
+          WHEN pi_email.id_value_norm IS NOT NULL
+               AND NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NOT NULL
+               AND pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
+               AND pi_phone.id_value_norm IS NOT NULL
+               AND sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')) IS NOT NULL
+               AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+          THEN 'owner_transfer'
+          ELSE 'owner_change'
+        END,
+        CASE
+          WHEN pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
+               AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+          THEN 10
+          ELSE 5
+        END,
+        'pending',
+        'Owner info change detected via batch ingest: ' ||
+          COALESCE(p.display_name, 'unknown') || ' → ' ||
+          COALESCE(TRIM(sr.payload->>'Owner First Name' || ' ' || sr.payload->>'Owner Last Name'), 'unknown'),
+        a.person_id,
+        0.60,
+        jsonb_build_object(
+          'old_name', p.display_name,
+          'new_name', TRIM(sr.payload->>'Owner First Name' || ' ' || sr.payload->>'Owner Last Name'),
+          'old_email', pi_email.id_value_norm,
+          'new_email', NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
+          'old_phone', pi_phone.id_value_norm,
+          'new_phone', sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')),
+          'appointment_number', sr.payload->>'Number',
+          'detection_source', 'batch_ingest'
+        ),
+        'clinichq',
+        sr.payload->>'Number'
+      FROM ops.staged_records sr
+      JOIN ops.appointments a ON a.appointment_number = sr.payload->>'Number'
+        AND a.person_id IS NOT NULL
+      JOIN sot.people p ON p.person_id = a.person_id
+      LEFT JOIN sot.person_identifiers pi_email ON pi_email.person_id = a.person_id
+        AND pi_email.id_type = 'email' AND pi_email.confidence >= 0.5
+      LEFT JOIN sot.person_identifiers pi_phone ON pi_phone.person_id = a.person_id
+        AND pi_phone.id_type = 'phone'
+      WHERE sr.source_system = 'clinichq'
+        AND sr.source_table = 'owner_info'
+        AND sr.file_upload_id = $1
+        -- Only flag when existing identifiers differ from new ones
+        AND (
+          -- Different email
+          (pi_email.id_value_norm IS NOT NULL
+           AND NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NOT NULL
+           AND pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
+          OR
+          -- Different phone (when email matches or is absent, phone differs)
+          (pi_phone.id_value_norm IS NOT NULL
+           AND sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')) IS NOT NULL
+           AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+           AND (pi_email.id_value_norm IS NULL OR NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NULL
+                OR pi_email.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')))
+        )
+      ON CONFLICT DO NOTHING
+    `, [uploadId]);
+    results.owner_changes_detected = ownerChanges.rowCount || 0;
+
     // Step 5: Link cats to people via appointments
     // V2: Uses sot.person_cat instead of sot.person_cat_relationships
     await saveProgress('Linking cats to people...');
@@ -1466,21 +1542,31 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   }
 
   try {
-    // MIG_889/MIG_970: Infer appointment places from booking address + person places
+    // MIG_2811: Link appointments to places via owner_address or person_place chain.
     // Must run BEFORE link_cats_to_appointment_places() so inferred_place_id is populated.
-    // Step 0 (booking_address) is highest priority — uses the actual ClinicHQ booking address
-    // (colony site) instead of person's home address.
+    // Step 1 (owner_address) is highest priority — can override wrong placements.
+    // Step 2 (person_place) is fallback for appointments without address match.
     await saveProgress('Inferring appointment places...');
-    const inferred = await query(`SELECT * FROM ops.infer_appointment_places()`);
+    const inferred = await query(`SELECT * FROM sot.link_appointments_to_places()`);
     if (inferred.rows) {
       for (const row of inferred.rows) {
         linking[`inferred_place_${row.source}`] = row.appointments_linked;
       }
+      // FFS-141: Warn when both steps link 0 appointments — likely a regression
+      if (
+        (linking.inferred_place_owner_address ?? 0) === 0 &&
+        (linking.inferred_place_person_place ?? 0) === 0
+      ) {
+        console.warn(
+          'WARNING: link_appointments_to_places() linked 0 appointments in both steps. ' +
+          'Verify Step 1 (owner_address) is processing correctly.'
+        );
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    linkingErrors.push({ step: 'infer_appointment_places', error: msg });
-    console.error('infer_appointment_places failed (non-fatal):', err);
+    linkingErrors.push({ step: 'link_appointments_to_places', error: msg });
+    console.error('link_appointments_to_places failed (non-fatal):', err);
   }
 
   try {
@@ -1500,6 +1586,15 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   results.entity_linking = linking;
   if (linkingErrors.length > 0) {
     results.entity_linking_errors = linkingErrors;
+  }
+
+  // FFS-141: Warn when entity linking produced 0 cat-place links
+  const totalCatsLinked = (linking.cats_linked_to_places ?? 0) + (linking.cats_linked_via_appointment_places ?? 0);
+  if (totalCatsLinked === 0 && linkingErrors.length === 0) {
+    if (!results.entity_linking_warnings) results.entity_linking_warnings = [];
+    (results.entity_linking_warnings as string[]).push(
+      'Entity linking produced 0 cat-place links. Check data quality.'
+    );
   }
 
   // Cat-to-request linking (second pass): now that entity linking has created
