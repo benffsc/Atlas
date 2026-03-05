@@ -81,6 +81,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   const [showReasonForm, setShowReasonForm] = useState(false);
   const [savingReason, setSavingReason] = useState(false);
   const [unassigningId, setUnassigningId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -151,11 +152,8 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   const handleAssign = async () => {
     if (!selectedTrapperId) return;
     setAssigning(true);
+    setErrorMsg(null);
     try {
-      // If a no_trapper_reason was set, clear it when assigning a trapper
-      if (noTrapperReason) {
-        await postApi(`/api/requests/${requestId}`, { no_trapper_reason: null }, { method: "PATCH" });
-      }
       await postApi(`/api/requests/${requestId}/trappers`, {
         trapper_person_id: selectedTrapperId,
         is_primary: isPrimary,
@@ -184,6 +182,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
       onAssignmentChange?.();
     } catch (err) {
       console.error("Failed to assign trapper:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Failed to assign trapper. Please try again.");
     } finally {
       setAssigning(false);
     }
@@ -556,6 +555,11 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
           Cancel
         </button>
       </div>
+      {errorMsg && (
+        <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", background: "#fef2f2", color: "#991b1b", borderRadius: "4px", fontSize: "0.85rem", border: "1px solid #fecaca" }}>
+          {errorMsg}
+        </div>
+      )}
     </div>
   );
 

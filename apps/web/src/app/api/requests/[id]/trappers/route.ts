@@ -123,28 +123,48 @@ export async function POST(
       return apiBadRequest("trapper_person_id is required");
     }
 
-    // Use the assign function
-    const result = await queryOne<{ assign_trapper_to_request: string }>(
-      `SELECT ops.assign_trapper_to_request(
-        $1::uuid,
-        $2::uuid,
-        $3::boolean,
-        $4::text,
-        'web_app',
-        'web_user'
-      ) AS assign_trapper_to_request`,
-      [id, trapper_person_id, is_primary, reason || "manual"]
+    // If setting as primary, demote any existing primary assignment
+    if (is_primary) {
+      await queryOne(
+        `UPDATE ops.request_trapper_assignments
+         SET assignment_type = 'backup'
+         WHERE request_id = $1 AND assignment_type = 'primary' AND status = 'active'`,
+        [id]
+      );
+    }
+
+    // Insert assignment (or reactivate if previously unassigned)
+    const result = await queryOne<{ assignment_id: string }>(
+      `INSERT INTO ops.request_trapper_assignments (
+        request_id, trapper_person_id, assignment_type, status, notes, source_system, assigned_at
+      ) VALUES (
+        $1::uuid, $2::uuid, $3, 'active', $4, 'web_app', NOW()
+      )
+      ON CONFLICT (request_id, trapper_person_id)
+      DO UPDATE SET
+        status = 'active',
+        assignment_type = EXCLUDED.assignment_type,
+        notes = EXCLUDED.notes,
+        assigned_at = NOW()
+      RETURNING assignment_id`,
+      [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment"]
     );
 
     if (!result) {
       return apiServerError("Failed to assign trapper");
     }
 
+    // Update assignment_status on the request
+    await queryOne(
+      `UPDATE ops.requests SET assignment_status = 'assigned', no_trapper_reason = NULL WHERE request_id = $1`,
+      [id]
+    );
+
     // Log to entity_edits for SOT audit trail
     await logFieldEdit("request", id, "trapper_assigned", null, {
       trapper_person_id,
       is_primary,
-      assignment_id: result.assign_trapper_to_request,
+      assignment_id: result.assignment_id,
     }, {
       editedBy: "web_user",
       editSource: "web_ui",
@@ -152,7 +172,7 @@ export async function POST(
     });
 
     return apiSuccess({
-      assignment_id: result.assign_trapper_to_request,
+      assignment_id: result.assignment_id,
     });
   } catch (error) {
     console.error("Error assigning trapper:", error);
@@ -175,14 +195,28 @@ export async function DELETE(
   }
 
   try {
-    const result = await queryOne<{ unassign_trapper_from_request: boolean }>(
-      `SELECT ops.unassign_trapper_from_request($1::uuid, $2::uuid, $3::text) AS unassign_trapper_from_request`,
+    const result = await queryOne<{ assignment_id: string }>(
+      `UPDATE ops.request_trapper_assignments
+       SET status = 'declined', notes = COALESCE(notes || ' | ', '') || $3
+       WHERE request_id = $1 AND trapper_person_id = $2 AND status = 'active'
+       RETURNING assignment_id`,
       [id, trapperPersonId, reason]
     );
 
-    if (!result?.unassign_trapper_from_request) {
+    if (!result) {
       return apiNotFound("Trapper assignment", trapperPersonId);
     }
+
+    // Update assignment_status if no more active trappers
+    await queryOne(
+      `UPDATE ops.requests
+       SET assignment_status = CASE
+         WHEN EXISTS(SELECT 1 FROM ops.request_trapper_assignments WHERE request_id = $1 AND status = 'active')
+         THEN 'assigned' ELSE 'pending'
+       END
+       WHERE request_id = $1`,
+      [id]
+    );
 
     // Log to entity_edits for SOT audit trail
     await logFieldEdit("request", id, "trapper_unassigned", {
