@@ -159,7 +159,7 @@ export function CloseRequestModal({
         resolution_outcome: selectedOutcome,
         resolution_reason: selectedReason || null,
         resolution_notes: resolutionNotes || null,
-        skip_trip_report_check: selectedOutcome !== "successful",
+        skip_trip_report_check: true, // Modal flow replaces the hard check; warning text reminds staff
         observation_cats_seen: showObservation ? observation.cats_seen_total : null,
         observation_eartips_seen: showObservation ? observation.eartipped_seen : null,
         observation_notes: showObservation ? observation.notes : null,
