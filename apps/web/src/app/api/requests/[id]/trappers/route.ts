@@ -133,22 +133,40 @@ export async function POST(
       );
     }
 
-    // Insert assignment (or reactivate if previously unassigned)
-    const result = await queryOne<{ assignment_id: string }>(
-      `INSERT INTO ops.request_trapper_assignments (
-        request_id, trapper_person_id, assignment_type, status, notes, source_system, assigned_at
-      ) VALUES (
-        $1::uuid, $2::uuid, $3, 'active', $4, 'web_app', NOW()
-      )
-      ON CONFLICT (request_id, trapper_person_id)
-      DO UPDATE SET
-        status = 'active',
-        assignment_type = EXCLUDED.assignment_type,
-        notes = EXCLUDED.notes,
-        assigned_at = NOW()
-      RETURNING assignment_id`,
-      [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment"]
+    // Check if this trapper already has a record for this request
+    const existing = await queryOne<{ assignment_id: string }>(
+      `SELECT assignment_id FROM ops.request_trapper_assignments
+       WHERE request_id = $1 AND trapper_person_id = $2`,
+      [id, trapper_person_id]
     );
+
+    let assignmentId: string;
+
+    if (existing) {
+      // Reactivate existing assignment
+      const updated = await queryOne<{ assignment_id: string }>(
+        `UPDATE ops.request_trapper_assignments
+         SET status = 'active', assignment_type = $3, notes = $4, assigned_at = NOW()
+         WHERE assignment_id = $5
+         RETURNING assignment_id`,
+        [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment", existing.assignment_id]
+      );
+      assignmentId = updated!.assignment_id;
+    } else {
+      // Insert new assignment
+      const inserted = await queryOne<{ assignment_id: string }>(
+        `INSERT INTO ops.request_trapper_assignments (
+          request_id, trapper_person_id, assignment_type, status, notes, source_system, assigned_at
+        ) VALUES (
+          $1::uuid, $2::uuid, $3, 'active', $4, 'web_app', NOW()
+        )
+        RETURNING assignment_id`,
+        [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment"]
+      );
+      assignmentId = inserted!.assignment_id;
+    }
+
+    const result = { assignment_id: assignmentId };
 
     if (!result) {
       return apiServerError("Failed to assign trapper");
@@ -175,8 +193,9 @@ export async function POST(
       assignment_id: result.assignment_id,
     });
   } catch (error) {
-    console.error("Error assigning trapper:", error);
-    return apiServerError("Failed to assign trapper");
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Error assigning trapper:", msg, error);
+    return apiServerError(`Failed to assign trapper: ${msg}`);
   }
 }
 
