@@ -962,8 +962,6 @@ export async function PATCH(
       RETURNING request_id, status::TEXT, priority::TEXT, updated_at
     `;
 
-    console.log("[PATCH request] SQL:", sql, "params:", paramIndex, "values count:", values.length);
-
     const result = await queryOne<{
       request_id: string;
       status: string;
@@ -1036,6 +1034,7 @@ export async function PATCH(
     }
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("Error updating request:", errMsg, error);
-    return apiServerError(`Failed to update request: ${errMsg}`);
+    // Keep error detail for debugging but don't expose raw SQL to users
+    return apiServerError("Failed to update request");
   }
 }
