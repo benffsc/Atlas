@@ -43,7 +43,7 @@ export async function GET(
     // V2: Uses assignment_type='primary' instead of is_primary, status='active' instead of unassigned_at IS NULL
     const currentTrappers = await queryRows<TrapperAssignment>(
       `SELECT
-        rta.assignment_id,
+        rta.id AS assignment_id,
         rta.trapper_person_id,
         p.display_name AS trapper_name,
         pr.trapper_type,
@@ -134,8 +134,8 @@ export async function POST(
     }
 
     // Check if this trapper already has a record for this request
-    const existing = await queryOne<{ assignment_id: string }>(
-      `SELECT assignment_id FROM ops.request_trapper_assignments
+    const existing = await queryOne<{ id: string }>(
+      `SELECT id FROM ops.request_trapper_assignments
        WHERE request_id = $1 AND trapper_person_id = $2`,
       [id, trapper_person_id]
     );
@@ -144,32 +144,26 @@ export async function POST(
 
     if (existing) {
       // Reactivate existing assignment
-      const updated = await queryOne<{ assignment_id: string }>(
+      const updated = await queryOne<{ id: string }>(
         `UPDATE ops.request_trapper_assignments
          SET status = 'active', assignment_type = $3, notes = $4, assigned_at = NOW()
-         WHERE assignment_id = $5
-         RETURNING assignment_id`,
-        [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment", existing.assignment_id]
+         WHERE id = $5
+         RETURNING id`,
+        [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment", existing.id]
       );
-      assignmentId = updated!.assignment_id;
+      assignmentId = updated!.id;
     } else {
       // Insert new assignment
-      const inserted = await queryOne<{ assignment_id: string }>(
+      const inserted = await queryOne<{ id: string }>(
         `INSERT INTO ops.request_trapper_assignments (
           request_id, trapper_person_id, assignment_type, status, notes, source_system, assigned_at
         ) VALUES (
           $1::uuid, $2::uuid, $3, 'active', $4, 'web_app', NOW()
         )
-        RETURNING assignment_id`,
+        RETURNING id`,
         [id, trapper_person_id, is_primary ? "primary" : "backup", reason || "manual_assignment"]
       );
-      assignmentId = inserted!.assignment_id;
-    }
-
-    const result = { assignment_id: assignmentId };
-
-    if (!result) {
-      return apiServerError("Failed to assign trapper");
+      assignmentId = inserted!.id;
     }
 
     // Update assignment_status on the request
@@ -182,7 +176,7 @@ export async function POST(
     await logFieldEdit("request", id, "trapper_assigned", null, {
       trapper_person_id,
       is_primary,
-      assignment_id: result.assignment_id,
+      assignment_id: assignmentId,
     }, {
       editedBy: "web_user",
       editSource: "web_ui",
@@ -190,7 +184,7 @@ export async function POST(
     });
 
     return apiSuccess({
-      assignment_id: result.assignment_id,
+      assignment_id: assignmentId,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -214,11 +208,11 @@ export async function DELETE(
   }
 
   try {
-    const result = await queryOne<{ assignment_id: string }>(
+    const result = await queryOne<{ id: string }>(
       `UPDATE ops.request_trapper_assignments
        SET status = 'declined', notes = COALESCE(notes || ' | ', '') || $3
        WHERE request_id = $1 AND trapper_person_id = $2 AND status = 'active'
-       RETURNING assignment_id`,
+       RETURNING id`,
       [id, trapperPersonId, reason]
     );
 
