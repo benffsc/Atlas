@@ -121,6 +121,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           status,
           source_system,
           entered_by,
+          -- FFS-105: Recheck detection
+          is_recheck,
+          recheck_type,
           -- Extended parsing columns (MIG_900)
           is_foster,
           foster_parent_name,
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           contact_phone,
           alt_contact_name,
           alt_contact_phone
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)`,
         [
           clinicDay.clinic_day_id,
           entry.line_number,
@@ -158,6 +161,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           entry.status || "completed",
           "master_list",
           session.staff_id,
+          // FFS-105: Recheck fields
+          entry.is_recheck,
+          entry.recheck_type,
           // Extended fields
           entry.is_foster,
           entry.foster_parent_name,
@@ -198,14 +204,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       [date]
     );
 
-    // Get summary counts
+    // MIG_2812: Propagate confirmed matches to appointment_id and cat_id
+    const propagated = await queryOne<{ propagated: number; cat_ids_linked: number }>(
+      `SELECT * FROM ops.propagate_master_list_matches($1::date)`,
+      [date]
+    );
+
+    // Get summary counts (exclude rechecks from TNR stats)
+    const tnrEntries = entries.filter((e) => !e.is_recheck);
     const summary = {
-      females_altered: entries.filter((e) => e.female_altered).length,
-      males_altered: entries.filter((e) => e.male_altered).length,
-      walkin: entries.filter((e) => e.is_walkin).length,
-      already_altered: entries.filter((e) => e.is_already_altered).length,
-      with_trapper: entries.filter((e) => e.parsed_trapper_alias).length,
-      with_cat_name: entries.filter((e) => e.parsed_cat_name).length,
+      females_altered: tnrEntries.filter((e) => e.female_altered).length,
+      males_altered: tnrEntries.filter((e) => e.male_altered).length,
+      walkin: tnrEntries.filter((e) => e.is_walkin).length,
+      already_altered: tnrEntries.filter((e) => e.is_already_altered).length,
+      with_trapper: tnrEntries.filter((e) => e.parsed_trapper_alias).length,
+      with_cat_name: tnrEntries.filter((e) => e.parsed_cat_name).length,
+      recheck_entries: entries.filter((e) => e.is_recheck).length,
     };
 
     // Count extended parsing results
@@ -223,6 +237,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       trappers_total: summary.with_trapper,
       matched: matchResult?.entries_matched || 0,
       match_details: matchResult?.by_pass || {},
+      propagated: propagated?.propagated || 0,
+      cat_ids_linked: propagated?.cat_ids_linked || 0,
       summary: {
         ...summary,
         ...extendedSummary,
@@ -298,6 +314,9 @@ interface ParsedEntry {
   parsed_owner_name: string | null;
   parsed_trapper_alias: string | null;
   parsed_cat_name: string | null;
+  // FFS-105: Recheck detection
+  is_recheck: boolean;
+  recheck_type: string | null;
   // Extended parsing (MIG_900)
   is_foster: boolean;
   foster_parent_name: string | null;
@@ -440,6 +459,9 @@ function parseMasterList(workbook: xlsx.WorkBook): {
       parsed_owner_name: extendedParsed.owner_name ?? extractOwnerName(clientName),
       parsed_trapper_alias: extendedParsed.trapper_alias ?? extractTrapperName(clientName),
       parsed_cat_name: extendedParsed.cat_name ?? extractCatName(clientName),
+      // FFS-105: Recheck fields
+      is_recheck: extendedParsed.is_recheck,
+      recheck_type: extendedParsed.recheck_type,
       // Extended fields (MIG_900)
       is_foster: extendedParsed.is_foster,
       foster_parent_name: extendedParsed.foster_parent,
@@ -521,6 +543,9 @@ interface ExtendedParsedName {
   contact_phone: string | null;
   alt_contact_name: string | null;
   alt_phone: string | null;
+  // FFS-105: Recheck/medical follow-up detection
+  is_recheck: boolean;
+  recheck_type: string | null;
 }
 
 function parseClientNameExtended(clientName: string | null): ExtendedParsedName {
@@ -540,11 +565,36 @@ function parseClientNameExtended(clientName: string | null): ExtendedParsedName 
     contact_phone: null,
     alt_contact_name: null,
     alt_phone: null,
+    is_recheck: false,
+    recheck_type: null,
   };
 
   if (!clientName) return result;
 
   const original = clientName.trim();
+
+  // Pattern 0: Recheck/follow-up entry (FFS-105)
+  // "Recheck 'Luna'" or "Weight Check - Smith" or "Dr follow-up 'Whiskers'"
+  const recheckMatch = original.match(
+    /^(re-?check|weight\s+check|dr\.?\s+follow[- ]?up|medical\s+follow[- ]?up|post[- ]?op)\b/i
+  );
+  if (recheckMatch) {
+    result.is_recheck = true;
+    result.recheck_type = recheckMatch[1].toLowerCase().replace(/\s+/g, '_');
+    // Still extract cat name and owner from rest
+    const catMatch = original.match(/['"]([^'"]+)['"]/);
+    if (catMatch) result.cat_name = catMatch[1].trim();
+    const ownerPart = original
+      .replace(recheckMatch[0], '')
+      .replace(/['"][^'"]+['"]/g, '')
+      .replace(/-\s*Trp\s+.+$/i, '')
+      .replace(/^\s*-\s*/, '')
+      .trim();
+    if (ownerPart) result.owner_name = ownerPart;
+    const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
+    if (trapperMatch) result.trapper_alias = trapperMatch[1].trim();
+    return result;
+  }
 
   // Pattern 1: Foster entry - "Foster 'CatName' (FosterParent)"
   const fosterMatch = original.match(/^Foster\s+['"]([^'"]+)['"]\s*\(([^)]+)\)/i);
@@ -637,6 +687,15 @@ function parseClientNameExtended(clientName: string | null): ExtendedParsedName 
   const trapperMatch = original.match(/-\s*Trp\s+([^"(-]+?)(?:\s*["(-]|\s+call\s|\s*$)/i);
   if (trapperMatch) {
     result.trapper_alias = trapperMatch[1].trim();
+  }
+
+  // FFS-105: Detect rechecks from parenthetical notes like "(recheck weight)", "(updates)"
+  const parenRecheckMatch = original.match(
+    /\((recheck|updates?|follow[- ]?up|drain\s+removal|suture\s+removal|enucleation|post[- ]?op)\b[^)]*\)/i
+  );
+  if (parenRecheckMatch) {
+    result.is_recheck = true;
+    result.recheck_type = parenRecheckMatch[1].toLowerCase().replace(/\s+/g, '_');
   }
 
   // Default: Try to extract owner name (what's left after removing cat name and trapper)
