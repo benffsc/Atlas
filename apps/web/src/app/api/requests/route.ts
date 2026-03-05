@@ -351,33 +351,69 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Core columns that exist in ops.requests base table
-    // Note: Many columns in v_request_detail are from joined views, not the base table
+    // Map form field names to database column names
+    // Form sends initial_status (Quick Complete mode), eartip_count, feeding_schedule
+    // DB has status, eartip_count_observed, feeding_frequency
+    const status = (body as Record<string, unknown>).initial_status as string || body.status || "new";
+    const eartipCount = (body as Record<string, unknown>).eartip_count as number ?? body.eartip_count ?? null;
+    const feedingFrequency = (body as Record<string, unknown>).feeding_schedule as string ?? body.feeding_schedule ?? null;
+
     const result = await queryOne<{ request_id: string }>(
       `INSERT INTO ops.requests (
-        status,
-        priority,
-        place_id,
-        requester_person_id,
-        summary,
-        notes,
-        estimated_cat_count,
-        has_kittens,
-        source_system
+        status, priority, place_id, requester_person_id,
+        site_contact_person_id, requester_is_site_contact, requester_role_at_submission,
+        summary, notes, internal_notes, source_system,
+        -- Cat info
+        estimated_cat_count, total_cats_reported, peak_count, count_confidence,
+        colony_duration, awareness_duration, eartip_count_observed,
+        cat_name, cat_description, handleability, fixed_status,
+        -- Kittens
+        has_kittens, kitten_count, kitten_age_estimate, kitten_behavior,
+        mom_present, kitten_contained, mom_fixed, can_bring_in,
+        -- Feeding
+        is_being_fed, feeder_name, feeding_frequency, feeding_location, feeding_time,
+        -- Medical
+        has_medical_concerns, medical_description,
+        -- Property & Access
+        property_type, is_property_owner, has_property_access, access_notes,
+        dogs_on_site, trap_savvy, previous_tnr,
+        -- Third party & location meta
+        is_third_party_report, third_party_relationship, county, is_emergency,
+        -- Triage
+        triage_category, received_by
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+        $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+        $23, $24, $25, $26, $27, $28, $29, $30,
+        $31, $32, $33, $34, $35,
+        $36, $37,
+        $38, $39, $40, $41, $42, $43, $44,
+        $45, $46, $47, $48,
+        $49, $50
       )
       RETURNING request_id::TEXT`,
       [
-        body.status || "new",
-        body.priority || "normal",
-        body.place_id ?? null,
-        body.requester_person_id ?? null,
-        body.summary ?? null,
-        body.notes ?? null,
-        body.estimated_cat_count ?? null,
-        body.has_kittens ?? false,
-        "atlas_ui",
+        status, body.priority || "normal", body.place_id ?? null, body.requester_person_id ?? null,
+        body.site_contact_person_id ?? null, body.requester_is_site_contact ?? null, body.requester_role_at_submission ?? null,
+        body.summary ?? null, body.notes ?? null, (body as Record<string, unknown>).internal_notes as string ?? null, "atlas_ui",
+        // Cat info
+        body.estimated_cat_count ?? null, body.total_cats_reported ?? null, body.peak_count ?? null, body.count_confidence ?? null,
+        body.colony_duration ?? null, body.awareness_duration ?? null, eartipCount,
+        body.cat_name ?? null, body.cat_description ?? null, body.handleability ?? null, body.fixed_status ?? null,
+        // Kittens
+        body.has_kittens ?? false, body.kitten_count ?? null, body.kitten_age_estimate ?? null, body.kitten_behavior ?? null,
+        body.mom_present ?? null, body.kitten_contained ?? null, body.mom_fixed ?? null, body.can_bring_in ?? null,
+        // Feeding
+        body.is_being_fed ?? null, body.feeder_name ?? null, feedingFrequency, body.feeding_location ?? null, body.feeding_time ?? null,
+        // Medical
+        body.has_medical_concerns ?? false, body.medical_description ?? null,
+        // Property & Access
+        body.property_type ?? null, body.is_property_owner ?? null, body.has_property_access ?? null, body.access_notes ?? null,
+        body.dogs_on_site ?? null, body.trap_savvy ?? null, body.previous_tnr ?? null,
+        // Third party & location meta
+        body.is_third_party_report ?? false, body.third_party_relationship ?? null, body.county ?? null, body.is_emergency ?? false,
+        // Triage
+        body.triage_category ?? null, body.received_by ?? null,
       ]
     );
 
@@ -389,7 +425,10 @@ export async function POST(request: NextRequest) {
     revalidatePath("/");
     revalidatePath("/requests");
 
+    // Return in the format the new request form expects
     return apiSuccess({
+      success: true,
+      status: "promoted" as const,
       request_id: result.request_id,
     });
   } catch (error) {
