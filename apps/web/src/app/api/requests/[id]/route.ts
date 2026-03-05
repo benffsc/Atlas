@@ -209,6 +209,7 @@ export async function GET(
         NULL::TEXT AS scheduled_time_range,
         r.resolved_at,
         r.resolution AS resolution_notes,
+        r.resolution_outcome,
         NULL::INT AS cats_trapped,
         NULL::INT AS cats_returned,
         r.source_system AS data_source,
@@ -491,9 +492,11 @@ export async function PATCH(
     const body = parsed.data;
 
     // Check for trip report requirement when completing a request
-    // Skip this check if the completion flow is providing observation data directly
-    // or if explicitly requested to skip (completion modal handles this)
-    if (body.status === "completed" && !body.skip_trip_report_check) {
+    // FFS-155: Only enforce for 'successful' outcome. Other outcomes skip the check.
+    // Skip if the completion flow is providing observation data directly
+    // or if explicitly requested to skip (close case modal handles this)
+    const outcomeRequiresTripReport = !body.resolution_outcome || body.resolution_outcome === "successful";
+    if (body.status === "completed" && !body.skip_trip_report_check && outcomeRequiresTripReport) {
       // Check if request requires a trip report
       const reportCheck = await queryOne<{
         report_required_before_complete: boolean;
@@ -523,7 +526,7 @@ export async function PATCH(
         !reportCheck?.has_site_observation &&
         !hasObservationData
       ) {
-        return apiBadRequest("Trip report required before completion. Please submit a final site visit observation or use the completion modal to complete this request.");
+        return apiBadRequest("Trip report required before completion. Please submit a final site visit observation or use the Close Case modal to complete this request.");
       }
     }
 
@@ -621,6 +624,17 @@ export async function PATCH(
       } else {
         updates.push(`hold_reason = $${paramIndex}`);
         values.push(body.hold_reason);
+        paramIndex++;
+      }
+    }
+
+    // Resolution outcome (FFS-155)
+    if (body.resolution_outcome !== undefined) {
+      if (body.resolution_outcome === null) {
+        updates.push(`resolution_outcome = NULL`);
+      } else {
+        updates.push(`resolution_outcome = $${paramIndex}`);
+        values.push(body.resolution_outcome);
         paramIndex++;
       }
     }
@@ -875,6 +889,15 @@ export async function PATCH(
     // Handle status changes that trigger resolved_at
     if (body.status === "completed" || body.status === "cancelled" || body.status === "partial") {
       updates.push(`resolved_at = COALESCE(resolved_at, NOW())`);
+    }
+
+    // Clear resolution_outcome when reopening (FFS-155: Jira pattern — cleared on reopen)
+    if (body.status && body.status !== "completed" && body.status !== "cancelled" && body.status !== "partial") {
+      // Only clear if the request was previously resolved
+      if (current.status === "completed" || current.status === "cancelled" || current.status === "partial") {
+        updates.push(`resolution_outcome = NULL`);
+        updates.push(`resolved_at = NULL`);
+      }
     }
 
     if (updates.length === 0) {

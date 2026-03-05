@@ -28,6 +28,7 @@ export interface RequestDetail {
   scheduled_time_range: string | null;
   resolved_at: string | null;
   resolution_notes: string | null;
+  resolution_outcome: string | null;
   cats_trapped: number | null;
   cats_returned: number | null;
   data_source: string;

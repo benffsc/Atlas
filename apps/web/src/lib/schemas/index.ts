@@ -132,7 +132,10 @@ export const UpdateRequestSchema = z.object({
   is_emergency: z.boolean().optional(),
   has_medical_concerns: z.boolean().optional(),
   medical_description: z.string().max(2000).optional(),
-  // Completion flow
+  // Completion/closure flow (FFS-155)
+  resolution_outcome: z.enum(["successful", "partial", "unable_to_complete", "no_longer_needed", "referred_out"]).nullable().optional(),
+  resolution_reason: z.string().max(200).nullable().optional(),
+  resolution_notes: z.string().max(2000).nullable().optional(),
   observation_cats_seen: z.number().int().min(0).nullable().optional(),
   observation_eartips_seen: z.number().int().min(0).nullable().optional(),
   observation_notes: z.string().max(2000).nullable().optional(),

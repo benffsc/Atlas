@@ -1,6 +1,7 @@
 "use client";
 
 import { AlterationStatsCard } from "@/components/cards";
+import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
 import type { RequestDetail } from "../types";
 
 interface KittenForm {
@@ -506,6 +507,28 @@ export function DetailsTab({
                 {request.resolved_at ? new Date(request.resolved_at).toLocaleDateString() : "\u2014"}
               </div>
             </div>
+
+            {request.resolution_outcome && (() => {
+              const oc = getOutcomeColor(request.resolution_outcome);
+              return (
+                <div>
+                  <div className="text-muted text-sm">Outcome</div>
+                  <div style={{
+                    display: "inline-flex",
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                    background: oc.bg,
+                    color: oc.color,
+                    border: `1px solid ${oc.border}`,
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    marginTop: "2px",
+                  }}>
+                    {getOutcomeLabel(request.resolution_outcome)}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div>
               <div className="text-muted text-sm">Cats Trapped</div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { postApi } from "@/lib/api-client";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 
 interface TripReportResult {
   report_id: string;
@@ -62,7 +63,11 @@ export function TripReportModal({
   onSuccess,
 }: TripReportModalProps) {
   const hasTrapper = !!(trapperPersonId && trapperName);
-  const [reportedByName, setReportedByName] = useState(trapperName || "");
+  const [reporter, setReporter] = useState<PersonReference>({
+    person_id: hasTrapper ? trapperPersonId! : null,
+    display_name: trapperName || "",
+    is_resolved: hasTrapper,
+  });
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split("T")[0]);
   const [arrivalTime, setArrivalTime] = useState("");
   const [departureTime, setDepartureTime] = useState("");
@@ -109,7 +114,11 @@ export function TripReportModal({
   };
 
   const resetForm = () => {
-    setReportedByName(trapperName || "");
+    setReporter({
+      person_id: hasTrapper ? trapperPersonId! : null,
+      display_name: trapperName || "",
+      is_resolved: hasTrapper,
+    });
     setVisitDate(new Date().toISOString().split("T")[0]);
     setArrivalTime("");
     setDepartureTime("");
@@ -137,9 +146,9 @@ export function TripReportModal({
 
     try {
       const response = await postApi<TripReportResult>(`/api/requests/${requestId}/trip-report`, {
-        trapper_person_id: trapperPersonId || null,
-        trapper_name: hasTrapper ? trapperName : null,
-        reported_by_name: reportedByName || null,
+        trapper_person_id: reporter.person_id,
+        trapper_name: reporter.is_resolved ? reporter.display_name : null,
+        reported_by_name: reporter.display_name || null,
         visit_date: visitDate,
         arrival_time: arrivalTime || null,
         departure_time: departureTime || null,
@@ -329,23 +338,16 @@ export function TripReportModal({
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ padding: "20px" }}>
-            {/* Reported By — shown when no trapper assigned */}
+            {/* Reported By */}
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Reported by {!hasTrapper && "*"}</label>
-              {hasTrapper ? (
-                <div style={{ padding: "10px 12px", background: "var(--section-bg, #f9fafb)", borderRadius: "8px", fontSize: "0.9rem" }}>
-                  {trapperName}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  value={reportedByName}
-                  onChange={(e) => setReportedByName(e.target.value)}
-                  placeholder="Who reported this? (neighbor, caretaker, requester...)"
-                  required={!hasTrapper}
-                  style={inputStyle}
-                />
-              )}
+              <PersonReferencePicker
+                value={reporter}
+                onChange={setReporter}
+                label="Reported by"
+                placeholder="Search for a person or type a name..."
+                required={!hasTrapper}
+                inputStyle={inputStyle}
+              />
             </div>
 
             {/* Visit Date */}

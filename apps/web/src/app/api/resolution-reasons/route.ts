@@ -9,17 +9,20 @@ interface ResolutionReason {
   applies_to_status: string[];
   requires_notes: boolean;
   display_order: number;
+  outcome_category: string | null;
 }
 
 /**
  * GET /api/resolution-reasons
  * Fetch active resolution reasons for request completion/cancellation
  * Optionally filter by status using ?status=completed or ?status=cancelled
+ * Optionally filter by outcome_category using ?outcome=successful
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const outcome = searchParams.get("outcome");
 
     let query = `
       SELECT
@@ -28,16 +31,25 @@ export async function GET(request: NextRequest) {
         NULL::text as reason_description,
         applies_to_status,
         requires_notes,
-        display_order
+        display_order,
+        outcome_category
       FROM ops.request_resolution_reasons
       WHERE is_active = TRUE
     `;
 
     const params: string[] = [];
+    let paramIdx = 1;
 
     if (status) {
-      query += ` AND $1 = ANY(applies_to_status)`;
+      query += ` AND $${paramIdx} = ANY(applies_to_status)`;
       params.push(status);
+      paramIdx++;
+    }
+
+    if (outcome) {
+      query += ` AND outcome_category = $${paramIdx}`;
+      params.push(outcome);
+      paramIdx++;
     }
 
     query += ` ORDER BY display_order`;

@@ -10,14 +10,11 @@ interface ArchiveRequestModalProps {
   onCancel: () => void;
 }
 
-// Archive reason options - some require notes
+// Archive reasons — data hygiene only (FFS-155)
+// Operational closure reasons moved to CloseRequestModal
 const ARCHIVE_REASONS = [
   { value: "duplicate", label: "Duplicate Request", description: "Same location/request already exists in system", requiresNotes: false },
   { value: "merged", label: "Merged Into Another", description: "Combined with another request for the same location", requiresNotes: true },
-  { value: "out_of_area", label: "Out of Service Area", description: "Location is outside Sonoma County service area", requiresNotes: false },
-  { value: "no_response", label: "No Response", description: "Unable to reach requester after multiple attempts", requiresNotes: false },
-  { value: "withdrawn", label: "Withdrawn by Requester", description: "Requester no longer needs assistance", requiresNotes: false },
-  { value: "resolved_elsewhere", label: "Resolved by Another Org", description: "Cats were fixed by another organization", requiresNotes: true },
   { value: "invalid", label: "Invalid/Spam", description: "Spam, test data, or invalid submission", requiresNotes: false },
   { value: "test_data", label: "Test Data", description: "Created for testing purposes", requiresNotes: false },
   { value: "other", label: "Other", description: "Other reason not listed above", requiresNotes: true },
@@ -126,8 +123,8 @@ export default function ArchiveRequestModal({
           )}
 
           <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.9rem" }}>
-            Archived requests are hidden from the main list but can still be viewed
-            and restored if needed.
+            Archive is for data cleanup. To close a case operationally, use <strong>Close Case</strong> instead.
+            Archived requests are hidden from the main list but can be restored.
           </p>
 
           <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Reason for Archiving</h3>

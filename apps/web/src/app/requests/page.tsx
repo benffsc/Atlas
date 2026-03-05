@@ -9,6 +9,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
+import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
 import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
 
 interface Request {
@@ -47,6 +48,8 @@ interface Request {
   site_contact_name: string | null;
   // MIG_2580: Archive
   is_archived: boolean;
+  // FFS-155: Resolution outcome
+  resolution_outcome: string | null;
 }
 
 
@@ -480,6 +483,14 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
           {/* Status & Priority Row */}
           <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
             <StatusBadge status={request.status} />
+            {request.resolution_outcome && (() => {
+              const oc = getOutcomeColor(request.resolution_outcome!);
+              return (
+                <span className="badge" style={{ background: oc.bg, color: oc.color, border: `1px solid ${oc.border}`, fontSize: TYPOGRAPHY.size['2xs'] }}>
+                  {getOutcomeLabel(request.resolution_outcome!)}
+                </span>
+              );
+            })()}
             <PriorityBadge priority={request.priority} />
             <ColonySizeBadge count={request.estimated_cat_count} />
             {request.has_kittens && (
@@ -1450,8 +1461,16 @@ function RequestsPageContent() {
                     </span>
                   </td>
                   <td>
-                    <a href={`/requests/${req.request_id}`}>
+                    <a href={`/requests/${req.request_id}`} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                       <StatusBadge status={req.status} />
+                      {req.resolution_outcome && (() => {
+                        const oc = getOutcomeColor(req.resolution_outcome!);
+                        return (
+                          <span className="badge" style={{ background: oc.bg, color: oc.color, border: `1px solid ${oc.border}`, fontSize: "0.7rem" }}>
+                            {getOutcomeLabel(req.resolution_outcome!)}
+                          </span>
+                        );
+                      })()}
                     </a>
                   </td>
                   <td>

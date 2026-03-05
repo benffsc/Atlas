@@ -206,7 +206,8 @@ export async function GET(request: NextRequest) {
         vrl.requester_role_at_submission,
         vrl.requester_is_site_contact,
         vrl.site_contact_name,
-        COALESCE(r.is_archived, FALSE) AS is_archived
+        COALESCE(r.is_archived, FALSE) AS is_archived,
+        r.resolution_outcome
       FROM ops.v_request_list vrl
       JOIN ops.requests r ON r.request_id = vrl.request_id
       ${whereClause}

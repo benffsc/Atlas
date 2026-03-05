@@ -10,6 +10,7 @@
 
 // Request workflow modals
 export { default as CompleteRequestModal } from './CompleteRequestModal';
+export { CloseRequestModal } from './CloseRequestModal';
 export { default as HoldRequestModal } from './HoldRequestModal';
 export { RedirectRequestModal } from './RedirectRequestModal';
 export { HandoffRequestModal } from './HandoffRequestModal';

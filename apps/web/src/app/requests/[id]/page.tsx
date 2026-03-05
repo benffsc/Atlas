@@ -7,7 +7,7 @@ import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments } fr
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
 import { LegacyUpgradeWizard } from "@/components/forms";
-import { LogSiteVisitModal, CompleteRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
+import { LogSiteVisitModal, CompleteRequestModal, CloseRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
 import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badges";
 import { MediaGallery } from "@/components/media";
 import { ColonyEstimates } from "@/components/charts";
@@ -18,6 +18,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, REQUEST_STATUS_COLORS, getStatusColor } from "@/lib/design-tokens";
+import { getOutcomeLabel, getOutcomeColor, type ResolutionOutcome } from "@/lib/request-status";
 import {
   PAGE_CONTAINER, FIELD_LABEL, FIELD_HINT, FIELD_VALUE, FIELD_VALUE_EMPTY,
   INPUT, GRID_2COL, GRID_3COL, GRID_AUTO, FLEX_CENTER, FLEX_CENTER_SM,
@@ -158,6 +159,7 @@ export default function RequestDetailPage() {
   const [showRedirectModal, setShowRedirectModal] = useState(false);
   const [showHandoffModal, setShowHandoffModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
   const [completionTargetStatus, setCompletionTargetStatus] = useState<"completed" | "cancelled">("completed");
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -276,8 +278,7 @@ export default function RequestDetailPage() {
   const handleQuickStatusChange = async (newStatus: string) => {
     if (!request) return;
     if (newStatus === "completed") {
-      setCompletionTargetStatus("completed");
-      setShowCompleteModal(true);
+      setShowCloseModal(true);
       return;
     }
     if (newStatus === "paused" || newStatus === "on_hold") {
@@ -399,7 +400,7 @@ export default function RequestDetailPage() {
     const working = { value: "working", label: "Start Working", color: REQUEST_STATUS_COLORS.working.border };
     const resume = { value: "working", label: "Resume", color: REQUEST_STATUS_COLORS.working.border };
     const pause = { value: "paused", label: "Pause", color: REQUEST_STATUS_COLORS.paused.border };
-    const complete = { value: "completed", label: "Complete", color: REQUEST_STATUS_COLORS.completed.border };
+    const complete = { value: "completed", label: "Close Case", color: REQUEST_STATUS_COLORS.completed.border };
     const reopen = { value: "new", label: "Reopen", color: REQUEST_STATUS_COLORS.new.border };
     switch (request.status) {
       case "new": return [working, pause, complete];
@@ -741,6 +742,14 @@ export default function RequestDetailPage() {
             </div>
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
               <StatusBadge status={request.status} size="lg" />
+              {request.resolution_outcome && (() => {
+                const oc = getOutcomeColor(request.resolution_outcome);
+                return (
+                  <span className="badge" style={{ background: oc.bg, color: oc.color, border: `1px solid ${oc.border}` }}>
+                    {getOutcomeLabel(request.resolution_outcome)}
+                  </span>
+                );
+              })()}
               <PriorityBadge priority={request.priority} />
               {request.request_purpose && <span className="badge" style={{ background: "#7c3aed", color: "#fff", textTransform: "capitalize" }}>{request.request_purpose.replace(/_/g, " ")}</span>}
               {request.property_type && <PropertyTypeBadge type={request.property_type} />}
@@ -1136,6 +1145,16 @@ export default function RequestDetailPage() {
           placeName={request.place_name || undefined}
           onClose={() => setShowCompleteModal(false)}
           onSuccess={() => { setShowCompleteModal(false); refreshRequest(); }}
+        />
+      )}
+      {showCloseModal && (
+        <CloseRequestModal
+          isOpen={true}
+          requestId={requestId}
+          placeId={request.place_id || undefined}
+          placeName={request.place_name || undefined}
+          onClose={() => setShowCloseModal(false)}
+          onSuccess={() => { setShowCloseModal(false); refreshRequest(); fetchJournalEntries(); }}
         />
       )}
       {showHoldModal && (

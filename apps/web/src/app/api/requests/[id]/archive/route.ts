@@ -4,16 +4,12 @@ import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
- * Archive reason codes for requests.
- * Similar pattern to intake decline and journal archive.
+ * Archive reason codes — data hygiene only (FFS-155).
+ * Operational closure reasons moved to CloseRequestModal / resolution_outcome.
  */
 const ARCHIVE_REASONS = {
   duplicate: { label: "Duplicate Request", requiresNotes: false },
   merged: { label: "Merged Into Another Request", requiresNotes: true },
-  out_of_area: { label: "Out of Service Area", requiresNotes: false },
-  no_response: { label: "No Response (Multiple Attempts)", requiresNotes: false },
-  withdrawn: { label: "Withdrawn by Requester", requiresNotes: false },
-  resolved_elsewhere: { label: "Resolved by Another Org", requiresNotes: true },
   invalid: { label: "Invalid/Spam Data", requiresNotes: false },
   test_data: { label: "Test Data", requiresNotes: false },
   other: { label: "Other Reason", requiresNotes: true },

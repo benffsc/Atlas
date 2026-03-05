@@ -304,6 +304,60 @@ export function getValidTransitions(status: RequestStatus): (PrimaryStatus | Spe
 }
 
 // =============================================================================
+// RESOLUTION OUTCOMES (FFS-155)
+// =============================================================================
+
+/**
+ * Resolution outcomes — WHY a case was closed.
+ * Only set when status = completed. Cleared on reopen.
+ * Follows Jira pattern: status (where) vs resolution (why).
+ */
+export const RESOLUTION_OUTCOMES = [
+  "successful",
+  "partial",
+  "unable_to_complete",
+  "no_longer_needed",
+  "referred_out",
+] as const;
+export type ResolutionOutcome = (typeof RESOLUTION_OUTCOMES)[number];
+
+export const RESOLUTION_OUTCOME_LABELS: Record<ResolutionOutcome, string> = {
+  successful: "TNR Successful",
+  partial: "Partial Success",
+  unable_to_complete: "Unable to Complete",
+  no_longer_needed: "No Longer Needed",
+  referred_out: "Referred Out",
+};
+
+export const RESOLUTION_OUTCOME_COLORS: Record<ResolutionOutcome, StatusColorScheme> = {
+  successful: { bg: "#d1fae5", color: "#065f46", border: "#6ee7b7" },          // Green
+  partial: { bg: "#fef3c7", color: "#92400e", border: "#fcd34d" },             // Amber
+  unable_to_complete: { bg: "#ffedd5", color: "#9a3412", border: "#fdba74" },   // Orange
+  no_longer_needed: { bg: "#f3f4f6", color: "#4b5563", border: "#d1d5db" },     // Gray
+  referred_out: { bg: "#e0e7ff", color: "#3730a3", border: "#a5b4fc" },         // Indigo
+};
+
+export const RESOLUTION_OUTCOME_ICONS: Record<ResolutionOutcome, string> = {
+  successful: "check-circle",
+  partial: "minus-circle",
+  unable_to_complete: "x-circle",
+  no_longer_needed: "slash",
+  referred_out: "external-link",
+};
+
+export function getOutcomeLabel(outcome: ResolutionOutcome | string): string {
+  return RESOLUTION_OUTCOME_LABELS[outcome as ResolutionOutcome] || outcome;
+}
+
+export function getOutcomeColor(outcome: ResolutionOutcome | string): StatusColorScheme {
+  return RESOLUTION_OUTCOME_COLORS[outcome as ResolutionOutcome] || RESOLUTION_OUTCOME_COLORS.no_longer_needed;
+}
+
+export function isValidOutcome(value: unknown): value is ResolutionOutcome {
+  return typeof value === "string" && RESOLUTION_OUTCOMES.includes(value as ResolutionOutcome);
+}
+
+// =============================================================================
 // KANBAN BOARD HELPERS
 // =============================================================================
 
