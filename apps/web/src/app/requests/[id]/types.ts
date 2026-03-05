@@ -252,6 +252,17 @@ export interface RequestDetail {
   has_medical_concerns: boolean;
   medical_description: string | null;
   important_notes: string[] | null;
+  // MIG_2817: Additional restored columns
+  request_purpose: string | null;
+  request_purposes: string[] | null;
+  property_owner_name: string | null;
+  property_owner_phone: string | null;
+  authorization_pending: boolean | null;
+  kitten_mixed_ages_description: string | null;
+  kitten_notes: string | null;
+  wellness_cat_count: number | null;
+  entry_mode: string | null;
+  completion_data: Record<string, unknown> | null;
   // Status history and trappers (from API response)
   status_history?: Array<{
     old_status: string | null;

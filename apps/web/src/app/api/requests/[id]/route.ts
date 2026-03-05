@@ -163,6 +163,17 @@ interface RequestDetailRow {
   has_medical_concerns: boolean;
   medical_description: string | null;
   important_notes: string[] | null;
+  // MIG_2817: Additional restored columns
+  request_purpose: string | null;
+  request_purposes: string[] | null;
+  property_owner_name: string | null;
+  property_owner_phone: string | null;
+  authorization_pending: boolean | null;
+  kitten_mixed_ages_description: string | null;
+  kitten_notes: string | null;
+  wellness_cat_count: number | null;
+  entry_mode: string | null;
+  completion_data: Record<string, unknown> | null;
 }
 
 export async function GET(
@@ -187,8 +198,8 @@ export async function GET(
         r.total_cats_reported,
         r.cat_count_semantic::TEXT,
         COALESCE(r.has_kittens, FALSE) AS has_kittens,
-        -- V1 columns now return NULL (dropped in V2)
-        NULL::BOOLEAN AS cats_are_friendly,
+        -- V1 columns now return NULL (dropped in V2) — except MIG_2817 restored columns
+        r.cats_are_friendly,
         NULL::TEXT AS preferred_contact_method,
         NULL::TEXT AS assigned_to,
         NULL::TEXT AS assigned_trapper_type,
@@ -213,20 +224,21 @@ export async function GET(
         NULL::TEXT AS created_by,
         r.created_at,
         r.updated_at,
-        -- V2 intake fields (MIG_2531/2532)
-        NULL::TEXT AS permission_status,
-        NULL::TEXT AS property_owner_contact,
+        -- V2 intake fields (MIG_2531/2532 + MIG_2817 restorations)
+        r.permission_status,
+        r.property_owner_name AS property_owner_contact,
+        r.property_owner_name,
         r.access_notes,
-        NULL::BOOLEAN AS traps_overnight_safe,
-        NULL::BOOLEAN AS access_without_contact,
+        r.traps_overnight_safe,
+        r.access_without_contact,
         r.property_type,
         r.colony_duration,
-        NULL::TEXT AS location_description,
+        r.location_description,
         r.eartip_count_observed AS eartip_count,
-        NULL::TEXT AS eartip_estimate,
+        r.eartip_estimate,
         r.count_confidence,
         r.kitten_count,
-        NULL::INT AS kitten_age_weeks,
+        r.kitten_age_weeks,
         NULL::TEXT AS kitten_assessment_status,
         NULL::TEXT AS kitten_assessment_outcome,
         NULL::TEXT AS kitten_foster_readiness,
@@ -238,11 +250,11 @@ export async function GET(
         r.is_being_fed,
         r.feeder_name,
         r.feeding_frequency AS feeding_schedule,
-        NULL::TEXT AS best_times_seen,
-        NULL::TEXT[] AS urgency_reasons,
-        NULL::TEXT AS urgency_deadline,
-        NULL::TEXT AS urgency_notes,
-        NULL::TEXT AS best_contact_times,
+        r.best_times_seen,
+        r.urgency_reasons,
+        r.urgency_deadline,
+        r.urgency_notes,
+        r.best_contact_times,
         -- Hold tracking
         r.hold_reason::TEXT,
         NULL::TEXT AS hold_reason_notes,
@@ -378,7 +390,17 @@ export async function GET(
         r.is_third_party_report,
         r.third_party_relationship,
         r.triage_category,
-        r.received_by
+        r.received_by,
+        -- MIG_2817: Additional columns restored from intake form
+        r.request_purpose,
+        r.request_purposes,
+        r.property_owner_phone,
+        r.authorization_pending,
+        r.kitten_mixed_ages_description,
+        r.kitten_notes,
+        r.wellness_cat_count,
+        r.entry_mode,
+        r.completion_data
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id

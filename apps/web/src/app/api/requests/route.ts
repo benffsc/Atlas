@@ -338,7 +338,11 @@ interface CreateRequestBody {
   summary?: string;
   notes?: string;
   internal_notes?: string;
-  important_notes?: string;
+  important_notes?: string[];
+
+  // Trapping logistics (FFS-151)
+  best_trapping_time?: string;
+  ownership_status?: string;
 
   // Entry Metadata (MIG_2817)
   entry_mode?: string;
@@ -422,7 +426,9 @@ export async function POST(request: NextRequest) {
         -- Triage
         triage_category, received_by,
         -- Entry metadata (MIG_2817)
-        entry_mode, completion_data
+        entry_mode, completion_data,
+        -- Trapping logistics (FFS-151)
+        best_trapping_time, ownership_status, important_notes
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13,
@@ -435,7 +441,8 @@ export async function POST(request: NextRequest) {
         $62, $63, $64, $65,
         $66, $67, $68,
         $69, $70,
-        $71, $72
+        $71, $72,
+        $73, $74, $75
       )
       RETURNING request_id::TEXT`,
       [
@@ -472,6 +479,8 @@ export async function POST(request: NextRequest) {
         body.triage_category ?? null, body.received_by ?? null,
         // Entry metadata: $71-$72
         body.entry_mode ?? null, body.completion_data ? JSON.stringify(body.completion_data) : null,
+        // Trapping logistics (FFS-151): $73-$75
+        body.best_trapping_time ?? null, body.ownership_status ?? null, body.important_notes ?? null,
       ]
     );
 

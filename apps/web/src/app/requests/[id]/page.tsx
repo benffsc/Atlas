@@ -7,7 +7,7 @@ import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments } fr
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
 import { LegacyUpgradeWizard } from "@/components/forms";
-import { LogSiteVisitModal, CompleteRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal } from "@/components/modals";
+import { LogSiteVisitModal, CompleteRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
 import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badges";
 import { MediaGallery } from "@/components/media";
 import { ColonyEstimates } from "@/components/charts";
@@ -165,6 +165,7 @@ export default function RequestDetailPage() {
   const [showUpgradeWizard, setShowUpgradeWizard] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showTripReportModal, setShowTripReportModal] = useState(false);
 
   // Footer tab state (replaces collapsible sections)
   const [activeTab, setActiveTab] = useState<string>("cats");
@@ -741,6 +742,7 @@ export default function RequestDetailPage() {
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
               <StatusBadge status={request.status} size="lg" />
               <PriorityBadge priority={request.priority} />
+              {request.request_purpose && <span className="badge" style={{ background: "#7c3aed", color: "#fff", textTransform: "capitalize" }}>{request.request_purpose.replace(/_/g, " ")}</span>}
               {request.property_type && <PropertyTypeBadge type={request.property_type} />}
               {request.hold_reason && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black }}>Hold: {request.hold_reason.replace(/_/g, " ")}</span>}
               {request.is_archived && <span className="badge" style={{ background: COLORS.gray500, color: COLORS.white }}>Archived</span>}
@@ -768,6 +770,7 @@ export default function RequestDetailPage() {
           )}
           <div style={{ marginLeft: "auto", display: "flex", gap: SPACING.sm }}>
             <button onClick={() => setShowObservationModal(true)} className="btn btn-sm btn-secondary">Log Visit</button>
+            <button onClick={() => setShowTripReportModal(true)} className="btn btn-sm btn-secondary">Log Session</button>
             {request.requester_email && <button onClick={() => setShowEmailModal(true)} className="btn btn-sm btn-secondary">Email</button>}
             {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
               <>
@@ -858,6 +861,7 @@ export default function RequestDetailPage() {
             {request.urgency_reasons?.length && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: getStatusColor('error').text }}>{request.urgency_reasons.map(r => r.replace(/_/g, " ")).join(" \u2022 ")}</div>}
             {request.has_medical_concerns && request.medical_description && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: getStatusColor('error').text, marginTop: SPACING.xs }}>Medical: {request.medical_description}</div>}
             {request.urgency_deadline && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: '#9a3412', marginTop: SPACING.xs }}>Deadline: {new Date(request.urgency_deadline).toLocaleDateString()}</div>}
+            {request.urgency_notes && <div style={{ fontSize: TYPOGRAPHY.size.sm, color: getStatusColor('error').text, marginTop: SPACING.xs }}>{request.urgency_notes}</div>}
           </div>
         )}
       </div>
@@ -894,10 +898,14 @@ export default function RequestDetailPage() {
             <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem", margin: 0 }}>
               <SmartField label="Adult Cats" value={request.estimated_cat_count} hint="needing TNR" showWhen="always" legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Eartipped" value={request.eartip_count} showWhen="nonzero" legacyMode={isLegacySource(request.source_system)} />
+              <SmartField label="Eartip Estimate" value={request.eartip_estimate?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Peak Observed" value={request.peak_count} showWhen="nonzero" legacyMode={isLegacySource(request.source_system)} />
               <YesNoSmartField label="Has Kittens" value={request.has_kittens} legacyMode={isLegacySource(request.source_system)} />
               {request.has_kittens && <SmartField label="Kitten Count" value={request.kitten_count} showWhen="nonzero" />}
-              <SmartField label="Handleability" value={request.handleability?.replace(/_/g, " ") || (request.cats_are_friendly === true ? "Friendly" : request.cats_are_friendly === false ? "Not Friendly" : null)} legacyMode={isLegacySource(request.source_system)} />
+              {request.has_kittens && <SmartField label="Kitten Age (weeks)" value={request.kitten_age_weeks} showWhen="nonzero" />}
+              {request.wellness_cat_count != null && request.wellness_cat_count > 0 && <SmartField label="Wellness Cat Count" value={request.wellness_cat_count} showWhen="nonzero" />}
+              <YesNoSmartField label="Cats Are Friendly" value={request.cats_are_friendly} legacyMode={isLegacySource(request.source_system)} />
+              <SmartField label="Handleability" value={request.handleability?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Colony Duration" value={request.colony_duration?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="County" value={request.county} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Count Confidence" value={request.count_confidence?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
@@ -905,6 +913,16 @@ export default function RequestDetailPage() {
             {request.location_description && (
               <div style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--muted-bg)", borderRadius: "6px", fontSize: "0.9rem" }}>
                 <strong>Location Notes:</strong> {request.location_description}
+              </div>
+            )}
+            {request.kitten_notes && (
+              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #f59e0b" }}>
+                <strong>Kitten Notes:</strong> {request.kitten_notes}
+              </div>
+            )}
+            {request.kitten_mixed_ages_description && (
+              <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #f59e0b" }}>
+                <strong>Mixed Ages:</strong> {request.kitten_mixed_ages_description}
               </div>
             )}
           </CaseSection>
@@ -920,9 +938,18 @@ export default function RequestDetailPage() {
               <SmartField label="Trap-Savvy" value={request.trap_savvy?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Previous TNR" value={request.previous_tnr?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
               <YesNoSmartField label="Traps Safe Overnight" value={request.traps_overnight_safe} legacyMode={isLegacySource(request.source_system)} />
+              <YesNoSmartField label="Access Without Contact" value={request.access_without_contact} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Best Times Seen" value={request.best_times_seen} legacyMode={isLegacySource(request.source_system)} />
+              <SmartField label="Best Contact Times" value={request.best_contact_times} legacyMode={isLegacySource(request.source_system)} />
               <SmartField label="Best Trapping Time" value={request.best_trapping_time} legacyMode={isLegacySource(request.source_system)} />
             </dl>
+            {request.is_property_owner === false && (request.property_owner_name || request.property_owner_phone) && (
+              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#eff6ff", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #3b82f6" }}>
+                <strong>Property Owner:</strong>{" "}
+                {request.property_owner_name}{request.property_owner_phone ? ` — ${formatPhone(request.property_owner_phone)}` : ""}
+                {request.authorization_pending && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black, marginLeft: "0.5rem", fontSize: "0.75rem" }}>Authorization Pending</span>}
+              </div>
+            )}
             {request.access_notes && (
               <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f0fdf4", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #166534" }}>
                 <strong>Access Notes:</strong> {request.access_notes}
@@ -941,6 +968,7 @@ export default function RequestDetailPage() {
                   <>
                     <SmartField label="Feeder" value={request.feeder_name} legacyMode={isLegacySource(request.source_system)} />
                     <SmartField label="Schedule" value={request.feeding_schedule} legacyMode={isLegacySource(request.source_system)} />
+                    <SmartField label="Feeding Time" value={request.feeding_time} legacyMode={isLegacySource(request.source_system)} />
                     <SmartField label="Location" value={request.feeding_location} legacyMode={isLegacySource(request.source_system)} />
                   </>
                 )}
@@ -1085,6 +1113,22 @@ export default function RequestDetailPage() {
           onSuccess={() => { setShowObservationModal(false); refreshRequest(); fetchJournalEntries(); }}
         />
       )}
+      {showTripReportModal && (() => {
+        const primaryTrapper = request.current_trappers?.find(t => t.is_primary) || request.current_trappers?.[0];
+        return (
+          <TripReportModal
+            isOpen={true}
+            requestId={requestId}
+            trapperPersonId={primaryTrapper?.trapper_person_id || ""}
+            trapperName={primaryTrapper?.trapper_name || "Unknown"}
+            estimatedCatCount={request.estimated_cat_count}
+            placeId={request.place_id}
+            placeName={request.place_name}
+            onClose={() => setShowTripReportModal(false)}
+            onSuccess={() => { setShowTripReportModal(false); refreshRequest(); fetchJournalEntries(); }}
+          />
+        );
+      })()}
       {showCompleteModal && (
         <CompleteRequestModal
           isOpen={true}

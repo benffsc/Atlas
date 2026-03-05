@@ -317,6 +317,39 @@ export const URGENT_SITUATION_EXAMPLES =
 export const URGENT_SITUATION_LABEL = "This is an urgent situation";
 
 // =============================================================================
+// IMPORTANT NOTES - Trapping logistics checkboxes (call sheet + request form)
+// =============================================================================
+export const IMPORTANT_NOTE_OPTIONS = [
+  { value: "withhold_food_24hr", label: "Withhold food 24hr before" },
+  { value: "other_feeders", label: "Other feeders in area" },
+  { value: "cats_cross_property", label: "Cats cross property lines" },
+  { value: "pregnant_cat", label: "Pregnant cat suspected" },
+  { value: "injured_sick_priority", label: "Injured/sick cat priority" },
+  { value: "caller_can_help_trap", label: "Caller can help trap" },
+  { value: "wildlife_concerns", label: "Wildlife concerns (raccoons etc.)" },
+  { value: "neighbor_issues", label: "Neighbor issues / complaints" },
+  { value: "urgent_time_sensitive", label: "Urgent / time-sensitive" },
+] as const;
+
+export type ImportantNote = (typeof IMPORTANT_NOTE_OPTIONS)[number]["value"];
+
+// =============================================================================
+// URGENCY REASONS - Why this request is urgent (call sheet + request form)
+// =============================================================================
+export const URGENCY_REASON_OPTIONS = [
+  { value: "kittens", label: "Young kittens present" },
+  { value: "sick_injured", label: "Sick or injured cat(s)" },
+  { value: "threat", label: "Cats at risk (neighbor threat, etc.)" },
+  { value: "poison", label: "Poison risk" },
+  { value: "eviction", label: "Eviction/property issue" },
+  { value: "moving", label: "Requester moving soon" },
+  { value: "pregnant", label: "Pregnant cat(s)" },
+  { value: "weather", label: "Weather concerns" },
+] as const;
+
+export type UrgencyReason = (typeof URGENCY_REASON_OPTIONS)[number]["value"];
+
+// =============================================================================
 // HELPER: Map call type to default ownership status
 // =============================================================================
 export function callTypeToOwnership(callType: string): OwnershipStatus {

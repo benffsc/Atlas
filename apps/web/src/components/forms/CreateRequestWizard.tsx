@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { postApi, ApiError } from "@/lib/api-client";
+import { URGENCY_REASON_OPTIONS } from "@/lib/intake-options";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -64,18 +65,7 @@ const PERMISSION_STATUSES = [
   { value: "unknown", label: "Unknown", description: "Permission status unclear" },
 ];
 
-// Urgency reasons (multi-select)
-const URGENCY_REASONS = [
-  { value: "medical_emergency", label: "Medical Emergency" },
-  { value: "pregnant_cats", label: "Pregnant Cats" },
-  { value: "young_kittens", label: "Young Kittens" },
-  { value: "eviction_deadline", label: "Eviction / Move-out Deadline" },
-  { value: "construction", label: "Construction Starting" },
-  { value: "animal_control", label: "Animal Control Involved" },
-  { value: "injury", label: "Injured Cat" },
-  { value: "hoarding", label: "Hoarding Situation" },
-  { value: "colony_growing", label: "Colony Growing Rapidly" },
-];
+// URGENCY_REASON_OPTIONS imported from @/lib/intake-options
 
 export default function CreateRequestWizard({
   submission,
@@ -486,7 +476,7 @@ export default function CreateRequestWizard({
                 Select any that apply (affects prioritization)
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
-                {URGENCY_REASONS.map((r) => (
+                {URGENCY_REASON_OPTIONS.map((r) => (
                   <label
                     key={r.value}
                     style={{
@@ -575,7 +565,7 @@ export default function CreateRequestWizard({
                   </div>
                   {formData.urgency_reasons.length > 0 && (
                     <div>
-                      <strong>Urgency:</strong> {formData.urgency_reasons.map(r => URGENCY_REASONS.find(u => u.value === r)?.label).join(", ")}
+                      <strong>Urgency:</strong> {formData.urgency_reasons.map(r => URGENCY_REASON_OPTIONS.find(u => u.value === r)?.label).join(", ")}
                     </div>
                   )}
                   {formData.access_notes && (

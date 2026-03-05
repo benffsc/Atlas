@@ -72,6 +72,8 @@ import {
   HANDLEABILITY_OPTIONS,
   REFERRAL_SOURCE_OPTIONS,
   COUNT_CONFIDENCE_OPTIONS,
+  IMPORTANT_NOTE_OPTIONS,
+  URGENCY_REASON_OPTIONS,
 } from "@/lib/intake-options";
 
 // ─── Form State ─────────────────────────────────────────────────
@@ -96,6 +98,7 @@ interface CallSheetForm {
   // About the Cats
   ownership_status: string;
   cat_count_estimate: number | "";
+  peak_count: number | "";
   count_confidence: string;
   eartip_count_observed: number | "";
   fixed_status: string;
@@ -109,6 +112,7 @@ interface CallSheetForm {
   has_medical_concerns: boolean;
   medical_description: string;
   is_emergency: boolean;
+  urgency_reasons: string[];
 
   // Awareness & Referral
   awareness_duration: string;
@@ -158,6 +162,7 @@ const initialForm: CallSheetForm = {
   property_type: "",
   ownership_status: "",
   cat_count_estimate: "",
+  peak_count: "",
   count_confidence: "",
   eartip_count_observed: "",
   fixed_status: "",
@@ -167,6 +172,7 @@ const initialForm: CallSheetForm = {
   has_medical_concerns: false,
   medical_description: "",
   is_emergency: false,
+  urgency_reasons: [],
   awareness_duration: "",
   colony_duration: "",
   referral_source: "",
@@ -190,29 +196,7 @@ const initialForm: CallSheetForm = {
   reviewed_by: "",
 };
 
-const IMPORTANT_NOTE_OPTIONS = [
-  "withhold_food_24hr",
-  "other_feeders",
-  "cats_cross_property",
-  "pregnant_cat",
-  "injured_sick_priority",
-  "caller_can_help_trap",
-  "wildlife_concerns",
-  "neighbor_issues",
-  "urgent_time_sensitive",
-];
-
-const IMPORTANT_NOTE_LABELS: Record<string, string> = {
-  withhold_food_24hr: "Withhold food 24hr before",
-  other_feeders: "Other feeders in area",
-  cats_cross_property: "Cats cross property lines",
-  pregnant_cat: "Pregnant cat suspected",
-  injured_sick_priority: "Injured/sick cat priority",
-  caller_can_help_trap: "Caller can help trap",
-  wildlife_concerns: "Wildlife concerns (raccoons etc.)",
-  neighbor_issues: "Neighbor issues / complaints",
-  urgent_time_sensitive: "Urgent / time-sensitive",
-};
+// IMPORTANT_NOTE_OPTIONS and URGENCY_REASON_OPTIONS imported from @/lib/intake-options
 
 const COUNTY_OPTIONS = ["sonoma", "marin", "napa", "other"];
 const PROPERTY_TYPE_OPTIONS = ["house", "apartment", "business", "rural", "other"];
@@ -408,6 +392,15 @@ export default function CallSheetEntryPage() {
     }));
   };
 
+  const toggleUrgencyReason = (reason: string) => {
+    setForm(prev => ({
+      ...prev,
+      urgency_reasons: prev.urgency_reasons.includes(reason)
+        ? prev.urgency_reasons.filter(r => r !== reason)
+        : [...prev.urgency_reasons, reason],
+    }));
+  };
+
   // Map simplified awareness_duration values to database enum values
   const mapAwarenessDuration = (value: string): string | null => {
     const mapping: Record<string, string> = {
@@ -476,6 +469,7 @@ export default function CallSheetEntryPage() {
         // Cats
         ownership_status: form.ownership_status || null,
         cat_count_estimate: form.cat_count_estimate || null,
+        peak_count: form.peak_count || null,
         count_confidence: form.count_confidence || null,
         colony_duration: form.colony_duration || null,
         eartip_count_observed: form.eartip_count_observed || null,
@@ -488,7 +482,7 @@ export default function CallSheetEntryPage() {
         // Medical / Emergency
         has_medical_concerns: form.has_medical_concerns,
         medical_description: form.medical_description || null,
-        is_emergency: form.is_emergency,
+        is_emergency: form.is_emergency || form.urgency_reasons.length > 0,
         // Awareness
         awareness_duration: mapAwarenessDuration(form.awareness_duration),
         referral_source: form.referral_source || null,
@@ -518,6 +512,7 @@ export default function CallSheetEntryPage() {
           feeding_location: form.feeding_location || undefined,
           best_trapping_time: form.best_trapping_time || undefined,
           important_notes: form.important_notes.length > 0 ? form.important_notes : undefined,
+          urgency_reasons: form.urgency_reasons.length > 0 ? form.urgency_reasons : undefined,
           caller_is_owner: form.is_property_owner || undefined,
         },
       });
@@ -690,10 +685,14 @@ export default function CallSheetEntryPage() {
                     </label>
                   ))}
                 </div>
-                <div style={{ ...grid2, marginTop: "10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginTop: "10px" }}>
                   <div>
                     <label style={fieldLabel}>Cat count</label>
                     <input style={fieldInput} type="number" min={0} value={form.cat_count_estimate} onChange={e => updateForm({ cat_count_estimate: e.target.value ? parseInt(e.target.value) : "" })} placeholder="#" />
+                  </div>
+                  <div>
+                    <label style={fieldLabel}>Peak count</label>
+                    <input style={fieldInput} type="number" min={0} value={form.peak_count} onChange={e => updateForm({ peak_count: e.target.value ? parseInt(e.target.value) : "" })} placeholder="#" title="Most cats seen at one time" />
                   </div>
                   <div>
                     <label style={fieldLabel}>Eartipped</label>
@@ -758,7 +757,24 @@ export default function CallSheetEntryPage() {
                   </div>
                 )}
 
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#dc2626" }}>
+                <div style={{ marginTop: "8px" }}>
+                  <label style={fieldLabel}>Urgency reasons</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
+                    {URGENCY_REASON_OPTIONS.map(opt => (
+                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                        <input type="checkbox" checked={form.urgency_reasons.includes(opt.value)} onChange={() => toggleUrgencyReason(opt.value)} />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                  {form.urgency_reasons.length > 0 && (
+                    <div style={{ marginTop: "6px", fontSize: "12px", color: "#dc2626", fontWeight: 600 }}>
+                      Marked as emergency (urgent factors selected)
+                    </div>
+                  )}
+                </div>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#dc2626", marginTop: "8px" }}>
                   <input type="checkbox" checked={form.is_emergency} onChange={e => updateForm({ is_emergency: e.target.checked })} />
                   EMERGENCY (injured, immediate danger)
                 </label>
@@ -927,10 +943,10 @@ export default function CallSheetEntryPage() {
           <div style={{ marginBottom: "16px", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "8px", padding: "12px" }}>
             <div style={{ ...sectionTitle, color: "#92400e", borderBottomColor: "#fcd34d" }}>Important Notes (check all that apply)</div>
             <div style={grid3}>
-              {IMPORTANT_NOTE_OPTIONS.map(note => (
-                <label key={note} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
-                  <input type="checkbox" checked={form.important_notes.includes(note)} onChange={() => toggleNote(note)} />
-                  {IMPORTANT_NOTE_LABELS[note]}
+              {IMPORTANT_NOTE_OPTIONS.map(opt => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                  <input type="checkbox" checked={form.important_notes.includes(opt.value)} onChange={() => toggleNote(opt.value)} />
+                  {opt.label}
                 </label>
               ))}
             </div>
