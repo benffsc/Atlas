@@ -942,10 +942,14 @@ export async function PATCH(
 
     // Log changes to centralized entity_edits table
     if (auditChanges.length > 0) {
-      await logFieldEdits("request", id, auditChanges, {
-        editedBy: "web_user",
-        editSource: "web_ui",
-      });
+      try {
+        await logFieldEdits("request", id, auditChanges, {
+          editedBy: "web_user",
+          editSource: "web_ui",
+        });
+      } catch (auditErr) {
+        console.error("[PATCH request] logFieldEdits failed:", auditErr);
+      }
     }
 
     // Add request_id to values
@@ -955,8 +959,10 @@ export async function PATCH(
       UPDATE ops.requests
       SET ${updates.join(", ")}
       WHERE request_id = $${paramIndex}
-      RETURNING request_id, status, priority, updated_at
+      RETURNING request_id, status::TEXT, priority::TEXT, updated_at
     `;
+
+    console.log("[PATCH request] SQL:", sql, "params:", paramIndex, "values count:", values.length);
 
     const result = await queryOne<{
       request_id: string;
@@ -1028,7 +1034,8 @@ export async function PATCH(
     if (error instanceof Error && error.name === "ApiError") {
       return apiError(error.message, (error as { status?: number }).status || 400);
     }
-    console.error("Error updating request:", error);
-    return apiServerError("Failed to update request");
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Error updating request:", errMsg, error);
+    return apiServerError(`Failed to update request: ${errMsg}`);
   }
 }
