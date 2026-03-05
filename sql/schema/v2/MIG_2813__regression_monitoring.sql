@@ -10,6 +10,8 @@
 --
 -- Depends on: MIG_2435 (original function), MIG_2019 (normalized_address), MIG_2328 (clinic_day_entries)
 
+DROP FUNCTION IF EXISTS ops.check_entity_linking_health();
+
 CREATE OR REPLACE FUNCTION ops.check_entity_linking_health()
 RETURNS TABLE(
     check_name TEXT,
@@ -63,7 +65,7 @@ BEGIN
     SELECT
         'last_run_status'::TEXT,
         COALESCE((SELECT elr.status FROM ops.entity_linking_runs elr ORDER BY elr.created_at DESC LIMIT 1), 'never_run')::TEXT,
-        COALESCE((SELECT (elr.result->>'cat_coverage_pct')::INT FROM ops.entity_linking_runs elr ORDER BY elr.created_at DESC LIMIT 1), 0)::INT,
+        COALESCE((SELECT (elr.result->>'cat_coverage_pct')::NUMERIC::INT FROM ops.entity_linking_runs elr ORDER BY elr.created_at DESC LIMIT 1), 0)::INT,
         0::INT,
         'Most recent entity linking run'::TEXT;
 
