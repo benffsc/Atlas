@@ -354,14 +354,16 @@ export function IntakeKanbanBoard({
             return next;
           });
         }, 3000);
-      } catch {
+      } catch (err) {
+        console.error("Kanban drag failed:", err);
         // Revert on failure
         setOptimisticMoves((prev) => {
           const next = { ...prev };
           delete next[submissionId];
           return next;
         });
-        onError?.("Failed to move — please try again");
+        const message = err instanceof Error ? err.message : "Failed to move — please try again";
+        onError?.(message);
       } finally {
         isDragPending.current = false;
       }
