@@ -118,8 +118,9 @@ export const CLEANUP_QUERIES = [
   `DELETE FROM ops.journal_entries WHERE created_by = 'e2e_test' OR body LIKE 'e2e-test-%'`,
   `DELETE FROM ops.map_annotations WHERE created_by = 'e2e_test' OR label LIKE 'e2e-test-%'`,
   `DELETE FROM ops.web_intake_submissions WHERE submission_id LIKE 'e2e-test-%' OR email LIKE 'e2e-%@test.example.com'`,
+  `DELETE FROM ops.intake_submissions WHERE situation_description LIKE '%E2E_TEST_MARKER%' OR email LIKE 'e2e-intake-%@test.example.com' OR is_test = true`,
   // Core entities
-  `DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%'`,
+  `DELETE FROM ops.requests WHERE source_system = 'e2e_test' OR request_id LIKE 'e2e-test-%' OR summary LIKE 'E2E Test -%' OR notes LIKE '%E2E_TEST_MARKER%' OR internal_notes LIKE '%E2E_TEST_MARKER%' OR (archive_reason = 'test_data' AND internal_notes LIKE '%E2E_TEST_MARKER%')`,
   `DELETE FROM sot.places WHERE source_system = 'e2e_test' OR place_id LIKE 'e2e-test-%'`,
   `DELETE FROM sot.people WHERE source_system = 'e2e_test' OR person_id LIKE 'e2e-test-%'`,
   `DELETE FROM sot.cats WHERE source_system = 'e2e_test' OR cat_id LIKE 'e2e-test-%'`,
