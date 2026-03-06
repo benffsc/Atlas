@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi } from "@/lib/api-client";
-import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE, type HandoffReason } from "@/lib/enums";
+import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE } from "@/lib/enums";
 
 interface HandoffRequestModalProps {
   isOpen: boolean;

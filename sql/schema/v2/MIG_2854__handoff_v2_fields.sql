@@ -107,6 +107,7 @@ DECLARE
   v_handoff_at TIMESTAMPTZ := NOW();
   v_original_address TEXT;
   v_new_place_id UUID;
+  v_resolved_person_id UUID;
 BEGIN
   -- Get original request details
   SELECT
@@ -167,6 +168,13 @@ BEGIN
     p_priority := v_original.priority::TEXT
   );
 
+  -- Resolve the actual person_id on the new request.
+  -- When p_new_requester_person_id is NULL, find_or_create_request may have
+  -- resolved a person via email/phone internally. We need that resolved ID
+  -- for V2 fields and person-place relationship creation.
+  SELECT requester_person_id INTO v_resolved_person_id
+  FROM ops.requests WHERE request_id = v_new_request_id;
+
   -- Link new request back to original
   UPDATE ops.requests
   SET
@@ -174,10 +182,10 @@ BEGIN
     transfer_type = 'handoff'
   WHERE request_id = v_new_request_id;
 
-  -- Set V2 fields on the new request
+  -- Set V2 fields on the new request (use resolved person, not just the input param)
   UPDATE ops.requests SET
     site_contact_person_id = CASE
-      WHEN COALESCE(p_new_person_is_site_contact, TRUE) THEN p_new_requester_person_id
+      WHEN COALESCE(p_new_person_is_site_contact, TRUE) THEN v_resolved_person_id
       ELSE NULL
     END,
     requester_is_site_contact = COALESCE(p_new_person_is_site_contact, TRUE),
@@ -186,14 +194,14 @@ BEGIN
   WHERE request_id = v_new_request_id;
 
   -- Create person-place relationship with specified role
-  IF p_new_requester_person_id IS NOT NULL
+  IF v_resolved_person_id IS NOT NULL
      AND v_new_place_id IS NOT NULL
      AND p_new_person_role IS NOT NULL THEN
     INSERT INTO sot.person_place (
       person_id, place_id, relationship_type,
       evidence_type, confidence, source_system
     ) VALUES (
-      p_new_requester_person_id, v_new_place_id, p_new_person_role,
+      v_resolved_person_id, v_new_place_id, p_new_person_role,
       'manual', 1.0, 'atlas_ui'
     )
     ON CONFLICT (person_id, place_id, relationship_type)
