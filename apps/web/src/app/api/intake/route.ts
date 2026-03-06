@@ -250,20 +250,20 @@ export async function POST(request: NextRequest) {
         body.cats_zip || null, // $21
         body.county || null, // $22
         body.ownership_status || "unknown_stray", // $23
-        body.cat_count_estimate || null, // $24
+        body.cat_count_estimate ?? null, // $24
         body.cat_count_text || null, // $25
-        body.cats_needing_tnr || null, // $26
-        body.peak_count || null, // $27
+        body.cats_needing_tnr ?? null, // $26
+        body.peak_count ?? null, // $27
         body.count_confidence || null, // $28 - MIG_2531: structured column
         body.colony_duration || null, // $29 - MIG_2531: structured column
-        body.eartip_count_observed || null, // $30
+        body.eartip_count_observed ?? null, // $30
         body.fixed_status || "unknown", // $31
         body.handleability || null, // $32
         body.observation_time_of_day || null, // $33
         body.is_at_feeding_station ?? null, // $34
         body.reporter_confidence || null, // $35
         body.has_kittens ?? null, // $36
-        body.kitten_count || null, // $37
+        body.kitten_count ?? null, // $37
         body.kitten_age_estimate || null, // $38
         body.kitten_mixed_ages_description || null, // $39
         body.kitten_behavior || null, // $40

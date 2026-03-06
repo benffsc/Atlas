@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiConflict, apiServerError } from "@/lib/api-response";
+import { requireValidUUID, ApiError } from "@/lib/api-validation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,8 @@ export async function POST(request: NextRequest) {
     if (!submission_id) {
       return apiBadRequest("submission_id is required");
     }
+
+    requireValidUUID(submission_id, "submission");
 
     // Call the SQL function to convert to request (MIG_2531: using ops schema)
     const result = await queryOne<{ request_id: string }>(
@@ -64,6 +67,9 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess({ request_id: result.request_id });
   } catch (err) {
+    if (err instanceof ApiError) {
+      return apiBadRequest(err.message);
+    }
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Convert error:", msg);
 
