@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE, type HandoffReason } from "@/lib/enums";
 
 interface HandoffRequestModalProps {
   isOpen: boolean;
@@ -26,14 +27,15 @@ interface PersonSearchResult {
   address: string | null;
 }
 
-const HANDOFF_REASONS = [
-  { value: "caretaker_moving", label: "Original caretaker is moving" },
-  { value: "new_caretaker", label: "New person taking over colony care" },
-  { value: "cats_relocated", label: "Cats are being relocated to new site" },
-  { value: "neighbor_takeover", label: "Neighbor assuming responsibility" },
-  { value: "health_reasons", label: "Original caretaker cannot continue (health/personal)" },
-  { value: "other", label: "Other reason" },
-];
+const HANDOFF_REASONS = HANDOFF_REASON.map((value) => ({
+  value,
+  label: HANDOFF_REASON_LABELS[value],
+}));
+
+const PERSON_ROLE_OPTIONS = PERSON_PLACE_ROLE.map((value) => ({
+  value,
+  label: value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+}));
 
 export function HandoffRequestModal({
   isOpen,
@@ -74,6 +76,11 @@ export function HandoffRequestModal({
   const [kittenAssessmentStatus, setKittenAssessmentStatus] = useState("");
   const [kittenAssessmentOutcome, setKittenAssessmentOutcome] = useState("");
   const [kittenNotNeededReason, setKittenNotNeededReason] = useState("");
+
+  // New person's relationship to property
+  const [newPersonRole, setNewPersonRole] = useState("");
+  const [isPropertyOwner, setIsPropertyOwner] = useState<boolean | null>(null);
+  const [newPersonIsSiteContact, setNewPersonIsSiteContact] = useState(true);
 
   // Link to existing request state
   const [linkToExisting, setLinkToExisting] = useState(false);
@@ -120,6 +127,9 @@ export function HandoffRequestModal({
       setKittenAssessmentStatus("");
       setKittenAssessmentOutcome("");
       setKittenNotNeededReason("");
+      setNewPersonRole("");
+      setIsPropertyOwner(null);
+      setNewPersonIsSiteContact(true);
       setLinkToExisting(false);
       setTargetRequestId(null);
       setTargetRequest(null);
@@ -253,6 +263,10 @@ export function HandoffRequestModal({
         summary: summary || null,
         notes: notes || null,
         estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
+        // Person role & property context
+        new_person_role: newPersonRole || null,
+        is_property_owner: isPropertyOwner,
+        new_person_is_site_contact: newPersonIsSiteContact,
         // Kitten assessment fields
         has_kittens: hasKittens,
         kitten_count: kittenCount === "" ? null : kittenCount,
@@ -726,6 +740,68 @@ export function HandoffRequestModal({
             </div>
           </div>
 
+          {/* Person Role & Property Context */}
+          <div style={{ marginBottom: "16px", padding: "12px", background: "var(--card-bg, #f8f9fa)", borderRadius: "8px", border: "1px solid var(--border)" }}>
+            <div style={{ marginBottom: "12px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                  marginBottom: "6px",
+                }}
+              >
+                New person&apos;s relationship to the property
+              </label>
+              <select
+                value={newPersonRole}
+                onChange={(e) => {
+                  setNewPersonRole(e.target.value);
+                  if (e.target.value === "owner" || e.target.value === "landlord") {
+                    setIsPropertyOwner(true);
+                  } else {
+                    setIsPropertyOwner(null);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  fontSize: "0.9rem",
+                  background: "var(--input-bg, #fff)",
+                }}
+              >
+                <option value="">Select role...</option>
+                {PERSON_ROLE_OPTIONS.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {newPersonRole && newPersonRole !== "owner" && newPersonRole !== "landlord" && (
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", marginBottom: "8px" }}>
+                <input
+                  type="checkbox"
+                  checked={isPropertyOwner === true}
+                  onChange={(e) => setIsPropertyOwner(e.target.checked)}
+                />
+                <span style={{ fontSize: "0.85rem" }}>This person is the property owner</span>
+              </label>
+            )}
+
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={newPersonIsSiteContact}
+                onChange={(e) => setNewPersonIsSiteContact(e.target.checked)}
+              />
+              <span style={{ fontSize: "0.85rem" }}>This person is the on-site contact for trapping</span>
+            </label>
+          </div>
+
           {/* Cat Count & Summary */}
           <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: "12px", marginBottom: "16px" }}>
             <div>
@@ -1021,6 +1097,26 @@ export function HandoffRequestModal({
                   </div>
                 </div>
               )}
+
+              {/* Property context for linked request */}
+              <div style={{ marginTop: "12px", padding: "10px", background: "var(--card-bg, #f8f9fa)", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", marginBottom: "6px" }}>
+                  <input
+                    type="checkbox"
+                    checked={isPropertyOwner === true}
+                    onChange={(e) => setIsPropertyOwner(e.target.checked)}
+                  />
+                  <span style={{ fontSize: "0.85rem" }}>Property owner is now the requester</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={newPersonIsSiteContact}
+                    onChange={(e) => setNewPersonIsSiteContact(e.target.checked)}
+                  />
+                  <span style={{ fontSize: "0.85rem" }}>Requester is the on-site contact</span>
+                </label>
+              </div>
 
               {/* Optional notes */}
               <div style={{ marginTop: "12px" }}>

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiUnauthorized } from "@/lib/api-response";
+import { PERSON_PLACE_ROLE } from "@/lib/enums";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -60,11 +61,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       kitten_assessment_status,
       kitten_assessment_outcome,
       kitten_not_needed_reason,
+      // V2: Person role & property context
+      new_person_role,
+      is_property_owner,
+      new_person_is_site_contact,
     } = body;
 
     // Validate required fields
     if (!handoff_reason) {
       return apiBadRequest("Handoff reason is required");
+    }
+
+    // Validate new_person_role if provided
+    if (new_person_role && !(PERSON_PLACE_ROLE as readonly string[]).includes(new_person_role)) {
+      return apiBadRequest(`Invalid person role: ${new_person_role}`);
     }
 
     // --- Link to existing request path ---
@@ -96,14 +106,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         [requestId, existing_target_request_id, handoff_reason, `Handed off to existing request ${existing_target_request_id}`]
       );
 
-      // Link target back (only if it doesn't already have a parent)
+      // Link target back (only if it doesn't already have a parent) and set V2 fields
       await queryOne(
         `UPDATE ops.requests SET
           redirected_from_request_id = $1,
-          transfer_type = COALESCE(transfer_type, 'handoff')
+          transfer_type = COALESCE(transfer_type, 'handoff'),
+          is_property_owner = COALESCE($3, is_property_owner),
+          requester_is_site_contact = COALESCE($4, requester_is_site_contact)
         WHERE request_id = $2
           AND redirected_from_request_id IS NULL`,
-        [requestId, existing_target_request_id]
+        [requestId, existing_target_request_id, is_property_owner ?? null, new_person_is_site_contact ?? null]
       );
 
       // Audit log
@@ -181,7 +193,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         p_kitten_age_weeks := $14,
         p_kitten_assessment_status := $15,
         p_kitten_assessment_outcome := $16,
-        p_kitten_not_needed_reason := $17
+        p_kitten_not_needed_reason := $17,
+        p_new_person_role := $18,
+        p_is_property_owner := $19,
+        p_new_person_is_site_contact := $20
       )`,
       [
         requestId,
@@ -201,6 +216,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         kitten_assessment_status || null,
         kitten_assessment_outcome || null,
         kitten_not_needed_reason || null,
+        new_person_role || null,
+        is_property_owner ?? null,
+        new_person_is_site_contact ?? true,
       ]
     );
 

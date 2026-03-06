@@ -98,6 +98,34 @@ export const PROPERTY_TYPE = [
 ] as const;
 
 // =============================================================================
+// HANDOFF ENUMS
+// =============================================================================
+
+export const HANDOFF_REASON = [
+  "caretaker_moving",
+  "new_caretaker",
+  "cats_relocated",
+  "neighbor_takeover",
+  "health_reasons",
+  "property_owner_found",
+  "tenant_moved_owner_takeover",
+  "property_management_change",
+  "other",
+] as const;
+
+export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {
+  caretaker_moving: "Original caretaker is moving",
+  new_caretaker: "New person taking over colony care",
+  cats_relocated: "Cats are being relocated to new site",
+  neighbor_takeover: "Neighbor assuming responsibility",
+  health_reasons: "Original caretaker cannot continue (health/personal)",
+  property_owner_found: "Property owner identified and taking responsibility",
+  tenant_moved_owner_takeover: "Tenant moved out, owner/manager assuming responsibility",
+  property_management_change: "Property management change",
+  other: "Other reason",
+};
+
+// =============================================================================
 // PERSON ENUMS
 // =============================================================================
 
@@ -209,6 +237,9 @@ export const ENTITY_ENUMS = {
   FEEDING_FREQUENCY,
   PROPERTY_TYPE,
 
+  // Handoff
+  HANDOFF_REASON,
+
   // Person
   PERSON_ENTITY_TYPE,
   TRAPPING_SKILL,
@@ -244,6 +275,8 @@ export type CountConfidence = (typeof COUNT_CONFIDENCE)[number];
 export type EartipEstimate = (typeof EARTIP_ESTIMATE)[number];
 export type FeedingFrequency = (typeof FEEDING_FREQUENCY)[number];
 export type PropertyType = (typeof PROPERTY_TYPE)[number];
+
+export type HandoffReason = (typeof HANDOFF_REASON)[number];
 
 export type PersonEntityType = (typeof PERSON_ENTITY_TYPE)[number];
 export type TrappingSkill = (typeof TRAPPING_SKILL)[number];
