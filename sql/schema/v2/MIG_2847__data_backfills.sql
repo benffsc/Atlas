@@ -58,11 +58,11 @@ END $$;
 -- =============================================================================
 
 UPDATE ops.requests
-SET request_status = 'cancelled',
+SET status = 'cancelled',
     resolved_at = NOW(),
     updated_at = NOW()
 WHERE source_system = 'test'
-  AND request_status NOT IN ('cancelled', 'completed')
+  AND status NOT IN ('cancelled', 'completed')
   AND merged_into_request_id IS NULL;
 
 -- =============================================================================
@@ -70,21 +70,21 @@ WHERE source_system = 'test'
 -- =============================================================================
 
 INSERT INTO sot.place_colony_estimates (
-    place_id, estimated_count, estimation_method, source_system, confidence
+    place_id, total_count_observed, estimate_method, source_system, observed_date
 )
 SELECT
     cp.place_id,
     COUNT(DISTINCT cp.cat_id),
-    'cat_count',
+    'cat_count_backfill',
     'atlas_backfill',
-    0.5
+    NOW()::date
 FROM sot.cat_place cp
 JOIN sot.places p ON p.place_id = cp.place_id AND p.merged_into_place_id IS NULL
 JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
-LEFT JOIN sot.place_colony_estimates pce ON pce.place_id = cp.place_id
-WHERE pce.place_id IS NULL
+WHERE NOT EXISTS (
+    SELECT 1 FROM sot.place_colony_estimates pce WHERE pce.place_id = cp.place_id
+)
 GROUP BY cp.place_id
-HAVING COUNT(DISTINCT cp.cat_id) >= 1
-ON CONFLICT (place_id) DO NOTHING;
+HAVING COUNT(DISTINCT cp.cat_id) >= 1;
 
 COMMIT;
