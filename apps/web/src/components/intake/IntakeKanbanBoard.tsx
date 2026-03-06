@@ -1,8 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+} from "@dnd-kit/core";
+import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import type { IntakeSubmission } from "@/lib/intake-types";
 import { SubmissionStatusBadge, formatDate, normalizeName } from "./IntakeBadges";
+import { formatPhone } from "@/lib/formatters";
 import { COLORS } from "@/lib/design-tokens";
 
 const INTAKE_COLUMNS = [
@@ -32,9 +43,15 @@ const INTAKE_COLUMNS = [
   },
 ] as const;
 
+function truncateEmail(email: string | null | undefined, max = 24): string {
+  if (!email) return "";
+  return email.length > max ? email.slice(0, max - 1) + "\u2026" : email;
+}
+
 interface IntakeKanbanBoardProps {
   submissions: IntakeSubmission[];
   onOpenDetail?: (submission: IntakeSubmission) => void;
+  onStatusChange?: (submissionId: string, newStatus: string) => Promise<void>;
 }
 
 function IntakeKanbanCard({
@@ -46,6 +63,9 @@ function IntakeKanbanCard({
 }) {
   const isUrgent = submission.is_emergency;
   const isOverdue = submission.overdue;
+  const phone = formatPhone(submission.phone);
+  const email = truncateEmail(submission.email);
+  const contactParts = [phone, email].filter(Boolean);
 
   return (
     <div
@@ -55,7 +75,6 @@ function IntakeKanbanCard({
         border: `1px solid ${isUrgent ? COLORS.error : isOverdue ? COLORS.warning : "var(--card-border, #e5e7eb)"}`,
         borderRadius: "8px",
         padding: "0.75rem",
-        marginBottom: "0.5rem",
         cursor: "pointer",
         transition: "box-shadow 0.15s, transform 0.15s",
         borderLeft: isUrgent
@@ -73,6 +92,7 @@ function IntakeKanbanCard({
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
+      {/* Name + urgent badge */}
       <div
         style={{
           display: "flex",
@@ -91,11 +111,12 @@ function IntakeKanbanCard({
         )}
       </div>
 
+      {/* Address */}
       <div
         style={{
           fontSize: "0.75rem",
           color: "var(--text-muted, #9ca3af)",
-          marginBottom: "0.35rem",
+          marginBottom: "0.25rem",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -104,6 +125,23 @@ function IntakeKanbanCard({
         {submission.geo_formatted_address || submission.cats_address || "No address"}
       </div>
 
+      {/* Contact info */}
+      {contactParts.length > 0 && (
+        <div
+          style={{
+            fontSize: "0.7rem",
+            color: "var(--text-muted, #9ca3af)",
+            marginBottom: "0.35rem",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {contactParts.join(" | ")}
+        </div>
+      )}
+
+      {/* Metadata row */}
       <div
         style={{
           display: "flex",
@@ -113,7 +151,18 @@ function IntakeKanbanCard({
           alignItems: "center",
         }}
       >
-        <span>{submission.cat_count_estimate ?? "?"} cats</span>
+        <span
+          style={{
+            padding: "0.1rem 0.4rem",
+            borderRadius: "999px",
+            background: "#dbeafe",
+            color: "#2563eb",
+            fontSize: "0.7rem",
+            fontWeight: 600,
+          }}
+        >
+          {submission.cat_count_estimate ?? "?"} cats
+        </span>
         <span>{formatDate(submission.submitted_at)}</span>
         {submission.triage_category && (
           <span
@@ -138,61 +187,184 @@ function IntakeKanbanCard({
   );
 }
 
-export function IntakeKanbanBoard({ submissions, onOpenDetail }: IntakeKanbanBoardProps) {
-  const columnData = INTAKE_COLUMNS.map((col) => ({
-    ...col,
-    items: submissions.filter((s) => (s.submission_status || "new") === col.status),
-  }));
+function DraggableKanbanCard({
+  submission,
+  onOpenDetail,
+}: {
+  submission: IntakeSubmission;
+  onOpenDetail?: (submission: IntakeSubmission) => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: submission.submission_id,
+    data: { submission },
+  });
 
   return (
     <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${INTAKE_COLUMNS.length}, 1fr)`,
-        gap: "0.75rem",
-        minHeight: "400px",
+        marginBottom: "0.5rem",
+        opacity: isDragging ? 0.4 : 1,
+        touchAction: "none",
       }}
     >
-      {columnData.map((col) => (
-        <div
-          key={col.status}
+      <IntakeKanbanCard submission={submission} onOpenDetail={onOpenDetail} />
+    </div>
+  );
+}
+
+function DroppableColumn({
+  status,
+  label,
+  color,
+  bgColor,
+  count,
+  children,
+}: {
+  status: string;
+  label: string;
+  color: string;
+  bgColor: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id: status });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        background: bgColor,
+        borderRadius: "8px",
+        padding: "0.75rem",
+        minHeight: "200px",
+        outline: isOver ? `2px dashed ${color}` : "none",
+        outlineOffset: "-2px",
+        transition: "outline 0.15s",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "0.75rem",
+          paddingBottom: "0.5rem",
+          borderBottom: `2px solid ${color}`,
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: "0.85rem", color }}>
+          {label}
+        </span>
+        <span
           style={{
-            background: col.bgColor,
-            borderRadius: "8px",
-            padding: "0.75rem",
-            minHeight: "200px",
+            background: color,
+            color: "#fff",
+            padding: "0.1rem 0.4rem",
+            borderRadius: "999px",
+            fontSize: "0.75rem",
+            fontWeight: 500,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "0.75rem",
-              paddingBottom: "0.5rem",
-              borderBottom: `2px solid ${col.color}`,
-            }}
-          >
-            <span style={{ fontWeight: 600, fontSize: "0.85rem", color: col.color }}>
-              {col.label}
-            </span>
-            <span
-              style={{
-                background: col.color,
-                color: "#fff",
-                padding: "0.1rem 0.4rem",
-                borderRadius: "999px",
-                fontSize: "0.75rem",
-                fontWeight: 500,
-              }}
-            >
-              {col.items.length}
-            </span>
-          </div>
+          {count}
+        </span>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
 
-          <div>
+export function IntakeKanbanBoard({
+  submissions,
+  onOpenDetail,
+  onStatusChange,
+}: IntakeKanbanBoardProps) {
+  const [activeCard, setActiveCard] = useState<IntakeSubmission | null>(null);
+  const [optimisticMoves, setOptimisticMoves] = useState<Record<string, string>>({});
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
+
+  const getEffectiveStatus = (sub: IntakeSubmission): string =>
+    optimisticMoves[sub.submission_id] ?? sub.submission_status ?? "new";
+
+  const columnData = INTAKE_COLUMNS.map((col) => ({
+    ...col,
+    items: submissions.filter((s) => getEffectiveStatus(s) === col.status),
+  }));
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const sub = event.active.data.current?.submission as IntakeSubmission | undefined;
+    setActiveCard(sub ?? null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveCard(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const submissionId = active.id as string;
+    const newStatus = over.id as string;
+    const sub = submissions.find((s) => s.submission_id === submissionId);
+    if (!sub) return;
+
+    const currentStatus = sub.submission_status || "new";
+    if (currentStatus === newStatus) return;
+
+    // Optimistic update
+    setOptimisticMoves((prev) => ({ ...prev, [submissionId]: newStatus }));
+
+    if (onStatusChange) {
+      try {
+        await onStatusChange(submissionId, newStatus);
+      } catch {
+        // Revert on failure
+        setOptimisticMoves((prev) => {
+          const next = { ...prev };
+          delete next[submissionId];
+          return next;
+        });
+      }
+    }
+
+    // Clear optimistic move after successful change (data will refresh)
+    setOptimisticMoves((prev) => {
+      const next = { ...prev };
+      delete next[submissionId];
+      return next;
+    });
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${INTAKE_COLUMNS.length}, 1fr)`,
+          gap: "0.75rem",
+          minHeight: "400px",
+        }}
+      >
+        {columnData.map((col) => (
+          <DroppableColumn
+            key={col.status}
+            status={col.status}
+            label={col.label}
+            color={col.color}
+            bgColor={col.bgColor}
+            count={col.items.length}
+          >
             {col.items.map((sub) => (
-              <IntakeKanbanCard
+              <DraggableKanbanCard
                 key={sub.submission_id}
                 submission={sub}
                 onOpenDetail={onOpenDetail}
@@ -210,10 +382,18 @@ export function IntakeKanbanBoard({ submissions, onOpenDetail }: IntakeKanbanBoa
                 No submissions
               </div>
             )}
+          </DroppableColumn>
+        ))}
+      </div>
+
+      <DragOverlay dropAnimation={null}>
+        {activeCard && (
+          <div style={{ width: "260px", opacity: 0.9 }}>
+            <IntakeKanbanCard submission={activeCard} />
           </div>
-        </div>
-      ))}
-    </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -284,7 +464,7 @@ export function IntakeKanbanBoardMobile({ submissions, onOpenDetail }: IntakeKan
                   {col.items.length}
                 </span>
                 <span style={{ color: col.color, fontSize: "0.8rem" }}>
-                  {isExpanded ? "▲" : "▼"}
+                  {isExpanded ? "\u25B2" : "\u25BC"}
                 </span>
               </div>
             </button>
@@ -292,11 +472,12 @@ export function IntakeKanbanBoardMobile({ submissions, onOpenDetail }: IntakeKan
             {isExpanded && (
               <div style={{ padding: "0.5rem" }}>
                 {col.items.map((sub) => (
-                  <IntakeKanbanCard
-                    key={sub.submission_id}
-                    submission={sub}
-                    onOpenDetail={onOpenDetail}
-                  />
+                  <div key={sub.submission_id} style={{ marginBottom: "0.5rem" }}>
+                    <IntakeKanbanCard
+                      submission={sub}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  </div>
                 ))}
                 {col.items.length === 0 && (
                   <div

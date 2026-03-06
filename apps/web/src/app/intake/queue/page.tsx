@@ -91,6 +91,14 @@ function IntakeQueueContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Kanban column labels for toast messages
+  const INTAKE_COLUMNS_LABELS: Record<string, string> = {
+    new: "New",
+    in_progress: "In Progress",
+    scheduled: "Scheduled",
+    complete: "Complete",
+  };
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -308,6 +316,21 @@ function IntakeQueueContent() {
 
   const openDetail = (sub: IntakeSubmission) => {
     setSelectedSubmission(sub);
+  };
+
+  const handleKanbanStatusChange = async (submissionId: string, newStatus: string) => {
+    const sub = submissions.find((s) => s.submission_id === submissionId);
+    const name = sub ? normalizeName(sub.submitter_name) : "Submission";
+    const label = INTAKE_COLUMNS_LABELS[newStatus] || newStatus;
+
+    await postApi("/api/intake/status", {
+      submission_id: submissionId,
+      submission_status: newStatus,
+    }, { method: "PATCH" });
+
+    setToastMessage(`Moved ${name} to ${label}`);
+    setTimeout(() => setToastMessage(null), 5000);
+    fetchSubmissions();
   };
 
   const handleArchive = async (submissionId: string) => {
@@ -809,6 +832,7 @@ function IntakeQueueContent() {
             <IntakeKanbanBoard
               submissions={sortedSubmissions}
               onOpenDetail={openDetail}
+              onStatusChange={handleKanbanStatusChange}
             />
           )
         ) : (
