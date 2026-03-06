@@ -32,15 +32,20 @@ interface DashboardMapProps {
   pinCount?: number;
 }
 
+// Match StatusBadge + design-tokens exactly
 const STATUS_COLORS: Record<string, string> = {
-  new: "#3b82f6",
-  triaged: "#3b82f6",
-  scheduled: "#f59e0b",
-  in_progress: "#f59e0b",
-  on_hold: "#ec4899",
-  completed: "#22c55e",
-  cancelled: "#6b7280",
-  default: "#6b7280",
+  new: "#3b82f6",        // primary (blue)
+  triaged: "#3b82f6",    // legacy → new
+  working: "#f59e0b",    // warning (amber)
+  scheduled: "#f59e0b",  // legacy → working
+  in_progress: "#f59e0b",// legacy → working
+  paused: "#ec4899",     // pink
+  on_hold: "#ec4899",    // legacy → paused
+  completed: "#10b981",  // success (emerald)
+  redirected: "#9ca3af", // gray
+  handed_off: "#0d9488", // teal
+  cancelled: "#9ca3af",  // gray
+  default: "#9ca3af",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -208,6 +213,18 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
       disableClusteringAtZoom: 15,
+      // Custom cluster icons — inline styles so we don't depend on MarkerCluster.Default.css loading
+      iconCreateFunction(clusterObj: { getChildCount: () => number }) {
+        const count = clusterObj.getChildCount();
+        const size = count < 10 ? 32 : count < 50 ? 38 : 44;
+        const bg = count < 10 ? "rgba(59,130,246,0.7)" : count < 50 ? "rgba(245,158,11,0.75)" : "rgba(239,68,68,0.8)";
+        return L.divIcon({
+          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:${size < 38 ? 12 : 13}px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.6);">${count}</div>`,
+          className: "",
+          iconSize: L.point(size, size),
+          iconAnchor: [size / 2, size / 2],
+        });
+      },
     });
 
     const bounds = L.latLngBounds([]);
