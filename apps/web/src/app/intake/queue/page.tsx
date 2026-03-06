@@ -288,11 +288,6 @@ function IntakeQueueContent() {
         submission_id: bookingSubmission.submission_id,
         submission_status: "scheduled",
         appointment_date: date || null,
-        legacy_submission_status: "Booked",
-        legacy_appointment_date: date || null,
-        legacy_notes: notes
-          ? (bookingSubmission.legacy_notes ? bookingSubmission.legacy_notes + "\n" + notes : notes)
-          : bookingSubmission.legacy_notes,
       }, { method: "PATCH" });
 
       const submitterName = normalizeName(bookingSubmission.submitter_name);
@@ -305,8 +300,6 @@ function IntakeQueueContent() {
           ...selectedSubmission,
           submission_status: "scheduled",
           appointment_date: date || null,
-          legacy_submission_status: "Booked",
-          legacy_appointment_date: date || null,
         });
       }
 
@@ -325,7 +318,7 @@ function IntakeQueueContent() {
   const handleChangeAppointment = (sub: IntakeSubmission) => {
     // Open booking modal with existing date pre-filled
     setBookingSubmission(sub);
-    setBookingDate(sub.appointment_date || sub.legacy_appointment_date || "");
+    setBookingDate(sub.appointment_date || "");
     setBookingNotes("");
     setShowBookingModal(true);
   };

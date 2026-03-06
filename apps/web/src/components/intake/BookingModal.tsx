@@ -53,7 +53,7 @@ export function BookingModal({
           fontWeight: TYPOGRAPHY.weight.medium,
         }}
       >
-        {saving ? "Saving..." : submission.legacy_submission_status === "Booked" ? "Update Booking" : "Confirm Booking"}
+        {saving ? "Saving..." : submission.submission_status === "scheduled" ? "Update Booking" : "Confirm Booking"}
       </button>
     </>
   );
@@ -62,7 +62,7 @@ export function BookingModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={submission.legacy_submission_status === "Booked" ? "Change Appointment" : "Book Appointment"}
+      title={submission.submission_status === "scheduled" ? "Change Appointment" : "Book Appointment"}
       size="sm"
       footer={footer}
     >

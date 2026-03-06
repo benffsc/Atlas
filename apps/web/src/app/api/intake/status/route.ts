@@ -16,11 +16,6 @@ export async function PATCH(request: NextRequest) {
       final_category,
       review_notes,
       reviewed_by = "web_user",
-      // Legacy field updates (backward compatibility)
-      legacy_status,
-      legacy_submission_status,
-      legacy_appointment_date,
-      legacy_notes,
     } = body;
 
     if (!submission_id) {
@@ -32,7 +27,6 @@ export async function PATCH(request: NextRequest) {
     let paramIndex = 1;
 
     // Handle unified status update (primary)
-    // Also sync to legacy fields for Airtable compatibility
     if (submission_status !== undefined) {
       const validStatuses = ["new", "in_progress", "scheduled", "complete", "archived"];
       if (!validStatuses.includes(submission_status)) {
@@ -41,36 +35,13 @@ export async function PATCH(request: NextRequest) {
       updates.push(`submission_status = $${paramIndex}`);
       params.push(submission_status);
       paramIndex++;
-
-      // Auto-sync to legacy fields for Airtable compatibility
-      // Only if legacy fields weren't explicitly provided in this request
-      if (legacy_submission_status === undefined) {
-        const legacyStatusMap: Record<string, string | null> = {
-          "new": "Pending Review",
-          "in_progress": "Pending Review",
-          "scheduled": "Booked",
-          "complete": "Complete",
-          "archived": "Complete", // Archived items show as complete in legacy
-        };
-        updates.push(`legacy_submission_status = $${paramIndex}`);
-        params.push(legacyStatusMap[submission_status]);
-        paramIndex++;
-      }
     }
 
     // Handle appointment date
-    // Also sync to legacy field for Airtable compatibility
     if (appointment_date !== undefined) {
       updates.push(`appointment_date = $${paramIndex}`);
       params.push(appointment_date || null);
       paramIndex++;
-
-      // Auto-sync to legacy field if not explicitly provided
-      if (legacy_appointment_date === undefined) {
-        updates.push(`legacy_appointment_date = $${paramIndex}`);
-        params.push(appointment_date || null);
-        paramIndex++;
-      }
     }
 
     // Handle priority override
@@ -92,7 +63,7 @@ export async function PATCH(request: NextRequest) {
         "reviewed",
         "request_created",
         "redirected",
-        "client_handled",  // New: client will handle it themselves (e.g., book their own cat)
+        "client_handled",
         "archived"
       ];
       if (!validStatuses.includes(status)) {
@@ -121,28 +92,6 @@ export async function PATCH(request: NextRequest) {
           paramIndex++;
         }
       }
-    }
-
-    // Handle legacy field updates (for compatibility with Jami's workflow)
-    if (legacy_status !== undefined) {
-      updates.push(`legacy_status = $${paramIndex}`);
-      params.push(legacy_status || null);
-      paramIndex++;
-    }
-    if (legacy_submission_status !== undefined) {
-      updates.push(`legacy_submission_status = $${paramIndex}`);
-      params.push(legacy_submission_status || null);
-      paramIndex++;
-    }
-    if (legacy_appointment_date !== undefined) {
-      updates.push(`legacy_appointment_date = $${paramIndex}`);
-      params.push(legacy_appointment_date || null);
-      paramIndex++;
-    }
-    if (legacy_notes !== undefined) {
-      updates.push(`legacy_notes = $${paramIndex}`);
-      params.push(legacy_notes || null);
-      paramIndex++;
     }
 
     // Handle review_notes update separately (when not changing status)
