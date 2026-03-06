@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         // Create journal entry for audit trail
         await queryOne(
           `INSERT INTO ops.journal_entries (
-            submission_id,
+            primary_submission_id,
             entry_kind,
             title,
             body,

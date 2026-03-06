@@ -78,9 +78,9 @@ export async function POST(
     // Log to journal
     await query(
       `INSERT INTO ops.journal_entries (
-         entity_type, entity_id, entry_kind, content, metadata, created_at
+         primary_request_id, entry_kind, body, meta, created_at
        ) VALUES (
-         'request', $1, 'linear_linked', $2, $3, NOW()
+         $1, 'linear_linked', $2, $3, NOW()
        )`,
       [
         body.atlas_request_id,
@@ -155,9 +155,9 @@ export async function DELETE(
     // Log to journal
     await query(
       `INSERT INTO ops.journal_entries (
-         entity_type, entity_id, entry_kind, content, metadata, created_at
+         primary_request_id, entry_kind, body, meta, created_at
        ) VALUES (
-         'request', $1, 'linear_unlinked', $2, $3, NOW()
+         $1, 'linear_unlinked', $2, $3, NOW()
        )`,
       [
         previousRequestId,

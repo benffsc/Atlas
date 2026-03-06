@@ -97,9 +97,9 @@ export async function POST(request: NextRequest) {
     // Log decline in journal
     await queryOne(
       `INSERT INTO ops.journal_entries (
-        entity_type, entity_id, entry_kind, content, metadata, created_at
+        primary_submission_id, entry_kind, content, meta, created_at
       ) VALUES (
-        'intake_submission', $1, 'status_change', $2, $3, NOW()
+        $1, 'status_change', $2, $3, NOW()
       )`,
       [
         submission_id,
@@ -121,9 +121,9 @@ export async function POST(request: NextRequest) {
       // Log that notification was requested (actual email sending would be here)
       await queryOne(
         `INSERT INTO ops.journal_entries (
-          entity_type, entity_id, entry_kind, content, metadata, created_at
+          primary_submission_id, entry_kind, content, meta, created_at
         ) VALUES (
-          'intake_submission', $1, 'notification_requested', $2, $3, NOW()
+          $1, 'notification_requested', $2, $3, NOW()
         )`,
         [
           submission_id,

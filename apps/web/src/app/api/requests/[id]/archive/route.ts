@@ -107,9 +107,9 @@ export async function POST(
     try {
       await queryOne(
         `INSERT INTO ops.journal_entries (
-          entity_type, entity_id, entry_kind, content, metadata, created_at
+          primary_request_id, entry_kind, body, meta, created_at
         ) VALUES (
-          'request', $1, 'status_change', $2, $3, NOW()
+          $1, 'status_change', $2, $3, NOW()
         )`,
         [
           id,
@@ -198,9 +198,9 @@ export async function DELETE(
     try {
       await queryOne(
         `INSERT INTO ops.journal_entries (
-          entity_type, entity_id, entry_kind, content, metadata, created_at
+          primary_request_id, entry_kind, body, meta, created_at
         ) VALUES (
-          'request', $1, 'status_change', $2, $3, NOW()
+          $1, 'status_change', $2, $3, NOW()
         )`,
         [
           id,
