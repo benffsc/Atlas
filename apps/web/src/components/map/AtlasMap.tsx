@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -137,8 +138,53 @@ const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
   },
 ];
 
-export default function AtlasMap() {
+function getAtlasDefaultEnabledLayers(): Record<string, boolean> {
+  const result: Record<string, boolean> = {};
+  for (const group of ATLAS_MAP_LAYER_GROUPS_BASE) {
+    for (const child of group.children) {
+      result[child.id] = child.defaultEnabled;
+    }
+  }
+  for (const l of LEGACY_LAYER_CONFIGS) {
+    result[l.id] = l.defaultEnabled;
+  }
+  return result;
+}
+
+function parseLayersParam(param: string | null): Record<string, boolean> | null {
+  if (!param) return null;
+  if (param === "none") {
+    const defaults = getAtlasDefaultEnabledLayers();
+    const result: Record<string, boolean> = {};
+    for (const id of Object.keys(defaults)) result[id] = false;
+    return result;
+  }
+  const ids = param.split(",").filter(Boolean);
+  if (ids.length === 0) return null;
+  const defaults = getAtlasDefaultEnabledLayers();
+  const knownIds = new Set(Object.keys(defaults));
+  const valid = ids.filter(id => knownIds.has(id));
+  if (valid.length === 0) return null;
+  const result: Record<string, boolean> = {};
+  for (const id of Array.from(knownIds)) result[id] = false;
+  for (const id of valid) result[id] = true;
+  return result;
+}
+
+function serializeAtlasLayers(enabledLayers: Record<string, boolean>): string | null {
+  const defaults = getAtlasDefaultEnabledLayers();
+  const currentKeys = Object.keys(enabledLayers).filter(k => enabledLayers[k]).sort();
+  const defaultKeys = Object.keys(defaults).filter(k => defaults[k]).sort();
+  if (currentKeys.join(",") === defaultKeys.join(",")) return null;
+  if (currentKeys.length === 0) return "none";
+  return currentKeys.join(",");
+}
+
+function AtlasMapInner() {
   const isMobile = useIsMobile();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
@@ -153,9 +199,27 @@ export default function AtlasMap() {
   const [showLegend, setShowLegend] = useState(!isMobile);
   const [isSatellite, setIsSatellite] = useState(false);
   const [selectedZone, setSelectedZone] = useState("All Zones");
-  const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(
-    Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.defaultEnabled]))
-  );
+  const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(() => {
+    const fromUrl = parseLayersParam(searchParams.get("layers"));
+    if (fromUrl) return fromUrl;
+    return Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.defaultEnabled]));
+  });
+
+  // Sync layer state to URL
+  useEffect(() => {
+    const serialized = serializeAtlasLayers(enabledLayers);
+    const params = new URLSearchParams(searchParams.toString());
+    if (serialized) {
+      params.set("layers", serialized);
+    } else {
+      params.delete("layers");
+    }
+    const newUrl = params.toString() ? `${pathname}?${params}` : pathname;
+    const currentUrl = searchParams.toString() ? `${pathname}?${searchParams}` : pathname;
+    if (newUrl !== currentUrl) {
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [enabledLayers, pathname, router, searchParams]);
 
   // Data - NEW simplified layers
   const [atlasPins, setAtlasPins] = useState<AtlasPin[]>([]);
@@ -204,6 +268,38 @@ export default function AtlasMap() {
     }
     return ATLAS_MAP_LAYER_GROUPS_BASE;
   }, [enabledLayers.atlas_disease]);
+
+  // Single-pass count computation for atlas sub-layers (avoids 10 separate .filter() calls)
+  const atlasSubLayerCounts = useMemo(() => {
+    const c = {
+      atlas_all: atlasPins.length,
+      atlas_disease: 0,
+      atlas_watch: 0,
+      atlas_needs_tnr: 0,
+      atlas_needs_trapper: 0,
+      dis_felv: 0,
+      dis_fiv: 0,
+      dis_ringworm: 0,
+      dis_heartworm: 0,
+      dis_panleuk: 0,
+    };
+    for (const p of atlasPins) {
+      if (p.disease_risk) c.atlas_disease++;
+      if (p.watch_list) c.atlas_watch++;
+      if (p.cat_count > 0 && p.cat_count > p.total_altered) c.atlas_needs_tnr++;
+      if (p.needs_trapper_count > 0) c.atlas_needs_trapper++;
+      if (p.disease_badges) {
+        for (const b of p.disease_badges) {
+          if (b.disease_key === "felv") c.dis_felv++;
+          else if (b.disease_key === "fiv") c.dis_fiv++;
+          else if (b.disease_key === "ringworm") c.dis_ringworm++;
+          else if (b.disease_key === "heartworm") c.dis_heartworm++;
+          else if (b.disease_key === "panleukopenia") c.dis_panleuk++;
+        }
+      }
+    }
+    return c;
+  }, [atlasPins]);
 
   // Show legacy layers toggle
   // showLegacyLayers removed — GroupedLayerControl handles expand/collapse internally
@@ -1793,6 +1889,13 @@ export default function AtlasMap() {
         for (const child of group.children) {
           next[child.id] = false;
         }
+        // Clear disease filters when leaving Disease Risk
+        // (unless we're turning ON atlas_disease for the first time)
+        if (layerId !== 'atlas_disease' || wasOn) {
+          for (const disId of DISEASE_FILTER_IDS) {
+            next[disId] = false;
+          }
+        }
         // Only turn on if it wasn't already on (allow deselecting all)
         if (!wasOn) next[layerId] = true;
       } else {
@@ -2454,16 +2557,7 @@ export default function AtlasMap() {
               onToggleLayer={toggleLayer}
               inline
               counts={{
-                atlas_all: atlasPins.length,
-                atlas_disease: atlasPins.filter(p => p.disease_risk).length,
-                atlas_watch: atlasPins.filter(p => p.watch_list).length,
-                atlas_needs_tnr: atlasPins.filter(p => p.cat_count > 0 && p.cat_count > p.total_altered).length,
-                atlas_needs_trapper: atlasPins.filter(p => p.needs_trapper_count > 0).length,
-                dis_felv: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "felv")).length,
-                dis_fiv: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "fiv")).length,
-                dis_ringworm: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "ringworm")).length,
-                dis_heartworm: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "heartworm")).length,
-                dis_panleuk: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "panleukopenia")).length,
+                ...atlasSubLayerCounts,
                 places: places.length,
                 google_pins: googlePins.length,
                 tnr_priority: tnrPriority.length,
@@ -2896,5 +2990,13 @@ export default function AtlasMap() {
         />
       )}
     </div>
+  );
+}
+
+export default function AtlasMap() {
+  return (
+    <Suspense fallback={<div style={{ height: "100dvh" }} />}>
+      <AtlasMapInner />
+    </Suspense>
   );
 }
