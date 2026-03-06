@@ -176,7 +176,7 @@ BEGIN
                     SELECT 1 FROM sot.people sp
                     WHERE sp.person_id = fpm.person_id
                     AND sp.display_name IS NOT NULL
-                    AND (sot.compare_names(p_display_name, sp.display_name)).jaro_winkler_similarity > 0.85
+                    AND (SELECT cn.jaro_winkler_similarity FROM sot.compare_names(p_display_name, sp.display_name) cn LIMIT 1) > 0.85
                 ) THEN TRUE
                 ELSE FALSE
             END AS gate_passed
@@ -276,16 +276,6 @@ BEGIN
                     AND pl.formatted_address IS NOT NULL
                     AND similarity(LOWER(p_address_norm), LOWER(pl.formatted_address)) > 0.5
                 ) THEN COALESCE((SELECT w.weight FROM weights w WHERE w.field_name = 'address_token_overlap'), 3.0)
-                WHEN EXISTS (
-                    SELECT 1 FROM sot.person_place ppr
-                    JOIN sot.places pl ON pl.place_id = ppr.place_id
-                    WHERE ppr.person_id = sp.person_id
-                    AND pl.merged_into_place_id IS NULL
-                    AND pl.formatted_address IS NOT NULL
-                    AND pl.city IS NOT NULL
-                    -- Same city check: extract city from address or use city column
-                    AND similarity(LOWER(p_address_norm), LOWER(pl.city)) > 0.3
-                ) THEN COALESCE((SELECT w.weight FROM weights w WHERE w.field_name = 'address_same_city'), 1.0)
                 WHEN EXISTS (
                     SELECT 1 FROM sot.person_place ppr
                     JOIN sot.places pl ON pl.place_id = ppr.place_id
@@ -406,8 +396,8 @@ Includes dynamic identifier demotion (MIG_2827) and fuzzy phone (MIG_2828).';
 --     v2.score_breakdown AS v2_breakdown,
 --     CASE
 --         WHEN md.decision_type = 'auto_match' AND v2.total_weight <= 20 THEN 'REGRESSION'
---         WHEN md.decision_type = 'new_entity' AND v2.total_weight > 20 THEN 'NEW_MATCH'
---         WHEN md.decision_type = 'review_pending' AND v2.total_weight > 20 THEN 'UPGRADE'
+--         WHEN md.decision_type = 'new_entity' AND v2.total_weight >= 20 THEN 'NEW_MATCH'
+--         WHEN md.decision_type = 'review_pending' AND v2.total_weight >= 20 THEN 'UPGRADE'
 --         ELSE 'CONSISTENT'
 --     END AS comparison_result
 -- FROM sot.match_decisions md
@@ -609,10 +599,10 @@ BEGIN
     LIMIT 1;
 
     -- Decision logic based on total_weight (not total_score)
-    -- total_weight > 20 → auto-match (replaces score >= 0.95)
+    -- total_weight >= 20 → auto-match (replaces score >= 0.95)
     -- total_weight > 5  → review_pending (replaces score >= 0.50)
     -- otherwise         → new_entity
-    IF v_candidate.person_id IS NOT NULL AND v_candidate.total_weight > 20 THEN
+    IF v_candidate.person_id IS NOT NULL AND v_candidate.total_weight >= 20 THEN
         v_decision_type := 'auto_match';
         v_reason := 'High confidence match (weight ' || ROUND(v_candidate.total_weight, 1)::TEXT ||
                      ', score ' || ROUND(v_candidate.total_score, 2)::TEXT || ')';
@@ -723,7 +713,7 @@ COMMENT ON FUNCTION sot.data_engine_resolve_identity(TEXT, TEXT, TEXT, TEXT, TEX
 Phase 0: should_be_person gate
 Phase 0.5: Direct identifier lookup
 Phase 1+: V2 comparison-level scoring with log-likelihood weights
-Auto-match threshold: total_weight > 20 (replaces score >= 0.95)
+Auto-match threshold: total_weight >= 20 (replaces score >= 0.95)
 Review threshold: total_weight > 5 (replaces score >= 0.50)
 Creates new person below threshold.
 Includes dynamic identifier demotion (MIG_2827) and fuzzy phone (MIG_2828).';

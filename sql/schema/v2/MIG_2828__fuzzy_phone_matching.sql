@@ -209,7 +209,7 @@ BEGIN
                     SELECT 1 FROM sot.people sp
                     WHERE sp.person_id = fpm.person_id
                     AND sp.display_name IS NOT NULL
-                    AND (sot.compare_names(p_display_name, sp.display_name)).jaro_winkler_similarity > 0.85
+                    AND (SELECT cn.jaro_winkler_similarity FROM sot.compare_names(p_display_name, sp.display_name) cn LIMIT 1) > 0.85
                 ) THEN 0.5::NUMERIC
 
                 -- No corroboration → REJECTED
