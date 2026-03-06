@@ -635,6 +635,9 @@ export default function PlaceDetailPage() {
         onNoteAdded={fetchJournal}
       />
 
+      {/* ClinicHQ Notes (elevated for quick access) */}
+      <ClinicNotesSection placeId={place.place_id} />
+
       {/* Partner Org Profile */}
       {place.partner_org && (
         <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem", borderLeft: "4px solid #0dcaf0" }}>
@@ -748,9 +751,6 @@ export default function PlaceDetailPage() {
 
       {/* Clinic History */}
       <ClinicHistorySection placeId={place.place_id} />
-
-      {/* ClinicHQ Notes */}
-      <ClinicNotesSection placeId={place.place_id} />
 
       {/* Classifications */}
       <div style={{ marginBottom: "1.5rem" }}>

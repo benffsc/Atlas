@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments } from "@/components/sections";
+import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
 import { LegacyUpgradeWizard } from "@/components/forms";
@@ -987,6 +987,9 @@ export default function RequestDetailPage() {
           <EditHistory entityType="request" entityId={requestId} limit={20} />
         </div>
       )}
+
+      {/* ClinicHQ Notes for associated place */}
+      {request.place_id && <ClinicNotesSection placeId={request.place_id} />}
 
       {/* Two Column Layout for Main Content */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1.5rem" }}>
