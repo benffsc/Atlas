@@ -28,8 +28,8 @@ export async function GET() {
         r.summary,
         p.display_name AS place_name,
         p.formatted_address AS place_address,
-        p.latitude AS lat,
-        p.longitude AS lng,
+        ST_Y(p.location::geometry) AS lat,
+        ST_X(p.location::geometry) AS lng,
         r.estimated_cat_count,
         r.has_kittens,
         r.created_at::text
@@ -38,8 +38,7 @@ export async function GET() {
       WHERE r.merged_into_request_id IS NULL
         AND p.merged_into_place_id IS NULL
         AND r.status NOT IN ('completed', 'cancelled')
-        AND p.latitude IS NOT NULL
-        AND p.longitude IS NOT NULL
+        AND p.location IS NOT NULL
       ORDER BY r.created_at DESC
       LIMIT 200
     `, []);

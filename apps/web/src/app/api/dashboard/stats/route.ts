@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         JOIN sot.places p ON p.place_id = r.place_id
         WHERE r.merged_into_request_id IS NULL
           AND r.status NOT IN ('completed', 'cancelled')
-          AND p.latitude IS NOT NULL
+          AND p.location IS NOT NULL
       ),
       person_dedup AS (
         SELECT COUNT(*)::int AS cnt
