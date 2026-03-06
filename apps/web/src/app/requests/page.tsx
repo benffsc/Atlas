@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { formatDateLocal } from "@/lib/formatters";
-import { SavedFilters, RequestFilters } from "@/components/search";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
+import { StatusSegmentedControl } from "@/components/ui/StatusSegmentedControl";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useRequestCounts } from "@/hooks/useRequestCounts";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
 import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
@@ -850,6 +851,8 @@ function StatusGroupedCards({
 const FILTER_DEFAULTS = {
   status: "",
   trapper: "",
+  priority: "",
+  kittens: "",
   q: "",
   sort: "status",
   view: "cards",
@@ -871,39 +874,8 @@ function RequestsPageContent() {
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [bulkStatusTarget, setBulkStatusTarget] = useState<string>("");
 
-  // Current staff for SavedFilters
-  const [currentStaffId, setCurrentStaffId] = useState<string | null>(null);
-
-  // Fetch current staff info
-  useEffect(() => {
-    fetchApi<{ authenticated: boolean; staff?: { staff_id: string } }>("/api/auth/me")
-      .then((data) => {
-        if (data?.authenticated && data.staff) {
-          setCurrentStaffId(data.staff.staff_id);
-        }
-      })
-      .catch(() => { /* fire-and-forget: staff info for saved filters */ });
-  }, []);
-
-  // Build current filters object for SavedFilters component
-  const currentFilters: RequestFilters = {
-    status: filters.status ? [filters.status] : undefined,
-    trapperStatus: filters.trapper || undefined,
-  };
-
-  // Handle applying saved filters
-  const handleApplyFilters = useCallback((applied: RequestFilters) => {
-    if (applied.status && applied.status.length > 0) {
-      setFilter("status", applied.status[0]);
-    } else {
-      setFilter("status", "");
-    }
-    if (applied.trapperStatus) {
-      setFilter("trapper", applied.trapperStatus);
-    } else {
-      setFilter("trapper", "");
-    }
-  }, [setFilter]);
+  // Request counts for segmented control (FFS-166)
+  const { counts: requestCounts } = useRequestCounts();
 
   // Quick trapper action from badge popover on request cards
   const handleQuickTrapperAction = async (requestId: string, reason: string) => {
@@ -1027,6 +999,8 @@ function RequestsPageContent() {
         const params = new URLSearchParams();
         if (filters.status) params.set("status", filters.status);
         if (filters.trapper) params.set("trapper", filters.trapper);
+        if (filters.priority) params.set("priority", filters.priority);
+        if (filters.kittens === "true") params.set("kittens", "true");
         if (filters.q) params.set("q", filters.q);
         if (filters.showArchived === "true") params.set("include_archived", "true");
         const sortConfig = SORT_MAP[filters.sort] || SORT_MAP.status;
@@ -1044,7 +1018,7 @@ function RequestsPageContent() {
     };
 
     fetchRequests();
-  }, [filters.status, filters.trapper, filters.q, filters.sort, filters.showArchived, refreshTrigger]);
+  }, [filters.status, filters.trapper, filters.priority, filters.kittens, filters.q, filters.sort, filters.showArchived, refreshTrigger]);
 
   return (
     <div>
@@ -1092,20 +1066,17 @@ function RequestsPageContent() {
         </div>
       </div>
 
-      {/* Unified Filter Bar - one line of pills */}
-      <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-        {/* Saved filter preset pills + More dropdown */}
-        <SavedFilters
-          currentFilters={currentFilters}
-          onApplyFilter={handleApplyFilters}
-          currentStaffId={currentStaffId}
-        />
+      {/* Row 1: Status Segmented Control (FFS-166) */}
+      <StatusSegmentedControl
+        counts={requestCounts}
+        activeStatus={filters.status}
+        onStatusChange={(status) => setFilter("status", status)}
+      />
 
-        {/* Divider */}
-        <div style={{ width: "1px", height: "20px", background: "var(--border)", margin: "0 0.1rem", flexShrink: 0 }} />
-
+      {/* Row 2: Search + Filter Chips + Sort + View Toggle */}
+      <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
         {/* Search Bar */}
-        <div style={{ position: "relative", flex: "0 1 180px", minWidth: "100px" }}>
+        <div style={{ position: "relative", flex: "0 1 240px", minWidth: "100px" }}>
           <input
             type="text"
             value={searchInput}
@@ -1154,86 +1125,67 @@ function RequestsPageContent() {
           )}
         </div>
 
-        {/* Pill selects */}
+        {/* Toggle Filter Chips */}
         {([
-          {
-            value: filters.status,
-            onChange: (v: string) => setFilter("status", v),
-            label: "Status",
-            options: [
-              { value: "", label: "Status" },
-              // Primary statuses (MIG_2530 simplified system)
-              { value: "new", label: "New" },
-              { value: "working", label: "Working" },
-              { value: "paused", label: "Paused" },
-              { value: "completed", label: "Completed" },
-              // Special statuses
-              { value: "redirected", label: "Redirected" },
-              { value: "handed_off", label: "Handed Off" },
-            ],
-          },
-          {
-            value: filters.trapper,
-            onChange: (v: string) => setFilter("trapper", v),
-            label: "Assignment",
-            options: [
-              { value: "", label: "Assignment" },
-              { value: "assigned", label: "Assigned" },
-              { value: "pending", label: "Needs Trapper" },
-              { value: "client_trapping", label: "Client Trapping" },
-            ],
-          },
-          {
-            value: filters.sort,
-            onChange: (v: string) => setFilter("sort", v),
-            label: "Sort",
-            options: [
-              { value: "status", label: "By Status" },
-              { value: "newest", label: "Newest First" },
-              { value: "oldest", label: "Oldest First" },
-              { value: "priority", label: "By Priority" },
-            ],
-          },
-        ] as const).map((sel, i) => {
-          const isActive = sel.value && sel.value !== "status" && sel.value !== "";
+          { key: "trapper", value: "pending", label: "Needs Trapper" },
+          { key: "trapper", value: "mine", label: "My Assigned" },
+          { key: "priority", value: "urgent", label: "Urgent" },
+          { key: "kittens", value: "true", label: "Has Kittens" },
+          { key: "showArchived", value: "true", label: "Archived" },
+        ] as const).map((chip) => {
+          const isActive = filters[chip.key] === chip.value;
           return (
-            <select
-              key={i}
-              value={sel.value}
-              onChange={(e) => sel.onChange(e.target.value)}
+            <button
+              key={`${chip.key}-${chip.value}`}
+              onClick={() => {
+                if (isActive) {
+                  setFilter(chip.key, "");
+                } else {
+                  setFilter(chip.key, chip.value);
+                }
+              }}
               style={{
-                padding: "0.3rem 1.4rem 0.3rem 0.6rem",
+                padding: "0.3rem 0.7rem",
                 fontSize: "0.8rem",
                 borderRadius: "16px",
                 border: `1px solid ${isActive ? "var(--primary)" : "var(--border)"}`,
-                background: isActive ? "var(--info-bg, #eff6ff)" : "var(--background)",
-                color: "var(--foreground)",
+                background: isActive ? "var(--info-bg, #eff6ff)" : "transparent",
+                color: isActive ? "var(--primary)" : "var(--text-secondary, #6b7280)",
                 cursor: "pointer",
-                WebkitAppearance: "none",
-                MozAppearance: "none",
-                appearance: "none",
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b7280'/%3E%3C/svg%3E")`,
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "right 0.5rem center",
+                fontWeight: isActive ? 600 : 400,
+                transition: "all 0.15s",
               }}
             >
-              {sel.options.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              {chip.label}
+            </button>
           );
         })}
 
-        {/* Show Archived Toggle */}
-        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem", color: "var(--muted)", cursor: "pointer", marginLeft: "0.5rem" }}>
-          <input
-            type="checkbox"
-            checked={filters.showArchived === "true"}
-            onChange={(e) => setFilter("showArchived", e.target.checked ? "true" : "false")}
-            style={{ cursor: "pointer" }}
-          />
-          Show Archived
-        </label>
+        {/* Sort Dropdown */}
+        <select
+          value={filters.sort}
+          onChange={(e) => setFilter("sort", e.target.value)}
+          style={{
+            padding: "0.3rem 1.4rem 0.3rem 0.6rem",
+            fontSize: "0.8rem",
+            borderRadius: "16px",
+            border: "1px solid var(--border)",
+            background: "var(--background)",
+            color: "var(--foreground)",
+            cursor: "pointer",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+            appearance: "none",
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b7280'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "right 0.5rem center",
+          }}
+        >
+          <option value="status">By Status</option>
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="priority">By Priority</option>
+        </select>
 
         {/* View Toggle */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>

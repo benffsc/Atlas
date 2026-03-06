@@ -341,81 +341,16 @@ export function MainSidebar({ children }: { children: React.ReactNode }) {
 /**
  * Requests section sidebar.
  *
- * Quick filters use the simplified 4-state system (MIG_2530):
- * - new: Awaiting initial review
- * - working: Actively being handled
- * - paused: On hold
- * - completed: Finished
+ * Status/assignment/priority filters moved to page-level StatusSegmentedControl
+ * and filter chips (FFS-166). Sidebar now has Quick Actions + Related only.
  */
-interface RequestCounts {
-  new: number;
-  working: number;
-  paused: number;
-  completed: number;
-  needs_trapper: number;
-  urgent: number;
-}
-
 export function RequestsSidebar({ children }: { children: React.ReactNode }) {
-  const [counts, setCounts] = useState<RequestCounts | null>(null);
-
-  // Fetch request counts on mount
-  useEffect(() => {
-    const fetchCounts = async () => {
-      try {
-        const response = await fetch("/api/requests/counts");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setCounts(data.data);
-          }
-        }
-      } catch {
-        /* optional: sidebar counts are a non-critical enhancement */
-      }
-    };
-    fetchCounts();
-    // Refresh counts every 60 seconds
-    const interval = setInterval(fetchCounts, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const formatCount = (count: number | undefined) => {
-    if (count === undefined || count === 0) return "";
-    return ` (${count})`;
-  };
-
   const sections: NavSection[] = [
     {
       title: "Quick Actions",
       items: [
-        { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "📞" },
-        { label: "Print Call Sheet", href: "/requests/print", icon: "🖨️" },
         { label: "New Request", href: "/requests/new", icon: "➕" },
-      ],
-    },
-    {
-      title: "By Status",
-      items: [
-        { label: `New${formatCount(counts?.new)}`, href: "/requests?status=new", icon: "🆕" },
-        { label: `Working${formatCount(counts?.working)}`, href: "/requests?status=working", icon: "🔄" },
-        { label: `Paused${formatCount(counts?.paused)}`, href: "/requests?status=paused", icon: "⏸️" },
-        { label: `Completed${formatCount(counts?.completed)}`, href: "/requests?status=completed", icon: "✅" },
-      ],
-    },
-    {
-      title: "By Assignment",
-      items: [
-        { label: `Needs Trapper${formatCount(counts?.needs_trapper)}`, href: "/requests?trapper=pending", icon: "🪤" },
-        { label: "My Assigned", href: "/requests?trapper=mine", icon: "👤" },
-        { label: "Client Trapping", href: "/requests?trapper=client_trapping", icon: "🏠" },
-      ],
-    },
-    {
-      title: "Priority",
-      items: [
-        { label: `Urgent${formatCount(counts?.urgent)}`, href: "/requests?priority=urgent", icon: "🚨" },
-        { label: "Has Kittens", href: "/requests?kittens=true", icon: "🐱" },
+        { label: "Print Blank Form", href: "/requests/print?blank=true", icon: "📄" },
       ],
     },
     {
@@ -533,6 +468,7 @@ export function PlacesSidebar({ children }: { children: React.ReactNode }) {
 }
 
 // Intake section sidebar
+// Quick Filters removed — replaced by page-level tabs (FFS-166)
 export function IntakeSidebar({ children }: { children: React.ReactNode }) {
   const sections: NavSection[] = [
     {
@@ -541,14 +477,6 @@ export function IntakeSidebar({ children }: { children: React.ReactNode }) {
         { label: "Triage Queue", href: "/intake/queue", icon: "📥" },
         { label: "New Submission", href: "/intake/queue/new", icon: "➕" },
         { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "📞" },
-      ],
-    },
-    {
-      title: "Quick Filters",
-      items: [
-        { label: "New", href: "/intake/queue?status=new", icon: "🆕" },
-        { label: "In Progress", href: "/intake/queue?status=in_progress", icon: "🔄" },
-        { label: "Scheduled", href: "/intake/queue?status=scheduled", icon: "📅" },
       ],
     },
     {

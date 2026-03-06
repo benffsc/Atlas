@@ -18,6 +18,8 @@ import { BookingModal } from "@/components/intake/BookingModal";
 import { DeclineModal } from "@/components/intake/DeclineModal";
 import { IntakeQueueRow } from "@/components/intake/IntakeQueueRow";
 import { IntakeDetailPanel } from "@/components/intake/IntakeDetailPanel";
+import { IntakeKanbanBoard, IntakeKanbanBoardMobile } from "@/components/intake/IntakeKanbanBoard";
+import { TabBar } from "@/components/ui/TabBar";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 function IntakeQueueContent() {
@@ -37,6 +39,7 @@ function IntakeQueueContent() {
     group: "",
     legacy: "",
     test: "",
+    view: "table",
   });
   const activeTab = filters.tab as TabType;
   const setActiveTab = (v: TabType) => setFilter("tab", v);
@@ -441,37 +444,21 @@ function IntakeQueueContent() {
         </div>
       )}
 
-      {/* Tabs (FFS-111: reduced to 4) */}
-      <div style={{ display: "flex", gap: "0", borderBottom: "2px solid var(--border)", marginBottom: "0.5rem" }}>
-        {([
-          { id: "active" as TabType, label: "Active" },
-          { id: "scheduled" as TabType, label: "Scheduled" },
-          { id: "completed" as TabType, label: "Completed" },
-          { id: "all" as TabType, label: "All" },
-        ]).map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "0.75rem 1.5rem",
-              border: "none",
-              background: activeTab === tab.id ? "var(--foreground)" : "transparent",
-              color: activeTab === tab.id ? "var(--background)" : "var(--foreground)",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              borderRadius: "6px 6px 0 0",
-              marginBottom: "-2px",
-              borderBottom: activeTab === tab.id ? "2px solid var(--foreground)" : "2px solid transparent",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs (FFS-166: using TabBar component) */}
+      <TabBar
+        tabs={[
+          { id: "active", label: "Active" },
+          { id: "scheduled", label: "Scheduled" },
+          { id: "completed", label: "Completed" },
+          { id: "all", label: "All" },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabType)}
+        size="md"
+      />
 
-      {/* Filter chips (FFS-111: legacy/test as toggleable chips) */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+      {/* Filter chips + view toggle (FFS-166) */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
         <button
           onClick={() => setFilter("legacy", showLegacy ? "" : "1")}
           style={{
@@ -500,6 +487,32 @@ function IntakeQueueContent() {
         >
           Test {showTest ? "On" : "Off"}
         </button>
+
+        {/* View Toggle (FFS-166) */}
+        <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>
+          {([
+            { key: "table", label: "Table" },
+            { key: "cards", label: "Cards" },
+            { key: "kanban", label: "Kanban" },
+          ] as const).map((v, i, arr) => (
+            <button
+              key={v.key}
+              onClick={() => setFilter("view", v.key)}
+              style={{
+                padding: "0.25rem 0.6rem",
+                fontSize: "0.75rem",
+                border: "1px solid var(--card-border, #e5e7eb)",
+                borderLeft: i > 0 ? "none" : undefined,
+                borderRadius: i === 0 ? "16px 0 0 16px" : i === arr.length - 1 ? "0 16px 16px 0" : "0",
+                background: filters.view === v.key ? "var(--foreground)" : "transparent",
+                color: filters.view === v.key ? "var(--background)" : "inherit",
+                cursor: "pointer",
+              }}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Search and Filter */}
@@ -785,6 +798,20 @@ function IntakeQueueContent() {
             </div>
           )}
 
+        {/* View switcher: table / cards / kanban (FFS-166) */}
+        {filters.view === "kanban" ? (
+          isMobile ? (
+            <IntakeKanbanBoardMobile
+              submissions={sortedSubmissions}
+              onOpenDetail={openDetail}
+            />
+          ) : (
+            <IntakeKanbanBoard
+              submissions={sortedSubmissions}
+              onOpenDetail={openDetail}
+            />
+          )
+        ) : (
         <div className="table-container">
           {sortedGroups.map(([groupName, groupSubs]) => (
             <div key={groupName || "all"} style={{ marginBottom: groupBy ? "2rem" : 0 }}>
@@ -805,8 +832,8 @@ function IntakeQueueContent() {
                   </span>
                 </h3>
               )}
-          {isMobile ? (
-            /* Mobile: Card layout */
+          {filters.view === "cards" || isMobile ? (
+            /* Cards layout */
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {groupSubs.map((sub) => (
                 <div
@@ -838,7 +865,7 @@ function IntakeQueueContent() {
               ))}
             </div>
           ) : (
-            /* Desktop: Table layout */
+            /* Table layout */
             <table>
               <thead>
                 <tr>
@@ -878,6 +905,7 @@ function IntakeQueueContent() {
             </div>
           ))}
         </div>
+        )}
         </div>
         );
       })()}
