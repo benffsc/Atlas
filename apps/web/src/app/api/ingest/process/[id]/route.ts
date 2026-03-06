@@ -1442,45 +1442,10 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `);
     results.appointment_vitals_created = appointmentVitals.rowCount || 0;
 
-    // AUTO-LINK CATS TO REQUESTS based on attribution windows
-    // This is the key integration that was missing - cats visiting clinic should be
-    // automatically linked to any active request at their place
-    await saveProgress('Linking cats to requests...');
-    const catRequestLinks = await query(`
-      INSERT INTO ops.request_cats (request_id, cat_id, link_type, evidence_type, source_system)
-      SELECT DISTINCT
-        r.request_id,
-        a.cat_id,
-        CASE
-          WHEN proc.is_spay = TRUE OR proc.is_neuter = TRUE THEN 'attributed'
-          ELSE 'attributed'
-        END,
-        'appointment',
-        'clinichq'
-      FROM ops.appointments a
-      JOIN sot.cat_place catpl ON catpl.cat_id = a.cat_id
-      JOIN ops.requests r ON r.place_id = catpl.place_id
-      LEFT JOIN ops.cat_procedures proc ON proc.appointment_id = a.appointment_id
-      WHERE a.cat_id IS NOT NULL
-        -- Attribution window logic (from MIG_208):
-        -- Active requests: created up to 6 months ago, or closed up to 3 months ago
-        AND (
-          -- Active request: procedure within 6 months of request creation, or future
-          (r.resolved_at IS NULL AND a.appointment_date >= r.source_created_at - INTERVAL '1 month')
-          OR
-          -- Resolved request: procedure before resolved + 3 month buffer
-          (r.resolved_at IS NOT NULL AND a.appointment_date <= r.resolved_at + INTERVAL '3 months'
-           AND a.appointment_date >= r.source_created_at - INTERVAL '1 month')
-        )
-        -- Only link new appointments (not historical backfill)
-        AND a.appointment_date >= CURRENT_DATE - INTERVAL '30 days'
-        AND NOT EXISTS (
-          SELECT 1 FROM ops.request_cats rcl
-          WHERE rcl.request_id = r.request_id AND rcl.cat_id = a.cat_id
-        )
-      ON CONFLICT (request_id, cat_id) DO NOTHING
-    `);
-    results.cats_linked_to_requests = catRequestLinks.rowCount || 0;
+    // Cat-request linking is handled by link_cats_to_requests_safe() below (line ~1607)
+    // and by Step 4 of run_all_entity_linking() in the cron job.
+    // Removed inline linking (MIG_2825/FFS-164): it had no place family support,
+    // a narrow 1-month pre-window, and a 30-day recency filter that created bad links.
 
     // Queue new appointments for AI extraction
     // This ensures recapture detection and other attributes are extracted promptly

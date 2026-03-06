@@ -33,6 +33,12 @@ interface EntityLinkingJsonResult {
   step2_cats_linked?: number;
   step2_cats_skipped?: number;
   step3_cats_linked?: number;
+  // Step 4: Cat-Request Attribution (MIG_2825)
+  step4_cats_linked_to_requests?: number;
+  step4_stale_links_removed?: number;
+  step4_before_request?: number;
+  step4_during_request?: number;
+  step4_grace_period?: number;
   total_cats?: number;
   cats_with_place_link?: number;
   cat_coverage_pct?: number;
@@ -201,6 +207,9 @@ export async function GET(request: NextRequest) {
       summary.step2_cats_via_appointments = r.step2_cats_linked;
       summary.step2_cats_skipped = r.step2_cats_skipped;
       summary.step3_cats_via_person_chain = r.step3_cats_linked;
+      // Step 4: Cat-Request Attribution (MIG_2825)
+      summary.step4_cats_linked_to_requests = r.step4_cats_linked_to_requests;
+      summary.step4_stale_links_removed = r.step4_stale_links_removed;
       summary.cat_coverage_pct = r.cat_coverage_pct;
       summary.run_id = r.run_id;
       summary.status = r.status;
