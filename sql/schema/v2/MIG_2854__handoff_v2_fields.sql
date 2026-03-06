@@ -70,8 +70,9 @@ CHECK (relationship_type IN (
 \echo ''
 \echo '2. Recreating ops.handoff_request with V2 fields...'
 
--- Drop old 17-param signature if it exists (MIG_2503 version)
+-- Drop old signatures if they exist
 DROP FUNCTION IF EXISTS ops.handoff_request(uuid, text, text, text, text, text, uuid, text, text, integer, boolean, integer, integer, text, text, text, text);
+DROP FUNCTION IF EXISTS ops.handoff_request(uuid, text, text, text, text, text, uuid, text, text, integer, boolean, integer, integer, text, text, text, text, text, boolean, boolean);
 
 CREATE OR REPLACE FUNCTION ops.handoff_request(
   p_original_request_id UUID,
@@ -94,7 +95,8 @@ CREATE OR REPLACE FUNCTION ops.handoff_request(
   -- V2 fields (MIG_2854)
   p_new_person_role TEXT DEFAULT NULL,
   p_is_property_owner BOOLEAN DEFAULT NULL,
-  p_new_person_is_site_contact BOOLEAN DEFAULT TRUE
+  p_new_person_is_site_contact BOOLEAN DEFAULT TRUE,
+  p_resolved_place_id UUID DEFAULT NULL  -- skip re-resolution when frontend already resolved
 )
 RETURNS TABLE(
   original_request_id UUID,
@@ -130,8 +132,24 @@ BEGIN
 
   v_original_address := COALESCE(v_original.place_address, v_original.place_name, 'unknown address');
 
-  -- Resolve place from new address
-  IF p_new_address IS NOT NULL AND p_new_address != '' THEN
+  -- Use pre-resolved place_id if provided (from PlaceResolver), else resolve from address
+  IF p_resolved_place_id IS NOT NULL THEN
+    -- Verify the place exists and isn't merged
+    SELECT place_id INTO v_new_place_id
+    FROM sot.places
+    WHERE place_id = p_resolved_place_id AND merged_into_place_id IS NULL;
+
+    -- If merged or missing, fall back to address resolution
+    IF v_new_place_id IS NULL AND p_new_address IS NOT NULL AND p_new_address != '' THEN
+      v_new_place_id := sot.find_or_create_place_deduped(
+        p_formatted_address := p_new_address,
+        p_display_name := NULL,
+        p_lat := NULL,
+        p_lng := NULL,
+        p_source_system := 'atlas_ui'
+      );
+    END IF;
+  ELSIF p_new_address IS NOT NULL AND p_new_address != '' THEN
     v_new_place_id := sot.find_or_create_place_deduped(
       p_formatted_address := p_new_address,
       p_display_name := NULL,
@@ -270,7 +288,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'ops' AND p.proname = 'handoff_request';
 
-    RAISE NOTICE 'ops.handoff_request: % params (expected 20)', v_param_count;
+    RAISE NOTICE 'ops.handoff_request: % params (expected 21)', v_param_count;
 END $$;
 
 \echo ''

@@ -46,6 +46,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       handoff_reason,
       existing_target_request_id,
       new_address,
+      new_place_id,
       existing_person_id,
       new_requester_first_name,
       new_requester_last_name,
@@ -143,23 +144,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let phone = new_requester_phone;
     let email = new_requester_email;
 
-    // If existing person selected, look up their details
+    // If existing person selected, look up their details (follow merge chain)
+    let resolvedPersonId = existing_person_id || null;
     if (existing_person_id) {
-      const existingPerson = await queryOne<ExistingPerson>(
-        `SELECT first_name, last_name,
-          (SELECT id_value FROM sot.person_identifiers
-           WHERE person_id = $1 AND id_type = 'email' AND confidence >= 0.5
-           ORDER BY confidence DESC NULLS LAST LIMIT 1) as email,
-          (SELECT id_value FROM sot.person_identifiers
-           WHERE person_id = $1 AND id_type = 'phone' AND confidence >= 0.5
-           ORDER BY confidence DESC NULLS LAST LIMIT 1) as phone
-         FROM sot.people WHERE person_id = $1`,
+      const existingPerson = await queryOne<ExistingPerson & { person_id: string }>(
+        `WITH RECURSIVE merged AS (
+           SELECT person_id, first_name, last_name, merged_into_person_id
+           FROM sot.people WHERE person_id = $1
+           UNION ALL
+           SELECT p.person_id, p.first_name, p.last_name, p.merged_into_person_id
+           FROM sot.people p
+           JOIN merged m ON m.merged_into_person_id = p.person_id
+         )
+         SELECT m.person_id::TEXT, m.first_name, m.last_name,
+           (SELECT id_value FROM sot.person_identifiers
+            WHERE person_id = m.person_id AND id_type = 'email' AND confidence >= 0.5
+            ORDER BY confidence DESC NULLS LAST LIMIT 1) as email,
+           (SELECT id_value FROM sot.person_identifiers
+            WHERE person_id = m.person_id AND id_type = 'phone' AND confidence >= 0.5
+            ORDER BY confidence DESC NULLS LAST LIMIT 1) as phone
+         FROM merged m
+         WHERE m.merged_into_person_id IS NULL
+         LIMIT 1`,
         [existing_person_id]
       );
       if (existingPerson) {
+        resolvedPersonId = existingPerson.person_id;
         firstName = existingPerson.first_name || firstName;
         lastName = existingPerson.last_name || lastName;
-        // Use existing person's contact info if not overridden
         if (!phone) phone = existingPerson.phone;
         if (!email) email = existingPerson.email;
       }
@@ -196,7 +208,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         p_kitten_not_needed_reason := $17,
         p_new_person_role := $18,
         p_is_property_owner := $19,
-        p_new_person_is_site_contact := $20
+        p_new_person_is_site_contact := $20,
+        p_resolved_place_id := $21
       )`,
       [
         requestId,
@@ -209,7 +222,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         notes || null,
         estimated_cat_count ?? null,
         `staff:${session.staff_id}`,
-        existing_person_id || null,
+        resolvedPersonId || null,
         has_kittens ?? false,
         kitten_count ?? null,
         kitten_age_weeks ?? null,
@@ -219,6 +232,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         new_person_role || null,
         is_property_owner ?? null,
         new_person_is_site_contact ?? true,
+        new_place_id || null,
       ]
     );
 

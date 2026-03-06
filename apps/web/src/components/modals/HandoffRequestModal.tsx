@@ -740,6 +740,25 @@ export function HandoffRequestModal({
             </div>
           </div>
 
+          {/* Warning: no person record will be created without contact info */}
+          {!selectedPerson && !newRequesterPhone.trim() && !newRequesterEmail.trim() && (newRequesterFirstName.trim() || newRequesterLastName.trim()) && (
+            <div
+              style={{
+                padding: "10px 14px",
+                background: "#fffbeb",
+                border: "1px solid #fcd34d",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                fontSize: "0.85rem",
+                color: "#92400e",
+              }}
+            >
+              <strong>No phone or email:</strong> Without contact info, no person record will be linked to this request.
+              The handoff will still work, but the new caretaker won&apos;t be trackable in the system.
+              Add a phone or email if available.
+            </div>
+          )}
+
           {/* Person Role & Property Context */}
           <div style={{ marginBottom: "16px", padding: "12px", background: "var(--card-bg, #f8f9fa)", borderRadius: "8px", border: "1px solid var(--border)" }}>
             <div style={{ marginBottom: "12px" }}>
