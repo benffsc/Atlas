@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { parsePagination } from "@/lib/api-validation";
 
 interface PlaceDedupCandidate {
   candidate_id: string;
@@ -35,8 +36,7 @@ interface PlaceDedupSummary {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tier = parseInt(searchParams.get("tier") || "0", 10);
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams);
 
   try {
     await requireRole(request, ["admin"]);

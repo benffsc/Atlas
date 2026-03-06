@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { parsePagination } from "@/lib/api-validation";
 
 interface DedupCandidate {
   canonical_person_id: string;
@@ -34,8 +35,7 @@ interface DedupSummary {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tier = parseInt(searchParams.get("tier") || "0", 10);
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams);
 
   try {
     await requireRole(request, ["admin"]);
@@ -162,9 +162,9 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Execute merge
-          await queryOne<{ merge_people: object }>(
-            `SELECT sot.merge_people($1, $2, $3, $4)`,
+          // Execute merge (loser, winner, reason, changed_by)
+          await queryOne(
+            `SELECT sot.merge_person_into($1, $2, $3, $4)`,
             [pair.duplicate_person_id, pair.canonical_person_id, "admin_person_dedup", "staff"]
           );
 
