@@ -989,6 +989,24 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.owner_changes_detected = ownerChanges.rowCount || 0;
 
+    // Step 4e: Classify FFSC program bookings (FFS-260)
+    // Runs after Step 4c backfills client_name, ensuring the field is populated
+    await saveProgress('Classifying FFSC program bookings...');
+    const ffscClassification = await query(`
+      UPDATE ops.appointments a
+      SET ffsc_program = ops.classify_ffsc_booking(a.client_name)
+      WHERE a.ffsc_program IS NULL
+        AND a.client_name IS NOT NULL
+        AND ops.classify_ffsc_booking(a.client_name) IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM ops.staged_records sr
+          WHERE sr.file_upload_id = $1
+            AND sr.source_table = 'owner_info'
+            AND sr.payload->>'Number' = a.appointment_number
+        )
+    `, [uploadId]);
+    results.ffsc_bookings_classified = ffscClassification.rowCount || 0;
+
     // Step 5: Link cats to people via appointments
     // V2: Uses sot.person_cat instead of sot.person_cat_relationships
     await saveProgress('Linking cats to people...');

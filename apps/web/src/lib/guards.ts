@@ -4,6 +4,7 @@
  * These functions mirror SQL gates in the database:
  * - shouldBePerson() → sot.should_be_person()
  * - classifyOwnerName() → sot.classify_owner_name()
+ * - classifyFfscBooking() → ops.classify_ffsc_booking()
  * - isPositiveValue() → sot.is_positive_value()
  *
  * Used to provide immediate feedback before submitting to the API.
@@ -430,6 +431,37 @@ function getBusinessScore(name: string): number {
   }
 
   return score;
+}
+
+// =============================================================================
+// FFSC PROGRAM CLASSIFICATION
+// =============================================================================
+
+/**
+ * Classify a ClinicHQ booking as an FFSC program booking.
+ * Mirrors ops.classify_ffsc_booking() SQL function (MIG_2853, FFS-260).
+ *
+ * Returns NULL if not an FFSC program booking.
+ * Returns category: 'ffsc_foster', 'ffsc_office', 'ffsc_colony',
+ *   'shelter_transfer', 'fire_rescue', 'placeholder', 'ffsc_trapping_site'
+ *
+ * @example
+ * classifyFfscBooking('Forgotten Felines Fosters') // 'ffsc_foster'
+ * classifyFfscBooking('SCAS Kitten') // 'shelter_transfer'
+ * classifyFfscBooking('John Smith') // null
+ */
+export function classifyFfscBooking(clientName: string | null | undefined): string | null {
+  if (!clientName) return null;
+  const name = clientName.toLowerCase().trim();
+
+  if (name.includes('forgotten felines foster')) return 'ffsc_foster';
+  if (name.includes('forgotten felines office')) return 'ffsc_office';
+  if (name.includes('forgotten felines colony')) return 'ffsc_colony';
+  if (/^(scas|rpas)\b/.test(name)) return 'shelter_transfer';
+  if (name.startsWith('fire cat')) return 'fire_rescue';
+  if (name.includes('rebooking placeholder') || name.includes('rebook')) return 'placeholder';
+  if (/\s(ffsc|forgotten felines)\s*$/.test(name)) return 'ffsc_trapping_site';
+  return null;
 }
 
 // =============================================================================
