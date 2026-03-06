@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
         LEFT JOIN sot.people p_trap ON p_trap.person_id = rta.trapper_person_id
         WHERE r.ready_to_email = TRUE
           AND r.email_batch_id IS NULL
+          AND r.merged_into_request_id IS NULL
         ORDER BY rta.trapper_person_id, r.created_at
       `);
 

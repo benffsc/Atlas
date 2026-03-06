@@ -262,7 +262,7 @@ export async function PATCH(
                  CASE WHEN p.location IS NOT NULL THEN 'geocoded' ELSE NULL END as geo_confidence
           FROM ops.intake_submissions w
           LEFT JOIN sot.places p ON p.place_id = w.place_id
-          LEFT JOIN sot.addresses a ON a.address_id = p.address_id
+          LEFT JOIN sot.addresses a ON a.address_id = p.address_id AND a.merged_into_address_id IS NULL
           WHERE w.submission_id = $1
         `, [id]);
 

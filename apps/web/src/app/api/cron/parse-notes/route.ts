@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
           COALESCE(r.legacy_notes, '') AS combined_notes
         FROM ops.requests r
         WHERE r.place_id IS NOT NULL
+          AND r.merged_into_request_id IS NULL
           AND (r.internal_notes IS NOT NULL OR r.notes IS NOT NULL OR r.legacy_notes IS NOT NULL)
           AND NOT EXISTS (
             SELECT 1 FROM sot.place_colony_estimates pce
@@ -363,6 +364,7 @@ export async function GET(request: NextRequest) {
               END AS death_cause
             FROM ops.requests r
             WHERE r.place_id IS NOT NULL
+              AND r.merged_into_request_id IS NULL
               AND (r.internal_notes IS NOT NULL OR r.notes IS NOT NULL OR r.legacy_notes IS NOT NULL)
               AND NOT EXISTS (
                 SELECT 1 FROM sot.cat_mortality_events cme

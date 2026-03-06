@@ -55,9 +55,11 @@ export async function GET(request: NextRequest) {
         -- Existing place stats (if place exists)
         (SELECT COUNT(*) FROM ops.requests r
          WHERE r.place_id = d.place_id
+         AND r.merged_into_request_id IS NULL
          AND r.status NOT IN ('cancelled', 'redirected')) AS existing_request_count,
         (SELECT COUNT(*) FROM ops.requests r
          WHERE r.place_id = d.place_id
+         AND r.merged_into_request_id IS NULL
          AND r.status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_request_count
       FROM ops.tippy_draft_requests d
       LEFT JOIN sot.places p ON p.place_id = d.place_id

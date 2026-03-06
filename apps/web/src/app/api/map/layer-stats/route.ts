@@ -29,6 +29,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE EXISTS (
           SELECT 1 FROM ops.requests r
           WHERE r.place_id = p.place_id
+          AND r.merged_into_request_id IS NULL
           AND r.status NOT IN ('completed', 'cancelled')
         ))::INT as with_active_requests
       FROM sot.places p

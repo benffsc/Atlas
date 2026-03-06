@@ -406,7 +406,7 @@ export async function GET(
         r.completion_data
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
-      LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id
+      LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
       LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
       LEFT JOIN sot.people sc ON sc.person_id = r.site_contact_person_id
       LEFT JOIN sot.v_place_colony_status pcs ON pcs.place_id = r.place_id

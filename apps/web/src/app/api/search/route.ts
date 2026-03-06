@@ -463,7 +463,8 @@ export async function GET(request: NextRequest) {
           LEFT JOIN sot.places p ON r.place_id = p.place_id
           LEFT JOIN sot.people per ON r.requester_person_id = per.person_id
           WHERE
-            r.status NOT IN ('completed', 'cancelled')
+            r.merged_into_request_id IS NULL
+            AND r.status NOT IN ('completed', 'cancelled')
             AND (
               LOWER(COALESCE(r.summary, '')) ILIKE '%' || LOWER($1) || '%'
               OR LOWER(COALESCE(p.formatted_address, '')) ILIKE '%' || LOWER($1) || '%'

@@ -25,6 +25,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE assignment_status = 'needs_trapper' AND status NOT IN ('completed', 'cancelled', 'partial', 'redirected', 'handed_off')) as needs_trapper_count,
         COUNT(*) FILTER (WHERE priority = 'urgent' AND status NOT IN ('completed', 'cancelled', 'partial', 'redirected', 'handed_off')) as urgent_count
       FROM ops.requests
+      WHERE merged_into_request_id IS NULL
     `);
 
     if (!counts) {

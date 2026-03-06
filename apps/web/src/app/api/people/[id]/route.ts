@@ -130,7 +130,7 @@ export async function GET(
                 pp.confidence
               FROM sot.person_place pp
               JOIN sot.places pl ON pl.place_id = pp.place_id
-              LEFT JOIN sot.addresses sa ON sa.address_id = pl.sot_address_id
+              LEFT JOIN sot.addresses sa ON sa.address_id = pl.sot_address_id AND sa.merged_into_address_id IS NULL
               WHERE pp.person_id = p.person_id
                 AND pl.merged_into_place_id IS NULL
 
@@ -148,9 +148,10 @@ export async function GET(
                 0.5 AS confidence
               FROM ops.requests r
               JOIN sot.places pl2 ON pl2.place_id = r.place_id
-              LEFT JOIN sot.addresses sa2 ON sa2.address_id = pl2.sot_address_id
+              LEFT JOIN sot.addresses sa2 ON sa2.address_id = pl2.sot_address_id AND sa2.merged_into_address_id IS NULL
               WHERE r.requester_person_id = p.person_id
                 AND r.place_id IS NOT NULL
+                AND r.merged_into_request_id IS NULL
                 AND pl2.merged_into_place_id IS NULL
 
               UNION ALL
@@ -167,7 +168,7 @@ export async function GET(
                 0.4 AS confidence
               FROM ops.intake_submissions ws
               JOIN sot.places pl3 ON pl3.place_id = COALESCE(ws.selected_address_place_id, ws.place_id)
-              LEFT JOIN sot.addresses sa3 ON sa3.address_id = pl3.sot_address_id
+              LEFT JOIN sot.addresses sa3 ON sa3.address_id = pl3.sot_address_id AND sa3.merged_into_address_id IS NULL
               WHERE ws.matched_person_id = p.person_id
                 AND COALESCE(ws.selected_address_place_id, ws.place_id) IS NOT NULL
                 AND pl3.merged_into_place_id IS NULL
@@ -177,7 +178,7 @@ export async function GET(
         ) AS associated_places
       FROM sot.v_person_detail pd
       JOIN sot.people p ON p.person_id = pd.person_id
-      LEFT JOIN sot.addresses a ON a.address_id = p.primary_address_id
+      LEFT JOIN sot.addresses a ON a.address_id = p.primary_address_id AND a.merged_into_address_id IS NULL
       LEFT JOIN ops.staff s ON p.verified_by = s.staff_id::text
       WHERE pd.person_id = $1
     `;

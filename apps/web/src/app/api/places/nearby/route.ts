@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         `SELECT address_id, google_place_id
          FROM sot.addresses
          WHERE google_place_id = $1
+           AND merged_into_address_id IS NULL
          LIMIT 1`,
         [googlePlaceId]
       );

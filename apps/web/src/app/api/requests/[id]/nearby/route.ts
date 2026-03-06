@@ -158,6 +158,7 @@ export async function GET(
         FROM ops.requests r
         JOIN sot.places p ON p.place_id = r.place_id
         WHERE r.request_id != $4
+          AND r.merged_into_request_id IS NULL
           AND p.lat IS NOT NULL
           AND ST_DWithin(
             p.location::geography,
@@ -188,6 +189,7 @@ export async function GET(
           EXISTS (
             SELECT 1 FROM ops.requests r
             WHERE r.place_id = p.place_id
+              AND r.merged_into_request_id IS NULL
               AND r.status NOT IN ('completed', 'cancelled')
           ) as has_active_request
         FROM sot.places p

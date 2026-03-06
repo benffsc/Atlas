@@ -1677,8 +1677,8 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
          WHERE cpr.place_id = pm.place_id
          AND c.altered_status IN ('spayed', 'neutered', 'Yes')) as verified_altered,
         (SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
-        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.status = 'completed') as completed_requests,
-        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.status NOT IN ('completed', 'cancelled')) as active_requests
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status = 'completed') as completed_requests,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) as active_requests
       FROM place_match pm
     )
     SELECT
@@ -1736,7 +1736,8 @@ async function queryRequestStats(
         SELECT r.status, COUNT(*) as count
         FROM ops.requests r
         ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id" : ""}
-        WHERE r.created_at > NOW() - INTERVAL '30 days'
+        WHERE r.merged_into_request_id IS NULL
+        AND r.created_at > NOW() - INTERVAL '30 days'
         ${area ? "AND p.formatted_address ILIKE $1" : ""}
         GROUP BY r.status
         ORDER BY count DESC
@@ -1757,7 +1758,7 @@ async function queryRequestStats(
         `
         SELECT r.status, COUNT(*) as count
         FROM ops.requests r
-        ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id WHERE p.formatted_address ILIKE $1" : ""}
+        ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id WHERE r.merged_into_request_id IS NULL AND p.formatted_address ILIKE $1" : "WHERE r.merged_into_request_id IS NULL"}
         GROUP BY r.status
         ORDER BY count DESC
         `,
@@ -1794,7 +1795,8 @@ async function queryRequestStats(
           COUNT(*) as count
         FROM ops.requests r
         LEFT JOIN sot.places p ON r.place_id = p.place_id
-        WHERE r.status NOT IN ('cancelled')
+        WHERE r.merged_into_request_id IS NULL
+        AND r.status NOT IN ('cancelled')
         GROUP BY area
         ORDER BY count DESC
         LIMIT 10
@@ -1816,7 +1818,8 @@ async function queryRequestStats(
           COUNT(*) as total_pending
         FROM ops.requests r
         ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id" : ""}
-        WHERE r.status NOT IN ('completed', 'cancelled')
+        WHERE r.merged_into_request_id IS NULL
+        AND r.status NOT IN ('completed', 'cancelled')
         ${area ? "AND p.formatted_address ILIKE $1" : ""}
         `,
         area ? [`%${area}%`] : []
@@ -1863,7 +1866,7 @@ async function queryFfrImpact(
       FROM ops.appointments a
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
       LEFT JOIN sot.places p ON p.place_id = a.place_id
-      LEFT JOIN ops.requests r ON r.place_id = p.place_id
+      LEFT JOIN ops.requests r ON r.place_id = p.place_id AND r.merged_into_request_id IS NULL
       WHERE 1=1 ${dateFilter} ${areaFilter}
     )
     SELECT
@@ -2220,6 +2223,7 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         COUNT(*) FILTER (WHERE r.status NOT IN ('completed', 'cancelled')) as active_requests
       FROM ops.requests r
       JOIN regional_places rp ON r.place_id = rp.place_id
+      WHERE r.merged_into_request_id IS NULL
     ),
     colony_stats AS (
       SELECT
@@ -2326,7 +2330,7 @@ async function queryPersonHistory(nameSearch: string): Promise<ToolResult> {
         pm.display_name,
         pm.primary_email,
         pm.entity_type,
-        (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = pm.person_id) as requests_made,
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.requester_person_id = pm.person_id AND r.merged_into_request_id IS NULL) as requests_made,
         (SELECT COUNT(*) FROM ops.request_trapper_assignments rta WHERE rta.person_id = pm.person_id) as requests_trapped,
         (SELECT string_agg(DISTINCT pr.role::TEXT, ', ') FROM ops.person_roles pr WHERE pr.person_id = pm.person_id) as roles
       FROM person_match pm
@@ -3013,7 +3017,7 @@ async function createReminder(
           params = [`%${entityIdentifier}%`];
           break;
         case "request":
-          query = `SELECT request_id FROM ops.requests WHERE summary ILIKE $1 OR request_id::text = $1 LIMIT 1`;
+          query = `SELECT request_id FROM ops.requests WHERE merged_into_request_id IS NULL AND (summary ILIKE $1 OR request_id::text = $1) LIMIT 1`;
           params = [entityIdentifier.includes("-") ? entityIdentifier : `%${entityIdentifier}%`];
           break;
       }
@@ -4183,8 +4187,9 @@ async function sendStaffMessage(
       const request = await queryOne<{ request_id: string; summary: string }>(
         `SELECT request_id, short_address as summary
          FROM ops.requests
-         WHERE request_id::text = $1
-            OR short_address ILIKE $2
+         WHERE merged_into_request_id IS NULL
+           AND (request_id::text = $1
+            OR short_address ILIKE $2)
          LIMIT 1`,
         [entityIdentifier, `%${entityIdentifier}%`]
       );
@@ -5878,15 +5883,15 @@ async function createDraftRequest(
       }>(
         `SELECT
            (SELECT COUNT(*) FROM ops.requests
-            WHERE place_id = $1 AND status NOT IN ('cancelled', 'redirected')) AS total_requests,
+            WHERE place_id = $1 AND merged_into_request_id IS NULL AND status NOT IN ('cancelled', 'redirected')) AS total_requests,
            (SELECT COUNT(*) FROM ops.requests
-            WHERE place_id = $1 AND status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_requests,
+            WHERE place_id = $1 AND merged_into_request_id IS NULL AND status NOT IN ('completed', 'cancelled', 'redirected', 'partial')) AS active_requests,
            (SELECT COALESCE(SUM(vas.cats_altered), 0)::int
             FROM ops.v_request_alteration_stats vas
             JOIN ops.requests r ON r.request_id = vas.request_id
-            WHERE r.place_id = $1) AS cats_altered,
+            WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL) AS cats_altered,
            (SELECT MAX(source_created_at)::text FROM ops.requests
-            WHERE place_id = $1) AS latest_request_date`,
+            WHERE place_id = $1 AND merged_into_request_id IS NULL) AS latest_request_date`,
         [placeId]
       );
 

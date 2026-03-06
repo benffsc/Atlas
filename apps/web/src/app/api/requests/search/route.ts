@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
-      WHERE r.status NOT IN ('cancelled', 'redirected', 'handed_off')
+      WHERE r.merged_into_request_id IS NULL
+        AND r.status NOT IN ('cancelled', 'redirected', 'handed_off')
         AND ($2::UUID IS NULL OR r.request_id != $2)
         AND (
           p.formatted_address ILIKE '%' || $1 || '%'

@@ -27,12 +27,14 @@ export async function GET(request: NextRequest) {
       WITH active AS (
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests
-        WHERE status NOT IN ('completed', 'cancelled')
+        WHERE merged_into_request_id IS NULL
+          AND status NOT IN ('completed', 'cancelled')
       ),
       my_active AS (
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests r
-        WHERE r.status NOT IN ('completed', 'cancelled')
+        WHERE r.merged_into_request_id IS NULL
+          AND r.status NOT IN ('completed', 'cancelled')
           AND ($1::uuid IS NOT NULL AND EXISTS (
             SELECT 1 FROM ops.request_trapper_assignments rta
             WHERE rta.request_id = r.request_id
@@ -53,7 +55,8 @@ export async function GET(request: NextRequest) {
       stale AS (
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests
-        WHERE status NOT IN ('completed', 'cancelled', 'on_hold')
+        WHERE merged_into_request_id IS NULL
+          AND status NOT IN ('completed', 'cancelled', 'on_hold')
           AND updated_at < NOW() - INTERVAL '14 days'
       ),
       overdue AS (
@@ -65,14 +68,16 @@ export async function GET(request: NextRequest) {
       unassigned AS (
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests
-        WHERE status NOT IN ('completed', 'cancelled')
+        WHERE merged_into_request_id IS NULL
+          AND status NOT IN ('completed', 'cancelled')
           AND assignment_status = 'pending'
       ),
       with_location AS (
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests r
         JOIN sot.places p ON p.place_id = r.place_id
-        WHERE r.status NOT IN ('completed', 'cancelled')
+        WHERE r.merged_into_request_id IS NULL
+          AND r.status NOT IN ('completed', 'cancelled')
           AND p.latitude IS NOT NULL
       ),
       person_dedup AS (

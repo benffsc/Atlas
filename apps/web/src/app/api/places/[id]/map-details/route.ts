@@ -164,6 +164,7 @@ export async function GET(
           COUNT(*) FILTER (WHERE status IN ('new', 'triaged', 'scheduled', 'in_progress')) AS active_request_count
         FROM ops.requests
         WHERE place_id = $1
+          AND merged_into_request_id IS NULL
         GROUP BY place_id
       ) req ON req.place_id = p.place_id
       LEFT JOIN (
@@ -347,7 +348,7 @@ export async function GET(
           UNION
           SELECT DISTINCT r.source_system, 'Requests'
           FROM ops.requests r
-          WHERE r.place_id = $1 AND r.source_system IS NOT NULL
+          WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL AND r.source_system IS NOT NULL
           UNION
           SELECT DISTINCT cpr.source_system, 'Cat Links'
           FROM sot.cat_place cpr

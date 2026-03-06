@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }>(`
       SELECT
         (SELECT COUNT(DISTINCT place_id) FROM ops.v_places_needing_classification) AS pending_places,
-        (SELECT COUNT(*) FROM ops.requests WHERE classification_disposition = 'pending') AS pending_requests,
+        (SELECT COUNT(*) FROM ops.requests WHERE classification_disposition = 'pending' AND merged_into_request_id IS NULL) AS pending_requests,
         (SELECT COUNT(*) FROM ops.requests
          WHERE classification_disposition = 'accepted'
          AND classification_reviewed_at >= CURRENT_DATE
@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
           FROM ops.requests r
           WHERE r.place_id = $1
             AND r.classification_disposition = 'pending'
+            AND r.merged_into_request_id IS NULL
           ORDER BY r.created_at DESC
           LIMIT 1
         `, [placeId]);
@@ -166,6 +167,7 @@ export async function POST(request: NextRequest) {
           FROM ops.requests r
           WHERE r.place_id = $1
             AND r.classification_disposition = 'pending'
+            AND r.merged_into_request_id IS NULL
           ORDER BY r.created_at DESC
           LIMIT 1
         `, [placeId]);
