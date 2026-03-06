@@ -31,6 +31,10 @@ interface LinkedPeopleSectionProps {
   showCount?: boolean;
   /** Title to display (default: "Linked People") */
   title?: string;
+  /** Callback when an entity link is clicked (for preview modal). Cmd/Ctrl+Click bypasses. */
+  onEntityClick?: (entityType: string, entityId: string) => void;
+  /** Compact display mode: no outer card wrapper, tighter padding, subtle styling */
+  compact?: boolean;
 }
 
 // Source badge for data provenance
@@ -133,10 +137,21 @@ export function LinkedPeopleSection({
   emptyMessage = "No people linked",
   showCount = true,
   title = "Linked People",
+  onEntityClick,
+  compact = false,
 }: LinkedPeopleSectionProps) {
   const hasPeople = people && people.length > 0;
 
-  const cardStyle: CSSProperties = {
+  const cardStyle: CSSProperties = compact ? {
+    padding: "0.5rem 0.75rem",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    textDecoration: "none",
+    color: "inherit",
+    borderBottom: "1px solid var(--border, #dee2e6)",
+    transition: "background-color 0.15s",
+  } : {
     padding: "0.75rem",
     borderRadius: "6px",
     background: "var(--section-bg, #f8f9fa)",
@@ -149,18 +164,24 @@ export function LinkedPeopleSection({
     transition: "border-color 0.15s",
   };
 
+  const wrapperProps = compact
+    ? {}
+    : { className: "card", style: { padding: "1.5rem", marginBottom: "1.5rem" } as CSSProperties };
+
   return (
-    <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h2 style={{ fontSize: "1.25rem", margin: 0 }}>
-          {title}
-          {showCount && hasPeople && (
-            <span className="badge" style={{ marginLeft: "0.5rem", background: "#0d6efd", color: "#fff" }}>
-              {people.length}
-            </span>
-          )}
-        </h2>
-      </div>
+    <div {...wrapperProps}>
+      {title && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compact ? "0.5rem" : "1rem" }}>
+          <h2 style={{ fontSize: compact ? "1rem" : "1.25rem", margin: 0 }}>
+            {title}
+            {showCount && hasPeople && (
+              <span className="badge" style={{ marginLeft: "0.5rem", background: "#0d6efd", color: "#fff" }}>
+                {people.length}
+              </span>
+            )}
+          </h2>
+        </div>
+      )}
 
       {hasPeople ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -169,11 +190,24 @@ export function LinkedPeopleSection({
               key={person.person_id}
               href={`/people/${person.person_id}`}
               style={cardStyle}
+              onClick={onEntityClick ? (e) => {
+                if (e.metaKey || e.ctrlKey) return;
+                e.preventDefault();
+                onEntityClick("person", person.person_id);
+              } : undefined}
               onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = "#adb5bd";
+                if (compact) {
+                  e.currentTarget.style.backgroundColor = "var(--section-bg, #f8f9fa)";
+                } else {
+                  e.currentTarget.style.borderColor = "#adb5bd";
+                }
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = "var(--border, #dee2e6)";
+                if (compact) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                } else {
+                  e.currentTarget.style.borderColor = "var(--border, #dee2e6)";
+                }
               }}
             >
               <div>

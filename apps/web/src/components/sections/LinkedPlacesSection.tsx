@@ -33,6 +33,10 @@ interface LinkedPlacesSectionProps {
   showCount?: boolean;
   /** Title to display (default: "Linked Places") */
   title?: string;
+  /** Callback when an entity link is clicked (for preview modal). Cmd/Ctrl+Click bypasses. */
+  onEntityClick?: (entityType: string, entityId: string) => void;
+  /** Compact display mode: no outer card wrapper, tighter padding, subtle styling */
+  compact?: boolean;
 }
 
 // Place kind badge
@@ -101,10 +105,21 @@ export function LinkedPlacesSection({
   emptyMessage = "No places linked",
   showCount = true,
   title = "Linked Places",
+  onEntityClick,
+  compact = false,
 }: LinkedPlacesSectionProps) {
   const hasPlaces = places && places.length > 0;
 
-  const cardStyle: CSSProperties = {
+  const cardStyle: CSSProperties = compact ? {
+    padding: "0.5rem 0.75rem",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    textDecoration: "none",
+    color: "inherit",
+    borderBottom: "1px solid var(--border, #dee2e6)",
+    transition: "background-color 0.15s",
+  } : {
     padding: "0.75rem",
     borderRadius: "6px",
     background: "var(--section-bg, #f8f9fa)",
@@ -117,18 +132,24 @@ export function LinkedPlacesSection({
     transition: "border-color 0.15s",
   };
 
+  const wrapperProps = compact
+    ? {}
+    : { className: "card", style: { padding: "1.5rem", marginBottom: "1.5rem" } as CSSProperties };
+
   return (
-    <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h2 style={{ fontSize: "1.25rem", margin: 0 }}>
-          {title}
-          {showCount && hasPlaces && (
-            <span className="badge" style={{ marginLeft: "0.5rem", background: "#0891b2", color: "#fff" }}>
-              {places.length}
-            </span>
-          )}
-        </h2>
-      </div>
+    <div {...wrapperProps}>
+      {title && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: compact ? "0.5rem" : "1rem" }}>
+          <h2 style={{ fontSize: compact ? "1rem" : "1.25rem", margin: 0 }}>
+            {title}
+            {showCount && hasPlaces && (
+              <span className="badge" style={{ marginLeft: "0.5rem", background: "#0891b2", color: "#fff" }}>
+                {places.length}
+              </span>
+            )}
+          </h2>
+        </div>
+      )}
 
       {hasPlaces ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -138,14 +159,29 @@ export function LinkedPlacesSection({
               href={`/places/${place.place_id}`}
               style={{
                 ...cardStyle,
-                borderLeftWidth: place.is_primary ? "3px" : "1px",
-                borderLeftColor: place.is_primary ? "#7c3aed" : "var(--border, #dee2e6)",
+                ...(compact ? {} : {
+                  borderLeftWidth: place.is_primary ? "3px" : "1px",
+                  borderLeftColor: place.is_primary ? "#7c3aed" : "var(--border, #dee2e6)",
+                }),
               }}
+              onClick={onEntityClick ? (e) => {
+                if (e.metaKey || e.ctrlKey) return;
+                e.preventDefault();
+                onEntityClick("place", place.place_id);
+              } : undefined}
               onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = "#adb5bd";
+                if (compact) {
+                  e.currentTarget.style.backgroundColor = "var(--section-bg, #f8f9fa)";
+                } else {
+                  e.currentTarget.style.borderColor = "#adb5bd";
+                }
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = place.is_primary ? "#7c3aed" : "var(--border, #dee2e6)";
+                if (compact) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                } else {
+                  e.currentTarget.style.borderColor = place.is_primary ? "#7c3aed" : "var(--border, #dee2e6)";
+                }
               }}
             >
               <div>

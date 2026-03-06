@@ -11,6 +11,8 @@ import { ColonyEstimates, PopulationTrendChart, PopulationTimeline } from "@/com
 import { HistoricalContextCard, SiteStatsCard } from "@/components/cards";
 import { VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/components/badges";
 import { CreateColonyModal } from "@/components/modals";
+import { EntityPreviewModal } from "@/components/search";
+import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { MediaGallery, HeroGallery, type MediaItem } from "@/components/media";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
@@ -195,6 +197,7 @@ export default function PlaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("details");
+  const preview = useEntityPreviewModal();
 
   // Edit modes
   const [editingDetails, setEditingDetails] = useState(false);
@@ -725,6 +728,7 @@ export default function PlaceDetailPage() {
                 label={cat.cat_name}
                 badge={cat.relationship_type}
                 badgeColor={cat.relationship_type === "residence" || cat.relationship_type === "home" ? "#198754" : "#6c757d"}
+                onClick={preview.handleClick("cat", cat.cat_id)}
               />
             ))}
           </div>
@@ -739,6 +743,8 @@ export default function PlaceDetailPage() {
         context="place"
         title="People"
         emptyMessage="No people linked to this place."
+        onEntityClick={(t, id) => preview.open(t as "person", id)}
+        compact
       />
 
       {/* People Verification */}
@@ -750,7 +756,7 @@ export default function PlaceDetailPage() {
       </Section>
 
       {/* Clinic History */}
-      <ClinicHistorySection placeId={place.place_id} />
+      <ClinicHistorySection placeId={place.place_id} onCatPreview={(catId) => preview.open("cat", catId)} />
 
       {/* Classifications */}
       <div style={{ marginBottom: "1.5rem" }}>
@@ -1161,6 +1167,14 @@ export default function PlaceDetailPage() {
           setShowColonyModal(false);
           alert(`Colony "${result.colony_name}" created successfully!`);
         }}
+      />
+
+      {/* Entity Preview Modal */}
+      <EntityPreviewModal
+        isOpen={preview.isOpen}
+        onClose={preview.close}
+        entityType={preview.entityType}
+        entityId={preview.entityId}
       />
     </>
   );

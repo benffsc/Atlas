@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { StatusBadge } from "@/components/badges";
+import { fetchApi } from "@/lib/api-client";
 
 interface Submission {
   submission_id: string;
@@ -105,11 +106,7 @@ export function SubmissionsSection({ entityType, entityId }: SubmissionsSectionP
           ? `/api/people/${entityId}/submissions`
           : `/api/places/${entityId}/submissions`;
 
-        const response = await fetch(endpoint);
-        if (!response.ok) {
-          throw new Error("Failed to fetch submissions");
-        }
-        const data = await response.json();
+        const data = await fetchApi<{ submissions: Submission[] }>(endpoint);
         setSubmissions(data.submissions || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");

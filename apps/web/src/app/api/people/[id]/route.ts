@@ -31,6 +31,7 @@ interface PersonDetailRow {
   primary_address_id: string | null;
   primary_address: string | null;
   primary_address_locality: string | null;
+  source_created_at: string | null;
   data_source: string | null;
   identifiers: object[] | null;
   entity_type: string | null;
@@ -72,6 +73,7 @@ export async function GET(
         pd.cat_count,
         pd.place_count,
         sot.is_valid_person_name(pd.display_name) AS is_valid_name,
+        pd.source_created_at,
         pd.primary_address_id,
         pd.primary_place_address AS primary_address,
         a.city AS primary_address_locality,

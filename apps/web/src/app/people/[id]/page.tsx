@@ -83,6 +83,7 @@ interface PersonDetail {
   person_relationships: PersonRelationship[] | null;
   cat_count: number;
   place_count: number;
+  source_created_at: string | null;
   primary_address_id: string | null;
   primary_address: string | null;
   primary_address_locality: string | null;
@@ -783,6 +784,11 @@ export default function PersonDetailPage() {
                     ) : (
                       <span>{person.primary_address}</span>
                     )
+                  ) : person.associated_places && person.associated_places.length > 0 ? (
+                    <a href={`/places/${person.associated_places[0].place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>
+                      {person.associated_places[0].formatted_address || person.associated_places[0].display_name || "Unknown"}
+                      <span className="text-muted" style={{ fontSize: "0.75rem", marginLeft: "0.25rem" }}>(inferred)</span>
+                    </a>
                   ) : (
                     <span className="text-muted">No address set</span>
                   )}
@@ -849,6 +855,11 @@ export default function PersonDetailPage() {
             title: "Record Info",
             content: (
               <div style={{ fontSize: "0.875rem" }}>
+                <StatRow label="First Seen" value={formatDateLocal(
+                  person.source_created_at && person.created_at
+                    ? (person.source_created_at < person.created_at ? person.source_created_at : person.created_at)
+                    : person.source_created_at || person.created_at
+                )} />
                 <StatRow label="Created" value={formatDateLocal(person.created_at)} />
                 <StatRow label="Updated" value={formatDateLocal(person.updated_at)} />
                 <StatRow label="Source" value={getSourceLabel(person.data_source)} />
@@ -1027,7 +1038,7 @@ export default function PersonDetailPage() {
               <span style={{ color: "#198754", fontWeight: 500 }}>ClinicHQ</span> = actual clinic patient,{" "}
               <span style={{ color: "var(--muted)" }}>PetLink</span> = microchip only
             </p>
-            <LinkedCatsSection cats={catsForSection} context="person" emptyMessage="No cats linked" />
+            <LinkedCatsSection cats={catsForSection} context="person" emptyMessage="No cats linked" onEntityClick={(t, id) => preview.open(t as "cat", id)} compact />
           </>
         ) : (
           <p className="text-muted">No cats linked to this person.</p>
@@ -1045,6 +1056,8 @@ export default function PersonDetailPage() {
           emptyMessage="No places linked"
           showCount={false}
           title=""
+          onEntityClick={(t, id) => preview.open(t as "place", id)}
+          compact
         />
       </Section>
 
@@ -1099,6 +1112,7 @@ export default function PersonDetailPage() {
                         href={`/people/${rel.person_id}`}
                         label={rel.person_name}
                         badge={rel.relationship_label}
+                        onClick={preview.handleClick("person", rel.person_id)}
                       />
                     ))}
                   </div>

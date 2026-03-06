@@ -12,6 +12,8 @@ import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badg
 import { MediaGallery } from "@/components/media";
 import { ColonyEstimates } from "@/components/charts";
 import { ClassificationSuggestionBanner } from "@/components/admin";
+import { EntityPreviewModal } from "@/components/search";
+import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { SmartField, YesNoSmartField, isLegacySource, TabBar, TabPanel } from "@/components/ui";
 import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
@@ -103,6 +105,7 @@ export default function RequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+  const preview = useEntityPreviewModal();
 
   // Rename state
   const [renaming, setRenaming] = useState(false);
@@ -1123,7 +1126,7 @@ export default function RequestDetailPage() {
             />
 
             <TabPanel tabId="cats" activeTab={activeTab}>
-              <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" />
+              <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" onEntityClick={(t, id) => preview.open(t as "cat", id)} />
             </TabPanel>
 
             <TabPanel tabId="photos" activeTab={activeTab}>
@@ -1330,6 +1333,14 @@ export default function RequestDetailPage() {
           onCancel={() => setShowArchiveModal(false)}
         />
       )}
+
+      {/* Entity Preview Modal */}
+      <EntityPreviewModal
+        isOpen={preview.isOpen}
+        onClose={preview.close}
+        entityType={preview.entityType}
+        entityId={preview.entityId}
+      />
     </div>
   );
 }
