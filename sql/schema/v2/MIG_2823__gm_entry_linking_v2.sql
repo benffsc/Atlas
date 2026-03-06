@@ -86,7 +86,7 @@ COMMENT ON TABLE ops.gm_entry_link_audit IS
 
 CREATE INDEX IF NOT EXISTS idx_source_gme_unlinked_geog
   ON source.google_map_entries
-  USING GIST (ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography)
+  USING GIST (geography(ST_SetSRID(ST_MakePoint(lng, lat), 4326)))
   WHERE linked_place_id IS NULL AND place_id IS NULL AND lat IS NOT NULL;
 
 -- ============================================================================
@@ -220,14 +220,9 @@ BEGIN
   -- ---------------------------------------------------------------
   -- Phase 1: Update nearest_place_id for entries missing or stale
   -- ---------------------------------------------------------------
-  WITH candidates AS (
-    SELECT DISTINCT ON (e.entry_id)
-      e.entry_id,
-      p.place_id,
-      ST_Distance(
-        ST_SetSRID(ST_MakePoint(e.lng, e.lat), 4326)::geography,
-        p.location::geography
-      ) AS distance_m
+  IF p_dry_run THEN
+    -- Dry run: just count how many would be updated
+    SELECT COUNT(*)::INT INTO v_nearest_updated
     FROM source.google_map_entries e
     CROSS JOIN LATERAL (
       SELECT place_id, location
@@ -248,25 +243,52 @@ BEGIN
     WHERE e.linked_place_id IS NULL
       AND e.place_id IS NULL
       AND e.lat IS NOT NULL
-      AND (
-        e.nearest_place_id IS NULL
-        OR e.nearest_place_id != p.place_id
-      )
-    LIMIT p_limit
-  ),
-  updated AS (
-    UPDATE source.google_map_entries e
-    SET
-      nearest_place_id = c.place_id,
-      nearest_place_distance_m = c.distance_m,
-      updated_at = NOW()
-    FROM candidates c
-    WHERE e.entry_id = c.entry_id
-      AND NOT p_dry_run
-    RETURNING e.entry_id
-  )
-  SELECT COUNT(*)::INT INTO v_nearest_updated
-  FROM CASE WHEN p_dry_run THEN candidates ELSE updated END;
+      AND (e.nearest_place_id IS NULL OR e.nearest_place_id != p.place_id);
+  ELSE
+    -- Real run: update and count
+    WITH candidates AS (
+      SELECT DISTINCT ON (e.entry_id)
+        e.entry_id,
+        p.place_id,
+        ST_Distance(
+          ST_SetSRID(ST_MakePoint(e.lng, e.lat), 4326)::geography,
+          p.location::geography
+        ) AS distance_m
+      FROM source.google_map_entries e
+      CROSS JOIN LATERAL (
+        SELECT place_id, location
+        FROM sot.places p
+        WHERE p.merged_into_place_id IS NULL
+          AND p.location IS NOT NULL
+          AND ST_DWithin(
+            ST_SetSRID(ST_MakePoint(e.lng, e.lat), 4326)::geography,
+            p.location::geography,
+            500
+          )
+        ORDER BY ST_Distance(
+          ST_SetSRID(ST_MakePoint(e.lng, e.lat), 4326)::geography,
+          p.location::geography
+        )
+        LIMIT 1
+      ) p
+      WHERE e.linked_place_id IS NULL
+        AND e.place_id IS NULL
+        AND e.lat IS NOT NULL
+        AND (e.nearest_place_id IS NULL OR e.nearest_place_id != p.place_id)
+      LIMIT p_limit
+    ),
+    updated AS (
+      UPDATE source.google_map_entries e
+      SET
+        nearest_place_id = c.place_id,
+        nearest_place_distance_m = c.distance_m,
+        updated_at = NOW()
+      FROM candidates c
+      WHERE e.entry_id = c.entry_id
+      RETURNING e.entry_id
+    )
+    SELECT COUNT(*)::INT INTO v_nearest_updated FROM updated;
+  END IF;
 
   -- ---------------------------------------------------------------
   -- Phase 2: Score & link unlinked entries with a nearest_place
@@ -624,9 +646,14 @@ COMMENT ON VIEW ops.v_gm_linking_stats IS
 
 \echo '1k. Updating ops.v_gm_reference_pins to use source.google_map_entries...'
 
-CREATE OR REPLACE VIEW ops.v_gm_reference_pins AS
+-- Must drop dependent view first, then the target, to avoid "cannot drop columns" error
+DROP VIEW IF EXISTS ops.v_map_atlas_pins_with_gm;
+DROP VIEW IF EXISTS ops.v_gm_reference_pins;
+
+-- Column types and order MUST match ops.v_map_atlas_pins for UNION ALL
+CREATE VIEW ops.v_gm_reference_pins AS
 SELECT
-  gme.entry_id::TEXT AS id,
+  gme.entry_id AS id,
   gme.kml_name AS address,
   gme.kml_name AS display_name,
   gme.lat,
@@ -635,10 +662,9 @@ SELECT
   NULL::UUID AS parent_place_id,
   'google_maps_historical'::TEXT AS place_kind,
   NULL::TEXT AS unit_identifier,
-  COALESCE(gme.parsed_cat_count, 0)::INT AS cat_count,
+  COALESCE(gme.parsed_cat_count, 0)::BIGINT AS cat_count,
   '[]'::JSONB AS people,
-  0::INT AS person_count,
-  -- Disease detection from AI classification
+  0::BIGINT AS person_count,
   CASE
     WHEN gme.ai_meaning IN ('disease_risk', 'felv_colony', 'fiv_colony') THEN TRUE
     ELSE FALSE
@@ -650,21 +676,20 @@ SELECT
     ELSE NULL
   END AS disease_risk_notes,
   '[]'::JSONB AS disease_badges,
-  0::INT AS disease_count,
+  0::BIGINT AS disease_count,
   CASE WHEN gme.ai_meaning = 'watch_list' THEN TRUE ELSE FALSE END AS watch_list,
-  1::INT AS google_entry_count,
+  NULL::TEXT AS watch_list_reason,
+  1::BIGINT AS google_entry_count,
   jsonb_build_array(jsonb_build_object(
     'summary', COALESCE(gme.ai_summary, LEFT(gme.original_content, 200)),
     'meaning', gme.ai_meaning,
     'date', gme.parsed_date::TEXT
   )) AS google_summaries,
-  0::INT AS request_count,
-  0::INT AS active_request_count,
-  0::INT AS needs_trapper_count,
-  0::INT AS intake_count,
-  0::INT AS total_altered,
-  NULL::TIMESTAMPTZ AS last_alteration_at,
-  -- Pin style based on AI classification
+  0::BIGINT AS request_count,
+  0::BIGINT AS active_request_count,
+  0::BIGINT AS intake_count,
+  0::BIGINT AS total_altered,
+  NULL::DATE AS last_alteration_at,
   CASE
     WHEN gme.ai_meaning IN ('disease_risk', 'felv_colony', 'fiv_colony') THEN 'disease'
     WHEN gme.ai_meaning = 'watch_list' THEN 'watch_list'
@@ -673,7 +698,8 @@ SELECT
   END AS pin_style,
   'reference'::TEXT AS pin_tier,
   gme.imported_at AS created_at,
-  gme.imported_at AS last_activity_at
+  gme.imported_at AS last_activity_at,
+  0::BIGINT AS needs_trapper_count
 FROM source.google_map_entries gme
 WHERE gme.linked_place_id IS NULL
   AND gme.lat IS NOT NULL
