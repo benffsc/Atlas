@@ -37,6 +37,7 @@ interface RequestDetailRow {
   scheduled_time_range: string | null;
   resolved_at: string | null;
   resolution_notes: string | null;
+  resolution_reason: string | null;
   cats_trapped: number | null;
   cats_returned: number | null;
   data_source: string;
@@ -210,6 +211,7 @@ export async function GET(
         r.resolved_at,
         r.resolution AS resolution_notes,
         r.resolution_outcome,
+        r.resolution_reason,
         NULL::INT AS cats_trapped,
         NULL::INT AS cats_returned,
         r.source_system AS data_source,

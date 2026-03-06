@@ -483,14 +483,20 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
           {/* Status & Priority Row */}
           <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
             <StatusBadge status={request.status} />
-            {request.resolution_outcome && (() => {
+            {request.resolution_outcome ? (() => {
               const oc = getOutcomeColor(request.resolution_outcome!);
               return (
                 <span className="badge" style={{ background: oc.bg, color: oc.color, border: `1px solid ${oc.border}`, fontSize: TYPOGRAPHY.size['2xs'] }}>
                   {getOutcomeLabel(request.resolution_outcome!)}
                 </span>
               );
-            })()}
+            })() : (
+              request.is_legacy_request && ["completed", "cancelled", "partial"].includes(request.status) && (
+                <span className="badge" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #d1d5db", fontSize: TYPOGRAPHY.size['2xs'] }}>
+                  Legacy
+                </span>
+              )
+            )}
             <PriorityBadge priority={request.priority} />
             <ColonySizeBadge count={request.estimated_cat_count} />
             {request.has_kittens && (
@@ -1463,14 +1469,20 @@ function RequestsPageContent() {
                   <td>
                     <a href={`/requests/${req.request_id}`} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                       <StatusBadge status={req.status} />
-                      {req.resolution_outcome && (() => {
+                      {req.resolution_outcome ? (() => {
                         const oc = getOutcomeColor(req.resolution_outcome!);
                         return (
                           <span className="badge" style={{ background: oc.bg, color: oc.color, border: `1px solid ${oc.border}`, fontSize: "0.7rem" }}>
                             {getOutcomeLabel(req.resolution_outcome!)}
                           </span>
                         );
-                      })()}
+                      })() : (
+                        req.is_legacy_request && ["completed", "cancelled", "partial"].includes(req.status) && (
+                          <span className="badge" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #d1d5db", fontSize: "0.7rem" }}>
+                            Legacy
+                          </span>
+                        )
+                      )}
                     </a>
                   </td>
                   <td>

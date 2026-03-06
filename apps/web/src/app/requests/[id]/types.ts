@@ -29,6 +29,7 @@ export interface RequestDetail {
   resolved_at: string | null;
   resolution_notes: string | null;
   resolution_outcome: string | null;
+  resolution_reason: string | null;
   cats_trapped: number | null;
   cats_returned: number | null;
   data_source: string;

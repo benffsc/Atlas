@@ -18,7 +18,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, REQUEST_STATUS_COLORS, getStatusColor } from "@/lib/design-tokens";
-import { getOutcomeLabel, getOutcomeColor, type ResolutionOutcome } from "@/lib/request-status";
+import { getOutcomeLabel, getOutcomeColor, getReasonLabel, type ResolutionOutcome } from "@/lib/request-status";
 import {
   PAGE_CONTAINER, FIELD_LABEL, FIELD_HINT, FIELD_VALUE, FIELD_VALUE_EMPTY,
   INPUT, GRID_2COL, GRID_3COL, GRID_AUTO, FLEX_CENTER, FLEX_CENTER_SM,
@@ -447,7 +447,7 @@ export default function RequestDetailPage() {
 
   if (!request) return null;
 
-  const isResolved = request.status === "completed" || request.status === "cancelled";
+  const isResolved = request.status === "completed" || request.status === "cancelled" || request.status === "partial";
 
   // ═══════════════════════════════════════════════════════════════════════════
   // EDIT MODE RENDER
@@ -795,6 +795,112 @@ export default function RequestDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Resolution Banner — only shown for resolved requests */}
+        {isResolved && (() => {
+          const isLegacy = !request.resolution_outcome && request.source_system?.startsWith("airtable");
+          const hasOutcome = !!request.resolution_outcome;
+          const outcomeColors = hasOutcome ? getOutcomeColor(request.resolution_outcome!) : null;
+          const resolvedDate = request.resolved_at || request.source_created_at;
+
+          const formatRelativeDate = (dateStr: string) => {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now.getTime() - date.getTime();
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            if (diffDays === 0) return "today";
+            if (diffDays === 1) return "yesterday";
+            if (diffDays < 30) return `${diffDays} days ago`;
+            if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+            return `${Math.floor(diffDays / 365)} years ago`;
+          };
+
+          // Determine banner style
+          let bannerBg: string;
+          let bannerBorder: string;
+          let bannerColor: string;
+          let bannerIcon: string;
+
+          if (hasOutcome && outcomeColors) {
+            bannerBg = outcomeColors.bg;
+            bannerBorder = outcomeColors.border;
+            bannerColor = outcomeColors.color;
+            bannerIcon = request.resolution_outcome === "successful" ? "✓" : "●";
+          } else if (isLegacy) {
+            bannerBg = "#f3f4f6";
+            bannerBorder = "#d1d5db";
+            bannerColor = "#6b7280";
+            bannerIcon = "📋";
+          } else {
+            bannerBg = "#f9fafb";
+            bannerBorder = "#e5e7eb";
+            bannerColor = "#6b7280";
+            bannerIcon = "●";
+          }
+
+          return (
+            <div style={{
+              marginTop: "1rem",
+              padding: "1rem 1.25rem",
+              background: bannerBg,
+              border: `1px solid ${bannerBorder}`,
+              borderRadius: "10px",
+            }}>
+              {hasOutcome ? (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: request.resolution_reason || request.resolution_notes ? "0.5rem" : 0 }}>
+                    <span style={{ fontSize: "1.1rem" }}>{bannerIcon}</span>
+                    <span style={{ fontWeight: 600, fontSize: "0.95rem", color: bannerColor }}>
+                      {getOutcomeLabel(request.resolution_outcome!)}
+                    </span>
+                    {resolvedDate && (
+                      <span style={{ marginLeft: "auto", fontSize: "0.8rem", color: bannerColor, opacity: 0.8 }}>
+                        Closed {formatRelativeDate(resolvedDate)} — {new Date(resolvedDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  {request.resolution_reason && (
+                    <div style={{ fontSize: "0.85rem", color: bannerColor, opacity: 0.9, marginBottom: request.resolution_notes ? "0.25rem" : 0 }}>
+                      {getReasonLabel(request.resolution_reason)}
+                    </div>
+                  )}
+                  {request.resolution_notes && (
+                    <div style={{ fontSize: "0.85rem", color: bannerColor, opacity: 0.8, fontStyle: "italic" }}>
+                      {request.resolution_notes}
+                    </div>
+                  )}
+                </>
+              ) : isLegacy ? (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "1rem" }}>{bannerIcon}</span>
+                    <span style={{ fontWeight: 600, fontSize: "0.95rem", color: bannerColor }}>Legacy Import</span>
+                    {resolvedDate && (
+                      <span style={{ marginLeft: "auto", fontSize: "0.8rem", color: bannerColor, opacity: 0.8 }}>
+                        {formatRelativeDate(resolvedDate)} — {new Date(resolvedDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: bannerColor, opacity: 0.8, marginTop: "0.25rem" }}>
+                    Closed in Airtable — no resolution details available
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "1rem" }}>{bannerIcon}</span>
+                    <span style={{ fontWeight: 600, fontSize: "0.95rem", color: bannerColor }}>Closed without resolution details</span>
+                    {resolvedDate && (
+                      <span style={{ marginLeft: "auto", fontSize: "0.8rem", color: bannerColor, opacity: 0.8 }}>
+                        {formatRelativeDate(resolvedDate)} — {new Date(resolvedDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Contact Card - Prominent display */}
         <div style={{ marginTop: "1rem" }}>

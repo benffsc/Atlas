@@ -353,6 +353,16 @@ export function getOutcomeColor(outcome: ResolutionOutcome | string): StatusColo
   return RESOLUTION_OUTCOME_COLORS[outcome as ResolutionOutcome] || RESOLUTION_OUTCOME_COLORS.no_longer_needed;
 }
 
+/**
+ * Format a resolution reason code as a human-readable label.
+ * e.g., "all_cats_fixed" → "All Cats Fixed"
+ */
+export function getReasonLabel(reason: string): string {
+  return reason
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function isValidOutcome(value: unknown): value is ResolutionOutcome {
   return typeof value === "string" && RESOLUTION_OUTCOMES.includes(value as ResolutionOutcome);
 }
