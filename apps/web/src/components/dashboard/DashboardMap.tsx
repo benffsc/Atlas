@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
 export interface DashboardMapPin {
   request_id: string;
@@ -18,7 +20,7 @@ export interface DashboardMapPin {
   layer?: string;
 }
 
-export type MapLayer = "active" | "all" | "completed";
+export type MapLayer = "active" | "all" | "completed" | "intake";
 
 interface DashboardMapProps {
   pins: DashboardMapPin[];
@@ -51,8 +53,9 @@ const PRIORITY_LABELS: Record<string, string> = {
 const SONOMA_CENTER: [number, number] = [38.45, -122.75];
 const DEFAULT_ZOOM = 10;
 
-function getStatusColor(status: string): string {
-  return STATUS_COLORS[status] || STATUS_COLORS.default;
+function getPinColor(pin: DashboardMapPin): string {
+  if (pin.layer === "intake") return "#f97316"; // orange for intake
+  return STATUS_COLORS[pin.status] || STATUS_COLORS.default;
 }
 
 function formatStatus(status: string): string {
@@ -72,7 +75,7 @@ function timeAgo(dateStr: string): string {
 function buildPopupHtml(pin: DashboardMapPin): string {
   const name = pin.place_name || pin.place_address || "Unknown location";
   const address = pin.place_address && pin.place_name ? pin.place_address.split(",")[0] : "";
-  const statusColor = getStatusColor(pin.status);
+  const statusColor = getPinColor(pin);
   const priorityLabel = PRIORITY_LABELS[pin.priority] || pin.priority;
   const catInfo = pin.estimated_cat_count
     ? `${pin.estimated_cat_count} cat${pin.estimated_cat_count > 1 ? "s" : ""}${pin.has_kittens ? " (kittens)" : ""}`
@@ -81,18 +84,18 @@ function buildPopupHtml(pin: DashboardMapPin): string {
   return `
     <div style="min-width:200px;max-width:280px;font-family:system-ui,-apple-system,sans-serif;">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px;line-height:1.3;">${name}</div>
-      ${address ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">${address}</div>` : ""}
-      ${pin.summary ? `<div style="font-size:12px;color:#cbd5e1;margin-bottom:6px;line-height:1.3;">${pin.summary}</div>` : ""}
+      ${address ? `<div style="font-size:11px;opacity:0.6;margin-bottom:6px;">${address}</div>` : ""}
+      ${pin.summary ? `<div style="font-size:12px;opacity:0.7;margin-bottom:6px;line-height:1.3;">${pin.summary}</div>` : ""}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
         <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:${statusColor};color:#fff;">${formatStatus(pin.status)}</span>
-        <span style="font-size:10px;color:#94a3b8;">${priorityLabel}</span>
-        <span style="font-size:10px;color:#64748b;">${timeAgo(pin.created_at)}</span>
+        <span style="font-size:10px;opacity:0.6;">${priorityLabel}</span>
+        <span style="font-size:10px;opacity:0.5;">${timeAgo(pin.created_at)}</span>
       </div>
-      ${catInfo ? `<div style="font-size:11px;color:#a78bfa;">${catInfo}</div>` : ""}
-      <div style="margin-top:8px;border-top:1px solid #334155;padding-top:6px;">
+      ${catInfo ? `<div style="font-size:11px;color:#7c3aed;">${catInfo}</div>` : ""}
+      <div style="margin-top:8px;border-top:1px solid rgba(128,128,128,0.25);padding-top:6px;">
         <a href="/requests/${pin.request_id}"
            onclick="event.preventDefault();event.stopPropagation();window.__dashMapViewDetails&&window.__dashMapViewDetails('${pin.request_id}')"
-           style="font-size:11px;color:#60a5fa;text-decoration:none;cursor:pointer;">
+           style="font-size:11px;color:#3b82f6;text-decoration:none;cursor:pointer;">
           View Details
         </a>
       </div>
@@ -103,6 +106,7 @@ function buildPopupHtml(pin: DashboardMapPin): string {
 const LAYERS: { key: MapLayer; label: string }[] = [
   { key: "active", label: "Active" },
   { key: "all", label: "All" },
+  { key: "intake", label: "Intake" },
   { key: "completed", label: "Completed" },
 ];
 
@@ -142,10 +146,13 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
 
     (async () => {
       const L = await import("leaflet");
+      // CJS require so markercluster plugin extends L globally
+      const LCjs = require("leaflet");
+      require("leaflet.markercluster");
 
       if (cancelled || !containerRef.current) return;
 
-      leafletRef.current = L;
+      leafletRef.current = LCjs;
 
       const map = L.map(containerRef.current, {
         center: SONOMA_CENTER,
@@ -154,7 +161,7 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
         zoomControl: false,
       });
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         maxZoom: 19,
       }).addTo(map);
@@ -187,15 +194,26 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
     const L = leafletRef.current;
     if (!map || !L) return;
 
-    markersRef.current.forEach((m: { remove: () => void }) => m.remove());
+    // Remove previous cluster group
+    if (markersRef.current.length > 0) {
+      markersRef.current.forEach((m: { remove: () => void }) => m.remove());
+    }
     markersRef.current = [];
 
     if (pins.length === 0) return;
 
+    const cluster = L.markerClusterGroup({
+      maxClusterRadius: 45,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      disableClusteringAtZoom: 15,
+    });
+
     const bounds = L.latLngBounds([]);
 
     pins.forEach((pin: DashboardMapPin) => {
-      const color = getStatusColor(pin.status);
+      const color = getPinColor(pin);
       const marker = L.circleMarker([pin.lat, pin.lng], {
         radius: 7,
         fillColor: color,
@@ -203,7 +221,7 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
         weight: 1.5,
         opacity: 1,
         fillOpacity: 0.85,
-      }).addTo(map);
+      });
 
       marker.bindPopup(buildPopupHtml(pin), {
         className: "dashboard-map-popup",
@@ -215,9 +233,12 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
         marker.openPopup();
       });
 
+      cluster.addLayer(marker);
       bounds.extend([pin.lat, pin.lng]);
-      markersRef.current.push(marker);
     });
+
+    map.addLayer(cluster);
+    markersRef.current = [cluster];
 
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
   }, [pins]);

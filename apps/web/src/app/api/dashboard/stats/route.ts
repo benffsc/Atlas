@@ -97,7 +97,8 @@ export async function GET(request: NextRequest) {
         FROM ops.appointments a
         WHERE a.cat_id IS NOT NULL
           AND a.appointment_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
-          AND a.appointment_date < date_trunc('month', CURRENT_DATE)
+          AND a.appointment_date < date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+                                   + (CURRENT_DATE - date_trunc('month', CURRENT_DATE)::date) * INTERVAL '1 day'
       )
       SELECT
         active.cnt AS active_requests,

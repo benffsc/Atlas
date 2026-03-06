@@ -2,12 +2,13 @@ interface KpiCardProps {
   label: string;
   value: number | null;
   previousValue?: number;
+  compareLabel?: string;
   href: string;
   accentColor: string;
   invertDelta?: boolean;
 }
 
-export function KpiCard({ label, value, previousValue, href, accentColor, invertDelta }: KpiCardProps) {
+export function KpiCard({ label, value, previousValue, compareLabel, href, accentColor, invertDelta }: KpiCardProps) {
   const delta = value != null && previousValue != null && previousValue > 0
     ? value - previousValue
     : null;
@@ -39,7 +40,7 @@ export function KpiCard({ label, value, previousValue, href, accentColor, invert
       <span className="kpi-label">{label}</span>
       {delta != null && (
         <span className="kpi-compare">
-          vs {previousValue} last month
+          vs {previousValue} {compareLabel || "last month"}
         </span>
       )}
     </a>

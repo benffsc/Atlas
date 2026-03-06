@@ -31,6 +31,7 @@ export function KpiStrip({ stats }: KpiStripProps) {
         label="Cats This Month"
         value={stats?.cats_this_month ?? null}
         previousValue={stats?.cats_last_month}
+        compareLabel="same period last mo"
         href="/cats"
         accentColor="#9333ea"
       />
