@@ -165,7 +165,8 @@ export async function PATCH(request: NextRequest) {
 
     return apiSuccess({ updated: true });
   } catch (err) {
-    console.error("Status update error:", err);
-    return apiBadRequest("Invalid request");
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("Status update error:", message, err);
+    return apiServerError(`Status update failed: ${message}`);
   }
 }
