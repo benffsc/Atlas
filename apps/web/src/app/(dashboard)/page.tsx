@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
-import { KpiStrip, ActionPanel } from "@/components/dashboard";
+import { KpiStrip, ActionPanel, DASHBOARD_LAYER_GROUPS, getDefaultEnabledLayers } from "@/components/dashboard";
 import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
+import type { EntityType } from "@/components/search/EntityPreviewContent";
 
 const DashboardMap = dynamic(
   () => import("@/components/dashboard/DashboardMap").then(m => ({ default: m.DashboardMap })),
@@ -87,34 +89,113 @@ function getFirstName(displayName: string): string {
   return displayName.split(" ")[0] || displayName;
 }
 
+/** Map layer ID to the API layer parameter */
+function layerToApiParam(enabledLayers: Record<string, boolean>): MapLayer | null {
+  if (enabledLayers.requests_active) return "active";
+  if (enabledLayers.requests_all) return "all";
+  if (enabledLayers.requests_completed) return "completed";
+  return null;
+}
+
 export default function Home() {
   const isMobile = useIsMobile();
   const [staff, setStaff] = useState<StaffInfo | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [requests, setRequests] = useState<ActiveRequest[]>([]);
   const [intake, setIntake] = useState<IntakeSubmission[]>([]);
-  const [mapPins, setMapPins] = useState<DashboardMapPin[]>([]);
+  const [requestPins, setRequestPins] = useState<DashboardMapPin[]>([]);
+  const [intakePins, setIntakePins] = useState<DashboardMapPin[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [loadingIntake, setLoadingIntake] = useState(true);
   const [loadingMap, setLoadingMap] = useState(true);
   const [showMyRequests, setShowMyRequests] = useState(true);
-  const [mapLayer, setMapLayer] = useState<MapLayer>("active");
   const [mapSearch, setMapSearch] = useState("");
+
+  // Layer state
+  const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(getDefaultEnabledLayers);
 
   // Entity preview modal state
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewEntityType, setPreviewEntityType] = useState<EntityType | null>(null);
   const [previewEntityId, setPreviewEntityId] = useState<string | null>(null);
 
-  // Fetch map pins (called on mount, layer change, and search)
-  const fetchMapPins = useCallback((layer: MapLayer, search: string) => {
+  // Determine if any atlas layer is enabled
+  const atlasEnabled = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
+
+  // Fetch atlas pins via useMapData (SWR cached, shared with full map)
+  const { data: mapData } = useMapData({
+    layers: ["atlas_pins"],
+    enabled: atlasEnabled,
+  });
+
+  const atlasPins = useMemo(() => mapData?.atlas_pins || [], [mapData]);
+
+  // Handle exclusive layer toggling (requests group is exclusive/radio)
+  const handleToggleLayer = useCallback((layerId: string) => {
+    setEnabledLayers(prev => {
+      const next = { ...prev };
+
+      // Find which group this layer belongs to
+      const group = DASHBOARD_LAYER_GROUPS.find(g =>
+        g.children.some(c => c.id === layerId)
+      );
+
+      if (group?.exclusive) {
+        // Radio behavior: turn off siblings, toggle this one
+        const wasOn = !!prev[layerId];
+        for (const child of group.children) {
+          next[child.id] = false;
+        }
+        // Only turn on if it wasn't already on (allow deselecting all)
+        if (!wasOn) next[layerId] = true;
+      } else {
+        // Checkbox behavior
+        next[layerId] = !prev[layerId];
+      }
+
+      return next;
+    });
+  }, []);
+
+  // Fetch request pins when request layer changes
+  const fetchRequestPins = useCallback((search: string) => {
+    const apiLayer = layerToApiParam(enabledLayers);
+    if (!apiLayer) {
+      setRequestPins([]);
+      return;
+    }
+
     setLoadingMap(true);
-    const params = new URLSearchParams({ layer });
+    const params = new URLSearchParams({ layer: apiLayer });
     if (search) params.set("q", search);
     fetchApi<{ pins: DashboardMapPin[] }>(`/api/dashboard/map-pins?${params}`)
-      .then(data => setMapPins(data.pins || []))
-      .catch(() => setMapPins([]))
+      .then(data => setRequestPins(data.pins || []))
+      .catch(() => setRequestPins([]))
       .finally(() => setLoadingMap(false));
-  }, []);
+  }, [enabledLayers]);
+
+  // Fetch intake pins when intake layer is enabled
+  const fetchIntakePins = useCallback((search: string) => {
+    if (!enabledLayers.intake_pending) {
+      setIntakePins([]);
+      return;
+    }
+
+    const params = new URLSearchParams({ layer: "intake" });
+    if (search) params.set("q", search);
+    fetchApi<{ pins: DashboardMapPin[] }>(`/api/dashboard/map-pins?${params}`)
+      .then(data => setIntakePins(data.pins || []))
+      .catch(() => setIntakePins([]));
+  }, [enabledLayers]);
+
+  // Re-fetch pins when layers change
+  useEffect(() => {
+    fetchRequestPins(mapSearch);
+  }, [fetchRequestPins, mapSearch]);
+
+  useEffect(() => {
+    fetchIntakePins(mapSearch);
+  }, [fetchIntakePins, mapSearch]);
 
   // Fetch auth first, then dependent fetches
   useEffect(() => {
@@ -149,15 +230,12 @@ export default function Home() {
           .catch(() => {});
       });
 
-    // Map pins (parallel, no auth dependency)
-    fetchMapPins("active", "");
-
     // Recent intake (parallel, no auth dependency)
     fetchApi<{ submissions: IntakeSubmission[] }>("/api/intake/queue?mode=attention&limit=5")
       .then(data => setIntake((data.submissions || []).slice(0, 5)))
       .catch(() => setIntake([]))
       .finally(() => setLoadingIntake(false));
-  }, [fetchMapPins]);
+  }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -166,20 +244,32 @@ export default function Home() {
     day: "numeric",
   });
 
-  const handleRequestClick = (requestId: string) => {
-    setPreviewEntityId(requestId);
+  const handlePinClick = (entityType: "request" | "place", entityId: string) => {
+    setPreviewEntityType(entityType);
+    setPreviewEntityId(entityId);
     setPreviewOpen(true);
   };
 
-  const handleLayerChange = (layer: MapLayer) => {
-    setMapLayer(layer);
-    fetchMapPins(layer, mapSearch);
+  // Also support legacy request click from action panel
+  const handleRequestClick = (requestId: string) => {
+    handlePinClick("request", requestId);
   };
 
   const handleMapSearch = (query: string) => {
     setMapSearch(query);
-    fetchMapPins(mapLayer, query);
   };
+
+  // Layer counts for the control badges
+  const layerCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (requestPins.length > 0) {
+      const activeLayer = layerToApiParam(enabledLayers);
+      if (activeLayer) counts[`requests_${activeLayer}`] = requestPins.length;
+    }
+    if (intakePins.length > 0) counts.intake_pending = intakePins.length;
+    if (atlasPins.length > 0) counts.atlas_all = atlasPins.length;
+    return counts;
+  }, [requestPins, intakePins, atlasPins, enabledLayers]);
 
   return (
     <div className="dashboard-command-center">
@@ -218,24 +308,28 @@ export default function Home() {
 
         {!isMobile ? (
           <DashboardMap
-            pins={mapPins}
-            onPinClick={handleRequestClick}
-            onLayerChange={handleLayerChange}
+            requestPins={requestPins}
+            intakePins={intakePins}
+            atlasPins={atlasPins}
+            enabledLayers={enabledLayers}
+            onToggleLayer={handleToggleLayer}
+            onPinClick={handlePinClick}
             onSearch={handleMapSearch}
-            activeLayer={mapLayer}
             loading={loadingMap}
-            pinCount={mapPins.length}
+            layerCounts={layerCounts}
           />
         ) : (
           <div className="dashboard-map-container">
             <DashboardMap
-              pins={mapPins}
-              onPinClick={handleRequestClick}
-              onLayerChange={handleLayerChange}
+              requestPins={requestPins}
+              intakePins={intakePins}
+              atlasPins={atlasPins}
+              enabledLayers={enabledLayers}
+              onToggleLayer={handleToggleLayer}
+              onPinClick={handlePinClick}
               onSearch={handleMapSearch}
-              activeLayer={mapLayer}
               loading={loadingMap}
-              pinCount={mapPins.length}
+              layerCounts={layerCounts}
             />
           </div>
         )}
@@ -245,7 +339,7 @@ export default function Home() {
       <EntityPreviewModal
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}
-        entityType="request"
+        entityType={previewEntityType}
         entityId={previewEntityId}
       />
     </div>

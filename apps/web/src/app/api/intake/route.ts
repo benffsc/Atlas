@@ -85,6 +85,10 @@ interface IntakeSubmission {
   access_notes?: string;
   is_property_owner?: boolean;
   situation_description?: string;
+  call_type?: string;
+  cat_name?: string;
+  cat_description?: string;
+  feeding_situation?: string;
   referral_source?: string;
   media_urls?: string[];
 
@@ -217,13 +221,15 @@ export async function POST(request: NextRequest) {
         situation_description, referral_source, media_urls, ip_address, user_agent,
         dogs_on_site, trap_savvy, previous_tnr, best_trapping_time, important_notes,
         priority_override, kitten_outcome, foster_readiness, kitten_urgency_factors,
-        reviewed_by, custom_fields, is_test, status, reviewed_at, submission_status
+        reviewed_by, custom_fields, is_test, status, reviewed_at, submission_status,
+        call_type, cat_name, cat_description, feeding_situation
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35,
         $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51,
         $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67,
-        $68, $69, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $80, $81
+        $68, $69, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $80, $81,
+        $82, $83, $84, $85
       )
       RETURNING submission_id, triage_category::TEXT, triage_score`,
       [
@@ -310,6 +316,10 @@ export async function POST(request: NextRequest) {
         isStaffEntry ? "reviewed" : "new", // $79 - Legacy status field
         isStaffEntry ? new Date().toISOString() : null, // $80
         isStaffEntry ? "in_progress" : "new", // $81 - New unified submission_status
+        body.call_type || null, // $82 - MIG_2849: structured call type
+        body.cat_name || null, // $83 - MIG_2531: structured cat name
+        body.cat_description || null, // $84 - MIG_2531: structured cat description
+        body.feeding_situation || null, // $85 - MIG_2531: structured feeding situation
       ]
     );
 
@@ -322,12 +332,15 @@ export async function POST(request: NextRequest) {
     queryOne("SELECT sot.match_intake_to_person($1)", [data.submission_id])
       .catch((err: unknown) => console.error("Person matching error:", err));
 
-    // Link to place and queue for geocoding — await to ensure place gets created
-    try {
-      await queryOne("SELECT sot.link_intake_to_place($1)", [data.submission_id]);
-    } catch (err: unknown) {
-      console.error("Place linking error:", err);
-      // Non-fatal: submission was already saved, place linking can be retried
+    // Link to place — await to ensure place gets created before geocoding
+    // Skip if staff already selected an address (selected_address_place_id handles it)
+    if (!body.selected_address_place_id && body.cats_address) {
+      try {
+        await queryOne("SELECT sot.link_intake_to_place($1)", [data.submission_id]);
+      } catch (err: unknown) {
+        console.error("Place linking error:", err);
+        // Non-fatal: submission was already saved, place linking can be retried
+      }
     }
 
     // FFS-128: Inline geocoding — geocode the address immediately so map shows pin
@@ -340,7 +353,7 @@ export async function POST(request: NextRequest) {
           // Update the submission with geocoded coordinates
           await queryOne(
             `UPDATE ops.intake_submissions
-             SET geo_lat = $1, geo_lng = $2, geo_formatted_address = $3,
+             SET geo_latitude = $1, geo_longitude = $2, geo_formatted_address = $3,
                  geo_confidence = 1.0, updated_at = NOW()
              WHERE submission_id = $4`,
             [geoResult.lat, geoResult.lng, geoResult.formatted_address, data.submission_id]

@@ -1103,6 +1103,224 @@ button:disabled {
   padding: 4px 8px !important;
 }
 
+/* Grouped Layer Control (shared: dashboard + full map) */
+.grouped-layer-control {
+  position: relative;
+}
+
+.grouped-layer-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.grouped-layer-trigger:hover,
+.grouped-layer-trigger.open {
+  border-color: var(--primary);
+  color: var(--foreground);
+}
+
+.layer-active-badge {
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.grouped-layer-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 1001;
+  padding: 4px 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.layer-group + .layer-group {
+  border-top: 1px solid var(--border);
+}
+
+.layer-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.layer-group-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.layer-chevron {
+  transition: transform 0.15s;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.layer-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.layer-group-icon {
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.layer-group-label {
+  flex: 1;
+  text-align: left;
+}
+
+.layer-group-badge {
+  background: var(--border);
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  font-weight: 600;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.layer-group-children {
+  padding: 0 0 4px 0;
+}
+
+.layer-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 22px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.layer-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.layer-item.active {
+  color: var(--foreground);
+}
+
+.layer-color-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.layer-radio,
+.layer-check {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-radio {
+  border-radius: 50%;
+}
+
+.layer-check {
+  border-radius: 3px;
+}
+
+.layer-radio.checked {
+  border-color: var(--primary);
+}
+
+.layer-radio.checked::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.layer-check.checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.layer-check.checked::after {
+  content: "";
+  width: 8px;
+  height: 6px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.layer-item-label {
+  flex: 1;
+  text-align: left;
+}
+
+.layer-count-badge {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+/* Compact mode for dashboard */
+.grouped-layer-control.compact .grouped-layer-panel {
+  min-width: 180px;
+}
+
+.grouped-layer-control.compact .layer-group-header {
+  padding: 6px 8px;
+  font-size: 0.7rem;
+}
+
+.grouped-layer-control.compact .layer-item {
+  padding: 4px 8px 4px 18px;
+  font-size: 0.68rem;
+}
+
 /* Action Sections */
 .action-section {
   background: var(--card-bg, #fff);
