@@ -166,8 +166,8 @@ function IntakeQueueContent() {
     try {
       const params = new URLSearchParams();
 
-      // Map new tab names to API mode parameter
-      params.set("mode", activeTab);
+      // Kanban needs all statuses visible across columns
+      params.set("mode", filters.view === "kanban" ? "all" : activeTab);
 
       if (categoryFilter) params.set("category", categoryFilter);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
@@ -181,7 +181,7 @@ function IntakeQueueContent() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, categoryFilter, searchQuery, showLegacy, showTest]);
+  }, [activeTab, categoryFilter, searchQuery, showLegacy, showTest, filters.view]);
 
   useEffect(() => {
     fetchSubmissions();
@@ -330,7 +330,7 @@ function IntakeQueueContent() {
 
     setToastMessage(`Moved ${name} to ${label}`);
     setTimeout(() => setToastMessage(null), 5000);
-    fetchSubmissions();
+    await fetchSubmissions();
   };
 
   const handleArchive = async (submissionId: string) => {

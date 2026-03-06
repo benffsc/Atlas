@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -284,6 +284,15 @@ export function IntakeKanbanBoard({
   const [activeCard, setActiveCard] = useState<IntakeSubmission | null>(null);
   const [optimisticMoves, setOptimisticMoves] = useState<Record<string, string>>({});
 
+  // Clear optimistic moves once the submissions prop refreshes with updated data
+  const prevSubmissionsRef = useRef(submissions);
+  useEffect(() => {
+    if (submissions !== prevSubmissionsRef.current) {
+      prevSubmissionsRef.current = submissions;
+      setOptimisticMoves({});
+    }
+  }, [submissions]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
@@ -322,6 +331,7 @@ export function IntakeKanbanBoard({
     if (onStatusChange) {
       try {
         await onStatusChange(submissionId, newStatus);
+        // Optimistic move cleared by useEffect when submissions prop refreshes
       } catch {
         // Revert on failure
         setOptimisticMoves((prev) => {
@@ -331,13 +341,6 @@ export function IntakeKanbanBoard({
         });
       }
     }
-
-    // Clear optimistic move after successful change (data will refresh)
-    setOptimisticMoves((prev) => {
-      const next = { ...prev };
-      delete next[submissionId];
-      return next;
-    });
   };
 
   return (
