@@ -50,6 +50,7 @@ const TIER_TABS = [
   { tier: 3, label: "Phone Only", color: "#fd7e14" },
   { tier: 4, label: "Name + Place", color: "#6f42c1" },
   { tier: 5, label: "Name Only", color: "#dc3545" },
+  { tier: 6, label: "Phonetic + Address", color: "#20c997" },
 ];
 
 function tierColor(tier: number): string {
