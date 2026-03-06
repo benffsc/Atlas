@@ -328,9 +328,18 @@ function IntakeQueueContent() {
       submission_status: newStatus,
     }, { method: "PATCH" });
 
+    // Update local state directly instead of refetching.
+    // fetchSubmissions() sets loading=true which unmounts the kanban,
+    // destroying optimistic state and causing cards to snap back.
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.submission_id === submissionId
+          ? { ...s, submission_status: newStatus }
+          : s
+      )
+    );
     setToastMessage(`Moved ${name} to ${label}`);
     setTimeout(() => setToastMessage(null), 5000);
-    await fetchSubmissions();
   };
 
   const handleArchive = async (submissionId: string) => {
