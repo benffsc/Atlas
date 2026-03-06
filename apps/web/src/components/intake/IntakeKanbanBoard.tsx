@@ -52,6 +52,7 @@ interface IntakeKanbanBoardProps {
   submissions: IntakeSubmission[];
   onOpenDetail?: (submission: IntakeSubmission) => void;
   onStatusChange?: (submissionId: string, newStatus: string) => Promise<void>;
+  onError?: (message: string) => void;
 }
 
 function IntakeKanbanCard({
@@ -190,9 +191,11 @@ function IntakeKanbanCard({
 function DraggableKanbanCard({
   submission,
   onOpenDetail,
+  isRecentlyMoved,
 }: {
   submission: IntakeSubmission;
   onOpenDetail?: (submission: IntakeSubmission) => void;
+  isRecentlyMoved?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: submission.submission_id,
@@ -208,6 +211,10 @@ function DraggableKanbanCard({
         marginBottom: "0.5rem",
         opacity: isDragging ? 0.4 : 1,
         touchAction: "none",
+        borderLeft: isRecentlyMoved ? "3px solid #3b82f6" : undefined,
+        background: isRecentlyMoved ? "#eff6ff" : undefined,
+        borderRadius: isRecentlyMoved ? "8px" : undefined,
+        transition: "background-color 0.5s ease, border-color 0.5s ease",
       }}
     >
       <IntakeKanbanCard submission={submission} onOpenDetail={onOpenDetail} />
@@ -280,9 +287,12 @@ export function IntakeKanbanBoard({
   submissions,
   onOpenDetail,
   onStatusChange,
+  onError,
 }: IntakeKanbanBoardProps) {
   const [activeCard, setActiveCard] = useState<IntakeSubmission | null>(null);
   const [optimisticMoves, setOptimisticMoves] = useState<Record<string, string>>({});
+  const [recentlyMoved, setRecentlyMoved] = useState<Set<string>>(new Set());
+  const isDragPending = useRef(false);
 
   // Clear optimistic moves once the submissions prop refreshes with updated data
   const prevSubmissionsRef = useRef(submissions);
@@ -317,6 +327,9 @@ export function IntakeKanbanBoard({
     const { active, over } = event;
     if (!over) return;
 
+    // Guard against rapid multi-drags
+    if (isDragPending.current) return;
+
     const submissionId = active.id as string;
     const newStatus = over.id as string;
     const sub = submissions.find((s) => s.submission_id === submissionId);
@@ -327,11 +340,20 @@ export function IntakeKanbanBoard({
 
     // Optimistic update
     setOptimisticMoves((prev) => ({ ...prev, [submissionId]: newStatus }));
+    isDragPending.current = true;
 
     if (onStatusChange) {
       try {
         await onStatusChange(submissionId, newStatus);
-        // Optimistic move cleared by useEffect when submissions prop refreshes
+        // Mark as recently moved for highlight
+        setRecentlyMoved((prev) => new Set(prev).add(submissionId));
+        setTimeout(() => {
+          setRecentlyMoved((prev) => {
+            const next = new Set(prev);
+            next.delete(submissionId);
+            return next;
+          });
+        }, 3000);
       } catch {
         // Revert on failure
         setOptimisticMoves((prev) => {
@@ -339,7 +361,12 @@ export function IntakeKanbanBoard({
           delete next[submissionId];
           return next;
         });
+        onError?.("Failed to move — please try again");
+      } finally {
+        isDragPending.current = false;
       }
+    } else {
+      isDragPending.current = false;
     }
   };
 
@@ -371,6 +398,7 @@ export function IntakeKanbanBoard({
                 key={sub.submission_id}
                 submission={sub}
                 onOpenDetail={onOpenDetail}
+                isRecentlyMoved={recentlyMoved.has(sub.submission_id)}
               />
             ))}
             {col.items.length === 0 && (

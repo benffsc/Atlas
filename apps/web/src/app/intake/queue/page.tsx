@@ -69,8 +69,32 @@ function IntakeQueueContent() {
   const [showRequestWizard, setShowRequestWizard] = useState(false);
   const [wizardSubmission, setWizardSubmission] = useState<IntakeSubmission | null>(null);
 
-  // Toast notification state
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Toast notification state (supports undo + error styling)
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+    undo?: { submissionId: string; previousStatus: string };
+  } | null>(null);
+
+  const showToast = (message: string) => {
+    setToast({ message, type: "success" });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const showErrorToast = (message: string) => {
+    setToast({ message, type: "error" });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  // Backward compat shim for IntakeDetailPanel
+  const toastMessage = toast?.message ?? null;
+  const setToastMessage = (msg: string | null) => {
+    if (msg) {
+      showToast(msg);
+    } else {
+      setToast(null);
+    }
+  };
 
   // Appointment booking modal state
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -287,11 +311,10 @@ function IntakeQueueContent() {
       }
 
       if (wasAlreadyScheduled) {
-        setToastMessage(`Updated appointment for ${submitterName}`);
+        showToast(`Updated appointment for ${submitterName}`);
       } else {
-        setToastMessage(`Scheduled ${submitterName}. Find in "Scheduled" tab.`);
+        showToast(`Scheduled ${submitterName}. Find in "Scheduled" tab.`);
       }
-      setTimeout(() => setToastMessage(null), 5000);
     } catch (err) {
       console.error("Failed to schedule:", err);
     } finally {
@@ -322,6 +345,7 @@ function IntakeQueueContent() {
     const sub = submissions.find((s) => s.submission_id === submissionId);
     const name = sub ? normalizeName(sub.submitter_name) : "Submission";
     const label = INTAKE_COLUMNS_LABELS[newStatus] || newStatus;
+    const previousStatus = sub?.submission_status || "new";
 
     await postApi("/api/intake/status", {
       submission_id: submissionId,
@@ -338,8 +362,31 @@ function IntakeQueueContent() {
           : s
       )
     );
-    setToastMessage(`Moved ${name} to ${label}`);
-    setTimeout(() => setToastMessage(null), 5000);
+    setToast({
+      message: `Moved ${name} to ${label}`,
+      type: "success",
+      undo: { submissionId, previousStatus },
+    });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleUndoKanbanMove = async (submissionId: string, previousStatus: string) => {
+    setToast(null);
+    try {
+      await postApi("/api/intake/status", {
+        submission_id: submissionId,
+        submission_status: previousStatus,
+      }, { method: "PATCH" });
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.submission_id === submissionId
+            ? { ...s, submission_status: previousStatus }
+            : s
+        )
+      );
+    } catch {
+      showErrorToast("Failed to undo — please try again");
+    }
   };
 
   const handleArchive = async (submissionId: string) => {
@@ -440,14 +487,14 @@ function IntakeQueueContent() {
       </div>
 
       {/* Toast Notification */}
-      {toastMessage && (
+      {toast && (
         <div
           style={{
             position: "fixed",
             bottom: "1.5rem",
             left: "50%",
             transform: "translateX(-50%)",
-            background: "#198754",
+            background: toast.type === "error" ? "#dc3545" : "#198754",
             color: "#fff",
             padding: "0.75rem 1.5rem",
             borderRadius: "8px",
@@ -458,9 +505,26 @@ function IntakeQueueContent() {
             gap: "0.75rem",
           }}
         >
-          <span>{toastMessage}</span>
+          <span>{toast.message}</span>
+          {toast.undo && (
+            <button
+              onClick={() => handleUndoKanbanMove(toast.undo!.submissionId, toast.undo!.previousStatus)}
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.6)",
+                color: "#fff",
+                cursor: "pointer",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "4px",
+                fontSize: "0.8rem",
+                fontWeight: 500,
+              }}
+            >
+              Undo
+            </button>
+          )}
           <button
-            onClick={() => setToastMessage(null)}
+            onClick={() => setToast(null)}
             style={{
               background: "transparent",
               border: "none",
@@ -842,6 +906,7 @@ function IntakeQueueContent() {
               submissions={sortedSubmissions}
               onOpenDetail={openDetail}
               onStatusChange={handleKanbanStatusChange}
+              onError={showErrorToast}
             />
           )
         ) : (
@@ -1017,8 +1082,7 @@ function IntakeQueueContent() {
             if (selectedSubmission?.submission_id === declineSubmission.submission_id) {
               setSelectedSubmission({ ...selectedSubmission, submission_status: "declined" });
             }
-            setToastMessage(`${normalizeName(declineSubmission.submitter_name)} declined`);
-            setTimeout(() => setToastMessage(null), 5000);
+            showToast(`${normalizeName(declineSubmission.submitter_name)} declined`);
             fetchSubmissions();
           }}
         />
