@@ -485,6 +485,15 @@ export function IntakeDetailPanel({
                 </p>
               </>
             )}
+            {submission.matched_person_id && (
+              <div style={{ marginTop: "0.25rem", fontSize: "0.8rem" }}>
+                <span style={{ color: "var(--muted)" }}>Matched to: </span>
+                <a href={`/people/${submission.matched_person_id}`}
+                   style={{ color: "var(--primary, #3b82f6)", textDecoration: "none", fontWeight: 500 }}>
+                  View Person Profile →
+                </a>
+              </div>
+            )}
             <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.8rem" }}>
               Submitted {formatDate(submission.submitted_at)}
             </p>
@@ -795,7 +804,13 @@ export function IntakeDetailPanel({
 
           {!editingAddress ? (
             <>
-              <p style={{ margin: 0 }}>{submission.cats_address}</p>
+              {submission.place_id ? (
+                <a href={`/places/${submission.place_id}`} style={{ color: "inherit", textDecoration: "none" }}>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{submission.cats_address}</p>
+                </a>
+              ) : (
+                <p style={{ margin: 0 }}>{submission.cats_address}</p>
+              )}
               {submission.cats_city && <p style={{ margin: 0, color: "var(--muted)" }}>{submission.cats_city}</p>}
               {submission.geo_formatted_address && submission.geo_formatted_address !== submission.cats_address && (
                 <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>

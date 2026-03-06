@@ -189,6 +189,7 @@ export async function GET(request: NextRequest) {
         legacy_source_id,
         review_notes,
         matched_person_id,
+        place_id,
         intake_source,
         geo_formatted_address,
         geo_latitude,

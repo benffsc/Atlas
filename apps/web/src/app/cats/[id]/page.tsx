@@ -9,6 +9,8 @@ import { OwnershipTransferWizard } from "@/components/forms";
 import { VerificationBadge, LastVerified, AtlasCatIdBadge, MicrochipStatusBadge } from "@/components/badges";
 import { ReportDeceasedModal, RecordBirthModal, AppointmentDetailModal } from "@/components/modals";
 import { MediaGallery } from "@/components/media";
+import { EntityPreviewModal } from "@/components/search";
+import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { formatDateLocal, formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { ProfileLayout } from "@/components/ProfileLayout";
@@ -532,6 +534,7 @@ export default function CatDetailPage() {
   const params = useParams();
   const id = params.id as string;
 
+  const preview = useEntityPreviewModal();
   const [cat, setCat] = useState<CatDetail | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
@@ -1229,7 +1232,7 @@ export default function CatDetailPage() {
               <div>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Origin Address</div>
                 <div style={{ fontWeight: 500 }}>
-                  <a href={`/places/${cat.primary_origin_place.place_id}`} style={{ color: "#0d6efd", textDecoration: "none" }}>
+                  <a href={`/places/${cat.primary_origin_place.place_id}`} style={{ color: "#0d6efd", textDecoration: "none" }} onClick={preview.handleClick("place", cat.primary_origin_place.place_id)}>
                     {cat.primary_origin_place.formatted_address}
                   </a>
                   {cat.primary_origin_place.inferred_source && (
@@ -1558,13 +1561,13 @@ export default function CatDetailPage() {
               {cat.birth_event.mother_cat_id && (
                 <div>
                   <div className="text-muted text-sm">Mother</div>
-                  <div><a href={`/cats/${cat.birth_event.mother_cat_id}`} style={{ fontWeight: 500, color: "#0d6efd" }}>{cat.birth_event.mother_name || "Unknown"}</a></div>
+                  <div><a href={`/cats/${cat.birth_event.mother_cat_id}`} style={{ fontWeight: 500, color: "#0d6efd" }} onClick={preview.handleClick("cat", cat.birth_event.mother_cat_id)}>{cat.birth_event.mother_name || "Unknown"}</a></div>
                 </div>
               )}
               {cat.birth_event.place_id && (
                 <div>
                   <div className="text-muted text-sm">Birth Location</div>
-                  <div><a href={`/places/${cat.birth_event.place_id}`} style={{ fontWeight: 500, color: "#0d6efd" }}>{cat.birth_event.place_name || "Unknown"}</a></div>
+                  <div><a href={`/places/${cat.birth_event.place_id}`} style={{ fontWeight: 500, color: "#0d6efd" }} onClick={preview.handleClick("place", cat.birth_event.place_id)}>{cat.birth_event.place_name || "Unknown"}</a></div>
                 </div>
               )}
               {cat.birth_event.kitten_count_in_litter && (
@@ -1588,7 +1591,7 @@ export default function CatDetailPage() {
                 <div className="text-muted text-sm" style={{ marginBottom: "0.5rem" }}>Littermates ({cat.siblings.length})</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   {cat.siblings.map(sibling => (
-                    <a key={sibling.cat_id} href={`/cats/${sibling.cat_id}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>
+                    <a key={sibling.cat_id} href={`/cats/${sibling.cat_id}`} onClick={preview.handleClick("cat", sibling.cat_id)} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>
                       <span style={{ fontSize: "1.25rem" }}>🐱</span>
                       <div>
                         <div style={{ fontWeight: 500 }}>{sibling.display_name}</div>
@@ -1888,6 +1891,7 @@ export default function CatDetailPage() {
                 label={owner.display_name}
                 badge={owner.role}
                 badgeColor={owner.role === "owner" ? "#0d6efd" : "#6c757d"}
+                onClick={preview.handleClick("person", owner.person_id)}
               />
             ))}
           </div>
@@ -1906,6 +1910,7 @@ export default function CatDetailPage() {
                 label={catPlace.label}
                 badge={catPlace.place_kind || catPlace.role}
                 badgeColor={catPlace.role === "residence" ? "#198754" : "#6c757d"}
+                onClick={preview.handleClick("place", catPlace.place_id)}
               />
             ))}
           </div>
@@ -2005,6 +2010,13 @@ export default function CatDetailPage() {
       <AppointmentDetailModal
         appointmentId={selectedAppointmentId}
         onClose={() => setSelectedAppointmentId(null)}
+      />
+
+      <EntityPreviewModal
+        isOpen={preview.isOpen}
+        onClose={preview.close}
+        entityType={preview.entityType}
+        entityId={preview.entityId}
       />
     </ProfileLayout>
   );

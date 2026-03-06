@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { JournalSection, ObservationsSection, PlaceLinksSection, DiseaseStatusSection, ClinicHistorySection, ClinicNotesSection, LinkedPeopleSection } from "@/components/sections";
+import { JournalSection, ObservationsSection, PlaceLinksSection, DiseaseStatusSection, ClinicHistorySection, ClinicNotesSection, LinkedPeopleSection, LinkedCatsSection } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
-import { QuickNotes, BackButton, EditHistory, EntityLink, QuickActions, usePlaceQuickActionState, SubmissionsSection } from "@/components/common";
+import { QuickNotes, BackButton, EditHistory, QuickActions, usePlaceQuickActionState, SubmissionsSection } from "@/components/common";
 import { AddressAutocomplete, PlaceContextEditor } from "@/components/forms";
 import { PlaceAlterationHistory, CatPresenceReconciliation } from "@/components/admin";
 import { ColonyEstimates, PopulationTrendChart, PopulationTimeline } from "@/components/charts";
@@ -718,24 +718,16 @@ export default function PlaceDetailPage() {
       )}
 
       {/* Cats Section */}
-      <Section title={`Cats${place.cat_count > 0 ? ` (${place.cat_count})` : ""}`} collapsible>
-        {place.cats && place.cats.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-            {place.cats.map((cat) => (
-              <EntityLink
-                key={cat.cat_id}
-                href={`/cats/${cat.cat_id}`}
-                label={cat.cat_name}
-                badge={cat.relationship_type}
-                badgeColor={cat.relationship_type === "residence" || cat.relationship_type === "home" ? "#198754" : "#6c757d"}
-                onClick={preview.handleClick("cat", cat.cat_id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">No cats linked to this place.</p>
-        )}
-      </Section>
+      <LinkedCatsSection
+        cats={place.cats?.map((cat) => ({
+          cat_id: cat.cat_id,
+          cat_name: cat.cat_name,
+          relationship_type: cat.relationship_type,
+        }))}
+        context="place"
+        compact
+        onEntityClick={(entityType, entityId) => preview.open(entityType as "cat", entityId)}
+      />
 
       {/* People Section */}
       <LinkedPeopleSection
@@ -1029,16 +1021,17 @@ export default function PlaceDetailPage() {
                     <a
                       key={req.request_id}
                       href={`/requests/${req.request_id}`}
+                      onClick={preview.handleClick("request", req.request_id)}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: "0.75rem",
                         padding: "0.75rem 1rem",
-                        background: "#f8f9fa",
+                        background: "var(--card-bg, #f8f9fa)",
                         borderRadius: "8px",
                         textDecoration: "none",
                         color: "inherit",
-                        border: "1px solid #dee2e6",
+                        border: "1px solid var(--border, #dee2e6)",
                       }}
                     >
                       <StatusBadge status={req.status} />

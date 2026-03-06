@@ -25,6 +25,8 @@ interface ContactCardProps {
   title?: string;
   /** Optional additional class names */
   className?: string;
+  /** Callback when a person name is clicked (e.g., for preview modal). Cmd/Ctrl+Click bypasses. */
+  onPersonClick?: (personId: string, e: React.MouseEvent) => void;
 }
 
 /**
@@ -46,6 +48,7 @@ export default function ContactCard({
   onCallClick,
   title = "Contact Information",
   className = "",
+  onPersonClick,
 }: ContactCardProps) {
   // Check if site contact is actually different from requester
   const hasDifferentSiteContact =
@@ -107,12 +110,13 @@ export default function ContactCard({
               label="Requester"
               person={requester}
               showSiteContactBadge={requester.isSiteContact === true}
+              onPersonClick={onPersonClick}
             />
           )}
 
           {/* Site Contact (if different) */}
           {hasDifferentSiteContact && (
-            <PersonCard label="Site Contact" person={siteContact!} />
+            <PersonCard label="Site Contact" person={siteContact!} onPersonClick={onPersonClick} />
           )}
 
           {/* Empty state */}
@@ -217,10 +221,12 @@ function PersonCard({
   label,
   person,
   showSiteContactBadge = false,
+  onPersonClick,
 }: {
   label: string;
   person: PersonInfo;
   showSiteContactBadge?: boolean;
+  onPersonClick?: (personId: string, e: React.MouseEvent) => void;
 }) {
   return (
     <div
@@ -255,6 +261,7 @@ function PersonCard({
               color: "#3b82f6",
               textDecoration: "none",
             }}
+            onClick={onPersonClick ? (e) => onPersonClick(person.personId!, e) : undefined}
           >
             {person.name || "Unknown"}
           </Link>

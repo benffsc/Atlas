@@ -49,6 +49,7 @@ export interface IntakeSubmission {
   legacy_source_id: string | null;
   review_notes: string | null;
   matched_person_id: string | null;
+  place_id: string | null;
   intake_source: string | null;
   geo_formatted_address: string | null;
   geo_latitude: number | null;

@@ -923,6 +923,11 @@ export default function RequestDetailPage() {
               phone: request.site_contact_phone,
             } : undefined}
             onEmailClick={() => setShowEmailModal(true)}
+            onPersonClick={(personId, e) => {
+              if (e.metaKey || e.ctrlKey) return;
+              e.preventDefault();
+              preview.open("person", personId);
+            }}
           />
         </div>
 
@@ -937,7 +942,7 @@ export default function RequestDetailPage() {
           <div style={{ padding: "1rem" }}>
             {request.place_id ? (
               <div>
-                <a href={`/places/${request.place_id}`} style={{ fontWeight: 600, fontSize: "1.1rem", color: "var(--foreground)", textDecoration: "none" }}>
+                <a href={`/places/${request.place_id}`} onClick={preview.handleClick("place", request.place_id)} style={{ fontWeight: 600, fontSize: "1.1rem", color: "var(--foreground)", textDecoration: "none" }}>
                   {request.place_name || formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true })}
                 </a>
                 <div style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
