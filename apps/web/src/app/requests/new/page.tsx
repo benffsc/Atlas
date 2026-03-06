@@ -609,13 +609,13 @@ function NewRequestForm() {
         traps_overnight_safe: trapsOvernightSafe,
         access_without_contact: accessWithoutContact,
         // About the Cats
-        estimated_cat_count: estimatedCatCount || null,
-        peak_count: peakCount || null,  // MIG_2532: Beacon critical
-        wellness_cat_count: hasWellness ? (wellnessCatCount || null) : null,
+        estimated_cat_count: estimatedCatCount !== "" ? estimatedCatCount : null,
+        peak_count: peakCount !== "" ? peakCount : null,  // MIG_2532: Beacon critical
+        wellness_cat_count: hasWellness ? (wellnessCatCount !== "" ? wellnessCatCount : null) : null,
         count_confidence: countConfidence,
         colony_duration: colonyDuration,
         awareness_duration: awarenessDuration,  // MIG_2532
-        eartip_count: showExactEartipCount ? (eartipCount || null) : null,
+        eartip_count: showExactEartipCount ? (eartipCount !== "" ? eartipCount : null) : null,
         eartip_estimate: !showExactEartipCount ? eartipEstimate : null,
         cats_are_friendly: catsAreFriendly,
         // MIG_2532: Third-party tracking
@@ -625,8 +625,8 @@ function NewRequestForm() {
         county: county || "Sonoma",
         // Kittens
         has_kittens: hasKittens,
-        kitten_count: hasKittens ? (kittenCount || null) : null,
-        kitten_age_weeks: hasKittens ? (kittenAgeWeeks || null) : null,
+        kitten_count: hasKittens ? (kittenCount !== "" ? kittenCount : null) : null,
+        kitten_age_weeks: hasKittens ? (kittenAgeWeeks !== "" ? kittenAgeWeeks : null) : null,
         kitten_age_estimate: hasKittens ? (kittenAgeEstimate || null) : null,
         kitten_mixed_ages_description: hasKittens && kittenAgeEstimate === "mixed" ? (kittenMixedAgesDescription || null) : null,
         kitten_behavior: hasKittens ? (kittenBehavior || null) : null,
@@ -666,9 +666,9 @@ function NewRequestForm() {
         entry_mode: entryMode,
         initial_status: entryMode === "complete" ? "completed" : "new",
         completion_data: entryMode === "complete" ? {
-          final_cat_count: completionData.final_cat_count || null,
-          eartips_observed: completionData.eartips_observed || null,
-          cats_altered_today: completionData.cats_altered_today || null,
+          final_cat_count: completionData.final_cat_count ?? null,
+          eartips_observed: completionData.eartips_observed ?? null,
+          cats_altered_today: completionData.cats_altered_today ?? null,
           observation_notes: completionData.observation_notes || null,
           colony_complete: completionData.colony_complete,
           requester_followup: completionData.requester_followup,
@@ -1879,7 +1879,7 @@ function NewRequestForm() {
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     value={peakCount}
                     onChange={(e) =>
                       setPeakCount(e.target.value ? parseInt(e.target.value) : "")
@@ -1968,7 +1968,7 @@ function NewRequestForm() {
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     value={wellnessCatCount}
                     onChange={(e) =>
                       setWellnessCatCount(e.target.value ? parseInt(e.target.value) : "")
