@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
         FROM ops.appointments a
         WHERE a.cat_id IS NOT NULL
           AND a.appointment_date >= date_trunc('month', CURRENT_DATE)
+          AND a.is_alteration = TRUE
       ),
       stale AS (
         SELECT COUNT(*)::int AS cnt
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(DISTINCT a.cat_id)::int AS cnt
         FROM ops.appointments a
         WHERE a.cat_id IS NOT NULL
+          AND a.is_alteration = TRUE
           AND a.appointment_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
           AND a.appointment_date < date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
                                    + (CURRENT_DATE - date_trunc('month', CURRENT_DATE)::date) * INTERVAL '1 day'

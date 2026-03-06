@@ -214,23 +214,20 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
 
     pins.forEach((pin: DashboardMapPin) => {
       const color = getPinColor(pin);
-      const marker = L.circleMarker([pin.lat, pin.lng], {
-        radius: 7,
-        fillColor: color,
-        color: "#fff",
-        weight: 1.5,
-        opacity: 1,
-        fillOpacity: 0.85,
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+        popupAnchor: [0, -8],
       });
+
+      const marker = L.marker([pin.lat, pin.lng], { icon });
 
       marker.bindPopup(buildPopupHtml(pin), {
         className: "dashboard-map-popup",
         closeButton: true,
         maxWidth: 300,
-      });
-
-      marker.on("click", () => {
-        marker.openPopup();
       });
 
       cluster.addLayer(marker);
@@ -296,7 +293,7 @@ export function DashboardMap({ pins, onPinClick, onLayerChange, onSearch, active
       )}
       <div
         ref={containerRef}
-        style={{ width: "100%", height: "100%", minHeight: "400px" }}
+        style={{ width: "100%", height: "100%", minHeight: "500px" }}
       />
       <a href="/map" className="dashboard-map-fullscreen-link">
         Open Full Map

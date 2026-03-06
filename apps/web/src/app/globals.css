@@ -829,7 +829,7 @@ button:disabled {
    ============================================================================ */
 
 .dashboard-command-center {
-  max-width: 1400px;
+  max-width: 95vw;
   margin: 0 auto;
 }
 
@@ -921,16 +921,16 @@ button:disabled {
   display: flex;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
-  min-height: 500px;
+  min-height: 550px;
 }
 
 .dashboard-action-panel {
-  flex: 0 0 38%;
+  flex: 0 0 420px;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   overflow-y: auto;
-  max-height: 600px;
+  max-height: 700px;
 }
 
 .dashboard-map-container {
@@ -939,7 +939,7 @@ button:disabled {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border);
-  min-height: 400px;
+  min-height: 500px;
   isolation: isolate;
   z-index: 0;
 }
@@ -1185,6 +1185,30 @@ button:disabled {
   .kpi-card {
     min-width: 120px;
     flex: 0 0 auto;
+  }
+}
+
+/* Ultra-wide / 4K scaling */
+@media (min-width: 2000px) {
+  .dashboard-split {
+    min-height: 700px;
+  }
+
+  .dashboard-action-panel {
+    flex: 0 0 500px;
+    max-height: 800px;
+  }
+
+  .dashboard-map-container {
+    min-height: 650px;
+  }
+
+  .kpi-value {
+    font-size: 2.25rem;
+  }
+
+  .kpi-label {
+    font-size: 1rem;
   }
 }
 
