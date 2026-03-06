@@ -87,6 +87,9 @@ const ADDRESS_PATTERNS = [
  */
 const SITE_PATTERNS = [
   /\b(ranch|farm|estate|vineyard|winery)\b/i,
+  /\b(hotel|motel|inn|lodge|suites|resort)\b/i,
+  /\b(school|academy)\b/i,
+  /\b(apartments?|condos?|townhomes?)\b/i,
   /\bffsc\b/i,
   /\bmhp\b/i, // Mobile Home Park
 ];
@@ -103,11 +106,22 @@ const BUSINESS_KEYWORDS = [
   'paving', 'masonry', 'concrete', 'drywall', 'insulation', 'siding', 'gutters',
   'pest', 'locksmith', 'towing', 'welding', 'machining', 'printing', 'signs',
   'graphics', 'garden', 'nursery',
+  'factory', 'kennel', 'landfill', 'recycling',
   // Auto/mechanical
-  'auto', 'automotive', 'mechanic',
+  'auto', 'automotive', 'mechanic', 'truck', 'peterbilt',
   // Agricultural businesses
   'winery', 'vineyard', 'vineyards', 'poultry', 'livestock', 'auction',
   'dairy', 'orchard',
+  // Hospitality
+  'hotel', 'motel', 'inn', 'lodge', 'resort', 'suites',
+  // Education
+  'school', 'academy', 'university', 'college', 'elementary', 'preschool',
+  // Residential
+  'condos', 'condominiums', 'townhomes', 'townhouses',
+  // Commercial
+  'campus', 'complex', 'plaza', 'mall', 'station', 'stop',
+  // Nonprofit/institutional
+  'church', 'temple', 'library', 'museum', 'cemetery',
   // Corporate indicators
   'corporation',
 ];
@@ -117,6 +131,7 @@ const BUSINESS_KEYWORDS = [
  */
 const GARBAGE_PATTERNS = [
   /^(unknown|n\/a|na|none|test|tbd|tba|owner|client|placeholder|rebooking|\?+|\-+)$/i,
+  /^duplicate\s+report$/i,
   /^[0-9\s\-\.\(\)]+$/, // Only numbers/punctuation
 ];
 
@@ -287,13 +302,19 @@ export function classifyOwnerName(displayName: string): NameClassification {
   }
 
   // 2. Check FFSC site patterns first (before business keywords)
-  for (const pattern of SITE_PATTERNS) {
-    if (pattern.test(name)) {
-      // If has common first name, might be a person (e.g., "John Ranch" surname)
-      if (!hasCommonFirstName) {
-        return 'site_name';
-      }
+  if (SITE_PATTERNS.some(p => p.test(name))) {
+    // 3+ words with site keyword → always site_name (MIG_2498)
+    if (words.length >= 3) {
+      return 'site_name';
     }
+    // 2-word: if first word is a common first name AND last word is a plausible surname,
+    // fall through to person checks. "Mary Lodge" → person. "Mary Hotel" → site.
+    if (!hasCommonFirstName) {
+      return 'site_name';
+    }
+    // Has common first name — check if last word could be a surname
+    // If not a known surname-like word, classify as site
+    // (Full surname check is server-side; client uses a simple heuristic)
   }
 
   // 3. Check for business keywords
