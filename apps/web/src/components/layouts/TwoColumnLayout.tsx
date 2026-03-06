@@ -59,41 +59,52 @@ export function TwoColumnLayout({
         : "65%";
 
   const sidebarStyles = stickySidebar
-    ? { position: "sticky" as const, top: stickyHeader ? "5rem" : "1rem", alignSelf: "flex-start" }
+    ? { position: "sticky" as const, top: stickyHeader ? "5rem" : "1rem", alignSelf: "flex-start" as const }
     : {};
 
+  const sidebarBaseStyle = {
+    width: sidebarWidth,
+    background: "var(--section-bg)",
+    overflowY: "auto" as const,
+    padding: "1rem",
+    ...sidebarStyles,
+  };
+
   return (
-    <div className={`flex flex-col min-h-screen ${className}`}>
+    <div
+      className={className}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+      }}
+    >
       {/* Header */}
       <header
-        className={`bg-white border-b px-6 py-4 ${stickyHeader ? "sticky top-0 z-10" : ""}`}
+        style={{
+          background: "var(--background)",
+          borderBottom: "1px solid var(--border)",
+          padding: "1rem 1.5rem",
+          ...(stickyHeader ? { position: "sticky", top: 0, zIndex: 10 } : {}),
+        }}
       >
         {header}
       </header>
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {sidebarPosition === "left" && (
-          <aside
-            className="border-r bg-gray-50 overflow-y-auto p-4"
-            style={{ width: sidebarWidth, ...sidebarStyles }}
-          >
+          <aside style={{ ...sidebarBaseStyle, borderRight: "1px solid var(--border)" }}>
             {sidebar}
           </aside>
         )}
 
-        <main
-          className="overflow-y-auto p-6"
-          style={{ width: mainWidth }}
-        >
+        <main style={{ width: mainWidth, overflowY: "auto", padding: "1.5rem" }}>
           {main}
         </main>
 
         {sidebarPosition === "right" && (
-          <aside
-            className="border-l bg-gray-50 overflow-y-auto p-4"
-            style={{ width: sidebarWidth, ...sidebarStyles }}
-          >
+          <aside style={{ ...sidebarBaseStyle, borderLeft: "1px solid var(--border)" }}>
             {sidebar}
           </aside>
         )}
@@ -101,7 +112,11 @@ export function TwoColumnLayout({
 
       {/* Optional footer - usually tabs */}
       {footer && (
-        <footer className="bg-white border-t px-6 py-2">
+        <footer style={{
+          background: "var(--background)",
+          borderTop: "1px solid var(--border)",
+          padding: "0.5rem 1.5rem",
+        }}>
           {footer}
         </footer>
       )}

@@ -61,9 +61,10 @@ export function Section({
   padding = "md",
 }: SectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  const [headerHovered, setHeaderHovered] = useState(false);
 
-  const paddingClass = padding === "sm" ? "p-3" : "p-4";
-  const headerPaddingClass = padding === "sm" ? "px-3 py-2" : "px-4 py-3";
+  const pad = padding === "sm" ? "0.75rem" : "1rem";
+  const headerPad = padding === "sm" ? "0.5rem 0.75rem" : "0.75rem 1rem";
 
   const handleToggle = () => {
     if (collapsible) {
@@ -72,13 +73,31 @@ export function Section({
   };
 
   return (
-    <div className={`bg-white rounded-lg border shadow-sm ${className}`}>
+    <div
+      className={className}
+      style={{
+        background: "var(--background)",
+        borderRadius: "8px",
+        border: "1px solid var(--border)",
+        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+      }}
+    >
       {/* Header */}
       <div
-        className={`flex items-center justify-between ${headerPaddingClass} ${
-          !isCollapsed ? "border-b" : ""
-        } ${collapsible ? "cursor-pointer hover:bg-gray-50" : ""}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: headerPad,
+          borderBottom: !isCollapsed ? "1px solid var(--border)" : "none",
+          cursor: collapsible ? "pointer" : undefined,
+          background: collapsible && headerHovered ? "var(--section-bg)" : "transparent",
+          borderRadius: isCollapsed ? "8px" : "8px 8px 0 0",
+          transition: "background 0.15s",
+        }}
         onClick={collapsible ? handleToggle : undefined}
+        onMouseOver={collapsible ? () => setHeaderHovered(true) : undefined}
+        onMouseOut={collapsible ? () => setHeaderHovered(false) : undefined}
         role={collapsible ? "button" : undefined}
         tabIndex={collapsible ? 0 : undefined}
         onKeyDown={
@@ -92,22 +111,26 @@ export function Section({
             : undefined
         }
       >
-        <div className="flex items-center gap-2">
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {collapsible && (
-            <span className="text-gray-400 text-xs">
-              {isCollapsed ? "▶" : "▼"}
+            <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
+              {isCollapsed ? "\u25B6" : "\u25BC"}
             </span>
           )}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+            <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+              {title}
+            </h3>
             {subtitle && (
-              <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.125rem", margin: 0 }}>
+                {subtitle}
+              </p>
             )}
           </div>
         </div>
         {actions && !isCollapsed && (
           <div
-            className="flex items-center gap-2"
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
             onClick={(e) => e.stopPropagation()}
           >
             {actions}
@@ -117,7 +140,7 @@ export function Section({
 
       {/* Content */}
       {!isCollapsed && (
-        <div className={paddingClass}>
+        <div style={{ padding: pad }}>
           {isEmpty && emptyState ? emptyState : children}
         </div>
       )}

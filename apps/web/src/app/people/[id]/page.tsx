@@ -10,6 +10,8 @@ import { QuickNotes, BackButton, EditHistory, EntityLink, QuickActions, usePerso
 import { TrapperBadge, VolunteerBadge, VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/components/badges";
 import { TrapperStatsCard, PersonPlaceGoogleContext } from "@/components/cards";
 import { SendEmailModal } from "@/components/modals";
+import { EntityPreviewModal } from "@/components/search";
+import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { MediaGallery } from "@/components/media";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
@@ -273,6 +275,7 @@ export default function PersonDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("details");
+  const preview = useEntityPreviewModal();
 
   // Edit mode states
   const [editingContact, setEditingContact] = useState(false);
@@ -905,6 +908,9 @@ export default function PersonDetailPage() {
         />
       </div>
 
+      {/* ClinicHQ Notes (elevated for quick access) */}
+      <ClinicNotesSection personId={id} />
+
       {/* Trapper Stats (if trapper) */}
       {trapperInfo && (
         <Section title="Trapper Statistics" className="mb-4">
@@ -1078,10 +1084,7 @@ export default function PersonDetailPage() {
         <div style={{ padding: "1rem" }}>
           <TabPanel tabId="details" activeTab={activeTab}>
               {/* Clinic History */}
-              <ClinicHistorySection personId={id} />
-
-              {/* ClinicHQ Notes */}
-              <ClinicNotesSection personId={id} />
+              <ClinicHistorySection personId={id} onCatPreview={(catId) => preview.open("cat", catId)} />
 
               {/* Location Context */}
               <PersonPlaceGoogleContext personId={id} className="mt-4" />
@@ -1122,16 +1125,17 @@ export default function PersonDetailPage() {
                       <a
                         key={req.request_id}
                         href={`/requests/${req.request_id}`}
+                        onClick={preview.handleClick("request", req.request_id)}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "0.75rem",
                           padding: "0.75rem 1rem",
-                          background: "#f8f9fa",
+                          background: "var(--card-bg)",
                           borderRadius: "8px",
                           textDecoration: "none",
                           color: "inherit",
-                          border: "1px solid #dee2e6",
+                          border: "1px solid var(--border)",
                         }}
                       >
                         <StatusBadge status={req.status} />
@@ -1167,7 +1171,7 @@ export default function PersonDetailPage() {
                 {person.aliases && person.aliases.length > 0 ? (
                   <table style={{ width: "100%", fontSize: "0.875rem" }}>
                     <thead>
-                      <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
                         <th style={{ padding: "0.5rem 0" }}>Name</th>
                         <th style={{ padding: "0.5rem 0" }}>Source</th>
                         <th style={{ padding: "0.5rem 0" }}>Date</th>
@@ -1180,7 +1184,7 @@ export default function PersonDetailPage() {
                           alias.source_table === "manual_alias" ? "Manual" :
                           alias.source_system || "System";
                         return (
-                          <tr key={alias.alias_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <tr key={alias.alias_id} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "0.5rem 0" }}>{alias.name_raw}</td>
                             <td style={{ padding: "0.5rem 0" }}>
                               <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
@@ -1274,7 +1278,7 @@ export default function PersonDetailPage() {
                   </p>
                   <table style={{ width: "100%", fontSize: "0.875rem" }}>
                     <thead>
-                      <tr style={{ textAlign: "left", borderBottom: "1px solid #dee2e6" }}>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
                         <th style={{ padding: "0.5rem 0" }}>Type</th>
                         <th style={{ padding: "0.5rem 0" }}>Value</th>
                         <th style={{ padding: "0.5rem 0" }}>Source</th>
@@ -1282,7 +1286,7 @@ export default function PersonDetailPage() {
                     </thead>
                     <tbody>
                       {person.identifiers.map((pid, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                        <tr key={idx} style={{ borderBottom: "1px solid var(--border)" }}>
                           <td style={{ padding: "0.5rem 0" }}>
                             <span className="badge" style={{ background: "#6c757d", color: "#fff", fontSize: "0.7rem" }}>
                               {pid.id_type}
@@ -1532,6 +1536,14 @@ export default function PersonDetailPage() {
         placeholders={{
           first_name: person.display_name?.split(" ")[0] || "",
         }}
+      />
+
+      {/* Entity Preview Modal */}
+      <EntityPreviewModal
+        isOpen={preview.isOpen}
+        onClose={preview.close}
+        entityType={preview.entityType}
+        entityId={preview.entityId}
       />
     </>
   );

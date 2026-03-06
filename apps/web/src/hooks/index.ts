@@ -40,3 +40,6 @@ export {
 
 // URL state management
 export { useUrlFilters } from "./useUrlFilters";
+
+// Entity preview modal
+export { useEntityPreviewModal } from "./useEntityPreviewModal";

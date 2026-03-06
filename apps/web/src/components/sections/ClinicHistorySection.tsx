@@ -24,6 +24,8 @@ interface AppointmentRow {
 interface ClinicHistorySectionProps {
   personId?: string;
   placeId?: string;
+  /** Callback when cat name is clicked (for preview modal) */
+  onCatPreview?: (catId: string) => void;
 }
 
 const categoryColors: Record<string, string> = {
@@ -41,7 +43,7 @@ function formatDate(dateStr: string): string {
 
 const INITIAL_DISPLAY = 10;
 
-export default function ClinicHistorySection({ personId, placeId }: ClinicHistorySectionProps) {
+export default function ClinicHistorySection({ personId, placeId, onCatPreview }: ClinicHistorySectionProps) {
   const [appointments, setAppointments] = useState<AppointmentRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -161,7 +163,13 @@ export default function ClinicHistorySection({ personId, placeId }: ClinicHistor
                       <div style={{ minWidth: 0 }}>
                         <a
                           href={`/cats/${appt.cat_id}`}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onCatPreview && !e.metaKey && !e.ctrlKey) {
+                              e.preventDefault();
+                              onCatPreview(appt.cat_id!);
+                            }
+                          }}
                           style={{ color: '#0d6efd', textDecoration: 'none', fontWeight: 500, fontSize: '0.85rem' }}
                           onMouseOver={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
                           onMouseOut={(e) => { e.currentTarget.style.textDecoration = 'none'; }}

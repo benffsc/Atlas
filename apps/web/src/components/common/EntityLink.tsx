@@ -43,6 +43,8 @@ interface EntityLinkProps {
   highlightColor?: string;
   /** Additional content to render below the label */
   children?: ReactNode;
+  /** Optional click handler (e.g., for preview modal) */
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 /**
@@ -59,6 +61,7 @@ export function EntityLink({
   highlighted,
   highlightColor = "#198754",
   children,
+  onClick,
 }: EntityLinkProps) {
   // Auto-highlight for clinichq sources if not explicitly set
   const isHighlighted = highlighted ?? (dataSource === "clinichq");
@@ -84,6 +87,7 @@ export function EntityLink({
     <a
       href={href}
       style={baseStyle}
+      onClick={onClick}
       onMouseOver={(e) => {
         e.currentTarget.style.borderColor = "#adb5bd";
       }}

@@ -44,7 +44,7 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
       style={{
         display: "flex",
         gap: "0.25rem",
-        borderBottom: "2px solid #e5e7eb",
+        borderBottom: "2px solid var(--border-default)",
         marginBottom: "1rem",
       }}
     >
@@ -61,10 +61,10 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
               padding,
               fontSize,
               fontWeight: 600,
-              color: isActive ? "#166534" : "#6b7280",
-              background: isActive ? "#f0fdf4" : "transparent",
+              color: isActive ? "var(--tab-active-text)" : "var(--tab-inactive-text)",
+              background: isActive ? "var(--tab-active-bg)" : "transparent",
               border: "none",
-              borderBottom: isActive ? "2px solid #166534" : "2px solid transparent",
+              borderBottom: isActive ? "2px solid var(--tab-active-border)" : "2px solid transparent",
               marginBottom: "-2px",
               cursor: "pointer",
               display: "flex",
@@ -78,8 +78,8 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
             {tab.count !== undefined && (
               <span
                 style={{
-                  background: isActive ? "#166534" : "#d1d5db",
-                  color: isActive ? "#fff" : "#4b5563",
+                  background: isActive ? "var(--tab-badge-active-bg)" : "var(--tab-badge-inactive-bg)",
+                  color: isActive ? "var(--tab-badge-active-text)" : "var(--tab-badge-inactive-text)",
                   padding: "0.1rem 0.4rem",
                   borderRadius: "999px",
                   fontSize: "0.75rem",

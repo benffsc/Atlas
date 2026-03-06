@@ -51,6 +51,16 @@
   --section-bg: #f8f9fa;
   --section-text: var(--foreground);
 
+  /* Tab bar colors */
+  --tab-active-text: #166534;
+  --tab-active-bg: #f0fdf4;
+  --tab-active-border: #166534;
+  --tab-inactive-text: #6b7280;
+  --tab-badge-active-bg: #166534;
+  --tab-badge-active-text: #ffffff;
+  --tab-badge-inactive-bg: #d1d5db;
+  --tab-badge-inactive-text: #4b5563;
+
   /* Layout dimensions */
   --topbar-height: 56px;
 
@@ -122,6 +132,16 @@
     /* Section backgrounds */
     --section-bg: #1a1a1a;
     --section-text: var(--foreground);
+
+    /* Tab bar colors (dark mode) */
+    --tab-active-text: #86efac;
+    --tab-active-bg: rgba(134, 239, 172, 0.1);
+    --tab-active-border: #86efac;
+    --tab-inactive-text: #9ca3af;
+    --tab-badge-active-bg: #86efac;
+    --tab-badge-active-text: #0a0a0a;
+    --tab-badge-inactive-bg: #4b5563;
+    --tab-badge-inactive-text: #d1d5db;
   }
 }
 
