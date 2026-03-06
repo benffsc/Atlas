@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
         SELECT 1 FROM sot.person_dedup_candidates ppd
         WHERE ppd.status IN ('kept_separate', 'dismissed')
           AND (
-            (ppd.person_id = c.duplicate_person_id AND ppd.potential_match_id = c.canonical_person_id)
-            OR (ppd.person_id = c.canonical_person_id AND ppd.potential_match_id = c.duplicate_person_id)
+            (ppd.person_id_1 = c.duplicate_person_id AND ppd.person_id_2 = c.canonical_person_id)
+            OR (ppd.person_id_1 = c.canonical_person_id AND ppd.person_id_2 = c.duplicate_person_id)
           )
       )
       ${tierClause}
@@ -168,38 +168,38 @@ export async function POST(request: NextRequest) {
             [pair.duplicate_person_id, pair.canonical_person_id, "admin_person_dedup", "staff"]
           );
 
-          // Update potential_person_duplicates if entry exists
+          // Update person_dedup_candidates if entry exists
           await queryOne(
             `UPDATE sot.person_dedup_candidates
-             SET status = 'merged', resolved_at = NOW(), resolved_by = 'staff'
+             SET status = 'merged', reviewed_at = NOW(), reviewed_by = 'staff'
              WHERE status = 'pending'
                AND (
-                 (person_id = $1 AND potential_match_id = $2)
-                 OR (person_id = $2 AND potential_match_id = $1)
+                 (person_id_1 = $1 AND person_id_2 = $2)
+                 OR (person_id_1 = $2 AND person_id_2 = $1)
                )`,
             [pair.duplicate_person_id, pair.canonical_person_id]
           );
 
           results.push({ ...pair, success: true });
         } else {
-          // keep_separate or dismiss — record in potential_person_duplicates
+          // keep_separate or dismiss — record in person_dedup_candidates
           await queryOne(
             `INSERT INTO sot.person_dedup_candidates (
-               person_id, potential_match_id, match_type, matched_identifier,
-               new_name, existing_name, name_similarity,
-               status, resolved_at, resolved_by
+               person_id_1, person_id_2,
+               similarity_score, match_reasons,
+               status, reviewed_at, reviewed_by
              )
              SELECT
-               $1, $2, 'admin_dedup_review', '',
-               p1.display_name, p2.display_name,
+               $1, $2,
                sot.name_similarity(p1.display_name, p2.display_name),
+               jsonb_build_object('source', 'admin_dedup_review'),
                $3, NOW(), 'staff'
              FROM sot.people p1, sot.people p2
              WHERE p1.person_id = $1 AND p2.person_id = $2
-             ON CONFLICT (person_id, potential_match_id) DO UPDATE SET
+             ON CONFLICT (person_id_1, person_id_2) DO UPDATE SET
                status = $3,
-               resolved_at = NOW(),
-               resolved_by = 'staff'`,
+               reviewed_at = NOW(),
+               reviewed_by = 'staff'`,
             [pair.duplicate_person_id, pair.canonical_person_id, action]
           );
 

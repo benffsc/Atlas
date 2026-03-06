@@ -540,31 +540,26 @@ export async function resolvePlaceByAddress(params: {
     };
   }
 
-  // Create new place
+  // Create new place via centralized function (handles address creation, dedup, sot_address_id)
   const displayName = params.name || normalizedAddress;
 
-  const newPlace = await queryOne<{ place_id: string }>(`
-    INSERT INTO sot.places (
-      display_name,
-      raw_address,
-      latitude,
-      longitude,
-      source_system,
-      source_record_id,
-      created_at,
-      updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-    RETURNING place_id
+  const newPlaceId = await queryOne<{ find_or_create_place_deduped: string }>(`
+    SELECT trapper.find_or_create_place_deduped(
+      $1, -- p_formatted_address
+      $2, -- p_display_name
+      $3, -- p_lat
+      $4, -- p_lng
+      $5  -- p_source_system
+    )
   `, [
-    displayName,
     normalizedAddress,
+    displayName,
     params.lat || null,
     params.lng || null,
     params.sourceSystem,
-    params.sourceRecordId || null,
   ]);
 
-  if (!newPlace) {
+  if (!newPlaceId?.find_or_create_place_deduped) {
     return {
       placeId: null,
       status: "rejected",
@@ -573,7 +568,7 @@ export async function resolvePlaceByAddress(params: {
   }
 
   return {
-    placeId: newPlace.place_id,
+    placeId: newPlaceId.find_or_create_place_deduped,
     status: "created",
   };
 }
