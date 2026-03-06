@@ -251,15 +251,88 @@ export interface SearchState {
   navigatedLocation: NavigatedLocation | null;
 }
 
-// Layer configurations
+// Layer configurations — atlas sub-layers (exclusive/radio behavior in UI)
 export const PRIMARY_LAYER_CONFIGS: LayerConfig[] = [
   {
-    id: "atlas_pins",
-    label: "Atlas Data",
+    id: "atlas_all",
+    label: "All Places",
     icon: "📍",
     color: "#3b82f6",
-    description: "Places, people, cats, and history",
+    description: "All atlas places",
     defaultEnabled: true,
+  },
+  {
+    id: "atlas_disease",
+    label: "Disease Risk",
+    icon: "🦠",
+    color: "#ea580c",
+    description: "Places with disease risk",
+    defaultEnabled: false,
+  },
+  {
+    id: "atlas_watch",
+    label: "Watch List",
+    icon: "👁",
+    color: "#8b5cf6",
+    description: "Watch list places",
+    defaultEnabled: false,
+  },
+  {
+    id: "atlas_needs_tnr",
+    label: "Needs TNR",
+    icon: "🎯",
+    color: "#dc2626",
+    description: "Places needing TNR",
+    defaultEnabled: false,
+  },
+  {
+    id: "atlas_needs_trapper",
+    label: "Needs Trapper",
+    icon: "🪤",
+    color: "#f97316",
+    description: "Places needing trapper assignment",
+    defaultEnabled: false,
+  },
+  // Disease filter sub-layers (checkbox behavior, only visible when atlas_disease is active)
+  {
+    id: "dis_felv",
+    label: "FeLV",
+    icon: "🦠",
+    color: "#dc2626",
+    description: "FeLV positive places",
+    defaultEnabled: false,
+  },
+  {
+    id: "dis_fiv",
+    label: "FIV",
+    icon: "🦠",
+    color: "#ea580c",
+    description: "FIV positive places",
+    defaultEnabled: false,
+  },
+  {
+    id: "dis_ringworm",
+    label: "Ringworm",
+    icon: "🦠",
+    color: "#ca8a04",
+    description: "Ringworm positive places",
+    defaultEnabled: false,
+  },
+  {
+    id: "dis_heartworm",
+    label: "Heartworm",
+    icon: "🦠",
+    color: "#7c3aed",
+    description: "Heartworm positive places",
+    defaultEnabled: false,
+  },
+  {
+    id: "dis_panleuk",
+    label: "Panleukopenia",
+    icon: "🦠",
+    color: "#be185d",
+    description: "Panleukopenia positive places",
+    defaultEnabled: false,
   },
 ];
 

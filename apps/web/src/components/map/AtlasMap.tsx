@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -73,16 +73,40 @@ function useIsMobile(breakpoint = 768) {
 
 // All type definitions and layer configs are now imported from @/components/map
 
+/** Atlas sub-layer IDs — any of these being ON means atlas data is shown */
+const ATLAS_SUB_LAYER_IDS = ["atlas_all", "atlas_disease", "atlas_watch", "atlas_needs_tnr", "atlas_needs_trapper"] as const;
+/** Disease filter layer IDs */
+const DISEASE_FILTER_IDS = ["dis_felv", "dis_fiv", "dis_ringworm", "dis_heartworm", "dis_panleuk"] as const;
+
 /** Grouped layer definitions for the full Atlas map */
-const ATLAS_MAP_LAYER_GROUPS: LayerGroup[] = [
+const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
   {
-    id: "primary",
-    label: "Primary Data",
+    id: "atlas_data",
+    label: "Atlas Data",
     icon: "\u{1F4CD}",
     color: "#3b82f6",
     defaultExpanded: true,
+    exclusive: true,
     children: [
-      { id: "atlas_pins", label: "Atlas Data", color: "#3b82f6", defaultEnabled: true },
+      { id: "atlas_all", label: "All Places", color: "#3b82f6", defaultEnabled: true },
+      { id: "atlas_disease", label: "Disease Risk", color: "#ea580c", defaultEnabled: false },
+      { id: "atlas_watch", label: "Watch List", color: "#8b5cf6", defaultEnabled: false },
+      { id: "atlas_needs_tnr", label: "Needs TNR", color: "#dc2626", defaultEnabled: false },
+      { id: "atlas_needs_trapper", label: "Needs Trapper", color: "#f97316", defaultEnabled: false },
+    ],
+  },
+  {
+    id: "disease_filter",
+    label: "Disease Filter",
+    icon: "\u{1F9A0}",
+    color: "#ea580c",
+    defaultExpanded: true,
+    children: [
+      { id: "dis_felv", label: "FeLV", color: "#dc2626", defaultEnabled: false },
+      { id: "dis_fiv", label: "FIV", color: "#ea580c", defaultEnabled: false },
+      { id: "dis_ringworm", label: "Ringworm", color: "#ca8a04", defaultEnabled: false },
+      { id: "dis_heartworm", label: "Heartworm", color: "#7c3aed", defaultEnabled: false },
+      { id: "dis_panleuk", label: "Panleukopenia", color: "#be185d", defaultEnabled: false },
     ],
   },
   {
@@ -147,10 +171,39 @@ export default function AtlasMap() {
   const [dataCoverage, setDataCoverage] = useState<DataCoverageZone[]>([]);
   const [summary, setSummary] = useState<MapSummary | null>(null);
 
-  // Filters for atlas_pins layer (types imported from @/components/map)
-  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
-  const [dataFilter, setDataFilter] = useState<DataFilter>("all");
-  const [diseaseFilter, setDiseaseFilter] = useState<string[]>([]);
+  // Derived filter values from enabledLayers (replaces old riskFilter/dataFilter/diseaseFilter state)
+  const atlasLayerEnabled = useMemo(
+    () => ATLAS_SUB_LAYER_IDS.some(id => enabledLayers[id]),
+    [enabledLayers]
+  );
+
+  const riskFilter: RiskFilter = useMemo(() => {
+    if (enabledLayers.atlas_disease) return "disease";
+    if (enabledLayers.atlas_watch) return "watch_list";
+    if (enabledLayers.atlas_needs_tnr) return "needs_tnr";
+    if (enabledLayers.atlas_needs_trapper) return "needs_trapper";
+    return "all";
+  }, [enabledLayers]);
+
+  const diseaseFilter: string[] = useMemo(() => {
+    const active: string[] = [];
+    if (enabledLayers.dis_felv) active.push("felv");
+    if (enabledLayers.dis_fiv) active.push("fiv");
+    if (enabledLayers.dis_ringworm) active.push("ringworm");
+    if (enabledLayers.dis_heartworm) active.push("heartworm");
+    if (enabledLayers.dis_panleuk) active.push("panleukopenia");
+    return active;
+  }, [enabledLayers]);
+
+  const dataFilter: DataFilter = "all";
+
+  // Conditionally show disease filter group (only when Disease Risk sub-layer is active)
+  const atlasMapLayerGroups = useMemo(() => {
+    if (!enabledLayers.atlas_disease) {
+      return ATLAS_MAP_LAYER_GROUPS_BASE.filter(g => g.id !== "disease_filter");
+    }
+    return ATLAS_MAP_LAYER_GROUPS_BASE;
+  }, [enabledLayers.atlas_disease]);
 
   // Show legacy layers toggle
   // showLegacyLayers removed — GroupedLayerControl handles expand/collapse internally
@@ -448,9 +501,21 @@ export default function AtlasMap() {
   }, [selectedPlaceId, atlasPins, places, navigatedLocation]);
 
   // Fetch map data using SWR for caching and deduplication
-  const layers = Object.entries(enabledLayers)
-    .filter(([, enabled]) => enabled)
-    .map(([id]) => id);
+  // Map atlas sub-layer IDs → "atlas_pins" API layer. Disease filter IDs are NOT API layers.
+  const layers = useMemo(() => {
+    const apiLayers = new Set<string>();
+    for (const [id, enabled] of Object.entries(enabledLayers)) {
+      if (!enabled) continue;
+      if ((ATLAS_SUB_LAYER_IDS as readonly string[]).includes(id)) {
+        apiLayers.add("atlas_pins");
+      } else if ((DISEASE_FILTER_IDS as readonly string[]).includes(id)) {
+        // Disease filter IDs are client-side only, not API layers
+      } else {
+        apiLayers.add(id);
+      }
+    }
+    return Array.from(apiLayers);
+  }, [enabledLayers]);
 
   const {
     data: mapData,
@@ -1013,7 +1078,7 @@ export default function AtlasMap() {
     if (layersRef.current.atlas_pins) {
       mapRef.current.removeLayer(layersRef.current.atlas_pins);
     }
-    if (!enabledLayers.atlas_pins || atlasPins.length === 0) return;
+    if (!atlasLayerEnabled || atlasPins.length === 0) return;
 
     // Active pins cluster — full-size pins with disease/watch badges
     const layer = leafletCjsRef.current.markerClusterGroup({
@@ -1373,7 +1438,7 @@ export default function AtlasMap() {
     const combined = L.layerGroup([layer, refLayer]);
     combined.addTo(mapRef.current);
     layersRef.current.atlas_pins = combined;
-  }, [atlasPins, enabledLayers.atlas_pins]);
+  }, [atlasPins, atlasLayerEnabled]);
 
   // Search functionality - uses fuzzy search API for better matching
   useEffect(() => {
@@ -1713,9 +1778,31 @@ export default function AtlasMap() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigatedLocation]);
 
-  const toggleLayer = (layerId: string) => {
-    setEnabledLayers(prev => ({ ...prev, [layerId]: !prev[layerId] }));
-  };
+  const toggleLayer = useCallback((layerId: string) => {
+    setEnabledLayers(prev => {
+      const next = { ...prev };
+
+      // Find which group this layer belongs to
+      const group = ATLAS_MAP_LAYER_GROUPS_BASE.find(g =>
+        g.children.some(c => c.id === layerId)
+      );
+
+      if (group?.exclusive) {
+        // Radio behavior: turn off siblings, toggle this one
+        const wasOn = !!prev[layerId];
+        for (const child of group.children) {
+          next[child.id] = false;
+        }
+        // Only turn on if it wasn't already on (allow deselecting all)
+        if (!wasOn) next[layerId] = true;
+      } else {
+        // Checkbox behavior
+        next[layerId] = !prev[layerId];
+      }
+
+      return next;
+    });
+  }, []);
 
   // My Location functionality
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
@@ -1801,7 +1888,7 @@ export default function AtlasMap() {
           handleMyLocation();
           break;
         case "1":
-          toggleLayer("atlas_pins");
+          toggleLayer("atlas_all");
           break;
         case "k":
         case "K":
@@ -1898,7 +1985,7 @@ export default function AtlasMap() {
   }, []);
 
   // Calculate total counts for display
-  const totalMarkers = (enabledLayers.atlas_pins ? atlasPins.length : 0) +
+  const totalMarkers = (atlasLayerEnabled ? atlasPins.length : 0) +
     (enabledLayers.places ? places.length : 0) +
     (enabledLayers.google_pins ? googlePins.length : 0) +
     (enabledLayers.tnr_priority ? tnrPriority.length : 0) +
@@ -2359,143 +2446,24 @@ export default function AtlasMap() {
             </select>
           </div>
 
-          {/* Atlas Pins filters (only show when atlas_pins layer is enabled) */}
-          {enabledLayers.atlas_pins && (
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb" }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
-                Filter Atlas Data
-              </div>
-
-              {/* Risk filter */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Risk Level</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {[
-                    { value: "all", label: "All", color: "#6b7280" },
-                    { value: "disease", label: "Disease Risk", color: "#ea580c" },
-                    { value: "watch_list", label: "Watch List", color: "#8b5cf6" },
-                    { value: "needs_tnr", label: "Needs TNR", color: "#dc2626" },
-                    { value: "needs_trapper", label: "Needs Trapper", color: "#f97316" },
-                  ].map(({ value, label, color }) => (
-                    <button
-                      key={value}
-                      onClick={() => setRiskFilter(value as typeof riskFilter)}
-                      style={{
-                        padding: "4px 10px",
-                        fontSize: 11,
-                        border: "none",
-                        borderRadius: 12,
-                        cursor: "pointer",
-                        fontWeight: 500,
-                        background: riskFilter === value ? color : "#f3f4f6",
-                        color: riskFilter === value ? "white" : "#6b7280",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Disease type filter */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Disease Type</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {[
-                    { key: "felv", code: "F", label: "FeLV", color: "#dc2626" },
-                    { key: "fiv", code: "V", label: "FIV", color: "#ea580c" },
-                    { key: "ringworm", code: "R", label: "Ringworm", color: "#ca8a04" },
-                    { key: "heartworm", code: "H", label: "Heartworm", color: "#7c3aed" },
-                    { key: "panleukopenia", code: "P", label: "Panleuk", color: "#be185d" },
-                  ].map(({ key, code, label, color }) => {
-                    const isActive = diseaseFilter.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          setDiseaseFilter(prev =>
-                            prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-                          );
-                        }}
-                        style={{
-                          padding: "4px 10px",
-                          fontSize: 11,
-                          border: isActive ? `2px solid ${color}` : "2px solid transparent",
-                          borderRadius: 12,
-                          cursor: "pointer",
-                          fontWeight: 600,
-                          background: isActive ? color : "#f3f4f6",
-                          color: isActive ? "white" : "#6b7280",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        {code} {label}
-                      </button>
-                    );
-                  })}
-                  {diseaseFilter.length > 0 && (
-                    <button
-                      onClick={() => setDiseaseFilter([])}
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: 10,
-                        border: "none",
-                        borderRadius: 12,
-                        cursor: "pointer",
-                        fontWeight: 500,
-                        background: "#fee2e2",
-                        color: "#991b1b",
-                      }}
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Data filter */}
-              <div>
-                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>By Data Source</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "has_atlas", label: "Has Cats/Requests" },
-                    { value: "has_google", label: "Has History" },
-                    { value: "has_people", label: "Has People" },
-                  ].map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => setDataFilter(value as typeof dataFilter)}
-                      style={{
-                        padding: "4px 10px",
-                        fontSize: 11,
-                        border: "none",
-                        borderRadius: 12,
-                        cursor: "pointer",
-                        fontWeight: 500,
-                        background: dataFilter === value ? "#3b82f6" : "#f3f4f6",
-                        color: dataFilter === value ? "white" : "#6b7280",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Layer toggles — GroupedLayerControl */}
           <div style={{ padding: "12px 16px" }}>
             <GroupedLayerControl
-              groups={ATLAS_MAP_LAYER_GROUPS}
+              groups={atlasMapLayerGroups}
               enabledLayers={enabledLayers}
               onToggleLayer={toggleLayer}
               inline
               counts={{
-                atlas_pins: atlasPins.length,
+                atlas_all: atlasPins.length,
+                atlas_disease: atlasPins.filter(p => p.disease_risk).length,
+                atlas_watch: atlasPins.filter(p => p.watch_list).length,
+                atlas_needs_tnr: atlasPins.filter(p => p.cat_count > 0 && p.cat_count > p.total_altered).length,
+                atlas_needs_trapper: atlasPins.filter(p => p.needs_trapper_count > 0).length,
+                dis_felv: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "felv")).length,
+                dis_fiv: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "fiv")).length,
+                dis_ringworm: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "ringworm")).length,
+                dis_heartworm: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "heartworm")).length,
+                dis_panleuk: atlasPins.filter(p => p.disease_badges?.some(b => b.disease_key === "panleukopenia")).length,
                 places: places.length,
                 google_pins: googlePins.length,
                 tnr_priority: tnrPriority.length,
@@ -2509,13 +2477,13 @@ export default function AtlasMap() {
           </div>
 
           {/* Legend */}
-          {(enabledLayers.atlas_pins || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
+          {(atlasLayerEnabled || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
             <div style={{ padding: 16, borderTop: "1px solid #e5e7eb" }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
                 Legend
               </div>
 
-              {enabledLayers.atlas_pins && (
+              {atlasLayerEnabled && (
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Atlas Data Pins</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
