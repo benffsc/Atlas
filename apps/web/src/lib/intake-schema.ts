@@ -33,11 +33,11 @@ export const CALL_TYPES = [
 export const HANDLEABILITY_OPTIONS = [
   { value: "friendly_carrier", label: "Friendly - can use a carrier", airtable: "friendly_carrier" },
   { value: "shy_handleable", label: "Shy but handleable", airtable: "shy_handleable" },
-  { value: "feral_trap", label: "Feral - will need a trap", airtable: "feral_trap" },
+  { value: "unhandleable_trap", label: "Feral - will need a trap", airtable: "feral_trap" },
   { value: "unknown", label: "Unknown / Haven't tried", airtable: "unknown" },
   // Colony-specific
   { value: "some_friendly", label: "Some are friendly (can be carried)", airtable: "some_friendly" },
-  { value: "all_feral", label: "All are feral (need traps)", airtable: "all_feral" },
+  { value: "all_unhandleable", label: "All are feral (need traps)", airtable: "all_feral" },
 ] as const;
 
 // === COUNTY OPTIONS ===
