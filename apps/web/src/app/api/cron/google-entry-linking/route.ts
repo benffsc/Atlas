@@ -1,18 +1,14 @@
 import { NextRequest } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
-// Google Maps Entry Linking Cron Job
+// Google Maps Entry Linking Cron Job (V2)
 //
-// Daily re-evaluation of Google Maps entry linking:
-// 1. Updates nearest_place_id for all unlinked entries
-// 2. Runs tiered auto-linking for newly eligible entries
-// 3. Processes high-confidence AI suggestions
-// 4. Flags multi-unit candidates for manual review
-// 5. Logs metrics
-//
-// This is a DAILY job (heavy operation), separate from the incremental
-// linking that runs via run_all_entity_linking() every 15 minutes.
+// Daily composite-confidence linking of GM entries to Atlas places.
+// All logic lives in ops.link_gm_entries_by_proximity():
+//   Phase 1: Update nearest_place_id (500m radius)
+//   Phase 2: Composite scoring + auto-link >= 0.85
+//   Phase 3: Multi-unit flagging (never auto-link)
 //
 // Vercel Cron: Add to vercel.json:
 //   "crons": [{ "path": "/api/cron/google-entry-linking", "schedule": "0 9 * * *" }]
@@ -22,10 +18,18 @@ export const maxDuration = 120; // 2 minutes for heavy batch operations
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+interface LinkingResult {
+  auto_linked: number;
+  spot_check_logged: number;
+  multi_unit_flagged: number;
+  nearest_updated: number;
+}
+
 interface LinkingStats {
   linked: number;
-  needs_unit: number;
+  needs_unit_selection: number;
   unlinked: number;
+  total: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -38,100 +42,26 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime = Date.now();
-  const results: Record<string, number | string> = {};
 
   try {
-    // Step 1: Update nearest_place for all unlinked entries (batch)
-    // This is a heavy operation - only run daily
-    const nearestResult = await queryOne<{ updated: number }>(`
-      WITH updated AS (
-        UPDATE source.google_map_entries e
-        SET
-          nearest_place_id = nearest.place_id,
-          nearest_place_distance_m = nearest.distance_m
-        FROM (
-          SELECT DISTINCT ON (e2.entry_id)
-            e2.entry_id,
-            p.place_id,
-            ST_Distance(
-              ST_SetSRID(ST_MakePoint(e2.lng, e2.lat), 4326)::geography,
-              p.location::geography
-            ) as distance_m
-          FROM source.google_map_entries e2
-          CROSS JOIN LATERAL (
-            SELECT place_id, location
-            FROM sot.places p
-            WHERE p.merged_into_place_id IS NULL
-              AND p.location IS NOT NULL
-              AND ST_DWithin(
-                ST_SetSRID(ST_MakePoint(e2.lng, e2.lat), 4326)::geography,
-                p.location::geography,
-                500
-              )
-            ORDER BY ST_Distance(
-              ST_SetSRID(ST_MakePoint(e2.lng, e2.lat), 4326)::geography,
-              p.location::geography
-            )
-            LIMIT 1
-          ) p
-          WHERE e2.linked_place_id IS NULL
-            AND e2.place_id IS NULL
-            AND e2.lat IS NOT NULL
-        ) nearest
-        WHERE e.entry_id = nearest.entry_id
-          AND (
-            e.nearest_place_id IS NULL
-            OR e.nearest_place_id != nearest.place_id
-            OR e.nearest_place_distance_m != nearest.distance_m
-          )
-        RETURNING e.entry_id
-      )
-      SELECT COUNT(*)::int as updated FROM updated
-    `);
-    results.nearest_place_updated = nearestResult?.updated || 0;
-
-    // Step 2: Run tiered auto-linking
-    const tieredResult = await queryOne<{
-      residential_linked: number;
-      business_linked: number;
-      rural_linked: number;
-      multi_unit_flagged: number;
-      total_linked: number;
-    }>(`SELECT * FROM sot.link_google_entries_tiered(5000, false)`);
-
-    if (tieredResult) {
-      results.tiered_residential = tieredResult.residential_linked;
-      results.tiered_business = tieredResult.business_linked;
-      results.tiered_rural = tieredResult.rural_linked;
-      results.tiered_total = tieredResult.total_linked;
-      results.multi_unit_flagged = tieredResult.multi_unit_flagged;
-    }
-
-    // Step 3: Process AI suggestions
-    const aiResult = await queryOne<{ ai_linked: number }>(
-      `SELECT * FROM sot.link_google_entries_from_ai(1000, false)`
+    // Run composite-confidence linking (handles nearest update + scoring + linking)
+    const linkResult = await queryOne<LinkingResult>(
+      `SELECT * FROM ops.link_gm_entries_by_proximity(5000, false)`
     );
-    results.ai_linked = aiResult?.ai_linked || 0;
 
-    // Step 4: Flag any remaining multi-unit candidates
-    const flagResult = await queryOne<{ count: number }>(
-      `SELECT ops.flag_multi_unit_candidates() as count`
+    // Get current stats
+    const stats = await queryOne<LinkingStats>(
+      `SELECT * FROM ops.v_gm_linking_stats`
     );
-    results.additional_flagged = flagResult?.count || 0;
-
-    // Step 5: Get current stats
-    const stats = await queryOne<LinkingStats>(`
-      SELECT
-        COUNT(*) FILTER (WHERE place_id IS NOT NULL OR linked_place_id IS NOT NULL)::int as linked,
-        COUNT(*) FILTER (WHERE linked_place_id IS NULL AND place_id IS NULL AND requires_unit_selection = true)::int as needs_unit,
-        COUNT(*) FILTER (WHERE linked_place_id IS NULL AND place_id IS NULL AND COALESCE(requires_unit_selection, false) = false)::int as unlinked
-      FROM source.google_map_entries
-      WHERE lat IS NOT NULL
-    `);
 
     return apiSuccess({
-      message: `Daily Google Maps linking complete`,
-      operations: results,
+      message: "Daily Google Maps linking complete",
+      operations: {
+        auto_linked: linkResult?.auto_linked || 0,
+        spot_check_logged: linkResult?.spot_check_logged || 0,
+        multi_unit_flagged: linkResult?.multi_unit_flagged || 0,
+        nearest_updated: linkResult?.nearest_updated || 0,
+      },
       current_stats: stats,
       duration_ms: Date.now() - startTime,
     });
