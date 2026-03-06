@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApi } from "@/lib/api-client";
 import { KpiStrip, ActionPanel } from "@/components/dashboard";
-import type { DashboardMapPin } from "@/components/dashboard";
+import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 
 const DashboardMap = dynamic(
@@ -98,10 +98,23 @@ export default function Home() {
   const [loadingIntake, setLoadingIntake] = useState(true);
   const [loadingMap, setLoadingMap] = useState(true);
   const [showMyRequests, setShowMyRequests] = useState(true);
+  const [mapLayer, setMapLayer] = useState<MapLayer>("active");
+  const [mapSearch, setMapSearch] = useState("");
 
   // Entity preview modal state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewEntityId, setPreviewEntityId] = useState<string | null>(null);
+
+  // Fetch map pins (called on mount, layer change, and search)
+  const fetchMapPins = useCallback((layer: MapLayer, search: string) => {
+    setLoadingMap(true);
+    const params = new URLSearchParams({ layer });
+    if (search) params.set("q", search);
+    fetchApi<{ pins: DashboardMapPin[] }>(`/api/dashboard/map-pins?${params}`)
+      .then(data => setMapPins(data.pins || []))
+      .catch(() => setMapPins([]))
+      .finally(() => setLoadingMap(false));
+  }, []);
 
   // Fetch auth first, then dependent fetches
   useEffect(() => {
@@ -137,17 +150,14 @@ export default function Home() {
       });
 
     // Map pins (parallel, no auth dependency)
-    fetchApi<{ pins: DashboardMapPin[] }>("/api/dashboard/map-pins")
-      .then(data => setMapPins(data.pins || []))
-      .catch(() => setMapPins([]))
-      .finally(() => setLoadingMap(false));
+    fetchMapPins("active", "");
 
     // Recent intake (parallel, no auth dependency)
     fetchApi<{ submissions: IntakeSubmission[] }>("/api/intake/queue?mode=attention&limit=5")
       .then(data => setIntake((data.submissions || []).slice(0, 5)))
       .catch(() => setIntake([]))
       .finally(() => setLoadingIntake(false));
-  }, []);
+  }, [fetchMapPins]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -159,6 +169,16 @@ export default function Home() {
   const handleRequestClick = (requestId: string) => {
     setPreviewEntityId(requestId);
     setPreviewOpen(true);
+  };
+
+  const handleLayerChange = (layer: MapLayer) => {
+    setMapLayer(layer);
+    fetchMapPins(layer, mapSearch);
+  };
+
+  const handleMapSearch = (query: string) => {
+    setMapSearch(query);
+    fetchMapPins(mapLayer, query);
   };
 
   return (
@@ -200,14 +220,22 @@ export default function Home() {
           <DashboardMap
             pins={mapPins}
             onPinClick={handleRequestClick}
+            onLayerChange={handleLayerChange}
+            onSearch={handleMapSearch}
+            activeLayer={mapLayer}
             loading={loadingMap}
+            pinCount={mapPins.length}
           />
         ) : (
           <div className="dashboard-map-container">
             <DashboardMap
               pins={mapPins}
               onPinClick={handleRequestClick}
+              onLayerChange={handleLayerChange}
+              onSearch={handleMapSearch}
+              activeLayer={mapLayer}
               loading={loadingMap}
+              pinCount={mapPins.length}
             />
           </div>
         )}

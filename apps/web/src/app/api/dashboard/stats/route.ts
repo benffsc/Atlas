@@ -49,9 +49,10 @@ export async function GET(request: NextRequest) {
         WHERE submission_status IN ('new', 'needs_review')
       ),
       cats AS (
-        SELECT COUNT(*)::int AS cnt
-        FROM sot.cats
-        WHERE created_at >= date_trunc('month', CURRENT_DATE)
+        SELECT COUNT(DISTINCT a.cat_id)::int AS cnt
+        FROM ops.appointments a
+        WHERE a.cat_id IS NOT NULL
+          AND a.appointment_date >= date_trunc('month', CURRENT_DATE)
       ),
       stale AS (
         SELECT COUNT(*)::int AS cnt
@@ -92,10 +93,11 @@ export async function GET(request: NextRequest) {
         WHERE status = 'pending'
       ),
       cats_prev AS (
-        SELECT COUNT(*)::int AS cnt
-        FROM sot.cats
-        WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
-          AND created_at < date_trunc('month', CURRENT_DATE)
+        SELECT COUNT(DISTINCT a.cat_id)::int AS cnt
+        FROM ops.appointments a
+        WHERE a.cat_id IS NOT NULL
+          AND a.appointment_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+          AND a.appointment_date < date_trunc('month', CURRENT_DATE)
       )
       SELECT
         active.cnt AS active_requests,
