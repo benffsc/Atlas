@@ -17,6 +17,7 @@ interface DashboardStats {
   my_active_requests: number;
   person_dedup_pending: number;
   place_dedup_pending: number;
+  cats_last_month: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -89,6 +90,12 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(*)::int AS cnt
         FROM sot.place_dedup_candidates
         WHERE status = 'pending'
+      ),
+      cats_prev AS (
+        SELECT COUNT(*)::int AS cnt
+        FROM sot.cats
+        WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+          AND created_at < date_trunc('month', CURRENT_DATE)
       )
       SELECT
         active.cnt AS active_requests,
@@ -101,8 +108,9 @@ export async function GET(request: NextRequest) {
         (stale.cnt + overdue.cnt + unassigned.cnt) AS needs_attention_total,
         with_location.cnt AS requests_with_location,
         person_dedup.cnt AS person_dedup_pending,
-        place_dedup.cnt AS place_dedup_pending
-      FROM active, my_active, intake, cats, stale, overdue, unassigned, with_location, person_dedup, place_dedup
+        place_dedup.cnt AS place_dedup_pending,
+        cats_prev.cnt AS cats_last_month
+      FROM active, my_active, intake, cats, stale, overdue, unassigned, with_location, person_dedup, place_dedup, cats_prev
     `, [staffPersonId || null]);
 
     return NextResponse.json(stats || {
@@ -117,6 +125,7 @@ export async function GET(request: NextRequest) {
       requests_with_location: 0,
       person_dedup_pending: 0,
       place_dedup_pending: 0,
+      cats_last_month: 0,
     }, {
       headers: {
         "Cache-Control": "private, max-age=300, stale-while-revalidate=600",
