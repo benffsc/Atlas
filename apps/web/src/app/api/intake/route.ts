@@ -107,6 +107,10 @@ interface IntakeSubmission {
 
   // Test mode - for demos and training
   is_test?: boolean;
+
+  // FFS-150: Direct request creation from call sheet
+  create_request_directly?: boolean;
+  close_request?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -359,12 +363,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // FFS-150: Direct request creation from call sheet
+    let request_id: string | null = null;
+    if (body.create_request_directly) {
+      try {
+        const convertResult = await queryOne<{ request_id: string }>(
+          `SELECT ops.convert_intake_to_request($1, $2) as request_id`,
+          [data.submission_id, body.reviewed_by || "call_sheet"]
+        );
+
+        if (convertResult?.request_id) {
+          request_id = convertResult.request_id;
+
+          // Forward call sheet fields to the created request
+          const setClauses: string[] = [];
+          const values: unknown[] = [];
+          let idx = 1;
+
+          if (body.priority_override) {
+            setClauses.push(`priority = $${idx}`);
+            values.push(body.priority_override);
+            idx++;
+          }
+
+          // Forward trapping-specific fields from custom_fields
+          if (body.custom_fields) {
+            const cf = body.custom_fields;
+            if (cf.property_type) { setClauses.push(`property_type = $${idx}`); values.push(cf.property_type); idx++; }
+            if (cf.dogs_on_site) { setClauses.push(`dogs_on_site = $${idx}`); values.push(cf.dogs_on_site); idx++; }
+            if (cf.trap_savvy) { setClauses.push(`trap_savvy = $${idx}`); values.push(cf.trap_savvy); idx++; }
+            if (cf.previous_tnr) { setClauses.push(`previous_tnr = $${idx}`); values.push(cf.previous_tnr); idx++; }
+            if (cf.feeding_time) { setClauses.push(`feeding_time = $${idx}`); values.push(cf.feeding_time); idx++; }
+            if (cf.feeding_location) { setClauses.push(`feeding_location = $${idx}`); values.push(cf.feeding_location); idx++; }
+            if (cf.best_trapping_time) { setClauses.push(`best_trapping_time = $${idx}`); values.push(cf.best_trapping_time); idx++; }
+            if (cf.important_notes && Array.isArray(cf.important_notes)) {
+              setClauses.push(`important_notes = $${idx}::text[]`);
+              values.push(cf.important_notes);
+              idx++;
+            }
+            if (cf.urgency_reasons && Array.isArray(cf.urgency_reasons)) {
+              setClauses.push(`urgency_reasons = $${idx}::text[]`);
+              values.push(cf.urgency_reasons);
+              idx++;
+            }
+          }
+
+          // Close request if requested
+          if (body.close_request) {
+            setClauses.push(`status = $${idx}`);
+            values.push("completed");
+            idx++;
+            setClauses.push(`resolved_at = NOW()`);
+          }
+
+          if (setClauses.length > 0) {
+            values.push(request_id);
+            await queryOne(
+              `UPDATE ops.requests SET ${setClauses.join(", ")} WHERE request_id = $${idx}`,
+              values
+            );
+          }
+        }
+      } catch (convertErr) {
+        console.error("[INTAKE] Direct request creation failed (submission still saved):", convertErr);
+      }
+    }
+
     // Return success with submission ID and triage info
     return apiSuccess({
       submission_id: data.submission_id,
       triage_category: data.triage_category,
       triage_score: data.triage_score,
       message: getTriageMessage(data.triage_category),
+      ...(request_id ? { request_id } : {}),
     });
   } catch (err) {
     console.error("Intake submission error:", err);

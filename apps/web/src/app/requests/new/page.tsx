@@ -24,6 +24,7 @@ import {
   type EntryMode,
   type CompletionData,
 } from "@/components/request-entry";
+import type { CreateRequestBody } from "@/lib/types/request-contracts";
 
 interface DuplicateMatch {
   request_id: string;
@@ -581,7 +582,7 @@ function NewRequestForm() {
         errors?: Record<string, string>;
       }
 
-      const result = await postApi<RequestPipelineResult>("/api/requests", {
+      const requestBody: CreateRequestBody = {
         // Request Purpose - send primary and all selected
         // Priority: tnr > relocation > rescue > wellness (for primary)
         request_purpose: hasTnr ? "tnr" : hasRelocation ? "relocation" : hasRescue ? "rescue" : "wellness",
@@ -673,8 +674,10 @@ function NewRequestForm() {
           requester_followup: completionData.requester_followup,
           refer_partner: completionData.refer_partner,
           partner_name: completionData.partner_name || null,
-        } : null,
-      });
+        } : undefined,
+      };
+
+      const result = await postApi<RequestPipelineResult>("/api/requests", requestBody);
 
       // Handle the new pipeline response format
       setSubmissionResult({

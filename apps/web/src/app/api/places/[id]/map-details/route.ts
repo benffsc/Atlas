@@ -179,6 +179,60 @@ export async function GET(
     );
 
     if (!place) {
+      // Fallback: check if this is an unlinked Google Maps reference entry
+      const gmEntry = await queryOne<{
+        entry_id: string;
+        kml_name: string | null;
+        lat: number;
+        lng: number;
+        original_content: string | null;
+        ai_summary: string | null;
+        ai_meaning: string | null;
+        parsed_date: string | null;
+        imported_at: string;
+      }>(
+        `SELECT entry_id, kml_name, lat, lng, original_content, ai_summary, ai_meaning,
+                parsed_date::TEXT, imported_at::TEXT
+         FROM ops.google_map_entries
+         WHERE entry_id = $1`,
+        [id]
+      );
+
+      if (gmEntry) {
+        return apiSuccess({
+          place_id: gmEntry.entry_id,
+          address: gmEntry.kml_name || "Unknown location",
+          display_name: gmEntry.kml_name,
+          service_zone: null,
+          disease_risk: gmEntry.ai_meaning === "disease_risk" || gmEntry.ai_meaning === "felv_colony" || gmEntry.ai_meaning === "fiv_colony",
+          disease_risk_notes: null,
+          watch_list: gmEntry.ai_meaning === "watch_list",
+          watch_list_reason: null,
+          cat_count: 0,
+          person_count: 0,
+          request_count: 0,
+          active_request_count: 0,
+          total_altered: 0,
+          people: [],
+          cats: [],
+          google_notes: [{
+            entry_id: gmEntry.entry_id,
+            kml_name: gmEntry.kml_name,
+            original_content: gmEntry.original_content,
+            original_redacted: null,
+            ai_summary: gmEntry.ai_summary,
+            ai_meaning: gmEntry.ai_meaning,
+            parsed_date: gmEntry.parsed_date,
+            imported_at: gmEntry.imported_at,
+          }],
+          journal_entries: [],
+          contexts: [],
+          data_sources: [{ source_system: "google_maps", source_description: "Google Maps Historical Note" }],
+          disease_badges: [],
+          is_reference_pin: true,
+        });
+      }
+
       return apiNotFound("Place", id);
     }
 

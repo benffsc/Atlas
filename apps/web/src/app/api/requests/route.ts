@@ -3,10 +3,8 @@ import { revalidatePath } from "next/cache";
 import { queryRows, queryOne } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
-
-// Valid enum values from ops.requests CHECK constraints
-const VALID_STATUS = ['new', 'triaged', 'scheduled', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const;
-const VALID_PRIORITY = ['low', 'normal', 'high', 'urgent'] as const;
+import { REQUEST_STATUS, REQUEST_PRIORITY } from "@/lib/enums";
+import { createRequestSchema, type CreateRequestBody } from "@/lib/types/request-contracts";
 
 interface RequestListRow {
   request_id: string;
@@ -238,141 +236,32 @@ export async function GET(request: NextRequest) {
 // ============================================================================
 
 /**
- * Complete field mapping for request creation.
- * All fields from ops.requests that can be set on creation.
- */
-interface CreateRequestBody {
-  // Status & Priority
-  status?: string;
-  priority?: string;
-  initial_status?: string; // Form sends this for Quick Complete mode
-
-  // Request Purpose (MIG_2817)
-  request_purpose?: string;
-  request_purposes?: string[];
-
-  // Location
-  place_id?: string;
-  property_type?: string;
-  location_description?: string;
-
-  // Contact - Requester
-  requester_person_id?: string;
-  site_contact_person_id?: string;
-  requester_is_site_contact?: boolean;
-  requester_role_at_submission?: string;
-
-  // Cat Info
-  estimated_cat_count?: number;
-  total_cats_reported?: number;
-  peak_count?: number;
-  count_confidence?: string;
-  colony_duration?: string;
-  awareness_duration?: string;
-  eartip_count?: number;
-  eartip_estimate?: string;
-  cats_are_friendly?: boolean;
-  fixed_status?: string;
-  cat_name?: string;
-  cat_description?: string;
-  handleability?: string;
-  wellness_cat_count?: number;
-
-  // Kittens
-  has_kittens?: boolean;
-  kitten_count?: number;
-  kitten_age_estimate?: string;
-  kitten_age_weeks?: number;
-  kitten_mixed_ages_description?: string;
-  kitten_behavior?: string;
-  kitten_notes?: string;
-  mom_present?: string;
-  kitten_contained?: string;
-  mom_fixed?: string;
-  can_bring_in?: string;
-
-  // Feeding
-  is_being_fed?: boolean;
-  feeder_name?: string;
-  feeding_schedule?: string; // Form name → maps to DB feeding_frequency
-  feeding_location?: string;
-  feeding_time?: string;
-  best_times_seen?: string;
-
-  // Medical
-  has_medical_concerns?: boolean;
-  medical_description?: string;
-
-  // Property & Access
-  is_property_owner?: boolean;
-  has_property_access?: boolean;
-  access_notes?: string;
-  permission_status?: string;
-  traps_overnight_safe?: boolean;
-  access_without_contact?: boolean;
-  property_owner_name?: string;
-  property_owner_phone?: string;
-  authorization_pending?: boolean;
-  best_contact_times?: string;
-  dogs_on_site?: string;
-  trap_savvy?: string;
-  previous_tnr?: string;
-
-  // Third Party
-  is_third_party_report?: boolean;
-  third_party_relationship?: string;
-
-  // Location Meta
-  county?: string;
-  is_emergency?: boolean;
-
-  // Urgency (MIG_2817)
-  urgency_reasons?: string[];
-  urgency_deadline?: string;
-  urgency_notes?: string;
-
-  // Triage
-  triage_category?: string;
-  received_by?: string;
-
-  // Notes
-  summary?: string;
-  notes?: string;
-  internal_notes?: string;
-  important_notes?: string[];
-
-  // Trapping logistics (FFS-151)
-  best_trapping_time?: string;
-  ownership_status?: string;
-
-  // Entry Metadata (MIG_2817)
-  entry_mode?: string;
-  completion_data?: Record<string, unknown>;
-
-  // Provenance
-  created_by?: string;
-
-  // Raw contact fallbacks (FFS-146: for future auto-resolution)
-  raw_requester_name?: string;
-  raw_requester_phone?: string;
-  raw_requester_email?: string;
-}
-
-/**
  * POST /api/requests
  *
  * Creates a new request by directly inserting into ops.requests.
  * All form fields are mapped to DB columns (MIG_2817 added missing ones).
  * Field name mismatches are mapped: feeding_schedule→feeding_frequency,
  * eartip_count→eartip_count_observed, initial_status→status.
+ *
+ * Type contract: CreateRequestBody from @/lib/types/request-contracts.ts (FFS-148)
  */
 export async function POST(request: NextRequest) {
-  let body: CreateRequestBody;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return apiBadRequest("Invalid JSON in request body");
   }
+
+  // FFS-148: Validate against shared contract schema
+  const parsed = createRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.issues.map(
+      (i) => `${i.path.join(".")}: ${i.message}`
+    );
+    return apiBadRequest("Validation failed", { fields: fieldErrors });
+  }
+  const body: CreateRequestBody = parsed.data;
 
   // Validate minimum requirements
   if (!body.place_id && !body.summary) {
@@ -385,12 +274,12 @@ export async function POST(request: NextRequest) {
   const feedingFrequency = body.feeding_schedule ?? null;
 
   // Validate enum values to return 400 instead of 500 on CHECK constraint violation
-  if (status && !VALID_STATUS.includes(status as typeof VALID_STATUS[number])) {
-    return apiBadRequest(`Invalid status. Must be one of: ${VALID_STATUS.join(', ')}`);
+  if (status && !REQUEST_STATUS.includes(status as (typeof REQUEST_STATUS)[number])) {
+    return apiBadRequest(`Invalid status. Must be one of: ${REQUEST_STATUS.join(', ')}`);
   }
 
-  if (body.priority && !VALID_PRIORITY.includes(body.priority as typeof VALID_PRIORITY[number])) {
-    return apiBadRequest(`Invalid priority. Must be one of: ${VALID_PRIORITY.join(', ')}`);
+  if (body.priority && !REQUEST_PRIORITY.includes(body.priority as (typeof REQUEST_PRIORITY)[number])) {
+    return apiBadRequest(`Invalid priority. Must be one of: ${REQUEST_PRIORITY.join(', ')}`);
   }
 
   try {
@@ -429,7 +318,9 @@ export async function POST(request: NextRequest) {
         -- Entry metadata (MIG_2817)
         entry_mode, completion_data,
         -- Trapping logistics (FFS-151)
-        best_trapping_time, ownership_status, important_notes
+        best_trapping_time, ownership_status, important_notes,
+        -- Raw requester contact (FFS-146)
+        raw_requester_name, raw_requester_phone, raw_requester_email
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13,
@@ -443,7 +334,8 @@ export async function POST(request: NextRequest) {
         $66, $67, $68,
         $69, $70,
         $71, $72,
-        $73, $74, $75
+        $73, $74, $75,
+        $76, $77, $78
       )
       RETURNING request_id::TEXT`,
       [
@@ -482,11 +374,45 @@ export async function POST(request: NextRequest) {
         body.entry_mode ?? null, body.completion_data ? JSON.stringify(body.completion_data) : null,
         // Trapping logistics (FFS-151): $73-$75
         body.best_trapping_time ?? null, body.ownership_status ?? null, body.important_notes ?? null,
+        // Raw requester contact (FFS-146): $76-$78
+        body.raw_requester_name ?? null, body.raw_requester_phone ?? null, body.raw_requester_email ?? null,
       ]
     );
 
     if (!result) {
       return apiServerError("Failed to create request - no result returned");
+    }
+
+    // FFS-146: Auto-resolve requester person from raw contact info
+    // Non-blocking: if resolution fails, request is still created with raw fields preserved
+    if (!body.requester_person_id && (body.raw_requester_email || body.raw_requester_phone)) {
+      try {
+        // Parse raw name into first/last (best-effort)
+        const nameParts = (body.raw_requester_name || "").trim().split(/\s+/);
+        const firstName = nameParts[0] || null;
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+        const resolved = await queryOne<{ person_id: string }>(
+          `SELECT person_id::TEXT FROM trapper.find_or_create_person(
+            $1, $2, $3, $4, NULL, 'atlas_ui'
+          )`,
+          [
+            body.raw_requester_email ?? null,
+            body.raw_requester_phone ?? null,
+            firstName,
+            lastName,
+          ]
+        );
+
+        if (resolved?.person_id) {
+          await queryOne(
+            `UPDATE ops.requests SET requester_person_id = $1 WHERE request_id = $2`,
+            [resolved.person_id, result.request_id]
+          );
+        }
+      } catch (resolveError) {
+        console.warn("[POST /api/requests] Auto-resolve requester failed (non-blocking):", resolveError);
+      }
     }
 
     // Revalidate cached pages

@@ -299,6 +299,7 @@ export default function CallSheetEntryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [submitMode, setSubmitMode] = useState<"queue" | "create" | "create_close">("queue");
 
   // Person search
   const [personSuggestions, setPersonSuggestions] = useState<PersonSuggestion[]>([]);
@@ -448,9 +449,12 @@ export default function CallSheetEntryPage() {
     }
 
     try {
-      const data = await postApi<{ submission_id: string; triage_category: string }>("/api/intake", {
+      const data = await postApi<{ submission_id: string; triage_category: string; request_id?: string }>("/api/intake", {
         source: "paper",
         source_system: "call_sheet",
+        // FFS-150: Direct request creation flags
+        ...(submitMode !== "queue" ? { create_request_directly: true } : {}),
+        ...(submitMode === "create_close" ? { close_request: true } : {}),
         existing_person_id: selectedPersonId || null,
         selected_address_place_id: selectedPlaceId || null,
         // Contact
@@ -517,10 +521,19 @@ export default function CallSheetEntryPage() {
         },
       });
 
-      setSuccess(`Call sheet submitted! Triage: ${data.triage_category}`);
-      setTimeout(() => {
-        router.push(`/intake/queue/${data.submission_id}`);
-      }, 1000);
+      if (data.request_id) {
+        setSuccess(submitMode === "create_close"
+          ? "Request created and closed!"
+          : "Request created from call sheet!");
+        setTimeout(() => {
+          router.push(`/requests/${data.request_id}`);
+        }, 1000);
+      } else {
+        setSuccess(`Call sheet submitted! Triage: ${data.triage_category}`);
+        setTimeout(() => {
+          router.push(`/intake/queue/${data.submission_id}`);
+        }, 1000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit");
     } finally {
@@ -1005,29 +1018,69 @@ export default function CallSheetEntryPage() {
           </div>
         </div>
 
-        {/* ═══════════════════ SUBMIT ═══════════════════ */}
-        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginBottom: "2rem" }}>
-          <a href="/intake/queue" style={{ textDecoration: "none" }}>
-            <button type="button" style={{ padding: "10px 24px", border: "1px solid #d1d5db", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "14px" }}>
-              Cancel
+        {/* ═══════════════════ SUBMISSION MODE & SUBMIT ═══════════════════ */}
+        <div style={{ marginBottom: "2rem" }}>
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ display: "block", fontWeight: 600, fontSize: "14px", marginBottom: "8px" }}>
+              Submission Mode
+            </label>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {([
+                { value: "queue" as const, label: "Submit to Queue", desc: "Review before creating request" },
+                { value: "create" as const, label: "Create Request", desc: "Skip queue, create request directly" },
+                { value: "create_close" as const, label: "Create & Close", desc: "Already resolved — create completed request" },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSubmitMode(opt.value)}
+                  style={{
+                    padding: "8px 16px",
+                    border: submitMode === opt.value ? "2px solid #27ae60" : "1px solid #d1d5db",
+                    borderRadius: "8px",
+                    background: submitMode === opt.value ? "#f0fdf4" : "#fff",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: submitMode === opt.value ? 600 : 400,
+                    textAlign: "left",
+                  }}
+                >
+                  <div>{opt.label}</div>
+                  <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+            <a href="/intake/queue" style={{ textDecoration: "none" }}>
+              <button type="button" style={{ padding: "10px 24px", border: "1px solid #d1d5db", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "14px" }}>
+                Cancel
+              </button>
+            </a>
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                padding: "10px 32px",
+                background: submitting ? "#9ca3af"
+                  : submitMode === "create_close" ? "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)"
+                  : submitMode === "create" ? "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
+                  : "linear-gradient(135deg, #27ae60 0%, #1e8449 100%)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: submitting ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 600,
+              }}
+            >
+              {submitting ? "Submitting..."
+                : submitMode === "create_close" ? "Create & Close Request"
+                : submitMode === "create" ? "Create Request"
+                : "Submit to Queue"}
             </button>
-          </a>
-          <button
-            type="submit"
-            disabled={submitting}
-            style={{
-              padding: "10px 32px",
-              background: submitting ? "#9ca3af" : "linear-gradient(135deg, #27ae60 0%, #1e8449 100%)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              cursor: submitting ? "not-allowed" : "pointer",
-              fontSize: "14px",
-              fontWeight: 600,
-            }}
-          >
-            {submitting ? "Submitting..." : "Submit Call Sheet"}
-          </button>
+          </div>
         </div>
       </form>
     </div>

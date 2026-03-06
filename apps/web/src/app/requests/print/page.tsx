@@ -35,8 +35,18 @@ function FullCallSheet() {
   const searchParams = useSearchParams();
   const [prefill, setPrefill] = useState<Prefill>(EMPTY_PREFILL);
   const [includeKittenPage, setIncludeKittenPage] = useState(true);
+  const isBlank = searchParams.get("blank") === "true";
+
+  // In blank mode, auto-trigger print dialog
+  useEffect(() => {
+    if (isBlank) {
+      const timer = setTimeout(() => window.print(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isBlank]);
 
   useEffect(() => {
+    if (isBlank) return; // Skip prefill in blank mode
     const p: Prefill = { ...EMPTY_PREFILL };
     if (searchParams.get("name")) {
       const parts = (searchParams.get("name") || "").split(" ");
@@ -51,7 +61,7 @@ function FullCallSheet() {
     if (searchParams.get("city")) p.city = searchParams.get("city") || "";
     if (searchParams.get("notes")) p.notes = searchParams.get("notes") || "";
     if (Object.values(p).some(Boolean)) setPrefill(p);
-  }, [searchParams]);
+  }, [searchParams, isBlank]);
 
   const pf = (field: keyof Prefill) => prefill[field] ? "prefilled" : "";
 
@@ -454,54 +464,59 @@ function FullCallSheet() {
         }
       `}</style>
 
-      {/* ── Print Controls Panel ─────────────────────────── */}
-      <div className="print-controls">
-        <h3>TNR Call Sheet</h3>
-        <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
-          Pre-fill from voicemail, then print front &amp; back
-        </p>
-        <div className="ctrl-field">
-          <label>First Name</label>
-          <input value={prefill.first_name} onChange={(e) => setPrefill({ ...prefill, first_name: e.target.value })} placeholder="First name..." />
-        </div>
-        <div className="ctrl-field">
-          <label>Last Name</label>
-          <input value={prefill.last_name} onChange={(e) => setPrefill({ ...prefill, last_name: e.target.value })} placeholder="Last name..." />
-        </div>
-        <div className="ctrl-field">
-          <label>Phone</label>
-          <input value={prefill.phone} onChange={(e) => setPrefill({ ...prefill, phone: e.target.value })} placeholder="Callback number..." />
-        </div>
-        <div className="ctrl-field">
-          <label>Email</label>
-          <input value={prefill.email} onChange={(e) => setPrefill({ ...prefill, email: e.target.value })} placeholder="Email if known..." />
-        </div>
-        <div className="ctrl-field">
-          <label>Address</label>
-          <input value={prefill.address} onChange={(e) => setPrefill({ ...prefill, address: e.target.value })} placeholder="Cat location..." />
-        </div>
-        <div className="ctrl-field">
-          <label>City</label>
-          <input value={prefill.city} onChange={(e) => setPrefill({ ...prefill, city: e.target.value })} placeholder="City..." />
-        </div>
-        <div className="ctrl-field">
-          <label>Voicemail notes</label>
-          <textarea value={prefill.notes} onChange={(e) => setPrefill({ ...prefill, notes: e.target.value })} placeholder="Any details mentioned..." />
-        </div>
+      {/* ── Print Controls Panel (hidden in blank mode) ─────────────────────────── */}
+      {!isBlank && (
+        <div className="print-controls">
+          <h3>TNR Call Sheet</h3>
+          <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
+            Pre-fill from voicemail, then print front &amp; back
+          </p>
+          <div className="ctrl-field">
+            <label>First Name</label>
+            <input value={prefill.first_name} onChange={(e) => setPrefill({ ...prefill, first_name: e.target.value })} placeholder="First name..." />
+          </div>
+          <div className="ctrl-field">
+            <label>Last Name</label>
+            <input value={prefill.last_name} onChange={(e) => setPrefill({ ...prefill, last_name: e.target.value })} placeholder="Last name..." />
+          </div>
+          <div className="ctrl-field">
+            <label>Phone</label>
+            <input value={prefill.phone} onChange={(e) => setPrefill({ ...prefill, phone: e.target.value })} placeholder="Callback number..." />
+          </div>
+          <div className="ctrl-field">
+            <label>Email</label>
+            <input value={prefill.email} onChange={(e) => setPrefill({ ...prefill, email: e.target.value })} placeholder="Email if known..." />
+          </div>
+          <div className="ctrl-field">
+            <label>Address</label>
+            <input value={prefill.address} onChange={(e) => setPrefill({ ...prefill, address: e.target.value })} placeholder="Cat location..." />
+          </div>
+          <div className="ctrl-field">
+            <label>City</label>
+            <input value={prefill.city} onChange={(e) => setPrefill({ ...prefill, city: e.target.value })} placeholder="City..." />
+          </div>
+          <div className="ctrl-field">
+            <label>Voicemail notes</label>
+            <textarea value={prefill.notes} onChange={(e) => setPrefill({ ...prefill, notes: e.target.value })} placeholder="Any details mentioned..." />
+          </div>
 
-        <label className="toggle-label">
-          <input type="checkbox" checked={includeKittenPage} onChange={(e) => setIncludeKittenPage(e.target.checked)} />
-          Include Kitten Section
-        </label>
+          <label className="toggle-label">
+            <input type="checkbox" checked={includeKittenPage} onChange={(e) => setIncludeKittenPage(e.target.checked)} />
+            Include Kitten Section
+          </label>
 
-        <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
-        <a href="/requests" style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>Back to Requests</button>
-        </a>
-        <div className="ctrl-hint">
-          Print front &amp; back for Crystal. After callback, enter data at <strong>/intake/call-sheet</strong>.
+          <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
+          <a href="/requests/print?blank=true" style={{ textDecoration: "none" }}>
+            <button className="back-btn" style={{ width: "100%", marginTop: "6px" }}>Print Blank Form</button>
+          </a>
+          <a href="/requests" style={{ textDecoration: "none" }}>
+            <button className="back-btn" style={{ width: "100%" }}>Back to Requests</button>
+          </a>
+          <div className="ctrl-hint">
+            Print front &amp; back for Crystal. After callback, enter data at <strong>/intake/call-sheet</strong> &mdash; you can submit to queue or create a request directly.
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ═══════════════════ PAGE 1 (FRONT): Contact & Cats ═══════════════════ */}
       <div className="print-page">

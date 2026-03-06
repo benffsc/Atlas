@@ -348,12 +348,12 @@ function parseMasterList(workbook: xlsx.WorkBook): {
   const entries: ParsedEntry[] = [];
   let headerRowIndex = -1;
 
-  // Find the header row (contains "Client Name")
+  // Find the header row (contains "Client Name" — case-insensitive)
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const row = rows[i] as unknown[];
     if (
       row &&
-      row.some((cell) => String(cell).includes("Client Name"))
+      row.some((cell) => String(cell).toLowerCase().includes("client name"))
     ) {
       headerRowIndex = i;
       break;
@@ -364,16 +364,16 @@ function parseMasterList(workbook: xlsx.WorkBook): {
     return { entries: [], extractedDate: null };
   }
 
-  // Extract date from first row if present
+  // Extract date from first row if present (handles both string and Excel serial number dates)
   let extractedDate: string | null = null;
   if (rows[0] && (rows[0] as unknown[]).length > 0) {
     for (const cell of rows[0] as unknown[]) {
-      if (
-        cell &&
-        typeof cell === "string" &&
-        cell.match(/\d{1,2}-\w{3}-\d{2}/)
-      ) {
-        const parts = cell.match(/(\d{1,2})-(\w{3})-(\d{2})/);
+      if (!cell) continue;
+      const cellStr = String(cell);
+
+      // Try text date pattern: "DD-Mon-YY" (e.g., "9-Feb-26")
+      if (cellStr.match(/\d{1,2}-\w{3}-\d{2}/)) {
+        const parts = cellStr.match(/(\d{1,2})-(\w{3})-(\d{2})/);
         if (parts) {
           const monthMap: Record<string, string> = {
             jan: "01",
@@ -395,28 +395,55 @@ function parseMasterList(workbook: xlsx.WorkBook): {
           extractedDate = `${year}-${month}-${day.padStart(2, "0")}`;
         }
       }
+      // Handle Excel date serial numbers (e.g., 45331 for Feb 9 2024)
+      else if (typeof cell === "number" && cell > 40000 && cell < 60000) {
+        const parsed = xlsx.SSF.parse_date_code(cell);
+        if (parsed) {
+          extractedDate = `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+        }
+      }
+
+      if (extractedDate) break;
     }
   }
 
-  // Parse header to get column indices
+  // Parse header to get column indices (case-insensitive matching)
   const header = rows[headerRowIndex] as unknown[];
   const colIndex: Record<string, number> = {};
   header.forEach((cell, idx) => {
     const cellStr = String(cell).trim();
-    if (cellStr === "F") colIndex.F = idx;
-    else if (cellStr === "M") colIndex.M = idx;
-    else if (cellStr === "A/W" || cellStr === "A") colIndex.AW = idx;
-    else if (cellStr === "#") colIndex.num = idx;
-    else if (cellStr.includes("Client Name")) colIndex.clientName = idx;
-    else if (cellStr === "Test") colIndex.test = idx;
-    else if (cellStr === "Result") colIndex.result = idx;
+    const cellLower = cellStr.toLowerCase();
+    if (cellStr === "F" || cellStr === "f") colIndex.F = idx;
+    else if (cellStr === "M" || cellStr === "m") colIndex.M = idx;
+    else if (cellLower === "a/w" || cellStr === "A" || cellStr === "a") colIndex.AW = idx;
+    else if (cellStr === "#" || cellLower === "no" || cellLower === "no." || cellLower === "line") colIndex.num = idx;
+    else if (cellLower.includes("client name")) colIndex.clientName = idx;
+    else if (cellLower === "test") colIndex.test = idx;
+    else if (cellLower === "result") colIndex.result = idx;
     else if (cellStr === "$") colIndex.fee = idx;
-    else if (cellStr === "MISCELLANEOUS") colIndex.misc = idx;
-    else if (cellStr === "Status") colIndex.status = idx;
+    else if (cellLower === "miscellaneous" || cellLower === "misc") colIndex.misc = idx;
+    else if (cellLower === "status") colIndex.status = idx;
   });
 
   if (colIndex.clientName === undefined) {
+    console.warn("[parseMasterList] Could not find 'Client Name' column. Headers found:", header.map(h => String(h).trim()));
     return { entries: [], extractedDate };
+  }
+
+  // Fallback: if # column not found, try to detect it by finding the first column
+  // before Client Name that contains sequential integers in data rows
+  if (colIndex.num === undefined) {
+    for (let col = 0; col < (colIndex.clientName || 0); col++) {
+      let sequentialCount = 0;
+      for (let row = headerRowIndex + 1; row < Math.min(rows.length, headerRowIndex + 6); row++) {
+        const val = (rows[row] as unknown[])?.[col];
+        if (val && !isNaN(parseInt(String(val)))) sequentialCount++;
+      }
+      if (sequentialCount >= 2) {
+        colIndex.num = col;
+        break;
+      }
+    }
   }
 
   // Process data rows
@@ -478,6 +505,16 @@ function parseMasterList(workbook: xlsx.WorkBook): {
     };
 
     entries.push(entry);
+  }
+
+  if (entries.length === 0) {
+    console.warn("[parseMasterList] Zero entries parsed.", {
+      totalRows: rows.length,
+      headerRowIndex,
+      extractedDate,
+      colIndex,
+      sampleRow: rows[headerRowIndex + 1] ? (rows[headerRowIndex + 1] as unknown[]).slice(0, 10) : null,
+    });
   }
 
   return { entries, extractedDate };
