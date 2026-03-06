@@ -13,7 +13,7 @@ interface UpgradeRequestBody {
   colony_duration?: string;
   count_confidence?: string;
   is_being_fed?: boolean | null;
-  feeding_schedule?: string | null;
+  feeding_frequency?: string | null;
   best_times_seen?: string | null;
   urgency_reasons?: string[] | null;
   urgency_notes?: string | null;
@@ -90,7 +90,7 @@ export async function POST(
         colony_duration = $6,
         count_confidence = $7,
         is_being_fed = $8,
-        feeding_schedule = $9,
+        feeding_frequency = $9,
         best_times_seen = $10,
         urgency_reasons = $11,
         urgency_notes = $12,
@@ -114,7 +114,7 @@ export async function POST(
       body.colony_duration || "unknown",
       body.count_confidence || "unknown",
       body.is_being_fed,
-      body.feeding_schedule || null,
+      body.feeding_frequency || null,
       body.best_times_seen || null,
       body.urgency_reasons || null,
       body.urgency_notes || null,

@@ -79,6 +79,13 @@ export const EARTIP_ESTIMATE = [
   "unknown",
 ] as const;
 
+export const FEEDING_FREQUENCY = [
+  "daily",
+  "few_times_week",
+  "occasionally",
+  "rarely",
+] as const;
+
 export const PROPERTY_TYPE = [
   "private_home",
   "apartment_complex",
@@ -199,6 +206,7 @@ export const ENTITY_ENUMS = {
   COLONY_DURATION,
   COUNT_CONFIDENCE,
   EARTIP_ESTIMATE,
+  FEEDING_FREQUENCY,
   PROPERTY_TYPE,
 
   // Person
@@ -234,6 +242,7 @@ export type PermissionStatus = (typeof PERMISSION_STATUS)[number];
 export type ColonyDuration = (typeof COLONY_DURATION)[number];
 export type CountConfidence = (typeof COUNT_CONFIDENCE)[number];
 export type EartipEstimate = (typeof EARTIP_ESTIMATE)[number];
+export type FeedingFrequency = (typeof FEEDING_FREQUENCY)[number];
 export type PropertyType = (typeof PROPERTY_TYPE)[number];
 
 export type PersonEntityType = (typeof PERSON_ENTITY_TYPE)[number];

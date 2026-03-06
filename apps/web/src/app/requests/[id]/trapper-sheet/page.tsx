@@ -45,7 +45,7 @@ interface TrapperSheetData {
   count_confidence: string | null;
   is_being_fed: boolean | null;
   feeder_name: string | null;
-  feeding_schedule: string | null;
+  feeding_frequency: string | null;
   best_times_seen: string | null;
   urgency_reasons: string[] | null;
   urgency_deadline: string | null;
@@ -781,7 +781,7 @@ export default function TrapperSheetPage() {
               <Bubble filled={duration1to6} label="1-6 mo" />
               <Bubble filled={duration6to2} label="6mo-2yr" />
               <Bubble filled={duration2plus} label="2+ yrs" />
-              {data.feeding_schedule && <span style={{ marginLeft: "10px" }}>Schedule: <strong>{data.feeding_schedule}</strong></span>}
+              {data.feeding_frequency && <span style={{ marginLeft: "10px" }}>Schedule: <strong>{data.feeding_frequency}</strong></span>}
             </div>
           </div>
 
@@ -931,7 +931,7 @@ export default function TrapperSheetPage() {
             </div>
             <div className="field">
               <label>Feed time?</label>
-              <div className={`field-input sm ${data.feeding_schedule ? "prefilled" : ""}`}>{data.feeding_schedule || ""}</div>
+              <div className={`field-input sm ${data.feeding_frequency ? "prefilled" : ""}`}>{data.feeding_frequency || ""}</div>
             </div>
             <div className="field">
               <label>Where do cats eat?</label>

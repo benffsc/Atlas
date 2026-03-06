@@ -229,7 +229,7 @@ function NewRequestForm() {
   // Feeding
   const [isBeingFed, setIsBeingFed] = useState<boolean | null>(null);
   const [feederName, setFeederName] = useState("");
-  const [feedingSchedule, setFeedingSchedule] = useState("");
+  const [feedingFrequency, setFeedingFrequency] = useState("");
   const [feedingLocation, setFeedingLocation] = useState("");  // MIG_2532: Where cats are fed
   const [feedingTime, setFeedingTime] = useState("");  // MIG_2532: What time fed
   const [bestTimesSeen, setBestTimesSeen] = useState("");
@@ -638,7 +638,7 @@ function NewRequestForm() {
         // Feeding
         is_being_fed: isBeingFed,
         feeder_name: isBeingFed ? (feederName || null) : null,
-        feeding_schedule: isBeingFed ? (feedingSchedule || null) : null,
+        feeding_frequency: isBeingFed ? (feedingFrequency || null) : null,
         feeding_location: isBeingFed ? (feedingLocation || null) : null,  // MIG_2532
         feeding_time: isBeingFed ? (feedingTime || null) : null,  // MIG_2532
         best_times_seen: bestTimesSeen || null,
@@ -2358,15 +2358,19 @@ function NewRequestForm() {
 
                 <div style={{ flex: "1 1 200px" }}>
                   <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Feeding schedule
+                    Feeding frequency
                   </label>
-                  <input
-                    type="text"
-                    value={feedingSchedule}
-                    onChange={(e) => setFeedingSchedule(e.target.value)}
-                    placeholder="e.g., daily, twice daily, weekdays..."
+                  <select
+                    value={feedingFrequency}
+                    onChange={(e) => setFeedingFrequency(e.target.value)}
                     style={{ width: "100%" }}
-                  />
+                  >
+                    <option value="">Select frequency...</option>
+                    <option value="daily">Daily</option>
+                    <option value="few_times_week">A few times a week</option>
+                    <option value="occasionally">Occasionally</option>
+                    <option value="rarely">Rarely / Not at all</option>
+                  </select>
                 </div>
               </div>
 

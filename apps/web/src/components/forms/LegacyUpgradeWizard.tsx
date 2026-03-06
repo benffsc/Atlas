@@ -27,7 +27,7 @@ interface UpgradeFormData {
   colony_duration: string;
   count_confidence: string;
   is_being_fed: boolean | null;
-  feeding_schedule: string;
+  feeding_frequency: string;
   best_times_seen: string;
   // Step 5: Urgency
   urgency_reasons: string[];
@@ -56,7 +56,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
     colony_duration: "unknown",
     count_confidence: "unknown",
     is_being_fed: null,
-    feeding_schedule: "",
+    feeding_frequency: "",
     best_times_seen: "",
     urgency_reasons: [],
     urgency_notes: "",
@@ -85,7 +85,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
           colony_duration: formData.colony_duration,
           count_confidence: formData.count_confidence,
           is_being_fed: formData.is_being_fed,
-          feeding_schedule: formData.feeding_schedule || null,
+          feeding_frequency: formData.feeding_frequency || null,
           best_times_seen: formData.best_times_seen || null,
           urgency_reasons: formData.urgency_reasons.length > 0 ? formData.urgency_reasons : null,
           urgency_notes: formData.urgency_notes || null,
@@ -457,14 +457,18 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
 
             {formData.is_being_fed && (
               <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Schedule</label>
-                <input
-                  type="text"
-                  value={formData.feeding_schedule}
-                  onChange={(e) => updateForm({ feeding_schedule: e.target.value })}
-                  placeholder="e.g., 6am and 6pm daily"
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Frequency</label>
+                <select
+                  value={formData.feeding_frequency}
+                  onChange={(e) => updateForm({ feeding_frequency: e.target.value })}
                   style={{ width: "100%" }}
-                />
+                >
+                  <option value="">Select frequency...</option>
+                  <option value="daily">Daily</option>
+                  <option value="few_times_week">A few times a week</option>
+                  <option value="occasionally">Occasionally</option>
+                  <option value="rarely">Rarely / Not at all</option>
+                </select>
               </div>
             )}
 

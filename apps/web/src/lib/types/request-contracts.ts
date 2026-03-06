@@ -84,7 +84,7 @@ export const createRequestSchema = z.object({
   // Feeding
   is_being_fed: optBool(),
   feeder_name: optStr(200),
-  feeding_schedule: optStr(200), // Maps to DB feeding_frequency
+  feeding_frequency: optStr(200),
   feeding_location: optStr(),
   feeding_time: optStr(200),
   best_times_seen: optStr(),

@@ -152,7 +152,7 @@ export default function RequestDetailPage() {
     colony_duration: "",
     is_being_fed: null as boolean | null,
     feeder_name: "",
-    feeding_schedule: "",
+    feeding_frequency: "",
     best_times_seen: "",
     handleability: "",
   });
@@ -262,7 +262,7 @@ export default function RequestDetailPage() {
       colony_duration: data.colony_duration || "",
       is_being_fed: data.is_being_fed,
       feeder_name: data.feeder_name || "",
-      feeding_schedule: data.feeding_schedule || "",
+      feeding_frequency: data.feeding_frequency || "",
       best_times_seen: data.best_times_seen || "",
       handleability: data.handleability || "",
     });
@@ -383,7 +383,7 @@ export default function RequestDetailPage() {
         colony_duration: editForm.colony_duration || null,
         is_being_fed: editForm.is_being_fed,
         feeder_name: editForm.feeder_name || null,
-        feeding_schedule: editForm.feeding_schedule || null,
+        feeding_frequency: editForm.feeding_frequency || null,
         best_times_seen: editForm.best_times_seen || null,
         handleability: editForm.handleability || null,
       };
@@ -647,8 +647,14 @@ export default function RequestDetailPage() {
               <input type="text" value={editForm.feeder_name} onChange={(e) => setEditForm({ ...editForm, feeder_name: e.target.value })} style={INPUT} />
             </div>
             <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Schedule</label>
-              <input type="text" value={editForm.feeding_schedule} onChange={(e) => setEditForm({ ...editForm, feeding_schedule: e.target.value })} placeholder="e.g., 7am and 5pm" style={INPUT} />
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Frequency</label>
+              <select value={editForm.feeding_frequency} onChange={(e) => setEditForm({ ...editForm, feeding_frequency: e.target.value })} style={INPUT}>
+                <option value="">Select frequency...</option>
+                <option value="daily">Daily</option>
+                <option value="few_times_week">A few times a week</option>
+                <option value="occasionally">Occasionally</option>
+                <option value="rarely">Rarely / Not at all</option>
+              </select>
             </div>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Location</label>
@@ -1085,14 +1091,14 @@ export default function RequestDetailPage() {
           {/* ─────────────────────────────────────────────────────────────────────
               FEEDING INFORMATION (only shows details if being fed)
               ───────────────────────────────────────────────────────────────────── */}
-          {(request.is_being_fed || request.feeder_name || request.feeding_schedule || isLegacySource(request.source_system)) && (
+          {(request.is_being_fed || request.feeder_name || request.feeding_frequency || isLegacySource(request.source_system)) && (
             <CaseSection title="Feeding Information" icon="🍽️" color="#6366f1">
               <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem", margin: 0 }}>
                 <YesNoSmartField label="Being Fed" value={request.is_being_fed} showWhen="defined" legacyMode={isLegacySource(request.source_system)} />
                 {(request.is_being_fed || isLegacySource(request.source_system)) && (
                   <>
                     <SmartField label="Feeder" value={request.feeder_name} legacyMode={isLegacySource(request.source_system)} />
-                    <SmartField label="Schedule" value={request.feeding_schedule} legacyMode={isLegacySource(request.source_system)} />
+                    <SmartField label="Frequency" value={request.feeding_frequency ? request.feeding_frequency.replace(/_/g, " ") : null} legacyMode={isLegacySource(request.source_system)} />
                     <SmartField label="Feeding Time" value={request.feeding_time} legacyMode={isLegacySource(request.source_system)} />
                     <SmartField label="Location" value={request.feeding_location} legacyMode={isLegacySource(request.source_system)} />
                   </>

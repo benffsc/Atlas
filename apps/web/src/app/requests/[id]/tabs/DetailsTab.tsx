@@ -691,10 +691,10 @@ export function DetailsTab({
                 <div style={{ fontWeight: 500 }}>{request.feeder_name}</div>
               </div>
             )}
-            {request.feeding_schedule && (
+            {request.feeding_frequency && (
               <div>
-                <div className="text-muted text-sm">Feeding Schedule</div>
-                <div style={{ fontWeight: 500 }}>{request.feeding_schedule}</div>
+                <div className="text-muted text-sm">Feeding Frequency</div>
+                <div style={{ fontWeight: 500 }}>{request.feeding_frequency.replace(/_/g, " ")}</div>
               </div>
             )}
           </div>

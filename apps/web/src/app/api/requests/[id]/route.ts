@@ -77,7 +77,7 @@ interface RequestDetailRow {
   kitten_assessed_at: string | null;
   is_being_fed: boolean | null;
   feeder_name: string | null;
-  feeding_schedule: string | null;
+  feeding_frequency: string | null;
   best_times_seen: string | null;
   urgency_reasons: string[] | null;
   urgency_deadline: string | null;
@@ -252,7 +252,7 @@ export async function GET(
         NULL::TIMESTAMPTZ AS kitten_assessed_at,
         r.is_being_fed,
         r.feeder_name,
-        r.feeding_frequency AS feeding_schedule,
+        r.feeding_frequency,
         r.best_times_seen,
         r.urgency_reasons,
         r.urgency_deadline,
@@ -783,9 +783,11 @@ export async function PATCH(
       paramIndex++;
     }
 
-    if (body.feeding_frequency !== undefined) {
+    // Accept both feeding_frequency (canonical) and feeding_schedule (legacy alias)
+    const feedingFreqValue = body.feeding_frequency ?? body.feeding_schedule;
+    if (feedingFreqValue !== undefined) {
       updates.push(`feeding_frequency = $${paramIndex}`);
-      values.push(body.feeding_frequency);
+      values.push(feedingFreqValue);
       paramIndex++;
     }
 

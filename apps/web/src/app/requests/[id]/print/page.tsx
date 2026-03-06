@@ -38,7 +38,7 @@ interface RequestPrint {
   eartip_count: number | null;
   is_being_fed: boolean | null;
   feeder_name: string | null;
-  feeding_schedule: string | null;
+  feeding_frequency: string | null;
   best_times_seen: string | null;
   urgency_reasons: string[] | null;
   urgency_deadline: string | null;
@@ -635,10 +635,10 @@ export default function RequestPrintPage() {
                   <span className="info-value">{request.feeder_name}</span>
                 </div>
               )}
-              {request.feeding_schedule && (
+              {request.feeding_frequency && (
                 <div className="info-item">
-                  <span className="info-label">Schedule</span>
-                  <span className="info-value">{request.feeding_schedule}</span>
+                  <span className="info-label">Frequency</span>
+                  <span className="info-value">{formatValue(request.feeding_frequency)}</span>
                 </div>
               )}
             </div>

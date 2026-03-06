@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
   // Map form field names to database column names
   const status = body.initial_status || body.status || "new";
   const eartipCount = body.eartip_count ?? null;
-  const feedingFrequency = body.feeding_schedule ?? null;
+  const feedingFrequency = body.feeding_frequency ?? body.feeding_schedule ?? null;
 
   // Validate enum values to return 400 instead of 500 on CHECK constraint violation
   if (status && !REQUEST_STATUS.includes(status as (typeof REQUEST_STATUS)[number])) {

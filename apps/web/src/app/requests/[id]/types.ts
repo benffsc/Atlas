@@ -78,8 +78,7 @@ export interface RequestDetail {
   // Feeding information
   is_being_fed: boolean | null;
   feeder_name: string | null;
-  feeding_schedule: string | null;
-  /** Feeding frequency (daily, twice daily, etc.) */
+  /** Feeding frequency enum: daily, few_times_week, occasionally, rarely */
   feeding_frequency: string | null;
   /** Where cats are fed (back porch, garage, etc.) */
   feeding_location: string | null;
