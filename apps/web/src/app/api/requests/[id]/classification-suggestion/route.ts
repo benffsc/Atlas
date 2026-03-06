@@ -96,7 +96,7 @@ export async function POST(
         }
         const overrideResult = await queryOne<{ result: string }>(
           `SELECT ops.override_classification_suggestion($1, $2, $3, $4, $5) AS result`,
-          [id, override_classification, reason, "staff", authoritative_count || null]
+          [id, override_classification, reason, "staff", authoritative_count ?? null]
         );
         resultValue = overrideResult?.result || null;
         break;

@@ -339,11 +339,11 @@ async function syncRecordToAtlas(record: AirtableRecord): Promise<SyncResult> {
         catsZip || null,                                   // $10 - parsed zip
         f.County || null,                                  // $11
         ownershipStatus,                                   // $12 (derived from Call Type)
-        f["Cat Count"] || null,                            // $13
+        f["Cat Count"] ?? null,                            // $13
         f["Cat Count Text"] || null,                       // $14
         mapFixedStatus(f["Fixed Status"]),                 // $15
         toBool(f["Has Kittens"]),                          // $16
-        f["Kitten Count"] || null,                         // $17
+        f["Kitten Count"] ?? null,                         // $17
         mapKittenAge(f["Kitten Age"]),                     // $18
         toBool(f["Is Emergency"]),                         // $19
         toBool(f["Has Medical Concerns"]),                 // $20

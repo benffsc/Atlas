@@ -99,7 +99,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           session.staff_id,
           review_notes || null,
           overrides?.address || null,
-          overrides?.cat_count || null,
+          overrides?.cat_count ?? null,
           overrides?.priority || null,
         ]
       );

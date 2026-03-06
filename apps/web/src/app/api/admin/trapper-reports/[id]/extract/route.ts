@@ -341,7 +341,7 @@ export async function POST(
             "colony_estimate",
             "place",
             topPlace?.place_id || null,
-            topPlace?.match_score || null,
+            topPlace?.match_score ?? null,
             JSON.stringify(placeCandidates),
             site.original_text || null,
             JSON.stringify({
@@ -460,7 +460,7 @@ export async function POST(
           id,
           JSON.stringify(mergedExtraction),
           topReporter?.person_id || null,
-          topReporter?.match_score || null,
+          topReporter?.match_score ?? null,
           JSON.stringify(reporterCandidates),
         ]
       );
