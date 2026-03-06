@@ -1306,6 +1306,11 @@ button:disabled {
   opacity: 0.7;
 }
 
+/* Inline mode for sidebar panels (no trigger/popover) */
+.grouped-layer-control.inline .layer-group:first-child .layer-group-header {
+  padding-top: 0;
+}
+
 /* Compact mode for dashboard */
 .grouped-layer-control.compact .grouped-layer-panel {
   min-width: 180px;
@@ -1319,6 +1324,61 @@ button:disabled {
 .grouped-layer-control.compact .layer-item {
   padding: 4px 8px 4px 18px;
   font-size: 0.68rem;
+}
+
+/* Mobile responsive GroupedLayerControl */
+@media (max-width: 640px) {
+  .grouped-layer-panel {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    min-width: unset;
+    border-radius: 16px 16px 0 0;
+    max-height: 60vh;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+    z-index: 1100;
+  }
+
+  .layer-group-header {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    min-height: 44px;
+  }
+
+  .layer-item {
+    padding: 10px 14px 10px 26px;
+    font-size: 0.8rem;
+    min-height: 44px;
+  }
+
+  .layer-color-swatch {
+    width: 12px;
+    height: 12px;
+  }
+
+  .layer-radio,
+  .layer-check {
+    width: 18px;
+    height: 18px;
+  }
+
+  .layer-radio.checked::after {
+    width: 9px;
+    height: 9px;
+  }
+
+  .layer-check.checked::after {
+    width: 10px;
+    height: 8px;
+  }
+
+  .grouped-layer-trigger {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    min-height: 36px;
+  }
 }
 
 /* Action Sections */

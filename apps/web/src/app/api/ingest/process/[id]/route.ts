@@ -1078,7 +1078,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     const newAppointments = await query(`
       INSERT INTO ops.appointments (
         cat_id, appointment_date, appointment_number, service_type,
-        is_spay, is_neuter, vet_name, technician, temperature, medical_notes,
+        is_spay, is_neuter, is_alteration, vet_name, technician, temperature, medical_notes,
         is_lactating, is_pregnant, is_in_heat,
         -- Health screening flags (MIG_2320)
         has_uri, has_dental_disease, has_ear_issue, has_eye_issue,
@@ -1104,6 +1104,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         COALESCE(sr.payload->>'All Services', sr.payload->>'Service / Subsidy'),
         sot.is_positive_value(sr.payload->>'Spay'),
         sot.is_positive_value(sr.payload->>'Neuter'),
+        sot.is_positive_value(sr.payload->>'Spay') OR sot.is_positive_value(sr.payload->>'Neuter'),
         sr.payload->>'Vet Name',
         sr.payload->>'Technician',
         CASE WHEN sr.payload->>'Temperature' ~ '^[0-9]+\.?[0-9]*$'

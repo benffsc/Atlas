@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
@@ -97,8 +98,44 @@ function layerToApiParam(enabledLayers: Record<string, boolean>): MapLayer | nul
   return null;
 }
 
+/** Parse layers param (comma-separated) into enabledLayers record */
+function parseLayersParam(param: string | null): Record<string, boolean> | null {
+  if (!param) return null;
+  const ids = param.split(",").filter(Boolean);
+  if (ids.length === 0) return null;
+  // All known layer IDs from DASHBOARD_LAYER_GROUPS
+  const knownIds = new Set(DASHBOARD_LAYER_GROUPS.flatMap(g => g.children.map(c => c.id)));
+  const valid = ids.filter(id => knownIds.has(id));
+  if (valid.length === 0) return null;
+  const result: Record<string, boolean> = {};
+  for (const id of Array.from(knownIds)) result[id] = false;
+  for (const id of valid) result[id] = true;
+  return result;
+}
+
+/** Serialize enabledLayers to comma-separated string, omitting if matches defaults */
+function serializeLayers(enabledLayers: Record<string, boolean>): string | null {
+  const defaults = getDefaultEnabledLayers();
+  const currentKeys = Object.keys(enabledLayers).filter(k => enabledLayers[k]).sort();
+  const defaultKeys = Object.keys(defaults).filter(k => defaults[k]).sort();
+  if (currentKeys.join(",") === defaultKeys.join(",")) return null; // matches default, remove from URL
+  if (currentKeys.length === 0) return "none";
+  return currentKeys.join(",");
+}
+
 export default function Home() {
+  return (
+    <Suspense fallback={<div className="dashboard-command-center"><div className="dashboard-greeting"><h1>Dashboard</h1></div></div>}>
+      <HomeInner />
+    </Suspense>
+  );
+}
+
+function HomeInner() {
   const isMobile = useIsMobile();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [staff, setStaff] = useState<StaffInfo | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [requests, setRequests] = useState<ActiveRequest[]>([]);
@@ -111,13 +148,38 @@ export default function Home() {
   const [showMyRequests, setShowMyRequests] = useState(true);
   const [mapSearch, setMapSearch] = useState("");
 
-  // Layer state
-  const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(getDefaultEnabledLayers);
+  // Layer state — initialized from URL params, falls back to defaults
+  const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(() => {
+    const fromUrl = parseLayersParam(searchParams.get("layers"));
+    if (fromUrl) return fromUrl;
+    if (searchParams.get("layers") === "none") {
+      const all: Record<string, boolean> = {};
+      for (const g of DASHBOARD_LAYER_GROUPS) for (const c of g.children) all[c.id] = false;
+      return all;
+    }
+    return getDefaultEnabledLayers();
+  });
 
   // Entity preview modal state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewEntityType, setPreviewEntityType] = useState<EntityType | null>(null);
   const [previewEntityId, setPreviewEntityId] = useState<string | null>(null);
+
+  // Sync layer state to URL params (shallow, no page reload)
+  useEffect(() => {
+    const serialized = serializeLayers(enabledLayers);
+    const params = new URLSearchParams(searchParams.toString());
+    if (serialized) {
+      params.set("layers", serialized);
+    } else {
+      params.delete("layers");
+    }
+    const newUrl = params.toString() ? `${pathname}?${params}` : pathname;
+    const currentUrl = searchParams.toString() ? `${pathname}?${searchParams}` : pathname;
+    if (newUrl !== currentUrl) {
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [enabledLayers, pathname, router, searchParams]);
 
   // Determine if any atlas layer is enabled
   const atlasEnabled = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;

@@ -27,6 +27,100 @@ export interface GroupedLayerControlProps {
   counts?: Record<string, number>;
   /** Compact mode for dashboard (smaller font, tighter spacing) */
   compact?: boolean;
+  /** Inline mode renders groups directly without trigger button/popover (for sidebar panels) */
+  inline?: boolean;
+}
+
+function LayerGroupList({
+  groups,
+  enabledLayers,
+  onToggleLayer,
+  counts,
+  defaultExpanded,
+}: {
+  groups: LayerGroup[];
+  enabledLayers: Record<string, boolean>;
+  onToggleLayer: (layerId: string) => void;
+  counts?: Record<string, number>;
+  defaultExpanded: Record<string, boolean>;
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(defaultExpanded);
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  return (
+    <>
+      {groups.map((group) => {
+        const isExpanded = expandedGroups[group.id];
+        const groupActiveCount = group.children.filter(
+          (c) => enabledLayers[c.id]
+        ).length;
+
+        return (
+          <div key={group.id} className="layer-group">
+            <button
+              className="layer-group-header"
+              onClick={() => toggleGroup(group.id)}
+            >
+              <svg
+                className={`layer-chevron${isExpanded ? " expanded" : ""}`}
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+              >
+                <path
+                  d="M4 3L8 6L4 9"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="layer-group-icon">{group.icon || "\u{1F4CD}"}</span>
+              <span className="layer-group-label">{group.label}</span>
+              {groupActiveCount > 0 && (
+                <span className="layer-group-badge">{groupActiveCount}</span>
+              )}
+            </button>
+
+            {isExpanded && (
+              <div className="layer-group-children">
+                {group.children.map((item) => {
+                  const isOn = !!enabledLayers[item.id];
+                  const count = counts?.[item.id];
+
+                  return (
+                    <button
+                      key={item.id}
+                      className={`layer-item${isOn ? " active" : ""}`}
+                      onClick={() => onToggleLayer(item.id)}
+                    >
+                      <span
+                        className="layer-color-swatch"
+                        style={{ background: item.color }}
+                      />
+                      {group.exclusive ? (
+                        <span className={`layer-radio${isOn ? " checked" : ""}`} />
+                      ) : (
+                        <span className={`layer-check${isOn ? " checked" : ""}`} />
+                      )}
+                      <span className="layer-item-label">{item.label}</span>
+                      {count !== undefined && (
+                        <span className="layer-count-badge">{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export function GroupedLayerControl({
@@ -35,16 +129,18 @@ export function GroupedLayerControl({
   onToggleLayer,
   counts,
   compact = false,
+  inline = false,
 }: GroupedLayerControlProps) {
   const [open, setOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(groups.map((g) => [g.id, g.defaultExpanded]))
-  );
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
+  const defaultExpanded = Object.fromEntries(
+    groups.map((g) => [g.id, g.defaultExpanded])
+  );
+
+  // Close on outside click (only for popover mode)
   useEffect(() => {
-    if (!open) return;
+    if (inline || !open) return;
     const handler = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -52,11 +148,22 @@ export function GroupedLayerControl({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  }, [open, inline]);
 
-  const toggleGroup = (groupId: string) => {
-    setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
-  };
+  // Inline mode: render groups directly without trigger/popover
+  if (inline) {
+    return (
+      <div className={`grouped-layer-control inline${compact ? " compact" : ""}`}>
+        <LayerGroupList
+          groups={groups}
+          enabledLayers={enabledLayers}
+          onToggleLayer={onToggleLayer}
+          counts={counts}
+          defaultExpanded={defaultExpanded}
+        />
+      </div>
+    );
+  }
 
   // Count active layers across all groups
   const activeCount = Object.values(enabledLayers).filter(Boolean).length;
@@ -81,73 +188,13 @@ export function GroupedLayerControl({
 
       {open && (
         <div className="grouped-layer-panel">
-          {groups.map((group) => {
-            const isExpanded = expandedGroups[group.id];
-            const groupActiveCount = group.children.filter(
-              (c) => enabledLayers[c.id]
-            ).length;
-
-            return (
-              <div key={group.id} className="layer-group">
-                <button
-                  className="layer-group-header"
-                  onClick={() => toggleGroup(group.id)}
-                >
-                  <svg
-                    className={`layer-chevron${isExpanded ? " expanded" : ""}`}
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    fill="none"
-                  >
-                    <path
-                      d="M4 3L8 6L4 9"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="layer-group-icon">{group.icon || "📍"}</span>
-                  <span className="layer-group-label">{group.label}</span>
-                  {groupActiveCount > 0 && (
-                    <span className="layer-group-badge">{groupActiveCount}</span>
-                  )}
-                </button>
-
-                {isExpanded && (
-                  <div className="layer-group-children">
-                    {group.children.map((item) => {
-                      const isOn = !!enabledLayers[item.id];
-                      const count = counts?.[item.id];
-
-                      return (
-                        <button
-                          key={item.id}
-                          className={`layer-item${isOn ? " active" : ""}`}
-                          onClick={() => onToggleLayer(item.id)}
-                        >
-                          <span
-                            className="layer-color-swatch"
-                            style={{ background: item.color }}
-                          />
-                          {group.exclusive ? (
-                            <span className={`layer-radio${isOn ? " checked" : ""}`} />
-                          ) : (
-                            <span className={`layer-check${isOn ? " checked" : ""}`} />
-                          )}
-                          <span className="layer-item-label">{item.label}</span>
-                          {count !== undefined && (
-                            <span className="layer-count-badge">{count}</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          <LayerGroupList
+            groups={groups}
+            enabledLayers={enabledLayers}
+            onToggleLayer={onToggleLayer}
+            counts={counts}
+            defaultExpanded={defaultExpanded}
+          />
         </div>
       )}
     </div>

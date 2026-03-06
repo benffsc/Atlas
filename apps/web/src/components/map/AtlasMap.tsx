@@ -40,6 +40,7 @@ import {
   LAYER_CONFIGS,
   SERVICE_ZONES,
 } from "@/components/map";
+import { GroupedLayerControl, type LayerGroup } from "@/components/map/GroupedLayerControl";
 import type {
   Place,
   GooglePin,
@@ -71,6 +72,46 @@ function useIsMobile(breakpoint = 768) {
 }
 
 // All type definitions and layer configs are now imported from @/components/map
+
+/** Grouped layer definitions for the full Atlas map */
+const ATLAS_MAP_LAYER_GROUPS: LayerGroup[] = [
+  {
+    id: "primary",
+    label: "Primary Data",
+    icon: "\u{1F4CD}",
+    color: "#3b82f6",
+    defaultExpanded: true,
+    children: [
+      { id: "atlas_pins", label: "Atlas Data", color: "#3b82f6", defaultEnabled: true },
+    ],
+  },
+  {
+    id: "operational",
+    label: "Operational",
+    icon: "\u{1F4CA}",
+    color: "#10b981",
+    defaultExpanded: false,
+    children: [
+      { id: "zones", label: "Observation Zones", color: "#10b981", defaultEnabled: false },
+      { id: "volunteers", label: "Volunteers", color: "#FFD700", defaultEnabled: false },
+      { id: "clinic_clients", label: "Clinic Clients", color: "#8b5cf6", defaultEnabled: false },
+    ],
+  },
+  {
+    id: "historical",
+    label: "Historical",
+    icon: "\u{1F4DC}",
+    color: "#9333ea",
+    defaultExpanded: false,
+    children: [
+      { id: "places", label: "Cat Locations", color: "#3b82f6", defaultEnabled: false },
+      { id: "google_pins", label: "Google Pins", color: "#f59e0b", defaultEnabled: false },
+      { id: "tnr_priority", label: "TNR Priority", color: "#dc2626", defaultEnabled: false },
+      { id: "historical_sources", label: "Historical Sources", color: "#9333ea", defaultEnabled: false },
+      { id: "data_coverage", label: "Data Coverage", color: "#059669", defaultEnabled: false },
+    ],
+  },
+];
 
 export default function AtlasMap() {
   const isMobile = useIsMobile();
@@ -112,7 +153,7 @@ export default function AtlasMap() {
   const [diseaseFilter, setDiseaseFilter] = useState<string[]>([]);
 
   // Show legacy layers toggle
-  const [showLegacyLayers, setShowLegacyLayers] = useState(false);
+  // showLegacyLayers removed — GroupedLayerControl handles expand/collapse internally
 
   // Search suggestions
   const [searchResults, setSearchResults] = useState<Array<{ type: string; item: Place | GooglePin | Volunteer; label: string }>>([]);
@@ -2446,140 +2487,25 @@ export default function AtlasMap() {
             </div>
           )}
 
-          {/* Primary Layer toggles */}
-          <div style={{ padding: "8px 0" }}>
-            {PRIMARY_LAYER_CONFIGS.map((layer) => {
-              const count = layer.id === "atlas_pins" ? atlasPins.length : 0;
-
-              return (
-                <div
-                  key={layer.id}
-                  onClick={() => toggleLayer(layer.id)}
-                  style={{
-                    padding: "12px 16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    cursor: "pointer",
-                    background: enabledLayers[layer.id] ? `${layer.color}10` : "transparent",
-                    borderLeft: enabledLayers[layer.id] ? `3px solid ${layer.color}` : "3px solid transparent",
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>{layer.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                      {layer.label}
-                      <span style={{
-                        background: "#f3f4f6",
-                        padding: "1px 6px",
-                        borderRadius: 10,
-                        fontSize: 11,
-                        color: "#6b7280",
-                      }}>
-                        {count}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{layer.description}</div>
-                  </div>
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 4,
-                    border: `2px solid ${enabledLayers[layer.id] ? layer.color : "#d1d5db"}`,
-                    background: enabledLayers[layer.id] ? layer.color : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: 12,
-                  }}>
-                    {enabledLayers[layer.id] && "✓"}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Legacy layers toggle */}
-            <div
-              onClick={() => setShowLegacyLayers(!showLegacyLayers)}
-              style={{
-                padding: "10px 16px",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer",
-                borderTop: "1px solid #e5e7eb",
-                marginTop: 8,
+          {/* Layer toggles — GroupedLayerControl */}
+          <div style={{ padding: "12px 16px" }}>
+            <GroupedLayerControl
+              groups={ATLAS_MAP_LAYER_GROUPS}
+              enabledLayers={enabledLayers}
+              onToggleLayer={toggleLayer}
+              inline
+              counts={{
+                atlas_pins: atlasPins.length,
+                places: places.length,
+                google_pins: googlePins.length,
+                tnr_priority: tnrPriority.length,
+                zones: zones.length,
+                volunteers: volunteers.length,
+                clinic_clients: clinicClients.length,
+                historical_sources: historicalSources.length,
+                data_coverage: dataCoverage.length,
               }}
-            >
-              <span style={{ fontSize: 12, color: "#6b7280" }}>
-                {showLegacyLayers ? "▼" : "▶"}
-              </span>
-              <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>
-                Advanced Layers ({LEGACY_LAYER_CONFIGS.length})
-              </span>
-            </div>
-
-            {/* Legacy layer toggles (hidden by default) */}
-            {showLegacyLayers && LEGACY_LAYER_CONFIGS.map((layer) => {
-              const count = layer.id === "places" ? places.length :
-                layer.id === "google_pins" ? googlePins.length :
-                layer.id === "tnr_priority" ? tnrPriority.length :
-                layer.id === "zones" ? zones.length :
-                layer.id === "volunteers" ? volunteers.length :
-                layer.id === "clinic_clients" ? clinicClients.length :
-                layer.id === "historical_sources" ? historicalSources.length :
-                layer.id === "data_coverage" ? dataCoverage.length : 0;
-
-              return (
-                <div
-                  key={layer.id}
-                  onClick={() => toggleLayer(layer.id)}
-                  style={{
-                    padding: "10px 16px 10px 32px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    cursor: "pointer",
-                    background: enabledLayers[layer.id] ? `${layer.color}10` : "#f9fafb",
-                    borderLeft: enabledLayers[layer.id] ? `3px solid ${layer.color}` : "3px solid transparent",
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>{layer.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-                      {layer.label}
-                      {enabledLayers[layer.id] && count > 0 && (
-                        <span style={{
-                          background: "#f3f4f6",
-                          padding: "1px 5px",
-                          borderRadius: 8,
-                          fontSize: 10,
-                          color: "#6b7280",
-                        }}>
-                          {count}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#9ca3af" }}>{layer.description}</div>
-                  </div>
-                  <div style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 4,
-                    border: `2px solid ${enabledLayers[layer.id] ? layer.color : "#d1d5db"}`,
-                    background: enabledLayers[layer.id] ? layer.color : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
-                    fontSize: 11,
-                  }}>
-                    {enabledLayers[layer.id] && "✓"}
-                  </div>
-                </div>
-              );
-            })}
+            />
           </div>
 
           {/* Legend */}
