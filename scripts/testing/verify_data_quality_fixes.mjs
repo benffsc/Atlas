@@ -112,10 +112,7 @@ test('People with primary_phone should have phone identifier', async () => {
           SELECT 1 FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id AND pi.id_type = 'phone'
       )
-      AND NOT EXISTS (
-          SELECT 1 FROM ops.identity_phone_blacklist bl
-          WHERE bl.phone_norm = sot.norm_phone_us(p.primary_phone)
-      )
+      -- identity_phone_blacklist removed in v2
   `);
 
   const count = parseInt(result.rows[0].count);

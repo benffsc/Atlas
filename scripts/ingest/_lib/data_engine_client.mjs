@@ -166,14 +166,12 @@ export async function getDataEngineStats() {
       SELECT
         (SELECT COUNT(*) FROM ops.staged_records) as total_staged,
         (SELECT COUNT(*) FROM ops.staged_records WHERE NOT is_processed) as pending,
-        (SELECT COUNT(*) FROM ops.data_engine_match_decisions) as total_decisions,
         (SELECT COUNT(*) FROM ops.data_engine_processors WHERE is_active) as active_processors
     `);
 
     return {
       totalStaged: parseInt(result.rows[0].total_staged || '0'),
       pending: parseInt(result.rows[0].pending || '0'),
-      totalDecisions: parseInt(result.rows[0].total_decisions || '0'),
       activeProcessors: parseInt(result.rows[0].active_processors || '0'),
     };
   } finally {

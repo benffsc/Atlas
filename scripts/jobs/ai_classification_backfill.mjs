@@ -204,10 +204,8 @@ async function getPlaceContext(placeId) {
       pce.eartip_count_observed,
       pce.notes,
       pce.observation_date,
-      pce.source_type,
-      csc.description AS source_description
+      pce.source_type
     FROM sot.place_colony_estimates pce
-    LEFT JOIN ops.colony_source_confidence csc ON csc.source_type = pce.source_type
     WHERE pce.place_id = $1
     ORDER BY pce.observation_date DESC NULLS LAST
     LIMIT 10

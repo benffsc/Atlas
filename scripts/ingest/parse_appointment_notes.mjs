@@ -13,7 +13,7 @@
  * - "Feral colony, 10+ cats"
  *
  * PREREQUISITES:
- * - Run MIG_267 first (adds 'appointment_notes_parse' to colony_source_confidence)
+ * - colony_source_confidence removed in v2 — no prerequisite needed
  *
  * Usage:
  *   node scripts/ingest/parse_appointment_notes.mjs [--dry-run] [--limit N] [--verbose]
@@ -237,16 +237,7 @@ This script parses:
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
-    // Check if source_type exists
-    const sourceCheck = await pool.query(
-      `SELECT 1 FROM ops.colony_source_confidence WHERE source_type = $1`,
-      [SOURCE_TYPE]
-    );
-    if (sourceCheck.rowCount === 0) {
-      console.error(`${red}Error:${reset} source_type '${SOURCE_TYPE}' not in colony_source_confidence`);
-      console.error(`Run MIG_267 first to add it.`);
-      process.exit(1);
-    }
+    // colony_source_confidence table removed in v2 (MIG_2299)
 
     // Load appointments with medical_notes and place_id
     console.log(`${cyan}Loading appointments with medical notes and place links...${reset}`);

@@ -189,10 +189,6 @@ async function main() {
         AND p.merged_into_person_id IS NULL
         AND pi.id_value_norm IS NOT NULL
         AND pi.id_value_norm != ''
-        AND NOT EXISTS (
-          SELECT 1 FROM ops.identity_phone_blacklist pb
-          WHERE pb.phone_norm = pi.id_value_norm
-        )
       GROUP BY pi.id_value_norm
       HAVING COUNT(DISTINCT p.person_id) > 1
       ORDER BY count DESC

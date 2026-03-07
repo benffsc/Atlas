@@ -139,23 +139,7 @@ test("person_cat_relationships table exists and has data", async (client) => {
   }
 });
 
-test("v_person_cat_history view works", async (client) => {
-  const result = await client.query(`
-    SELECT * FROM ops.v_person_cat_history LIMIT 5
-  `);
-  if (!Array.isArray(result.rows)) {
-    throw new Error("View did not return array");
-  }
-});
-
-test("query_person_cat_history function works", async (client) => {
-  const result = await client.query(`
-    SELECT * FROM ops.query_person_cat_history(NULL, NULL, 'adopter') LIMIT 5
-  `);
-  if (!Array.isArray(result.rows)) {
-    throw new Error("Function did not return array");
-  }
-});
+// Skipped: v_person_cat_history and query_person_cat_history removed in v2 (MIG_2299)
 
 test("adopter relationships exist from ShelterLuv outcomes", async (client) => {
   const result = await client.query(`

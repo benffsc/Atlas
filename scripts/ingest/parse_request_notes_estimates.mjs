@@ -12,7 +12,7 @@
  * - Colony status: "colony complete", "all fixed", "3 remaining"
  *
  * PREREQUISITES:
- * - Run MIG_267 first (adds 'internal_notes_parse' to colony_source_confidence)
+ * - colony_source_confidence removed in v2 — no prerequisite needed
  *
  * Usage:
  *   node scripts/ingest/parse_request_notes_estimates.mjs [--dry-run] [--limit N] [--verbose]
@@ -230,17 +230,6 @@ This script parses:
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
-    // Check if source_type exists
-    const sourceCheck = await pool.query(
-      `SELECT 1 FROM ops.colony_source_confidence WHERE source_type = $1`,
-      [SOURCE_TYPE]
-    );
-    if (sourceCheck.rowCount === 0) {
-      console.error(`${red}Error:${reset} source_type '${SOURCE_TYPE}' not in colony_source_confidence`);
-      console.error(`Run MIG_267 first to add it.`);
-      process.exit(1);
-    }
-
     // Load requests with notes
     console.log(`${cyan}Loading requests with notes...${reset}`);
     let query = `

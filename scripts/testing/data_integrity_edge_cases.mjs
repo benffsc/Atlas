@@ -330,11 +330,10 @@ test("clinics in appointments but missing clinic context", async (client) => {
 
 test("staged records not yet processed", async (client) => {
   const result = await client.query(`
-    SELECT sr.source_system, sr.source_table, COUNT(*) as count
-    FROM ops.staged_records sr
-    LEFT JOIN ops.data_engine_match_decisions d ON d.staged_record_id = sr.id
-    WHERE d.decision_id IS NULL
-    GROUP BY sr.source_system, sr.source_table
+    SELECT source_system, source_table, COUNT(*) as count
+    FROM ops.staged_records
+    WHERE NOT is_processed
+    GROUP BY source_system, source_table
     ORDER BY count DESC
     LIMIT 10
   `);
@@ -401,41 +400,13 @@ test("places with coordinates but no formatted address", async (client) => {
   }
 });
 
-test("ShelterLuv outcomes without resulting person_cat_relationships", async (client) => {
-  const result = await client.query(`
-    SELECT COUNT(*) as count
-    FROM ops.staged_records sr
-    JOIN ops.data_engine_match_decisions d ON d.staged_record_id = sr.id
-    WHERE sr.source_system = 'shelterluv'
-      AND sr.source_table = 'outcomes'
-      AND d.decision_type NOT IN ('rejected')
-      AND d.resulting_person_id IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM sot.person_cat_relationships pcr
-        WHERE pcr.person_id = d.resulting_person_id
-          AND pcr.source_system = 'shelterluv'
-      )
-  `);
-  const count = parseInt(result.rows[0].count);
-  if (count > 0) {
-    warn(`Found ${count} processed ShelterLuv outcomes without resulting relationships`);
-  }
-});
+// Skipped: data_engine_match_decisions table removed in v2 (MIG_2299)
 
 // ============================================================================
 // 7. TIPPY TOOL READINESS
 // ============================================================================
 
-test("query_person_cat_history function returns valid data", async (client) => {
-  const result = await client.query(`
-    SELECT * FROM ops.query_person_cat_history(NULL, NULL, 'adopter') LIMIT 5
-  `);
-  if (result.rows.length === 0) {
-    warn("No adopter relationships found for Tippy to query");
-  } else {
-    finding(`Tippy can query ${result.rows.length}+ adopter relationships`);
-  }
-});
+// Skipped: query_person_cat_history function removed in v2 (MIG_2299)
 
 test("v_place_active_contexts has data for Tippy queries", async (client) => {
   const result = await client.query(`

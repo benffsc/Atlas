@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: References v1 trapper.* schema (dropped MIG_2299). Do not run.
 # ingest_all_atlas_009.sh
 #
 # Batch ingest script for ATLAS_009: runs all ingest scripts, then

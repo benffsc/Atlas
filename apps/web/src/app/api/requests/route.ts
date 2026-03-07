@@ -415,12 +415,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // FFS-296: Link requestor to place
+    // FFS-296: Link requestor to place + enrich place data
     if (result?.request_id) {
       try {
         await queryOne(`SELECT ops.enrich_person_from_request($1::UUID)`, [result.request_id]);
       } catch (e) {
         console.warn("[POST /api/requests] enrich_person_from_request failed:", e);
+      }
+      try {
+        await queryOne(`SELECT ops.enrich_place_from_request($1::UUID)`, [result.request_id]);
+      } catch (e) {
+        console.warn("[POST /api/requests] enrich_place_from_request failed:", e);
       }
     }
 

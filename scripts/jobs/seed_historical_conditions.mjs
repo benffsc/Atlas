@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// DEPRECATED: place_condition_history table removed in v2 (MIG_2299). Do not run.
 /**
  * seed_historical_conditions.mjs
  *

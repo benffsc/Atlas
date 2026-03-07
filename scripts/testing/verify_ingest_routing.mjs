@@ -121,14 +121,7 @@ console.log('');
 console.log('--- 3. Identity Graph Active ---');
 console.log('');
 
-// Check identity_edges table exists and has data
-await test(
-  'Identity edges table exists and has data',
-  `SELECT COUNT(*) as cnt FROM ops.identity_edges`,
-  (rows) => rows[0].cnt > 0
-    ? { pass: true }
-    : { warn: true, message: `Table exists but has ${rows[0].cnt} edges` }
-);
+// identity_edges removed in v2 (MIG_2299)
 
 // Check merge triggers are active
 await test(
@@ -151,34 +144,15 @@ console.log('');
 console.log('--- 4. Data Engine Processing ---');
 console.log('');
 
-// Check recent match decisions use F-S scoring
-await test(
-  'Recent match decisions include F-S scores',
-  `SELECT
-     COUNT(*) as total,
-     COUNT(*) FILTER (WHERE fs_match_probability IS NOT NULL) as with_fs
-   FROM ops.data_engine_match_decisions
-   WHERE processed_at > NOW() - INTERVAL '7 days'`,
-  (rows) => {
-    const { total, with_fs } = rows[0];
-    if (total === 0) {
-      return { warn: true, message: 'No decisions in last 7 days' };
-    }
-    const pct = (with_fs / total * 100).toFixed(1);
-    if (pct > 0) {
-      return { pass: true };
-    }
-    return { warn: true, message: `${pct}% of recent decisions have F-S scores` };
-  }
-);
+// data_engine_match_decisions removed in v2 (MIG_2299)
 
-// Check processing pipeline is running
+// Check processing pipeline is running via staged_records
 await test(
   'Processing pipeline has recent activity',
-  `SELECT MAX(processed_at) as last_processed FROM ops.data_engine_match_decisions`,
+  `SELECT MAX(processed_at) as last_processed FROM ops.staged_records WHERE is_processed`,
   (rows) => {
     const lastProcessed = rows[0].last_processed;
-    if (!lastProcessed) return { warn: true, message: 'No decisions found' };
+    if (!lastProcessed) return { warn: true, message: 'No processed records found' };
     const hoursSince = (Date.now() - new Date(lastProcessed).getTime()) / (1000 * 60 * 60);
     if (hoursSince < 24) {
       return { pass: true };

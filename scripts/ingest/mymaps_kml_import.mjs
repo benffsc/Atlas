@@ -22,7 +22,7 @@
  * - Support AI summarization of historical context
  *
  * PREREQUISITES:
- * - Run MIG_267 first (adds 'legacy_mymaps' to colony_source_confidence)
+ * - colony_source_confidence removed in v2 — no prerequisite needed
  * - Run MIG_308 (creates kml_pending_records staging table)
  * - Run: python3 /tmp/kml_full_extract.py to generate JSON
  *
@@ -156,17 +156,6 @@ Output:
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
-    // Check if source_type exists
-    const sourceCheck = await pool.query(
-      `SELECT 1 FROM ops.colony_source_confidence WHERE source_type = $1`,
-      [SOURCE_TYPE]
-    );
-    if (sourceCheck.rowCount === 0) {
-      console.error(`${red}Error:${reset} source_type '${SOURCE_TYPE}' not in colony_source_confidence`);
-      console.error(`Run MIG_267 first to add it.`);
-      process.exit(1);
-    }
-
     // Load existing places with coordinates for matching
     // Use PostGIS to extract lat/lng from the geography location column
     console.log(`\n${cyan}Loading existing places for matching...${reset}`);

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// DEPRECATED: site_observations table removed in v2 (MIG_2299). Do not run.
 /**
  * extract_observation_attributes.mjs
  *
