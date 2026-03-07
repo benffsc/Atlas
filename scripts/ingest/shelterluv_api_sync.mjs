@@ -486,15 +486,15 @@ async function main() {
     if (!options.dryRun) {
       // Check current sync status
       const statusResult = await client.query(`
-        SELECT sync_type, last_sync_at, last_record_time, last_batch_size, sync_health
+        SELECT sync_type, last_sync_at, records_synced, pending_processing, sync_health
         FROM ops.v_shelterluv_sync_status
       `);
 
       console.log(`\n${bold}Sync Status:${reset}`);
       for (const row of statusResult.rows) {
-        const health = row.sync_health === 'recent' ? green :
+        const health = row.sync_health === 'healthy' ? green :
                        row.sync_health === 'stale' ? yellow : red;
-        console.log(`  ${row.sync_type}: ${health}${row.sync_health}${reset} (${row.last_batch_size} records)`);
+        console.log(`  ${row.sync_type}: ${health}${row.sync_health}${reset} (${row.records_synced} synced, ${row.pending_processing} pending)`);
       }
     }
 
