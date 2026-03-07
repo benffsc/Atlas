@@ -187,6 +187,23 @@ export interface ContactStepProps extends BaseStepProps {
   personSearchLoading: boolean;
   personDropdownRef: React.RefObject<HTMLDivElement>;
   selectPerson: (person: PersonSuggestion) => void;
+  // Identity suggestion (email/phone match)
+  identitySuggestions?: Array<{
+    person_id: string;
+    display_name: string;
+    first_name: string | null;
+    last_name: string | null;
+    entity_type: string;
+    email: string | null;
+    phone: string | null;
+    cat_count: number;
+    match_type: "email" | "phone" | "both";
+    addresses: Array<{ place_id: string; formatted_address: string; role: string }>;
+  }>;
+  identitySuggestionLoading?: boolean;
+  identitySuggestionDismissed?: boolean;
+  onDismissIdentitySuggestion?: () => void;
+  onSelectIdentitySuggestion?: (person: NonNullable<ContactStepProps["identitySuggestions"]>[number]) => void;
 }
 
 export interface LocationStepProps extends BaseStepProps {

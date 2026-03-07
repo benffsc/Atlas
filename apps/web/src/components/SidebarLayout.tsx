@@ -261,6 +261,7 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
       items: [
         { label: "Staff", href: "/admin/staff", icon: "👥" },
         { label: "Organizations", href: "/admin/organizations", icon: "🏢" },
+        { label: "Equipment", href: "/admin/equipment", icon: "🪤" },
         { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
         { label: "Ecology Config", href: "/admin/ecology", icon: "🌿" },
         { label: "AI Access", href: "/admin/ai-access", icon: "🔐" },

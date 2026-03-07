@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
+import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { BackButton } from "@/components/common";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
@@ -188,6 +190,13 @@ export default function NewIntakeEntryPage() {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
 
+  // Person suggestion by email/phone (duplicate prevention)
+  const personSuggestion = usePersonSuggestion({
+    email: form.email,
+    phone: form.phone,
+    enabled: !selectedPersonId,
+  });
+
   const updateForm = (updates: Partial<IntakeFormData>) => {
     setForm(prev => ({ ...prev, ...updates }));
   };
@@ -249,6 +258,18 @@ export default function NewIntakeEntryPage() {
     setSelectedPersonId(person.person_id);
     setShowPersonDropdown(false);
     setPersonSuggestions([]);
+  };
+
+  // Handle suggestion select from identity banner
+  const handleSuggestionSelect = (person: Parameters<typeof personSuggestion.selectPerson>[0]) => {
+    selectPerson({
+      person_id: person.person_id,
+      display_name: person.display_name,
+      emails: person.email,
+      phones: person.phone,
+      cat_count: person.cat_count,
+    });
+    personSuggestion.selectPerson(person);
   };
 
   // Handle place resolved from PlaceResolver
@@ -563,6 +584,15 @@ export default function NewIntakeEntryPage() {
               </div>
             )}
           </div>
+
+          {/* Person suggestion banner (email/phone duplicate prevention) */}
+          <PersonSuggestionBanner
+            suggestions={personSuggestion.suggestions}
+            loading={personSuggestion.loading}
+            dismissed={personSuggestion.dismissed}
+            onDismiss={personSuggestion.dismiss}
+            onSelect={handleSuggestionSelect}
+          />
         </div>
 
         {/* Section 2: Cat Location */}

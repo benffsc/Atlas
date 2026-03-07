@@ -2,14 +2,18 @@
 /**
  * airtable_photos_sync.mjs
  *
- * Syncs photos from Airtable Trapper Cats and Trapper Reports to Atlas.
+ * Syncs photos from Airtable Trapper Cats, Trapper Reports, and Master Cats to Atlas.
  * Uses the Raw → Normalize → SoT pattern:
  *   1. Fetch from Airtable → raw_airtable_media (pending)
  *   2. Upload to Supabase Storage → raw_airtable_media (downloaded)
  *   3. Import to request_media → raw_airtable_media (imported)
  *
+ * FFS-200: Master Cats support adds cat photos/notes from Master Cats table
+ *   and updates sot.cats with descriptions, markings, and notes.
+ *
  * Usage:
  *   node scripts/ingest/airtable_photos_sync.mjs [--stage=fetch|download|import|all]
+ *   node scripts/ingest/airtable_photos_sync.mjs --include-master-cats
  *
  * Required env:
  *   DATABASE_URL - Postgres connection string
@@ -32,6 +36,7 @@ if (!AIRTABLE_PAT) {
 const BASE_ID = 'appl6zLrRFDvsz0dh';
 const TRAPPER_CATS_TABLE = 'tblP6VojwygMA9VQ3';
 const TRAPPER_REPORTS_TABLE = 'tblE8SFqVfsW051ox';
+const MASTER_CATS_TABLE = process.env.AT_MASTER_CATS_TABLE_ID || null;
 const MEDIA_BUCKET = 'request-media';
 
 // Initialize Supabase client
@@ -340,6 +345,90 @@ async function stageImport(client) {
 }
 
 // ═══════════════════════════════════════════════════
+// FFS-200: Master Cats — Photos + Text Fields
+// ═══════════════════════════════════════════════════
+
+async function stageFetchMasterCats(client) {
+  if (!MASTER_CATS_TABLE) {
+    console.log('\n  Master Cats table ID not configured. Set AT_MASTER_CATS_TABLE_ID env var.');
+    return { inserted: 0, skipped: 0, enriched: 0 };
+  }
+
+  console.log('\n═══════════════════════════════════════════════════');
+  console.log('FFS-200: Fetching Master Cats photos + enrichment');
+  console.log('═══════════════════════════════════════════════════\n');
+
+  let inserted = 0;
+  let skipped = 0;
+  let enriched = 0;
+
+  const masterCats = await fetchAllRecords(MASTER_CATS_TABLE);
+  console.log(`Found ${masterCats.length} Master Cat records\n`);
+
+  for (const record of masterCats) {
+    const f = record.fields;
+    const photos = f['Photo'] || f['Photos'] || f['Images'] || [];
+    const microchip = f['Microchip'] || f['Microchip Number'] || null;
+    const catName = f['Name'] || f['Cat Name'] || null;
+    const description = f['Description'] || f['Notes'] || null;
+    const markings = f['Markings'] || f['Color/Markings'] || null;
+
+    // Stage photos to raw_airtable_media
+    for (const photo of photos) {
+      try {
+        await client.query(
+          `INSERT INTO trapper.raw_airtable_media (
+            airtable_record_id, airtable_attachment_id, airtable_table,
+            filename, url, size_bytes, mime_type,
+            width, height, media_type, caption, cat_description
+          ) VALUES ($1, $2, 'master_cats', $3, $4, $5, $6, $7, $8, 'cat_photo', $9, $10)
+          ON CONFLICT (airtable_record_id, airtable_attachment_id) DO NOTHING`,
+          [
+            record.id,
+            photo.id,
+            photo.filename || `master_cat_${Date.now()}.jpg`,
+            photo.url,
+            photo.size || null,
+            photo.type || null,
+            photo.width || null,
+            photo.height || null,
+            catName,
+            description
+          ]
+        );
+        inserted++;
+      } catch (err) {
+        if (err.code === '23505') {
+          skipped++;
+        } else {
+          console.error(`  ✗ Error inserting master cat photo: ${err.message}`);
+        }
+      }
+    }
+
+    // Enrich sot.cats with text fields (description, markings)
+    if ((description || markings) && microchip) {
+      try {
+        const result = await client.query(
+          `UPDATE sot.cats SET
+             notes = COALESCE(notes, $2),
+             color_pattern = COALESCE(color_pattern, $3)
+           WHERE microchip = $4
+           RETURNING cat_id`,
+          [description, description, markings, microchip.trim()]
+        );
+        if (result.rowCount > 0) enriched++;
+      } catch (err) {
+        console.error(`  ✗ Error enriching cat ${microchip}: ${err.message}`);
+      }
+    }
+  }
+
+  console.log(`\n✓ Master Cats: ${inserted} photos inserted, ${skipped} skipped, ${enriched} cats enriched`);
+  return { inserted, skipped, enriched };
+}
+
+// ═══════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════
 
@@ -355,9 +444,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Parse --stage argument
+  // Parse arguments
   const args = process.argv.slice(2);
   let stage = 'all';
+  const includeMasterCats = args.includes('--include-master-cats');
   for (const arg of args) {
     if (arg.startsWith('--stage=')) {
       stage = arg.split('=')[1];
@@ -384,6 +474,11 @@ async function main() {
 
     if (stage === 'import' || stage === 'all') {
       await stageImport(client);
+    }
+
+    // FFS-200: Master Cats
+    if (includeMasterCats || stage === 'all') {
+      await stageFetchMasterCats(client);
     }
   } finally {
     await client.end();

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
+import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE } from "@/lib/enums";
 
@@ -94,6 +96,13 @@ export function HandoffRequestModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  // Person suggestion by email/phone (duplicate prevention)
+  const personSuggestion = usePersonSuggestion({
+    email: newRequesterEmail,
+    phone: newRequesterPhone,
+    enabled: !selectedPerson && !linkToExisting,
+  });
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -138,7 +147,9 @@ export function HandoffRequestModal({
       setSearchingRequests(false);
       setError("");
       setSuccess(false);
+      personSuggestion.reset();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Debounced request search for "Link to Existing" mode
@@ -208,6 +219,21 @@ export function HandoffRequestModal({
     setNewRequesterLastName("");
     setNewRequesterPhone("");
     setNewRequesterEmail("");
+    personSuggestion.reset();
+  };
+
+  const handleSuggestionSelect = (person: { person_id: string; display_name: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null }) => {
+    handleSelectPerson({
+      entity_id: person.person_id,
+      entity_type: "person",
+      display_name: person.display_name,
+      first_name: person.first_name,
+      last_name: person.last_name,
+      email: person.email,
+      phone: person.phone,
+      address: null,
+    });
+    personSuggestion.selectPerson(person as Parameters<typeof personSuggestion.selectPerson>[0]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -739,6 +765,15 @@ export function HandoffRequestModal({
               />
             </div>
           </div>
+
+          {/* Person suggestion banner (duplicate prevention) */}
+          <PersonSuggestionBanner
+            suggestions={personSuggestion.suggestions}
+            loading={personSuggestion.loading}
+            dismissed={personSuggestion.dismissed}
+            onDismiss={personSuggestion.dismiss}
+            onSelect={handleSuggestionSelect}
+          />
 
           {/* Warning: no person record will be created without contact info */}
           {!selectedPerson && !newRequesterPhone.trim() && !newRequesterEmail.trim() && (newRequesterFirstName.trim() || newRequesterLastName.trim()) && (

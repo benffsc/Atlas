@@ -439,28 +439,51 @@ function getBusinessScore(name: string): number {
 
 /**
  * Classify a ClinicHQ booking as an FFSC program booking.
- * Mirrors ops.classify_ffsc_booking() SQL function (MIG_2853, FFS-260).
+ * Mirrors ops.classify_ffsc_booking() SQL function (MIG_2855, FFS-260/264/266).
  *
  * Returns NULL if not an FFSC program booking.
  * Returns category: 'ffsc_foster', 'ffsc_office', 'ffsc_colony',
- *   'shelter_transfer', 'fire_rescue', 'placeholder', 'ffsc_trapping_site'
+ *   'shelter_transfer', 'rescue_transfer', 'fire_rescue', 'placeholder', 'ffsc_trapping_site'
  *
  * @example
  * classifyFfscBooking('Forgotten Felines Fosters') // 'ffsc_foster'
  * classifyFfscBooking('SCAS Kitten') // 'shelter_transfer'
+ * classifyFfscBooking('Twenty Tails Rescue') // 'rescue_transfer'
  * classifyFfscBooking('John Smith') // null
  */
 export function classifyFfscBooking(clientName: string | null | undefined): string | null {
   if (!clientName) return null;
   const name = clientName.toLowerCase().trim();
 
+  // Specific FFSC program types (order matters — specific before generic)
   if (name.includes('forgotten felines foster')) return 'ffsc_foster';
   if (name.includes('forgotten felines office')) return 'ffsc_office';
   if (name.includes('forgotten felines colony')) return 'ffsc_colony';
+  // Bug fix: catch "[Location] Forgotten Felines Of Sonoma County" before generic pattern
+  if (name.includes('forgotten felines of sonoma county')) return 'ffsc_trapping_site';
+
+  // Municipal shelter transfers
   if (/^(scas|rpas)\b/.test(name)) return 'shelter_transfer';
+  if (name.includes('northbay animal services')) return 'shelter_transfer';
+  if (name.includes('sc animal services') || name.includes('sonoma county animal services')) return 'shelter_transfer';
+
+  // External rescue/shelter transfers (FFS-266)
+  const RESCUE_ORGS = [
+    'humane society for inland mendocino', 'twenty tails rescue',
+    'bitten by a kitten', 'marin humane', 'cat rescue of cloverdale',
+    'dogwood animal rescue', 'countryside rescue', 'esther pruitt feline rescue',
+    'sonoma county wildlife rescue', 'little paws kitten rescue',
+  ];
+  if (RESCUE_ORGS.some(org => name.includes(org))) return 'rescue_transfer';
+
   if (name.startsWith('fire cat')) return 'fire_rescue';
   if (name.includes('rebooking placeholder') || name.includes('rebook')) return 'placeholder';
+
+  // Named trapping sites
+  if (name.includes('sonoma county landfill') || name.includes('sonoma county fairgrounds')) return 'ffsc_trapping_site';
+  // Generic FFSC trapping sites (e.g., "West School Street Ffsc")
   if (/\s(ffsc|forgotten felines)\s*$/.test(name)) return 'ffsc_trapping_site';
+
   return null;
 }
 

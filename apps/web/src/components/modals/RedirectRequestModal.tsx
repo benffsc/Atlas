@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
+import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 
 interface RedirectRequestModalProps {
   isOpen: boolean;
@@ -63,6 +65,13 @@ export function RedirectRequestModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  // Person suggestion by email/phone (duplicate prevention)
+  const personSuggestion = usePersonSuggestion({
+    email: newRequesterEmail,
+    phone: newRequesterPhone,
+    enabled: !linkToExisting,
+  });
+
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -88,7 +97,9 @@ export function RedirectRequestModal({
       setRequestSearchResults([]);
       setError("");
       setSuccess(false);
+      personSuggestion.reset();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Debounced search for existing requests
@@ -107,6 +118,13 @@ export function RedirectRequestModal({
     }, 300);
     return () => clearTimeout(timer);
   }, [requestSearchQuery, linkToExisting, requestId]);
+
+  const handleSuggestionSelect = (person: Parameters<typeof personSuggestion.selectPerson>[0]) => {
+    setNewRequesterName(person.display_name);
+    setNewRequesterPhone(person.phone || "");
+    setNewRequesterEmail(person.email || "");
+    personSuggestion.selectPerson(person);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -460,6 +478,15 @@ export function RedirectRequestModal({
               }}
             />
           </div>
+
+          {/* Person suggestion banner (duplicate prevention) */}
+          <PersonSuggestionBanner
+            suggestions={personSuggestion.suggestions}
+            loading={personSuggestion.loading}
+            dismissed={personSuggestion.dismissed}
+            onDismiss={personSuggestion.dismiss}
+            onSelect={handleSuggestionSelect}
+          />
 
           {/* Cat Count & Summary */}
           <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: "12px", marginBottom: "16px" }}>

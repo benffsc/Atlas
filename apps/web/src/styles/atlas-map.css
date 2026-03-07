@@ -2963,3 +2963,176 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* ============================================================
+   Street View Active: Constrain drawers to map portion (55%)
+   ============================================================ */
+
+.atlas-map-sv-active .place-detail-drawer,
+.atlas-map-sv-active .person-detail-drawer,
+.atlas-map-sv-active .cat-detail-drawer {
+  height: 55vh;
+  max-height: 55vh;
+}
+
+/* ============================================================
+   Dashboard Map Pin Hierarchy
+   ============================================================ */
+
+.dashboard-pin-active {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 8px rgba(59,130,246,0.3);
+}
+
+.dashboard-pin-completed {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  opacity: 0.6;
+}
+
+.dashboard-pin-urgent {
+  animation: dashboard-pin-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dashboard-pin-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4), 0 1px 3px rgba(0,0,0,0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0), 0 1px 3px rgba(0,0,0,0.3); }
+}
+
+/* ============================================================
+   Layer Panel CSS classes (Phase 4 polish)
+   ============================================================ */
+
+.map-layer-panel {
+  position: absolute;
+  top: 16px;
+  right: 180px;
+  z-index: 1050;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  width: 300px;
+  max-height: calc(100dvh - 100px);
+  overflow-y: auto;
+}
+
+.map-layer-panel--mobile {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: auto;
+  z-index: 1200;
+  background: white;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+  max-height: 60dvh;
+  overflow-y: auto;
+  width: auto;
+  animation: map-panel-slide-up 0.25s ease-out;
+}
+
+.map-layer-panel--mobile::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: #d1d5db;
+  border-radius: 2px;
+  margin: 8px auto 4px;
+}
+
+@keyframes map-panel-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.map-layer-panel__header {
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.map-layer-panel__title {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.map-layer-panel__subtitle {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.map-layer-panel__zone {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.map-layer-panel__zone-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.map-layer-panel__zone-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.map-layer-panel__layers {
+  padding: 12px 16px;
+}
+
+/* ============================================================
+   Map Search Container CSS class (Phase 4 polish)
+   ============================================================ */
+
+.map-search-container {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1050;
+}
+
+/* ============================================================
+   Map Error Overlay CSS class (Phase 4 polish)
+   ============================================================ */
+
+.map-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(2px);
+}
+
+.map-error-overlay__content {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}

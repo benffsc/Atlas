@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
+import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
@@ -61,12 +63,6 @@ interface PersonDetails {
   email?: string;
   phone?: string;
   addresses?: PersonAddress[];
-}
-
-interface EmailCheckResult {
-  exists: boolean;
-  person?: { person_id: string; display_name: string };
-  normalizedEmail: string;
 }
 
 const PROPERTY_TYPE_OPTIONS = [
@@ -143,9 +139,6 @@ function NewRequestForm() {
   const [requestorLastName, setRequestorLastName] = useState("");
   const [requestorPhone, setRequestorPhone] = useState("");
   const [requestorEmail, setRequestorEmail] = useState("");
-  // Email duplicate warning
-  const [emailWarning, setEmailWarning] = useState<EmailCheckResult | null>(null);
-  const [checkingEmail, setCheckingEmail] = useState(false);
   // Contact info editing (for existing person)
   const [editingContactInfo, setEditingContactInfo] = useState(false);
   const [originalContactInfo, setOriginalContactInfo] = useState<{ phone: string; email: string } | null>(null);
@@ -257,6 +250,13 @@ function NewRequestForm() {
     review_reason?: string;
     errors?: Record<string, string>;
   } | null>(null);
+
+  // Person suggestion by email/phone (duplicate prevention)
+  const personSuggestion = usePersonSuggestion({
+    email: requestorEmail,
+    phone: requestorPhone,
+    enabled: !selectedPerson,
+  });
 
   // Computed: should show exact ear-tip count vs estimate
   const showExactEartipCount = typeof estimatedCatCount === "number" && estimatedCatCount <= 5;
@@ -374,34 +374,6 @@ function NewRequestForm() {
     return () => clearTimeout(timer);
   }, [personSearch, selectedPerson]);
 
-  // Debounced email duplicate check
-  useEffect(() => {
-    if (!requestorEmail || !requestorEmail.includes("@") || selectedPerson) {
-      setEmailWarning(null);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setCheckingEmail(true);
-      try {
-        const data = await fetchApi<EmailCheckResult>(
-          `/api/people/check-email?email=${encodeURIComponent(requestorEmail)}`
-        );
-        if (data.exists) {
-          setEmailWarning(data);
-        } else {
-          setEmailWarning(null);
-        }
-      } catch (err) {
-        console.error("Email check error:", err);
-      } finally {
-        setCheckingEmail(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [requestorEmail, selectedPerson]);
-
   // Smart matching - check for duplicate requests when place or contact info changes
   const checkDuplicates = useCallback(async () => {
     // Need at least one criterion to check
@@ -483,39 +455,34 @@ function NewRequestForm() {
       setEditingContactInfo(false);
       setPersonSearch("");
       setPersonResults([]);
-      setEmailWarning(null);
     } catch (err) {
       console.error("Failed to fetch person details:", err);
     }
   };
 
-  const useExistingPerson = () => {
-    if (emailWarning?.person) {
-      // Fetch the existing person's details
-      fetchApi<{ person_id: string; display_name: string; identifiers?: { id_type: string; id_value: string }[] }>(`/api/people/${emailWarning.person.person_id}`)
-        .then((person) => {
-          const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
-          const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
-          const email = emailId?.id_value || "";
-          const phone = phoneId?.id_value || "";
-          setSelectedPerson({
-            person_id: person.person_id,
-            display_name: person.display_name,
-            email,
-            phone,
-          });
-          const nameParts = person.display_name?.split(" ") || [];
-          setRequestorFirstName(nameParts[0] || "");
-          setRequestorLastName(nameParts.slice(1).join(" ") || "");
-          setRequestorEmail(email || requestorEmail);
-          setRequestorPhone(phone || requestorPhone);
-          setOriginalContactInfo({ phone, email });
-          setEditingContactInfo(false);
-          setEmailWarning(null);
-          setRequestorMode("search");
-        })
-        .catch((err) => console.error("Failed to fetch person:", err));
-    }
+  const handleSuggestionSelect = (person: Parameters<typeof personSuggestion.selectPerson>[0]) => {
+    const nameParts = person.display_name.split(" ");
+    setSelectedPerson({
+      person_id: person.person_id,
+      display_name: person.display_name,
+      email: person.email || "",
+      phone: person.phone || "",
+      addresses: person.addresses?.map(a => ({
+        place_id: a.place_id,
+        formatted_address: a.formatted_address,
+        display_name: null,
+        role: a.role,
+        confidence: null,
+      })),
+    });
+    setRequestorFirstName(nameParts[0] || "");
+    setRequestorLastName(nameParts.slice(1).join(" ") || "");
+    setRequestorEmail(person.email || requestorEmail);
+    setRequestorPhone(person.phone || requestorPhone);
+    setOriginalContactInfo({ phone: person.phone || "", email: person.email || "" });
+    setEditingContactInfo(false);
+    setRequestorMode("search");
+    personSuggestion.selectPerson(person);
   };
 
   const clearPlace = () => {
@@ -533,9 +500,9 @@ function NewRequestForm() {
     setRequestorLastName("");
     setRequestorEmail("");
     setRequestorPhone("");
-    setEmailWarning(null);
     setEditingContactInfo(false);
     setOriginalContactInfo(null);
+    personSuggestion.reset();
   };
 
   // Use a known address from the selected person as the cat location
@@ -1287,11 +1254,6 @@ function NewRequestForm() {
                     placeholder="email@example.com"
                     style={{ width: "100%" }}
                   />
-                  {checkingEmail && !selectedPerson && (
-                    <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                      Checking...
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -1328,50 +1290,14 @@ function NewRequestForm() {
             </>
           )}
 
-          {/* Email duplicate warning */}
-          {emailWarning && (
-            <div
-              style={{
-                padding: "0.75rem 1rem",
-                borderRadius: "8px",
-                border: "2px solid #e65100",
-                background: "#fff8f5",
-                color: "#333",
-                marginBottom: "1rem",
-              }}
-            >
-              <div style={{ marginBottom: "0.5rem", color: "#c62828" }}>
-                <strong>This email already exists</strong>
-              </div>
-              <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", color: "#333" }}>
-                {`"${requestorEmail}" is registered to `}
-                <strong>{emailWarning.person?.display_name}</strong>.
-                {" "}Is this the same person, or do they share an email (e.g., a couple)?
-              </p>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={useExistingPerson}
-                  style={{ padding: "0.4rem 0.75rem", fontSize: "0.9rem" }}
-                >
-                  Use Existing Person
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEmailWarning(null)}
-                  style={{
-                    padding: "0.4rem 0.75rem",
-                    fontSize: "0.9rem",
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    color: "inherit",
-                  }}
-                >
-                  Create New Anyway (shared email)
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Person suggestion banner (email/phone duplicate prevention) */}
+          <PersonSuggestionBanner
+            suggestions={personSuggestion.suggestions}
+            loading={personSuggestion.loading}
+            dismissed={personSuggestion.dismissed}
+            onDismiss={personSuggestion.dismiss}
+            onSelect={handleSuggestionSelect}
+          />
 
           {/* Property authority section */}
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "0.5rem" }}>

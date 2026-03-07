@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
+import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { formatPhoneAsYouType } from "@/lib/formatters";
 import { shouldBePerson } from "@/lib/guards";
 import { fetchApi, postApi } from "@/lib/api-client";
@@ -74,6 +75,13 @@ function IntakeForm() {
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const personSearchTimeout = useRef<NodeJS.Timeout>();
   const personDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Person suggestion by email/phone (duplicate prevention)
+  const identitySuggestion = usePersonSuggestion({
+    email: formData.email,
+    phone: formData.phone,
+    enabled: !selectedPersonId,
+  });
 
   // Place selection state
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -209,6 +217,26 @@ function IntakeForm() {
           setShowAddressSelection(false);
         });
     }
+  };
+
+  // Handle selecting a person from identity suggestion banner
+  const handleIdentitySuggestionSelect = (person: Parameters<typeof identitySuggestion.selectPerson>[0]) => {
+    // Map to the shape selectPerson expects and reuse the same logic
+    selectPerson({
+      person_id: person.person_id,
+      display_name: person.display_name,
+      emails: person.email,
+      phones: person.phone,
+      cat_count: person.cat_count,
+      addresses: person.addresses?.map(a => ({
+        place_id: a.place_id,
+        formatted_address: a.formatted_address,
+        display_name: null,
+        role: a.role,
+        confidence: null,
+      })) || null,
+    });
+    identitySuggestion.selectPerson(person);
   };
 
   // Handle selecting a known address from person's addresses
@@ -434,7 +462,13 @@ function IntakeForm() {
         is_property_owner: formData.is_property_owner === "yes",
         has_property_access: formData.has_property_access === "yes",
 
-        // Notes (combine call type context + notes)
+        // Structured fields (stored in their own columns)
+        call_type: formData.call_type || undefined,
+        cat_name: formData.cat_name || undefined,
+        cat_description: formData.cat_description || undefined,
+        feeding_situation: formData.feeding_situation || undefined,
+
+        // Notes (combine call type context + notes as human-readable summary)
         situation_description: [
           `Call type: ${CALL_TYPE_OPTIONS.find(o => o.value === formData.call_type)?.label || formData.call_type}`,
           formData.cat_name ? `Cat name: ${formData.cat_name}` : null,
@@ -711,6 +745,11 @@ function IntakeForm() {
           personSearchLoading={personSearchLoading}
           personDropdownRef={personDropdownRef}
           selectPerson={selectPerson}
+          identitySuggestions={identitySuggestion.suggestions}
+          identitySuggestionLoading={identitySuggestion.loading}
+          identitySuggestionDismissed={identitySuggestion.dismissed}
+          onDismissIdentitySuggestion={identitySuggestion.dismiss}
+          onSelectIdentitySuggestion={handleIdentitySuggestionSelect}
         />
       )}
 

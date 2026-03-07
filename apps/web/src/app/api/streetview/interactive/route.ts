@@ -104,6 +104,14 @@ function initPano(){
         pitch:e.data.pitch||0
       });
     }
+    if(e.data&&e.data.type==='set-position'){
+      var newLoc={lat:e.data.lat,lng:e.data.lng};
+      sv.getPanorama({location:newLoc,radius:50},function(data,status){
+        if(status===google.maps.StreetViewStatus.OK&&data.location&&data.location.latLng){
+          panorama.setPosition(data.location.latLng);
+        }
+      });
+    }
   });
 }
 </script>

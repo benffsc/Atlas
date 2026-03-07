@@ -23,6 +23,10 @@ export interface IntakeSubmission {
   has_medical_concerns: boolean | null;
   is_emergency: boolean;
   situation_description: string | null;
+  call_type: string | null;
+  cat_name: string | null;
+  cat_description: string | null;
+  feeding_situation: string | null;
   triage_category: string | null;
   triage_score: number | null;
   triage_reasons: string[] | null;

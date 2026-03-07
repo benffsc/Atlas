@@ -470,17 +470,7 @@ function AtlasMapInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streetViewFullscreen, streetViewCoords]);
 
-  // Escape key exits Street View fullscreen
-  useEffect(() => {
-    if (!streetViewFullscreen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setStreetViewFullscreen(false);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [streetViewFullscreen]);
+  // Escape key for street view fullscreen is now handled in the unified keyboard handler below
 
   // Invalidate map size when fullscreen toggles
   useEffect(() => {
@@ -492,14 +482,18 @@ function AtlasMapInner() {
   // Keep cone-only ref in sync with state
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
 
-  // Auto-collapse legend when any drawer is open to reduce clutter
+  // Auto-collapse legend and layer panel when any drawer is open to reduce clutter
   const legendWasOpenRef = useRef<boolean | null>(null);
   useEffect(() => {
     const anyDrawerOpen = !!(selectedPlaceId || selectedCatId || selectedPersonId || selectedAnnotationId);
-    if (anyDrawerOpen && legendWasOpenRef.current === null) {
-      legendWasOpenRef.current = showLegend;
-      setShowLegend(false);
-    } else if (!anyDrawerOpen && legendWasOpenRef.current !== null) {
+    if (anyDrawerOpen) {
+      // Close layer panel when a drawer opens
+      setShowLayerPanel(false);
+      if (legendWasOpenRef.current === null) {
+        legendWasOpenRef.current = showLegend;
+        setShowLegend(false);
+      }
+    } else if (legendWasOpenRef.current !== null) {
       setShowLegend(legendWasOpenRef.current);
       legendWasOpenRef.current = null;
     }
@@ -510,8 +504,12 @@ function AtlasMapInner() {
     (window as unknown as { atlasMapExpandPlace: (id: string) => void }).atlasMapExpandPlace = (id: string) => {
       setSelectedPlaceId(id);
     };
-    // Open full bottom panel + cone
+    // Open full bottom panel + cone (auto-close drawers to prevent overlap)
     (window as unknown as { atlasMapOpenStreetView: (lat: number, lng: number, address?: string) => void }).atlasMapOpenStreetView = (lat: number, lng: number, address?: string) => {
+      setSelectedPlaceId(null);
+      setSelectedPersonId(null);
+      setSelectedCatId(null);
+      setSelectedAnnotationId(null);
       setStreetViewCoords({ lat, lng, address });
       setStreetViewConeOnly(false);
     };
@@ -1967,12 +1965,28 @@ function AtlasMapInner() {
           searchInputRef.current?.focus();
           break;
         case "Escape":
-          setShowSearchResults(false);
-          setShowLayerPanel(false);
-          if (addPointMode) {
+          // Escape cascade: highest-priority UI element closes first
+          if (streetViewFullscreenRef.current) {
+            setStreetViewFullscreen(false);
+          } else if (streetViewCoordsRef.current && !streetViewConeOnlyRef.current) {
+            setStreetViewCoords(null);
+            setStreetViewFullscreen(false);
+          } else if (selectedCatId) {
+            setSelectedCatId(null);
+          } else if (selectedPersonId) {
+            setSelectedPersonId(null);
+          } else if (selectedAnnotationId) {
+            setSelectedAnnotationId(null);
+          } else if (selectedPlaceId) {
+            setSelectedPlaceId(null);
+            setDrawerFromAddPoint(false);
+          } else if (addPointMode) {
             setAddPointMode(null);
             setPendingClick(null);
             setShowAddPointMenu(false);
+          } else {
+            setShowSearchResults(false);
+            setShowLayerPanel(false);
           }
           break;
         case "+":
@@ -2012,7 +2026,7 @@ function AtlasMapInner() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addPointMode]);
+  }, [addPointMode, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId]);
 
   // Add Point mode: map click handler and cursor
   useEffect(() => {
@@ -2031,6 +2045,44 @@ function AtlasMapInner() {
       container.style.cursor = '';
     };
   }, [addPointMode]);
+
+  // Street View click-to-navigate: clicking the map repositions street view
+  const streetViewCoordsRef = useRef(streetViewCoords);
+  const streetViewFullscreenRef = useRef(streetViewFullscreen);
+  useEffect(() => { streetViewCoordsRef.current = streetViewCoords; }, [streetViewCoords]);
+  useEffect(() => { streetViewFullscreenRef.current = streetViewFullscreen; }, [streetViewFullscreen]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    const handleSvClick = (e: L.LeafletMouseEvent) => {
+      // Only reposition when street view panel is active (not fullscreen, not cone-only, not add-point mode)
+      if (!streetViewCoordsRef.current || streetViewFullscreenRef.current || streetViewConeOnlyRef.current || addPointMode) return;
+      const { lat, lng } = e.latlng;
+      // Send set-position to iframe for smooth repositioning
+      streetViewIframeRef.current?.contentWindow?.postMessage({ type: "set-position", lat, lng }, "*");
+      // Update cone marker position immediately
+      if (streetViewMarkerRef.current) {
+        streetViewMarkerRef.current.setLatLng([lat, lng]);
+      }
+      streetViewConePosRef.current = { lat, lng };
+    };
+
+    map.on('click', handleSvClick);
+    return () => { map.off('click', handleSvClick); };
+  }, [addPointMode]);
+
+  // Set crosshair cursor when street view panel is active (not fullscreen/cone-only)
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const container = mapRef.current.getContainer();
+    const svPanelActive = streetViewCoords && !streetViewFullscreen && !streetViewConeOnly && !addPointMode;
+    if (svPanelActive) {
+      container.style.cursor = 'crosshair';
+      return () => { container.style.cursor = ''; };
+    }
+  }, [streetViewCoords, streetViewFullscreen, streetViewConeOnly, addPointMode]);
 
   // Annotations: fetch and render
   const fetchAnnotations = useCallback(async () => {
@@ -2178,7 +2230,10 @@ function AtlasMapInner() {
     : null;
 
   return (
-    <div style={{ position: "relative", height: "100dvh", width: "100%", display: "flex", flexDirection: "column" }}>
+    <div
+      className={streetViewCoords && !streetViewConeOnly && !streetViewFullscreen ? "atlas-map-sv-active" : ""}
+      style={{ position: "relative", height: "100dvh", width: "100%", display: "flex", flexDirection: "column" }}
+    >
       {/* Map container */}
       <div
         ref={mapContainerRef}
@@ -2496,52 +2551,23 @@ function AtlasMapInner() {
 
       {/* Layer panel */}
       {showLayerPanel && (
-        <div style={isMobile ? {
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: MAP_Z_INDEX.drawer,
-          background: "white",
-          borderRadius: "16px 16px 0 0",
-          boxShadow: "0 -4px 20px rgba(0,0,0,0.2)",
-          maxHeight: "60dvh",
-          overflowY: "auto",
-        } : {
-          position: "absolute",
-          top: 16,
-          right: 180,
-          zIndex: MAP_Z_INDEX.drawerMobile,
-          background: "white",
-          borderRadius: 12,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-          width: 300,
-          maxHeight: "calc(100dvh - 100px)",
-          overflowY: "auto",
-        }}>
-          <div style={{ padding: 16, borderBottom: "1px solid #e5e7eb" }}>
-            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>Map Layers</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
+        <div className={isMobile ? "map-layer-panel--mobile" : "map-layer-panel"}>
+          <div className="map-layer-panel__header">
+            <div className="map-layer-panel__title">Map Layers</div>
+            <div className="map-layer-panel__subtitle">
               {totalMarkers.toLocaleString()} markers shown
             </div>
           </div>
 
           {/* Zone filter */}
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb" }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
+          <div className="map-layer-panel__zone">
+            <div className="map-layer-panel__zone-label">
               Service Zone
             </div>
             <select
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                fontSize: 14,
-                fontFamily: "inherit",
-              }}
+              className="map-layer-panel__zone-select"
             >
               {SERVICE_ZONES.map((z) => (
                 <option key={z} value={z}>{z}</option>
@@ -2550,7 +2576,7 @@ function AtlasMapInner() {
           </div>
 
           {/* Layer toggles — GroupedLayerControl */}
-          <div style={{ padding: "12px 16px" }}>
+          <div className="map-layer-panel__layers">
             <GroupedLayerControl
               groups={atlasMapLayerGroups}
               enabledLayers={enabledLayers}
@@ -2857,9 +2883,21 @@ function AtlasMapInner() {
                 className="sv-ctrl-btn"
                 onClick={() => setStreetViewFullscreen(prev => !prev)}
                 title={streetViewFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                style={{ fontSize: 16, width: 32, height: 32 }}
+                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}
               >
-                {streetViewFullscreen ? "\u2291" : "\u2292"}
+                {streetViewFullscreen ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 1 1 1 1 6" /><polyline points="10 15 15 15 15 10" />
+                    <polyline points="15 1 10 1 10 6" /><polyline points="1 15 6 15 6 10" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="5 1 1 1 1 5" /><line x1="1" y1="1" x2="5.5" y2="5.5" />
+                    <polyline points="11 15 15 15 15 11" /><line x1="15" y1="15" x2="10.5" y2="10.5" />
+                    <polyline points="15 1 11 1 11 5" /><line x1="15" y1="1" x2="10.5" y2="5.5" />
+                    <polyline points="1 15 5 15 5 11" /><line x1="1" y1="15" x2="5.5" y2="10.5" />
+                  </svg>
+                )}
               </button>
               <button
                 className="street-view-close"
@@ -2881,7 +2919,7 @@ function AtlasMapInner() {
                 }}
                 title="Rotate left"
               >
-                ◀
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
               <span className="sv-compass">
                 {(() => {
@@ -2899,7 +2937,7 @@ function AtlasMapInner() {
                 }}
                 title="Rotate right"
               >
-                ▶
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
               </button>
             </div>
             <div className="street-view-controls-group">
@@ -2912,7 +2950,7 @@ function AtlasMapInner() {
                 }}
                 title="Look up"
               >
-                ▲
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
               </button>
               <span className="sv-pitch">{streetViewPitch > 0 ? "+" : ""}{streetViewPitch}°</span>
               <button
@@ -2924,7 +2962,7 @@ function AtlasMapInner() {
                 }}
                 title="Look down"
               >
-                ▼
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import type { ContactStepProps } from "./types";
 
 export default function ContactStep({
@@ -12,6 +13,11 @@ export default function ContactStep({
   personSuggestions,
   personDropdownRef,
   selectPerson,
+  identitySuggestions,
+  identitySuggestionLoading,
+  identitySuggestionDismissed,
+  onDismissIdentitySuggestion,
+  onSelectIdentitySuggestion,
 }: ContactStepProps) {
   return (
     <div className="card" style={{ padding: "1.5rem" }}>
@@ -191,6 +197,19 @@ export default function ContactStep({
         </div>
       </div>
       <p style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.5rem" }}>* Email or phone required</p>
+
+      {/* Identity-based person suggestion (email/phone match) */}
+      {identitySuggestions && onDismissIdentitySuggestion && onSelectIdentitySuggestion && (
+        <div style={{ marginTop: "0.75rem" }}>
+          <PersonSuggestionBanner
+            suggestions={identitySuggestions}
+            loading={identitySuggestionLoading ?? false}
+            dismissed={identitySuggestionDismissed ?? false}
+            onDismiss={onDismissIdentitySuggestion}
+            onSelect={onSelectIdentitySuggestion}
+          />
+        </div>
+      )}
     </div>
   );
 }

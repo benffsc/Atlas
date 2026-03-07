@@ -13,6 +13,65 @@ import { MAP_Z_INDEX } from "@/lib/design-tokens";
  * - Zoom controls
  */
 
+// Inline SVG icon components for clean, scalable map controls
+const LayersIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
+  </svg>
+);
+
+const PlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const LocationIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+  </svg>
+);
+
+const LoadingIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 1s linear infinite" }}>
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  </svg>
+);
+
+const SatelliteIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20" /><path d="M12 2a14.5 14.5 0 0 1 0 20" /><line x1="2" y1="12" x2="22" y2="12" />
+  </svg>
+);
+
+const MapIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+    <line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" />
+  </svg>
+);
+
+const PlacePinIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+const NoteIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+  </svg>
+);
+
 interface MapControlsProps {
   isMobile: boolean;
   showLayerPanel: boolean;
@@ -71,7 +130,7 @@ export function MapControls({
         title="Toggle layers (L)"
         className="map-control-btn"
       >
-        <span style={{ fontSize: 18 }}>☰</span>
+        <LayersIcon />
         {!isMobile && "Layers"}
       </button>
 
@@ -84,7 +143,7 @@ export function MapControls({
             addPointMode ? "map-control-btn--active" : ""
           }`}
         >
-          <span style={{ fontSize: 18 }}>{addPointMode ? "✕" : "+"}</span>
+          {addPointMode ? <CloseIcon /> : <PlusIcon />}
           {!isMobile && (addPointMode ? "Cancel" : "Add Point")}
         </button>
         {showAddPointMenu && !addPointMode && (
@@ -96,7 +155,7 @@ export function MapControls({
               }}
               className="map-add-point-menu__item"
             >
-              📍 Add Place
+              <PlacePinIcon /> Add Place
             </button>
             <button
               onClick={() => {
@@ -105,7 +164,7 @@ export function MapControls({
               }}
               className="map-add-point-menu__item"
             >
-              📝 Add Note
+              <NoteIcon /> Add Note
             </button>
           </div>
         )}
@@ -122,20 +181,20 @@ export function MapControls({
           cursor: locatingUser ? "wait" : "pointer",
         }}
       >
-        <span style={{ fontSize: 18 }}>{locatingUser ? "⏳" : "📍"}</span>
+        {locatingUser ? <LoadingIcon /> : <LocationIcon />}
         {!isMobile && (locatingUser ? "Locating..." : "My Location")}
       </button>
 
       {/* Satellite toggle */}
       <button
         onClick={onSatelliteToggle}
-        title={isSatellite ? "Street view" : "Satellite view"}
+        title={isSatellite ? "Map view" : "Satellite view"}
         className={`map-control-btn ${
           isSatellite ? "map-control-btn--active" : ""
         }`}
       >
-        <span style={{ fontSize: 18 }}>{isSatellite ? "🗺️" : "🛰️"}</span>
-        {!isMobile && (isSatellite ? "Street" : "Satellite")}
+        {isSatellite ? <MapIcon /> : <SatelliteIcon />}
+        {!isMobile && (isSatellite ? "Map" : "Satellite")}
       </button>
 
       {/* Zoom controls */}

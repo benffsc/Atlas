@@ -88,6 +88,8 @@ interface PersonDetail {
   primary_address: string | null;
   primary_address_locality: string | null;
   data_source: string | null;
+  do_not_contact: boolean;
+  do_not_contact_reason: string | null;
   data_quality: string | null;
   primary_place_id: string | null;
   identifiers: PersonIdentifier[] | null;
@@ -657,6 +659,30 @@ export default function PersonDetailPage() {
           </div>
         )}
 
+        {/* Do Not Contact Warning */}
+        {person.do_not_contact && (
+          <div style={{
+            background: "#dc3545",
+            color: "#fff",
+            padding: "0.625rem 1rem",
+            borderRadius: "6px",
+            marginBottom: "0.75rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontWeight: 600,
+            fontSize: "0.875rem",
+          }}>
+            <span style={{ fontSize: "1.1rem" }}>⛔</span>
+            <span>DO NOT CONTACT</span>
+            {person.do_not_contact_reason && (
+              <span style={{ fontWeight: 400, opacity: 0.9 }}>
+                — {person.do_not_contact_reason}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Warnings */}
         {nameWarning && (
           <div style={{ fontSize: "0.8rem", color: "#198754", marginBottom: "0.25rem" }}>
@@ -679,7 +705,7 @@ export default function PersonDetailPage() {
 
         {/* Action buttons */}
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          {primaryEmail && (
+          {primaryEmail && !person.do_not_contact && (
             <button
               onClick={() => setShowEmailModal(true)}
               style={{

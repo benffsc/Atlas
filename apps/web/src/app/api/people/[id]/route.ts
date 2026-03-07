@@ -38,6 +38,8 @@ interface PersonDetailRow {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  do_not_contact: boolean;
+  do_not_contact_reason: string | null;
   data_quality: string | null;
   primary_place_id: string | null;
   partner_orgs: PartnerOrg[] | null;
@@ -79,6 +81,8 @@ export async function GET(
         a.city AS primary_address_locality,
         COALESCE(pd.data_source, pd.source_system) AS data_source,
         pd.entity_type,
+        p.do_not_contact,
+        p.do_not_contact_reason,
         pd.data_quality,
         pd.primary_place_id,
         p.verified_at,

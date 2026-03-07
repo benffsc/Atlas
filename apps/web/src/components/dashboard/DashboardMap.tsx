@@ -362,12 +362,18 @@ export function DashboardMap({
 
       requestPins.forEach((pin) => {
         const color = getPinColor(pin);
+        const isActive = ["new", "triaged", "working", "scheduled", "in_progress"].includes(pin.status);
+        const isUrgent = pin.priority === "urgent";
+        const size = isActive ? 18 : 12;
+        const cssClass = isActive
+          ? `dashboard-pin-active${isUrgent ? " dashboard-pin-urgent" : ""}`
+          : "dashboard-pin-completed";
         const icon = L.divIcon({
           className: "",
-          html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
-          popupAnchor: [0, -8],
+          html: `<div class="${cssClass}" style="width:${size}px;height:${size}px;background:${color};"></div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+          popupAnchor: [0, -(size / 2 + 2)],
         });
 
         const marker = L.marker([pin.lat, pin.lng], { icon });

@@ -1004,10 +1004,35 @@ export function IntakeDetailPanel({
           )}
         </div>
 
+        {/* Structured Fields */}
+        {(submission.call_type || submission.cat_name || submission.cat_description || submission.feeding_situation) && (
+          <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1rem", marginBottom: "0.5rem" }}>Details</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.9rem" }}>
+              {submission.call_type && (
+                <div>
+                  <span style={{ display: "inline-block", padding: "0.15rem 0.5rem", fontSize: "0.75rem", fontWeight: 600, borderRadius: "4px", background: "rgba(59,130,246,0.15)", color: "rgb(59,130,246)" }}>
+                    {submission.call_type.replace(/_/g, " ")}
+                  </span>
+                </div>
+              )}
+              {submission.cat_name && (
+                <div><strong>Cat name:</strong> {submission.cat_name}</div>
+              )}
+              {submission.cat_description && (
+                <div><strong>Description:</strong> {submission.cat_description}</div>
+              )}
+              {submission.feeding_situation && (
+                <div><strong>Feeding:</strong> {submission.feeding_situation}</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Situation */}
         <div style={{ background: "var(--card-bg, rgba(0,0,0,0.05))", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1rem" }}>Situation</h3>
+            <h3 style={{ margin: 0, fontSize: "1rem" }}>Notes</h3>
             {!editingSituation ? (
               <button
                 onClick={() => {
@@ -1054,12 +1079,12 @@ export function IntakeDetailPanel({
               onChange={(e) => setSituationEdit(e.target.value)}
               rows={8}
               style={{ width: "100%", padding: "0.5rem", resize: "vertical", fontSize: "0.9rem", fontFamily: "inherit" }}
-              placeholder="Describe the situation..."
+              placeholder="Notes..."
             />
           ) : submission.situation_description ? (
             <p style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "0.9rem" }}>{submission.situation_description}</p>
           ) : (
-            <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>No situation description provided.</p>
+            <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>No notes provided.</p>
           )}
         </div>
 

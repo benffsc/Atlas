@@ -28,6 +28,24 @@ import {
   MB_LG, MT_LG, SKELETON_LINE, SKELETON_BLOCK, quickStatusButton,
 } from "../styles";
 
+interface TripReportRow {
+  report_id: string;
+  trapper_name: string | null;
+  visit_date: string;
+  cats_trapped: number;
+  cats_returned: number;
+  traps_set: number | null;
+  traps_retrieved: number | null;
+  cats_seen: number | null;
+  eartipped_seen: number | null;
+  issues_encountered: string[];
+  issue_details: string | null;
+  site_notes: string | null;
+  is_final_visit: boolean;
+  submitted_from: string;
+  created_at: string;
+}
+
 // MIG_2530: Simplified 4-state status system
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
@@ -192,8 +210,20 @@ export default function RequestDetailPage() {
   // Journal entries
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
 
+  // Trip reports
+  const [tripReports, setTripReports] = useState<TripReportRow[]>([]);
+
   // Map state
   const [mapUrl, setMapUrl] = useState<string | null>(null);
+
+  const fetchTripReports = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ reports: TripReportRow[] }>(`/api/requests/${requestId}/trip-report`);
+      setTripReports(data.reports || []);
+    } catch (err) {
+      console.error("Failed to fetch trip reports:", err);
+    }
+  }, [requestId]);
 
   const fetchJournalEntries = useCallback(async () => {
     try {
@@ -222,7 +252,8 @@ export default function RequestDetailPage() {
     };
     fetchRequest();
     fetchJournalEntries();
-  }, [requestId, fetchJournalEntries]);
+    fetchTripReports();
+  }, [requestId, fetchJournalEntries, fetchTripReports]);
 
   const initEditForm = (data: RequestDetail) => {
     setEditForm({
@@ -1128,6 +1159,7 @@ export default function RequestDetailPage() {
             <TabBar
               tabs={[
                 { id: "cats", label: "Linked Cats", icon: "😺", count: request.linked_cat_count || 0 },
+                { id: "trip-reports", label: "Trip Reports", icon: "📋", count: tripReports.length },
                 { id: "photos", label: "Photos", icon: "📷" },
                 { id: "activity", label: "Activity", icon: "📝", count: journalEntries.length },
                 { id: "admin", label: "Admin", icon: "⚙️" },
@@ -1138,6 +1170,102 @@ export default function RequestDetailPage() {
 
             <TabPanel tabId="cats" activeTab={activeTab}>
               <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" onEntityClick={(t, id) => preview.open(t as "cat", id)} />
+            </TabPanel>
+
+            <TabPanel tabId="trip-reports" activeTab={activeTab}>
+              <div style={{ padding: "0.5rem 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+                    {tripReports.length} report{tripReports.length !== 1 ? "s" : ""}
+                    {tripReports.length > 0 && (() => {
+                      const totalTrapped = tripReports.reduce((sum, r) => sum + (r.cats_trapped || 0), 0);
+                      const totalReturned = tripReports.reduce((sum, r) => sum + (r.cats_returned || 0), 0);
+                      return totalTrapped > 0 ? ` — ${totalTrapped} trapped, ${totalReturned} returned` : "";
+                    })()}
+                  </span>
+                  <button
+                    onClick={() => setShowTripReportModal(true)}
+                    className="btn btn-sm btn-primary"
+                    style={{ fontSize: "0.8rem", padding: "0.25rem 0.75rem" }}
+                  >
+                    + Log Session
+                  </button>
+                </div>
+
+                {tripReports.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "var(--muted)" }}>
+                    <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.95rem" }}>No trip reports yet</p>
+                    <p style={{ margin: 0, fontSize: "0.8rem" }}>Log your first trapping session to track progress.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {tripReports.map((report) => (
+                      <div
+                        key={report.report_id}
+                        style={{
+                          padding: "0.75rem 1rem",
+                          background: report.is_final_visit ? "#f0fdf4" : "var(--muted-bg)",
+                          borderRadius: "8px",
+                          border: report.is_final_visit ? "1px solid #86efac" : "1px solid var(--border)",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.375rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                              {new Date(report.visit_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
+                            {report.trapper_name && (
+                              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                                by {report.trapper_name}
+                              </span>
+                            )}
+                            {report.is_final_visit && (
+                              <span style={{
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                padding: "0.125rem 0.375rem",
+                                borderRadius: "4px",
+                                background: "#166534",
+                                color: "#fff",
+                              }}>
+                                FINAL VISIT
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
+                            {report.submitted_from === "airtable" ? "Airtable" : "Atlas"}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.8rem" }}>
+                          {(report.cats_trapped > 0 || report.cats_returned > 0) && (
+                            <span>Trapped: <strong>{report.cats_trapped}</strong> | Returned: <strong>{report.cats_returned}</strong></span>
+                          )}
+                          {report.traps_set != null && (
+                            <span>Traps: <strong>{report.traps_set}</strong> set{report.traps_retrieved != null ? `, ${report.traps_retrieved} retrieved` : ""}</span>
+                          )}
+                          {report.cats_seen != null && (
+                            <span>Seen: <strong>{report.cats_seen}</strong>{report.eartipped_seen != null ? ` (${report.eartipped_seen} eartipped)` : ""}</span>
+                          )}
+                        </div>
+
+                        {report.issues_encountered && report.issues_encountered.length > 0 && (
+                          <div style={{ marginTop: "0.375rem", fontSize: "0.8rem", color: "#b45309" }}>
+                            Issues: {report.issues_encountered.join(", ")}
+                            {report.issue_details && ` — ${report.issue_details}`}
+                          </div>
+                        )}
+
+                        {report.site_notes && (
+                          <div style={{ marginTop: "0.375rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+                            {report.site_notes}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </TabPanel>
 
             <TabPanel tabId="photos" activeTab={activeTab}>
@@ -1256,7 +1384,7 @@ export default function RequestDetailPage() {
             placeId={request.place_id}
             placeName={request.place_name}
             onClose={() => setShowTripReportModal(false)}
-            onSuccess={() => { setShowTripReportModal(false); refreshRequest(); fetchJournalEntries(); }}
+            onSuccess={() => { setShowTripReportModal(false); refreshRequest(); fetchJournalEntries(); fetchTripReports(); }}
           />
         );
       })()}
