@@ -1,14 +1,16 @@
 -- MIG_2860: Harden Entity Linking Functions (FFS-290, DATA_GAP_040)
 --
 -- Fixes:
--- 1. CRITICAL: link_cat_to_place() and link_person_to_cat() use string
---    comparison for confidence ('high' < 'low' < 'medium' alphabetically).
---    A 'high' confidence link NEVER overwrites 'medium' or 'low'.
+-- 1. link_cat_to_place() and link_person_to_cat(): change p_confidence param
+--    from TEXT to NUMERIC (matching V2 schema where confidence is numeric 0-1).
+--    Ensures ON CONFLICT comparison uses plain `>` (correct for numeric).
 -- 2. BUG: run_all_entity_linking() sets v_status AFTER the INSERT into
 --    entity_linking_runs, so logged status is always 'completed'.
 -- 3. No exception handling in orchestrator — step failures crash the
 --    whole pipeline with no record of which step failed.
 -- 4. No validation for Steps 2-4 (only Step 1 has a low coverage warning).
+-- 5. check_entity_linking_health() extended with confidence_integrity and
+--    recent_partial_failures checks (numeric column, not text).
 --
 -- Created: 2026-03-07
 
