@@ -238,7 +238,7 @@ async function updateEntries(placemarks) {
     if (SYNC_MODE) {
       // Sync mode: upsert - update if exists, insert if new
       const updateResult = await pool.query(
-        `UPDATE trapper.google_map_entries
+        `UPDATE ops.google_map_entries
          SET
            icon_type = $1,
            icon_color = $2,
@@ -260,7 +260,7 @@ async function updateEntries(placemarks) {
         // Insert new entry
         try {
           await pool.query(
-            `INSERT INTO trapper.google_map_entries
+            `INSERT INTO ops.google_map_entries
              (kml_name, original_content, lat, lng, icon_type, icon_color, icon_style_id, kml_folder, synced_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
             [pm.name, pm.description, pm.lat, pm.lng, pm.iconType, pm.iconColor, pm.styleId, pm.folderName]
@@ -274,7 +274,7 @@ async function updateEntries(placemarks) {
     } else {
       // Initial import mode: only update entries missing icon data
       const result = await pool.query(
-        `UPDATE trapper.google_map_entries
+        `UPDATE ops.google_map_entries
          SET
            icon_type = $1,
            icon_color = $2,
@@ -315,8 +315,8 @@ async function deriveIconMeanings() {
   console.log("\nDeriving icon meanings...");
 
   const result = await pool.query(`
-    UPDATE trapper.google_map_entries
-    SET icon_meaning = trapper.derive_icon_meaning(icon_type, icon_color)
+    UPDATE ops.google_map_entries
+    SET icon_meaning = ops.derive_icon_meaning(icon_type, icon_color)
     WHERE icon_type IS NOT NULL AND icon_meaning IS NULL
     RETURNING entry_id
   `);
@@ -330,7 +330,7 @@ async function showSummary() {
     SELECT
       icon_meaning,
       COUNT(*) as count
-    FROM trapper.google_map_entries
+    FROM ops.google_map_entries
     WHERE icon_meaning IS NOT NULL
     GROUP BY icon_meaning
     ORDER BY count DESC
@@ -343,13 +343,13 @@ async function showSummary() {
 
   const withIcons = await pool.query(`
     SELECT COUNT(*) as count
-    FROM trapper.google_map_entries
+    FROM ops.google_map_entries
     WHERE icon_type IS NOT NULL
   `);
 
   const total = await pool.query(`
     SELECT COUNT(*) as count
-    FROM trapper.google_map_entries
+    FROM ops.google_map_entries
   `);
 
   console.log(`\nTotal entries with icon data: ${withIcons.rows[0].count} / ${total.rows[0].count}`);

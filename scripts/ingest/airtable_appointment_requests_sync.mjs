@@ -94,7 +94,7 @@ function isValidPhone(phone) {
 }
 
 /**
- * Validate person name using SOT logic (matches trapper.is_valid_person_name)
+ * Validate person name using SOT logic (matches sot.classify_owner_name)
  * Required for a person to be created in sot_people
  */
 function isValidPersonName(name) {
@@ -147,7 +147,7 @@ function isValidPersonName(name) {
 }
 
 /**
- * Check if name looks like an address (matches trapper.is_address_like_name)
+ * Check if name looks like an address (matches sot.classify_owner_name)
  */
 function isAddressLikeName(name) {
   if (!name || typeof name !== 'string') return false;
@@ -292,7 +292,7 @@ async function main() {
 
     // Step 1: Upsert into staged_records (always - preserve raw data)
     const stagedResult = await client.query(`
-      INSERT INTO trapper.staged_records (
+      INSERT INTO ops.staged_records (
         source_system, source_table, source_row_id, row_hash, payload
       ) VALUES ($1, $2, $3, $4, $5::jsonb)
       ON CONFLICT (source_system, source_table, row_hash)
@@ -330,13 +330,13 @@ async function main() {
     if (nameIsValid && !nameIsAddressLike && hasValidContact) {
       // Use the centralized find_or_create_person SQL function
       // This function handles:
-      // - Email/phone normalization using trapper.norm_phone_us()
+      // - Email/phone normalization using sot.norm_phone_us()
       // - Lookup via person_identifiers table
       // - Phone blacklist checking
       // - Canonical person resolution (handles merged persons)
       // - Creating person and identifiers if not found
       const personResult = await client.query(`
-        SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, 'airtable') as person_id
+        SELECT sot.find_or_create_person($1, $2, $3, $4, NULL, 'airtable') as person_id
       `, [
         isValidEmail(email) ? email : null,
         isValidPhone(phone) ? phone : null,
@@ -363,7 +363,7 @@ async function main() {
     if (address) {
       // Use smart merge function and find/create place
       const placeResult = await client.query(`
-        SELECT trapper.find_or_create_place_deduped($1, NULL, NULL, NULL, 'airtable') as place_id
+        SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, 'airtable') as place_id
       `, [address]);
 
       placeId = placeResult.rows[0]?.place_id;
@@ -378,7 +378,7 @@ async function main() {
     // Step 4: Link person to place if both exist
     if (personId && placeId) {
       await client.query(`
-        INSERT INTO trapper.person_place_relationships (
+        INSERT INTO sot.person_place_relationships (
           person_id, place_id, role, confidence, source_system, source_table
         ) VALUES ($1, $2, 'requester', 0.75, 'airtable', 'appointment_requests')
         ON CONFLICT DO NOTHING

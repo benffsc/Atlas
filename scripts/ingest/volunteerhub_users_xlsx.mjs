@@ -2,7 +2,7 @@
 /**
  * volunteerhub_users_xlsx.mjs
  *
- * Ingests VolunteerHub users XLSX into trapper.staged_records.
+ * Ingests VolunteerHub users XLSX into ops.staged_records.
  */
 
 import fs from 'fs';

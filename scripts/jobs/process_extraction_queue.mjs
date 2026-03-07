@@ -71,9 +71,9 @@ async function fetchSourceRecord(sourceTable, sourceRecordId) {
       const r = await pool.query(
         `SELECT a.appointment_id, a.cat_id, a.medical_notes,
                 c.display_name as cat_name, cpr.place_id
-         FROM trapper.sot_appointments a
-         LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-         LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
+         FROM ops.appointments a
+         LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+         LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
            AND cpr.relationship_type = 'appointment_site'
          WHERE a.appointment_id = $1`,
         [sourceRecordId]
@@ -85,9 +85,9 @@ async function fetchSourceRecord(sourceTable, sourceRecordId) {
         `SELECT r.request_id, r.place_id, r.requester_person_id,
                 r.summary, r.notes, r.internal_notes, r.hold_reason_notes,
                 r.status, p.formatted_address, pe.display_name as requester_name
-         FROM trapper.sot_requests r
-         LEFT JOIN trapper.places p ON p.place_id = r.place_id
-         LEFT JOIN trapper.sot_people pe ON pe.person_id = r.requester_person_id
+         FROM ops.requests r
+         LEFT JOIN sot.places p ON p.place_id = r.place_id
+         LEFT JOIN sot.people pe ON pe.person_id = r.requester_person_id
          WHERE r.request_id = $1`,
         [sourceRecordId]
       );
@@ -97,8 +97,8 @@ async function fetchSourceRecord(sourceTable, sourceRecordId) {
       const r = await pool.query(
         `SELECT i.submission_id, i.place_id, i.situation_description,
                 i.requester_person_id, p.formatted_address
-         FROM trapper.web_intake_submissions i
-         LEFT JOIN trapper.places p ON p.place_id = i.place_id
+         FROM ops.intake_submissions i
+         LEFT JOIN sot.places p ON p.place_id = i.place_id
          WHERE i.submission_id = $1`,
         [sourceRecordId]
       );
@@ -283,7 +283,7 @@ async function updateClassificationFromExtraction(placeId) {
   // Use the bridge function to classify place from its extracted attributes
   try {
     await pool.query(
-      `SELECT trapper.classify_place_from_extractions($1)`,
+      `SELECT ops.classify_place_from_extractions($1)`,
       [placeId]
     );
   } catch {
@@ -311,7 +311,7 @@ async function main() {
     const queueResult = await pool.query(`
       SELECT eq.queue_id, eq.source_table, eq.source_record_id,
              eq.entity_type, eq.entity_id, eq.priority, eq.trigger_reason
-      FROM trapper.extraction_queue eq
+      FROM ops.extraction_queue eq
       WHERE eq.completed_at IS NULL
         AND eq.error_count < 3
         ${sourceClause}
@@ -339,7 +339,7 @@ async function main() {
         if (!dryRun) {
           await pool.query(
             `
-            INSERT INTO trapper.extraction_status (
+            INSERT INTO ops.extraction_status (
               source_table, source_record_id, last_extracted_at,
               attributes_extracted, model_used, skip_reason
             ) VALUES ($1, $2, NOW(), $3, $4, $5)
@@ -361,7 +361,7 @@ async function main() {
 
           // Mark queue item completed
           await pool.query(
-            `UPDATE trapper.extraction_queue SET completed_at = NOW() WHERE queue_id = $1`,
+            `UPDATE ops.extraction_queue SET completed_at = NOW() WHERE queue_id = $1`,
             [item.queue_id]
           );
 
@@ -376,7 +376,7 @@ async function main() {
         );
         if (!dryRun) {
           await pool.query(
-            `UPDATE trapper.extraction_queue
+            `UPDATE ops.extraction_queue
              SET error_count = error_count + 1, last_error = $2
              WHERE queue_id = $1`,
             [item.queue_id, err.message]

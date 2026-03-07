@@ -180,9 +180,9 @@ async function main() {
       console.log('  Fixing procedures based on cat sex...');
 
       const fixedMales = await pool.query(`
-        UPDATE trapper.cat_procedures cp
+        UPDATE ops.cat_procedures cp
         SET procedure_type = 'neuter', is_spay = FALSE, is_neuter = TRUE
-        FROM trapper.sot_cats c
+        FROM sot.cats c
         WHERE cp.cat_id = c.cat_id
           AND cp.is_spay = TRUE
           AND LOWER(c.sex) = 'male'
@@ -191,9 +191,9 @@ async function main() {
       console.log(`    Fixed ${fixedMales.rowCount} male cats (spay -> neuter)`);
 
       const fixedFemales = await pool.query(`
-        UPDATE trapper.cat_procedures cp
+        UPDATE ops.cat_procedures cp
         SET procedure_type = 'spay', is_spay = TRUE, is_neuter = FALSE
-        FROM trapper.sot_cats c
+        FROM sot.cats c
         WHERE cp.cat_id = c.cat_id
           AND cp.is_neuter = TRUE
           AND LOWER(c.sex) = 'female'
@@ -205,7 +205,7 @@ async function main() {
       console.log('\n  Auto-linking cats to places via person relationships...');
 
       const linkedCats = await pool.query(`
-        INSERT INTO trapper.cat_place_relationships (
+        INSERT INTO sot.cat_place_relationships (
           cat_id, place_id, relationship_type, confidence, source_system, source_table
         )
         SELECT DISTINCT
@@ -215,12 +215,12 @@ async function main() {
           'high',
           'auto_link',
           'clinic_pipeline'
-        FROM trapper.sot_appointments a
-        JOIN trapper.person_place_relationships ppr ON ppr.person_id = a.person_id
+        FROM ops.appointments a
+        JOIN sot.person_place_relationships ppr ON ppr.person_id = a.person_id
         WHERE a.cat_id IS NOT NULL
           AND ppr.place_id IS NOT NULL
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.cat_place_relationships cpr
+            SELECT 1 FROM sot.cat_place_relationships cpr
             WHERE cpr.cat_id = a.cat_id
               AND cpr.place_id = ppr.place_id
           )
@@ -233,21 +233,21 @@ async function main() {
       console.log('\n  Updating altered_status...');
 
       await pool.query(`
-        UPDATE trapper.sot_cats c
+        UPDATE sot.cats c
         SET altered_status = 'spayed'
         WHERE c.altered_status IS DISTINCT FROM 'spayed'
           AND EXISTS (
-            SELECT 1 FROM trapper.cat_procedures cp
+            SELECT 1 FROM ops.cat_procedures cp
             WHERE cp.cat_id = c.cat_id AND cp.is_spay = TRUE
           )
       `);
 
       await pool.query(`
-        UPDATE trapper.sot_cats c
+        UPDATE sot.cats c
         SET altered_status = 'neutered'
         WHERE c.altered_status IS DISTINCT FROM 'neutered'
           AND EXISTS (
-            SELECT 1 FROM trapper.cat_procedures cp
+            SELECT 1 FROM ops.cat_procedures cp
             WHERE cp.cat_id = c.cat_id AND cp.is_neuter = TRUE
           )
       `);
@@ -279,7 +279,7 @@ async function main() {
             : 'appointment_info';
 
           const result = await pool.query(`
-            SELECT trapper.enqueue_processing(
+            SELECT ops.enqueue_processing(
               'clinichq',
               $1,
               'cli_ingest',
@@ -293,7 +293,7 @@ async function main() {
       }
 
       console.log('\n  Jobs queued. They will be processed by /api/ingest/process cron.');
-      console.log('  Or run manually: SELECT * FROM trapper.process_next_job();');
+      console.log('  Or run manually: SELECT * FROM ops.process_next_job();');
 
     } catch (e) {
       console.error('  Error queueing processing jobs:', e.message);
@@ -316,10 +316,10 @@ async function main() {
     try {
       const stats = await pool.query(`
         SELECT
-          (SELECT COUNT(*) FROM trapper.sot_cats) as total_cats,
-          (SELECT COUNT(*) FROM trapper.cat_procedures WHERE is_spay) as spays,
-          (SELECT COUNT(*) FROM trapper.cat_procedures WHERE is_neuter) as neuters,
-          (SELECT COUNT(*) FROM trapper.cat_place_relationships) as cat_place_links
+          (SELECT COUNT(*) FROM sot.cats) as total_cats,
+          (SELECT COUNT(*) FROM ops.cat_procedures WHERE is_spay) as spays,
+          (SELECT COUNT(*) FROM ops.cat_procedures WHERE is_neuter) as neuters,
+          (SELECT COUNT(*) FROM sot.cat_place_relationships) as cat_place_links
       `);
 
       console.log(`\nFinal stats:`);

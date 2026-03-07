@@ -604,7 +604,7 @@ async function importArticles() {
     try {
       // Check if article already exists
       const existing = await client.query(
-        `SELECT article_id FROM trapper.knowledge_articles WHERE slug = $1`,
+        `SELECT article_id FROM ops.knowledge_articles WHERE slug = $1`,
         [article.slug]
       );
 
@@ -617,7 +617,7 @@ async function importArticles() {
       // Insert article
       await client.query(
         `
-        INSERT INTO trapper.knowledge_articles (
+        INSERT INTO ops.knowledge_articles (
           title, slug, summary, content, category, access_level,
           keywords, is_published, source_system
         )

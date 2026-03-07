@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: References v1 trapper.* schema (dropped MIG_2299). Do not run.
 # populate_volunteerhub_people.sh
 # ATLAS_031: One-command VolunteerHub canonical people population
 #

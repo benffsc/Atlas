@@ -131,7 +131,7 @@ for mig in "${MIGRATIONS[@]}"; do
       ((SUCCEEDED++))
 
       # Record in tracking table (if it exists)
-      psql "$DATABASE_URL" -c "SELECT trapper.record_migration($mig_num, '$mig');" > /dev/null 2>&1 || true
+      psql "$DATABASE_URL" -c "SELECT ops.record_migration($mig_num, '$mig');" > /dev/null 2>&1 || true
     fi
   else
     echo -e "${RED}FAILED${NC}"

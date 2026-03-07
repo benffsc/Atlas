@@ -290,7 +290,7 @@ async function main() {
         total_cats,
         source_system,
         source_record_id
-      FROM trapper.place_colony_estimates
+      FROM sot.place_colony_estimates
       WHERE source_type = 'legacy_mymaps'
         AND notes IS NOT NULL
         AND notes != ''
@@ -323,7 +323,7 @@ async function main() {
           try {
             // Create mortality event without specific cat (place-level observation)
             const insertSql = `
-              INSERT INTO trapper.cat_mortality_events (
+              INSERT INTO ops.cat_mortality_events (
                 cat_id,
                 place_id,
                 death_date,
@@ -339,8 +339,8 @@ async function main() {
                 $1,
                 $2::DATE,
                 'estimated',
-                $3::trapper.death_cause,
-                $4::trapper.death_age_category,
+                $3,
+                $4,
                 'notes_parser',
                 'legacy_mymaps',
                 $5,
@@ -383,7 +383,7 @@ async function main() {
         r.legacy_notes,
         r.source_created_at,
         r.resolved_at
-      FROM trapper.sot_requests r
+      FROM ops.requests r
       WHERE (r.notes IS NOT NULL OR r.internal_notes IS NOT NULL OR r.legacy_notes IS NOT NULL)
         AND r.place_id IS NOT NULL
       LIMIT 5000
@@ -419,7 +419,7 @@ async function main() {
         if (!DRY_RUN) {
           try {
             const insertSql = `
-              INSERT INTO trapper.cat_mortality_events (
+              INSERT INTO ops.cat_mortality_events (
                 cat_id,
                 place_id,
                 death_date,
@@ -435,8 +435,8 @@ async function main() {
                 $1,
                 $2::DATE,
                 'estimated',
-                $3::trapper.death_cause,
-                $4::trapper.death_age_category,
+                $3,
+                $4,
                 'notes_parser',
                 'atlas_ui',
                 $5,
@@ -479,9 +479,9 @@ async function main() {
         a.appointment_date,
         c.display_name AS cat_name,
         cpr.place_id
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
       WHERE (a.medical_notes IS NOT NULL OR a.internal_notes IS NOT NULL)
         AND a.cat_id IS NOT NULL
       LIMIT 5000
@@ -517,7 +517,7 @@ async function main() {
           try {
             // Check if cat already marked as deceased
             const catCheck = await pool.query(
-              `SELECT is_deceased FROM trapper.sot_cats WHERE cat_id = $1`,
+              `SELECT is_deceased FROM sot.cats WHERE cat_id = $1`,
               [row.cat_id]
             );
 
@@ -528,7 +528,7 @@ async function main() {
 
             // Create mortality event WITH specific cat
             const insertSql = `
-              INSERT INTO trapper.cat_mortality_events (
+              INSERT INTO ops.cat_mortality_events (
                 cat_id,
                 place_id,
                 death_date,
@@ -544,8 +544,8 @@ async function main() {
                 $2,
                 $3::DATE,
                 'estimated',
-                $4::trapper.death_cause,
-                $5::trapper.death_age_category,
+                $4,
+                $5,
                 'notes_parser',
                 'clinichq',
                 $6,
@@ -570,7 +570,7 @@ async function main() {
 
               // Update cat as deceased
               await pool.query(
-                `UPDATE trapper.sot_cats
+                `UPDATE sot.cats
                  SET is_deceased = TRUE, deceased_date = $2
                  WHERE cat_id = $1`,
                 [row.cat_id, deathDate]
@@ -595,7 +595,7 @@ async function main() {
         matched_place_id,
         situation_description,
         created_at
-      FROM trapper.web_intake_submissions
+      FROM ops.intake_submissions
       WHERE situation_description IS NOT NULL
         AND situation_description != ''
       LIMIT 5000
@@ -624,7 +624,7 @@ async function main() {
         if (!DRY_RUN && row.matched_place_id) {
           try {
             const insertSql = `
-              INSERT INTO trapper.cat_mortality_events (
+              INSERT INTO ops.cat_mortality_events (
                 cat_id,
                 place_id,
                 death_date,
@@ -640,8 +640,8 @@ async function main() {
                 $1,
                 $2::DATE,
                 'estimated',
-                $3::trapper.death_cause,
-                $4::trapper.death_age_category,
+                $3,
+                $4,
                 'notes_parser',
                 'web_intake',
                 $5,

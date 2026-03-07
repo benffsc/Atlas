@@ -2,7 +2,7 @@
 /**
  * airtable_appointment_requests_csv.mjs
  *
- * Ingests Airtable Appointment Requests CSV into trapper.staged_records
+ * Ingests Airtable Appointment Requests CSV into ops.staged_records
  * Uses shared ingest libraries for RFC 4180 parsing and run tracking.
  *
  * Usage:

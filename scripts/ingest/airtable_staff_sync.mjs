@@ -163,7 +163,7 @@ async function main() {
 
     try {
       const result = await client.query(`
-        INSERT INTO trapper.staff (
+        INSERT INTO ops.staff (
           first_name,
           last_name,
           email,
@@ -225,7 +225,7 @@ async function main() {
 
         // Use find_or_create_person for proper identity linking
         const personResult = await client.query(`
-          SELECT trapper.find_or_create_person(
+          SELECT sot.find_or_create_person(
             $1,  -- email
             $2,  -- phone
             $3,  -- first_name
@@ -246,14 +246,14 @@ async function main() {
         if (personId) {
           // Link staff to person
           await client.query(`
-            UPDATE trapper.staff
+            UPDATE ops.staff
             SET person_id = $1
             WHERE source_record_id = $2
           `, [personId, airtableRecordId]);
 
           // Update person's display name to match staff name
           await client.query(`
-            UPDATE trapper.sot_people
+            UPDATE sot.people
             SET display_name = $2
             WHERE person_id = $1
               AND (display_name IS NULL OR display_name = '')
@@ -261,7 +261,7 @@ async function main() {
 
           // Add staff role to person_roles
           await client.query(`
-            INSERT INTO trapper.person_roles (person_id, role, role_status, source_system, notes)
+            INSERT INTO sot.person_roles (person_id, role, role_status, source_system, notes)
             VALUES ($1, 'staff', 'active', $3, $2)
             ON CONFLICT (person_id, role) DO UPDATE SET
               role_status = 'active',

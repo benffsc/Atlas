@@ -158,7 +158,7 @@ Output:
   try {
     // Check if source_type exists
     const sourceCheck = await pool.query(
-      `SELECT 1 FROM trapper.colony_source_confidence WHERE source_type = $1`,
+      `SELECT 1 FROM ops.colony_source_confidence WHERE source_type = $1`,
       [SOURCE_TYPE]
     );
     if (sourceCheck.rowCount === 0) {
@@ -177,7 +177,7 @@ Output:
         ST_Y(location::geometry) as lat,
         ST_X(location::geometry) as lng,
         formatted_address
-      FROM trapper.places
+      FROM sot.places
       WHERE location IS NOT NULL
         AND merged_into_place_id IS NULL
     `);
@@ -243,7 +243,7 @@ Output:
           if (!options.dryRun) {
             // Check for existing pending record (by coordinates + name)
             const existingPending = await pool.query(`
-              SELECT 1 FROM trapper.kml_pending_records
+              SELECT 1 FROM ops.kml_pending_records
               WHERE lat = $1 AND lng = $2 AND kml_name = $3
             `, [record.lat, record.lng, record.name || null]);
 
@@ -261,7 +261,7 @@ Output:
                 : null;
 
               await pool.query(`
-                INSERT INTO trapper.kml_pending_records (
+                INSERT INTO ops.kml_pending_records (
                   kml_name, kml_description, lat, lng, kml_folder,
                   parsed_cat_count, parsed_date, parsed_signals,
                   match_status, nearest_place_id, nearest_place_distance_m,
@@ -297,7 +297,7 @@ Output:
 
         // Check for existing estimate
         const existingEstimate = await pool.query(`
-          SELECT 1 FROM trapper.place_colony_estimates
+          SELECT 1 FROM sot.place_colony_estimates
           WHERE source_system = $1 AND source_record_id = $2
         `, [SOURCE_SYSTEM, sourceRecordId]);
 
@@ -325,7 +325,7 @@ Output:
         const notes = notesParts.join(' | ') || null;
 
         await pool.query(`
-          INSERT INTO trapper.place_colony_estimates (
+          INSERT INTO sot.place_colony_estimates (
             place_id, total_cats, altered_count,
             source_type, observation_date, is_firsthand,
             notes, source_system, source_record_id

@@ -71,12 +71,12 @@ async function runTests() {
 test('People with primary_email should have email identifier', async () => {
   const result = await pool.query(`
     SELECT COUNT(*) as count
-    FROM trapper.sot_people p
+    FROM sot.people p
     WHERE p.primary_email IS NOT NULL
       AND TRIM(p.primary_email) != ''
       AND p.merged_into_person_id IS NULL
       AND NOT EXISTS (
-          SELECT 1 FROM trapper.person_identifiers pi
+          SELECT 1 FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id AND pi.id_type = 'email'
       )
   `);
@@ -104,17 +104,17 @@ test('People with primary_email should have email identifier', async () => {
 test('People with primary_phone should have phone identifier', async () => {
   const result = await pool.query(`
     SELECT COUNT(*) as count
-    FROM trapper.sot_people p
+    FROM sot.people p
     WHERE p.primary_phone IS NOT NULL
-      AND LENGTH(trapper.norm_phone_us(p.primary_phone)) >= 10
+      AND LENGTH(sot.norm_phone_us(p.primary_phone)) >= 10
       AND p.merged_into_person_id IS NULL
       AND NOT EXISTS (
-          SELECT 1 FROM trapper.person_identifiers pi
+          SELECT 1 FROM sot.person_identifiers pi
           WHERE pi.person_id = p.person_id AND pi.id_type = 'phone'
       )
       AND NOT EXISTS (
-          SELECT 1 FROM trapper.identity_phone_blacklist bl
-          WHERE bl.phone_norm = trapper.norm_phone_us(p.primary_phone)
+          SELECT 1 FROM ops.identity_phone_blacklist bl
+          WHERE bl.phone_norm = sot.norm_phone_us(p.primary_phone)
       )
   `);
 
@@ -143,7 +143,7 @@ test('ClinicHQ appointment_info should be mostly processed', async () => {
     SELECT
       COUNT(*) FILTER (WHERE is_processed) as processed,
       COUNT(*) FILTER (WHERE NOT is_processed) as unprocessed
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE source_system = 'clinichq'
       AND source_table = 'appointment_info'
   `);
@@ -168,7 +168,7 @@ test('ClinicHQ cat_info should be mostly processed', async () => {
     SELECT
       COUNT(*) FILTER (WHERE is_processed) as processed,
       COUNT(*) FILTER (WHERE NOT is_processed) as unprocessed
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE source_system = 'clinichq'
       AND source_table = 'cat_info'
   `);
@@ -198,7 +198,7 @@ test('PetLink pets should be mostly processed', async () => {
     SELECT
       COUNT(*) FILTER (WHERE is_processed) as processed,
       COUNT(*) FILTER (WHERE NOT is_processed) as unprocessed
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE source_system = 'petlink'
       AND source_table = 'pets'
   `);
@@ -226,7 +226,7 @@ test('Identity resolution finds people by email', async () => {
   // Find a random person with email and check if identity resolution works
   const personResult = await pool.query(`
     SELECT p.person_id, p.display_name, p.primary_email
-    FROM trapper.sot_people p
+    FROM sot.people p
     WHERE p.primary_email IS NOT NULL
       AND p.merged_into_person_id IS NULL
     LIMIT 1
@@ -242,8 +242,8 @@ test('Identity resolution finds people by email', async () => {
   // Check if we can find them via person_identifiers
   const matchResult = await pool.query(`
     SELECT p.person_id, p.display_name
-    FROM trapper.person_identifiers pi
-    JOIN trapper.sot_people p ON p.person_id = pi.person_id
+    FROM sot.person_identifiers pi
+    JOIN sot.people p ON p.person_id = pi.person_id
     WHERE pi.id_type = 'email'
       AND pi.id_value_norm = $1
       AND p.merged_into_person_id IS NULL
@@ -269,8 +269,8 @@ test('Total person identifier coverage is high', async () => {
     SELECT
       COUNT(DISTINCT p.person_id) as total_people,
       COUNT(DISTINCT pi.person_id) as people_with_identifiers
-    FROM trapper.sot_people p
-    LEFT JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+    FROM sot.people p
+    LEFT JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
     WHERE p.merged_into_person_id IS NULL
   `);
 

@@ -74,9 +74,9 @@ async function main() {
         r.created_at,
         p.formatted_address,
         pe.display_name as requester_name
-      FROM trapper.sot_requests r
-      LEFT JOIN trapper.places p ON p.place_id = r.place_id
-      LEFT JOIN trapper.sot_people pe ON pe.person_id = r.requester_person_id
+      FROM ops.requests r
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
+      LEFT JOIN sot.people pe ON pe.person_id = r.requester_person_id
       WHERE (
         r.summary IS NOT NULL AND r.summary != ''
         OR r.notes IS NOT NULL AND r.notes != ''
@@ -85,7 +85,7 @@ async function main() {
       )
       -- Skip already-processed records (use extraction_status for consistent tracking)
       AND NOT EXISTS (
-        SELECT 1 FROM trapper.extraction_status es
+        SELECT 1 FROM ops.extraction_status es
         WHERE es.source_table = 'sot_requests'
           AND es.source_record_id = r.request_id::TEXT
       )
@@ -244,7 +244,7 @@ async function main() {
       if (!dryRun) {
         try {
           await pool.query(`
-            INSERT INTO trapper.extraction_status (
+            INSERT INTO ops.extraction_status (
               source_table, source_record_id, last_extracted_at,
               attributes_extracted, extraction_hash
             ) VALUES (
@@ -259,7 +259,7 @@ async function main() {
 
           // Mark queue item completed if it exists
           await pool.query(`
-            UPDATE trapper.extraction_queue
+            UPDATE ops.extraction_queue
             SET completed_at = NOW()
             WHERE source_table = 'sot_requests'
               AND source_record_id = $1

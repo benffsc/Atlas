@@ -318,7 +318,7 @@ function computeRowHash(data) {
 async function getLastSyncDate(client) {
   const res = await client.query(`
     SELECT MAX(last_api_sync_at) as last_sync
-    FROM trapper.volunteerhub_volunteers
+    FROM source.volunteerhub_volunteers
     WHERE last_api_sync_at IS NOT NULL
   `);
   return res.rows[0]?.last_sync || null;
@@ -334,7 +334,7 @@ async function upsertUserGroups(client, groups, verbose) {
     const parentUid = group.ParentUserGroupUid || group.parentUserGroupUid || null;
 
     const res = await client.query(`
-      INSERT INTO trapper.volunteerhub_user_groups (user_group_uid, name, description, parent_user_group_uid, synced_at)
+      INSERT INTO source.volunteerhub_user_groups (user_group_uid, name, description, parent_user_group_uid, synced_at)
       VALUES ($1, $2, $3, $4, NOW())
       ON CONFLICT (user_group_uid) DO UPDATE SET
         name = $2, description = $3, parent_user_group_uid = $4, synced_at = NOW()
@@ -359,7 +359,7 @@ async function markApprovedParent(client, groups) {
 
     if (name === 'Approved Volunteers' && !parentUid) {
       await client.query(`
-        UPDATE trapper.volunteerhub_user_groups
+        UPDATE source.volunteerhub_user_groups
         SET is_approved_parent = TRUE
         WHERE user_group_uid = $1
       `, [uid]);
@@ -374,7 +374,7 @@ async function markApprovedParent(client, groups) {
 
     if (name === 'Approved Volunteers') {
       await client.query(`
-        UPDATE trapper.volunteerhub_user_groups
+        UPDATE source.volunteerhub_user_groups
         SET is_approved_parent = TRUE
         WHERE user_group_uid = $1
       `, [uid]);
@@ -398,7 +398,7 @@ async function seedRoleMappings(client) {
 
   for (const m of mappings) {
     await client.query(`
-      UPDATE trapper.volunteerhub_user_groups
+      UPDATE source.volunteerhub_user_groups
       SET atlas_role = $2, atlas_trapper_type = $3
       WHERE name ILIKE $1 || '%'
         AND atlas_role IS NULL
@@ -407,12 +407,12 @@ async function seedRoleMappings(client) {
 
   // Default: all unmapped groups under "Approved Volunteers" → volunteer
   await client.query(`
-    UPDATE trapper.volunteerhub_user_groups
+    UPDATE source.volunteerhub_user_groups
     SET atlas_role = 'volunteer'
     WHERE atlas_role IS NULL
       AND parent_user_group_uid IS NOT NULL
       AND parent_user_group_uid IN (
-        SELECT user_group_uid FROM trapper.volunteerhub_user_groups WHERE is_approved_parent = TRUE
+        SELECT user_group_uid FROM source.volunteerhub_user_groups WHERE is_approved_parent = TRUE
       )
   `);
 }
@@ -422,7 +422,7 @@ async function upsertVolunteer(client, data) {
 
   // Generated columns (display_name, phone_norm, email_norm, full_address) excluded from INSERT
   const res = await client.query(`
-    INSERT INTO trapper.volunteerhub_volunteers (
+    INSERT INTO source.volunteerhub_volunteers (
       volunteerhub_id, username, email, phone, first_name, last_name,
       address, city, state, zip,
       status, is_active, hours_logged, event_count,
@@ -493,7 +493,7 @@ async function upsertVolunteer(client, data) {
 
 async function stageRecord(client, data, rowHash) {
   await client.query(`
-    INSERT INTO trapper.staged_records (
+    INSERT INTO ops.staged_records (
       source_system, source_table, source_row_id, row_hash, payload, is_processed
     ) VALUES ($1, $2, $3, $4, $5, FALSE)
     ON CONFLICT (source_system, source_table, row_hash) DO NOTHING
@@ -506,7 +506,7 @@ async function stageRecord(client, data, rowHash) {
 async function processVolunteerRoles(client, volunteerhubId) {
   // Get matched person_id
   const match = await client.query(`
-    SELECT matched_person_id FROM trapper.volunteerhub_volunteers
+    SELECT matched_person_id FROM source.volunteerhub_volunteers
     WHERE volunteerhub_id = $1 AND matched_person_id IS NOT NULL
   `, [volunteerhubId]);
 
@@ -515,12 +515,12 @@ async function processVolunteerRoles(client, volunteerhubId) {
 
   // Sync group memberships
   const syncRes = await client.query(`
-    SELECT trapper.sync_volunteer_group_memberships($1, $2) as result
+    SELECT ops.sync_volunteer_group_memberships($1, $2) as result
   `, [volunteerhubId, await getVolunteerGroupUids(client, volunteerhubId)]);
 
   // Process roles from groups
   const roleRes = await client.query(`
-    SELECT trapper.process_volunteerhub_group_roles($1, $2) as result
+    SELECT ops.process_volunteerhub_group_roles($1, $2) as result
   `, [personId, volunteerhubId]);
 
   return {
@@ -531,7 +531,7 @@ async function processVolunteerRoles(client, volunteerhubId) {
 
 async function getVolunteerGroupUids(client, volunteerhubId) {
   const res = await client.query(`
-    SELECT user_group_uids FROM trapper.volunteerhub_volunteers
+    SELECT user_group_uids FROM source.volunteerhub_volunteers
     WHERE volunteerhub_id = $1
   `, [volunteerhubId]);
   return res.rows[0]?.user_group_uids || [];
@@ -539,7 +539,7 @@ async function getVolunteerGroupUids(client, volunteerhubId) {
 
 async function matchVolunteer(client, volunteerhubId) {
   const res = await client.query(`
-    SELECT trapper.match_volunteerhub_volunteer($1) as result
+    SELECT ops.match_volunteerhub_volunteer($1) as result
   `, [volunteerhubId]);
   return res.rows[0]?.result;
 }
@@ -547,14 +547,14 @@ async function matchVolunteer(client, volunteerhubId) {
 async function enrichVolunteer(client, volunteerhubId) {
   // Run enrichment for this specific volunteer
   const res = await client.query(`
-    SELECT matched_person_id FROM trapper.volunteerhub_volunteers
+    SELECT matched_person_id FROM source.volunteerhub_volunteers
     WHERE volunteerhub_id = $1 AND matched_person_id IS NOT NULL
   `, [volunteerhubId]);
 
   if (res.rows.length === 0) return;
 
   // Enrich phones and places
-  await client.query(`SELECT trapper.enrich_from_volunteerhub(1)`);
+  await client.query(`SELECT ops.enrich_from_volunteerhub(1)`);
 }
 
 // ============================================================================
@@ -618,7 +618,7 @@ async function main() {
       const uid = g.UserGroupUid || g.userGroupUid;
       const name = g.Name || g.name || '';
       await client.query(`
-        INSERT INTO trapper.volunteerhub_user_groups (user_group_uid, name, synced_at)
+        INSERT INTO source.volunteerhub_user_groups (user_group_uid, name, synced_at)
         VALUES ($1, $2, NOW())
         ON CONFLICT (user_group_uid) DO UPDATE SET name = $2, synced_at = NOW()
       `, [uid, name]);
@@ -641,7 +641,7 @@ async function main() {
 
     // Report unmapped groups
     const unmapped = await client.query(`
-      SELECT name FROM trapper.volunteerhub_user_groups
+      SELECT name FROM source.volunteerhub_user_groups
       WHERE atlas_role IS NULL AND parent_user_group_uid IS NOT NULL
     `);
     if (unmapped.rows.length > 0) {
@@ -773,7 +773,7 @@ async function main() {
   if (client && !options.dryRun) {
     console.log(`\n${colors.cyan}Step 5:${colors.reset} Enriching skeleton people...`);
     try {
-      const enrichRes = await client.query(`SELECT trapper.enrich_skeleton_people(200) as result`);
+      const enrichRes = await client.query(`SELECT ops.enrich_skeleton_people(200) as result`);
       const e = enrichRes.rows[0]?.result;
       if (e) {
         stats.skeletons_promoted = e.promoted || 0;
@@ -794,7 +794,7 @@ async function main() {
   if (client && !options.dryRun) {
     console.log(`\n${colors.cyan}Step 6:${colors.reset} Trapper reconciliation (VH vs Airtable)...`);
     try {
-      const recon = await client.query(`SELECT trapper.cross_reference_vh_trappers_with_airtable() as result`);
+      const recon = await client.query(`SELECT ops.cross_reference_vh_trappers_with_airtable() as result`);
       const r = recon.rows[0]?.result;
       if (r) {
         console.log(`  Matched in both: ${r.matched_both}`);

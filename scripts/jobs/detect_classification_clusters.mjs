@@ -67,7 +67,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 async function clearPendingClusters() {
   console.log("Clearing existing pending clusters...");
   const result = await pool.query(`
-    DELETE FROM trapper.classification_clusters
+    DELETE FROM ops.classification_clusters
     WHERE status = 'pending'
     RETURNING cluster_id
   `);
@@ -78,7 +78,7 @@ async function detectClusters() {
   console.log(`Detecting clusters (radius: ${RADIUS}m, min-places: ${MIN_PLACES})...\n`);
 
   const result = await pool.query(
-    `SELECT * FROM trapper.detect_classification_clusters($1, $2)`,
+    `SELECT * FROM ops.detect_classification_clusters($1, $2)`,
     [RADIUS, MIN_PLACES]
   );
 
@@ -98,13 +98,13 @@ async function analyzeCluster(cluster) {
           'suggestion', r.suggested_classification::TEXT,
           'confidence', r.classification_confidence
         )
-        FROM trapper.sot_requests r
+        FROM ops.requests r
         WHERE r.place_id = p.place_id
           AND r.suggested_classification IS NOT NULL
         ORDER BY r.classification_confidence DESC
         LIMIT 1
       ) AS best_suggestion
-    FROM trapper.places p
+    FROM sot.places p
     WHERE p.place_id = ANY($1)
   `, [cluster.place_ids]);
 
@@ -115,8 +115,8 @@ async function analyzeCluster(cluster) {
       gme.ai_summary,
       gme.lat,
       gme.lng
-    FROM trapper.google_map_entries gme
-    JOIN trapper.places p ON ST_DWithin(
+    FROM ops.google_map_entries gme
+    JOIN sot.places p ON ST_DWithin(
       p.location::geography,
       ST_SetSRID(ST_MakePoint(gme.lng, gme.lat), 4326)::geography,
       $2
@@ -188,14 +188,14 @@ async function saveCluster(cluster, analysis) {
     SELECT
       AVG(ST_Y(location::geometry)) AS center_lat,
       AVG(ST_X(location::geometry)) AS center_lng
-    FROM trapper.places
+    FROM sot.places
     WHERE place_id = ANY($1)
   `, [cluster.place_ids]);
 
   const center = centerResult.rows[0];
 
   await pool.query(`
-    INSERT INTO trapper.classification_clusters (
+    INSERT INTO ops.classification_clusters (
       cluster_id,
       center_lat,
       center_lng,

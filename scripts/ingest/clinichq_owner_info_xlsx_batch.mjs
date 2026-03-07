@@ -3,7 +3,7 @@
  * clinichq_owner_info_xlsx_batch.mjs
  *
  * BATCH-OPTIMIZED version - ~10-20x faster than row-by-row
- * Ingests ClinicHQ owner_info XLSX into trapper.staged_records.
+ * Ingests ClinicHQ owner_info XLSX into ops.staged_records.
  */
 
 import fs from 'fs';
@@ -75,7 +75,7 @@ async function main() {
   // Create run record
   const fileSha256 = computeFileSha256(path.resolve(xlsxPath));
   const runResult = await client.query(`
-    INSERT INTO trapper.ingest_runs (
+    INSERT INTO ops.ingest_runs (
       source_system, source_table, source_file_path, source_file_name,
       source_file_sha256, row_count, run_status, started_at
     ) VALUES ($1, $2, $3, $4, $5, $6, 'running', NOW())
@@ -124,7 +124,7 @@ async function main() {
           unnest($3::jsonb[]) AS payload
       ),
       upserted AS (
-        INSERT INTO trapper.staged_records (
+        INSERT INTO ops.staged_records (
           source_system, source_table, source_row_id, source_file, row_hash, payload, created_at, updated_at
         )
         SELECT
@@ -159,7 +159,7 @@ async function main() {
   // Complete run
   const durationMs = Date.now() - startTime;
   await client.query(`
-    UPDATE trapper.ingest_runs
+    UPDATE ops.ingest_runs
     SET rows_inserted = $2, rows_linked = $3, run_status = 'completed',
         run_duration_ms = $4, completed_at = NOW()
     WHERE run_id = $1

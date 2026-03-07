@@ -53,8 +53,8 @@ const pool = new Pool({ connectionString: getEnvVar("DATABASE_URL") });
  */
 export async function getAttributeDefinitions(entityType = null) {
   const query = entityType
-    ? `SELECT * FROM trapper.entity_attribute_definitions WHERE entity_type = $1 ORDER BY priority`
-    : `SELECT * FROM trapper.entity_attribute_definitions ORDER BY entity_type, priority`;
+    ? `SELECT * FROM ops.entity_attribute_definitions WHERE entity_type = $1 ORDER BY priority`
+    : `SELECT * FROM ops.entity_attribute_definitions ORDER BY entity_type, priority`;
 
   const result = await pool.query(query, entityType ? [entityType] : []);
   return result.rows;
@@ -187,7 +187,7 @@ let validAttributeKeys = null;
 async function getValidAttributeKeys() {
   if (validAttributeKeys) return validAttributeKeys;
   const result = await pool.query(
-    `SELECT attribute_key FROM trapper.entity_attribute_definitions`
+    `SELECT attribute_key FROM ops.entity_attribute_definitions`
   );
   validAttributeKeys = new Set(result.rows.map((r) => r.attribute_key));
   return validAttributeKeys;
@@ -231,7 +231,7 @@ export async function saveAttributes(
       }
 
       await client.query(
-        `SELECT trapper.set_entity_attribute($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        `SELECT ops.set_entity_attribute($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           entityType,
           entityId,
@@ -263,7 +263,7 @@ export async function saveAttributes(
  */
 export async function logExtractionJob(jobData) {
   const result = await pool.query(
-    `INSERT INTO trapper.attribute_extraction_jobs
+    `INSERT INTO ops.attribute_extraction_jobs
      (source_system, entity_type, batch_size, records_processed, records_with_extractions,
       attributes_extracted, model_used, cost_estimate_usd, completed_at, error_message, notes)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10)

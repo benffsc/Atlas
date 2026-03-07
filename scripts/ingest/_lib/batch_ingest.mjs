@@ -118,7 +118,7 @@ export class BatchIngestRunner {
     const fileSha256 = computeFileSha256(filePath);
 
     const result = await this.pool.query(`
-      INSERT INTO trapper.ingest_runs (
+      INSERT INTO ops.ingest_runs (
         source_system, source_table, source_file_path, source_file_name,
         source_file_sha256, row_count, run_status, started_at
       ) VALUES ($1, $2, $3, $4, $5, $6, 'running', NOW())
@@ -132,7 +132,7 @@ export class BatchIngestRunner {
   async completeRun() {
     const durationMs = Date.now() - this.startTime;
     await this.pool.query(`
-      UPDATE trapper.ingest_runs SET
+      UPDATE ops.ingest_runs SET
         rows_inserted = $2, rows_linked = $3, rows_suspect = 0,
         run_status = 'completed', run_duration_ms = $4, completed_at = NOW()
       WHERE run_id = $1
@@ -159,7 +159,7 @@ export class BatchIngestRunner {
   async failRun(errorMessage) {
     const durationMs = Date.now() - this.startTime;
     await this.pool.query(`
-      UPDATE trapper.ingest_runs SET
+      UPDATE ops.ingest_runs SET
         run_status = 'failed', error_message = $2,
         run_duration_ms = $3, completed_at = NOW()
       WHERE run_id = $1
@@ -241,7 +241,7 @@ export class BatchIngestRunner {
             unnest($3::jsonb[]) AS payload
         ),
         upserted AS (
-          INSERT INTO trapper.staged_records (
+          INSERT INTO ops.staged_records (
             source_system, source_table, source_row_id, source_file,
             row_hash, payload, created_at, updated_at
           )
@@ -283,7 +283,7 @@ export class BatchIngestRunner {
         const wasInsertedFlags = runRecordData.map(r => r.wasInserted);
 
         await client.query(`
-          INSERT INTO trapper.ingest_run_records (run_id, staged_record_id, csv_row_number, was_inserted)
+          INSERT INTO ops.ingest_runs (run_id, staged_record_id, csv_row_number, was_inserted)
           SELECT $1, unnest($2::uuid[]), unnest($3::int[]), unnest($4::boolean[])
           ON CONFLICT (run_id, staged_record_id) DO NOTHING
         `, [this.runId, stagedIds, csvRowNums, wasInsertedFlags]);

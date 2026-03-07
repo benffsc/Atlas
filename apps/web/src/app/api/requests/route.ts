@@ -393,7 +393,7 @@ export async function POST(request: NextRequest) {
         const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
         const resolved = await queryOne<{ person_id: string }>(
-          `SELECT person_id::TEXT FROM trapper.find_or_create_person(
+          `SELECT person_id::TEXT FROM sot.find_or_create_person(
             $1, $2, $3, $4, NULL, 'atlas_ui'
           )`,
           [
@@ -412,6 +412,15 @@ export async function POST(request: NextRequest) {
         }
       } catch (resolveError) {
         console.warn("[POST /api/requests] Auto-resolve requester failed (non-blocking):", resolveError);
+      }
+    }
+
+    // FFS-296: Link requestor to place
+    if (result?.request_id) {
+      try {
+        await queryOne(`SELECT ops.enrich_person_from_request($1::UUID)`, [result.request_id]);
+      } catch (e) {
+        console.warn("[POST /api/requests] enrich_person_from_request failed:", e);
       }
     }
 

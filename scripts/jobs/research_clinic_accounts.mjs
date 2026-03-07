@@ -186,11 +186,11 @@ async function getAccountsToResearch() {
           'appointment_date', a.appointment_date,
           'owner_email', a.owner_email
         ))
-        FROM trapper.sot_appointments a
+        FROM ops.appointments a
         WHERE a.owner_account_id = coa.account_id
         LIMIT 5
       ) as appointment_context
-    FROM trapper.clinic_owner_accounts coa
+    FROM ops.clinic_owner_accounts coa
     WHERE ${whereClause}
     ORDER BY
       CASE coa.account_type
@@ -394,7 +394,7 @@ async function findOrCreatePlace(address, displayName) {
   try {
     // Use the centralized function
     const result = await pool.query(`
-      SELECT trapper.find_or_create_place_deduped(
+      SELECT sot.find_or_create_place_deduped(
         $1,  -- formatted_address
         $2,  -- display_name
         NULL, -- lat
@@ -487,7 +487,7 @@ async function updateAccount(account, classification, research) {
   values.push(account.account_id);
 
   const query = `
-    UPDATE trapper.clinic_owner_accounts
+    UPDATE ops.clinic_owner_accounts
     SET ${updates.join(', ')}
     WHERE account_id = $${paramNum}
   `;
@@ -657,7 +657,7 @@ async function main() {
         COUNT(*) FILTER (WHERE ai_researched_at IS NOT NULL) as researched,
         COUNT(*) FILTER (WHERE linked_place_id IS NOT NULL) as linked_to_place,
         COUNT(*) FILTER (WHERE linked_org_id IS NOT NULL) as linked_to_org
-      FROM trapper.clinic_owner_accounts
+      FROM ops.clinic_owner_accounts
       GROUP BY account_type
       ORDER BY total DESC
     `);

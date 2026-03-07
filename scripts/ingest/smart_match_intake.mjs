@@ -167,7 +167,7 @@ async function getUnmatchedSubmissions(client, options) {
       geo_confidence,
       geo_formatted_address,
       matched_person_id
-    FROM trapper.web_intake_submissions
+    FROM ops.intake_submissions
     WHERE matched_person_id IS NULL
       AND (email IS NOT NULL OR phone IS NOT NULL)
     ORDER BY submitted_at DESC
@@ -188,8 +188,8 @@ async function findPersonByEmail(client, email) {
       p.display_name,
       pi.id_value_norm as matched_email,
       'email' as match_type
-    FROM trapper.sot_people p
-    JOIN trapper.person_identifiers pi ON p.person_id = pi.person_id
+    FROM sot.people p
+    JOIN sot.person_identifiers pi ON p.person_id = pi.person_id
     WHERE pi.id_type = 'email'
       AND pi.id_value_norm = $1
       AND p.merged_into_person_id IS NULL
@@ -210,8 +210,8 @@ async function findPersonByPhone(client, phone) {
       p.display_name,
       pi.id_value_norm as matched_phone,
       'phone' as match_type
-    FROM trapper.sot_people p
-    JOIN trapper.person_identifiers pi ON p.person_id = pi.person_id
+    FROM sot.people p
+    JOIN sot.person_identifiers pi ON p.person_id = pi.person_id
     WHERE pi.id_type = 'phone'
       AND pi.id_value_norm = $1
       AND p.merged_into_person_id IS NULL
@@ -228,8 +228,8 @@ async function getPersonPlaces(client, personId) {
       pl.place_id,
       pl.formatted_address,
       ppr.role
-    FROM trapper.person_place_relationships ppr
-    JOIN trapper.places pl ON ppr.place_id = pl.place_id
+    FROM sot.person_place_relationships ppr
+    JOIN sot.places pl ON ppr.place_id = pl.place_id
     WHERE ppr.person_id = $1
     LIMIT 10
   `;
@@ -246,8 +246,8 @@ async function getPersonRequests(client, personId) {
       r.priority,
       r.created_at,
       pl.formatted_address
-    FROM trapper.sot_requests r
-    LEFT JOIN trapper.places pl ON r.place_id = pl.place_id
+    FROM ops.requests r
+    LEFT JOIN sot.places pl ON r.place_id = pl.place_id
     WHERE r.requester_person_id = $1
     ORDER BY r.created_at DESC
     LIMIT 5
@@ -259,7 +259,7 @@ async function getPersonRequests(client, personId) {
 
 async function updateMatchedPerson(client, submissionId, personId, matchDetails) {
   const sql = `
-    UPDATE trapper.web_intake_submissions
+    UPDATE ops.intake_submissions
     SET
       matched_person_id = $1,
       review_notes = COALESCE(review_notes, '') || $2,

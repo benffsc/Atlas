@@ -89,8 +89,8 @@ async function main() {
         gme.parsed_date,
         COALESCE(gme.linked_place_id, gme.place_id) as effective_place_id,
         p.formatted_address as place_address
-      FROM trapper.google_map_entries gme
-      LEFT JOIN trapper.places p ON p.place_id = COALESCE(gme.linked_place_id, gme.place_id)
+      FROM ops.google_map_entries gme
+      LEFT JOIN sot.places p ON p.place_id = COALESCE(gme.linked_place_id, gme.place_id)
       WHERE (
         gme.original_content ~* 'felv|fiv|feline\\s+leukemia|feline\\s+immunodeficiency|ringworm|dermatophyt|heartworm|panleuk|feline\\s+distemper|parvo|snap\\s+(pos|neg|test)'
         OR gme.ai_summary ~* 'felv|fiv|feline\\s+leukemia|feline\\s+immunodeficiency|ringworm|dermatophyt|heartworm|panleuk|feline\\s+distemper|parvo|snap\\s+(pos|neg|test)'
@@ -98,7 +98,7 @@ async function main() {
       AND COALESCE(gme.linked_place_id, gme.place_id) IS NOT NULL
       -- Skip already-processed entries
       AND NOT EXISTS (
-        SELECT 1 FROM trapper.extraction_status es
+        SELECT 1 FROM ops.extraction_status es
         WHERE es.source_table = 'google_map_entries'
           AND es.source_record_id = gme.entry_id::TEXT
       )
@@ -197,7 +197,7 @@ async function main() {
           if (!dryRun) {
             try {
               const hookResult = await pool.query(
-                `SELECT trapper.process_disease_extraction_for_place($1, $2, $3, $4, $5)`,
+                `SELECT ops.process_disease_extraction_for_place($1, $2, $3, $4, $5)`,
                 [
                   entry.effective_place_id,
                   disease_key,
@@ -218,7 +218,7 @@ async function main() {
         if (!dryRun) {
           try {
             await pool.query(`
-              INSERT INTO trapper.extraction_status (
+              INSERT INTO ops.extraction_status (
                 source_table, source_record_id, last_extracted_at,
                 attributes_extracted, extraction_hash
               ) VALUES (

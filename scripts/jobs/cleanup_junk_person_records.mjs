@@ -361,9 +361,9 @@ async function getRawContextForPerson(personId) {
       a.medical_notes,
       c.display_name as cat_name,
       ci.id_value as microchip
-    FROM trapper.sot_appointments a
-    LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-    LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+    FROM ops.appointments a
+    LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+    LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
     WHERE a.trapper_person_id = $1 OR a.person_id = $1
     ORDER BY a.appointment_date DESC
     LIMIT 10
@@ -375,7 +375,7 @@ async function getRawContextForPerson(personId) {
       payload,
       source_table,
       created_at
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE source_system = 'clinichq'
     AND (
       payload->>'Owner First Name' || ' ' || payload->>'Owner Last Name' ILIKE $1
@@ -417,9 +417,9 @@ async function getJunkRecords(limit, typeFilter) {
           'owner_phone', a.owner_phone,
           'address', pl.formatted_address
         ) ORDER BY a.appointment_date DESC)
-        FROM trapper.sot_appointments a
-        LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-        LEFT JOIN trapper.places pl ON pl.place_id = a.place_id
+        FROM ops.appointments a
+        LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+        LEFT JOIN sot.places pl ON pl.place_id = a.place_id
         WHERE a.trapper_person_id = ANY(array_agg(p.person_id))
            OR a.person_id = ANY(array_agg(p.person_id))
         LIMIT 5
@@ -433,7 +433,7 @@ async function getJunkRecords(limit, typeFilter) {
           'client_type', payload->>'ClientType',
           'ownership', payload->>'Ownership'
         ))
-        FROM trapper.staged_records sr
+        FROM ops.staged_records sr
         WHERE sr.source_system = 'clinichq'
         AND (
           TRIM(COALESCE(sr.payload->>'Owner First Name', '') || ' ' || COALESCE(sr.payload->>'Owner Last Name', '')) = p.display_name
@@ -441,7 +441,7 @@ async function getJunkRecords(limit, typeFilter) {
         )
         LIMIT 5
       ) as raw_context
-    FROM trapper.sot_people p
+    FROM sot.people p
     WHERE p.merged_into_person_id IS NULL
     AND p.data_source = 'clinichq'
     AND p.primary_email IS NULL
@@ -464,8 +464,8 @@ async function findOrCreatePlace(addressInfo) {
   // First check if place exists
   const existing = await pool.query(`
     SELECT place_id, formatted_address
-    FROM trapper.places
-    WHERE normalized_address = trapper.normalize_address($1)
+    FROM sot.places
+    WHERE normalized_address = sot.normalize_address($1)
     AND merged_into_place_id IS NULL
     LIMIT 1
   `, [addressInfo.formatted_address]);
@@ -476,7 +476,7 @@ async function findOrCreatePlace(addressInfo) {
 
   // Create new place
   const result = await pool.query(`
-    SELECT trapper.find_or_create_place_deduped(
+    SELECT sot.find_or_create_place_deduped(
       $1, NULL, NULL, NULL, 'clinichq'
     ) as place_id
   `, [addressInfo.formatted_address]);
@@ -491,7 +491,7 @@ async function createOrganization(orgInfo, personIds) {
   // Check if org already exists in known_organizations (actual table structure)
   const existing = await pool.query(`
     SELECT org_id, linked_place_id
-    FROM trapper.known_organizations
+    FROM sot.known_organizations
     WHERE org_name ILIKE $1
        OR org_name_pattern ILIKE $2
     LIMIT 1
@@ -510,7 +510,7 @@ async function createOrganization(orgInfo, personIds) {
 
   // Create the known_organization entry (using actual table structure)
   const orgResult = await pool.query(`
-    INSERT INTO trapper.known_organizations (
+    INSERT INTO sot.known_organizations (
       org_name,
       org_name_pattern,
       org_type,
@@ -544,7 +544,7 @@ async function mergeDuplicates(personIds, canonicalId) {
 
     // Update the person to be merged
     await pool.query(`
-      UPDATE trapper.sot_people
+      UPDATE sot.people
       SET merged_into_person_id = $1,
           merged_at = NOW(),
           merge_reason = 'clinichq_junk_cleanup'
@@ -553,7 +553,7 @@ async function mergeDuplicates(personIds, canonicalId) {
 
     // Re-link any appointments
     await pool.query(`
-      UPDATE trapper.sot_appointments
+      UPDATE ops.appointments
       SET trapper_person_id = $1
       WHERE trapper_person_id = $2
     `, [canonicalId, personId]);
@@ -641,7 +641,7 @@ async function processRecord(record, dryRun) {
 
     // Mark as clinic_location account (pseudo-profile for future cat linking)
     await pool.query(`
-      UPDATE trapper.sot_people
+      UPDATE sot.people
       SET account_type = 'clinic_location',
           account_type_reason = 'AI cleanup: address used as clinic owner name',
           data_quality = 'cleaned'
@@ -650,7 +650,7 @@ async function processRecord(record, dryRun) {
 
     // Link person to place via person_place_relationships
     await pool.query(`
-      INSERT INTO trapper.person_place_relationships (person_id, place_id, role, source_system, note, confidence)
+      INSERT INTO sot.person_place_relationships (person_id, place_id, role, source_system, note, confidence)
       VALUES ($1, $2, 'contact', 'clinichq', 'Clinic appointment location account', 0.9)
       ON CONFLICT (person_id, place_id, role) DO NOTHING
     `, [keepPersonId, placeResult.place_id]);
@@ -675,7 +675,7 @@ async function processRecord(record, dryRun) {
 
     // Mark as organization account (pseudo-profile for clinic records)
     await pool.query(`
-      UPDATE trapper.sot_people
+      UPDATE sot.people
       SET account_type = 'organization',
           account_type_reason = 'AI cleanup: organization name used in clinic records',
           display_name = $2,
@@ -686,7 +686,7 @@ async function processRecord(record, dryRun) {
     // Link to place if we have one via person_place_relationships
     if (orgResult.linked_place_id) {
       await pool.query(`
-        INSERT INTO trapper.person_place_relationships (person_id, place_id, role, source_system, note, confidence)
+        INSERT INTO sot.person_place_relationships (person_id, place_id, role, source_system, note, confidence)
         VALUES ($1, $2, 'contact', 'clinichq', 'Organization location from clinic records', 0.9)
         ON CONFLICT (person_id, place_id, role) DO NOTHING
       `, [keepPersonId, orgResult.linked_place_id]);

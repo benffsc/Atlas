@@ -207,13 +207,13 @@ async function findOrCreatePerson(firstName, lastName, phone, email) {
 
   // Use the centralized find_or_create_person SQL function
   // This function handles:
-  // - Email/phone normalization using trapper.norm_phone_us()
+  // - Email/phone normalization using sot.norm_phone_us()
   // - Lookup via person_identifiers table
   // - Phone blacklist checking
   // - Canonical person resolution (handles merged persons)
   // - Creating person and identifiers if not found
   const result = await pool.query(
-    `SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, 'airtable') as person_id`,
+    `SELECT sot.find_or_create_person($1, $2, $3, $4, NULL, 'airtable') as person_id`,
     [email || null, phone || null, firstName || null, lastName || null]
   );
 
@@ -229,7 +229,7 @@ async function findOrCreatePlace(address, lat, lng) {
 
   // Use the SQL function that handles deduplication and auto-queues geocoding
   const result = await pool.query(
-    `SELECT trapper.find_or_create_place_deduped($1, NULL, $2, $3, 'airtable') as place_id`,
+    `SELECT sot.find_or_create_place_deduped($1, NULL, $2, $3, 'airtable') as place_id`,
     [address, lat || null, lng || null]
   );
 
@@ -291,7 +291,7 @@ async function syncTrappingRequest(record) {
   // Use centralized find_or_create_request() function
   // This handles deduplication, person/place creation, and audit logging
   const result = await pool.query(
-    `SELECT trapper.find_or_create_request(
+    `SELECT ops.find_or_create_request(
       p_source_system := $1,
       p_source_record_id := $2,
       p_source_created_at := $3,
@@ -335,14 +335,14 @@ async function syncTrappingRequest(record) {
     const entryHash = Buffer.from(entry.raw).toString("base64").slice(0, 100);
 
     const existingEntry = await pool.query(
-      `SELECT id FROM trapper.journal_entries
+      `SELECT id FROM ops.journal_entries
        WHERE primary_request_id = $1 AND legacy_hash = $2`,
       [requestId, entryHash]
     );
 
     if (existingEntry.rows.length === 0) {
       await pool.query(
-        `INSERT INTO trapper.journal_entries (
+        `INSERT INTO ops.journal_entries (
           primary_request_id, body, occurred_at, created_by_staff_id,
           entry_kind, created_by, legacy_hash, tags, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
@@ -403,7 +403,7 @@ async function syncAppointmentToIntake(record) {
 
   // Check if already exists
   const existingResult = await pool.query(
-    `SELECT submission_id FROM trapper.web_intake_submissions
+    `SELECT submission_id FROM ops.intake_submissions
      WHERE legacy_source_id = $1`,
     [record.id]
   );
@@ -416,7 +416,7 @@ async function syncAppointmentToIntake(record) {
     // Update existing
     const submissionId = existingResult.rows[0].submission_id;
     await pool.query(
-      `UPDATE trapper.web_intake_submissions SET
+      `UPDATE ops.intake_submissions SET
         first_name = $1,
         last_name = $2,
         email = $3,
@@ -435,7 +435,7 @@ async function syncAppointmentToIntake(record) {
   } else {
     // Create new intake submission
     const insertResult = await pool.query(
-      `INSERT INTO trapper.web_intake_submissions (
+      `INSERT INTO ops.intake_submissions (
         submitted_at, first_name, last_name, email, phone,
         cats_address, cat_count_estimate, situation_description,
         place_id, matched_person_id, matched_place_id,
@@ -473,11 +473,11 @@ async function syncAppointmentToIntake(record) {
  */
 async function ensureLegacyHashColumn() {
   await pool.query(`
-    ALTER TABLE trapper.journal_entries
+    ALTER TABLE ops.journal_entries
     ADD COLUMN IF NOT EXISTS legacy_hash TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_journal_entries_legacy_hash
-    ON trapper.journal_entries(legacy_hash)
+    ON ops.journal_entries(legacy_hash)
     WHERE legacy_hash IS NOT NULL;
   `);
 }

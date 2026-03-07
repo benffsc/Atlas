@@ -61,15 +61,15 @@ async function main() {
         o.time_of_day,
         o.confidence,
         p.formatted_address
-      FROM trapper.site_observations o
-      LEFT JOIN trapper.places p ON p.place_id = o.place_id
+      FROM ops.site_observations o
+      LEFT JOIN sot.places p ON p.place_id = o.place_id
       WHERE (
         o.notes IS NOT NULL AND LENGTH(o.notes) > 20
         OR o.issue_details IS NOT NULL AND LENGTH(o.issue_details) > 20
       )
       AND o.place_id IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM trapper.extraction_status es
+        SELECT 1 FROM ops.extraction_status es
         WHERE es.source_table = 'site_observations'
         AND es.source_record_id = o.observation_id::text
         AND es.last_extracted_at > NOW() - INTERVAL '7 days'
@@ -126,7 +126,7 @@ async function main() {
       // Update extraction status
       if (!dryRun) {
         await pool.query(`
-          INSERT INTO trapper.extraction_status (source_table, source_record_id, last_extracted_at, attributes_extracted)
+          INSERT INTO ops.extraction_status (source_table, source_record_id, last_extracted_at, attributes_extracted)
           VALUES ('site_observations', $1, NOW(), $2)
           ON CONFLICT (source_table, source_record_id)
           DO UPDATE SET last_extracted_at = NOW(), attributes_extracted = $2

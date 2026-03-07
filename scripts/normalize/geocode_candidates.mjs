@@ -257,7 +257,7 @@ async function getCandidates(client, limit) {
       address_raw,
       address_role,
       created_at
-    FROM trapper.v_candidate_addresses_from_trapping_requests
+    FROM sot.v_candidate_addresses_from_trapping_requests
     ORDER BY created_at ASC
     LIMIT $1
   `, [limit]);
@@ -271,7 +271,7 @@ async function getCandidates(client, limit) {
 async function checkCache(client, normalizedAddress) {
   const result = await client.query(`
     SELECT *
-    FROM trapper.geocode_cache
+    FROM ops.geocode_cache
     WHERE normalized_address_text = $1
   `, [normalizedAddress]);
 
@@ -283,7 +283,7 @@ async function checkCache(client, normalizedAddress) {
  */
 async function insertCache(client, data) {
   const result = await client.query(`
-    INSERT INTO trapper.geocode_cache (
+    INSERT INTO ops.geocode_cache (
       normalized_address_text,
       original_address_text,
       google_place_id,
@@ -321,7 +321,7 @@ async function insertCache(client, data) {
  */
 async function upsertSotAddress(client, data) {
   const result = await client.query(`
-    INSERT INTO trapper.sot_addresses (
+    INSERT INTO sot.addresses (
       google_place_id,
       formatted_address,
       unit_raw,
@@ -381,7 +381,7 @@ async function upsertSotAddress(client, data) {
  */
 async function linkStagedRecordToAddress(client, stagedRecordId, addressId, role, confidence, method) {
   await client.query(`
-    INSERT INTO trapper.staged_record_address_link (
+    INSERT INTO ops.staged_record_address_link (
       staged_record_id,
       address_id,
       address_role,
@@ -397,7 +397,7 @@ async function linkStagedRecordToAddress(client, stagedRecordId, addressId, role
  */
 async function addToReviewQueue(client, data) {
   await client.query(`
-    INSERT INTO trapper.address_review_queue (
+    INSERT INTO ops.address_review_queue (
       staged_record_id,
       source_row_id,
       address_raw,
@@ -692,11 +692,11 @@ async function main() {
   }
 
   console.log(`\n${bold}Verify with:${reset}`);
-  console.log(`  psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_geocode_pipeline_stats;"`);
+  console.log(`  psql "$DATABASE_URL" -c "SELECT * FROM ops.v_geocode_pipeline_stats;"`);
 
   if (stats.review > 0) {
     console.log(`\n${yellow}Review queue:${reset}`);
-    console.log(`  psql "$DATABASE_URL" -c "SELECT reason, COUNT(*) FROM trapper.address_review_queue WHERE NOT is_resolved GROUP BY reason;"`);
+    console.log(`  psql "$DATABASE_URL" -c "SELECT reason, COUNT(*) FROM ops.address_review_queue WHERE NOT is_resolved GROUP BY reason;"`);
   }
 }
 

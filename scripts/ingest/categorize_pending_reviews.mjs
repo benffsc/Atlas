@@ -113,7 +113,7 @@ function determineNewStatus(submission) {
 async function recordChange(client, submissionId, oldStatus, newStatus, reason) {
   // Record the change in review_notes for audit trail
   const sql = `
-    UPDATE trapper.web_intake_submissions
+    UPDATE ops.intake_submissions
     SET review_notes = COALESCE(review_notes, '') || $1
     WHERE submission_id = $2
   `;
@@ -124,7 +124,7 @@ async function recordChange(client, submissionId, oldStatus, newStatus, reason) 
 
 async function updateSubmissionStatus(client, submissionId, newStatus) {
   const sql = `
-    UPDATE trapper.web_intake_submissions
+    UPDATE ops.intake_submissions
     SET
       legacy_submission_status = $1,
       updated_at = NOW()
@@ -160,7 +160,7 @@ async function main() {
       legacy_notes,
       geo_confidence,
       submitted_at
-    FROM trapper.web_intake_submissions
+    FROM ops.intake_submissions
     WHERE legacy_submission_status = 'Pending Review'
     ORDER BY submitted_at DESC
   `);

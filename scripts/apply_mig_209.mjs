@@ -27,9 +27,9 @@ async function main() {
   try {
     // 1. Create place_colony_estimates table
     await client.query(`
-      CREATE TABLE IF NOT EXISTS trapper.place_colony_estimates (
+      CREATE TABLE IF NOT EXISTS sot.place_colony_estimates (
         estimate_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        place_id UUID NOT NULL REFERENCES trapper.places(place_id) ON DELETE CASCADE,
+        place_id UUID NOT NULL REFERENCES sot.places(place_id) ON DELETE CASCADE,
         total_cats INTEGER,
         adult_count INTEGER,
         kitten_count INTEGER,
@@ -40,7 +40,7 @@ async function main() {
         source_type TEXT NOT NULL,
         source_entity_type TEXT,
         source_entity_id UUID,
-        reported_by_person_id UUID REFERENCES trapper.sot_people(person_id),
+        reported_by_person_id UUID REFERENCES sot.people(person_id),
         observation_date DATE,
         reported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         is_firsthand BOOLEAN DEFAULT TRUE,
@@ -57,17 +57,17 @@ async function main() {
     // 2. Create indexes
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_colony_estimates_place
-        ON trapper.place_colony_estimates(place_id);
+        ON sot.place_colony_estimates(place_id);
       CREATE INDEX IF NOT EXISTS idx_colony_estimates_observation_date
-        ON trapper.place_colony_estimates(observation_date DESC NULLS LAST);
+        ON sot.place_colony_estimates(observation_date DESC NULLS LAST);
       CREATE INDEX IF NOT EXISTS idx_colony_estimates_source
-        ON trapper.place_colony_estimates(source_type);
+        ON sot.place_colony_estimates(source_type);
     `);
     console.log('  ✓ Created indexes');
 
     // 3. Create confidence config table
     await client.query(`
-      CREATE TABLE IF NOT EXISTS trapper.colony_source_confidence (
+      CREATE TABLE IF NOT EXISTS ops.colony_source_confidence (
         source_type TEXT PRIMARY KEY,
         base_confidence NUMERIC(4,2) NOT NULL,
         description TEXT,
@@ -78,7 +78,7 @@ async function main() {
 
     // 4. Insert confidence levels
     await client.query(`
-      INSERT INTO trapper.colony_source_confidence (source_type, base_confidence, description) VALUES
+      INSERT INTO ops.colony_source_confidence (source_type, base_confidence, description) VALUES
         ('verified_cats', 1.00, 'Actual cats in database with verified place link'),
         ('post_clinic_survey', 0.85, 'Project 75 post-clinic survey'),
         ('trapper_site_visit', 0.80, 'Trapper assessment or site visit report'),
@@ -91,10 +91,10 @@ async function main() {
     console.log('  ✓ Inserted confidence levels');
 
     // 5. Drop and recreate view (column changes require drop)
-    await client.query(`DROP VIEW IF EXISTS trapper.v_place_colony_status CASCADE`);
+    await client.query(`DROP VIEW IF EXISTS sot.v_place_colony_status CASCADE`);
 
     await client.query(`
-      CREATE VIEW trapper.v_place_colony_status AS
+      CREATE VIEW sot.v_place_colony_status AS
       WITH
       verified_counts AS (
         SELECT
@@ -102,12 +102,12 @@ async function main() {
           COUNT(DISTINCT cpr.cat_id) AS verified_cat_count,
           COUNT(DISTINCT cpr.cat_id) FILTER (
             WHERE EXISTS (
-              SELECT 1 FROM trapper.cat_procedures cp
+              SELECT 1 FROM ops.cat_procedures cp
               WHERE cp.cat_id = cpr.cat_id AND (cp.is_spay OR cp.is_neuter)
             )
           ) AS verified_altered_count,
           MAX(cpr.created_at) AS last_verified_at
-        FROM trapper.cat_place_relationships cpr
+        FROM sot.cat_place_relationships cpr
         GROUP BY cpr.place_id
       ),
       weighted_estimates AS (
@@ -135,8 +135,8 @@ async function main() {
             ELSE 0.25
           END AS recency_factor,
           CASE WHEN e.is_firsthand THEN COALESCE(sc.is_firsthand_boost, 0.05) ELSE 0 END AS firsthand_boost
-        FROM trapper.place_colony_estimates e
-        LEFT JOIN trapper.colony_source_confidence sc ON sc.source_type = e.source_type
+        FROM sot.place_colony_estimates e
+        LEFT JOIN ops.colony_source_confidence sc ON sc.source_type = e.source_type
         WHERE e.total_cats IS NOT NULL
       ),
       scored_estimates AS (
@@ -204,7 +204,7 @@ async function main() {
         a.primary_source,
         a.latest_observation,
         GREATEST(0, COALESCE(a.est_unaltered, a.estimated_total - COALESCE(vc.verified_altered_count, 0), 0)) AS estimated_work_remaining
-      FROM trapper.places p
+      FROM sot.places p
       LEFT JOIN verified_counts vc ON vc.place_id = p.place_id
       LEFT JOIN aggregated a ON a.place_id = p.place_id
       LEFT JOIN confirmations c ON c.place_id = p.place_id
@@ -214,7 +214,7 @@ async function main() {
 
     // 6. Populate from requests
     const result = await client.query(`
-      INSERT INTO trapper.place_colony_estimates (
+      INSERT INTO sot.place_colony_estimates (
         place_id, total_cats, kitten_count, altered_count,
         source_type, source_entity_type, source_entity_id,
         reported_by_person_id, observation_date, is_firsthand,
@@ -226,7 +226,7 @@ async function main() {
         r.requester_person_id, COALESCE(r.source_created_at::date, r.created_at::date), TRUE,
         COALESCE(r.source_system, 'atlas'), COALESCE(r.source_record_id, r.request_id::text),
         'MIG_209_initial'
-      FROM trapper.sot_requests r
+      FROM ops.requests r
       WHERE r.place_id IS NOT NULL AND r.estimated_cat_count IS NOT NULL
       ON CONFLICT (source_system, source_record_id) DO NOTHING
     `);
@@ -238,7 +238,7 @@ async function main() {
         COUNT(*) as total_places,
         SUM(colony_size_estimate) as total_estimated_cats,
         ROUND(AVG(final_confidence)::numeric, 2) as avg_confidence
-      FROM trapper.v_place_colony_status
+      FROM sot.v_place_colony_status
     `);
     console.log('\n📊 Colony Status Summary:');
     console.log(`   Places with estimates: ${stats.rows[0].total_places}`);

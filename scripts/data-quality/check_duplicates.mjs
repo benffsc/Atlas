@@ -127,7 +127,7 @@ async function main() {
         ARRAY_AGG(place_id) as place_ids,
         ARRAY_AGG(display_name) as display_names,
         COUNT(*) as count
-      FROM trapper.places
+      FROM sot.places
       WHERE normalized_address IS NOT NULL
         AND merged_into_place_id IS NULL
       GROUP BY normalized_address
@@ -157,8 +157,8 @@ async function main() {
         ARRAY_AGG(DISTINCT p.person_id) as person_ids,
         ARRAY_AGG(DISTINCT p.display_name) as display_names,
         COUNT(DISTINCT p.person_id) as count
-      FROM trapper.person_identifiers pi
-      JOIN trapper.sot_people p ON p.person_id = pi.person_id
+      FROM sot.person_identifiers pi
+      JOIN sot.people p ON p.person_id = pi.person_id
       WHERE pi.id_type = 'email'
         AND p.merged_into_person_id IS NULL
         AND pi.id_value_norm IS NOT NULL
@@ -183,14 +183,14 @@ async function main() {
         ARRAY_AGG(DISTINCT p.person_id) as person_ids,
         ARRAY_AGG(DISTINCT p.display_name) as display_names,
         COUNT(DISTINCT p.person_id) as count
-      FROM trapper.person_identifiers pi
-      JOIN trapper.sot_people p ON p.person_id = pi.person_id
+      FROM sot.person_identifiers pi
+      JOIN sot.people p ON p.person_id = pi.person_id
       WHERE pi.id_type = 'phone'
         AND p.merged_into_person_id IS NULL
         AND pi.id_value_norm IS NOT NULL
         AND pi.id_value_norm != ''
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.identity_phone_blacklist pb
+          SELECT 1 FROM ops.identity_phone_blacklist pb
           WHERE pb.phone_norm = pi.id_value_norm
         )
       GROUP BY pi.id_value_norm
@@ -213,8 +213,8 @@ async function main() {
         ARRAY_AGG(DISTINCT c.cat_id) as cat_ids,
         ARRAY_AGG(DISTINCT c.display_name) as display_names,
         COUNT(DISTINCT c.cat_id) as count
-      FROM trapper.cat_identifiers ci
-      JOIN trapper.sot_cats c ON c.cat_id = ci.cat_id
+      FROM sot.cat_identifiers ci
+      JOIN sot.cats c ON c.cat_id = ci.cat_id
       WHERE ci.id_type = 'microchip'
         AND c.merged_into_cat_id IS NULL
         AND ci.id_value IS NOT NULL
@@ -236,8 +236,8 @@ async function main() {
     // Place relationships pointing to merged places
     const orphanedPlaceRels = await client.query(`
       SELECT COUNT(*) as count
-      FROM trapper.cat_place_relationships cpr
-      JOIN trapper.places p ON p.place_id = cpr.place_id
+      FROM sot.cat_place_relationships cpr
+      JOIN sot.places p ON p.place_id = cpr.place_id
       WHERE p.merged_into_place_id IS NOT NULL
     `);
     issues.orphaned_place_relationships = parseInt(orphanedPlaceRels.rows[0].count);
@@ -246,8 +246,8 @@ async function main() {
     // Person relationships pointing to merged people
     const orphanedPersonRels = await client.query(`
       SELECT COUNT(*) as count
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+      FROM sot.person_cat_relationships pcr
+      JOIN sot.people p ON p.person_id = pcr.person_id
       WHERE p.merged_into_person_id IS NOT NULL
     `);
     issues.orphaned_person_relationships = parseInt(orphanedPersonRels.rows[0].count);
@@ -256,8 +256,8 @@ async function main() {
     // Cat relationships pointing to merged cats
     const orphanedCatRels = await client.query(`
       SELECT COUNT(*) as count
-      FROM trapper.person_cat_relationships pcr
-      JOIN trapper.sot_cats c ON c.cat_id = pcr.cat_id
+      FROM sot.person_cat_relationships pcr
+      JOIN sot.cats c ON c.cat_id = pcr.cat_id
       WHERE c.merged_into_cat_id IS NOT NULL
     `);
     issues.orphaned_cat_relationships = parseInt(orphanedCatRels.rows[0].count);
@@ -273,7 +273,7 @@ async function main() {
     const junkEmails = await client.query(
       `
       SELECT pi.id_value_norm as email, COUNT(*) as count
-      FROM trapper.person_identifiers pi
+      FROM sot.person_identifiers pi
       WHERE pi.id_type = 'email' AND (${emailPatterns})
       GROUP BY pi.id_value_norm
       ORDER BY count DESC
@@ -286,7 +286,7 @@ async function main() {
     // Junk phones
     const junkPhones = await client.query(`
       SELECT pi.id_value_norm as phone, COUNT(*) as count
-      FROM trapper.person_identifiers pi
+      FROM sot.person_identifiers pi
       WHERE pi.id_type = 'phone'
         AND pi.id_value_norm IN (${JUNK_PATTERNS.phones.map((_, i) => `$${i + 1}`).join(", ")})
       GROUP BY pi.id_value_norm
@@ -353,7 +353,7 @@ Total issues: ${totalIssues > 0 ? totalIssues : "None detected! ✓"}
           for (let i = 1; i < placeIds.length; i++) {
             try {
               await client.query(
-                `SELECT trapper.merge_places($1, $2, 'auto_dedupe')`,
+                `SELECT sot.merge_places($1, $2, 'auto_dedupe')`,
                 [keepId, placeIds[i]]
               );
               placesMerged++;
@@ -380,12 +380,12 @@ Total issues: ${totalIssues > 0 ? totalIssues : "None detected! ✓"}
 
         // First, delete orphaned relationships that would cause duplicates
         const deleteResult = await client.query(`
-          DELETE FROM trapper.cat_place_relationships cpr
-          USING trapper.places p
+          DELETE FROM sot.cat_place_relationships cpr
+          USING sot.places p
           WHERE cpr.place_id = p.place_id
             AND p.merged_into_place_id IS NOT NULL
             AND EXISTS (
-              SELECT 1 FROM trapper.cat_place_relationships cpr2
+              SELECT 1 FROM sot.cat_place_relationships cpr2
               WHERE cpr2.cat_id = cpr.cat_id
                 AND cpr2.place_id = p.merged_into_place_id
                 AND cpr2.relationship_type = cpr.relationship_type
@@ -397,9 +397,9 @@ Total issues: ${totalIssues > 0 ? totalIssues : "None detected! ✓"}
 
         // Then update remaining orphaned relationships
         const updateResult = await client.query(`
-          UPDATE trapper.cat_place_relationships cpr
+          UPDATE sot.cat_place_relationships cpr
           SET place_id = p.merged_into_place_id
-          FROM trapper.places p
+          FROM sot.places p
           WHERE cpr.place_id = p.place_id
             AND p.merged_into_place_id IS NOT NULL
         `);
@@ -412,12 +412,12 @@ Total issues: ${totalIssues > 0 ? totalIssues : "None detected! ✓"}
 
         // Delete duplicates first
         const deleteResult = await client.query(`
-          DELETE FROM trapper.person_cat_relationships pcr
-          USING trapper.sot_people p
+          DELETE FROM sot.person_cat_relationships pcr
+          USING sot.people p
           WHERE pcr.person_id = p.person_id
             AND p.merged_into_person_id IS NOT NULL
             AND EXISTS (
-              SELECT 1 FROM trapper.person_cat_relationships pcr2
+              SELECT 1 FROM sot.person_cat_relationships pcr2
               WHERE pcr2.person_id = p.merged_into_person_id
                 AND pcr2.cat_id = pcr.cat_id
                 AND pcr2.relationship_type = pcr.relationship_type
@@ -429,9 +429,9 @@ Total issues: ${totalIssues > 0 ? totalIssues : "None detected! ✓"}
 
         // Update remaining
         const updateResult = await client.query(`
-          UPDATE trapper.person_cat_relationships pcr
+          UPDATE sot.person_cat_relationships pcr
           SET person_id = p.merged_into_person_id
-          FROM trapper.sot_people p
+          FROM sot.people p
           WHERE pcr.person_id = p.person_id
             AND p.merged_into_person_id IS NOT NULL
         `);

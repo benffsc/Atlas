@@ -28,10 +28,10 @@ async function main() {
 
   try {
     // Drop and recreate view with clinic boost
-    await client.query(`DROP VIEW IF EXISTS trapper.v_place_colony_status CASCADE`);
+    await client.query(`DROP VIEW IF EXISTS sot.v_place_colony_status CASCADE`);
 
     await client.query(`
-      CREATE VIEW trapper.v_place_colony_status AS
+      CREATE VIEW sot.v_place_colony_status AS
       WITH
       -- Get verified cat counts from place relationships
       verified_counts AS (
@@ -40,12 +40,12 @@ async function main() {
           COUNT(DISTINCT cpr.cat_id) AS verified_cat_count,
           COUNT(DISTINCT cpr.cat_id) FILTER (
             WHERE EXISTS (
-              SELECT 1 FROM trapper.cat_procedures cp
+              SELECT 1 FROM ops.cat_procedures cp
               WHERE cp.cat_id = cpr.cat_id AND (cp.is_spay OR cp.is_neuter)
             )
           ) AS verified_altered_count,
           MAX(cpr.created_at) AS last_verified_at
-        FROM trapper.cat_place_relationships cpr
+        FROM sot.cat_place_relationships cpr
         GROUP BY cpr.place_id
       ),
 
@@ -56,8 +56,8 @@ async function main() {
           cpr.place_id,
           COUNT(DISTINCT cp.cat_id) AS cats_altered,
           MAX(cp.procedure_date) AS last_procedure_at
-        FROM trapper.cat_procedures cp
-        JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = cp.cat_id
+        FROM ops.cat_procedures cp
+        JOIN sot.cat_place_relationships cpr ON cpr.cat_id = cp.cat_id
         WHERE cp.is_spay OR cp.is_neuter
         GROUP BY cpr.place_id
       ),
@@ -97,8 +97,8 @@ async function main() {
             WHEN ca.cats_altered > 0 THEN 0.05  -- Any clinic history at place
             ELSE 0
           END AS clinic_boost
-        FROM trapper.place_colony_estimates e
-        LEFT JOIN trapper.colony_source_confidence sc ON sc.source_type = e.source_type
+        FROM sot.place_colony_estimates e
+        LEFT JOIN ops.colony_source_confidence sc ON sc.source_type = e.source_type
         LEFT JOIN clinic_activity ca ON ca.place_id = e.place_id
         WHERE e.total_cats IS NOT NULL
       ),
@@ -177,7 +177,7 @@ async function main() {
         a.primary_source,
         a.latest_observation,
         GREATEST(0, COALESCE(a.est_unaltered, a.estimated_total - COALESCE(vc.verified_altered_count, 0), 0)) AS estimated_work_remaining
-      FROM trapper.places p
+      FROM sot.places p
       LEFT JOIN verified_counts vc ON vc.place_id = p.place_id
       LEFT JOIN aggregated a ON a.place_id = p.place_id
       LEFT JOIN confirmations c ON c.place_id = p.place_id
@@ -193,7 +193,7 @@ async function main() {
         ROUND(AVG(final_confidence)::numeric, 3) as avg_confidence,
         COUNT(*) FILTER (WHERE has_clinic_boost) as with_clinic_boost,
         COUNT(*) FILTER (WHERE is_multi_source_confirmed) as multi_confirmed
-      FROM trapper.v_place_colony_status
+      FROM sot.v_place_colony_status
     `);
     console.log('\n📊 Colony Status Summary:');
     console.log(`   Places with estimates: ${stats.rows[0].total_places}`);

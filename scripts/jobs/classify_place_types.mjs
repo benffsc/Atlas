@@ -107,7 +107,7 @@ async function gatherPlaceContext(pool, place) {
       kml_name,
       original_content,
       ai_summary
-    FROM trapper.google_map_entries
+    FROM ops.google_map_entries
     WHERE (place_id = $1 OR linked_place_id = $1)
       AND (original_content IS NOT NULL OR ai_summary IS NOT NULL)
     ORDER BY imported_at DESC
@@ -122,7 +122,7 @@ async function gatherPlaceContext(pool, place) {
       requester_notes,
       internal_notes,
       estimated_cat_count
-    FROM trapper.sot_requests
+    FROM ops.requests
     WHERE place_id = $1
     ORDER BY source_created_at DESC
     LIMIT 3
@@ -134,8 +134,8 @@ async function gatherPlaceContext(pool, place) {
     SELECT
       sp.display_name,
       sp.notes
-    FROM trapper.person_place_relationships ppr
-    JOIN trapper.sot_people sp ON sp.person_id = ppr.person_id
+    FROM sot.person_place_relationships ppr
+    JOIN sot.people sp ON sp.person_id = ppr.person_id
     WHERE ppr.place_id = $1
       AND sp.merged_into_person_id IS NULL
     LIMIT 5
@@ -145,7 +145,7 @@ async function gatherPlaceContext(pool, place) {
   // 4. Check for child places (units)
   const children = await pool.query(`
     SELECT COUNT(*) as count
-    FROM trapper.places
+    FROM sot.places
     WHERE parent_place_id = $1
       AND merged_into_place_id IS NULL
   `, [place.place_id]);
@@ -155,7 +155,7 @@ async function gatherPlaceContext(pool, place) {
   // 5. Get cat count
   const cats = await pool.query(`
     SELECT COUNT(DISTINCT cat_id) as count
-    FROM trapper.cat_place_relationships
+    FROM sot.cat_place_relationships
     WHERE place_id = $1
   `, [place.place_id]);
   context.cat_count = parseInt(cats.rows[0].count);
@@ -331,7 +331,7 @@ async function saveClassification(pool, placeId, classification, dryRun) {
   const placeKind = placeKindMapping[classification.place_type] || 'unknown';
 
   await pool.query(`
-    UPDATE trapper.places
+    UPDATE sot.places
     SET
       place_kind = $2,
       ai_classification = jsonb_set(
@@ -391,7 +391,7 @@ Options:
         p.unit_identifier,
         p.place_kind,
         p.parent_place_id
-      FROM trapper.places p
+      FROM sot.places p
       WHERE ${whereClause}
         AND p.merged_into_place_id IS NULL
         AND p.formatted_address IS NOT NULL

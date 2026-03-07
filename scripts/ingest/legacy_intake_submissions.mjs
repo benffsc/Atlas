@@ -2,7 +2,7 @@
 /**
  * legacy_intake_submissions.mjs
  *
- * Ingests legacy Airtable appointment requests into trapper.web_intake_submissions
+ * Ingests legacy Airtable appointment requests into ops.intake_submissions
  * as legacy records (is_legacy=true). These skip auto-triage since they're already processed.
  *
  * Usage:
@@ -343,7 +343,7 @@ async function main() {
 
       // Check if already exists
       const existsResult = await client.query(
-        'SELECT 1 FROM trapper.web_intake_submissions WHERE legacy_source_id = $1',
+        'SELECT 1 FROM ops.intake_submissions WHERE legacy_source_id = $1',
         [recordId]
       );
 
@@ -357,7 +357,7 @@ async function main() {
 
       // Insert
       await client.query(`
-        INSERT INTO trapper.web_intake_submissions (
+        INSERT INTO ops.intake_submissions (
           -- Contact info
           first_name, last_name, email, phone,
           -- Requester address (use cats address if not provided)

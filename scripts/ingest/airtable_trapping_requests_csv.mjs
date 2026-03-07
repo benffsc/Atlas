@@ -2,7 +2,7 @@
 /**
  * airtable_trapping_requests_csv.mjs
  *
- * Ingests Airtable Trapping Requests CSV into trapper.staged_records
+ * Ingests Airtable Trapping Requests CSV into ops.staged_records
  * with ingest run tracking and suspect row detection.
  *
  * Features:
@@ -375,7 +375,7 @@ function detectSuspectIssues(row) {
 
 async function createIngestRun(client, filePath, fileName, fileSha256, rowCount) {
   const result = await client.query(`
-    INSERT INTO trapper.ingest_runs (
+    INSERT INTO ops.ingest_runs (
       source_system,
       source_table,
       source_file_path,
@@ -393,7 +393,7 @@ async function createIngestRun(client, filePath, fileName, fileSha256, rowCount)
 
 async function updateIngestRunComplete(client, runId, stats, durationMs) {
   await client.query(`
-    UPDATE trapper.ingest_runs
+    UPDATE ops.ingest_runs
     SET
       rows_inserted = $2,
       rows_linked = $3,
@@ -407,7 +407,7 @@ async function updateIngestRunComplete(client, runId, stats, durationMs) {
 
 async function insertStagedRecord(client, row, sourceFile, rowHash, sourceRowId) {
   const result = await client.query(`
-    INSERT INTO trapper.staged_records (
+    INSERT INTO ops.staged_records (
       source_system,
       source_table,
       source_row_id,
@@ -437,7 +437,7 @@ async function insertStagedRecord(client, row, sourceFile, rowHash, sourceRowId)
 
 async function linkRunRecord(client, runId, stagedRecordId, csvRowNumber, wasInserted) {
   await client.query(`
-    INSERT INTO trapper.ingest_run_records (run_id, staged_record_id, csv_row_number, was_inserted)
+    INSERT INTO ops.ingest_runs (run_id, staged_record_id, csv_row_number, was_inserted)
     VALUES ($1, $2, $3, $4)
     ON CONFLICT (run_id, staged_record_id) DO NOTHING
   `, [runId, stagedRecordId, csvRowNumber, wasInserted]);
@@ -445,7 +445,7 @@ async function linkRunRecord(client, runId, stagedRecordId, csvRowNumber, wasIns
 
 async function insertDataIssue(client, stagedRecordId, issue, sourceRowId) {
   await client.query(`
-    INSERT INTO trapper.data_issues (
+    INSERT INTO ops.data_issues (
       entity_type,
       entity_id,
       issue_type,
@@ -660,8 +660,8 @@ async function main() {
     console.log(`\n${yellow}Dry run complete. Run without --dry-run to insert.${reset}`);
   } else {
     console.log(`\n${bold}Verify:${reset}`);
-    console.log(`  psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_ingest_run_summary WHERE run_id = '${runId}'"`);
-    console.log(`  psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM trapper.ingest_run_records WHERE run_id = '${runId}'"`);
+    console.log(`  psql "$DATABASE_URL" -c "SELECT * FROM ops.v_ingest_run_summary WHERE run_id = '${runId}'"`);
+    console.log(`  psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM ops.ingest_runs WHERE run_id = '${runId}'"`);
 
     if (stats.suspect > 0) {
       console.log(`\n${yellow}Suspect rows detected. Review with:${reset}`);

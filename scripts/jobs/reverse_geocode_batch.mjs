@@ -40,7 +40,7 @@ async function main() {
 
   try {
     const { rows: queue } = await pool.query(
-      "SELECT * FROM trapper.get_reverse_geocoding_queue($1)",
+      "SELECT * FROM ops.get_reverse_geocoding_queue($1)",
       [limit]
     );
 
@@ -66,7 +66,7 @@ async function main() {
             upgraded++;
           } else {
             const { rows } = await pool.query(
-              "SELECT trapper.record_reverse_geocoding_result($1, TRUE, $2)",
+              "SELECT ops.record_reverse_geocoding_result($1, TRUE, $2)",
               [place.place_id, googleAddress]
             );
 
@@ -86,7 +86,7 @@ async function main() {
 
           if (!dryRun) {
             await pool.query(
-              "SELECT trapper.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
+              "SELECT ops.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
               [place.place_id, error]
             );
           }
@@ -109,7 +109,7 @@ async function main() {
         console.log(`  [X] ${place.display_name} — ${err.message}`);
         if (!dryRun) {
           await pool.query(
-            "SELECT trapper.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
+            "SELECT ops.record_reverse_geocoding_result($1, FALSE, NULL, $2)",
             [place.place_id, err.message]
           ).catch(() => {});
         }
@@ -131,7 +131,7 @@ async function main() {
 
     // Final stats
     if (!dryRun) {
-      const { rows: stats } = await pool.query("SELECT * FROM trapper.v_reverse_geocoding_stats");
+      const { rows: stats } = await pool.query("SELECT * FROM ops.v_reverse_geocoding_stats");
       if (stats[0]) {
         console.log(`\nRemaining: ${stats[0].pending_reverse} pending, ${stats[0].failed_reverse} failed`);
       }

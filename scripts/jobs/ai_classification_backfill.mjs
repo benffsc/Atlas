@@ -137,8 +137,8 @@ async function getPlacesToProcess() {
         p.colony_classification::TEXT,
         pnc.avg_confidence,
         pnc.most_common_suggestion AS suggested_classification
-      FROM trapper.places p
-      LEFT JOIN trapper.v_places_needing_classification pnc ON pnc.place_id = p.place_id
+      FROM sot.places p
+      LEFT JOIN sot.v_places_needing_classification pnc ON pnc.place_id = p.place_id
       WHERE p.place_id = $1
     `;
     params.push(SPECIFIC_PLACE);
@@ -151,8 +151,8 @@ async function getPlacesToProcess() {
         p.colony_classification::TEXT,
         pnc.avg_confidence,
         pnc.most_common_suggestion AS suggested_classification
-      FROM trapper.places p
-      LEFT JOIN trapper.v_places_needing_classification pnc ON pnc.place_id = p.place_id
+      FROM sot.places p
+      LEFT JOIN sot.v_places_needing_classification pnc ON pnc.place_id = p.place_id
       WHERE p.merged_into_place_id IS NULL
         AND (
           p.colony_classification IS NULL
@@ -182,8 +182,8 @@ async function getPlaceContext(placeId) {
         p.location::geography,
         ST_SetSRID(ST_MakePoint(gme.lng, gme.lat), 4326)::geography
       )::INT AS distance_meters
-    FROM trapper.google_map_entries gme
-    CROSS JOIN trapper.places p
+    FROM ops.google_map_entries gme
+    CROSS JOIN sot.places p
     WHERE p.place_id = $1
       AND p.location IS NOT NULL
       AND gme.lat IS NOT NULL
@@ -206,8 +206,8 @@ async function getPlaceContext(placeId) {
       pce.observation_date,
       pce.source_type,
       csc.description AS source_description
-    FROM trapper.place_colony_estimates pce
-    LEFT JOIN trapper.colony_source_confidence csc ON csc.source_type = pce.source_type
+    FROM sot.place_colony_estimates pce
+    LEFT JOIN ops.colony_source_confidence csc ON csc.source_type = pce.source_type
     WHERE pce.place_id = $1
     ORDER BY pce.observation_date DESC NULLS LAST
     LIMIT 10
@@ -223,9 +223,9 @@ async function getPlaceContext(placeId) {
       MAX(a.appointment_date) AS last_appointment,
       COUNT(DISTINCT a.owner_email) AS distinct_owners,
       array_agg(DISTINCT COALESCE(a.medical_notes, '')) FILTER (WHERE a.medical_notes IS NOT NULL AND a.medical_notes != '') AS medical_notes
-    FROM trapper.sot_appointments a
-    JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
-    JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
+    FROM ops.appointments a
+    JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
+    JOIN sot.cats c ON c.cat_id = a.cat_id
     WHERE cpr.place_id = $1
     GROUP BY cpr.place_id
   `, [placeId]);
@@ -244,7 +244,7 @@ async function getPlaceContext(placeId) {
       r.count_confidence,
       r.created_at,
       r.status::TEXT
-    FROM trapper.sot_requests r
+    FROM ops.requests r
     WHERE r.place_id = $1
       AND r.status NOT IN ('cancelled', 'redirected')
     ORDER BY r.created_at DESC
@@ -346,7 +346,7 @@ async function applyClassification(placeId, classification, confidence, reasonin
   // Get the most recent request for this place to update
   const requestResult = await pool.query(`
     SELECT request_id
-    FROM trapper.sot_requests
+    FROM ops.requests
     WHERE place_id = $1
       AND status NOT IN ('cancelled', 'redirected')
     ORDER BY created_at DESC
@@ -358,8 +358,8 @@ async function applyClassification(placeId, classification, confidence, reasonin
   // Update request suggestion if exists
   if (requestId) {
     await pool.query(`
-      UPDATE trapper.sot_requests
-      SET suggested_classification = $1::trapper.colony_classification,
+      UPDATE ops.requests
+      SET suggested_classification = $1,
           classification_confidence = $2,
           classification_signals = $3,
           classification_disposition = CASE
@@ -392,8 +392,8 @@ async function applyClassification(placeId, classification, confidence, reasonin
   // Auto-apply to place if high confidence
   if (confidence >= 0.9) {
     await pool.query(`
-      UPDATE trapper.places
-      SET colony_classification = $1::trapper.colony_classification,
+      UPDATE sot.places
+      SET colony_classification = $1,
           updated_at = NOW()
       WHERE place_id = $2
         AND (colony_classification IS NULL OR colony_classification = 'unknown')

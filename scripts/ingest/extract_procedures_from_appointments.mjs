@@ -47,7 +47,7 @@ async function main() {
       // Count pending records
       const countResult = await pool.query(`
         SELECT COUNT(*) as cnt
-        FROM trapper.staged_records
+        FROM ops.staged_records
         WHERE source_system = 'clinichq'
           AND source_table = 'appointment_info'
           AND processed_at IS NULL
@@ -58,7 +58,7 @@ async function main() {
     } else {
       // Use centralized function
       const result = await pool.query(`
-        SELECT trapper.process_pending_clinichq_appointments(1000) AS result
+        SELECT ops.process_pending_clinichq_appointments(1000) AS result
       `);
       const summary = result.rows[0].result;
       console.log(`  Processed: ${summary.processed}`);
@@ -76,22 +76,22 @@ async function main() {
       // Count potential spays
       const spayCount = await pool.query(`
         SELECT COUNT(*) as cnt
-        FROM trapper.sot_appointments a
+        FROM ops.appointments a
         WHERE a.cat_id IS NOT NULL
           AND a.service_type ILIKE '%spay%'
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.cat_procedures cp
+            SELECT 1 FROM ops.cat_procedures cp
             WHERE cp.appointment_id = a.appointment_id AND cp.is_spay = TRUE
           )
       `);
       // Count potential neuters
       const neuterCount = await pool.query(`
         SELECT COUNT(*) as cnt
-        FROM trapper.sot_appointments a
+        FROM ops.appointments a
         WHERE a.cat_id IS NOT NULL
           AND a.service_type ILIKE '%neuter%'
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.cat_procedures cp
+            SELECT 1 FROM ops.cat_procedures cp
             WHERE cp.appointment_id = a.appointment_id AND cp.is_neuter = TRUE
           )
       `);
@@ -100,7 +100,7 @@ async function main() {
     } else {
       // Use centralized function
       const result = await pool.query(`
-        SELECT trapper.create_procedures_from_appointments(1000) AS result
+        SELECT ops.create_procedures_from_appointments(1000) AS result
       `);
       const summary = result.rows[0].result;
       console.log(`  Spay procedures created: ${summary.spays_created}`);
@@ -112,11 +112,11 @@ async function main() {
     console.log('\n=== Summary ===');
     const summary = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.sot_appointments) as total_appointments,
-        (SELECT COUNT(*) FROM trapper.sot_appointments WHERE cat_id IS NULL) as orphaned_appointments,
-        (SELECT COUNT(*) FROM trapper.cat_procedures WHERE is_spay) as total_spays,
-        (SELECT COUNT(*) FROM trapper.cat_procedures WHERE is_neuter) as total_neuters,
-        (SELECT COUNT(*) FROM trapper.sot_cats WHERE altered_status IN ('spayed', 'neutered')) as altered_cats
+        (SELECT COUNT(*) FROM ops.appointments) as total_appointments,
+        (SELECT COUNT(*) FROM ops.appointments WHERE cat_id IS NULL) as orphaned_appointments,
+        (SELECT COUNT(*) FROM ops.cat_procedures WHERE is_spay) as total_spays,
+        (SELECT COUNT(*) FROM ops.cat_procedures WHERE is_neuter) as total_neuters,
+        (SELECT COUNT(*) FROM sot.cats WHERE altered_status IN ('spayed', 'neutered')) as altered_cats
     `);
     console.log(`Total appointments: ${summary.rows[0].total_appointments}`);
     console.log(`Orphaned appointments (no cat linked): ${summary.rows[0].orphaned_appointments}`);

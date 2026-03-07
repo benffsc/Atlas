@@ -278,7 +278,7 @@ async function main() {
       if (geocoded) {
         // Use find_or_create_place_deduped with geocoded coordinates
         const placeResult = await client.query(`
-          SELECT trapper.find_or_create_place_deduped($1, NULL, $2, $3, $4) AS place_id
+          SELECT sot.find_or_create_place_deduped($1, NULL, $2, $3, $4) AS place_id
         `, [geocoded.formattedAddress, geocoded.lat, geocoded.lng, SOURCE_SYSTEM]);
 
         placeId = placeResult.rows[0]?.place_id;
@@ -294,7 +294,7 @@ async function main() {
       // If geocoding failed, try with raw address (will be queued for geocoding)
       if (!placeId) {
         const placeResult = await client.query(`
-          SELECT trapper.find_or_create_place_deduped($1, NULL, NULL, NULL, $2) AS place_id
+          SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, $2) AS place_id
         `, [address, SOURCE_SYSTEM]);
 
         placeId = placeResult.rows[0]?.place_id;
@@ -334,7 +334,7 @@ async function main() {
           // personId stays null, which is fine for surveys
         } else {
           const personResult = await client.query(`
-            SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
+            SELECT sot.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
           `, [email, phone, firstName, lastName, SOURCE_SYSTEM]);
           personId = personResult.rows[0]?.person_id;
         }
@@ -352,7 +352,7 @@ async function main() {
 
       // Upsert colony estimate with ecology fields
       const result = await client.query(`
-        INSERT INTO trapper.place_colony_estimates (
+        INSERT INTO sot.place_colony_estimates (
           place_id,
           total_cats,
           adult_count,

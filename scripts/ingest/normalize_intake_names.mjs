@@ -81,7 +81,7 @@ async function main() {
   // Get submissions with names to normalize
   const result = await client.query(`
     SELECT submission_id, first_name, last_name
-    FROM trapper.web_intake_submissions
+    FROM ops.intake_submissions
     WHERE first_name IS NOT NULL OR last_name IS NOT NULL
   `);
 
@@ -116,7 +116,7 @@ async function main() {
 
       if (!options.dryRun) {
         await client.query(`
-          UPDATE trapper.web_intake_submissions
+          UPDATE ops.intake_submissions
           SET first_name = $1, last_name = $2, updated_at = NOW()
           WHERE submission_id = $3
         `, [newFirst, newLast, sub.submission_id]);

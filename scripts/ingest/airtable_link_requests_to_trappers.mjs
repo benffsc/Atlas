@@ -180,8 +180,8 @@ async function main() {
 
   const trapperResult = await client.query(`
     SELECT pr.source_record_id, pr.person_id, p.display_name
-    FROM trapper.person_roles pr
-    JOIN trapper.sot_people p ON p.person_id = pr.person_id
+    FROM sot.person_roles pr
+    JOIN sot.people p ON p.person_id = pr.person_id
     WHERE pr.role = 'trapper'
       AND pr.source_system = 'airtable'
       AND pr.source_record_id IS NOT NULL
@@ -199,8 +199,8 @@ async function main() {
   const trappersByName = {};
   const allTrappersResult = await client.query(`
     SELECT pr.person_id, p.display_name
-    FROM trapper.person_roles pr
-    JOIN trapper.sot_people p ON p.person_id = pr.person_id
+    FROM sot.person_roles pr
+    JOIN sot.people p ON p.person_id = pr.person_id
     WHERE pr.role = 'trapper'
   `);
   for (const row of allTrappersResult.rows) {
@@ -224,7 +224,7 @@ async function main() {
       // Find the request in Atlas by source_record_id
       const reqResult = await client.query(`
         SELECT request_id, assigned_trapper_id, no_trapper_reason
-        FROM trapper.sot_requests
+        FROM ops.requests
         WHERE source_record_id = $1
       `, [airtableRequestId]);
 
@@ -242,7 +242,7 @@ async function main() {
       if (trapperIds.length === 0) {
         // No trapper assigned - mark as pending
         await client.query(`
-          UPDATE trapper.sot_requests
+          UPDATE ops.requests
           SET no_trapper_reason = 'pending_assignment', updated_at = NOW()
           WHERE request_id = $1
         `, [request.request_id]);
@@ -251,7 +251,7 @@ async function main() {
       } else if (trapperIds.includes(CLIENT_TRAPPING_RECORD_ID) && trapperIds.length === 1) {
         // Client is trapping themselves (only Client Trapping, no other trapper)
         await client.query(`
-          UPDATE trapper.sot_requests
+          UPDATE ops.requests
           SET no_trapper_reason = 'client_trapping', updated_at = NOW()
           WHERE request_id = $1
         `, [request.request_id]);
@@ -286,7 +286,7 @@ async function main() {
             // Check if assignment already exists (active)
             const existingCheck = await client.query(`
               SELECT assignment_id, is_primary
-              FROM trapper.request_trapper_assignments
+              FROM ops.request_trapper_assignments
               WHERE request_id = $1 AND trapper_person_id = $2 AND unassigned_at IS NULL
             `, [request.request_id, personId]);
 
@@ -298,14 +298,14 @@ async function main() {
               // Update existing assignment if is_primary changed
               if (primaryChanged) {
                 await client.query(`
-                  UPDATE trapper.request_trapper_assignments
+                  UPDATE ops.request_trapper_assignments
                   SET is_primary = $3, updated_at = NOW()
                   WHERE request_id = $1 AND trapper_person_id = $2 AND unassigned_at IS NULL
                 `, [request.request_id, personId, isPrimary]);
 
                 // Log the change
                 await client.query(`
-                  INSERT INTO trapper.entity_edits (
+                  INSERT INTO ops.entity_edits (
                     entity_type, entity_id, edit_type, field_name, old_value, new_value,
                     related_entity_type, related_entity_id, reason, edited_by, edit_source
                   ) VALUES (
@@ -319,7 +319,7 @@ async function main() {
             } else {
               // Insert new assignment
               await client.query(`
-                INSERT INTO trapper.request_trapper_assignments (
+                INSERT INTO ops.request_trapper_assignments (
                   request_id, trapper_person_id, is_primary,
                   assignment_reason, source_system, source_record_id, created_by
                 ) VALUES ($1, $2, $3, 'airtable_sync', 'airtable', $4, 'airtable_link_script')
@@ -327,7 +327,7 @@ async function main() {
 
               // Log the new assignment
               await client.query(`
-                INSERT INTO trapper.entity_edits (
+                INSERT INTO ops.entity_edits (
                   entity_type, entity_id, edit_type, field_name, new_value,
                   related_entity_type, related_entity_id, reason, edited_by, edit_source
                 ) VALUES (
@@ -345,7 +345,7 @@ async function main() {
             // Set primary trapper on sot_requests (first one only, if not already set)
             if (isPrimary && !primarySet && !hadPriorAssignment) {
               await client.query(`
-                UPDATE trapper.sot_requests
+                UPDATE ops.requests
                 SET assigned_trapper_id = $2, updated_at = NOW()
                 WHERE request_id = $1
               `, [request.request_id, personId]);

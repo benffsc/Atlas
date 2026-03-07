@@ -26,7 +26,7 @@ async function getCatDetail(catId) {
   // Get main cat detail
   const catSql = `
     SELECT *
-    FROM trapper.v_cat_detail
+    FROM sot.v_cat_detail
     WHERE cat_id = $1
   `;
 
@@ -43,7 +43,7 @@ async function getCatDetail(catId) {
       note,
       source,
       created_at
-    FROM trapper.v_cat_relationships_rollup
+    FROM sot.v_cat_relationships_rollup
     WHERE cat_id = $1
     ORDER BY relationship_type, related_entity_name
   `;

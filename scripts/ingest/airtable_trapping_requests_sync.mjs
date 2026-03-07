@@ -108,7 +108,7 @@ async function main() {
   // Create ingest run
   const timestamp = new Date().toISOString();
   const runResult = await client.query(`
-    INSERT INTO trapper.ingest_runs (
+    INSERT INTO ops.ingest_runs (
       source_system, source_table, source_file_path, source_file_name, source_file_sha256,
       row_count, rows_inserted, rows_linked, rows_suspect, run_status, started_at
     ) VALUES ($1, $2, 'airtable://api', $3, $4, $5, 0, 0, 0, 'running', NOW())
@@ -129,7 +129,7 @@ async function main() {
 
     // Upsert into staged_records (unique on source_system, source_table, row_hash)
     const result = await client.query(`
-      INSERT INTO trapper.staged_records (
+      INSERT INTO ops.staged_records (
         source_system, source_table, source_row_id, row_hash, payload,
         created_at, updated_at, is_processed
       ) VALUES ($1, $2, $3, $4, $5::jsonb, NOW(), NOW(), false)
@@ -150,7 +150,7 @@ async function main() {
 
   // Complete run
   await client.query(`
-    UPDATE trapper.ingest_runs
+    UPDATE ops.ingest_runs
     SET rows_inserted = $2, rows_linked = $3, run_status = 'completed', completed_at = NOW()
     WHERE run_id = $1
   `, [runId, inserted, updated]);
@@ -170,7 +170,7 @@ async function main() {
   const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
   await pgClient.connect();
 
-  const convertResult = await pgClient.query('SELECT * FROM trapper.convert_staged_trapping_requests()');
+  const convertResult = await pgClient.query('SELECT * FROM ops.convert_staged_trapping_requests()');
   console.log(`  Requests created: ${convertResult.rows[0].requests_created}`);
   console.log(`  Linked to place: ${convertResult.rows[0].requests_linked_to_place}`);
   console.log(`  Linked to person: ${convertResult.rows[0].requests_linked_to_person}`);

@@ -94,7 +94,7 @@ async function getCats(options = {}) {
       place_kind,
       has_place,
       created_at
-    FROM trapper.v_cat_list
+    FROM sot.v_cat_list
     ${whereClause}
     ORDER BY display_name ASC
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -103,7 +103,7 @@ async function getCats(options = {}) {
 
   const countSql = `
     SELECT COUNT(*) as total
-    FROM trapper.v_cat_list
+    FROM sot.v_cat_list
     ${whereClause}
   `;
 

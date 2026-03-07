@@ -87,7 +87,7 @@ console.log('');
 // Check F-S parameters are configured
 await test(
   'Fellegi-Sunter parameters are configured',
-  `SELECT COUNT(*) as cnt FROM trapper.fellegi_sunter_parameters WHERE is_active`,
+  `SELECT COUNT(*) as cnt FROM sot.fellegi_sunter_parameters WHERE is_active`,
   (rows) => rows[0].cnt >= 5
     ? { pass: true }
     : { pass: false, message: `Only ${rows[0].cnt} active parameters (need 5+)` }
@@ -96,7 +96,7 @@ await test(
 // Check F-S thresholds are configured
 await test(
   'Fellegi-Sunter thresholds are configured',
-  `SELECT COUNT(*) as cnt FROM trapper.fellegi_sunter_thresholds WHERE is_active`,
+  `SELECT COUNT(*) as cnt FROM sot.fellegi_sunter_thresholds WHERE is_active`,
   (rows) => rows[0].cnt >= 1
     ? { pass: true }
     : { pass: false, message: `No active thresholds configured` }
@@ -105,7 +105,7 @@ await test(
 // Check threshold values are sensible (log-odds scale: upper ~15, lower ~2)
 await test(
   'F-S thresholds have valid values',
-  `SELECT upper_threshold, lower_threshold FROM trapper.fellegi_sunter_thresholds WHERE is_active LIMIT 1`,
+  `SELECT upper_threshold, lower_threshold FROM sot.fellegi_sunter_thresholds WHERE is_active LIMIT 1`,
   (rows) => {
     if (rows.length === 0) return { pass: false, message: 'No thresholds' };
     const upper = parseFloat(rows[0].upper_threshold);
@@ -124,7 +124,7 @@ console.log('');
 // Check identity_edges table exists and has data
 await test(
   'Identity edges table exists and has data',
-  `SELECT COUNT(*) as cnt FROM trapper.identity_edges`,
+  `SELECT COUNT(*) as cnt FROM ops.identity_edges`,
   (rows) => rows[0].cnt > 0
     ? { pass: true }
     : { warn: true, message: `Table exists but has ${rows[0].cnt} edges` }
@@ -157,7 +157,7 @@ await test(
   `SELECT
      COUNT(*) as total,
      COUNT(*) FILTER (WHERE fs_match_probability IS NOT NULL) as with_fs
-   FROM trapper.data_engine_match_decisions
+   FROM ops.data_engine_match_decisions
    WHERE processed_at > NOW() - INTERVAL '7 days'`,
   (rows) => {
     const { total, with_fs } = rows[0];
@@ -175,7 +175,7 @@ await test(
 // Check processing pipeline is running
 await test(
   'Processing pipeline has recent activity',
-  `SELECT MAX(processed_at) as last_processed FROM trapper.data_engine_match_decisions`,
+  `SELECT MAX(processed_at) as last_processed FROM ops.data_engine_match_decisions`,
   (rows) => {
     const lastProcessed = rows[0].last_processed;
     if (!lastProcessed) return { warn: true, message: 'No decisions found' };
@@ -194,8 +194,8 @@ console.log('');
 // Check no stale cat-place references
 await test(
   'No cat_place_relationships pointing to merged places',
-  `SELECT COUNT(*) as cnt FROM trapper.cat_place_relationships cpr
-   JOIN trapper.places p ON p.place_id = cpr.place_id
+  `SELECT COUNT(*) as cnt FROM sot.cat_place_relationships cpr
+   JOIN sot.places p ON p.place_id = cpr.place_id
    WHERE p.merged_into_place_id IS NOT NULL`,
   (rows) => parseInt(rows[0].cnt) === 0
     ? { pass: true }
@@ -205,8 +205,8 @@ await test(
 // Check no stale person-place references
 await test(
   'No person_place_relationships pointing to merged entities',
-  `SELECT COUNT(*) as cnt FROM trapper.person_place_relationships ppr
-   JOIN trapper.places p ON p.place_id = ppr.place_id
+  `SELECT COUNT(*) as cnt FROM sot.person_place_relationships ppr
+   JOIN sot.places p ON p.place_id = ppr.place_id
    WHERE p.merged_into_place_id IS NOT NULL`,
   (rows) => parseInt(rows[0].cnt) === 0
     ? { pass: true }
@@ -216,8 +216,8 @@ await test(
 // Check no stale appointment references
 await test(
   'No appointments pointing to merged people',
-  `SELECT COUNT(*) as cnt FROM trapper.sot_appointments a
-   JOIN trapper.sot_people sp ON sp.person_id = a.person_id
+  `SELECT COUNT(*) as cnt FROM ops.appointments a
+   JOIN sot.people sp ON sp.person_id = a.person_id
    WHERE sp.merged_into_person_id IS NOT NULL`,
   (rows) => parseInt(rows[0].cnt) === 0
     ? { pass: true }
@@ -233,7 +233,7 @@ await test(
   'ClinicHQ staged records processing rate',
   `SELECT
      SUM(CASE WHEN is_processed THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) * 100 as pct
-   FROM trapper.staged_records WHERE source_system = 'clinichq'`,
+   FROM ops.staged_records WHERE source_system = 'clinichq'`,
   (rows) => {
     const pct = rows[0].pct;
     if (pct >= 99) return { pass: true };
@@ -246,7 +246,7 @@ await test(
   'ShelterLuv staged records processing rate',
   `SELECT
      SUM(CASE WHEN is_processed THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) * 100 as pct
-   FROM trapper.staged_records WHERE source_system = 'shelterluv'`,
+   FROM ops.staged_records WHERE source_system = 'shelterluv'`,
   (rows) => {
     const pct = rows[0].pct;
     if (pct >= 90) return { pass: true };
@@ -259,7 +259,7 @@ await test(
   'PetLink staged records processing rate',
   `SELECT
      SUM(CASE WHEN is_processed THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) * 100 as pct
-   FROM trapper.staged_records WHERE source_system = 'petlink'`,
+   FROM ops.staged_records WHERE source_system = 'petlink'`,
   (rows) => {
     const pct = rows[0].pct;
     if (pct >= 99) return { pass: true };
@@ -291,7 +291,7 @@ await test(
 // Check soft-blacklist is being used
 await test(
   'Soft-blacklist table has entries',
-  `SELECT COUNT(*) as cnt FROM trapper.data_engine_soft_blacklist`,
+  `SELECT COUNT(*) as cnt FROM sot.data_engine_soft_blacklist`,
   (rows) => rows[0].cnt > 0
     ? { pass: true }
     : { warn: true, message: 'No soft-blacklist entries (shared identifiers not tracked)' }

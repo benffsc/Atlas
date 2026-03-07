@@ -113,14 +113,14 @@ async function main() {
         a.appointment_date,
         c.display_name as cat_name,
         cpr.place_id
-      FROM trapper.sot_appointments a
-      LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
+      FROM ops.appointments a
+      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
         AND cpr.relationship_type = 'appointment_site'
       WHERE a.medical_notes IS NOT NULL AND a.medical_notes != ''
       -- Skip already-processed records (check extraction_status)
       AND NOT EXISTS (
-        SELECT 1 FROM trapper.extraction_status es
+        SELECT 1 FROM ops.extraction_status es
         WHERE es.source_table = 'sot_appointments'
           AND es.source_record_id = a.appointment_id::TEXT
       )
@@ -210,7 +210,7 @@ async function main() {
                 const diseaseKey = extraction.attribute_key.replace('_status', '');
                 try {
                   const hookResult = await pool.query(
-                    `SELECT trapper.process_disease_extraction($1, $2, $3, $4)`,
+                    `SELECT ops.process_disease_extraction($1, $2, $3, $4)`,
                     [appt.cat_id, diseaseKey, 'positive', 'ai_extraction']
                   );
                   const placesUpdated = hookResult.rows[0]?.process_disease_extraction || 0;
@@ -273,7 +273,7 @@ async function main() {
       if (!dryRun) {
         try {
           await pool.query(`
-            INSERT INTO trapper.extraction_status (
+            INSERT INTO ops.extraction_status (
               source_table, source_record_id, last_extracted_at,
               attributes_extracted, extraction_hash
             ) VALUES (
@@ -289,7 +289,7 @@ async function main() {
 
           // Mark queue item completed if it exists
           await pool.query(`
-            UPDATE trapper.extraction_queue
+            UPDATE ops.extraction_queue
             SET completed_at = NOW()
             WHERE source_table = 'sot_appointments'
               AND source_record_id = $1

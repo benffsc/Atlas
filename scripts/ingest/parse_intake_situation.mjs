@@ -249,7 +249,7 @@ This script parses:
   try {
     // Check if source_type exists
     const sourceCheck = await pool.query(
-      `SELECT 1 FROM trapper.colony_source_confidence WHERE source_type = $1`,
+      `SELECT 1 FROM ops.colony_source_confidence WHERE source_type = $1`,
       [SOURCE_TYPE]
     );
     if (sourceCheck.rowCount === 0) {
@@ -267,8 +267,8 @@ This script parses:
         s.situation_description,
         s.submitted_at,
         p.display_name as place_name
-      FROM trapper.web_intake_submissions s
-      LEFT JOIN trapper.places p ON p.place_id = s.place_id
+      FROM ops.intake_submissions s
+      LEFT JOIN sot.places p ON p.place_id = s.place_id
       WHERE s.place_id IS NOT NULL
         AND s.situation_description IS NOT NULL
         AND TRIM(s.situation_description) != ''
@@ -338,7 +338,7 @@ This script parses:
 
         // Check for existing estimate from this source
         const existingEstimate = await pool.query(`
-          SELECT 1 FROM trapper.place_colony_estimates
+          SELECT 1 FROM sot.place_colony_estimates
           WHERE source_system = $1 AND source_record_id = $2
         `, [SOURCE_SYSTEM, sourceRecordId]);
 
@@ -363,7 +363,7 @@ This script parses:
 
         // Insert colony estimate
         await pool.query(`
-          INSERT INTO trapper.place_colony_estimates (
+          INSERT INTO sot.place_colony_estimates (
             place_id,
             total_cats,
             kitten_count,

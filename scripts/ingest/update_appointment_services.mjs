@@ -106,7 +106,7 @@ async function main() {
     console.log('\nChecking database...');
     const existingResult = await pool.query(`
       SELECT appointment_number, service_type
-      FROM trapper.sot_appointments
+      FROM ops.appointments
       WHERE appointment_number = ANY($1)
     `, [Array.from(appointments.keys())]);
 
@@ -176,7 +176,7 @@ async function main() {
       for (const u of updates) {
         try {
           await pool.query(`
-            UPDATE trapper.sot_appointments
+            UPDATE ops.appointments
             SET service_type = $1, updated_at = NOW()
             WHERE appointment_number = $2
           `, [u.newService, u.apptNum]);
@@ -204,7 +204,7 @@ async function main() {
           COUNT(*) FILTER (WHERE service_type LIKE '%FVRCP%') as with_fvrcp,
           COUNT(*) FILTER (WHERE service_type LIKE '%Revolution%') as with_revolution,
           COUNT(*) as total
-        FROM trapper.sot_appointments
+        FROM ops.appointments
         WHERE appointment_date >= '2023-12-01'
       `);
 

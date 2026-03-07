@@ -86,14 +86,14 @@ Environment:
         -- Try to find the place via cat's existing place relationships
         (
           SELECT cpr.place_id
-          FROM trapper.cat_place_relationships cpr
+          FROM sot.cat_place_relationships cpr
           WHERE cpr.cat_id = a.cat_id
           ORDER BY cpr.created_at DESC
           LIMIT 1
         ) as inferred_place_id
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.cat_birth_events be ON be.mother_cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN ops.cat_birth_events be ON be.mother_cat_id = a.cat_id
       WHERE a.is_lactating = true
         AND c.sex = 'Female'
         AND be.birth_event_id IS NULL  -- No birth event yet for this mother
@@ -150,7 +150,7 @@ Environment:
         try {
           // Insert directly - tracking the mother's litter (no individual kitten cat_id)
           const insertResult = await pool.query(`
-            INSERT INTO trapper.cat_birth_events (
+            INSERT INTO ops.cat_birth_events (
               cat_id,
               mother_cat_id,
               birth_date,
@@ -168,7 +168,7 @@ Environment:
               NULL,  -- No individual kitten, this is a litter-level record
               $1,    -- mother_cat_id
               $2,    -- birth_date
-              $3::trapper.birth_date_precision,
+              $3,
               EXTRACT(YEAR FROM $2::date)::int,
               EXTRACT(MONTH FROM $2::date)::int,
               CASE
@@ -220,14 +220,14 @@ Environment:
         a.medical_notes,
         (
           SELECT cpr.place_id
-          FROM trapper.cat_place_relationships cpr
+          FROM sot.cat_place_relationships cpr
           WHERE cpr.cat_id = a.cat_id
           ORDER BY cpr.created_at DESC
           LIMIT 1
         ) as inferred_place_id
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.cat_birth_events be ON be.mother_cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN ops.cat_birth_events be ON be.mother_cat_id = a.cat_id
       WHERE a.is_pregnant = true
         AND a.is_lactating = false  -- Not yet given birth at this appointment
         AND c.sex = 'Female'
@@ -261,7 +261,7 @@ Environment:
       } else {
         try {
           const insertResult = await pool.query(`
-            INSERT INTO trapper.cat_birth_events (
+            INSERT INTO ops.cat_birth_events (
               cat_id,
               mother_cat_id,
               birth_date,
@@ -278,7 +278,7 @@ Environment:
               NULL,
               $1,
               $2,
-              'estimated'::trapper.birth_date_precision,
+              'estimated',
               EXTRACT(YEAR FROM $2::date)::int,
               EXTRACT(MONTH FROM $2::date)::int,
               CASE
@@ -329,7 +329,7 @@ Environment:
     }
 
     // Check total birth events now
-    const countResult = await pool.query(`SELECT COUNT(*) as count FROM trapper.cat_birth_events`);
+    const countResult = await pool.query(`SELECT COUNT(*) as count FROM ops.cat_birth_events`);
     console.log(`\n${cyan}Total birth events now:${reset} ${countResult.rows[0].count}`);
 
     if (options.dryRun) {

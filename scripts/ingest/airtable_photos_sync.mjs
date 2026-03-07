@@ -139,7 +139,7 @@ async function stageFetch(client) {
       for (const photo of photos) {
         try {
           await client.query(
-            `INSERT INTO trapper.raw_airtable_media (
+            `INSERT INTO ops.raw_airtable_media (
               airtable_record_id, airtable_attachment_id, airtable_table,
               airtable_request_id, filename, url, size_bytes, mime_type,
               width, height, media_type, caption, cat_description
@@ -186,7 +186,7 @@ async function stageFetch(client) {
       for (const item of media) {
         try {
           await client.query(
-            `INSERT INTO trapper.raw_airtable_media (
+            `INSERT INTO ops.raw_airtable_media (
               airtable_record_id, airtable_attachment_id, airtable_table,
               airtable_request_id, filename, url, size_bytes, mime_type,
               width, height, media_type, caption, notes
@@ -239,7 +239,7 @@ async function stageDownload(client) {
   // Get pending records
   const pending = await client.query(
     `SELECT raw_media_id, airtable_request_id, filename, url, mime_type
-     FROM trapper.raw_airtable_media
+     FROM ops.raw_airtable_media
      WHERE processing_status = 'pending'
      ORDER BY ingested_at`
   );
@@ -279,7 +279,7 @@ async function stageDownload(client) {
 
       // Update raw record with Supabase URL
       await client.query(
-        `UPDATE trapper.raw_airtable_media
+        `UPDATE ops.raw_airtable_media
          SET processing_status = 'downloaded',
              local_filename = $1,
              local_path = $2,
@@ -301,7 +301,7 @@ async function stageDownload(client) {
       }
     } catch (err) {
       await client.query(
-        `UPDATE trapper.raw_airtable_media
+        `UPDATE ops.raw_airtable_media
          SET processing_status = 'failed',
              error_message = $1,
              processed_at = NOW()
@@ -327,7 +327,7 @@ async function stageImport(client) {
   console.log('═══════════════════════════════════════════════════\n');
 
   const result = await client.query(
-    `SELECT * FROM trapper.import_all_raw_media()`
+    `SELECT * FROM ops.import_all_raw_media()`
   );
 
   const { imported, skipped, failed } = result.rows[0];
@@ -335,7 +335,7 @@ async function stageImport(client) {
 
   // Show status summary
   const status = await client.query(
-    `SELECT * FROM trapper.v_media_import_status`
+    `SELECT * FROM ops.v_media_import_status`
   );
 
   console.log('\nMedia Import Status:');
@@ -377,7 +377,7 @@ async function stageFetchMasterCats(client) {
     for (const photo of photos) {
       try {
         await client.query(
-          `INSERT INTO trapper.raw_airtable_media (
+          `INSERT INTO ops.raw_airtable_media (
             airtable_record_id, airtable_attachment_id, airtable_table,
             filename, url, size_bytes, mime_type,
             width, height, media_type, caption, cat_description

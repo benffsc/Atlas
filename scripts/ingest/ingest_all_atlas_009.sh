@@ -123,7 +123,7 @@ if ! $DRY_RUN; then
   # Get list of source_tables with staged records
   TABLES=$(psql "$DATABASE_URL" -t -c "
     SELECT DISTINCT source_table
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE source_system IN ('airtable', 'airtable_project75', 'clinichq', 'volunteerhub', 'shelterluv', 'petlink', 'etapestry')
   " | tr -d '[:space:]' | tr '\n' ' ')
 
@@ -132,33 +132,33 @@ if ! $DRY_RUN; then
       echo -e "${CYAN}Processing:${RESET} $table"
 
       # Populate observations
-      psql "$DATABASE_URL" -q -c "SELECT trapper.populate_observations_for_latest_run('$table');" 2>/dev/null || true
+      psql "$DATABASE_URL" -q -c "SELECT ops.populate_observations_for_latest_run('$table');" 2>/dev/null || true
 
       # Upsert people
-      psql "$DATABASE_URL" -q -c "SELECT * FROM trapper.upsert_people_from_observations('$table');" 2>/dev/null || true
+      psql "$DATABASE_URL" -q -c "SELECT * FROM ops.upsert_people_from_observations('$table');" 2>/dev/null || true
 
       # Populate aliases
-      psql "$DATABASE_URL" -q -c "SELECT trapper.populate_aliases_from_name_signals('$table');" 2>/dev/null || true
+      psql "$DATABASE_URL" -q -c "SELECT ops.populate_aliases_from_name_signals('$table');" 2>/dev/null || true
     fi
   done
 
   # Update display names
   echo -e "${CYAN}Updating display names...${RESET}"
-  psql "$DATABASE_URL" -q -c "SELECT trapper.update_all_person_display_names();" 2>/dev/null || true
+  psql "$DATABASE_URL" -q -c "SELECT ops.update_all_person_display_names();" 2>/dev/null || true
 
   # Generate fuzzy candidates
   echo -e "${CYAN}Generating fuzzy candidates...${RESET}"
-  psql "$DATABASE_URL" -q -c "SELECT trapper.generate_person_match_candidates(NULL, 500);" 2>/dev/null || true
+  psql "$DATABASE_URL" -q -c "SELECT ops.generate_person_match_candidates(NULL, 500);" 2>/dev/null || true
 
   # Apply auto-merge
   echo -e "${CYAN}Applying very-confident auto-merges...${RESET}"
-  psql "$DATABASE_URL" -c "SELECT * FROM trapper.apply_automerge_very_confident(100);" 2>/dev/null || true
+  psql "$DATABASE_URL" -c "SELECT * FROM ops.apply_automerge_very_confident(100);" 2>/dev/null || true
 
   # Derive relationships
   echo -e "${CYAN}Deriving person-place relationships...${RESET}"
   for table in $TABLES; do
     if [[ -n "$table" ]]; then
-      psql "$DATABASE_URL" -q -c "SELECT trapper.derive_person_place_relationships('$table');" 2>/dev/null || true
+      psql "$DATABASE_URL" -q -c "SELECT sot.derive_person_place_relationships('$table');" 2>/dev/null || true
     fi
   done
 
@@ -174,7 +174,7 @@ if ! $DRY_RUN && ! $SKIP_GEOCODE; then
 
   # Show candidates
   echo -e "${CYAN}Address candidates:${RESET}"
-  psql "$DATABASE_URL" -c "SELECT source_system, source_table, COUNT(*) FROM trapper.v_candidate_addresses_all_sources GROUP BY 1, 2 ORDER BY 3 DESC;"
+  psql "$DATABASE_URL" -c "SELECT source_system, source_table, COUNT(*) FROM sot.v_candidate_addresses_all_sources GROUP BY 1, 2 ORDER BY 3 DESC;"
 
   # Run geocoding (bounded)
   if [[ -n "$GOOGLE_PLACES_API_KEY" ]]; then
@@ -183,7 +183,7 @@ if ! $DRY_RUN && ! $SKIP_GEOCODE; then
 
     # Seed places
     echo -e "${CYAN}Seeding places from addresses...${RESET}"
-    psql "$DATABASE_URL" -c "SELECT trapper.seed_places_from_addresses();" 2>/dev/null || true
+    psql "$DATABASE_URL" -c "SELECT sot.seed_places_from_addresses();" 2>/dev/null || true
   else
     echo -e "${YELLOW}WARN:${RESET} GOOGLE_PLACES_API_KEY not set, skipping geocoding"
     WARNINGS+=("Geocoding skipped: no API key")
@@ -204,19 +204,19 @@ if ! $DRY_RUN; then
   echo -e "${CYAN}Staged records by source:${RESET}"
   psql "$DATABASE_URL" -c "
     SELECT source_system, source_table, COUNT(*) AS records
-    FROM trapper.staged_records
+    FROM ops.staged_records
     GROUP BY 1, 2
     ORDER BY 1, 2;
   "
 
   echo -e "${CYAN}People stats:${RESET}"
-  psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_people_stats;"
+  psql "$DATABASE_URL" -c "SELECT * FROM sot.v_people_stats;"
 
   echo -e "${CYAN}Match candidates by status:${RESET}"
-  psql "$DATABASE_URL" -c "SELECT status, COUNT(*) FROM trapper.person_match_candidates GROUP BY 1 ORDER BY 1;"
+  psql "$DATABASE_URL" -c "SELECT status, COUNT(*) FROM ops.person_match_candidates GROUP BY 1 ORDER BY 1;"
 
   echo -e "${CYAN}Places count:${RESET}"
-  psql "$DATABASE_URL" -t -c "SELECT COUNT(*) AS places FROM trapper.places;"
+  psql "$DATABASE_URL" -t -c "SELECT COUNT(*) AS places FROM sot.places;"
 fi
 
 echo ""

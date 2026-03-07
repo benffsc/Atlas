@@ -2,7 +2,7 @@
 /**
  * airtable_project75_survey_csv.mjs
  *
- * Ingests Project 75 (after-clinic survey) CSV into trapper.staged_records.
+ * Ingests Project 75 (after-clinic survey) CSV into ops.staged_records.
  * Uses shared ingest libraries for RFC 4180 parsing and run tracking.
  *
  * Usage:
@@ -308,7 +308,7 @@ async function main() {
     console.log(`\n${yellow}Dry run complete. Run without --dry-run to insert.${reset}`);
   } else {
     console.log(`\n${bold}Verify:${reset}`);
-    console.log(`  psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_ingest_run_summary WHERE source_system = '${SOURCE_SYSTEM}' ORDER BY started_at DESC LIMIT 1;"`);
+    console.log(`  psql "$DATABASE_URL" -c "SELECT * FROM ops.v_ingest_run_summary WHERE source_system = '${SOURCE_SYSTEM}' ORDER BY started_at DESC LIMIT 1;"`);
   }
 
   process.exit(stats.errors > 0 ? 1 : 0);

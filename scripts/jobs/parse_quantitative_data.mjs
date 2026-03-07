@@ -176,7 +176,7 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
       gme.kml_name,
       gme.place_id,
       gme.imported_at
-    FROM trapper.google_map_entries gme
+    FROM ops.google_map_entries gme
     WHERE gme.ai_quantitative_parsed_at IS NULL
       AND gme.original_content IS NOT NULL
       AND LENGTH(gme.original_content) >= 20
@@ -199,7 +199,7 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
       // Mark as processed even if no data
       if (!options.dryRun) {
         await pool.query(`
-          UPDATE trapper.google_map_entries
+          UPDATE ops.google_map_entries
           SET ai_quantitative_parsed_at = NOW()
           WHERE entry_id = $1
         `, [row.entry_id]);
@@ -218,7 +218,7 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
         if (data.total_cats) {
           const isHighConfidence = data.confidence === 'high';
           await pool.query(`
-            INSERT INTO trapper.place_colony_estimates (
+            INSERT INTO sot.place_colony_estimates (
               place_id,
               total_cats,
               altered_count,
@@ -259,7 +259,7 @@ async function processGoogleMaps(pool, anthropic, options, stats) {
 
         // Mark as processed
         await pool.query(`
-          UPDATE trapper.google_map_entries
+          UPDATE ops.google_map_entries
           SET ai_quantitative_parsed_at = NOW()
           WHERE entry_id = $1
         `, [row.entry_id]);
@@ -286,8 +286,8 @@ async function processRequests(pool, anthropic, options, stats) {
       r.summary,
       r.place_id,
       r.created_at as source_created_at
-    FROM trapper.sot_requests r
-    LEFT JOIN trapper.place_colony_estimates pce
+    FROM ops.requests r
+    LEFT JOIN sot.place_colony_estimates pce
       ON pce.place_id = r.place_id
       AND pce.source_system = 'requests'
       AND pce.source_record_id = r.request_id::text
@@ -323,7 +323,7 @@ async function processRequests(pool, anthropic, options, stats) {
         if (data.total_cats) {
           const isHighConfidence = data.confidence === 'high';
           await pool.query(`
-            INSERT INTO trapper.place_colony_estimates (
+            INSERT INTO sot.place_colony_estimates (
               place_id,
               total_cats,
               altered_count,
@@ -380,7 +380,7 @@ async function processProject75(pool, anthropic, options, stats) {
   // Check if p75 survey data exists
   const checkResult = await pool.query(`
     SELECT COUNT(*) as count
-    FROM trapper.p75_post_clinic_surveys
+    FROM ops.p75_post_clinic_surveys
     WHERE notes IS NOT NULL
   `);
 
@@ -397,8 +397,8 @@ async function processProject75(pool, anthropic, options, stats) {
       s.cats_fixed_estimate,
       s.place_id,
       s.survey_date
-    FROM trapper.p75_post_clinic_surveys s
-    LEFT JOIN trapper.place_colony_estimates pce
+    FROM ops.p75_post_clinic_surveys s
+    LEFT JOIN sot.place_colony_estimates pce
       ON pce.place_id = s.place_id
       AND pce.source_system = 'project75'
       AND pce.source_record_id = s.survey_id::text
@@ -436,7 +436,7 @@ async function processProject75(pool, anthropic, options, stats) {
     } else {
       try {
         await pool.query(`
-          INSERT INTO trapper.place_colony_estimates (
+          INSERT INTO sot.place_colony_estimates (
             place_id,
             total_cats,
             altered_count,
@@ -538,7 +538,7 @@ Environment:
           AND table_name = 'google_map_entries'
           AND column_name = 'ai_quantitative_parsed_at'
         ) THEN
-          ALTER TABLE trapper.google_map_entries
+          ALTER TABLE ops.google_map_entries
           ADD COLUMN ai_quantitative_parsed_at TIMESTAMPTZ;
         END IF;
       END $$;
@@ -572,7 +572,7 @@ Environment:
     // Check totals
     const colonyCount = await pool.query(`
       SELECT COUNT(*) as count, COUNT(DISTINCT place_id) as places
-      FROM trapper.place_colony_estimates
+      FROM sot.place_colony_estimates
     `);
     console.log(`\n${cyan}Total colony estimates:${reset} ${colonyCount.rows[0].count} across ${colonyCount.rows[0].places} places`);
 

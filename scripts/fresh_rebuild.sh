@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: References v1 trapper.* schema (dropped MIG_2299). Do not run.
 # fresh_rebuild.sh
 # ATLAS_024: Fresh database rebuild with fixed person extraction
 #

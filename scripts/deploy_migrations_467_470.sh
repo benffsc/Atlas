@@ -116,11 +116,11 @@ echo -e "${YELLOW}Verifying deployment...${NC}"
 echo ""
 
 echo "Registered processors:"
-psql "$DATABASE_URL" -c "SELECT processor_name, source_system, source_table, entity_type FROM trapper.data_engine_processors ORDER BY priority;"
+psql "$DATABASE_URL" -c "SELECT processor_name, source_system, source_table, entity_type FROM ops.data_engine_processors ORDER BY priority;"
 
 echo ""
 echo "Role distribution:"
-psql "$DATABASE_URL" -c "SELECT role, COUNT(*) as count FROM trapper.person_roles GROUP BY role ORDER BY count DESC;"
+psql "$DATABASE_URL" -c "SELECT role, COUNT(*) as count FROM sot.person_roles GROUP BY role ORDER BY count DESC;"
 
 echo ""
 echo -e "${GREEN}All migrations deployed successfully!${NC}"

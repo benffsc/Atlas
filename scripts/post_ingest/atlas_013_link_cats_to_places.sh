@@ -77,13 +77,13 @@ echo ""
 echo -e "${BOLD}Current state:${RESET}"
 echo "─────────────────────────────────────────────"
 
-CATS_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.sot_cats;" | tr -d '[:space:]')
+CATS_COUNT=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cats;" | tr -d '[:space:]')
 OWNERS_WITH_PLACES=$(psql "$DATABASE_URL" -t -c "
     SELECT COUNT(DISTINCT pcr.person_id)
-    FROM trapper.person_cat_relationships pcr
-    JOIN trapper.person_place_relationships ppr ON ppr.person_id = trapper.canonical_person_id(pcr.person_id);
+    FROM sot.person_cat_relationships pcr
+    JOIN sot.person_place_relationships ppr ON ppr.person_id = sot.canonical_person_id(pcr.person_id);
 " | tr -d '[:space:]')
-RELS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.cat_place_relationships;" | tr -d '[:space:]')
+RELS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cat_place_relationships;" | tr -d '[:space:]')
 
 echo -e "${CYAN}Total cats:${RESET} $CATS_COUNT"
 echo -e "${CYAN}Cat owners with known places:${RESET} $OWNERS_WITH_PLACES"
@@ -96,13 +96,13 @@ echo ""
 echo -e "${BOLD}Running link_cats_to_places()...${RESET}"
 echo "─────────────────────────────────────────────"
 
-psql "$DATABASE_URL" -c "SELECT * FROM trapper.link_cats_to_places();"
+psql "$DATABASE_URL" -c "SELECT * FROM sot.link_cats_to_places();"
 
 echo ""
 
 # Update place activity flags
 echo -e "${CYAN}Updating place activity flags...${RESET}"
-psql "$DATABASE_URL" -c "SELECT trapper.update_place_cat_activity_flags() AS places_updated;"
+psql "$DATABASE_URL" -c "SELECT sot.update_place_cat_activity_flags() AS places_updated;"
 
 echo ""
 
@@ -113,7 +113,7 @@ echo -e "${BOLD}Results:${RESET}"
 echo "─────────────────────────────────────────────"
 
 echo -e "${CYAN}Cat-place stats:${RESET}"
-psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_cat_place_stats;"
+psql "$DATABASE_URL" -c "SELECT * FROM sot.v_cat_place_stats;"
 
 echo ""
 echo -e "${CYAN}Sample cats with places:${RESET}"
@@ -124,7 +124,7 @@ psql "$DATABASE_URL" -c "
         LEFT(formatted_address, 40) AS address,
         relationship_type,
         confidence
-    FROM trapper.v_cat_primary_place
+    FROM sot.v_cat_primary_place
     WHERE place_id IS NOT NULL
     ORDER BY cat_name
     LIMIT 10;
@@ -138,7 +138,7 @@ psql "$DATABASE_URL" -c "
         LEFT(formatted_address, 35) AS address,
         total_cats,
         cats_home
-    FROM trapper.v_places_with_cat_activity
+    FROM sot.v_places_with_cat_activity
     ORDER BY total_cats DESC
     LIMIT 10;
 "

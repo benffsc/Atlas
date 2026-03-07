@@ -142,7 +142,7 @@ Cats are linked to requests based on appointment date relative to request lifecy
 - `ops.v_entity_linking_skipped_summary` — View showing skipped entities by reason
 - `ops.v_cat_place_coverage` — View showing cat-place linking coverage metrics
 
-**After Backfills**: Always re-run `trapper.run_all_entity_linking()`. Backfills create edges but don't propagate.
+**After Backfills**: Always re-run `sot.run_all_entity_linking()`. Backfills create edges but don't propagate.
 
 **It's OK If Cats Have No Person Link** — Don't force bad matches. PetLink cats (956) are registry-only. ClinicHQ may have no contact info. Better to skip than link incorrectly.
 
@@ -175,15 +175,15 @@ Cats are linked to requests based on appointment date relative to request lifecy
 
 | Entity | Function |
 |--------|----------|
-| Person | `trapper.find_or_create_person(email, phone, first, last, addr, source)` |
-| Place | `trapper.find_or_create_place_deduped(address, name, lat, lng, source)` |
-| Cat (microchip) | `trapper.find_or_create_cat_by_microchip(chip, name, sex, breed, ...)` |
+| Person | `sot.find_or_create_person(email, phone, first, last, addr, source)` |
+| Place | `sot.find_or_create_place_deduped(address, name, lat, lng, source)` |
+| Cat (microchip) | `sot.find_or_create_cat_by_microchip(chip, name, sex, breed, ...)` |
 | Cat (no microchip) | `sot.find_or_create_cat_by_clinichq_id(animal_id, name, sex, ...)` — MIG_2460 |
-| Request | `trapper.find_or_create_request(source, record_id, source_created_at, ...)` |
-| Cat→Place | `trapper.link_cat_to_place(cat_id, place_id, rel_type, evidence_type, ...)` |
-| Person→Cat | `trapper.link_person_to_cat(person_id, cat_id, rel_type, evidence_type, ...)` |
-| Coord Place | `trapper.create_place_from_coordinates(lat, lng, display_name, source)` — 10m dedup |
-| Place merge | `trapper.merge_place_into(loser_id, winner_id, reason, changed_by)` |
+| Request | `ops.find_or_create_request(source, record_id, source_created_at, ...)` |
+| Cat→Place | `sot.link_cat_to_place(cat_id, place_id, rel_type, evidence_type, ...)` |
+| Person→Cat | `sot.link_person_to_cat(person_id, cat_id, rel_type, evidence_type, ...)` |
+| Coord Place | `sot.create_place_from_coordinates(lat, lng, display_name, source)` — 10m dedup |
+| Place merge | `sot.merge_place_into(loser_id, winner_id, reason, changed_by)` |
 
 **Place family**: `get_place_family(place_id)` returns UUID[] of parent, children, siblings, co-located. Never use arbitrary distance radius.
 
@@ -408,7 +408,7 @@ A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdal
 - Don't COALESCE Cell Phone before Owner Phone
 
 **Data Integrity:**
-- Don't hardcode boolean checks — Use `trapper.is_positive_value()` (handles Yes/TRUE/Y/Checked/1/Left/Right/Bilateral)
+- Don't hardcode boolean checks — Use `sot.is_positive_value()` (handles Yes/TRUE/Y/Checked/1/Left/Right/Bilateral)
 - Don't modify TS upload route without checking SQL processor for parity
 - Don't create fixed time windows — Use `v_request_alteration_stats` view
 - Don't skip `merged_into_*_id IS NULL` filters in queries

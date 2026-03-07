@@ -92,8 +92,8 @@ async function main() {
     console.log('\nFetching current cat data...');
     const currentCats = await pool.query(`
       SELECT c.cat_id, c.sex, ci.id_value as microchip
-      FROM trapper.sot_cats c
-      JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+      FROM sot.cats c
+      JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
     `);
 
     console.log(`  ${currentCats.rows.length} cats with microchips in database`);
@@ -146,7 +146,7 @@ async function main() {
       let updated = 0;
       for (const u of updates) {
         await pool.query(
-          'UPDATE trapper.sot_cats SET sex = $1 WHERE cat_id = $2',
+          'UPDATE sot.cats SET sex = $1 WHERE cat_id = $2',
           [u.newSex, u.cat_id]
         );
         updated++;
@@ -159,9 +159,9 @@ async function main() {
 
       // Males cannot be spayed
       const fixedMales = await pool.query(`
-        UPDATE trapper.cat_procedures cp
+        UPDATE ops.cat_procedures cp
         SET procedure_type = 'neuter', is_spay = FALSE, is_neuter = TRUE
-        FROM trapper.sot_cats c
+        FROM sot.cats c
         WHERE cp.cat_id = c.cat_id
           AND cp.is_spay = TRUE
           AND LOWER(c.sex) = 'male'
@@ -171,9 +171,9 @@ async function main() {
 
       // Females cannot be neutered
       const fixedFemales = await pool.query(`
-        UPDATE trapper.cat_procedures cp
+        UPDATE ops.cat_procedures cp
         SET procedure_type = 'spay', is_spay = TRUE, is_neuter = FALSE
-        FROM trapper.sot_cats c
+        FROM sot.cats c
         WHERE cp.cat_id = c.cat_id
           AND cp.is_neuter = TRUE
           AND LOWER(c.sex) = 'female'
@@ -191,7 +191,7 @@ async function main() {
         COUNT(*) FILTER (WHERE LOWER(sex) = 'male') as males,
         COUNT(*) FILTER (WHERE LOWER(sex) = 'female') as females,
         COUNT(*) FILTER (WHERE sex IS NULL OR sex = '') as unknown
-      FROM trapper.sot_cats
+      FROM sot.cats
     `);
     console.log(`Males: ${finalStats.rows[0].males}`);
     console.log(`Females: ${finalStats.rows[0].females}`);

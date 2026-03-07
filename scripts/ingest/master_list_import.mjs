@@ -292,7 +292,7 @@ function parseMasterList(filePath) {
 async function getOrCreateClinicDay(date) {
   // Check if exists
   const existing = await pool.query(
-    `SELECT clinic_day_id FROM trapper.clinic_days WHERE clinic_date = $1`,
+    `SELECT clinic_day_id FROM ops.clinic_days WHERE clinic_date = $1`,
     [date]
   );
 
@@ -302,8 +302,8 @@ async function getOrCreateClinicDay(date) {
 
   // Create new
   const result = await pool.query(
-    `INSERT INTO trapper.clinic_days (clinic_date, clinic_type)
-     VALUES ($1, trapper.get_default_clinic_type($1))
+    `INSERT INTO ops.clinic_days (clinic_date, clinic_type)
+     VALUES ($1, ops.get_default_clinic_type($1))
      RETURNING clinic_day_id`,
     [date]
   );
@@ -318,7 +318,7 @@ async function resolveTrapperAlias(alias) {
   if (!alias) return null;
 
   const result = await pool.query(
-    `SELECT trapper.resolve_trapper_alias($1) as person_id`,
+    `SELECT ops.resolve_trapper_alias($1) as person_id`,
     [alias]
   );
 
@@ -333,7 +333,7 @@ async function insertEntry(clinicDayId, entry) {
   const trapperPersonId = await resolveTrapperAlias(entry.parsed_trapper_alias);
 
   const result = await pool.query(
-    `INSERT INTO trapper.clinic_day_entries (
+    `INSERT INTO ops.clinic_day_entries (
       clinic_day_id,
       line_number,
       source_description,
@@ -384,7 +384,7 @@ async function insertEntry(clinicDayId, entry) {
  */
 async function runMatching(date) {
   const result = await pool.query(
-    `SELECT * FROM trapper.apply_master_list_matches($1, 'medium')`,
+    `SELECT * FROM ops.apply_master_list_matches($1, 'medium')`,
     [date]
   );
 
@@ -465,7 +465,7 @@ async function main() {
 
     // Check for existing entries
     const existing = await pool.query(
-      `SELECT COUNT(*) as count FROM trapper.clinic_day_entries WHERE clinic_day_id = $1`,
+      `SELECT COUNT(*) as count FROM ops.clinic_day_entries WHERE clinic_day_id = $1`,
       [clinicDayId]
     );
 

@@ -131,13 +131,13 @@ async function seedHistoricalConditions(options = {}) {
         g.linked_place_id,
         p.formatted_address,
         p.place_id
-      FROM trapper.google_map_entries g
-      JOIN trapper.places p ON p.place_id = g.linked_place_id
+      FROM ops.google_map_entries g
+      JOIN sot.places p ON p.place_id = g.linked_place_id
       WHERE g.ai_meaning IS NOT NULL
         AND g.linked_place_id IS NOT NULL
         AND g.ai_meaning IN ('disease_risk', 'felv_colony', 'fiv_colony', 'watch_list', 'active_colony', 'historical_colony')
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.place_condition_history pch
+          SELECT 1 FROM ops.place_condition_history pch
           WHERE pch.source_system = 'google_maps'
           AND pch.source_record_id = g.entry_id::text
         )
@@ -191,7 +191,7 @@ async function seedHistoricalConditions(options = {}) {
       if (!dryRun) {
         await client.query(
           `
-          INSERT INTO trapper.place_condition_history (
+          INSERT INTO ops.place_condition_history (
             place_id,
             condition_type,
             severity,
@@ -243,7 +243,7 @@ async function seedHistoricalConditions(options = {}) {
     // Also refresh zone data coverage
     if (!dryRun) {
       console.log("\nRefreshing zone data coverage...");
-      await client.query(`SELECT trapper.refresh_zone_data_coverage()`);
+      await client.query(`SELECT ops.refresh_zone_data_coverage()`);
       console.log("Done.");
     }
   } finally {

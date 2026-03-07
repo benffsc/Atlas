@@ -37,10 +37,10 @@ const WARN = `${yellow}!${reset}`;
 const REQUIRED_EXTENSIONS = ['postgis', 'pg_trgm'];
 const REQUIRED_SCHEMAS = ['trapper'];
 const REQUIRED_TABLES = [
-  'trapper.staged_records',
-  'trapper.appointment_requests',
-  'trapper.clinichq_upcoming_appointments',
-  'trapper.data_issues',
+  'ops.staged_records',
+  'ops.appointment_requests',
+  'ops.clinichq_upcoming_appointments',
+  'ops.data_issues',
 ];
 
 let client = null;
@@ -211,9 +211,9 @@ async function checkUniqueConstraints() {
   header('6. Idempotency Constraints');
 
   const criticalConstraints = [
-    { table: 'trapper.staged_records', constraint: 'staged_records_idempotency_key' },
-    { table: 'trapper.appointment_requests', constraint: 'appointment_requests_source_row_hash_key' },
-    { table: 'trapper.clinichq_upcoming_appointments', constraint: 'clinichq_upcoming_source_row_hash_key' },
+    { table: 'ops.staged_records', constraint: 'staged_records_idempotency_key' },
+    { table: 'ops.appointment_requests', constraint: 'appointment_requests_source_row_hash_key' },
+    { table: 'ops.clinichq_upcoming_appointments', constraint: 'clinichq_upcoming_source_row_hash_key' },
   ];
 
   let allPass = true;

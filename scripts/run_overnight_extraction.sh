@@ -93,7 +93,7 @@ echo ""
 
 # Log final state to database
 psql "$DATABASE_URL" -c "
-INSERT INTO trapper.attribute_extraction_jobs (
+INSERT INTO ops.attribute_extraction_jobs (
     source_system, entity_type, records_processed,
     attributes_extracted, cost_estimate_usd, model_used, notes
 ) VALUES (

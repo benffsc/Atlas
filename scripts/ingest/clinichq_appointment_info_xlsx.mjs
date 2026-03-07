@@ -2,7 +2,7 @@
 /**
  * clinichq_appointment_info_xlsx.mjs
  *
- * Ingests ClinicHQ appointment_info XLSX into trapper.staged_records.
+ * Ingests ClinicHQ appointment_info XLSX into ops.staged_records.
  * Uses batched inserts for handling large files (100K+ rows).
  *
  * ⚠️  PROCESSING ORDER (CRITICAL)

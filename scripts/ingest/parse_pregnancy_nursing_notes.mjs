@@ -191,12 +191,12 @@ async function main() {
         c.sex,
         -- Check if we already have vitals for this appointment
         EXISTS (
-          SELECT 1 FROM trapper.cat_vitals cv
+          SELECT 1 FROM ops.cat_vitals cv
           WHERE cv.cat_id = a.cat_id
             AND cv.recorded_at::DATE = a.appointment_date::DATE
         ) AS has_vitals
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
       WHERE a.is_spay = TRUE
         AND (a.internal_notes IS NOT NULL OR a.medical_notes IS NOT NULL)
         AND a.appointment_date >= '2020-01-01'
@@ -240,7 +240,7 @@ async function main() {
             if (appt.has_vitals) {
               // Update existing vitals
               const updateSql = `
-                UPDATE trapper.cat_vitals
+                UPDATE ops.cat_vitals
                 SET
                   is_pregnant = COALESCE(is_pregnant, $1),
                   is_lactating = COALESCE(is_lactating, $2),
@@ -267,7 +267,7 @@ async function main() {
             } else {
               // Create new vitals record
               const insertSql = `
-                INSERT INTO trapper.cat_vitals (
+                INSERT INTO ops.cat_vitals (
                   cat_id,
                   recorded_at,
                   is_pregnant,
@@ -299,7 +299,7 @@ async function main() {
             ) {
               // Check if birth event already exists for this cat around this time
               const birthCheckSql = `
-                SELECT 1 FROM trapper.cat_birth_events
+                SELECT 1 FROM ops.cat_birth_events
                 WHERE mother_cat_id = $1
                   AND birth_date BETWEEN $2::DATE - INTERVAL '60 days' AND $2::DATE
                 LIMIT 1
@@ -315,7 +315,7 @@ async function main() {
                 estimatedBirthDate.setDate(estimatedBirthDate.getDate() - 30);
 
                 const birthSql = `
-                  INSERT INTO trapper.cat_birth_events (
+                  INSERT INTO ops.cat_birth_events (
                     mother_cat_id,
                     birth_date,
                     birth_date_precision,

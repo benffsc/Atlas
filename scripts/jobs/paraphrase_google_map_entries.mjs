@@ -235,7 +235,7 @@ Environment:
     // Get entries needing processing (either paraphrasing or light redaction)
     const result = await pool.query(`
       SELECT entry_id, original_content, kml_name, original_redacted, ai_processed_at
-      FROM trapper.google_map_entries
+      FROM ops.google_map_entries
       WHERE (ai_processed_at IS NULL OR original_redacted IS NULL)
         AND original_content IS NOT NULL
         AND LENGTH(original_content) >= 20
@@ -308,7 +308,7 @@ Environment:
         if (paraphrased && needsRedaction) {
           // Both paraphrase and redaction needed
           await pool.query(`
-            UPDATE trapper.google_map_entries
+            UPDATE ops.google_map_entries
             SET
               original_redacted = $2,
               ai_summary = $3,
@@ -321,7 +321,7 @@ Environment:
         } else if (paraphrased && !needsRedaction) {
           // Only paraphrase needed (redaction already done)
           await pool.query(`
-            UPDATE trapper.google_map_entries
+            UPDATE ops.google_map_entries
             SET
               ai_summary = $2,
               ai_processed_at = NOW(),
@@ -333,7 +333,7 @@ Environment:
         } else if (needsRedaction && redacted) {
           // Only redaction needed (API call failed or not needed)
           await pool.query(`
-            UPDATE trapper.google_map_entries
+            UPDATE ops.google_map_entries
             SET original_redacted = $2
             WHERE entry_id = $1
           `, [row.entry_id, redacted]);
@@ -343,7 +343,7 @@ Environment:
           // AI returned null (refusal or error) but we have redacted content
           // Mark as processed so it doesn't keep appearing, use redacted as summary
           await pool.query(`
-            UPDATE trapper.google_map_entries
+            UPDATE ops.google_map_entries
             SET
               ai_summary = $2,
               ai_processed_at = NOW(),
@@ -379,7 +379,7 @@ Environment:
     // Check remaining
     const remaining = await pool.query(`
       SELECT COUNT(*) as count
-      FROM trapper.google_map_entries
+      FROM ops.google_map_entries
       WHERE (ai_processed_at IS NULL OR original_redacted IS NULL)
         AND original_content IS NOT NULL
         AND LENGTH(original_content) >= 20

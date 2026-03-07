@@ -181,7 +181,7 @@ Return only valid JSON matching the specified format.`;
 
 async function matchReporter(pool, reporterEmail, reporterName) {
   const { rows } = await pool.query(
-    `SELECT * FROM trapper.match_person_from_report($1, $2)`,
+    `SELECT * FROM ops.match_person_from_report($1, $2)`,
     [reporterName, reporterEmail]
   );
   return rows;
@@ -189,7 +189,7 @@ async function matchReporter(pool, reporterEmail, reporterName) {
 
 async function matchPlace(pool, addressFragment, residentName, trapperId) {
   const { rows } = await pool.query(
-    `SELECT * FROM trapper.match_place_from_report($1, $2, $3)`,
+    `SELECT * FROM ops.match_place_from_report($1, $2, $3)`,
     [addressFragment, residentName, trapperId]
   );
   return rows;
@@ -197,7 +197,7 @@ async function matchPlace(pool, addressFragment, residentName, trapperId) {
 
 async function matchRequest(pool, placeId, requesterName, trapperId) {
   const { rows } = await pool.query(
-    `SELECT * FROM trapper.match_request_from_report($1, $2, $3)`,
+    `SELECT * FROM ops.match_request_from_report($1, $2, $3)`,
     [placeId, requesterName, trapperId]
   );
   return rows;
@@ -210,7 +210,7 @@ async function processSubmission(pool, anthropic, submission, dryRun) {
 
   if (!dryRun) {
     await pool.query(
-      `UPDATE trapper.trapper_report_submissions SET extraction_status = 'extracting' WHERE submission_id = $1`,
+      `UPDATE ops.trapper_report_submissions SET extraction_status = 'extracting' WHERE submission_id = $1`,
       [submission.submission_id]
     );
   }
@@ -223,7 +223,7 @@ async function processSubmission(pool, anthropic, submission, dryRun) {
     console.log(`${yellow}No extraction result${reset}`);
     if (!dryRun) {
       await pool.query(
-        `UPDATE trapper.trapper_report_submissions SET extraction_status = 'failed', extraction_error = $2 WHERE submission_id = $1`,
+        `UPDATE ops.trapper_report_submissions SET extraction_status = 'failed', extraction_error = $2 WHERE submission_id = $1`,
         [submission.submission_id, 'AI extraction returned null']
       );
     }
@@ -335,7 +335,7 @@ async function processSubmission(pool, anthropic, submission, dryRun) {
     // Insert items
     for (const item of itemsToCreate) {
       await pool.query(`
-        INSERT INTO trapper.trapper_report_items (
+        INSERT INTO ops.trapper_report_items (
           submission_id, item_type,
           target_entity_type, target_entity_id, match_confidence, match_candidates,
           extracted_text, extracted_data
@@ -359,7 +359,7 @@ async function processSubmission(pool, anthropic, submission, dryRun) {
   // 4. Handle reporter email update
   if (extraction.reporter_updates?.new_email && topReporter) {
     await pool.query(`
-      INSERT INTO trapper.trapper_report_items (
+      INSERT INTO ops.trapper_report_items (
         submission_id, item_type,
         target_entity_type, target_entity_id, match_confidence, match_candidates,
         extracted_data
@@ -377,7 +377,7 @@ async function processSubmission(pool, anthropic, submission, dryRun) {
 
   // 5. Update submission as extracted
   await pool.query(`
-    UPDATE trapper.trapper_report_submissions
+    UPDATE ops.trapper_report_submissions
     SET
       extraction_status = 'extracted',
       extracted_at = NOW(),
@@ -444,13 +444,13 @@ Environment:
 
     if (args.submissionId) {
       const { rows } = await pool.query(
-        `SELECT * FROM trapper.trapper_report_submissions WHERE submission_id = $1`,
+        `SELECT * FROM ops.trapper_report_submissions WHERE submission_id = $1`,
         [args.submissionId]
       );
       submissions = rows;
     } else {
       const { rows } = await pool.query(
-        `SELECT * FROM trapper.trapper_report_submissions
+        `SELECT * FROM ops.trapper_report_submissions
          WHERE extraction_status = 'pending'
          ORDER BY received_at
          LIMIT $1`,
@@ -480,7 +480,7 @@ Environment:
         console.error(`${red}Error processing ${submission.submission_id}: ${error.message}${reset}`);
         if (!args.dryRun) {
           await pool.query(
-            `UPDATE trapper.trapper_report_submissions SET extraction_status = 'failed', extraction_error = $2 WHERE submission_id = $1`,
+            `UPDATE ops.trapper_report_submissions SET extraction_status = 'failed', extraction_error = $2 WHERE submission_id = $1`,
             [submission.submission_id, error.message]
           );
         }

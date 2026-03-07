@@ -35,7 +35,7 @@ export async function processDataEngine(sourceSystem, sourceTable, batchSize = 5
   try {
     // Try unified processor first
     const result = await pool.query(`
-      SELECT * FROM trapper.data_engine_process_batch_unified($1, $2, $3)
+      SELECT * FROM ops.data_engine_process_batch_unified($1, $2, $3)
     `, [sourceSystem || null, sourceTable || null, batchSize]);
 
     if (result.rows[0]) {
@@ -70,7 +70,7 @@ async function processDirectly(pool, sourceSystem, sourceTable, batchSize) {
   // Get pending records
   const pending = await pool.query(`
     SELECT id, source_system, source_table
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE NOT is_processed
       AND ($1::TEXT IS NULL OR source_system = $1)
       AND ($2::TEXT IS NULL OR source_table = $2)
@@ -82,13 +82,13 @@ async function processDirectly(pool, sourceSystem, sourceTable, batchSize) {
     try {
       // Find processor for this source
       const processor = await pool.query(`
-        SELECT processor_function FROM trapper.data_engine_processors
+        SELECT processor_function FROM ops.data_engine_processors
         WHERE source_system = $1 AND source_table = $2 AND is_active = true
       `, [record.source_system, record.source_table]);
 
       if (processor.rows.length > 0) {
         const funcName = processor.rows[0].processor_function;
-        await pool.query(`SELECT trapper.${funcName}($1)`, [record.id]);
+        await pool.query(`SELECT ops.${funcName}($1)`, [record.id]);
         success++;
       }
       processed++;
@@ -164,10 +164,10 @@ export async function getDataEngineStats() {
   try {
     const result = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.staged_records) as total_staged,
-        (SELECT COUNT(*) FROM trapper.staged_records WHERE NOT is_processed) as pending,
-        (SELECT COUNT(*) FROM trapper.data_engine_match_decisions) as total_decisions,
-        (SELECT COUNT(*) FROM trapper.data_engine_processors WHERE is_active) as active_processors
+        (SELECT COUNT(*) FROM ops.staged_records) as total_staged,
+        (SELECT COUNT(*) FROM ops.staged_records WHERE NOT is_processed) as pending,
+        (SELECT COUNT(*) FROM ops.data_engine_match_decisions) as total_decisions,
+        (SELECT COUNT(*) FROM ops.data_engine_processors WHERE is_active) as active_processors
     `);
 
     return {
@@ -193,7 +193,7 @@ export async function getPendingBySource() {
   try {
     const result = await pool.query(`
       SELECT source_system, source_table, COUNT(*) as pending
-      FROM trapper.staged_records
+      FROM ops.staged_records
       WHERE NOT is_processed
       GROUP BY source_system, source_table
       ORDER BY pending DESC

@@ -68,8 +68,8 @@ async function main() {
         i.cats_being_fed,
         i.is_emergency,
         p.formatted_address
-      FROM trapper.web_intake_submissions i
-      LEFT JOIN trapper.places p ON p.place_id = i.place_id
+      FROM ops.intake_submissions i
+      LEFT JOIN sot.places p ON p.place_id = i.place_id
       WHERE (
         i.situation_description IS NOT NULL AND LENGTH(i.situation_description) > 20
         OR i.medical_description IS NOT NULL AND LENGTH(i.medical_description) > 20
@@ -77,7 +77,7 @@ async function main() {
         OR i.legacy_notes IS NOT NULL AND LENGTH(i.legacy_notes) > 20
       )
       AND NOT EXISTS (
-        SELECT 1 FROM trapper.extraction_status es
+        SELECT 1 FROM ops.extraction_status es
         WHERE es.source_table = 'web_intake_submissions'
         AND es.source_record_id = i.submission_id::text
         AND es.last_extracted_at > NOW() - INTERVAL '7 days'
@@ -166,7 +166,7 @@ async function main() {
       // Update extraction status
       if (!dryRun) {
         await pool.query(`
-          INSERT INTO trapper.extraction_status (source_table, source_record_id, last_extracted_at, attributes_extracted)
+          INSERT INTO ops.extraction_status (source_table, source_record_id, last_extracted_at, attributes_extracted)
           VALUES ('web_intake_submissions', $1, NOW(), $2)
           ON CONFLICT (source_table, source_record_id)
           DO UPDATE SET last_extracted_at = NOW(), attributes_extracted = $2
@@ -174,7 +174,7 @@ async function main() {
 
         // Mark queue item completed if it exists
         await pool.query(`
-          UPDATE trapper.extraction_queue
+          UPDATE ops.extraction_queue
           SET completed_at = NOW()
           WHERE source_table = 'web_intake_submissions'
             AND source_record_id = $1

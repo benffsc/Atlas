@@ -2,7 +2,7 @@
 /**
  * clinichq_owner_info_xlsx.mjs
  *
- * Ingests ClinicHQ owner_info XLSX into trapper.staged_records.
+ * Ingests ClinicHQ owner_info XLSX into ops.staged_records.
  *
  * ⚠️  PROCESSING ORDER (CRITICAL)
  * ================================

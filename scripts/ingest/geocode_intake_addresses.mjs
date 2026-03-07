@@ -249,7 +249,7 @@ async function getAddressesToGeocode(client, options) {
       cats_city,
       county,
       requester_city
-    FROM trapper.web_intake_submissions
+    FROM ops.intake_submissions
     WHERE ${whereClause}
     ORDER BY submitted_at DESC
     ${limitClause}
@@ -261,7 +261,7 @@ async function getAddressesToGeocode(client, options) {
 
 async function updateGeocodingResult(client, submissionId, geoResult) {
   const sql = `
-    UPDATE trapper.web_intake_submissions
+    UPDATE ops.intake_submissions
     SET
       geo_formatted_address = $1,
       geo_latitude = $2,
@@ -294,7 +294,7 @@ async function updateGeocodingResult(client, submissionId, geoResult) {
 async function linkToPlace(client, submissionId, geoResult) {
   // Use find_or_create_place_deduped to avoid duplicate places
   const sql = `
-    SELECT trapper.link_intake_to_place(
+    SELECT sot.link_intake_to_place(
       $1::UUID,
       $2,
       $3::DOUBLE PRECISION,

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: References v1 trapper.* schema (dropped MIG_2299). Do not run.
 # populate_clinichq_people.sh
 # ATLAS_028: One-command ClinicHQ canonical people population
 #

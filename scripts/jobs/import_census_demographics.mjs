@@ -223,7 +223,7 @@ async function importCensusData(options = {}) {
       } else {
         const result = await client.query(
           `
-          INSERT INTO trapper.ref_sonoma_geography (
+          INSERT INTO ref.sonoma_geography (
             area_type, area_name, area_code, population, households,
             median_household_income, pct_below_poverty, pct_renter_occupied,
             pct_owner_occupied, pct_mobile_homes, pct_single_family,
@@ -284,7 +284,7 @@ async function importCensusData(options = {}) {
     if (!dryRun) {
       await client.query(
         `
-        UPDATE trapper.data_freshness_tracking
+        UPDATE ops.data_freshness_tracking
         SET last_full_refresh = NOW(),
             records_count = $1,
             updated_at = NOW()

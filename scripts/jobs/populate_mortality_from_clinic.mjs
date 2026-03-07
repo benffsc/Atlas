@@ -135,14 +135,14 @@ Environment:
         -- Try to find place via cat's relationships
         (
           SELECT cpr.place_id
-          FROM trapper.cat_place_relationships cpr
+          FROM sot.cat_place_relationships cpr
           WHERE cpr.cat_id = a.cat_id
           ORDER BY cpr.created_at DESC
           LIMIT 1
         ) as inferred_place_id
-      FROM trapper.sot_appointments a
-      JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-      LEFT JOIN trapper.cat_mortality_events me ON me.cat_id = a.cat_id
+      FROM ops.appointments a
+      JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN ops.cat_mortality_events me ON me.cat_id = a.cat_id
       WHERE (
         LOWER(a.medical_notes) LIKE '%died%'
         OR LOWER(a.medical_notes) LIKE '%deceased%'
@@ -206,7 +206,7 @@ Environment:
       } else {
         try {
           const insertResult = await pool.query(`
-            INSERT INTO trapper.cat_mortality_events (
+            INSERT INTO ops.cat_mortality_events (
               cat_id,
               death_date,
               death_date_precision,
@@ -227,10 +227,10 @@ Environment:
               $3,    -- precision
               EXTRACT(YEAR FROM $2::date)::int,
               EXTRACT(MONTH FROM $2::date)::int,
-              $4::trapper.death_cause,
+              $4,
               $5,    -- cause notes
               $6,    -- age months
-              trapper.get_age_category($6),
+              ops.get_age_category($6),
               $7,    -- place_id
               'atlas_clinic',
               $8,    -- appointment_id
@@ -257,7 +257,7 @@ Environment:
 
             // Also mark cat as deceased
             await pool.query(`
-              UPDATE trapper.sot_cats
+              UPDATE sot.cats
               SET is_deceased = true, deceased_date = $2, updated_at = NOW()
               WHERE cat_id = $1
             `, [row.cat_id, deathDate]);
@@ -290,7 +290,7 @@ Environment:
     }
 
     // Check total mortality events now
-    const countResult = await pool.query(`SELECT COUNT(*) as count FROM trapper.cat_mortality_events`);
+    const countResult = await pool.query(`SELECT COUNT(*) as count FROM ops.cat_mortality_events`);
     console.log(`\n${cyan}Total mortality events now:${reset} ${countResult.rows[0].count}`);
 
     if (options.dryRun) {

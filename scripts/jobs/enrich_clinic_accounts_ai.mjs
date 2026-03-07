@@ -407,7 +407,7 @@ async function convertToPerson(account, analysis, stats) {
     // Check if person already exists with this name
     let personId;
     const existing = await pool.query(`
-      SELECT person_id FROM trapper.sot_people
+      SELECT person_id FROM sot.people
       WHERE lower(display_name) = lower($1)
         AND merged_into_person_id IS NULL
       LIMIT 1
@@ -418,7 +418,7 @@ async function convertToPerson(account, analysis, stats) {
     } else {
       // Create new person (sot_people only has display_name, not first_name/last_name)
       const result = await pool.query(`
-        INSERT INTO trapper.sot_people (
+        INSERT INTO sot.people (
           display_name,
           data_source,
           account_type,
@@ -432,7 +432,7 @@ async function convertToPerson(account, analysis, stats) {
     if (personId) {
       // Update the account to mark it as converted
       await pool.query(`
-        UPDATE trapper.clinic_owner_accounts
+        UPDATE ops.clinic_owner_accounts
         SET account_type = 'converted_to_person',
             ai_researched_at = NOW(),
             ai_research_notes = $1,
@@ -447,7 +447,7 @@ async function convertToPerson(account, analysis, stats) {
 
       // Update any appointments that reference this account to point to the person
       await pool.query(`
-        UPDATE trapper.sot_appointments
+        UPDATE ops.appointments
         SET person_id = $1,
             owner_account_id = NULL
         WHERE owner_account_id = $2
@@ -483,7 +483,7 @@ async function enrichOrganization(account, analysis, stats) {
     // Create place if we have an address
     if (orgInfo?.address && orgInfo.address.length > 10) {
       const placeResult = await pool.query(`
-        SELECT trapper.find_or_create_place_deduped(
+        SELECT sot.find_or_create_place_deduped(
           $1,  -- address
           $2,  -- display_name
           NULL,
@@ -497,7 +497,7 @@ async function enrichOrganization(account, analysis, stats) {
 
     // Update the account
     await pool.query(`
-      UPDATE trapper.clinic_owner_accounts
+      UPDATE ops.clinic_owner_accounts
       SET canonical_name = COALESCE($1, canonical_name),
           linked_place_id = COALESCE($2, linked_place_id),
           ai_researched_at = NOW(),
@@ -566,7 +566,7 @@ async function processAccount(account, stats) {
     if (!dryRun) {
       try {
         const placeResult = await pool.query(`
-          SELECT trapper.find_or_create_place_deduped(
+          SELECT sot.find_or_create_place_deduped(
             $1,
             $1,
             NULL,
@@ -578,7 +578,7 @@ async function processAccount(account, stats) {
         const placeId = placeResult.rows[0]?.place_id;
 
         await pool.query(`
-          UPDATE trapper.clinic_owner_accounts
+          UPDATE ops.clinic_owner_accounts
           SET linked_place_id = $1,
               ai_researched_at = NOW(),
               ai_confidence = $2,
@@ -600,7 +600,7 @@ async function processAccount(account, stats) {
     if (!dryRun) {
       try {
         const placeResult = await pool.query(`
-          SELECT trapper.find_or_create_place_deduped(
+          SELECT sot.find_or_create_place_deduped(
             $1,
             NULL,
             NULL,
@@ -612,7 +612,7 @@ async function processAccount(account, stats) {
         const placeId = placeResult.rows[0]?.place_id;
 
         await pool.query(`
-          UPDATE trapper.clinic_owner_accounts
+          UPDATE ops.clinic_owner_accounts
           SET linked_place_id = $1,
               ai_researched_at = NOW(),
               ai_confidence = $2,
@@ -633,7 +633,7 @@ async function processAccount(account, stats) {
     // Unknown - just update with analysis
     if (!dryRun) {
       await pool.query(`
-        UPDATE trapper.clinic_owner_accounts
+        UPDATE ops.clinic_owner_accounts
         SET ai_researched_at = NOW(),
             ai_research_notes = $1,
             ai_confidence = $2,
@@ -686,7 +686,7 @@ async function getAccountsToProcess() {
       source_display_names,
       linked_place_id,
       linked_org_id
-    FROM trapper.clinic_owner_accounts
+    FROM ops.clinic_owner_accounts
     WHERE ${whereClause}
     ORDER BY created_at
     LIMIT $1
@@ -776,7 +776,7 @@ async function main() {
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE ai_researched_at IS NOT NULL) as researched,
         COUNT(*) FILTER (WHERE linked_place_id IS NOT NULL) as linked_to_place
-      FROM trapper.clinic_owner_accounts
+      FROM ops.clinic_owner_accounts
       GROUP BY account_type
       ORDER BY total DESC
     `);

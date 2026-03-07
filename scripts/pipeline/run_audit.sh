@@ -40,8 +40,8 @@ echo ""
 echo "Checking for merge chain issues..."
 psql "$DATABASE_URL" -c "
 SELECT 'Multi-hop merge chains' as issue, COUNT(*) as count
-FROM trapper.sot_people p1
-JOIN trapper.sot_people p2 ON p1.merged_into_person_id = p2.person_id
+FROM sot.people p1
+JOIN sot.people p2 ON p1.merged_into_person_id = p2.person_id
 WHERE p2.merged_into_person_id IS NOT NULL;
 "
 
@@ -50,8 +50,8 @@ echo ""
 echo "Checking for duplicate email assignments..."
 psql "$DATABASE_URL" -c "
 SELECT pi.id_value_norm as email, COUNT(DISTINCT pi.person_id) as person_count
-FROM trapper.person_identifiers pi
-JOIN trapper.sot_people p ON p.person_id = pi.person_id AND p.merged_into_person_id IS NULL
+FROM sot.person_identifiers pi
+JOIN sot.people p ON p.person_id = pi.person_id AND p.merged_into_person_id IS NULL
 WHERE pi.id_type = 'email'
 GROUP BY pi.id_value_norm
 HAVING COUNT(DISTINCT pi.person_id) > 1
@@ -64,9 +64,9 @@ echo ""
 echo "Checking for potential name-email mismatches (trapper emails on non-trapper records)..."
 psql "$DATABASE_URL" -c "
 SELECT p.display_name, pi.id_value_norm as email,
-  (SELECT role FROM trapper.person_roles WHERE person_id = p.person_id LIMIT 1) as role
-FROM trapper.sot_people p
-JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email'
+  (SELECT role FROM sot.person_roles WHERE person_id = p.person_id LIMIT 1) as role
+FROM sot.people p
+JOIN sot.person_identifiers pi ON pi.person_id = p.person_id AND pi.id_type = 'email'
 WHERE p.merged_into_person_id IS NULL
   AND pi.id_value_norm LIKE '%kirby%'
   OR pi.id_value_norm LIKE '%brady%'

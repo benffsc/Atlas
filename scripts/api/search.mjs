@@ -50,7 +50,7 @@ async function search(query, options = {}) {
       subtitle,
       metadata,
       last_activity
-    FROM trapper.v_search_unified_v3
+    FROM sot.v_search_unified_v3
     WHERE ${whereClause}
     ORDER BY
       CASE WHEN display ILIKE $1 THEN 0 ELSE 1 END,  -- Exact matches first
@@ -62,7 +62,7 @@ async function search(query, options = {}) {
 
   const countSql = `
     SELECT entity_type, COUNT(*) as count
-    FROM trapper.v_search_unified_v3
+    FROM sot.v_search_unified_v3
     WHERE ${whereClause}
     GROUP BY entity_type
   `;

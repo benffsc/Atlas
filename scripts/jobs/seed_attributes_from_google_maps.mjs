@@ -172,13 +172,13 @@ async function main() {
         g.linked_place_id,
         g.linked_person_id,
         g.ai_classified_at
-      FROM trapper.google_map_entries g
+      FROM ops.google_map_entries g
       WHERE g.ai_classified_at IS NOT NULL
         AND g.ai_meaning IS NOT NULL
         AND (g.linked_place_id IS NOT NULL OR g.linked_person_id IS NOT NULL)
         -- Skip already-seeded entries
         AND NOT EXISTS (
-          SELECT 1 FROM trapper.entity_attributes ea
+          SELECT 1 FROM ops.entity_attributes ea
           WHERE ea.source_system = 'google_maps'
             AND ea.source_record_id = g.entry_id::TEXT
         )

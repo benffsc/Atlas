@@ -75,7 +75,7 @@ async function runTests() {
 
 test("place_context_types table has required types", async (client) => {
   const result = await client.query(`
-    SELECT context_type FROM trapper.place_context_types
+    SELECT context_type FROM sot.place_context_types
     WHERE context_type IN ('colony_site', 'foster_home', 'adopter_residence', 'clinic')
   `);
   if (result.rows.length < 4) {
@@ -85,7 +85,7 @@ test("place_context_types table has required types", async (client) => {
 
 test("place_contexts table has data", async (client) => {
   const result = await client.query(`
-    SELECT COUNT(*) as count FROM trapper.place_contexts
+    SELECT COUNT(*) as count FROM sot.place_contexts
   `);
   if (parseInt(result.rows[0].count) === 0) {
     throw new Error("No place contexts found - backfill may not have run");
@@ -94,7 +94,7 @@ test("place_contexts table has data", async (client) => {
 
 test("v_place_active_contexts view works", async (client) => {
   const result = await client.query(`
-    SELECT * FROM trapper.v_place_active_contexts LIMIT 5
+    SELECT * FROM sot.v_place_active_contexts LIMIT 5
   `);
   // Just verify view is queryable
   if (!Array.isArray(result.rows)) {
@@ -105,7 +105,7 @@ test("v_place_active_contexts view works", async (client) => {
 test("assign_place_context function is idempotent", async (client) => {
   // Get a random place
   const place = await client.query(`
-    SELECT place_id FROM trapper.places
+    SELECT place_id FROM sot.places
     WHERE merged_into_place_id IS NULL
     LIMIT 1
   `);
@@ -116,8 +116,8 @@ test("assign_place_context function is idempotent", async (client) => {
   const placeId = place.rows[0].place_id;
 
   // Assign context twice - should not error
-  await client.query(`SELECT trapper.assign_place_context($1, 'colony_site')`, [placeId]);
-  const result = await client.query(`SELECT trapper.assign_place_context($1, 'colony_site')`, [placeId]);
+  await client.query(`SELECT sot.assign_place_context($1, 'colony_site')`, [placeId]);
+  const result = await client.query(`SELECT sot.assign_place_context($1, 'colony_site')`, [placeId]);
 
   if (!result.rows[0].assign_place_context) {
     throw new Error("assign_place_context should return context_id");
@@ -131,7 +131,7 @@ test("assign_place_context function is idempotent", async (client) => {
 test("person_cat_relationships table exists and has data", async (client) => {
   const result = await client.query(`
     SELECT relationship_type, COUNT(*) as count
-    FROM trapper.person_cat_relationships
+    FROM sot.person_cat_relationships
     GROUP BY relationship_type
   `);
   if (result.rows.length === 0) {
@@ -141,7 +141,7 @@ test("person_cat_relationships table exists and has data", async (client) => {
 
 test("v_person_cat_history view works", async (client) => {
   const result = await client.query(`
-    SELECT * FROM trapper.v_person_cat_history LIMIT 5
+    SELECT * FROM ops.v_person_cat_history LIMIT 5
   `);
   if (!Array.isArray(result.rows)) {
     throw new Error("View did not return array");
@@ -150,7 +150,7 @@ test("v_person_cat_history view works", async (client) => {
 
 test("query_person_cat_history function works", async (client) => {
   const result = await client.query(`
-    SELECT * FROM trapper.query_person_cat_history(NULL, NULL, 'adopter') LIMIT 5
+    SELECT * FROM ops.query_person_cat_history(NULL, NULL, 'adopter') LIMIT 5
   `);
   if (!Array.isArray(result.rows)) {
     throw new Error("Function did not return array");
@@ -160,7 +160,7 @@ test("query_person_cat_history function works", async (client) => {
 test("adopter relationships exist from ShelterLuv outcomes", async (client) => {
   const result = await client.query(`
     SELECT COUNT(*) as count
-    FROM trapper.person_cat_relationships
+    FROM sot.person_cat_relationships
     WHERE relationship_type = 'adopter'
       AND source_system = 'shelterluv'
   `);
@@ -176,8 +176,8 @@ test("adopter relationships exist from ShelterLuv outcomes", async (client) => {
 test("can query places by context type (colony_site)", async (client) => {
   const result = await client.query(`
     SELECT p.place_id, p.formatted_address, pc.context_type
-    FROM trapper.places p
-    JOIN trapper.place_contexts pc ON pc.place_id = p.place_id
+    FROM sot.places p
+    JOIN sot.place_contexts pc ON pc.place_id = p.place_id
     WHERE pc.context_type = 'colony_site'
       AND pc.valid_to IS NULL
       AND p.merged_into_place_id IS NULL
@@ -192,8 +192,8 @@ test("can query places by context type (colony_site)", async (client) => {
 test("can query places by context with area filter", async (client) => {
   const result = await client.query(`
     SELECT p.place_id, p.formatted_address, pc.context_type
-    FROM trapper.places p
-    JOIN trapper.place_contexts pc ON pc.place_id = p.place_id
+    FROM sot.places p
+    JOIN sot.place_contexts pc ON pc.place_id = p.place_id
     WHERE pc.context_type = 'colony_site'
       AND pc.valid_to IS NULL
       AND p.merged_into_place_id IS NULL
@@ -208,7 +208,7 @@ test("can query places by context with area filter", async (client) => {
 test("adopter_residence contexts exist", async (client) => {
   const result = await client.query(`
     SELECT COUNT(*) as count
-    FROM trapper.place_contexts
+    FROM sot.place_contexts
     WHERE context_type = 'adopter_residence'
       AND valid_to IS NULL
   `);
@@ -228,9 +228,9 @@ test("can query cat with microchip and relationships", async (client) => {
       c.display_name,
       ci.id_value AS microchip,
       ARRAY_AGG(DISTINCT pcr.relationship_type) AS relationship_types
-    FROM trapper.sot_cats c
-    LEFT JOIN trapper.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
-    LEFT JOIN trapper.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
+    FROM sot.cats c
+    LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+    LEFT JOIN sot.person_cat_relationships pcr ON pcr.cat_id = c.cat_id
     WHERE c.merged_into_cat_id IS NULL
       AND ci.id_value IS NOT NULL
     GROUP BY c.cat_id, c.display_name, ci.id_value
@@ -247,8 +247,8 @@ test("can trace cat appointments", async (client) => {
       c.cat_id,
       c.display_name,
       COUNT(DISTINCT a.appointment_id) AS appointment_count
-    FROM trapper.sot_cats c
-    JOIN trapper.sot_appointments a ON a.cat_id = c.cat_id
+    FROM sot.cats c
+    JOIN ops.appointments a ON a.cat_id = c.cat_id
     WHERE c.merged_into_cat_id IS NULL
     GROUP BY c.cat_id, c.display_name
     HAVING COUNT(DISTINCT a.appointment_id) > 0
@@ -266,8 +266,8 @@ test("can trace cat appointments", async (client) => {
 test("no orphaned cat-place relationships", async (client) => {
   const result = await client.query(`
     SELECT COUNT(*) as count
-    FROM trapper.cat_place_relationships cpr
-    JOIN trapper.places p ON p.place_id = cpr.place_id
+    FROM sot.cat_place_relationships cpr
+    JOIN sot.places p ON p.place_id = cpr.place_id
     WHERE p.merged_into_place_id IS NOT NULL
   `);
   if (parseInt(result.rows[0].count) > 0) {
@@ -278,8 +278,8 @@ test("no orphaned cat-place relationships", async (client) => {
 test("no orphaned person-cat relationships (merged person)", async (client) => {
   const result = await client.query(`
     SELECT COUNT(*) as count
-    FROM trapper.person_cat_relationships pcr
-    JOIN trapper.sot_people p ON p.person_id = pcr.person_id
+    FROM sot.person_cat_relationships pcr
+    JOIN sot.people p ON p.person_id = pcr.person_id
     WHERE p.merged_into_person_id IS NOT NULL
   `);
   if (parseInt(result.rows[0].count) > 0) {
@@ -290,7 +290,7 @@ test("no orphaned person-cat relationships (merged person)", async (client) => {
 test("no duplicate places by normalized_address", async (client) => {
   const result = await client.query(`
     SELECT normalized_address, COUNT(*) as count
-    FROM trapper.places
+    FROM sot.places
     WHERE merged_into_place_id IS NULL
       AND normalized_address IS NOT NULL
     GROUP BY normalized_address
@@ -305,8 +305,8 @@ test("no duplicate places by normalized_address", async (client) => {
 test("all place contexts reference valid places", async (client) => {
   const result = await client.query(`
     SELECT COUNT(*) as count
-    FROM trapper.place_contexts pc
-    LEFT JOIN trapper.places p ON p.place_id = pc.place_id
+    FROM sot.place_contexts pc
+    LEFT JOIN sot.places p ON p.place_id = pc.place_id
     WHERE p.place_id IS NULL
   `);
   if (parseInt(result.rows[0].count) > 0) {

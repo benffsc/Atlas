@@ -120,10 +120,10 @@ async function gatherDatabaseContext(pool, entry) {
           ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
           p.location::geography
         )::int as distance_m
-      FROM trapper.places p
+      FROM sot.places p
       LEFT JOIN (
         SELECT place_id, COUNT(DISTINCT cat_id) as cat_count
-        FROM trapper.cat_place_relationships
+        FROM sot.cat_place_relationships
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
       WHERE p.merged_into_place_id IS NULL
@@ -152,9 +152,9 @@ async function gatherDatabaseContext(pool, entry) {
           p.display_name,
           p.primary_email,
           ARRAY_AGG(DISTINCT pr.trapper_type) FILTER (WHERE pr.trapper_type IS NOT NULL) as roles
-        FROM trapper.sot_people p
-        JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
-        LEFT JOIN trapper.person_roles pr ON pr.person_id = p.person_id AND pr.ended_at IS NULL
+        FROM sot.people p
+        JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
+        LEFT JOIN sot.person_roles pr ON pr.person_id = p.person_id AND pr.ended_at IS NULL
         WHERE pi.id_type = 'phone'
           AND pi.id_value_norm = $1
         GROUP BY p.person_id, p.display_name, p.primary_email
@@ -191,8 +191,8 @@ async function gatherDatabaseContext(pool, entry) {
         p.primary_email,
         ARRAY_AGG(DISTINCT pr.trapper_type) FILTER (WHERE pr.trapper_type IS NOT NULL) as roles,
         similarity(p.display_name, $1) as name_similarity
-      FROM trapper.sot_people p
-      LEFT JOIN trapper.person_roles pr ON pr.person_id = p.person_id AND pr.ended_at IS NULL
+      FROM sot.people p
+      LEFT JOIN sot.person_roles pr ON pr.person_id = p.person_id AND pr.ended_at IS NULL
       WHERE similarity(p.display_name, $1) > 0.4
       GROUP BY p.person_id, p.display_name, p.primary_email
       ORDER BY similarity(p.display_name, $1) DESC
@@ -217,9 +217,9 @@ async function gatherDatabaseContext(pool, entry) {
         c.altered_status,
         c.primary_color,
         p.formatted_address
-      FROM trapper.sot_cats c
-      JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
-      JOIN trapper.places p ON p.place_id = cpr.place_id
+      FROM sot.cats c
+      JOIN sot.cat_place_relationships cpr ON cpr.cat_id = c.cat_id
+      JOIN sot.places p ON p.place_id = cpr.place_id
       WHERE cpr.place_id = ANY($1::uuid[])
       LIMIT 10
     `, [placeIds]);
@@ -236,8 +236,8 @@ async function gatherDatabaseContext(pool, entry) {
         r.status,
         r.estimated_cat_count,
         p.formatted_address
-      FROM trapper.sot_requests r
-      JOIN trapper.places p ON p.place_id = r.place_id
+      FROM ops.requests r
+      JOIN sot.places p ON p.place_id = r.place_id
       WHERE r.place_id = ANY($1::uuid[])
         AND r.status IN ('new', 'triaged', 'scheduled', 'in_progress')
       LIMIT 5
@@ -596,7 +596,7 @@ Database Context Provided to AI:
 
     const query = `
       SELECT entry_id, original_content, kml_name, lat, lng
-      FROM trapper.google_map_entries
+      FROM ops.google_map_entries
       ${whereClause}
       ORDER BY
         CASE
@@ -698,7 +698,7 @@ Database Context Provided to AI:
 
         // Save to database
         await pool.query(`
-          UPDATE trapper.google_map_entries SET
+          UPDATE ops.google_map_entries SET
             ai_classification = $1,
             ai_meaning = $2,
             ai_classified_at = NOW(),
@@ -763,7 +763,7 @@ Database Context Provided to AI:
     }
 
     const remaining = await pool.query(`
-      SELECT COUNT(*) as count FROM trapper.google_map_entries
+      SELECT COUNT(*) as count FROM ops.google_map_entries
       WHERE ai_classified_at IS NULL AND original_content IS NOT NULL
     `);
     console.log(`\n${cyan}Remaining:${reset}      ${remaining.rows[0].count} entries`);

@@ -141,9 +141,9 @@ async function main() {
           a.appointment_date as record_date,
           c.display_name as cat_name,
           cpr.place_id
-        FROM trapper.sot_appointments a
-        LEFT JOIN trapper.sot_cats c ON c.cat_id = a.cat_id
-        LEFT JOIN trapper.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
+        FROM ops.appointments a
+        LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+        LEFT JOIN sot.cat_place_relationships cpr ON cpr.cat_id = a.cat_id
           AND cpr.relationship_type = 'appointment_site'
         WHERE a.medical_notes IS NOT NULL
           AND a.medical_notes != ''
@@ -151,7 +151,7 @@ async function main() {
           AND a.medical_notes ~* 'recapture|recheck|eartip|litter|kitten|pregnant|lactating|unfixed|intact|trap.shy|years?.feed|nursing|already.*(fixed|tipped)'
           -- Skip already-processed for population attributes
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.entity_attributes ea
+            SELECT 1 FROM ops.entity_attributes ea
             WHERE ea.source_record_id = a.appointment_id::TEXT
               AND ea.attribute_key = 'is_recapture'
           )
@@ -168,14 +168,14 @@ async function main() {
           ws.created_at as record_date,
           NULL as cat_name,
           ws.place_id
-        FROM trapper.web_intake_submissions ws
+        FROM ops.intake_submissions ws
         WHERE (ws.notes IS NOT NULL AND ws.notes != '')
            OR (ws.situation_description IS NOT NULL AND ws.situation_description != '')
           -- Keyword pre-filter
           AND (ws.notes || ' ' || COALESCE(ws.situation_description, '')) ~* 'recapture|eartip|litter|kitten|pregnant|unfixed|intact|trap.shy|years?.feed|nursing'
           -- Skip already-processed
           AND NOT EXISTS (
-            SELECT 1 FROM trapper.entity_attributes ea
+            SELECT 1 FROM ops.entity_attributes ea
             WHERE ea.source_record_id = ws.submission_id::TEXT
               AND ea.attribute_key IN ('unfixed_count_observed', 'eartip_count_observed')
           )

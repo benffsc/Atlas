@@ -220,7 +220,7 @@ export class IngestRunner {
     const fileSha256 = computeFileSha256(filePath);
 
     const result = await this.client.query(`
-      INSERT INTO trapper.ingest_runs (
+      INSERT INTO ops.ingest_runs (
         source_system,
         source_table,
         source_file_path,
@@ -244,7 +244,7 @@ export class IngestRunner {
     const durationMs = Date.now() - this.startTime;
 
     await this.client.query(`
-      UPDATE trapper.ingest_runs
+      UPDATE ops.ingest_runs
       SET
         rows_inserted = $2,
         rows_linked = $3,
@@ -263,7 +263,7 @@ export class IngestRunner {
     const durationMs = Date.now() - this.startTime;
 
     await this.client.query(`
-      UPDATE trapper.ingest_runs
+      UPDATE ops.ingest_runs
       SET
         run_status = 'failed',
         error_message = $2,
@@ -281,7 +281,7 @@ export class IngestRunner {
     const sourceRowId = extractSourceRowId(row, this.idFieldCandidates);
 
     const result = await this.client.query(`
-      INSERT INTO trapper.staged_records (
+      INSERT INTO ops.staged_records (
         source_system,
         source_table,
         source_row_id,
@@ -316,7 +316,7 @@ export class IngestRunner {
    */
   async linkRunRecord(stagedRecordId, csvRowNumber, wasInserted) {
     await this.client.query(`
-      INSERT INTO trapper.ingest_run_records (run_id, staged_record_id, csv_row_number, was_inserted)
+      INSERT INTO ops.ingest_runs (run_id, staged_record_id, csv_row_number, was_inserted)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (run_id, staged_record_id) DO NOTHING
     `, [this.runId, stagedRecordId, csvRowNumber, wasInserted]);
@@ -327,7 +327,7 @@ export class IngestRunner {
    */
   async insertDataIssue(stagedRecordId, issue, sourceRowId) {
     await this.client.query(`
-      INSERT INTO trapper.data_issues (
+      INSERT INTO ops.data_issues (
         entity_type,
         entity_id,
         issue_type,

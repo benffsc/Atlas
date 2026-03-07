@@ -89,11 +89,11 @@ echo -e "${BOLD}Baseline counts:${RESET}"
 echo "─────────────────────────────────────────────"
 
 echo -e "${CYAN}Owner address stats:${RESET}"
-psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_owner_address_stats;"
+psql "$DATABASE_URL" -c "SELECT * FROM sot.v_owner_address_stats;"
 
-BASELINE_PPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.person_place_relationships;" | tr -d '[:space:]')
-BASELINE_CPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.cat_place_relationships;" | tr -d '[:space:]')
-BASELINE_ADDRESSES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.sot_addresses;" | tr -d '[:space:]')
+BASELINE_PPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.person_place_relationships;" | tr -d '[:space:]')
+BASELINE_CPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cat_place_relationships;" | tr -d '[:space:]')
+BASELINE_ADDRESSES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.addresses;" | tr -d '[:space:]')
 
 echo -e "${CYAN}Baseline:${RESET}"
 echo "  person_place_relationships: $BASELINE_PPR"
@@ -131,7 +131,7 @@ if [[ "$DRY_RUN" != "true" ]]; then
     echo -e "${BOLD}Step 2: Seeding places from addresses...${RESET}"
     echo "─────────────────────────────────────────────"
 
-    psql "$DATABASE_URL" -c "SELECT trapper.seed_places_from_addresses() AS places_seeded;"
+    psql "$DATABASE_URL" -c "SELECT sot.seed_places_from_addresses() AS places_seeded;"
 
     echo ""
 fi
@@ -143,7 +143,7 @@ if [[ "$DRY_RUN" != "true" ]]; then
     echo -e "${BOLD}Step 3: Deriving person-place relationships...${RESET}"
     echo "─────────────────────────────────────────────"
 
-    psql "$DATABASE_URL" -c "SELECT trapper.derive_person_place_relationships('owner_info') AS relationships_created;"
+    psql "$DATABASE_URL" -c "SELECT sot.derive_person_place_relationships('owner_info') AS relationships_created;"
 
     echo ""
 fi
@@ -155,10 +155,10 @@ if [[ "$DRY_RUN" != "true" ]]; then
     echo -e "${BOLD}Step 4: Relinking cats to places...${RESET}"
     echo "─────────────────────────────────────────────"
 
-    psql "$DATABASE_URL" -c "SELECT * FROM trapper.link_cats_to_places();"
+    psql "$DATABASE_URL" -c "SELECT * FROM sot.link_cats_to_places();"
 
     # Update place activity flags
-    psql "$DATABASE_URL" -c "SELECT trapper.update_place_cat_activity_flags() AS places_updated;"
+    psql "$DATABASE_URL" -c "SELECT sot.update_place_cat_activity_flags() AS places_updated;"
 
     echo ""
 fi
@@ -169,9 +169,9 @@ fi
 echo -e "${BOLD}Results:${RESET}"
 echo "─────────────────────────────────────────────"
 
-NEW_PPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.person_place_relationships;" | tr -d '[:space:]')
-NEW_CPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.cat_place_relationships;" | tr -d '[:space:]')
-NEW_ADDRESSES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.sot_addresses;" | tr -d '[:space:]')
+NEW_PPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.person_place_relationships;" | tr -d '[:space:]')
+NEW_CPR=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cat_place_relationships;" | tr -d '[:space:]')
+NEW_ADDRESSES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.addresses;" | tr -d '[:space:]')
 
 echo -e "${CYAN}After pipeline:${RESET}"
 echo "  sot_addresses: $BASELINE_ADDRESSES → $NEW_ADDRESSES (+$((NEW_ADDRESSES - BASELINE_ADDRESSES)))"
@@ -182,10 +182,10 @@ echo ""
 echo -e "${CYAN}Cat-place coverage:${RESET}"
 psql "$DATABASE_URL" -c "
     SELECT
-        (SELECT COUNT(*) FROM trapper.sot_cats) AS total_cats,
-        (SELECT COUNT(DISTINCT cat_id) FROM trapper.cat_place_relationships) AS cats_with_place,
-        ROUND(100.0 * (SELECT COUNT(DISTINCT cat_id) FROM trapper.cat_place_relationships) /
-            NULLIF((SELECT COUNT(*) FROM trapper.sot_cats), 0), 1) AS pct_coverage;
+        (SELECT COUNT(*) FROM sot.cats) AS total_cats,
+        (SELECT COUNT(DISTINCT cat_id) FROM sot.cat_place_relationships) AS cats_with_place,
+        ROUND(100.0 * (SELECT COUNT(DISTINCT cat_id) FROM sot.cat_place_relationships) /
+            NULLIF((SELECT COUNT(*) FROM sot.cats), 0), 1) AS pct_coverage;
 "
 
 echo ""

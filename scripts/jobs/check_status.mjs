@@ -29,17 +29,17 @@ async function main() {
   try {
     const result = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.google_map_entries) as total_entries,
-        (SELECT COUNT(*) FROM trapper.google_map_entries WHERE ai_classified_at IS NOT NULL) as classified,
-        (SELECT COUNT(*) FROM trapper.google_map_entries WHERE linked_place_id IS NOT NULL OR linked_person_id IS NOT NULL) as linked,
-        (SELECT COUNT(*) FROM trapper.entity_attributes WHERE source_system = 'google_maps') as gmap_attrs,
-        (SELECT COUNT(*) FROM trapper.entity_attributes WHERE superseded_at IS NULL) as active_attrs
+        (SELECT COUNT(*) FROM ops.google_map_entries) as total_entries,
+        (SELECT COUNT(*) FROM ops.google_map_entries WHERE ai_classified_at IS NOT NULL) as classified,
+        (SELECT COUNT(*) FROM ops.google_map_entries WHERE linked_place_id IS NOT NULL OR linked_person_id IS NOT NULL) as linked,
+        (SELECT COUNT(*) FROM ops.entity_attributes WHERE source_system = 'google_maps') as gmap_attrs,
+        (SELECT COUNT(*) FROM ops.entity_attributes WHERE superseded_at IS NULL) as active_attrs
     `);
     console.log('Google Maps Status:', result.rows[0]);
 
     const attrCounts = await pool.query(`
       SELECT entity_type, COUNT(*) as count
-      FROM trapper.entity_attributes
+      FROM ops.entity_attributes
       WHERE superseded_at IS NULL
       GROUP BY entity_type
       ORDER BY count DESC

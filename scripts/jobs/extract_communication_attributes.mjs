@@ -59,14 +59,14 @@ async function main() {
         i.matched_person_id,
         i.place_id,
         p.display_name as person_name
-      FROM trapper.communication_logs cl
-      JOIN trapper.web_intake_submissions i ON i.submission_id = cl.submission_id
-      LEFT JOIN trapper.sot_people p ON p.person_id = i.matched_person_id
+      FROM ops.communication_logs cl
+      JOIN ops.intake_submissions i ON i.submission_id = cl.submission_id
+      LEFT JOIN sot.people p ON p.person_id = i.matched_person_id
       WHERE cl.notes IS NOT NULL
       AND LENGTH(cl.notes) > 20
       AND i.matched_person_id IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM trapper.extraction_status es
+        SELECT 1 FROM ops.extraction_status es
         WHERE es.source_table = 'communication_logs'
         AND es.source_record_id = cl.log_id::text
         AND es.last_extracted_at > NOW() - INTERVAL '7 days'
@@ -111,7 +111,7 @@ async function main() {
       // Update extraction status
       if (!dryRun) {
         await pool.query(`
-          INSERT INTO trapper.extraction_status (source_table, source_record_id, last_extracted_at, attributes_extracted)
+          INSERT INTO ops.extraction_status (source_table, source_record_id, last_extracted_at, attributes_extracted)
           VALUES ('communication_logs', $1, NOW(), $2)
           ON CONFLICT (source_table, source_record_id)
           DO UPDATE SET last_extracted_at = NOW(), attributes_extracted = $2

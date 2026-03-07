@@ -97,7 +97,7 @@ async function stageRecord(client, sourceTable, sourceRowId, payload) {
 
   // Check if already staged (idempotent)
   const existing = await client.query(
-    `SELECT id FROM trapper.staged_records
+    `SELECT id FROM ops.staged_records
      WHERE source_system = $1 AND source_table = $2 AND source_row_id = $3`,
     [SOURCE_SYSTEM, sourceTable, sourceRowId]
   );
@@ -107,7 +107,7 @@ async function stageRecord(client, sourceTable, sourceRowId, payload) {
   }
 
   await client.query(
-    `INSERT INTO trapper.staged_records
+    `INSERT INTO ops.staged_records
      (source_system, source_table, source_row_id, row_hash, payload)
      VALUES ($1, $2, $3, $4, $5)`,
     [SOURCE_SYSTEM, sourceTable, sourceRowId, rowHash, payload]
@@ -283,7 +283,7 @@ async function queueProcessing(client, sourceTable) {
   console.log(`\nQueuing data engine processing for ${sourceTable}...`);
 
   const result = await client.query(
-    `INSERT INTO trapper.processing_jobs
+    `INSERT INTO ops.processing_jobs
      (source_system, source_table, trigger_type, priority)
      VALUES ($1, $2, 'manual_import', 10)
      ON CONFLICT DO NOTHING
@@ -307,7 +307,7 @@ async function runProcessing(client, batchSize = 500) {
   console.log("\n=== Running Data Engine Processing ===");
 
   const result = await client.query(
-    `SELECT * FROM trapper.data_engine_process_batch($1, NULL, $2, NULL)`,
+    `SELECT * FROM ops.data_engine_process_batch($1, NULL, $2, NULL)`,
     [SOURCE_SYSTEM, batchSize]
   );
 
@@ -346,9 +346,9 @@ async function main() {
     // Get initial counts
     const initialCounts = await client.query(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.staged_records WHERE source_system = 'shelterluv') as staged,
-        (SELECT COUNT(*) FROM trapper.sot_cats WHERE data_source = 'shelterluv') as cats,
-        (SELECT COUNT(*) FROM trapper.sot_people WHERE data_source = 'shelterluv') as people
+        (SELECT COUNT(*) FROM ops.staged_records WHERE source_system = 'shelterluv') as staged,
+        (SELECT COUNT(*) FROM sot.cats WHERE data_source = 'shelterluv') as cats,
+        (SELECT COUNT(*) FROM sot.people WHERE data_source = 'shelterluv') as people
     `);
 
     console.log(`\nInitial ShelterLuv records in database:`);
@@ -404,9 +404,9 @@ async function main() {
     // Get final counts
     const finalCounts = await client.query(`
       SELECT
-        (SELECT COUNT(*) FROM trapper.staged_records WHERE source_system = 'shelterluv') as staged,
-        (SELECT COUNT(*) FROM trapper.sot_cats WHERE data_source = 'shelterluv') as cats,
-        (SELECT COUNT(*) FROM trapper.sot_people WHERE data_source = 'shelterluv') as people
+        (SELECT COUNT(*) FROM ops.staged_records WHERE source_system = 'shelterluv') as staged,
+        (SELECT COUNT(*) FROM sot.cats WHERE data_source = 'shelterluv') as cats,
+        (SELECT COUNT(*) FROM sot.people WHERE data_source = 'shelterluv') as people
     `);
 
     // Summary
@@ -426,7 +426,7 @@ Final ShelterLuv records in database:
       console.log("  node scripts/ingest/shelterluv_import.mjs --process");
       console.log("");
       console.log("Or process interactively:");
-      console.log("  SELECT * FROM trapper.data_engine_process_batch('shelterluv', NULL, 500, NULL);");
+      console.log("  SELECT * FROM ops.data_engine_process_batch('shelterluv', NULL, 500, NULL);");
     }
 
   } finally {

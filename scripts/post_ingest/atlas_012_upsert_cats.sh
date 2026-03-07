@@ -80,16 +80,16 @@ echo "────────────────────────�
 echo -e "${CYAN}Staged ClinicHQ records:${RESET}"
 psql "$DATABASE_URL" -c "
     SELECT source_table, COUNT(*) AS records
-    FROM trapper.staged_records
+    FROM ops.staged_records
     WHERE source_system = 'clinichq'
       AND source_table IN ('cat_info', 'owner_info')
     GROUP BY 1
     ORDER BY 1;
 "
 
-CATS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.sot_cats;" | tr -d '[:space:]')
-IDENTS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.cat_identifiers;" | tr -d '[:space:]')
-RELS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.person_cat_relationships;" | tr -d '[:space:]')
+CATS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cats;" | tr -d '[:space:]')
+IDENTS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cat_identifiers;" | tr -d '[:space:]')
+RELS_BEFORE=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.person_cat_relationships;" | tr -d '[:space:]')
 
 echo -e "${CYAN}Before upsert:${RESET} $CATS_BEFORE cats, $IDENTS_BEFORE identifiers, $RELS_BEFORE relationships"
 echo ""
@@ -100,7 +100,7 @@ echo ""
 echo -e "${BOLD}Running upsert_cats_from_clinichq()...${RESET}"
 echo "─────────────────────────────────────────────"
 
-psql "$DATABASE_URL" -c "SELECT * FROM trapper.upsert_cats_from_clinichq();"
+psql "$DATABASE_URL" -c "SELECT * FROM ops.upsert_cats_from_clinichq();"
 
 echo ""
 
@@ -110,15 +110,15 @@ echo ""
 echo -e "${BOLD}Results:${RESET}"
 echo "─────────────────────────────────────────────"
 
-CATS_AFTER=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.sot_cats;" | tr -d '[:space:]')
-IDENTS_AFTER=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.cat_identifiers;" | tr -d '[:space:]')
-RELS_AFTER=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM trapper.person_cat_relationships;" | tr -d '[:space:]')
+CATS_AFTER=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cats;" | tr -d '[:space:]')
+IDENTS_AFTER=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.cat_identifiers;" | tr -d '[:space:]')
+RELS_AFTER=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM sot.person_cat_relationships;" | tr -d '[:space:]')
 
 echo -e "${GREEN}After upsert:${RESET} $CATS_AFTER cats, $IDENTS_AFTER identifiers, $RELS_AFTER relationships"
 echo ""
 
 echo -e "${CYAN}Cat stats:${RESET}"
-psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_cats_stats;"
+psql "$DATABASE_URL" -c "SELECT * FROM sot.v_cats_stats;"
 
 echo ""
 echo -e "${CYAN}Sample cats with owners:${RESET}"
@@ -129,7 +129,7 @@ psql "$DATABASE_URL" -c "
         altered_status,
         owner_names,
         primary_source
-    FROM trapper.v_cats_unified
+    FROM sot.v_cats_unified
     WHERE owner_names IS NOT NULL
     ORDER BY created_at DESC
     LIMIT 10;

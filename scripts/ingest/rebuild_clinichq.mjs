@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// DEPRECATED: References v1 trapper.* schema (dropped MIG_2299). Do not run.
 /**
  * rebuild_clinichq.mjs
  *
