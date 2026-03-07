@@ -144,12 +144,32 @@ export async function GET() {
       LIMIT 1
     `);
 
+    // 8. Staleness check: hours since last successful batch (FFS-294)
+    const staleness = await queryOne<{ hours_since_last: number | null }>(`
+      SELECT
+        EXTRACT(EPOCH FROM (NOW() - MAX(last_upload)))::int / 3600 AS hours_since_last
+      FROM ops.v_clinichq_batch_status
+      WHERE batch_status = 'completed'
+    `).catch(() => ({ hours_since_last: null }));
+
+    // 9. Failed batches in last 24h (FFS-294)
+    const recentFailures = await queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int AS count
+      FROM ops.v_clinichq_batch_status
+      WHERE batch_status = 'failed'
+        AND batch_started > NOW() - INTERVAL '24 hours'
+    `).catch(() => ({ count: 0 }));
+
     // Calculate overall health
     const missingColumns = columnChecks.filter(c => !c.exists);
     const missingIndexes = indexChecks.filter(i => !i.exists);
     const missingFunctions = functionChecks.filter(f => !f.exists);
     const viewOk = viewExists?.exists ?? false;
     const orderOk = processingOrder?.order_correct ?? false;
+
+    const hoursSinceLast = staleness?.hours_since_last ?? null;
+    // Stale if no successful batch in 72 hours (clinic days are M/W/Th typically)
+    const isStale = hoursSinceLast !== null && hoursSinceLast > 72;
 
     const schemaValid =
       missingColumns.length === 0 &&
@@ -158,7 +178,7 @@ export async function GET() {
       viewOk &&
       orderOk;
 
-    const status = schemaValid ? 'healthy' : 'unhealthy';
+    const status = !schemaValid ? 'unhealthy' : isStale ? 'stale' : 'healthy';
 
     const responseTimeMs = Date.now() - startTime;
 
@@ -171,6 +191,13 @@ export async function GET() {
         functions_ok: missingFunctions.length === 0,
         view_ok: viewOk,
         processing_order_ok: orderOk,
+        data_fresh: !isStale,
+      },
+      staleness: {
+        hours_since_last_success: hoursSinceLast,
+        is_stale: isStale,
+        stale_threshold_hours: 72,
+        recent_failures_24h: recentFailures?.count ?? 0,
       },
       missing_columns: missingColumns.map(c => `${c.table_name}.${c.column_name}`),
       missing_indexes: missingIndexes.map(i => i.index_name),
