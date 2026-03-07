@@ -1,4 +1,5 @@
 #!/bin/bash
+# DEPRECATED: One-time v1→v2 migration helper. trapper.* schema dropped in MIG_2299. Do not run.
 # Update code references from trapper.* to sot.* / ops.*
 #
 # Usage: ./update_trapper_to_v2.sh [--dry-run]

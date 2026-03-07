@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: v1 acceptance test. References trapper.* schema dropped in MIG_2299. Do not run.
 # acceptance_test_atlas_015.sh
 #
 # Acceptance tests for ATLAS_015: Address-Backed Places with Place Kinds.

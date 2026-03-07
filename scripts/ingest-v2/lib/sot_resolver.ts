@@ -544,7 +544,7 @@ export async function resolvePlaceByAddress(params: {
   const displayName = params.name || normalizedAddress;
 
   const newPlaceId = await queryOne<{ find_or_create_place_deduped: string }>(`
-    SELECT trapper.find_or_create_place_deduped(
+    SELECT sot.find_or_create_place_deduped(
       $1, -- p_formatted_address
       $2, -- p_display_name
       $3, -- p_lat

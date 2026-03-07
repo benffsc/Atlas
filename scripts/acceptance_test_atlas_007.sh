@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: v1 acceptance test. References trapper.* schema dropped in MIG_2299. Do not run.
 # acceptance_test_atlas_007.sh
 #
 # Verifies ATLAS_007 deliverables:

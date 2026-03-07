@@ -215,7 +215,7 @@ async function migrate() {
     const v1SyncState = await v1.query(`
       SELECT sync_type, last_sync_timestamp, last_sync_at, records_synced,
              total_records, error_message, created_at, updated_at, last_check_at
-      FROM trapper.shelterluv_sync_state
+      FROM ops.shelterluv_sync_state
     `);
 
     let syncStateInserted = 0;

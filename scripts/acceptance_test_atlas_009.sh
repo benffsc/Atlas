@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: v1 acceptance test. References trapper.* schema dropped in MIG_2299. Do not run.
 # acceptance_test_atlas_009.sh
 #
 # Acceptance tests for ATLAS_009: Batch ingest support for multiple sources.

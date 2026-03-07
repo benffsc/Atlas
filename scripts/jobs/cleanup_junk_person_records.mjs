@@ -237,7 +237,8 @@ async function researchOrganization(name, existingInfo = {}) {
     for (const [key, info] of Object.entries(KNOWN_ORGS)) {
       if (nameLower === key || nameLower.startsWith(info.canonical_name.toLowerCase()) ||
           nameLower === info.short_name.toLowerCase()) {
-      return { ...info, source: "known_database" };
+        return { ...info, source: "known_database" };
+      }
     }
   }
 
