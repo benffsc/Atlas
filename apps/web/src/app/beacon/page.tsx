@@ -13,6 +13,8 @@ interface BeaconSummaryResponse {
     total_verified_cats: number;
     total_altered_cats: number;
     overall_alteration_rate: number | null;
+    known_status_cats: number;
+    unknown_status_cats: number;
     colonies_managed: number;
     colonies_in_progress: number;
     colonies_needs_work: number;
@@ -113,7 +115,11 @@ export default function BeaconPage() {
               ? `${Math.round(summary.overall_alteration_rate)}%`
               : "0%"
           }
-          label="Alteration Rate"
+          label={
+            summary?.unknown_status_cats && summary.unknown_status_cats > (summary?.known_status_cats || 0)
+              ? `Alteration Rate (of ${(summary?.known_status_cats || 0).toLocaleString()} known)`
+              : "Alteration Rate"
+          }
           color={
             summary?.overall_alteration_rate && summary.overall_alteration_rate >= 70
               ? "#16a34a"

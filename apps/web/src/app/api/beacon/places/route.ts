@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         longitude as lng,
         total_cats as verified_cat_count,
         altered_cats as verified_altered_count,
-        (total_cats - altered_cats) as verified_unaltered_count,
+        (known_status_cats - altered_cats) as verified_unaltered_count,
         COALESCE(colony_estimate, total_cats) as estimated_total,
         1 as estimate_source_count,
         last_appointment_date as latest_estimate_date,
@@ -128,10 +128,13 @@ export async function GET(request: NextRequest) {
     );
 
     // Get summary stats for this query - V2 column mapping
+    // MIG_2861: Use known_status_cats as denominator for avg alteration rate
     const summary = await queryOne<{
       total_places: number;
       total_cats: number;
       total_altered: number;
+      total_known_status: number;
+      total_unknown_status: number;
       avg_alteration_rate: number;
     }>(
       `
@@ -139,9 +142,11 @@ export async function GET(request: NextRequest) {
         COUNT(*)::INT as total_places,
         COALESCE(SUM(total_cats), 0)::INT as total_cats,
         COALESCE(SUM(altered_cats), 0)::INT as total_altered,
+        COALESCE(SUM(known_status_cats), 0)::INT as total_known_status,
+        COALESCE(SUM(unknown_status_cats), 0)::INT as total_unknown_status,
         CASE
-          WHEN SUM(total_cats) > 0 THEN
-            ROUND(100.0 * SUM(altered_cats) / SUM(total_cats), 1)
+          WHEN SUM(known_status_cats) > 0 THEN
+            ROUND(100.0 * SUM(altered_cats) / SUM(known_status_cats), 1)
           ELSE 0
         END as avg_alteration_rate
       FROM ops.v_beacon_place_metrics
@@ -157,6 +162,8 @@ export async function GET(request: NextRequest) {
         total_cats: summary?.total_cats || 0,
         total_altered: summary?.total_altered || 0,
         avg_alteration_rate: summary?.avg_alteration_rate || 0,
+        known_status_cats: summary?.total_known_status || 0,
+        unknown_status_cats: summary?.total_unknown_status || 0,
         places_returned: places.length,
         limit_applied: places.length === limit,
       },

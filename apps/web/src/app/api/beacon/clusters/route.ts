@@ -126,8 +126,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Get cluster summary
+    // MIG_2861: The avg_alteration_rate from the view already uses known-status denominator.
+    // For the inline aggregate, use the view rates rather than recalculating with wrong denominator.
     const totalCats = clusters.reduce((sum, c) => sum + c.total_verified_cats, 0);
     const totalAltered = clusters.reduce((sum, c) => sum + c.total_altered_cats, 0);
+    const clustersWithRates = clusters.filter((c) => c.avg_alteration_rate !== null);
+    const weightedRate =
+      clustersWithRates.length > 0
+        ? clustersWithRates.reduce((sum, c) => sum + (c.avg_alteration_rate || 0) * c.total_verified_cats, 0) /
+          clustersWithRates.reduce((sum, c) => sum + c.total_verified_cats, 0)
+        : null;
 
     return apiSuccess({
       clusters,
@@ -137,9 +145,7 @@ export async function GET(request: NextRequest) {
         total_cats_in_clusters: totalCats,
         total_altered_in_clusters: totalAltered,
         overall_alteration_rate:
-          totalCats > 0
-            ? Math.round((1000 * totalAltered) / totalCats) / 10
-            : null,
+          weightedRate !== null ? Math.round(weightedRate * 10) / 10 : null,
         status_breakdown: {
           managed: clusters.filter((c) => c.cluster_status === "managed").length,
           in_progress: clusters.filter((c) => c.cluster_status === "in_progress")

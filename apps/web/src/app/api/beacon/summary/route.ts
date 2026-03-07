@@ -22,6 +22,8 @@ interface BeaconDashboardSummary {
   total_verified_cats: number;
   total_altered_cats: number;
   overall_alteration_rate: number | null;
+  known_status_cats: number;
+  unknown_status_cats: number;
 
   // Colony status breakdown
   colonies_managed: number;
@@ -71,6 +73,8 @@ export async function GET() {
         total_places: number;
         cats_with_places: number;
         altered_cats: number;
+        known_status_cats: number;
+        unknown_status_cats: number;
         alteration_rate_pct: number;
         total_zones: number;
         active_zones: number;
@@ -82,6 +86,8 @@ export async function GET() {
         total_places,
         cats_with_places,
         altered_cats,
+        known_status_cats,
+        unknown_status_cats,
         alteration_rate_pct,
         total_zones,
         active_zones,
@@ -125,9 +131,12 @@ export async function GET() {
       places_with_cats: placeSummary?.cats_with_places || 0,
 
       // Alteration metrics (V2: uses altered_cats and alteration_rate_pct)
-      total_verified_cats: placeSummary?.total_cats || 0, // V2: total_cats is verified
+      // MIG_2861: alteration_rate_pct now uses known_status_cats as denominator
+      total_verified_cats: placeSummary?.total_cats || 0,
       total_altered_cats: placeSummary?.altered_cats || 0,
       overall_alteration_rate: placeSummary?.alteration_rate_pct || null,
+      known_status_cats: placeSummary?.known_status_cats || 0,
+      unknown_status_cats: placeSummary?.unknown_status_cats || 0,
 
       // Colony status breakdown (V2: uses zones terminology)
       colonies_managed: clusterSummary?.zones_managed || 0,
