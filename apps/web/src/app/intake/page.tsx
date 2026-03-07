@@ -420,9 +420,10 @@ function IntakeForm() {
         selected_address_place_id: (selectedAddressId && selectedAddressId !== "new") ? selectedAddressId : undefined,
         cats_at_requester_address: catsAtMyAddress,
 
-        // Third-party
+        // Third-party & relationship
         is_third_party_report: formData.is_third_party_report,
         third_party_relationship: formData.third_party_relationship || undefined,
+        requester_relationship: formData.requester_relationship || "resident",
         property_owner_name: formData.property_owner_name || undefined,
         property_owner_phone: formData.property_owner_phone || undefined,
         property_owner_email: formData.property_owner_email || undefined,

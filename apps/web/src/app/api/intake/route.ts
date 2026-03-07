@@ -30,6 +30,9 @@ interface IntakeSubmission {
   property_owner_phone?: string;
   property_owner_email?: string;
 
+  // FFS-298: Requester relationship to location (non-third-party)
+  requester_relationship?: string;
+
   // Cat Location
   cats_address: string;
   cats_city?: string;
@@ -222,14 +225,15 @@ export async function POST(request: NextRequest) {
         dogs_on_site, trap_savvy, previous_tnr, best_trapping_time, important_notes,
         priority_override, kitten_outcome, foster_readiness, kitten_urgency_factors,
         reviewed_by, custom_fields, is_test, status, reviewed_at, submission_status,
-        call_type, cat_name, cat_description, feeding_situation
+        call_type, cat_name, cat_description, feeding_situation,
+        requester_relationship
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
         $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35,
         $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51,
         $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67,
         $68, $69, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $80, $81,
-        $82, $83, $84, $85
+        $82, $83, $84, $85, $86
       )
       RETURNING submission_id, triage_category::TEXT, triage_score`,
       [
@@ -320,6 +324,7 @@ export async function POST(request: NextRequest) {
         body.cat_name || null, // $83 - MIG_2531: structured cat name
         body.cat_description || null, // $84 - MIG_2531: structured cat description
         body.feeding_situation || null, // $85 - MIG_2531: structured feeding situation
+        body.requester_relationship || "resident", // $86 - FFS-298: requester relationship to location
       ]
     );
 

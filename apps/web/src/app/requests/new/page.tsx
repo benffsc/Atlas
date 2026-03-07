@@ -203,6 +203,9 @@ function NewRequestForm() {
   const [isThirdPartyReport, setIsThirdPartyReport] = useState(false);
   const [thirdPartyRelationship, setThirdPartyRelationship] = useState("");
 
+  // FFS-298: Requester relationship to location (non-third-party)
+  const [requesterRole, setRequesterRole] = useState("resident");
+
   // MIG_2532: Service area
   const [county, setCounty] = useState("Sonoma");
 
@@ -588,6 +591,8 @@ function NewRequestForm() {
         // MIG_2532: Third-party tracking
         is_third_party_report: isThirdPartyReport,
         third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
+        // FFS-298: Requester role at submission
+        requester_role_at_submission: isThirdPartyReport ? (thirdPartyRelationship || 'referrer') : requesterRole,
         // MIG_2532: Service area
         county: county || "Sonoma",
         // Kittens
@@ -1378,6 +1383,28 @@ function NewRequestForm() {
               style={{ width: "100%" }}
             />
           </div>
+
+          {/* Requester relationship to location */}
+          {!isThirdPartyReport && (
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Requestor&apos;s relationship to location
+              </label>
+              <select
+                value={requesterRole}
+                onChange={(e) => setRequesterRole(e.target.value)}
+                style={{ width: "100%", maxWidth: "300px" }}
+              >
+                <option value="resident">Resident</option>
+                <option value="property_owner">Property owner</option>
+                <option value="colony_caretaker">Colony caretaker</option>
+                <option value="neighbor">Neighbor</option>
+                <option value="concerned_citizen">Concerned citizen</option>
+                <option value="volunteer">Volunteer</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          )}
 
           {/* Third-party report tracking */}
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem" }}>

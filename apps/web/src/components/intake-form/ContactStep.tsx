@@ -80,6 +80,27 @@ export default function ContactStep({
         )}
       </div>
 
+      {/* Relationship to location (non-third-party only) */}
+      {!formData.is_third_party_report && (
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+            Your relationship to the location
+          </label>
+          <select
+            value={formData.requester_relationship}
+            onChange={(e) => updateField("requester_relationship", e.target.value)}
+            style={{ width: "100%", maxWidth: "300px" }}
+          >
+            <option value="resident">I live here</option>
+            <option value="property_owner">I own this property</option>
+            <option value="colony_caretaker">Colony caretaker</option>
+            <option value="neighbor">Neighbor</option>
+            <option value="concerned_citizen">Concerned citizen</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      )}
+
       {/* Contact fields with person search */}
       <div style={{ position: "relative" }} ref={personDropdownRef}>
         {/* Existing person match indicator */}

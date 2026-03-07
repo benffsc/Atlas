@@ -76,6 +76,30 @@ ORDER BY p.display_name;
 
 echo ""
 echo "=============================================="
+echo "Entity Linking Health Check"
+echo "=============================================="
+
+echo ""
+echo "Running ops.check_entity_linking_health()..."
+psql "$DATABASE_URL" -c "SELECT * FROM ops.check_entity_linking_health();"
+
+echo ""
+echo "Recent entity linking runs (last 7 days)..."
+psql "$DATABASE_URL" -c "
+SELECT run_id, status, created_at,
+  result->>'step1_coverage_pct' as place_coverage,
+  result->>'step2_cats_linked' as cats_linked,
+  result->>'step5_appointments_linked_to_owners' as appts_to_owners,
+  result->>'step6_appointments_linked_to_requests_tier1' as appts_to_requests,
+  result->>'duration_ms' as duration_ms
+FROM ops.entity_linking_runs
+WHERE created_at > NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC
+LIMIT 5;
+"
+
+echo ""
+echo "=============================================="
 echo "Audit Complete"
 echo "=============================================="
 echo ""

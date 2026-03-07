@@ -84,6 +84,9 @@ export interface FormData {
   property_owner_phone: string;
   property_owner_email: string;
 
+  // Requester relationship to location (non-third-party)
+  requester_relationship: string;
+
   // Location
   cats_address: string;
   cats_city: string;
@@ -141,6 +144,7 @@ export const initialFormData: FormData = {
   property_owner_name: "",
   property_owner_phone: "",
   property_owner_email: "",
+  requester_relationship: "resident",
   cats_address: "",
   cats_city: "",
   cats_zip: "",
