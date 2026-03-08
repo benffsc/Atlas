@@ -184,7 +184,7 @@ export default function IntakeQuestionsAdmin() {
                 type="text"
                 value={newQuestion.question_key}
                 onChange={(e) => setNewQuestion({ ...newQuestion, question_key: e.target.value.toLowerCase().replace(/\s+/g, "_") })}
-                placeholder="custom_feeding_schedule"
+                placeholder="custom_feeding_frequency"
               />
             </div>
             <div>

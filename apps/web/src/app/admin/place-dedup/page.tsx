@@ -94,6 +94,8 @@ export default function PlaceDedupPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchAction, setBatchAction] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [autoMerging, setAutoMerging] = useState(false);
+  const [autoMergeStatus, setAutoMergeStatus] = useState("");
 
   const limit = 30;
 
@@ -215,6 +217,99 @@ export default function PlaceDedupPage() {
     }
   };
 
+  const handleAutoMerge = async () => {
+    setAutoMerging(true);
+    setAutoMergeStatus("Fetching all Tier 1 candidates...");
+    try {
+      // Fetch all Tier 1 candidates (paginate through all)
+      let allCandidates: PlaceDedupCandidate[] = [];
+      let fetchOffset = 0;
+      const fetchLimit = 250;
+      let hasMore = true;
+
+      while (hasMore) {
+        const result = await fetchApi<PlaceDedupResponse>(
+          `/api/admin/place-dedup?tier=1&limit=${fetchLimit}&offset=${fetchOffset}`
+        );
+        allCandidates = allCandidates.concat(result.candidates);
+        hasMore = result.pagination.hasMore;
+        fetchOffset += fetchLimit;
+      }
+
+      // Filter to high-confidence: similarity >= 0.9 AND distance < 10m
+      const highConfidence = allCandidates.filter(
+        (c) => c.address_similarity >= 0.9 && c.distance_meters != null && c.distance_meters < 10
+      );
+
+      if (highConfidence.length === 0) {
+        alert("No high-confidence pairs found (need >= 90% address match AND < 10m distance).");
+        return;
+      }
+
+      if (!confirm(
+        `Auto-merge ${highConfidence.length} high-confidence pairs?\n\n` +
+        `Criteria: >= 90% address similarity AND < 10m apart.\n` +
+        `Each merge goes through sot.place_safe_to_merge() gate.\n\n` +
+        `Total Tier 1 candidates: ${allCandidates.length}\n` +
+        `Qualifying for auto-merge: ${highConfidence.length}`
+      )) {
+        return;
+      }
+
+      // Process in batches of 50
+      const batchSize = 50;
+      let totalSuccess = 0;
+      let totalErrors = 0;
+      const errorMessages: string[] = [];
+
+      for (let i = 0; i < highConfidence.length; i += batchSize) {
+        const batch = highConfidence.slice(i, i + batchSize);
+        const pairs = batch.map((c) => ({
+          candidate_id: c.candidate_id,
+          canonical_place_id: c.canonical_place_id,
+          duplicate_place_id: c.duplicate_place_id,
+        }));
+
+        setAutoMergeStatus(
+          `Merging batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(highConfidence.length / batchSize)} ` +
+          `(${i + 1}-${Math.min(i + batchSize, highConfidence.length)} of ${highConfidence.length})...`
+        );
+
+        try {
+          const result = await postApi<{ success: number; errors: number; results: Array<{ success: boolean; error?: string }> }>(
+            "/api/admin/place-dedup",
+            { action: "merge", pairs, reason: "auto_merge_high_confidence" }
+          );
+          totalSuccess += result.success;
+          totalErrors += result.errors;
+          if (result.errors > 0) {
+            result.results
+              .filter((r) => !r.success)
+              .forEach((r) => errorMessages.push(r.error || "Unknown"));
+          }
+        } catch (error) {
+          totalErrors += batch.length;
+          errorMessages.push(error instanceof Error ? error.message : "Batch failed");
+        }
+      }
+
+      alert(
+        `Auto-merge complete!\n\n` +
+        `Merged: ${totalSuccess}\n` +
+        `Errors: ${totalErrors}` +
+        (errorMessages.length > 0 ? `\n\nFirst errors: ${errorMessages.slice(0, 5).join("; ")}` : "")
+      );
+
+      fetchCandidates();
+    } catch (error) {
+      console.error("Auto-merge failed:", error);
+      alert(`Auto-merge failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setAutoMerging(false);
+      setAutoMergeStatus("");
+    }
+  };
+
   const totalPairs =
     data?.summary.reduce((sum, s) => sum + s.pair_count, 0) || 0;
 
@@ -222,22 +317,42 @@ export default function PlaceDedupPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
         <h1 style={{ margin: 0 }}>Place Dedup Review</h1>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          style={{
-            padding: "0.5rem 1rem",
-            background: "#0d6efd",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: refreshing ? "default" : "pointer",
-            opacity: refreshing ? 0.6 : 1,
-            fontSize: "0.85rem",
-          }}
-        >
-          {refreshing ? "Refreshing..." : "Refresh Candidates"}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {tier === 1 && (
+            <button
+              onClick={handleAutoMerge}
+              disabled={autoMerging}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#fd7e14",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: autoMerging ? "default" : "pointer",
+                opacity: autoMerging ? 0.6 : 1,
+                fontSize: "0.85rem",
+              }}
+            >
+              {autoMerging ? autoMergeStatus || "Auto-merging..." : "Auto-merge High Confidence"}
+            </button>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#0d6efd",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              cursor: refreshing ? "default" : "pointer",
+              opacity: refreshing ? 0.6 : 1,
+              fontSize: "0.85rem",
+            }}
+          >
+            {refreshing ? "Refreshing..." : "Refresh Candidates"}
+          </button>
+        </div>
       </div>
       <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
         Geographic proximity + address similarity duplicate detection.

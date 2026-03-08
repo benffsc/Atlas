@@ -82,6 +82,7 @@ interface PlaceDetail {
   postal_code: string | null;
   state_province: string | null;
   coordinates: { lat: number; lng: number } | null;
+  source_created_at: string | null;
   created_at: string;
   updated_at: string;
   cats: Cat[] | null;
@@ -617,6 +618,7 @@ export default function PlaceDetailPage() {
           <h4 className="text-sm font-semibold text-gray-900">Record Info</h4>
         </div>
         <div className="p-4">
+          <StatRow label="First Seen" value={formatDateLocal(place.source_created_at || place.created_at)} />
           <StatRow label="Created" value={formatDateLocal(place.created_at)} />
           <StatRow label="Updated" value={formatDateLocal(place.updated_at)} />
           <div className="text-xs text-gray-500 mt-2 font-mono break-all">

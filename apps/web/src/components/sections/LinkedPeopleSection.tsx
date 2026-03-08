@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties } from "react";
+import { CSSProperties, useState } from "react";
 
 // Flexible person type that accommodates different data shapes from various pages
 interface LinkedPerson {
@@ -35,6 +35,8 @@ interface LinkedPeopleSectionProps {
   onEntityClick?: (entityType: string, entityId: string) => void;
   /** Compact display mode: no outer card wrapper, tighter padding, subtle styling */
   compact?: boolean;
+  /** Max items to show before "Show all" toggle (default: 10) */
+  maxVisible?: number;
 }
 
 // Source badge for data provenance
@@ -139,8 +141,13 @@ export function LinkedPeopleSection({
   title = "Linked People",
   onEntityClick,
   compact = false,
+  maxVisible = 10,
 }: LinkedPeopleSectionProps) {
+  const [expanded, setExpanded] = useState(false);
   const hasPeople = people && people.length > 0;
+  const totalCount = people?.length || 0;
+  const shouldCollapse = hasPeople && totalCount > maxVisible && !expanded;
+  const visiblePeople = shouldCollapse ? people!.slice(0, maxVisible) : people;
 
   const cardStyle: CSSProperties = compact ? {
     padding: "0.5rem 0.75rem",
@@ -185,7 +192,7 @@ export function LinkedPeopleSection({
 
       {hasPeople ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {people.map((person) => (
+          {visiblePeople!.map((person) => (
             <a
               key={person.person_id}
               href={`/people/${person.person_id}`}
@@ -261,6 +268,23 @@ export function LinkedPeopleSection({
               </div>
             </a>
           ))}
+          {totalCount > maxVisible && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                padding: "0.5rem",
+                background: "transparent",
+                border: "1px dashed var(--border, #dee2e6)",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                color: "var(--muted, #6c757d)",
+                textAlign: "center",
+              }}
+            >
+              {expanded ? "Show less" : `Show all ${totalCount} people`}
+            </button>
+          )}
         </div>
       ) : (
         <p className="text-muted">{emptyMessage}</p>

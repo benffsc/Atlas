@@ -16,6 +16,7 @@ interface PlaceDetailRow {
   postal_code: string | null;
   state_province: string | null;
   coordinates: { lat: number; lng: number } | null;
+  source_created_at: string | null;
   created_at: string;
   updated_at: string;
   cats: object[] | null;
@@ -88,6 +89,7 @@ export async function GET(
         sa.postal_code,
         sa.state AS state_province,
         v.coordinates,
+        p.source_created_at::text AS source_created_at,
         v.created_at,
         v.updated_at,
         v.cats,
@@ -122,6 +124,7 @@ export async function GET(
           CASE WHEN p.location IS NOT NULL THEN
             json_build_object('lat', ST_Y(p.location::geometry), 'lng', ST_X(p.location::geometry))
           ELSE NULL END AS coordinates,
+          p.source_created_at::text AS source_created_at,
           p.created_at::text AS created_at,
           p.updated_at::text AS updated_at,
           COALESCE((

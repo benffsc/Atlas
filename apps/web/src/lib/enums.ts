@@ -153,15 +153,29 @@ export const TRAPPER_TYPE = [
 ] as const;
 
 export const PERSON_PLACE_ROLE = [
-  "owner",
+  // Residence types
   "resident",
-  "landlord",
-  "property_manager",
-  "caretaker",
+  "property_owner",
+  // Colony caretaker hierarchy
   "colony_caretaker",
+  "colony_supervisor",
   "feeder",
+  // Transport/logistics
+  "transporter",
+  // Referral/contact
+  "referrer",
   "neighbor",
-  "other",
+  // Work/volunteer
+  "works_at",
+  "volunteers_at",
+  // Automated/unverified
+  "contact_address",
+  // Legacy
+  "owner",
+  "manager",
+  "caretaker",
+  "requester",
+  "trapper_at",
 ] as const;
 
 // =============================================================================

@@ -1,33 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
-
-// Valid relationship types for TNR taxonomy (from MIG_2514)
-const VALID_RELATIONSHIP_TYPES = [
-  // Residence types
-  "resident",
-  "property_owner",
-  // Colony caretaker hierarchy
-  "colony_caretaker",
-  "colony_supervisor",
-  "feeder",
-  // Transport/logistics
-  "transporter",
-  // Referral/contact
-  "referrer",
-  "neighbor",
-  // Work/volunteer
-  "works_at",
-  "volunteers_at",
-  // Automated/unverified
-  "contact_address",
-  // Legacy
-  "owner",
-  "manager",
-  "caretaker",
-  "requester",
-  "trapper_at",
-] as const;
+import { PERSON_PLACE_ROLE } from "@/lib/enums";
 
 interface RoleUpdateRequest {
   relationship_type: string;
@@ -60,8 +34,8 @@ export async function PATCH(
     }
 
     // Validate relationship_type
-    if (!VALID_RELATIONSHIP_TYPES.includes(relationship_type as typeof VALID_RELATIONSHIP_TYPES[number])) {
-      return apiBadRequest(`Invalid relationship_type. Must be one of: ${VALID_RELATIONSHIP_TYPES.join(", ")}`);
+    if (!PERSON_PLACE_ROLE.includes(relationship_type as typeof PERSON_PLACE_ROLE[number])) {
+      return apiBadRequest(`Invalid relationship_type. Must be one of: ${PERSON_PLACE_ROLE.join(", ")}`);
     }
 
     // Check if person_place exists and get current type
@@ -191,7 +165,7 @@ export async function GET(
 
     return apiSuccess({
       relationship,
-      valid_roles: VALID_RELATIONSHIP_TYPES,
+      valid_roles: PERSON_PLACE_ROLE,
     });
   } catch (error) {
     console.error("Error fetching person-place relationship:", error);

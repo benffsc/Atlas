@@ -190,7 +190,7 @@ test.describe('Request Submission Variations @real-api', () => {
       // Feeding
       is_being_fed: true,
       feeder_name: 'Test Feeder',
-      feeding_schedule: 'daily',
+      feeding_frequency: 'daily',
       feeding_location: 'backyard',
       feeding_time: 'evening',
       best_times_seen: 'dusk',
@@ -282,7 +282,7 @@ test.describe('Request Submission Variations @real-api', () => {
       internal_notes: 'E2E_TEST_MARKER - feeding',
       is_being_fed: true,
       feeder_name: 'Jane Doe',
-      feeding_schedule: 'twice_daily',
+      feeding_frequency: 'twice_daily',
       feeding_location: 'front porch',
       feeding_time: 'morning and evening',
       best_times_seen: 'early morning',
@@ -292,8 +292,7 @@ test.describe('Request Submission Variations @real-api', () => {
     const data = await fetchRequest(request, id);
     expect(data.is_being_fed).toBe(true);
     expect(data.feeder_name).toBe('Jane Doe');
-    // feeding_schedule maps to feeding_frequency in DB, returned as feeding_schedule
-    expect(data.feeding_schedule).toBe('twice_daily');
+    expect(data.feeding_frequency).toBe('twice_daily');
     expect(data.best_times_seen).toBe('early morning');
   });
 

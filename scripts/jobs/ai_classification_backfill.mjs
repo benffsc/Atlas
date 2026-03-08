@@ -237,7 +237,7 @@ async function getPlaceContext(placeId) {
       r.estimated_cat_count,
       r.has_kittens,
       r.is_being_fed,
-      r.feeding_schedule,
+      r.feeding_frequency,
       r.colony_duration,
       r.count_confidence,
       r.created_at,
@@ -293,7 +293,7 @@ ${context.appointments.medical_notes?.length > 0 ? `- Notes: ${context.appointme
 
 ### Request History
 ${context.requests.length > 0
-  ? context.requests.map(r => `- ${r.status}: ${r.estimated_cat_count || "?"} cats${r.colony_duration ? `, ${r.colony_duration} duration` : ""}${r.count_confidence ? `, ${r.count_confidence} count` : ""}${r.has_kittens ? ", has kittens" : ""}${r.is_being_fed ? ", being fed" : ""}${r.feeding_schedule ? ` (${r.feeding_schedule})` : ""} (${new Date(r.created_at).toLocaleDateString()})${r.summary ? ` - "${r.summary.substring(0, 100)}"` : ""}`).join("\n")
+  ? context.requests.map(r => `- ${r.status}: ${r.estimated_cat_count || "?"} cats${r.colony_duration ? `, ${r.colony_duration} duration` : ""}${r.count_confidence ? `, ${r.count_confidence} count` : ""}${r.has_kittens ? ", has kittens" : ""}${r.is_being_fed ? ", being fed" : ""}${r.feeding_frequency ? ` (${r.feeding_frequency})` : ""} (${new Date(r.created_at).toLocaleDateString()})${r.summary ? ` - "${r.summary.substring(0, 100)}"` : ""}`).join("\n")
   : "No requests found for this location."}
 
 ## Your Task

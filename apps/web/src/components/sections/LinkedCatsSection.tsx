@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties } from "react";
+import { CSSProperties, useState } from "react";
 
 // Flexible cat type that accommodates different data shapes from various pages
 interface LinkedCat {
@@ -33,6 +33,8 @@ interface LinkedCatsSectionProps {
   onEntityClick?: (entityType: string, entityId: string) => void;
   /** Compact display mode: no outer card wrapper, tighter padding, subtle styling */
   compact?: boolean;
+  /** Max items to show before "Show all" toggle (default: 10) */
+  maxVisible?: number;
 }
 
 // Source badge for data provenance
@@ -115,8 +117,13 @@ export function LinkedCatsSection({
   title = "Linked Cats",
   onEntityClick,
   compact = false,
+  maxVisible = 10,
 }: LinkedCatsSectionProps) {
+  const [expanded, setExpanded] = useState(false);
   const hasCats = cats && cats.length > 0;
+  const totalCount = cats?.length || 0;
+  const shouldCollapse = hasCats && totalCount > maxVisible && !expanded;
+  const visibleCats = shouldCollapse ? cats!.slice(0, maxVisible) : cats;
 
   const cardStyle: CSSProperties = compact ? {
     padding: "0.5rem 0.75rem",
@@ -161,7 +168,7 @@ export function LinkedCatsSection({
 
       {hasCats ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {cats.map((cat) => (
+          {visibleCats!.map((cat) => (
             <a
               key={cat.cat_id}
               href={`/cats/${cat.cat_id}`}
@@ -251,6 +258,23 @@ export function LinkedCatsSection({
               </div>
             </a>
           ))}
+          {totalCount > maxVisible && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                padding: "0.5rem",
+                background: "transparent",
+                border: "1px dashed var(--border, #dee2e6)",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                color: "var(--muted, #6c757d)",
+                textAlign: "center",
+              }}
+            >
+              {expanded ? "Show less" : `Show all ${totalCount} cats`}
+            </button>
+          )}
         </div>
       ) : (
         <p className="text-muted">{emptyMessage}</p>

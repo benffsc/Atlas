@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties } from "react";
+import { CSSProperties, useState } from "react";
 
 // Flexible place type that accommodates different data shapes from various pages
 interface LinkedPlace {
@@ -37,6 +37,8 @@ interface LinkedPlacesSectionProps {
   onEntityClick?: (entityType: string, entityId: string) => void;
   /** Compact display mode: no outer card wrapper, tighter padding, subtle styling */
   compact?: boolean;
+  /** Max items to show before "Show all" toggle (default: 10) */
+  maxVisible?: number;
 }
 
 // Place kind badge
@@ -107,8 +109,13 @@ export function LinkedPlacesSection({
   title = "Linked Places",
   onEntityClick,
   compact = false,
+  maxVisible = 10,
 }: LinkedPlacesSectionProps) {
+  const [expanded, setExpanded] = useState(false);
   const hasPlaces = places && places.length > 0;
+  const totalCount = places?.length || 0;
+  const shouldCollapse = hasPlaces && totalCount > maxVisible && !expanded;
+  const visiblePlaces = shouldCollapse ? places!.slice(0, maxVisible) : places;
 
   const cardStyle: CSSProperties = compact ? {
     padding: "0.5rem 0.75rem",
@@ -153,7 +160,7 @@ export function LinkedPlacesSection({
 
       {hasPlaces ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {places.map((place) => (
+          {visiblePlaces!.map((place) => (
             <a
               key={place.place_id}
               href={`/places/${place.place_id}`}
@@ -245,6 +252,23 @@ export function LinkedPlacesSection({
               </div>
             </a>
           ))}
+          {totalCount > maxVisible && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                padding: "0.5rem",
+                background: "transparent",
+                border: "1px dashed var(--border, #dee2e6)",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                color: "var(--muted, #6c757d)",
+                textAlign: "center",
+              }}
+            >
+              {expanded ? "Show less" : `Show all ${totalCount} places`}
+            </button>
+          )}
         </div>
       ) : (
         <p className="text-muted">{emptyMessage}</p>
