@@ -2842,3 +2842,90 @@ Tippy's system prompt and showcase questions now emphasize:
 - When reporting low rates, check if it's real or just data gaps
 
 ---
+
+## DATA_GAP_060: V1→V2 Migration — Triage Scoring Never Migrated
+
+**Status:** FIXED (MIG_2876, FFS-341)
+
+**Problem:** `compute_intake_triage()` function and its BEFORE INSERT trigger on `web_intake_submissions` were dropped in MIG_2299 (V1 schema elimination) without V2 equivalents. All 1,257 intake submissions had NULL triage_score, triage_category, and triage_reasons since Feb 14.
+
+**Root Cause:** V1 had `trapper.compute_intake_triage(submission_id)` + `trapper.trigger_auto_triage()`. Neither recreated in `ops` schema when tables moved.
+
+**Impact:** Staff manually reviewed ALL submissions without priority guidance for 3 weeks.
+
+**Fix:** MIG_2876 created:
+- `ops.compute_intake_triage()` — Full scoring function (cat count, fixed status, kittens with age/behavior/containment, emergency, medical, feeding behavior, property access, third-party, county)
+- `ops.trigger_auto_triage()` — BEFORE INSERT OR UPDATE trigger
+- Backfilled all 1,257 submissions
+
+**Results:**
+| Category | Count |
+|----------|-------|
+| needs_review | 346 |
+| standard_tnr | 331 |
+| high_priority_tnr | 294 |
+| out_of_county | 239 |
+| owned_cat_low | 42 |
+| wellness_only | 5 |
+
+---
+
+## DATA_GAP_061: V1→V2 Migration — Household Membership Empty
+
+**Status:** FIXED (MIG_2877, FFS-342)
+
+**Problem:** `data_engine_build_households()` and `data_engine_detect_shared_identifiers()` functions were dropped in MIG_2299 without V2 equivalents. `sot.households` had 237 rows but `sot.household_members` had 0 rows.
+
+**Root Cause:** V1 household building functions existed only in `trapper` schema.
+
+**Fix:** MIG_2877 created:
+- `sot.detect_shared_identifiers()` — Finds phone/email shared by 2+ people
+- `sot.build_household_members()` — Populates members for identifier-based households
+- `sot.build_households_from_places()` — Detects households from places with 2+ residents
+
+**Results:**
+| Source | Households | Members |
+|--------|-----------|---------|
+| shared_address (new) | 649 | 1,443 |
+| shared_email (existing) | 130 | 128 |
+| shared_phone (existing) | 107 | 104 |
+| **Total** | **886** | **1,675** |
+
+---
+
+## DATA_GAP_062: V1→V2 Migration — merge_place_into() Used Stale Table Names
+
+**Status:** FIXED (MIG_2874, FFS-335)
+
+**Problem:** `merge_place_into()` referenced V1 table names (`ops.web_intake_submissions`, `ops.clinic_owner_accounts`) that were renamed in V2. Every place merge silently skipped relinking intake submissions and clinic accounts.
+
+**Root Cause:** Function was migrated to V2 but internal UPDATE statements still used old table names. PostgreSQL silently skipped these inside BEGIN/EXCEPTION blocks.
+
+**Impact:** 131 stale references found:
+- 13 `intake_submissions.place_id` → merged places
+- 13 `intake_submissions.matched_place_id` → merged places
+- 105 `clinic_accounts.resolved_place_id` → merged places
+
+**Fix:** MIG_2874 recreated `sot.merge_place_into()` with correct table names. Stale refs fixed manually via UPDATE following merge chains.
+
+---
+
+## DATA_GAP_063: V1→V2 Migration — Stale Blacklist Function Overload
+
+**Status:** FIXED (MIG_2873, part of credential cleanup commit)
+
+**Problem:** `sot.is_identifier_blacklisted(text, text, boolean)` 3-arg overload still referenced `trapper.data_engine_soft_blacklist` (dropped table). The 2-arg version was V2-native and correct.
+
+**Fix:** Dropped the stale 3-arg overload. The 2-arg version handles all use cases.
+
+---
+
+## DATA_GAP_064: V1→V2 Migration — Hardcoded Database Credentials in Scripts
+
+**Status:** FIXED (commit c15018d, FFS-333 open for password rotation)
+
+**Problem:** 13 files had hardcoded V1 and V2 Supabase database passwords. Passwords should not be in source code.
+
+**Fix:** Replaced with `process.env.V1_DATABASE_URL` / `process.env.V2_DATABASE_URL`. FFS-333 (Urgent) tracks password rotation in Supabase dashboard (manual action).
+
+---
