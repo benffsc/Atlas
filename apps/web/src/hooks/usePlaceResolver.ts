@@ -11,6 +11,7 @@ export interface AtlasPlace {
   display_name: string;
   subtitle: string;
   match_strength: string;
+  metadata?: { place_kind?: string; cat_count?: number; person_count?: number };
 }
 
 export interface GooglePrediction {

@@ -5,6 +5,7 @@ import type { IntakeSubmission } from "@/lib/intake-types";
 import { SubmissionStatusBadge, formatAge, formatDate, normalizeName } from "@/components/intake/IntakeBadges";
 import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
 import { COLORS, TYPOGRAPHY } from "@/lib/design-tokens";
+import { formatEnum, TRIAGE_LABELS } from "@/lib/display-labels";
 
 interface IntakeQueueRowProps {
   submission: IntakeSubmission;
@@ -144,11 +145,9 @@ export function IntakeQueueRow({
           {sub.triage_category && (
             <span
               style={{ fontSize: "0.65rem", color: "var(--muted)", cursor: "help" }}
-              title={`Triage: ${sub.triage_category.replace(/_/g, " ")}${sub.triage_score ? ` (${sub.triage_score})` : ""}`}
+              title={`Triage: ${formatEnum(sub.triage_category, TRIAGE_LABELS)}${sub.triage_score ? ` (${sub.triage_score})` : ""}`}
             >
-              {sub.triage_category === "high_priority_tnr" ? "High priority" :
-               sub.triage_category === "standard_tnr" ? "Standard" :
-               sub.triage_category.replace(/_/g, " ")}
+              {formatEnum(sub.triage_category, TRIAGE_LABELS)}
             </span>
           )}
           {/* Appointment date only when scheduled (FFS-108) */}

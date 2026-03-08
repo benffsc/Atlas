@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { unwrapApiResponse } from "@/lib/api-client";
+import { formatPlaceKind, formatEnum } from "@/lib/display-labels";
 
 interface PersonIdentifier {
   id_type: string;
@@ -78,20 +79,7 @@ function formatEntityType(type: string | null): string {
   return labels[type] || type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-function formatPlaceKind(kind: string | null): string {
-  if (!kind) return "";
-  const labels: Record<string, string> = {
-    residential: "Residential",
-    commercial: "Commercial",
-    farm_ranch: "Farm/Ranch",
-    mobile_home: "Mobile Home",
-    apartment: "Apartment",
-    multi_unit: "Multi-Unit",
-    public: "Public",
-    unknown: "Unknown",
-  };
-  return labels[kind] || kind.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
+// formatPlaceKind imported from @/lib/display-labels
 
 function formatSourceType(source: string): string {
   const labels: Record<string, string> = {
@@ -215,8 +203,8 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
                       style={{ backgroundColor: color.bg, color: color.text }}
                     >
                       {r.role === "trapper" && r.trapper_type
-                        ? `${r.trapper_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`
-                        : r.role.charAt(0).toUpperCase() + r.role.slice(1)}
+                        ? formatEnum(r.trapper_type)
+                        : formatEnum(r.role)}
                     </span>
                   );
                 })}

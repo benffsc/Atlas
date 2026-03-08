@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { formatMatchReason } from "@/lib/display-labels";
 
 interface SearchResult {
   entity_type: string;
@@ -84,20 +85,7 @@ function getRecordSubtitle(result: SearchResult): string {
   return parts.join(" · ") || "No additional details";
 }
 
-function formatMatchReason(reason: string): string {
-  const labels: Record<string, string> = {
-    exact_name: "Exact",
-    exact_microchip: "Exact Chip",
-    prefix_name: "Prefix",
-    prefix_microchip: "Prefix Chip",
-    similar_name: "Similar",
-    contains_name: "Contains",
-    trigram: "Fuzzy",
-    exact_address: "Exact Address",
-    prefix_address: "Prefix Address",
-  };
-  return labels[reason] || reason;
-}
+// formatMatchReason imported from @/lib/display-labels
 
 export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
   const [expanded, setExpanded] = useState(false);
@@ -212,7 +200,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
               color: matchStyle.text,
             }}
           >
-            {formatMatchReason(group.best_match_reason)}
+            {formatMatchReason(group.best_match_reason, true)}
           </span>
 
           {/* Record count badge (if multiple) */}
@@ -298,7 +286,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
                   color: matchBadgeStyles[record.match_strength]?.text || "#6b7280",
                 }}
               >
-                {formatMatchReason(record.match_reason)}
+                {formatMatchReason(record.match_reason, true)}
               </span>
             </Link>
           ))}

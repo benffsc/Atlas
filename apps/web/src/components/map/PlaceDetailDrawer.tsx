@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { formatRole, formatEnum } from "@/lib/display-labels";
 
 interface GoogleNote {
   entry_id: string;
@@ -757,9 +758,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         {person.display_name}
                         {person.role && (
                           <span className={`person-role-badge ${person.is_home ? "person-role-home" : "person-role-assoc"}`}>
-                            {person.role === "resident" ? "Resident" :
-                             person.role === "owner" ? "Owner" :
-                             person.role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                            {formatRole(person.role)}
                           </span>
                         )}
                         {person.staff_roles?.map((sr, idx) => (
@@ -772,8 +771,8 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                             }`}
                           >
                             {sr.trapper_type
-                              ? sr.trapper_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-                              : sr.role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                              ? formatEnum(sr.trapper_type)
+                              : formatRole(sr.role)}
                           </span>
                         ))}
                       </a>

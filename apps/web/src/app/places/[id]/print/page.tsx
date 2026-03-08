@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
+import { formatRole } from "@/lib/display-labels";
 
 interface PlacePrint {
   place_id: string;
@@ -173,7 +174,7 @@ export default function PlacePrintPage() {
                 <div key={cat.cat_id} style={{ marginBottom: "0.5rem" }}>
                   <div style={{ fontWeight: 500 }}>{cat.cat_name}</div>
                   <div style={{ fontSize: "10px", color: "#666" }}>
-                    {cat.relationship_type.replace(/_/g, " ")}
+                    {formatRole(cat.relationship_type)}
                   </div>
                 </div>
               ))
@@ -189,7 +190,7 @@ export default function PlacePrintPage() {
                 <div key={person.person_id} style={{ marginBottom: "0.5rem" }}>
                   <div style={{ fontWeight: 500 }}>{person.person_name}</div>
                   <div style={{ fontSize: "10px", color: "#666" }}>
-                    {person.role.replace(/_/g, " ")}
+                    {formatRole(person.role)}
                   </div>
                 </div>
               ))

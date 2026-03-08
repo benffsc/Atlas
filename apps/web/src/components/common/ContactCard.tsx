@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatPhone } from "@/lib/formatters";
+import { formatRole } from "@/lib/display-labels";
 
 interface PersonInfo {
   personId?: string | null;
@@ -375,7 +376,4 @@ function getRoleBadgeColor(role: string): string {
   return colors[role.toLowerCase()] || "#6b7280";
 }
 
-// Helper to format role for display
-function formatRole(role: string): string {
-  return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
+// formatRole imported from @/lib/display-labels

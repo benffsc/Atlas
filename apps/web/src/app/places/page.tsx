@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
+import { formatPlaceKind } from "@/lib/display-labels";
 
 interface Place {
   place_id: string;
@@ -33,7 +34,10 @@ const KIND_COLORS: Record<string, string> = {
   clinic: "#dc3545",
   outdoor_site: "#20c997",
   neighborhood: "#6c757d",
+  mobile_home_space: "#795548",
 };
+
+// formatPlaceKind imported from @/lib/display-labels
 
 const FILTER_DEFAULTS = {
   q: "",
@@ -176,7 +180,7 @@ function PlacesPageContent() {
                           marginLeft: "0.5rem",
                         }}
                       >
-                        {place.place_kind.replace(/_/g, " ")}
+                        {formatPlaceKind(place.place_kind)}
                       </span>
                     )}
                   </div>
@@ -219,7 +223,7 @@ function PlacesPageContent() {
                       <td>
                         {place.place_kind ? (
                           <span className="badge" style={{ background: KIND_COLORS[place.place_kind] || "#6c757d" }}>
-                            {place.place_kind.replace(/_/g, " ")}
+                            {formatPlaceKind(place.place_kind)}
                           </span>
                         ) : (
                           <span className="text-muted">&mdash;</span>

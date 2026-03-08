@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
+import { formatPlaceKind, formatRole } from "@/lib/display-labels";
 
 // --- Shared interfaces ---
 
@@ -51,6 +52,8 @@ export interface RequestDetail {
 
 export type EntityType = "cat" | "person" | "place" | "request";
 export type EntityDetail = CatDetail | PersonDetail | PlaceDetail | RequestDetail;
+
+// Label formatting imported from @/lib/display-labels
 
 // --- Data fetching hook ---
 
@@ -176,7 +179,7 @@ function PersonPreview({ person }: { person: PersonDetail }) {
       {person.cats?.length > 0 && (
         <PreviewSection title={`Related Cats (${person.cats.length})`}>
           {person.cats.slice(0, 4).map((c) => (
-            <PreviewLink key={c.cat_id} badge={c.relationship_type}>
+            <PreviewLink key={c.cat_id} badge={formatRole(c.relationship_type)}>
               🐱 {c.display_name}
             </PreviewLink>
           ))}
@@ -200,7 +203,7 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
       <PreviewHeader icon="📍" name={place.display_name} />
       <div style={{ marginBottom: "0.5rem" }}>
         {place.formatted_address && <PreviewRow value={place.formatted_address} />}
-        {place.place_kind && <PreviewRow label="Type" value={place.place_kind} />}
+        {place.place_kind && <PreviewRow label="Type" value={formatPlaceKind(place.place_kind)} />}
       </div>
       {place.cats?.length > 0 && (
         <PreviewSection title={`Related Cats (${place.cats.length})`}>
@@ -213,7 +216,7 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
       {place.people?.length > 0 && (
         <PreviewSection title={`Related People (${place.people.length})`}>
           {place.people.slice(0, 3).map((p) => (
-            <PreviewLink key={p.person_id} badge={p.role}>
+            <PreviewLink key={p.person_id} badge={formatRole(p.role)}>
               👤 {p.display_name}
             </PreviewLink>
           ))}
@@ -255,7 +258,7 @@ function RequestPreview({ request }: { request: RequestDetail }) {
           color: "#fff",
           background: statusColor[request.status] || "var(--muted)",
         }}>
-          {request.status}
+          {formatRole(request.status)}
         </span>
       </div>
       <div style={{ marginBottom: "0.5rem" }}>

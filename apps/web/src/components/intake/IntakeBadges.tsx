@@ -5,6 +5,7 @@
  */
 
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
+import { formatEnum, TRIAGE_LABELS } from "@/lib/display-labels";
 
 // Consistent badge styling
 const badgeBase: React.CSSProperties = {
@@ -40,7 +41,7 @@ export function TriageBadge({ category, score, isLegacy }: { category: string | 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
       <span style={{ ...badgeBase, background: style.bg, color: style.color }}>
-        {category.replace(/_/g, " ")}
+        {formatEnum(category, TRIAGE_LABELS)}
       </span>
       {score !== null && (
         <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>

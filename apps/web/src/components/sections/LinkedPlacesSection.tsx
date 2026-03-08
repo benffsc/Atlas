@@ -1,6 +1,7 @@
 "use client";
 
 import { CSSProperties, useState } from "react";
+import { formatRole } from "@/lib/display-labels";
 
 // Flexible place type that accommodates different data shapes from various pages
 interface LinkedPlace {
@@ -91,10 +92,9 @@ function getRelationshipColor(type: string | null | undefined): string {
   return typeColors[type] || "#6c757d";
 }
 
-// Format relationship for display
+// Format relationship for display — delegates to centralized registry
 function formatRelationship(type: string | null | undefined): string {
-  if (!type) return "";
-  return type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  return formatRole(type);
 }
 
 /**

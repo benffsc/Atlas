@@ -6,6 +6,7 @@ import {
   type ResolvedPlace,
   type UsePlaceResolverOptions,
 } from "@/hooks/usePlaceResolver";
+import { formatPlaceKind } from "@/lib/display-labels";
 
 // ── Place kind options (union of requests/new + places/new) ──
 
@@ -366,9 +367,32 @@ export default function PlaceResolver({
                     className="dropdown-item"
                     style={{ display: "block", width: "100%", textAlign: "left", cursor: "pointer" }}
                   >
-                    <div style={{ fontWeight: 500 }}>{place.display_name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontWeight: 500 }}>{place.display_name}</span>
+                      {place.metadata?.place_kind && (
+                        <span
+                          style={{
+                            fontSize: "0.65rem",
+                            padding: "0.1rem 0.4rem",
+                            borderRadius: "9999px",
+                            background: "var(--bg-secondary, #f3f4f6)",
+                            color: "var(--muted, #6c757d)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatPlaceKind(place.metadata.place_kind)}
+                        </span>
+                      )}
+                    </div>
                     {place.subtitle && (
                       <div className="text-muted text-sm">{place.subtitle}</div>
+                    )}
+                    {(place.metadata?.cat_count != null && place.metadata.cat_count > 0 || place.metadata?.person_count != null && place.metadata.person_count > 0) && (
+                      <div style={{ fontSize: "0.7rem", color: "var(--muted, #6c757d)" }}>
+                        {place.metadata?.cat_count != null && place.metadata.cat_count > 0 && `${place.metadata.cat_count} cats`}
+                        {place.metadata?.cat_count != null && place.metadata.cat_count > 0 && place.metadata?.person_count != null && place.metadata.person_count > 0 && " · "}
+                        {place.metadata?.person_count != null && place.metadata.person_count > 0 && `${place.metadata.person_count} people`}
+                      </div>
                     )}
                   </button>
                 ))}
@@ -585,8 +609,23 @@ export default function PlaceResolver({
                 marginBottom: "1rem",
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
-                {resolver.duplicateCheck.existingPlace?.display_name}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                <span style={{ fontWeight: 600 }}>
+                  {resolver.duplicateCheck.existingPlace?.display_name}
+                </span>
+                {resolver.duplicateCheck.existingPlace?.place_kind && (
+                  <span
+                    style={{
+                      fontSize: "0.65rem",
+                      padding: "0.1rem 0.4rem",
+                      borderRadius: "9999px",
+                      background: "var(--bg-secondary, #f3f4f6)",
+                      color: "var(--muted, #6c757d)",
+                    }}
+                  >
+                    {formatPlaceKind(resolver.duplicateCheck.existingPlace.place_kind)}
+                  </span>
+                )}
               </div>
               <div className="text-muted text-sm">
                 {resolver.duplicateCheck.existingPlace?.formatted_address}

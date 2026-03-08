@@ -6,6 +6,14 @@ import { fetchApi } from "@/lib/api-client";
 import { EntityPreview } from "@/components/search";
 import { GroupedSearchResult } from "@/components/search";
 import { formatPhone } from "@/lib/formatters";
+import {
+  MATCH_REASON_LABELS,
+  SOURCE_TABLE_LABELS,
+  MATCH_FIELD_LABELS,
+  TRIAGE_LABELS,
+  SEARCH_STATUS_LABELS,
+  formatEnum,
+} from "@/lib/display-labels";
 
 interface SearchResult {
   entity_type: string;
@@ -99,6 +107,8 @@ interface DeepSearchResponse {
   total: number;
   timing_ms: number;
 }
+
+// Label maps imported from @/lib/display-labels
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -226,8 +236,8 @@ function SearchContent() {
           value={mode}
           onChange={(e) => setMode(e.target.value)}
         >
-          <option value="canonical">Canonical</option>
-          <option value="deep">Deep (Raw)</option>
+          <option value="canonical">Standard</option>
+          <option value="deep">Advanced</option>
         </select>
         <button type="submit">Search</button>
         {mode === "canonical" && (
@@ -313,7 +323,7 @@ function SearchContent() {
                                 <div className="search-result-subtitle">{result.subtitle}</div>
                               )}
                               <div className="search-result-match">
-                                Matched: {result.match_reason.replace(/_/g, " ")} (score: {result.score})
+                                Matched: {formatEnum(result.match_reason, MATCH_REASON_LABELS)}
                               </div>
                             </div>
                           );
@@ -428,7 +438,7 @@ function SearchContent() {
                             </span>
                             {sub.triage_category && (
                               <span className="badge" style={{ marginLeft: "0.25rem" }}>
-                                {sub.triage_category.replace(/_/g, " ")}
+                                {formatEnum(sub.triage_category, TRIAGE_LABELS)}
                               </span>
                             )}
                             <a href={`/intake/queue/${sub.submission_id}`} className="search-result-title">
@@ -447,7 +457,7 @@ function SearchContent() {
                           </div>
                           <div className="search-result-match">
                             Submitted: {new Date(sub.submitted_at).toLocaleDateString()}
-                            <span className="text-muted"> &bull; matched on: {sub.match_type.replace(/_/g, " ")}</span>
+                            <span className="text-muted"> &bull; matched on: {formatEnum(sub.match_type, MATCH_REASON_LABELS)}</span>
                           </div>
                         </div>
                       ))}
@@ -470,7 +480,7 @@ function SearchContent() {
                                          req.status === "completed" ? "#20c997" : "#6c757d",
                               color: ["in_progress", "completed"].includes(req.status) ? "#000" : "#fff"
                             }}>
-                              {req.status.replace(/_/g, " ")}
+                              {formatEnum(req.status, SEARCH_STATUS_LABELS)}
                             </span>
                             <span className="badge" style={{
                               marginLeft: "0.25rem",
@@ -495,7 +505,7 @@ function SearchContent() {
                           </div>
                           <div className="search-result-match">
                             Created: {new Date(req.created_at).toLocaleDateString()}
-                            <span className="text-muted"> &bull; matched on: {req.match_type.replace(/_/g, " ")}</span>
+                            <span className="text-muted"> &bull; matched on: {formatEnum(req.match_type, MATCH_REASON_LABELS)}</span>
                           </div>
                         </div>
                       ))}
@@ -509,22 +519,22 @@ function SearchContent() {
           {mode === "deep" && !isCanonicalResponse(data) && (
             <>
               {data.results.length === 0 ? (
-                <div className="empty">No raw/staged records found</div>
+                <div className="empty">No additional records found</div>
               ) : (
                 <div className="results-section">
                   <p className="text-sm text-muted mb-4">
-                    Showing raw/staged data from source systems.
+                    Showing records from source systems and imports.
                   </p>
                   {data.results.map((result, idx) => (
                     <div key={`deep-${result.source_table}-${result.source_row_id}-${idx}`} className="search-result">
                       <div className="search-result-header">
-                        <span className="badge">{result.source_table}</span>
+                        <span className="badge">{formatEnum(result.source_table, SOURCE_TABLE_LABELS)}</span>
                         <span className="search-result-title">
                           {result.match_value}
                         </span>
                       </div>
                       <div className="search-result-subtitle">
-                        Matched on: {result.match_field}
+                        Matched on: {formatEnum(result.match_field, MATCH_FIELD_LABELS)}
                       </div>
                       <div className="search-result-snippet">
                         <pre style={{ fontSize: "0.75rem", margin: "0.5rem 0", padding: "0.5rem", background: "var(--border)", borderRadius: "4px", overflow: "auto" }}>

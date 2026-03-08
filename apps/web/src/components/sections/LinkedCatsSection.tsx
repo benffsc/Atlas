@@ -1,6 +1,7 @@
 "use client";
 
 import { CSSProperties, useState } from "react";
+import { formatRole } from "@/lib/display-labels";
 
 // Flexible cat type that accommodates different data shapes from various pages
 interface LinkedCat {
@@ -97,12 +98,11 @@ function getAlteredColor(status: string | null | undefined): string {
   return "#6c757d";
 }
 
-// Format relationship/purpose for display
+// Format relationship/purpose for display — delegates to centralized registry
 function formatBadgeText(type: string | null | undefined): string {
   if (!type) return "";
-  return type
-    .replace(/_/g, " ")
-    .replace(/tnr target/i, "TNR");
+  const label = formatRole(type);
+  return label.replace(/tnr target/i, "TNR");
 }
 
 /**

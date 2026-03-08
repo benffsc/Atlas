@@ -19,6 +19,7 @@ import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
 import { formatDateLocal, formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { formatPlaceKind } from "@/lib/display-labels";
 
 interface Cat {
   cat_id: string;
@@ -127,7 +128,7 @@ function PlaceKindBadge({ kind }: { kind: string | null | undefined }) {
     neighborhood: { label: "Area", bg: "#f3f4f6", color: "#6b7280" },
   };
 
-  const config = kindConfig[kind] || { label: kind.replace(/_/g, " "), bg: "#f3f4f6", color: "#6b7280" };
+  const config = kindConfig[kind] || { label: formatPlaceKind(kind), bg: "#f3f4f6", color: "#6b7280" };
 
   return (
     <span
@@ -659,7 +660,7 @@ export default function PlaceDetailPage() {
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
               {place.partner_org.org_type && (
                 <span className="badge" style={{ fontSize: "0.7em", background: "#e9ecef" }}>
-                  {place.partner_org.org_type.replace(/_/g, " ")}
+                  {formatPlaceKind(place.partner_org.org_type)}
                 </span>
               )}
             </div>
@@ -851,7 +852,7 @@ export default function PlaceDetailPage() {
                             try {
                               const data = await fetchApi<{ suggested_kind: string | null; confidence: number; reason: string }>(`/api/places/${place.place_id}/suggest-type`);
                               if (data.suggested_kind) {
-                                if (confirm(`Suggestion: ${data.suggested_kind.replace(/_/g, " ")} (${Math.round(data.confidence * 100)}% confidence)\n\nReason: ${data.reason}\n\nApply this?`)) {
+                                if (confirm(`Suggestion: ${formatPlaceKind(data.suggested_kind)} (${Math.round(data.confidence * 100)}% confidence)\n\nReason: ${data.reason}\n\nApply this?`)) {
                                   setEditPlaceKind(data.suggested_kind);
                                 }
                               } else {

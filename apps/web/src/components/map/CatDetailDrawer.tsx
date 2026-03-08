@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { unwrapApiResponse } from "@/lib/api-client";
+import { formatRole } from "@/lib/display-labels";
 
 /* ------------------------------------------------------------------ */
 /*  Type definitions matching the GET /api/cats/:id response shape     */
@@ -332,7 +333,7 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                         </span>
                         {p.relationship_type && (
                           <span className="cat-drawer-place-type">
-                            {p.relationship_type.replace(/_/g, " ")}
+                            {formatRole(p.relationship_type)}
                           </span>
                         )}
                       </a>
