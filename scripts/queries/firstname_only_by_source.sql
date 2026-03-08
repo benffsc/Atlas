@@ -1,3 +1,4 @@
+-- DEPRECATED: v1 query. References trapper.* schema dropped in MIG_2299. Do not run.
 -- Query to analyze first-name-only records by source system
 -- Run this to understand where incomplete name data originates
 

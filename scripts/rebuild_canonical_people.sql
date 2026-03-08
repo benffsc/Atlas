@@ -1,3 +1,4 @@
+-- DEPRECATED: v1 script. References trapper.* schema dropped in MIG_2299. Do not run.
 -- rebuild_canonical_people.sql
 -- Rebuild canonical people and relationships from scratch
 --

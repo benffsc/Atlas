@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED: v1 script. References trapper.* schema dropped in MIG_2299. Do not run.
 """
 Ingest ClinicHQ upcoming appointments XLSX into trapper.clinichq_upcoming_appointments.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// DEPRECATED: v1 script. References trapper.* schema dropped in MIG_2299. Do not run.
 
 /**
  * Batch Geocode Places

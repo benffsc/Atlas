@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED: v1 script. References trapper.* schema dropped in MIG_2299. Do not run.
 """
 Ingest Airtable appointment request submissions into trapper.appointment_requests.
 
