@@ -14,6 +14,8 @@ interface PlaceListRow {
   person_count: number;
   has_cat_activity: boolean;
   created_at: string;
+  last_appointment_date: string | null;
+  active_request_count: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -64,8 +66,10 @@ export async function GET(request: NextRequest) {
         cat_count,
         person_count,
         has_cat_activity,
-        created_at
-      FROM sot.v_place_list
+        created_at,
+        (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.place_id = v.place_id OR a.inferred_place_id = v.place_id) AS last_appointment_date,
+        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = v.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) AS active_request_count
+      FROM sot.v_place_list v
       ${whereClause}
       ORDER BY display_name ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -73,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM sot.v_place_list
+      FROM sot.v_place_list v
       ${whereClause}
     `;
 

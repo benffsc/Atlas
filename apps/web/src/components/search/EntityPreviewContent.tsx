@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatRelativeTime, formatDateLocal } from "@/lib/formatters";
 import { formatPlaceKind, formatRole } from "@/lib/display-labels";
 
 // --- Shared interfaces ---
@@ -17,6 +17,10 @@ export interface CatDetail {
   identifiers: Array<{ id_type: string; id_value: string }>;
   owners: Array<{ person_id: string; display_name: string; relationship_type: string }>;
   places: Array<{ place_id: string; display_name: string }>;
+  last_appointment_date?: string | null;
+  first_appointment_date?: string | null;
+  total_appointments?: number;
+  tests?: Array<{ test_type?: string; disease_key?: string; disease_display_name?: string; result?: string; disease_badge_color?: string }>;
 }
 
 export interface PersonDetail {
@@ -25,6 +29,10 @@ export interface PersonDetail {
   identifiers: Array<{ id_type: string; id_value: string }>;
   cats: Array<{ cat_id: string; display_name: string; relationship_type: string }>;
   places: Array<{ place_id: string; display_name: string; role: string }>;
+  cat_count?: number;
+  place_count?: number;
+  last_appointment_date?: string | null;
+  entity_type?: string | null;
 }
 
 export interface PlaceDetail {
@@ -35,6 +43,10 @@ export interface PlaceDetail {
   locality: string | null;
   cats: Array<{ cat_id: string; display_name: string }>;
   people: Array<{ person_id: string; display_name: string; role: string }>;
+  cat_count?: number;
+  person_count?: number;
+  last_appointment_date?: string | null;
+  active_request_count?: number;
 }
 
 export interface RequestDetail {
@@ -135,6 +147,32 @@ function CatPreview({ cat }: { cat: CatDetail }) {
           />
         )}
       </div>
+      {/* Activity & medical signals */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.5rem" }}>
+        {cat.altered_status && (
+          <PreviewPill
+            label={cat.altered_status === "altered" ? "Altered" : "Unaltered"}
+            color={cat.altered_status === "altered" ? "var(--success-text)" : "var(--warning-text)"}
+            bg={cat.altered_status === "altered" ? "var(--success-bg)" : "var(--warning-bg)"}
+          />
+        )}
+        {cat.tests?.filter(t => t.result && t.result !== "not_tested").map((t, i) => (
+          <PreviewPill
+            key={i}
+            label={`${t.disease_display_name || t.disease_key || t.test_type}: ${t.result}`}
+            color={t.disease_badge_color || "var(--muted)"}
+            bg="var(--section-bg)"
+          />
+        ))}
+      </div>
+      {(cat.total_appointments || cat.last_appointment_date) && (
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+          {cat.total_appointments ? `${cat.total_appointments} clinic visit${cat.total_appointments !== 1 ? "s" : ""}` : ""}
+          {cat.last_appointment_date && (
+            <>{cat.total_appointments ? " \u00B7 " : ""}Last: {formatDateLocal(cat.last_appointment_date)}</>
+          )}
+        </div>
+      )}
       {cat.owners?.length > 0 && (
         <PreviewSection title={`Related People (${cat.owners.length})`}>
           {cat.owners.slice(0, 3).map((o) => (
@@ -155,6 +193,14 @@ function CatPreview({ cat }: { cat: CatDetail }) {
 }
 
 function PersonPreview({ person }: { person: PersonDetail }) {
+  const activityParts: string[] = [];
+  const catCount = person.cat_count ?? person.cats?.length ?? 0;
+  const placeCount = person.place_count ?? person.places?.length ?? 0;
+  if (catCount) activityParts.push(`${catCount} cats`);
+  if (placeCount) activityParts.push(`${placeCount} places`);
+  const rel = formatRelativeTime(person.last_appointment_date);
+  if (rel) activityParts.push(`Last: ${rel}`);
+
   return (
     <>
       <PreviewHeader icon="👤" name={person.display_name} />
@@ -176,6 +222,17 @@ function PersonPreview({ person }: { person: PersonDetail }) {
           </>
         )}
       </div>
+      {/* Activity line + role badge */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.5rem" }}>
+        {person.entity_type && person.entity_type !== "person" && (
+          <PreviewPill label={formatRole(person.entity_type)} color="var(--primary)" bg="color-mix(in srgb, var(--primary) 15%, transparent)" />
+        )}
+      </div>
+      {activityParts.length > 0 && (
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+          {activityParts.join(" \u00B7 ")}
+        </div>
+      )}
       {person.cats?.length > 0 && (
         <PreviewSection title={`Related Cats (${person.cats.length})`}>
           {person.cats.slice(0, 4).map((c) => (
@@ -198,6 +255,14 @@ function PersonPreview({ person }: { person: PersonDetail }) {
 }
 
 function PlacePreview({ place }: { place: PlaceDetail }) {
+  const activityParts: string[] = [];
+  const catCount = place.cat_count ?? place.cats?.length ?? 0;
+  const personCount = place.person_count ?? place.people?.length ?? 0;
+  if (catCount) activityParts.push(`${catCount} cats`);
+  if (personCount) activityParts.push(`${personCount} people`);
+  const rel = formatRelativeTime(place.last_appointment_date);
+  if (rel) activityParts.push(`Last: ${rel}`);
+
   return (
     <>
       <PreviewHeader icon="📍" name={place.display_name} />
@@ -205,6 +270,17 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
         {place.formatted_address && <PreviewRow value={place.formatted_address} />}
         {place.place_kind && <PreviewRow label="Type" value={formatPlaceKind(place.place_kind)} />}
       </div>
+      {/* Activity line + request badge */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.5rem" }}>
+        {(place.active_request_count ?? 0) > 0 && (
+          <PreviewPill label="Active Request" color="var(--warning-text)" bg="var(--warning-bg)" />
+        )}
+      </div>
+      {activityParts.length > 0 && (
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+          {activityParts.join(" \u00B7 ")}
+        </div>
+      )}
       {place.cats?.length > 0 && (
         <PreviewSection title={`Related Cats (${place.cats.length})`}>
           {place.cats.slice(0, 4).map((c) => (
@@ -349,5 +425,21 @@ function PreviewMore({ count }: { count: number }) {
     <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontStyle: "italic" }}>
       +{count} more
     </div>
+  );
+}
+
+function PreviewPill({ label, color, bg }: { label: string; color: string; bg: string }) {
+  return (
+    <span style={{
+      fontSize: "0.65rem",
+      fontWeight: 600,
+      padding: "0.125rem 0.375rem",
+      borderRadius: "4px",
+      color,
+      background: bg,
+      whiteSpace: "nowrap",
+    }}>
+      {label}
+    </span>
   );
 }

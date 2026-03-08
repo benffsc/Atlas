@@ -110,6 +110,7 @@ export const DASHBOARD_LAYER_GROUPS: LayerGroup[] = [
       { id: "atlas_all", label: "All Places", color: "#22c55e", defaultEnabled: false },
       { id: "atlas_disease", label: "Disease Risk", color: "#ea580c", defaultEnabled: false },
       { id: "atlas_watch", label: "Watch List", color: "#8b5cf6", defaultEnabled: false },
+      { id: "out_of_county", label: "Out of County", color: "#ef4444", defaultEnabled: false },
     ],
   },
 ];

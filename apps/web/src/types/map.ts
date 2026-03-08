@@ -241,6 +241,14 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   clusterMinPoints: 3,
 };
 
+/** Expanded bounds covering Sonoma County + neighboring Marin & Lake county edges */
+export const SONOMA_COUNTY_BOUNDS = {
+  south: 37.8,
+  north: 39.4,
+  west: -123.6,
+  east: -122.3,
+};
+
 // =============================================================================
 // COORDINATE UTILITIES
 // =============================================================================

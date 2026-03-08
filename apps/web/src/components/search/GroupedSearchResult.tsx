@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatMatchReason } from "@/lib/display-labels";
+import { formatRelativeTime } from "@/lib/formatters";
 
 interface SearchResult {
   entity_type: string;
@@ -62,27 +63,31 @@ function getEntityLink(result: SearchResult): string {
 }
 
 function getRecordSubtitle(result: SearchResult): string {
-  if (result.subtitle) {
-    return result.subtitle;
-  }
-
-  // Generate subtitle from metadata
   const meta = result.metadata;
   const parts: string[] = [];
 
   if (result.entity_type === "person") {
     if (meta.email) parts.push(String(meta.email));
     if (meta.phone) parts.push(String(meta.phone));
-    if (meta.cat_count !== undefined) parts.push(`${meta.cat_count} cats`);
+    if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
+    if (meta.place_count) parts.push(`${meta.place_count} places`);
   } else if (result.entity_type === "cat") {
     if (meta.microchip) parts.push(`Chip: ${String(meta.microchip).slice(-6)}`);
     if (meta.sex) parts.push(String(meta.sex));
+    const apptCount = meta.appointment_count as number;
+    if (apptCount) parts.push(`${apptCount} visit${apptCount !== 1 ? "s" : ""}`);
   } else if (result.entity_type === "place") {
     if (meta.locality) parts.push(String(meta.locality));
-    if (meta.cat_count !== undefined) parts.push(`${meta.cat_count} cats`);
+    if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
+    if (meta.person_count) parts.push(`${meta.person_count} people`);
   }
 
-  return parts.join(" · ") || "No additional details";
+  // Append last seen for all types
+  const rel = formatRelativeTime(meta.last_appointment_date as string);
+  if (rel) parts.push(`Last: ${rel}`);
+
+  if (parts.length === 0 && result.subtitle) return result.subtitle;
+  return parts.join(" \u00B7 ") || "No additional details";
 }
 
 // formatMatchReason imported from @/lib/display-labels
@@ -187,8 +192,42 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
           </div>
         </div>
 
-        {/* Right side: badges and count */}
+        {/* Right side: count chips + badges */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+          {/* Activity count chips */}
+          {(() => {
+            const meta = primaryRecord.metadata;
+            const chips: Array<{ label: string }> = [];
+            if (group.entity_type === "person" || group.entity_type === "place") {
+              if (meta.cat_count) chips.push({ label: `${meta.cat_count} cats` });
+            }
+            if (group.entity_type === "place" && meta.request_count) {
+              chips.push({ label: `${meta.request_count} req` });
+            }
+            if (group.entity_type === "person" && meta.place_count) {
+              chips.push({ label: `${meta.place_count} places` });
+            }
+            if (group.entity_type === "cat") {
+              const c = meta.appointment_count as number;
+              if (c) chips.push({ label: `${c} visit${c !== 1 ? "s" : ""}` });
+            }
+            return chips.map((chip) => (
+              <span
+                key={chip.label}
+                style={{
+                  fontSize: "0.65rem",
+                  padding: "0.1rem 0.35rem",
+                  borderRadius: "3px",
+                  background: "var(--section-bg)",
+                  color: "var(--muted)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {chip.label}
+              </span>
+            ));
+          })()}
+
           {/* Match badge */}
           <span
             style={{

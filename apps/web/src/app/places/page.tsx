@@ -5,6 +5,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatPlaceKind } from "@/lib/display-labels";
+import { formatRelativeTime } from "@/lib/formatters";
 
 interface Place {
   place_id: string;
@@ -17,6 +18,8 @@ interface Place {
   person_count: number;
   has_cat_activity: boolean;
   created_at: string;
+  last_appointment_date: string | null;
+  active_request_count: number;
 }
 
 interface PlacesResponse {
@@ -189,10 +192,16 @@ function PlacesPageContent() {
                       {place.formatted_address}
                     </div>
                   )}
-                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
                     <span>{place.cat_count} cats</span>
                     <span>{place.person_count} people</span>
                     {place.locality && <span>{place.locality}</span>}
+                    {place.last_appointment_date && (
+                      <span>Last: {formatRelativeTime(place.last_appointment_date)}</span>
+                    )}
+                    {place.active_request_count > 0 && (
+                      <span style={{ color: "var(--warning-text)" }}>{place.active_request_count} active req</span>
+                    )}
                   </div>
                 </a>
               ))}
@@ -208,6 +217,7 @@ function PlacesPageContent() {
                     <th>Type</th>
                     <th>Cats</th>
                     <th>People</th>
+                    <th>Last Active</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -231,6 +241,20 @@ function PlacesPageContent() {
                       </td>
                       <td>{place.cat_count > 0 ? <span>{place.cat_count}</span> : <span className="text-muted">0</span>}</td>
                       <td>{place.person_count > 0 ? <span>{place.person_count}</span> : <span className="text-muted">0</span>}</td>
+                      <td>
+                        {place.last_appointment_date ? (
+                          <span title={place.last_appointment_date}>
+                            {formatRelativeTime(place.last_appointment_date)}
+                          </span>
+                        ) : (
+                          <span className="text-muted">&mdash;</span>
+                        )}
+                        {place.active_request_count > 0 && (
+                          <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.65em", background: "var(--warning-bg)", color: "var(--warning-text)" }}>
+                            {place.active_request_count} req
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

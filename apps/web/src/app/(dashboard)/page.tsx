@@ -184,10 +184,14 @@ function HomeInner() {
   // Determine if any atlas layer is enabled
   const atlasEnabled = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
 
+  // County filter: "all" when Out of County toggle is on, "sonoma" otherwise
+  const county = enabledLayers.out_of_county ? "all" : "sonoma";
+
   // Fetch atlas pins via useMapData (SWR cached, shared with full map)
   const { data: mapData } = useMapData({
     layers: ["atlas_pins"],
     enabled: atlasEnabled,
+    county,
   });
 
   const atlasPins = useMemo(() => mapData?.atlas_pins || [], [mapData]);
@@ -228,13 +232,13 @@ function HomeInner() {
     }
 
     setLoadingMap(true);
-    const params = new URLSearchParams({ layer: apiLayer });
+    const params = new URLSearchParams({ layer: apiLayer, county });
     if (search) params.set("q", search);
     fetchApi<{ pins: DashboardMapPin[] }>(`/api/dashboard/map-pins?${params}`)
       .then(data => setRequestPins(data.pins || []))
       .catch(() => setRequestPins([]))
       .finally(() => setLoadingMap(false));
-  }, [enabledLayers]);
+  }, [enabledLayers, county]);
 
   // Fetch intake pins when intake layer is enabled
   const fetchIntakePins = useCallback((search: string) => {
@@ -243,12 +247,12 @@ function HomeInner() {
       return;
     }
 
-    const params = new URLSearchParams({ layer: "intake" });
+    const params = new URLSearchParams({ layer: "intake", county });
     if (search) params.set("q", search);
     fetchApi<{ pins: DashboardMapPin[] }>(`/api/dashboard/map-pins?${params}`)
       .then(data => setIntakePins(data.pins || []))
       .catch(() => setIntakePins([]));
-  }, [enabledLayers]);
+  }, [enabledLayers, county]);
 
   // Re-fetch pins when layers change
   useEffect(() => {

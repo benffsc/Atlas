@@ -39,6 +39,8 @@ export interface UseMapDataOptions {
   dataFilter?: string;
   /** Disease filter keys for atlas_pins layer */
   diseaseFilter?: string[];
+  /** County filter: "sonoma" (default) or "all" */
+  county?: string;
   /** Viewport bounds for efficient loading */
   bounds?: MapDataBounds;
   /** Set to false to disable fetching */
@@ -166,6 +168,9 @@ function buildMapDataKey(options: UseMapDataOptions): string | null {
   }
   if (options.diseaseFilter?.length) {
     params.set("disease_filter", options.diseaseFilter.join(","));
+  }
+  if (options.county && options.county !== "sonoma") {
+    params.set("county", options.county);
   }
   if (options.bounds) {
     params.set(

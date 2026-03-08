@@ -34,6 +34,10 @@ export async function GET(req: NextRequest) {
   const dataFilter = searchParams.get("data_filter") || "all";
   const diseaseFilterParam = searchParams.get("disease_filter") || "";
   const diseaseFilterKeys = diseaseFilterParam ? diseaseFilterParam.split(",").map(k => k.trim()).filter(Boolean) : [];
+  const county = searchParams.get("county") || "sonoma";
+
+  // Sonoma County bounds for default filtering
+  const SONOMA_BOUNDS = { south: 37.8, north: 39.4, west: -123.6, east: -122.3 };
 
   // Parse bounds for viewport-based loading (format: south,west,north,east)
   let boundsCondition = "";
@@ -46,6 +50,9 @@ export async function GET(req: NextRequest) {
       // Use parameterized-style values (already validated as numbers above)
       boundsCondition = `AND lat IS NOT NULL AND lng IS NOT NULL AND lat BETWEEN ${south - latBuffer} AND ${north + latBuffer} AND lng BETWEEN ${west - lngBuffer} AND ${east + lngBuffer}`;
     }
+  } else if (county === "sonoma") {
+    // Default to Sonoma County bounds when no explicit bounds provided
+    boundsCondition = `AND lat IS NOT NULL AND lng IS NOT NULL AND lat BETWEEN ${SONOMA_BOUNDS.south} AND ${SONOMA_BOUNDS.north} AND lng BETWEEN ${SONOMA_BOUNDS.west} AND ${SONOMA_BOUNDS.east}`;
   }
 
   const result: {

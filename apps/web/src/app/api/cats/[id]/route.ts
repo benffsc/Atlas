@@ -28,6 +28,7 @@ interface CatDetailRow {
   created_at: string;
   updated_at: string;
   first_appointment_date: string | null;
+  last_appointment_date: string | null;
   total_appointments: number;
   is_deceased: boolean | null;
   deceased_date: string | null;
@@ -256,13 +257,15 @@ export async function GET(
     const visitStatsSql = `
       SELECT
         MIN(appointment_date)::TEXT as first_appointment_date,
+        MAX(appointment_date)::TEXT as last_appointment_date,
         COUNT(*)::INT as total_appointments
       FROM ops.appointments
       WHERE cat_id = $1
     `;
-    const visitStats = await queryOne<{ first_appointment_date: string | null; total_appointments: number }>(visitStatsSql, [id]);
+    const visitStats = await queryOne<{ first_appointment_date: string | null; last_appointment_date: string | null; total_appointments: number }>(visitStatsSql, [id]);
     if (visitStats) {
       cat.first_appointment_date = visitStats.first_appointment_date;
+      cat.last_appointment_date = visitStats.last_appointment_date;
       cat.total_appointments = visitStats.total_appointments;
     }
 

@@ -82,6 +82,7 @@ interface RequestResult {
   requester_name: string | null;
   estimated_cat_count: number | null;
   created_at: string;
+  updated_at: string;
   match_type: string;
 }
 
@@ -505,6 +506,9 @@ function SearchContent() {
                           </div>
                           <div className="search-result-match">
                             Created: {new Date(req.created_at).toLocaleDateString()}
+                            {req.updated_at && req.updated_at !== req.created_at && (
+                              <span> &bull; Updated: {new Date(req.updated_at).toLocaleDateString()}</span>
+                            )}
                             <span className="text-muted"> &bull; matched on: {formatEnum(req.match_type, MATCH_REASON_LABELS)}</span>
                           </div>
                         </div>

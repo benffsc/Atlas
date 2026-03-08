@@ -18,6 +18,7 @@ interface PersonListRow {
   primary_place: string | null;
   created_at: string;
   source_quality: string;
+  last_appointment_date: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -64,8 +65,9 @@ export async function GET(request: NextRequest) {
         cat_names,
         primary_place,
         created_at,
-        source_quality
-      FROM sot.v_person_list_v3
+        source_quality,
+        (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.person_id = v.person_id) AS last_appointment_date
+      FROM sot.v_person_list_v3 v
       ${whereClause}
       ORDER BY
         CASE surface_quality WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END,
@@ -75,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     const countSql = `
       SELECT COUNT(*) as total
-      FROM sot.v_person_list_v3
+      FROM sot.v_person_list_v3 v
       ${whereClause}
     `;
 

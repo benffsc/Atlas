@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
+import { formatRelativeTime } from "@/lib/formatters";
 
 interface Person {
   person_id: string;
@@ -19,6 +20,7 @@ interface Person {
   cat_names: string | null;
   primary_place: string | null;
   created_at: string;
+  last_appointment_date: string | null;
 }
 
 interface PeopleResponse {
@@ -160,6 +162,9 @@ function PeoplePageContent() {
                     </span>
                     <span>{person.cat_count} cats</span>
                     <span>{person.place_count} places</span>
+                    {person.last_appointment_date && (
+                      <span>Last: {formatRelativeTime(person.last_appointment_date)}</span>
+                    )}
                   </div>
                   {person.primary_place && (
                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>{person.primary_place}</div>
@@ -178,6 +183,7 @@ function PeoplePageContent() {
                     <th>Contact</th>
                     <th>Cats</th>
                     <th>Places</th>
+                    <th>Last Active</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -229,6 +235,13 @@ function PeoplePageContent() {
                       </td>
                       <td>
                         {person.place_count > 0 ? <span>{person.place_count}</span> : <span className="text-muted">0</span>}
+                      </td>
+                      <td>
+                        {person.last_appointment_date ? (
+                          <span title={person.last_appointment_date}>{formatRelativeTime(person.last_appointment_date)}</span>
+                        ) : (
+                          <span className="text-muted">&mdash;</span>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -328,6 +328,54 @@ export function formatNumber(num: number | null | undefined): string {
  * formatAddress({ city: "Petaluma", state: "CA", postal_code: "94952" })
  * // "Petaluma, CA 94952"
  */
+/**
+ * Format a date as compact relative time for search results and activity signals.
+ *
+ * @param dateStr - ISO date or datetime string
+ * @returns Compact relative string like "2d ago", "3mo ago", "1y ago", or null if invalid
+ *
+ * @example
+ * formatRelativeTime("2026-03-06") // "2d ago"
+ * formatRelativeTime("2025-12-08") // "3mo ago"
+ * formatRelativeTime("2025-03-08") // "1y ago"
+ * formatRelativeTime(null) // null
+ */
+export function formatRelativeTime(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return "today";
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 1) return "today";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
+}
+
+/**
+ * Get activity recency color for status dots in search results.
+ *
+ * @param dateStr - ISO date or datetime string
+ * @returns CSS color string or null if no date
+ *
+ * Green: within 6 months (recent activity)
+ * Amber: 6-18 months (stale)
+ * Gray: older than 18 months
+ */
+export function getActivityColor(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  const diffMs = Date.now() - date.getTime();
+  const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30);
+  if (diffMonths <= 6) return "var(--success-text)";
+  if (diffMonths <= 18) return "var(--warning-text)";
+  return "var(--muted)";
+}
+
 export function formatAddress(
   place: {
     formatted_address?: string | null;

@@ -19,7 +19,14 @@ export interface DashboardMapPin {
   layer: string;
 }
 
-async function fetchRequestPins(layer: string, search: string): Promise<DashboardMapPin[]> {
+const SONOMA_BOUNDS = {
+  south: 37.8,
+  north: 39.4,
+  west: -123.6,
+  east: -122.3,
+};
+
+async function fetchRequestPins(layer: string, search: string, county: string): Promise<DashboardMapPin[]> {
   let statusFilter: string;
   switch (layer) {
     case "all":
@@ -38,6 +45,10 @@ async function fetchRequestPins(layer: string, search: string): Promise<Dashboar
     ? "AND (p.display_name ILIKE $1 OR p.formatted_address ILIKE $1 OR r.summary ILIKE $1)"
     : "AND TRUE";
   const params = search ? [`%${search}%`] : [];
+
+  const boundsFilter = county === "sonoma"
+    ? `AND ST_Y(p.location::geometry) BETWEEN ${SONOMA_BOUNDS.south} AND ${SONOMA_BOUNDS.north} AND ST_X(p.location::geometry) BETWEEN ${SONOMA_BOUNDS.west} AND ${SONOMA_BOUNDS.east}`
+    : "";
 
   return queryRows<DashboardMapPin>(`
     SELECT
@@ -60,16 +71,21 @@ async function fetchRequestPins(layer: string, search: string): Promise<Dashboar
       ${statusFilter}
       ${searchFilter}
       AND p.location IS NOT NULL
+      ${boundsFilter}
     ORDER BY r.created_at DESC
     LIMIT 500
   `, params);
 }
 
-async function fetchIntakePins(search: string): Promise<DashboardMapPin[]> {
+async function fetchIntakePins(search: string, county: string): Promise<DashboardMapPin[]> {
   const searchFilter = search
     ? "AND (i.submitter_name ILIKE $1 OR i.cats_address ILIKE $1 OR i.geo_formatted_address ILIKE $1)"
     : "AND TRUE";
   const params = search ? [`%${search}%`] : [];
+
+  const boundsFilter = county === "sonoma"
+    ? `AND i.geo_latitude BETWEEN ${SONOMA_BOUNDS.south} AND ${SONOMA_BOUNDS.north} AND i.geo_longitude BETWEEN ${SONOMA_BOUNDS.west} AND ${SONOMA_BOUNDS.east}`
+    : "";
 
   return queryRows<DashboardMapPin>(`
     SELECT
@@ -90,6 +106,7 @@ async function fetchIntakePins(search: string): Promise<DashboardMapPin[]> {
       AND i.geo_latitude IS NOT NULL
       AND i.geo_longitude IS NOT NULL
       ${searchFilter}
+      ${boundsFilter}
     ORDER BY i.submitted_at DESC
     LIMIT 200
   `, params);
@@ -99,13 +116,14 @@ export async function GET(request: NextRequest) {
   try {
     const layer = request.nextUrl.searchParams.get("layer") || "active";
     const search = request.nextUrl.searchParams.get("q")?.trim() || "";
+    const county = request.nextUrl.searchParams.get("county") || "sonoma";
 
     let pins: DashboardMapPin[];
 
     if (layer === "intake") {
-      pins = await fetchIntakePins(search);
+      pins = await fetchIntakePins(search, county);
     } else {
-      pins = await fetchRequestPins(layer, search);
+      pins = await fetchRequestPins(layer, search, county);
     }
 
     return NextResponse.json({ pins }, {

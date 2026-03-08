@@ -66,6 +66,7 @@ interface RequestResult {
   requester_name: string | null;
   estimated_cat_count: number | null;
   created_at: string;
+  updated_at: string;
   match_type: string;
 }
 
@@ -452,6 +453,7 @@ export async function GET(request: NextRequest) {
             per.display_name as requester_name,
             r.estimated_cat_count,
             r.created_at,
+            r.updated_at,
             CASE
               WHEN LOWER(COALESCE(r.summary, '')) ILIKE '%' || LOWER($1) || '%' THEN 'summary_match'
               WHEN LOWER(COALESCE(p.formatted_address, '')) ILIKE '%' || LOWER($1) || '%' THEN 'address_match'

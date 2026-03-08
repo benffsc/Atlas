@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatRelativeTime } from "@/lib/formatters";
 import { unwrapApiResponse } from "@/lib/api-client";
 import { formatPlaceKind, formatEnum } from "@/lib/display-labels";
 
@@ -48,6 +48,7 @@ interface PersonDetails {
   identifiers: PersonIdentifier[] | null;
   associated_places: AssociatedPlace[] | null;
   cats: PersonCat[] | null;
+  last_appointment_date: string | null;
 }
 
 interface PersonDetailDrawerProps {
@@ -225,6 +226,12 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
                 <div className="stat-value">{identifierCount}</div>
                 <div className="stat-label">IDs</div>
               </div>
+              {person.last_appointment_date && (
+                <div className="stat-card">
+                  <div className="stat-value" style={{ fontSize: "0.9rem" }}>{formatRelativeTime(person.last_appointment_date)}</div>
+                  <div className="stat-label">Last Active</div>
+                </div>
+              )}
             </div>
 
             {/* Contact Identifiers */}

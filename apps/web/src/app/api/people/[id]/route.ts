@@ -42,6 +42,7 @@ interface PersonDetailRow {
   do_not_contact_reason: string | null;
   data_quality: string | null;
   primary_place_id: string | null;
+  last_appointment_date: string | null;
   partner_orgs: PartnerOrg[] | null;
   associated_places: object[] | null;
   aliases: Array<{
@@ -192,6 +193,13 @@ export async function GET(
     if (!person) {
       return apiNotFound("Person", id);
     }
+
+    // Fetch last appointment date
+    const lastAppt = await queryOne<{ last_appointment_date: string | null }>(
+      `SELECT MAX(appointment_date)::TEXT as last_appointment_date FROM ops.appointments WHERE person_id = $1`,
+      [id]
+    );
+    person.last_appointment_date = lastAppt?.last_appointment_date || null;
 
     return apiSuccess(person);
   } catch (error) {

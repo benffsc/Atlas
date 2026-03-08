@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
+import { formatRelativeTime, getActivityColor } from "@/lib/formatters";
 
 interface SearchResult {
   entity_type: string;
@@ -178,6 +179,28 @@ export default function GlobalSearch() {
     }
   };
 
+  const getActivitySubtitle = (suggestion: SearchResult): string | null => {
+    const meta = suggestion.metadata;
+    if (!meta) return null;
+    const parts: string[] = [];
+
+    if (suggestion.entity_type === "person") {
+      if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
+      if (meta.place_count) parts.push(`${meta.place_count} places`);
+    } else if (suggestion.entity_type === "place") {
+      if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
+      if (meta.person_count) parts.push(`${meta.person_count} people`);
+    } else if (suggestion.entity_type === "cat") {
+      const count = meta.appointment_count as number;
+      if (count) parts.push(`${count} visit${count !== 1 ? "s" : ""}`);
+    }
+
+    const rel = formatRelativeTime(meta.last_appointment_date as string);
+    if (rel) parts.push(`Last: ${rel}`);
+
+    return parts.length > 0 ? parts.join(" \u00B7 ") : null;
+  };
+
   const getEntityBadgeStyle = (type: string): React.CSSProperties => {
     switch (type) {
       case "cat":
@@ -277,6 +300,16 @@ export default function GlobalSearch() {
                         >
                           {suggestion.entity_type.charAt(0).toUpperCase() + suggestion.entity_type.slice(1)}
                         </span>
+                        {(() => {
+                          const dotColor = getActivityColor(suggestion.metadata?.last_appointment_date as string);
+                          return dotColor ? (
+                            <span
+                              className="search-activity-dot"
+                              style={{ background: dotColor }}
+                              title={`Last seen: ${formatRelativeTime(suggestion.metadata?.last_appointment_date as string) || "unknown"}`}
+                            />
+                          ) : null;
+                        })()}
                         <span className="search-suggestion-name">
                           {suggestion.display_name}
                         </span>
@@ -299,11 +332,18 @@ export default function GlobalSearch() {
                           </button>
                         )}
                       </div>
-                      {suggestion.subtitle && (
-                        <div className="search-suggestion-subtitle">
-                          {suggestion.subtitle}
-                        </div>
-                      )}
+                      {(() => {
+                        const activityLine = getActivitySubtitle(suggestion);
+                        return activityLine ? (
+                          <div className="search-suggestion-activity">
+                            {activityLine}
+                          </div>
+                        ) : suggestion.subtitle ? (
+                          <div className="search-suggestion-subtitle">
+                            {suggestion.subtitle}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   );
                 })}
@@ -431,6 +471,19 @@ export default function GlobalSearch() {
           font-size: 0.75rem;
           color: var(--muted);
           margin-top: 0.125rem;
+        }
+
+        .search-suggestion-activity {
+          font-size: 0.7rem;
+          color: var(--muted);
+          margin-top: 0.125rem;
+        }
+
+        .search-activity-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
         }
 
         .search-footer {

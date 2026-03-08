@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { formatRole, formatEnum } from "@/lib/display-labels";
+import { formatRelativeTime } from "@/lib/formatters";
 
 interface GoogleNote {
   entry_id: string;
@@ -608,6 +609,19 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                 </div>
                 <div className="stat-label">Altered</div>
               </div>
+              {(() => {
+                const lastDate = place.cats
+                  ?.map(c => c.latest_appointment_date)
+                  .filter(Boolean)
+                  .sort()
+                  .reverse()[0] || null;
+                return lastDate ? (
+                  <div className="stat-card">
+                    <div className="stat-value" style={{ fontSize: "0.9rem" }}>{formatRelativeTime(lastDate)}</div>
+                    <div className="stat-label">Last Active</div>
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             {/* People Section */}
