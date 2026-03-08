@@ -201,7 +201,7 @@ export default function GlobalSearch() {
       }
       // Check if we already have a suggestion with the same display_name
       const existingIndex = acc[suggestion.entity_type].findIndex(
-        (s) => s.display_name.toLowerCase().trim() === suggestion.display_name.toLowerCase().trim()
+        (s) => (s.display_name || "").toLowerCase().trim() === (suggestion.display_name || "").toLowerCase().trim()
       );
       if (existingIndex === -1) {
         // Add with duplicate count tracking
@@ -253,7 +253,7 @@ export default function GlobalSearch() {
             return (
               <div key={type} className="search-group">
                 <div className="search-group-header">
-                  {getEntityIcon(type)} {type.charAt(0).toUpperCase() + type.slice(1)}s
+                  {getEntityIcon(type)} {type === "person" ? "People" : type.charAt(0).toUpperCase() + type.slice(1) + "s"}
                 </div>
                 {items.map((suggestion) => {
                   flatIndex++;

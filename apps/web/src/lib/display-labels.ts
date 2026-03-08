@@ -18,7 +18,8 @@ export { SOURCE_SYSTEM_LABELS } from "./constants";
 // ── Generic fallback formatter ──────────────────────────────────────
 
 /** Convert snake_case to Title Case. Used as fallback for unknown values. */
-function titleCase(value: string): string {
+function titleCase(value: string | null | undefined): string {
+  if (!value) return "";
   return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -136,7 +137,8 @@ export const MATCH_REASON_SHORT_LABELS: Record<string, string> = {
   email: "Email",
 };
 
-export function formatMatchReason(reason: string, short = false): string {
+export function formatMatchReason(reason: string | null | undefined, short = false): string {
+  if (!reason) return "";
   const labels = short ? MATCH_REASON_SHORT_LABELS : MATCH_REASON_LABELS;
   return labels[reason] || titleCase(reason);
 }
