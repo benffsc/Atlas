@@ -5,6 +5,8 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  KeyboardSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -306,6 +308,10 @@ export function IntakeKanbanBoard({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
     })
   );
 
@@ -434,8 +440,9 @@ export function IntakeKanbanBoard({
  * Mobile-friendly collapsible kanban for intake submissions.
  * Each column is a collapsible section.
  */
-export function IntakeKanbanBoardMobile({ submissions, onOpenDetail }: IntakeKanbanBoardProps) {
+export function IntakeKanbanBoardMobile({ submissions, onOpenDetail, onStatusChange, onError }: IntakeKanbanBoardProps) {
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(new Set(["new", "in_progress"]));
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   const toggleColumn = (status: string) => {
     setExpandedColumns((prev) => {
@@ -447,6 +454,18 @@ export function IntakeKanbanBoardMobile({ submissions, onOpenDetail }: IntakeKan
       }
       return next;
     });
+  };
+
+  const handleMobileStatusChange = async (submissionId: string, newStatus: string) => {
+    if (!onStatusChange) return;
+    setMovingId(submissionId);
+    try {
+      await onStatusChange(submissionId, newStatus);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : "Failed to move");
+    } finally {
+      setMovingId(null);
+    }
   };
 
   const columnData = INTAKE_COLUMNS.map((col) => ({
@@ -510,6 +529,32 @@ export function IntakeKanbanBoardMobile({ submissions, onOpenDetail }: IntakeKan
                       submission={sub}
                       onOpenDetail={onOpenDetail}
                     />
+                    {onStatusChange && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.25rem" }}>
+                        <select
+                          value={col.status}
+                          disabled={movingId === sub.submission_id}
+                          onChange={(e) => handleMobileStatusChange(sub.submission_id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.2rem 0.4rem",
+                            borderRadius: "4px",
+                            border: "1px solid var(--card-border, #e5e7eb)",
+                            background: "var(--card-bg, white)",
+                            color: "var(--text-muted, #6b7280)",
+                            cursor: movingId === sub.submission_id ? "wait" : "pointer",
+                            opacity: movingId === sub.submission_id ? 0.5 : 1,
+                          }}
+                        >
+                          {INTAKE_COLUMNS.map((c) => (
+                            <option key={c.status} value={c.status}>
+                              {c.status === col.status ? `${c.label}` : `Move to ${c.label}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {col.items.length === 0 && (
