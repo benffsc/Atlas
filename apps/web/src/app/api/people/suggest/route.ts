@@ -138,15 +138,15 @@ export async function POST(request: NextRequest) {
     const personIds = people.map((p) => p.person_id);
     const addresses = await queryRows<AddressRow>(
       `SELECT
-        ppr.person_id,
+        pp.person_id,
         pl.place_id,
         pl.formatted_address,
-        ppr.role
-      FROM sot.person_place_relationships ppr
-      JOIN sot.places pl ON pl.place_id = ppr.place_id
-      WHERE ppr.person_id = ANY($1)
+        pp.relationship_type AS role
+      FROM sot.person_place pp
+      JOIN sot.places pl ON pl.place_id = pp.place_id
+      WHERE pp.person_id = ANY($1)
         AND pl.merged_into_place_id IS NULL
-      ORDER BY ppr.confidence DESC NULLS LAST
+      ORDER BY pp.confidence DESC NULLS LAST
       LIMIT 10`,
       [personIds]
     );

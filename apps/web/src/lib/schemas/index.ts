@@ -28,6 +28,7 @@ import {
   PROPERTY_TYPE,
   COLONY_DURATION,
   COUNT_CONFIDENCE,
+  FEEDING_FREQUENCY,
 } from "@/lib/enums";
 
 // =============================================================================
@@ -127,7 +128,7 @@ export const UpdateRequestSchema = z.object({
   kitten_count: z.number().int().min(0).max(99).nullable().optional(),
   is_being_fed: z.boolean().optional(),
   feeder_name: z.string().max(200).nullable().optional(),
-  feeding_frequency: z.string().max(200).optional(),
+  feeding_frequency: z.enum(FEEDING_FREQUENCY).nullable().optional(),
   // Medical
   is_emergency: z.boolean().optional(),
   has_medical_concerns: z.boolean().optional(),

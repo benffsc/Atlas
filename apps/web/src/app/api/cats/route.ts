@@ -23,6 +23,7 @@ interface CatListRow {
   last_appointment_date: string | null;
   appointment_count: number;
   source_system: string | null;
+  photo_url: string | null;
 }
 
 // Valid sort options
@@ -135,7 +136,8 @@ export async function GET(request: NextRequest) {
         created_at,
         last_visit_date::TEXT AS last_appointment_date,
         visit_count AS appointment_count,
-        source_system
+        source_system,
+        (SELECT c.photo_url FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id) AS photo_url
       FROM sot.v_cat_list
       ${whereClause}
       ORDER BY ${orderBy}

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
-import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
+import { requireValidUUID } from "@/lib/api-validation";
 
 interface Submission {
   submission_id: string;
@@ -37,6 +38,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "place");
     // V2: Some columns from V1 don't exist in V2 schema
     const submissions = await queryRows<Submission>(
       `SELECT
@@ -73,6 +75,9 @@ export async function GET(
       submissions,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiError(error.message, (error as { status?: number }).status || 400);
+    }
     console.error("Error fetching place submissions:", error);
     return apiServerError("Failed to fetch submissions");
   }

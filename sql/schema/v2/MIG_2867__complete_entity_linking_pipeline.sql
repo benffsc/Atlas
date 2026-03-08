@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS ops.data_quality_review_queue (
 CREATE INDEX IF NOT EXISTS idx_dqrq_status ON ops.data_quality_review_queue(status);
 CREATE INDEX IF NOT EXISTS idx_dqrq_entity ON ops.data_quality_review_queue(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_dqrq_issue_type ON ops.data_quality_review_queue(issue_type);
+-- FFS-316: Prevent duplicate pending entries for same entity+issue_type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dqrq_pending_unique
+  ON ops.data_quality_review_queue (entity_id, issue_type)
+  WHERE status = 'pending';
 
 COMMENT ON TABLE ops.data_quality_review_queue IS
 'Queue for data quality issues requiring human review. Used by link_appointments_to_requests()

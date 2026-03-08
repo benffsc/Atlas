@@ -37,6 +37,8 @@ interface CatDetailRow {
   // Atlas Cat ID System (MIG_976)
   atlas_cat_id: string | null;
   atlas_cat_id_is_chipped: boolean | null;
+  // ShelterLuv photo (MIG_2866)
+  photo_url: string | null;
 }
 
 interface ClinicAppointment {
@@ -188,7 +190,8 @@ export async function GET(
         c.verified_by,
         s.display_name AS verified_by_name,
         NULL::TEXT AS atlas_cat_id,
-        FALSE AS atlas_cat_id_is_chipped
+        FALSE AS atlas_cat_id_is_chipped,
+        c.photo_url
       FROM sot.v_cat_detail v
       JOIN sot.cats c ON c.cat_id = v.cat_id
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
@@ -226,7 +229,8 @@ export async function GET(
         c.verified_by,
         s.display_name AS verified_by_name,
         NULL::TEXT AS atlas_cat_id,
-        FALSE AS atlas_cat_id_is_chipped
+        FALSE AS atlas_cat_id_is_chipped,
+        c.photo_url
       FROM sot.cats c
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
       WHERE c.cat_id = $1

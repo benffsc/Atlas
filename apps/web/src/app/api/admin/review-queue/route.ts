@@ -87,18 +87,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH — approve or dismiss a review queue item
+// PATCH — approve or dismiss review queue items (single or bulk)
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, action, reviewed_by } = body as {
-      id: string;
+    const { id, ids, action, reviewed_by } = body as {
+      id?: string;
+      ids?: string[];
       action: "approve" | "dismiss";
       reviewed_by?: string;
     };
 
-    if (!id || !action) {
-      return NextResponse.json(apiBadRequest("id and action required"), {
+    const targetIds = ids || (id ? [id] : []);
+    if (targetIds.length === 0 || !action) {
+      return NextResponse.json(apiBadRequest("id/ids and action required"), {
         status: 400,
       });
     }
@@ -109,57 +111,55 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // Get the queue item
-    const item = await queryOne<{
-      id: string;
-      entity_type: string;
-      entity_id: string;
-      issue_type: string;
-      details: Record<string, unknown>;
-    }>(
-      `SELECT id, entity_type, entity_id, issue_type, details
-       FROM ops.data_quality_review_queue WHERE id = $1 AND status = 'pending'`,
-      [id]
-    );
+    let processed = 0;
 
-    if (!item) {
-      return apiBadRequest("Item not found or already reviewed");
-    }
+    for (const itemId of targetIds) {
+      const item = await queryOne<{
+        id: string;
+        entity_type: string;
+        entity_id: string;
+        issue_type: string;
+        details: Record<string, unknown>;
+      }>(
+        `SELECT id, entity_type, entity_id, issue_type, details
+         FROM ops.data_quality_review_queue WHERE id = $1 AND status = 'pending'`,
+        [itemId]
+      );
 
-    if (action === "approve") {
-      // Handle different issue types
-      if (item.issue_type === "potential_request_match") {
-        // Appointment-request link: update appointment.request_id
-        const requestId = item.details?.request_id as string;
-        if (requestId) {
-          await queryOne(
-            `UPDATE ops.appointments SET request_id = $1, updated_at = NOW()
-             WHERE appointment_id = $2 AND request_id IS NULL`,
-            [requestId, item.entity_id]
-          );
-        }
-      } else if (item.issue_type === "phone_address_mismatch") {
-        // Phone-based person link: update appointment.person_id
-        const personId = item.details?.person_id as string;
-        if (personId) {
-          await queryOne(
-            `UPDATE ops.appointments SET person_id = $1, updated_at = NOW()
-             WHERE appointment_id = $2 AND person_id IS NULL`,
-            [personId, item.entity_id]
-          );
+      if (!item) continue;
+
+      if (action === "approve") {
+        if (item.issue_type === "potential_request_match") {
+          const requestId = item.details?.request_id as string;
+          if (requestId) {
+            await queryOne(
+              `UPDATE ops.appointments SET request_id = $1, updated_at = NOW()
+               WHERE appointment_id = $2 AND request_id IS NULL`,
+              [requestId, item.entity_id]
+            );
+          }
+        } else if (item.issue_type === "phone_address_mismatch") {
+          const personId = item.details?.person_id as string;
+          if (personId) {
+            await queryOne(
+              `UPDATE ops.appointments SET person_id = $1, updated_at = NOW()
+               WHERE appointment_id = $2 AND person_id IS NULL`,
+              [personId, item.entity_id]
+            );
+          }
         }
       }
+
+      await queryOne(
+        `UPDATE ops.data_quality_review_queue
+         SET status = $1, reviewed_by = $2, reviewed_at = NOW()
+         WHERE id = $3`,
+        [action === "approve" ? "approved" : "dismissed", reviewed_by || "staff", itemId]
+      );
+      processed++;
     }
 
-    // Mark as reviewed
-    await queryOne(
-      `UPDATE ops.data_quality_review_queue
-       SET status = $1, reviewed_by = $2, reviewed_at = NOW()
-       WHERE id = $3`,
-      [action === "approve" ? "approved" : "dismissed", reviewed_by || "staff", id]
-    );
-
-    return NextResponse.json(apiSuccess({ id, action, status: "done" }));
+    return NextResponse.json(apiSuccess({ processed, action, status: "done" }));
   } catch (err) {
     return NextResponse.json(
       apiError(err instanceof Error ? err.message : "Unknown error", 500)

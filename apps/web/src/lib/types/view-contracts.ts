@@ -44,6 +44,7 @@ export interface VCatListRow {
   last_appointment_date: string | null; // Mapped from last_visit_date in view
   appointment_count: number; // Mapped from visit_count in view
   source_system: string | null;
+  photo_url: string | null;
 }
 
 // =============================================================================
