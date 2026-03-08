@@ -264,6 +264,8 @@ export interface RequestDetail {
   wellness_cat_count: number | null;
   entry_mode: string | null;
   completion_data: Record<string, unknown> | null;
+  // MIG_2868: Extended intake data (fields without dedicated columns)
+  intake_extended_data: Record<string, unknown> | null;
   // Status history and trappers (from API response)
   status_history?: Array<{
     old_status: string | null;

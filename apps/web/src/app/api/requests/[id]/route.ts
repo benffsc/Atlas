@@ -175,6 +175,7 @@ interface RequestDetailRow {
   wellness_cat_count: number | null;
   entry_mode: string | null;
   completion_data: Record<string, unknown> | null;
+  intake_extended_data: Record<string, unknown> | null;
 }
 
 export async function GET(
@@ -403,7 +404,8 @@ export async function GET(
         r.kitten_notes,
         r.wellness_cat_count,
         r.entry_mode,
-        r.completion_data
+        r.completion_data,
+        r.intake_extended_data
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL

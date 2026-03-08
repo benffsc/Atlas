@@ -1139,6 +1139,25 @@ export default function RequestDetailPage() {
           )}
 
           {/* ─────────────────────────────────────────────────────────────────────
+              INTAKE EXTENDED DATA (fields preserved from intake without dedicated columns)
+              ───────────────────────────────────────────────────────────────────── */}
+          {request.intake_extended_data && Object.keys(request.intake_extended_data).length > 0 && (
+            <CaseSection title="Intake Details" icon="📝" color="#8b5cf6">
+              <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem", margin: 0 }}>
+                {Object.entries(request.intake_extended_data)
+                  .filter(([, v]) => v != null && v !== "" && v !== false)
+                  .map(([key, value]) => (
+                    <SmartField
+                      key={key}
+                      label={key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                      value={typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
+                    />
+                  ))}
+              </dl>
+            </CaseSection>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────────────
               ASSIGNED TRAPPERS
               ───────────────────────────────────────────────────────────────────── */}
           <CaseSection title="Assigned Trappers" icon="👤" color="#ec4899">
