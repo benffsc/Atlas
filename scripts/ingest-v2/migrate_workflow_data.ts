@@ -1,5 +1,8 @@
 #!/usr/bin/env npx tsx
 /**
+ * DEPRECATED: One-time V1->V2 migration script. Already executed.
+ * Do not run without V1_DATABASE_URL and V2_DATABASE_URL env vars.
+ *
  * V2 Workflow Data Migration Script
  *
  * Migrates requests, intakes, and journal entries from V1 (East DB) to V2 (West DB).

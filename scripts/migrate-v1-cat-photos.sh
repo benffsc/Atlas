@@ -1,28 +1,37 @@
 #!/bin/bash
 #
+# DEPRECATED: One-time V1->V2 migration script. Already executed.
+# Do not run without V1_DATABASE_URL, V2_DATABASE_URL, V1_SUPABASE_URL, and V2_SUPABASE_URL env vars.
+#
 # V1 → V2 Cat Photo Migration Script
 #
 # Purpose: Copy cat photos from V1 Supabase storage to V2 Supabase storage
 # matching V1 cat_ids to V2 cat_ids based on microchip.
 #
 # Prerequisites:
-#   - V1 and V2 database access (DATABASE_URL_EAST and DATABASE_URL)
+#   - V1 and V2 database access (V1_DATABASE_URL and V2_DATABASE_URL)
 #   - Supabase service role keys for both projects
+#   - V1_SUPABASE_URL and V2_SUPABASE_URL
 #
-# Usage: ./scripts/migrate-v1-cat-photos.sh
+# Usage:
+#   export V1_DATABASE_URL='postgresql://...'
+#   export V2_DATABASE_URL='postgresql://...'
+#   export V1_SUPABASE_URL='https://...'
+#   export V2_SUPABASE_URL='https://...'
+#   ./scripts/migrate-v1-cat-photos.sh
 
 set -e
 
 # Load environment
 source .env 2>/dev/null || source .env.local
 
-# Database URLs
-V1_DB='postgresql://postgres.tpjllrfpdlkenbapvpko:vfh0xba%21ujx%21gwz%21UGJ@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
-V2_DB='postgresql://postgres.afxpboxisgoxttyrbtpw:BfuM42NhYjPfLY%21%40vdBV@aws-0-us-west-2.pooler.supabase.com:6543/postgres'
+# Database URLs — require env vars
+V1_DB="${V1_DATABASE_URL:?Set V1_DATABASE_URL environment variable}"
+V2_DB="${V2_DATABASE_URL:?Set V2_DATABASE_URL environment variable}"
 
-# Supabase URLs
-V1_SUPABASE="https://tpjllrfpdlkenbapvpko.supabase.co"
-V2_SUPABASE="https://afxpboxisgoxttyrbtpw.supabase.co"
+# Supabase URLs — require env vars
+V1_SUPABASE="${V1_SUPABASE_URL:?Set V1_SUPABASE_URL environment variable}"
+V2_SUPABASE="${V2_SUPABASE_URL:?Set V2_SUPABASE_URL environment variable}"
 
 # Service keys (from .env)
 V1_SERVICE_KEY="${SUPABASE_SERVICE_ROLE_KEY_EAST}"

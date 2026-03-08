@@ -1,10 +1,20 @@
+/**
+ * DEPRECATED: One-time V1->V2 migration script. Already executed.
+ * Do not run without V1_SUPABASE_URL and V2_SUPABASE_URL env vars.
+ */
+
 import { createClient } from '@supabase/supabase-js';
 
-const V1_SUPABASE_URL = 'https://tpjllrfpdlkenbapvpko.supabase.co';
+const V1_SUPABASE_URL = process.env.V1_SUPABASE_URL;
 const V1_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY_EAST!;
 
-const V2_SUPABASE_URL = 'https://afxpboxisgoxttyrbtpw.supabase.co';
+const V2_SUPABASE_URL = process.env.V2_SUPABASE_URL;
 const V2_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+if (!V1_SUPABASE_URL || !V2_SUPABASE_URL) {
+  console.error("Missing Supabase URLs. Set V1_SUPABASE_URL and V2_SUPABASE_URL environment variables.");
+  process.exit(1);
+}
 
 // V1 cat_id → V2 cat_id mapping (from microchip)
 const mapping: Record<string, string> = {

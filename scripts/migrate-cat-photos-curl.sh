@@ -1,5 +1,8 @@
 #!/bin/bash
 #
+# DEPRECATED: One-time V1->V2 migration script. Already executed.
+# Do not run without V1_DATABASE_URL, V1_SUPABASE_URL, and V2_SUPABASE_URL env vars.
+#
 # V1 → V2 Cat Photo Migration using curl with public URLs
 #
 
@@ -8,12 +11,12 @@ cd /Users/benmisdiaz/Projects/Atlas
 # Extract V2 JWT key (for storage uploads)
 V2_KEY=$(grep "^SUPABASE_SERVICE_ROLE_KEY_JWT=" .env.local | cut -d'=' -f2 | tr -d '"')
 
-# Supabase URLs
-V1_SUPABASE="https://tpjllrfpdlkenbapvpko.supabase.co"
-V2_SUPABASE="https://afxpboxisgoxttyrbtpw.supabase.co"
+# Supabase URLs — require env vars
+V1_SUPABASE="${V1_SUPABASE_URL:?Set V1_SUPABASE_URL environment variable}"
+V2_SUPABASE="${V2_SUPABASE_URL:?Set V2_SUPABASE_URL environment variable}"
 
-# Database URLs
-V1_DB='postgresql://postgres.tpjllrfpdlkenbapvpko:vfh0xba%21ujx%21gwz%21UGJ@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
+# Database URLs — require env vars
+V1_DB="${V1_DATABASE_URL:?Set V1_DATABASE_URL environment variable}"
 
 echo "=== V1 → V2 Cat Photo Migration ==="
 echo ""

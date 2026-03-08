@@ -1,3 +1,8 @@
+/**
+ * DEPRECATED: One-time V1->V2 migration API route. Already executed.
+ * Do not run without V1_SUPABASE_URL env var.
+ */
+
 import { createClient } from "@supabase/supabase-js";
 import { supabase, MEDIA_BUCKET } from "@/lib/supabase";
 import { apiSuccess, apiError } from "@/lib/api-response";
@@ -5,7 +10,7 @@ import { apiSuccess, apiError } from "@/lib/api-response";
 // V1 → V2 Cat Photo Migration
 // Downloads photos from V1 public storage and uploads to V2
 
-const V1_SUPABASE_URL = "https://tpjllrfpdlkenbapvpko.supabase.co";
+const V1_SUPABASE_URL = process.env.V1_SUPABASE_URL || "";
 
 // V1 cat_id → V2 cat_id mapping (from microchip match)
 const MAPPING: Record<string, string> = {

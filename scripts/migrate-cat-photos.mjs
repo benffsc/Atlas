@@ -1,10 +1,18 @@
 /**
+ * DEPRECATED: One-time V1->V2 migration script. Already executed.
+ * Do not run without V1_DATABASE_URL, V2_DATABASE_URL, V1_SUPABASE_URL, and V2_SUPABASE_URL env vars.
+ *
  * V1 → V2 Cat Photo Migration
  *
  * Migrates cat photos from V1 Supabase storage to V2 Supabase storage,
  * mapping V1 cat_ids to V2 cat_ids based on microchip.
  *
- * Usage: node scripts/migrate-cat-photos.mjs
+ * Usage:
+ *   export V1_DATABASE_URL='postgresql://...'
+ *   export V2_DATABASE_URL='postgresql://...'
+ *   export V1_SUPABASE_URL='https://...'
+ *   export V2_SUPABASE_URL='https://...'
+ *   node scripts/migrate-cat-photos.mjs
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -12,20 +20,25 @@ import pg from 'pg';
 const { Pool } = pg;
 
 // V1 (us-east-2)
-const V1_SUPABASE_URL = 'https://tpjllrfpdlkenbapvpko.supabase.co';
+const V1_SUPABASE_URL = process.env.V1_SUPABASE_URL;
 const V1_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY_EAST;
-const V1_DB_URL = 'postgresql://postgres.tpjllrfpdlkenbapvpko:vfh0xba!ujx!gwz!UGJ@aws-1-us-east-2.pooler.supabase.com:6543/postgres';
+const V1_DB_URL = process.env.V1_DATABASE_URL;
 
 // V2 (us-west-2)
-const V2_SUPABASE_URL = 'https://afxpboxisgoxttyrbtpw.supabase.co';
+const V2_SUPABASE_URL = process.env.V2_SUPABASE_URL;
 const V2_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const V2_DB_URL = 'postgresql://postgres.afxpboxisgoxttyrbtpw:BfuM42NhYjPfLY!@vdBV@aws-0-us-west-2.pooler.supabase.com:6543/postgres';
+const V2_DB_URL = process.env.V2_DATABASE_URL;
 
 async function main() {
   console.log('=== V1 → V2 Cat Photo Migration ===\n');
 
   if (!V1_SERVICE_KEY || !V2_SERVICE_KEY) {
     console.error('Missing service keys. Set SUPABASE_SERVICE_ROLE_KEY_EAST and SUPABASE_SERVICE_ROLE_KEY');
+    process.exit(1);
+  }
+
+  if (!V1_SUPABASE_URL || !V2_SUPABASE_URL || !V1_DB_URL || !V2_DB_URL) {
+    console.error('Missing database/Supabase URLs. Set V1_DATABASE_URL, V2_DATABASE_URL, V1_SUPABASE_URL, V2_SUPABASE_URL');
     process.exit(1);
   }
 

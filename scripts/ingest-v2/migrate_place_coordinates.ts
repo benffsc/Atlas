@@ -1,5 +1,8 @@
 #!/usr/bin/env npx tsx
 /**
+ * DEPRECATED: One-time V1->V2 migration script. Already executed.
+ * Do not run without V1_DATABASE_URL and V2_DATABASE_URL env vars.
+ *
  * Migrate place coordinates from V1 to V2
  *
  * IMPORTANT: V2 places have DIFFERENT UUIDs than V1 places.
@@ -14,16 +17,20 @@
  * 3. Copy coordinates from V1 to V2
  *
  * Usage:
+ *   export V1_DATABASE_URL='postgresql://...'
+ *   export V2_DATABASE_URL='postgresql://...'
  *   npx tsx scripts/ingest-v2/migrate_place_coordinates.ts
  */
 
 import pg from "pg";
 
-const V1_DATABASE_URL = process.env.V1_DATABASE_URL ||
-  "postgresql://postgres.tpjllrfpdlkenbapvpko:vfh0xba%21ujx%21gwz%21UGJ@aws-1-us-east-2.pooler.supabase.com:6543/postgres";
+const V1_DATABASE_URL = process.env.V1_DATABASE_URL;
+const V2_DATABASE_URL = process.env.V2_DATABASE_URL;
 
-const V2_DATABASE_URL = process.env.V2_DATABASE_URL ||
-  "postgresql://postgres.afxpboxisgoxttyrbtpw:BfuM42NhYjPfLY%21%40vdBV@aws-0-us-west-2.pooler.supabase.com:5432/postgres";
+if (!V1_DATABASE_URL || !V2_DATABASE_URL) {
+  console.error("Missing database URLs. Set V1_DATABASE_URL and V2_DATABASE_URL environment variables.");
+  process.exit(1);
+}
 
 interface V1Place {
   place_id: string;

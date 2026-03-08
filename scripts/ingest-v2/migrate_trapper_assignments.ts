@@ -1,7 +1,17 @@
+/**
+ * DEPRECATED: One-time V1->V2 migration script. Already executed.
+ * Do not run without V1_DATABASE_URL and V2_DATABASE_URL env vars.
+ */
+
 import pg from "pg";
 
-const V1_DB_URL = "postgresql://postgres.tpjllrfpdlkenbapvpko:vfh0xba%21ujx%21gwz%21UGJ@aws-1-us-east-2.pooler.supabase.com:6543/postgres";
-const V2_DB_URL = "postgresql://postgres.afxpboxisgoxttyrbtpw:BfuM42NhYjPfLY%21%40vdBV@aws-0-us-west-2.pooler.supabase.com:5432/postgres";
+const V1_DB_URL = process.env.V1_DATABASE_URL;
+const V2_DB_URL = process.env.V2_DATABASE_URL;
+
+if (!V1_DB_URL || !V2_DB_URL) {
+  console.error("Missing database URLs. Set V1_DATABASE_URL and V2_DATABASE_URL environment variables.");
+  process.exit(1);
+}
 
 const v1Pool = new pg.Pool({ connectionString: V1_DB_URL, max: 3 });
 const v2Pool = new pg.Pool({ connectionString: V2_DB_URL, max: 3 });
