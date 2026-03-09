@@ -67,16 +67,33 @@ const TABLE_COLUMNS = [
   'internal_medical_notes',
   'vet_notes',
   'scraped_at_utc',
+  'extracted_clinichq_id',
 ];
 
 // Columns that get updated on conflict (everything except record_id and imported_at)
 const UPSERT_COLUMNS = TABLE_COLUMNS.filter(c => c !== 'record_id');
 
 /**
+ * Extract ClinicHQ animal ID (XX-XXXX format) from animal_heading_raw.
+ * Example heading: "Lotus 981020053774577 (24-3487)" → "24-3487"
+ */
+function extractClinicHQId(headingRaw) {
+  if (!headingRaw) return null;
+  const match = headingRaw.match(/\((\d{1,3}-\d{1,5})\)/);
+  return match ? match[1] : null;
+}
+
+/**
  * Convert a CSV row value to a database-ready value.
  * Empty strings → NULL, heading_labels_json → parsed JSON, scraped_at_utc → timestamp.
+ * extracted_clinichq_id is computed from animal_heading_raw (not in CSV).
  */
-function transformValue(column, value) {
+function transformValue(column, value, row) {
+  // Computed column — derive from animal_heading_raw
+  if (column === 'extracted_clinichq_id') {
+    return extractClinicHQId(row?.animal_heading_raw);
+  }
+
   if (value === undefined || value === null || value === '') {
     return null;
   }
@@ -179,8 +196,9 @@ async function main() {
   console.log(`  Rows: ${rows.length} (${dedupedRows.length} unique)`);
   console.log(`  CSV columns: ${csvColumns.join(', ')}`);
 
-  // Validate required columns exist
-  const missing = TABLE_COLUMNS.filter(c => !csvColumns.includes(c));
+  // Validate required columns exist (exclude computed columns not in CSV)
+  const COMPUTED_COLUMNS = ['extracted_clinichq_id'];
+  const missing = TABLE_COLUMNS.filter(c => !COMPUTED_COLUMNS.includes(c) && !csvColumns.includes(c));
   if (missing.length > 0) {
     console.error(`${red}Error:${reset} Missing CSV columns: ${missing.join(', ')}`);
     process.exit(1);
@@ -213,7 +231,7 @@ async function main() {
         for (const row of batch) {
           for (const col of TABLE_COLUMNS) {
             try {
-              values.push(transformValue(col, row[col]));
+              values.push(transformValue(col, row[col], row));
             } catch (err) {
               rowErrors.push(`record_id=${row.record_id}, col=${col}: ${err.message}`);
               values.push(null);
