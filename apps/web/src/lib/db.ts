@@ -43,13 +43,11 @@ const pool = connectionString
       ssl: connectionString.includes("localhost")
         ? false
         : { rejectUnauthorized: false },
-      // Serverless: small pool (1) — each Vercel invocation is single-request,
-      // and Transaction mode pooler handles multiplexing on the backend
+      // Serverless: small pool — Transaction mode pooler handles multiplexing
       // Local/Server: larger pool for development performance
-      max: isServerless ? 1 : 10,
-      // Shorter timeouts for serverless to fail fast and release connections
-      idleTimeoutMillis: isServerless ? 10000 : 30000,
-      connectionTimeoutMillis: isServerless ? 5000 : 10000,
+      max: isServerless ? 2 : 10,
+      idleTimeoutMillis: isServerless ? 20000 : 30000,
+      connectionTimeoutMillis: isServerless ? 10000 : 10000,
     })
   : null;
 
