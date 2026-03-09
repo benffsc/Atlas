@@ -407,6 +407,8 @@ export async function GET(
         death_date::TEXT,
         death_cause::TEXT,
         death_age_category::TEXT,
+        mortality_timing,
+        mortality_cause_detail,
         source_system,
         notes,
         created_at::TEXT
@@ -591,6 +593,8 @@ export async function GET(
         death_date: string | null;
         death_cause: string;
         death_age_category: string;
+        mortality_timing: string | null;
+        mortality_cause_detail: string | null;
         source_system: string;
         notes: string | null;
         created_at: string;

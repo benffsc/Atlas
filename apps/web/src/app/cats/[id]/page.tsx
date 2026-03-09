@@ -129,9 +129,24 @@ interface MortalityEvent {
   death_date: string | null;
   death_cause: string;
   death_age_category: string;
+  mortality_timing: string | null;
+  mortality_cause_detail: string | null;
   source_system: string;
   notes: string | null;
   created_at: string;
+}
+
+interface ClinicalNote {
+  appointment_date: string | null;
+  note_type: "medical" | "quick" | "appointment";
+  content: string;
+  appointment_type: string | null;
+}
+
+interface ClinicalNotesData {
+  notes: ClinicalNote[];
+  caution: string | null;
+  has_medical_notes: boolean;
 }
 
 interface BirthEvent {
@@ -197,6 +212,7 @@ interface CatDetail {
   procedures: CatProcedure[];
   appointments: CatAppointment[];
   first_appointment_date: string | null;
+  last_appointment_date: string | null;
   total_appointments: number;
   photo_url: string | null;
   is_deceased: boolean | null;
@@ -538,6 +554,7 @@ export default function CatDetailPage() {
   const [cat, setCat] = useState<CatDetail | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNotesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -615,18 +632,27 @@ export default function CatDetailPage() {
     }
   }, [id]);
 
+  const fetchClinicalNotes = useCallback(async () => {
+    try {
+      const data = await fetchApi<ClinicalNotesData>(`/api/cats/${id}/notes`);
+      setClinicalNotes(data);
+    } catch {
+      // Non-critical — scrape data may not exist for all cats
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
 
     const loadData = async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([fetchCat(), fetchAppointments(), fetchJournal()]);
+      await Promise.all([fetchCat(), fetchAppointments(), fetchJournal(), fetchClinicalNotes()]);
       setLoading(false);
     };
 
     loadData();
-  }, [id, fetchCat, fetchAppointments, fetchJournal]);
+  }, [id, fetchCat, fetchAppointments, fetchJournal, fetchClinicalNotes]);
 
   const startEditingBasic = () => {
     if (cat) {
@@ -871,9 +897,23 @@ export default function CatDetailPage() {
                 <span
                   className="badge"
                   style={{ background: "#dc3545", color: "#fff", fontSize: "0.6em" }}
-                  title={cat.deceased_date ? `Deceased: ${formatDateLocal(cat.deceased_date)}` : "Deceased"}
+                  title={
+                    cat.mortality_event?.mortality_timing && cat.mortality_event.mortality_timing !== "unspecified"
+                      ? `Deceased: ${cat.mortality_event.mortality_timing.replace(/_/g, "-")}${cat.mortality_event.mortality_cause_detail ? `, ${cat.mortality_event.mortality_cause_detail.replace(/_/g, " ")}` : ""}`
+                      : cat.deceased_date ? `Deceased: ${formatDateLocal(cat.deceased_date)}`
+                      : "Deceased"
+                  }
                 >
                   DECEASED
+                </span>
+              )}
+              {clinicalNotes?.caution && (
+                <span
+                  className="badge"
+                  style={{ background: "#f59e0b", color: "#000", fontSize: "0.6em", cursor: "help" }}
+                  title={clinicalNotes.caution}
+                >
+                  CAUTION
                 </span>
               )}
               {cat.atlas_cat_id && (
@@ -1441,6 +1481,12 @@ export default function CatDetailPage() {
               <span className="detail-value">{formatDateLocal(cat.first_appointment_date)}</span>
             </div>
           )}
+          {cat.last_appointment_date && (
+            <div className="detail-item">
+              <span className="detail-label">Last Appointment</span>
+              <span className="detail-value">{formatDateLocal(cat.last_appointment_date)}</span>
+            </div>
+          )}
           {cat.total_appointments > 0 && (
             <div className="detail-item">
               <span className="detail-label">Total Appointments</span>
@@ -1621,6 +1667,18 @@ export default function CatDetailPage() {
                 <div className="text-muted text-sm">Cause of Death</div>
                 <div style={{ fontWeight: 600, textTransform: "capitalize", color: "#dc2626" }}>{cat.mortality_event.death_cause}</div>
               </div>
+              {cat.mortality_event.mortality_timing && cat.mortality_event.mortality_timing !== "unspecified" && (
+                <div>
+                  <div className="text-muted text-sm">Timing</div>
+                  <div style={{ fontWeight: 500, textTransform: "capitalize" }}>{cat.mortality_event.mortality_timing.replace(/_/g, "-")}</div>
+                </div>
+              )}
+              {cat.mortality_event.mortality_cause_detail && cat.mortality_event.mortality_cause_detail !== "unknown" && (
+                <div>
+                  <div className="text-muted text-sm">Detailed Cause</div>
+                  <div style={{ fontWeight: 500, textTransform: "capitalize" }}>{cat.mortality_event.mortality_cause_detail.replace(/_/g, " ")}</div>
+                </div>
+              )}
               <div>
                 <div className="text-muted text-sm">Age Category</div>
                 <div style={{ fontWeight: 500, textTransform: "capitalize" }}>{cat.mortality_event.death_age_category}</div>
@@ -1863,6 +1921,65 @@ export default function CatDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </Section>
+      )}
+
+      {/* Clinical Notes from ClinicHQ scrape (FFS-369) */}
+      {clinicalNotes && clinicalNotes.notes.length > 0 && (
+        <Section title={`Clinical Notes (${clinicalNotes.notes.length})`}>
+          <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
+            Notes from ClinicHQ records — medical observations, staff notes, and appointment context
+          </p>
+          {clinicalNotes.caution && (
+            <div style={{
+              padding: "0.5rem 0.75rem",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "6px",
+              marginBottom: "0.75rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}>
+              <span style={{ fontWeight: 600, color: "#b45309" }}>Caution:</span>
+              <span style={{ fontSize: "0.9rem" }}>{clinicalNotes.caution}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {clinicalNotes.notes.map((note, idx) => (
+              <div key={idx} style={{
+                padding: "0.75rem",
+                background: note.note_type === "medical" ? "#f0f9ff" : "var(--section-bg)",
+                border: `1px solid ${note.note_type === "medical" ? "#bae6fd" : "var(--border)"}`,
+                borderRadius: "6px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                  <span className="badge" style={{
+                    background: note.note_type === "medical" ? "#0284c7" : note.note_type === "quick" ? "#7c3aed" : "#6b7280",
+                    color: "#fff",
+                    fontSize: "0.65rem",
+                    textTransform: "uppercase",
+                  }}>
+                    {note.note_type}
+                  </span>
+                  {note.appointment_date && (
+                    <span className="text-muted text-sm">{note.appointment_date}</span>
+                  )}
+                  {note.appointment_type && (
+                    <span className="text-muted text-sm">— {note.appointment_type}</span>
+                  )}
+                </div>
+                <p style={{
+                  margin: 0,
+                  fontSize: "0.9rem",
+                  whiteSpace: "pre-wrap",
+                  fontFamily: note.note_type === "medical" ? "var(--font-mono, monospace)" : "inherit",
+                }}>
+                  {note.content}
+                </p>
+              </div>
+            ))}
           </div>
         </Section>
       )}
