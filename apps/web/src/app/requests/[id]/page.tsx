@@ -580,9 +580,9 @@ export default function RequestDetailPage() {
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Colony Duration</label>
               <select value={editForm.colony_duration} onChange={(e) => setEditForm({ ...editForm, colony_duration: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
-                <option value="less_than_1_month">Less than 1 month</option>
+                <option value="under_1_month">Less than 1 month</option>
                 <option value="1_to_6_months">1-6 months</option>
-                <option value="6_months_to_2_years">6 months - 2 years</option>
+                <option value="6_to_24_months">6 months - 2 years</option>
                 <option value="over_2_years">Over 2 years</option>
               </select>
             </div>
@@ -627,10 +627,14 @@ export default function RequestDetailPage() {
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Property Type</label>
               <select value={editForm.property_type} onChange={(e) => setEditForm({ ...editForm, property_type: e.target.value })} style={INPUT}>
                 <option value="">Unknown</option>
-                <option value="house">House</option>
-                <option value="apartment">Apartment</option>
+                <option value="private_home">Private Home</option>
+                <option value="apartment_complex">Apartment Complex</option>
+                <option value="mobile_home_park">Mobile Home Park</option>
                 <option value="business">Business</option>
-                <option value="rural">Rural / Farm</option>
+                <option value="farm_ranch">Farm / Ranch</option>
+                <option value="public_park">Public Park</option>
+                <option value="industrial">Industrial</option>
+                <option value="other">Other</option>
               </select>
             </div>
             <div>
