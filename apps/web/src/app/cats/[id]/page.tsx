@@ -546,6 +546,100 @@ function Section({
   );
 }
 
+// Collapsible encounter row for clinical notes timeline (FFS-369)
+function EncounterAccordion({
+  date,
+  appointmentType,
+  notes,
+  hasMedical,
+  defaultOpen = false,
+}: {
+  date: string;
+  appointmentType: string;
+  notes: ClinicalNote[];
+  hasMedical: boolean;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const borderColor = hasMedical ? "#0284c7" : "var(--muted)";
+  // Build a preview snippet from the first note
+  const preview = notes[0]?.content.slice(0, 80) + (notes[0]?.content.length > 80 ? "\u2026" : "");
+
+  return (
+    <div style={{ borderLeft: `3px solid ${borderColor}`, borderRadius: "0 4px 4px 0" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.5rem 0.75rem",
+          background: "var(--section-bg)",
+          border: "none",
+          borderBottom: open ? "1px solid var(--border)" : "none",
+          cursor: "pointer",
+          textAlign: "left",
+          color: "var(--foreground)",
+          borderRadius: open ? "0 4px 0 0" : "0 4px 4px 0",
+        }}
+      >
+        <span style={{ fontSize: "0.8rem", color: "var(--muted)", minWidth: "100px", flexShrink: 0 }}>
+          {date}
+        </span>
+        <span style={{ fontWeight: 500, fontSize: "0.85rem", flexShrink: 0 }}>
+          {appointmentType}
+        </span>
+        {!open && (
+          <span style={{ fontSize: "0.8rem", color: "var(--muted)", flex: 1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+            {preview}
+          </span>
+        )}
+        <span style={{ fontSize: "0.75rem", color: "var(--muted)", flexShrink: 0, marginLeft: "auto" }}>
+          {notes.length} note{notes.length !== 1 ? "s" : ""} {open ? "\u25B2" : "\u25BC"}
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: "0.5rem 0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem", background: "var(--section-bg)", borderRadius: "0 0 4px 0" }}>
+          {notes.map((note, idx) => (
+            <div key={idx} style={{
+              borderLeft: `3px solid ${
+                note.note_type === "medical" ? "#0284c7"
+                : note.note_type === "quick" ? "#7c3aed"
+                : "#9ca3af"
+              }`,
+              paddingLeft: "0.75rem",
+              paddingTop: "0.25rem",
+              paddingBottom: "0.25rem",
+            }}>
+              <span className="badge" style={{
+                background: note.note_type === "medical" ? "#0284c7" : note.note_type === "quick" ? "#7c3aed" : "#6b7280",
+                color: "#fff",
+                fontSize: "0.7rem",
+                textTransform: "uppercase",
+                marginBottom: "0.25rem",
+                display: "inline-block",
+              }}>
+                {note.note_type === "quick" ? "staff notes" : note.note_type === "appointment" ? "visit notes" : "medical"}
+              </span>
+              <p style={{
+                margin: 0,
+                fontSize: "0.875rem",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.5,
+                fontFamily: note.note_type === "medical" ? "var(--font-mono, monospace)" : "inherit",
+                color: "var(--foreground)",
+              }}>
+                {note.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CatDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -907,13 +1001,13 @@ export default function CatDetailPage() {
                   DECEASED
                 </span>
               )}
-              {clinicalNotes?.caution && (
+              {clinicalNotes?.has_medical_notes && (
                 <span
                   className="badge"
-                  style={{ background: "#f59e0b", color: "#000", fontSize: "0.6em", cursor: "help" }}
-                  title={clinicalNotes.caution}
+                  style={{ background: "#0284c7", color: "#fff", fontSize: "0.6em" }}
+                  title="Has clinical notes from ClinicHQ"
                 >
-                  CAUTION
+                  HAS NOTES
                 </span>
               )}
               {cat.atlas_cat_id && (
@@ -1926,63 +2020,40 @@ export default function CatDetailPage() {
       )}
 
       {/* Clinical Notes from ClinicHQ scrape (FFS-369) */}
-      {clinicalNotes && clinicalNotes.notes.length > 0 && (
-        <Section title={`Clinical Notes (${clinicalNotes.notes.length})`}>
-          <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
-            Notes from ClinicHQ records — medical observations, staff notes, and appointment context
-          </p>
-          {clinicalNotes.caution && (
-            <div style={{
-              padding: "0.5rem 0.75rem",
-              background: "#fffbeb",
-              border: "1px solid #fde68a",
-              borderRadius: "6px",
-              marginBottom: "0.75rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}>
-              <span style={{ fontWeight: 600, color: "#b45309" }}>Caution:</span>
-              <span style={{ fontSize: "0.9rem" }}>{clinicalNotes.caution}</span>
+      {clinicalNotes && clinicalNotes.notes.length > 0 && (() => {
+        // Group notes by appointment date
+        const encounters = new Map<string, ClinicalNote[]>();
+        for (const note of clinicalNotes.notes) {
+          const key = note.appointment_date ?? "Unknown date";
+          if (!encounters.has(key)) encounters.set(key, []);
+          encounters.get(key)!.push(note);
+        }
+        const sortedEncounters = [...encounters.entries()].sort(([a], [b]) => b.localeCompare(a));
+
+        return (
+          <Section title={`Clinical Notes (${sortedEncounters.length} visit${sortedEncounters.length !== 1 ? "s" : ""})`}>
+            <p className="text-muted text-sm" style={{ marginBottom: "0.75rem" }}>
+              Notes from ClinicHQ records grouped by appointment
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+              {sortedEncounters.map(([date, notes], encounterIdx) => {
+                const hasMedical = notes.some(n => n.note_type === "medical");
+                const appointmentType = notes[0]?.appointment_type ?? "Visit";
+                return (
+                  <EncounterAccordion
+                    key={date}
+                    date={date}
+                    appointmentType={appointmentType}
+                    notes={notes}
+                    hasMedical={hasMedical}
+                    defaultOpen={encounterIdx === 0}
+                  />
+                );
+              })}
             </div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {clinicalNotes.notes.map((note, idx) => (
-              <div key={idx} style={{
-                padding: "0.75rem",
-                background: note.note_type === "medical" ? "#f0f9ff" : "var(--section-bg)",
-                border: `1px solid ${note.note_type === "medical" ? "#bae6fd" : "var(--border)"}`,
-                borderRadius: "6px",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                  <span className="badge" style={{
-                    background: note.note_type === "medical" ? "#0284c7" : note.note_type === "quick" ? "#7c3aed" : "#6b7280",
-                    color: "#fff",
-                    fontSize: "0.65rem",
-                    textTransform: "uppercase",
-                  }}>
-                    {note.note_type}
-                  </span>
-                  {note.appointment_date && (
-                    <span className="text-muted text-sm">{note.appointment_date}</span>
-                  )}
-                  {note.appointment_type && (
-                    <span className="text-muted text-sm">— {note.appointment_type}</span>
-                  )}
-                </div>
-                <p style={{
-                  margin: 0,
-                  fontSize: "0.9rem",
-                  whiteSpace: "pre-wrap",
-                  fontFamily: note.note_type === "medical" ? "var(--font-mono, monospace)" : "inherit",
-                }}>
-                  {note.content}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
+          </Section>
+        );
+      })()}
     </>
   );
 
