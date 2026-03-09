@@ -126,6 +126,7 @@ export default function TrapperSheetPage() {
   const [data, setData] = useState<TrapperSheetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [includeKittenPage, setIncludeKittenPage] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -201,7 +202,8 @@ export default function TrapperSheetPage() {
   const kitten4plus = kittenAge >= 16;
 
   const hasUrgencyAlert = (data.urgency_reasons && data.urgency_reasons.length > 0) || data.has_medical_concerns;
-  const totalPages = data.has_kittens ? 2 : 1;
+  const showKittenPage = data.has_kittens || includeKittenPage;
+  const totalPages = showKittenPage ? 2 : 1;
 
   return (
     <div className="print-wrapper">
@@ -209,7 +211,7 @@ export default function TrapperSheetPage() {
         @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@600;700&display=swap');
 
         @media print {
-          @page { size: letter; margin: 0.35in; }
+          @page { size: letter; margin: 0.25in; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
           .print-controls, .tippy-fab, .tippy-chat-panel { display: none !important; }
           .print-wrapper { width: 100% !important; padding: 0 !important; }
@@ -237,7 +239,7 @@ export default function TrapperSheetPage() {
 
         .print-page {
           width: 8.5in;
-          padding: 0.35in;
+          padding: 0.25in;
           box-sizing: border-box;
           background: #fff;
         }
@@ -601,8 +603,14 @@ export default function TrapperSheetPage() {
       <div className="print-controls">
         <h3>Trapper Assignment Sheet</h3>
         <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
-          Dense 1-page layout{data.has_kittens ? " + kitten page" : ""}. Print via Ctrl+P.
+          Dense 1-page layout{showKittenPage ? " + kitten page" : ""}. Print via Ctrl+P.
         </p>
+        {!data.has_kittens && (
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", marginBottom: "12px", cursor: "pointer" }}>
+            <input type="checkbox" checked={includeKittenPage} onChange={(e) => setIncludeKittenPage(e.target.checked)} />
+            Include kitten page
+          </label>
+        )}
         <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
         <a href={`/requests/${id}`} style={{ textDecoration: "none" }}>
           <button className="back-btn" style={{ width: "100%" }}>Back to Request</button>
@@ -747,7 +755,7 @@ export default function TrapperSheetPage() {
             <Bubble filled={data.has_kittens === true} label="Yes" />
             <Bubble filled={data.has_kittens === false} label="No" />
             {data.has_kittens && data.kitten_count && <span style={{ fontSize: "8.5pt", marginLeft: "3px" }}>({data.kitten_count})</span>}
-            {data.has_kittens && <span className="hint" style={{ marginLeft: "4px", color: "#27ae60", fontWeight: 600 }}>See pg 2</span>}
+            {showKittenPage && <span className="hint" style={{ marginLeft: "4px", color: "#27ae60", fontWeight: 600 }}>See pg 2</span>}
           </div>
           <div className="options-row" style={{ marginBottom: 0 }}>
             <span className="options-label" style={{ minWidth: "70px" }}>Handleable:</span>
@@ -897,8 +905,8 @@ export default function TrapperSheetPage() {
         </div>
       </div>
 
-      {/* ═══════════════════ PAGE 2: Kitten Details (only if has_kittens) ═══════════════════ */}
-      {data.has_kittens && (
+      {/* ═══════════════════ PAGE 2: Kitten Details ═══════════════════ */}
+      {showKittenPage && (
         <div className="print-page">
           <div className="print-header">
             <div>
