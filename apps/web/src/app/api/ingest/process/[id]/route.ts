@@ -1160,6 +1160,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         has_ear_tip,
         -- Text fields
         felv_fiv_result, body_composition_score, no_surgery_reason,
+        -- Death tracking (FFS-401)
+        death_type,
         -- Financial
         total_invoiced, subsidy_value,
         -- Unique ID for raw data joins
@@ -1208,6 +1210,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         NULLIF(TRIM(sr.payload->>'FeLV/FIV (SNAP test, in-house)'), ''),
         NULLIF(TRIM(sr.payload->>'Body Composition Score'), ''),
         NULLIF(TRIM(sr.payload->>'No Surgery Reason'), ''),
+        -- Death tracking (FFS-401)
+        NULLIF(TRIM(sr.payload->>'Death Type'), ''),
         -- Financial
         CASE WHEN sr.payload->>'Total Invoiced' ~ '^[\$]?[0-9]+\.?[0-9]*$'
              THEN REPLACE(sr.payload->>'Total Invoiced', '$', '')::NUMERIC(10,2)
@@ -1272,6 +1276,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         felv_fiv_result = COALESCE(ops.appointments.felv_fiv_result, EXCLUDED.felv_fiv_result),
         body_composition_score = COALESCE(ops.appointments.body_composition_score, EXCLUDED.body_composition_score),
         no_surgery_reason = COALESCE(ops.appointments.no_surgery_reason, EXCLUDED.no_surgery_reason),
+        -- Death Type: always take new value if present (FFS-401)
+        death_type = COALESCE(EXCLUDED.death_type, ops.appointments.death_type),
         total_invoiced = COALESCE(ops.appointments.total_invoiced, EXCLUDED.total_invoiced),
         subsidy_value = COALESCE(ops.appointments.subsidy_value, EXCLUDED.subsidy_value),
         clinichq_appointment_id = COALESCE(ops.appointments.clinichq_appointment_id, EXCLUDED.clinichq_appointment_id),
@@ -1746,6 +1752,46 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     console.error('Inline birth events failed (non-fatal):', err);
   }
 
+  // Beacon enrichment: mortality events from Death Type field (FFS-401)
+  // ClinicHQ exports include Death Type = 'Pre-operative' or 'Post-operative'
+  try {
+    await saveProgress('Creating mortality events from Death Type...');
+    const deathTypeResult = await query(`
+      WITH death_type_appointments AS (
+        SELECT DISTINCT ON (a.cat_id)
+          a.appointment_id,
+          a.appointment_date,
+          a.cat_id,
+          a.death_type,
+          CASE
+            WHEN LOWER(a.death_type) LIKE '%pre%' THEN 'pre_operative'
+            WHEN LOWER(a.death_type) LIKE '%post%' THEN 'post_operative'
+            ELSE 'unspecified'
+          END AS mortality_timing
+        FROM ops.appointments a
+        JOIN sot.cats c ON c.cat_id = a.cat_id
+        LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id
+        WHERE a.death_type IS NOT NULL
+          AND TRIM(a.death_type) != ''
+          AND me.event_id IS NULL
+        ORDER BY a.cat_id, a.appointment_date DESC
+      )
+      INSERT INTO sot.cat_mortality_events (
+        cat_id, mortality_type, event_date, cause,
+        mortality_timing, source_system, source_record_id, notes
+      )
+      SELECT
+        cat_id, 'euthanasia', appointment_date, 'clinichq_death_type',
+        mortality_timing, 'clinichq', appointment_id::TEXT,
+        'Auto-created from ClinicHQ Death Type: ' || death_type
+      FROM death_type_appointments
+      ON CONFLICT (cat_id, event_date, mortality_type) DO NOTHING
+    `);
+    results.mortality_events_death_type = deathTypeResult.rowCount || 0;
+  } catch (err) {
+    console.error('Death Type mortality events failed (non-fatal):', err);
+  }
+
   // Beacon enrichment: mortality events from clinic euthanasia/death notes
   try {
     await saveProgress('Creating mortality events from clinic notes...');
@@ -1759,17 +1805,17 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           CASE
             WHEN LOWER(a.medical_notes) LIKE '%humanely euthanized%' THEN 'euthanasia'
             WHEN LOWER(a.medical_notes) LIKE '%euthanasia%' THEN 'euthanasia'
-            WHEN LOWER(a.medical_notes) LIKE '%hit by car%' OR LOWER(a.medical_notes) LIKE '%hbc%' THEN 'vehicle'
+            WHEN LOWER(a.medical_notes) LIKE '%hit by car%' OR LOWER(a.medical_notes) LIKE '%hbc%' THEN 'trauma'
             WHEN LOWER(a.medical_notes) LIKE '%died%' THEN 'unknown'
             ELSE 'unknown'
-          END AS death_cause,
-          (
-            SELECT cp.place_id
-            FROM sot.cat_place cp
-            WHERE cp.cat_id = a.cat_id
-            ORDER BY cp.created_at DESC
-            LIMIT 1
-          ) as place_id
+          END AS mortality_type,
+          CASE
+            WHEN LOWER(a.medical_notes) LIKE '%humanely euthanized%' THEN 'euthanasia_medical_notes'
+            WHEN LOWER(a.medical_notes) LIKE '%euthanasia%' THEN 'euthanasia_medical_notes'
+            WHEN LOWER(a.medical_notes) LIKE '%hit by car%' OR LOWER(a.medical_notes) LIKE '%hbc%' THEN 'vehicle_collision'
+            WHEN LOWER(a.medical_notes) LIKE '%died%' THEN 'died_medical_notes'
+            ELSE 'unknown'
+          END AS cause
         FROM ops.appointments a
         JOIN sot.cats c ON c.cat_id = a.cat_id
         LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id
@@ -1780,40 +1826,38 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             OR LOWER(a.medical_notes) LIKE '%hit by car%'
             OR LOWER(a.medical_notes) LIKE '%hbc%'
           )
-          AND me.mortality_event_id IS NULL
+          AND me.event_id IS NULL
         ORDER BY a.cat_id, a.appointment_date DESC
         LIMIT 50
       )
       INSERT INTO sot.cat_mortality_events (
-        cat_id, death_date, death_date_precision, death_year, death_month,
-        death_cause, place_id, source_system, source_record_id, reported_by, notes
+        cat_id, mortality_type, event_date, cause,
+        source_system, source_record_id, notes
       )
       SELECT
-        cat_id, appointment_date, 'exact',
-        EXTRACT(YEAR FROM appointment_date)::INT,
-        EXTRACT(MONTH FROM appointment_date)::INT,
-        death_cause,
-        place_id, 'beacon_cron', appointment_id::TEXT, 'System',
+        cat_id, mortality_type, appointment_date, cause,
+        'clinichq', appointment_id::TEXT,
         'Auto-created from clinic notes: ' || LEFT(medical_notes, 200)
       FROM death_appointments
-      ON CONFLICT (cat_id) DO NOTHING
+      ON CONFLICT (cat_id, event_date, mortality_type) DO NOTHING
     `);
     results.mortality_events_created = mortalityResult.rowCount || 0;
-
-    // Mark cats as deceased
-    if (mortalityResult.rowCount && mortalityResult.rowCount > 0) {
-      const deceasedResult = await query(`
-        UPDATE sot.cats
-        SET is_deceased = true, deceased_date = me.death_date, updated_at = NOW()
-        FROM sot.cat_mortality_events me
-        WHERE sot_cats.cat_id = me.cat_id
-          AND (sot_cats.is_deceased IS NULL OR sot_cats.is_deceased = false)
-          AND me.source_system = 'beacon_cron'
-      `);
-      results.cats_marked_deceased = deceasedResult.rowCount || 0;
-    }
   } catch (err) {
     console.error('Inline mortality events failed (non-fatal):', err);
+  }
+
+  // Mark ALL cats with mortality events as deceased (covers both Death Type and notes)
+  try {
+    const deceasedResult = await query(`
+      UPDATE sot.cats c
+      SET is_deceased = true, deceased_at = me.event_date::timestamptz, updated_at = NOW()
+      FROM sot.cat_mortality_events me
+      WHERE c.cat_id = me.cat_id
+        AND (c.is_deceased IS NULL OR c.is_deceased = false)
+    `);
+    results.cats_marked_deceased = deceasedResult.rowCount || 0;
+  } catch (err) {
+    console.error('Mark cats deceased failed (non-fatal):', err);
   }
 
   // Disease status computation: run after test results created
