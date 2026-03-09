@@ -152,7 +152,7 @@ BEGIN
         FROM sot.person_cat pc
         WHERE pc.person_id = v_record.existing_person_id;
 
-        SELECT person_id INTO v_new_person_id
+        SELECT p.person_id INTO v_new_person_id
         FROM sot.people p
         JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
         WHERE p.merged_into_person_id IS NULL
