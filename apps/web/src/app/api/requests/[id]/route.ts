@@ -371,10 +371,10 @@ export async function GET(
         r.previous_tnr,
         r.handleability,
         r.fixed_status,
-        NULL::TEXT AS ownership_status,
+        r.ownership_status,
         COALESCE(r.has_medical_concerns, FALSE) AS has_medical_concerns,
         r.medical_description,
-        NULL::TEXT[] AS important_notes,
+        r.important_notes,
         -- V2 Beacon-critical fields (MIG_2532)
         r.peak_count,
         r.awareness_duration,

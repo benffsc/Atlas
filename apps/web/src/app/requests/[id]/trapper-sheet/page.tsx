@@ -25,8 +25,6 @@ interface TrapperSheetData {
   place_address: string | null;
   place_city: string | null;
   place_postal_code: string | null;
-  latitude: number | null;
-  longitude: number | null;
   place_coordinates?: { lat: number; lng: number } | null;
   // Requester
   requester_name: string | null;
@@ -49,6 +47,11 @@ interface TrapperSheetData {
   best_times_seen: string | null;
   urgency_reasons: string[] | null;
   urgency_deadline: string | null;
+  urgency_notes: string | null;
+  best_contact_times: string | null;
+  feeding_location: string | null;
+  feeding_time: string | null;
+  is_property_owner: boolean | null;
   // Call sheet trapping logistics (MIG_2495)
   dogs_on_site: string | null;
   trap_savvy: string | null;
@@ -61,12 +64,21 @@ interface TrapperSheetData {
   important_notes: string[] | null;
   // County info
   county: string | null;
+  // Kitten details
+  kitten_behavior: string | null;
+  kitten_contained: string | null;
+  mom_present: string | null;
+  mom_fixed: string | null;
+  can_bring_in: string | null;
+  kitten_age_estimate: string | null;
+  kitten_notes: string | null;
   // Trapper assignment
-  trappers: Array<{
-    person_id: string;
-    display_name: string;
-    trapper_type: string;
-    assignment_type: string;
+  current_trappers: Array<{
+    trapper_person_id: string;
+    trapper_name: string;
+    trapper_type: string | null;
+    is_primary: boolean;
+    assigned_at: string;
   }> | null;
 }
 
@@ -89,7 +101,6 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
-// Bubble component - shows filled if value matches
 function Bubble({ filled, label }: { filled: boolean; label: string }) {
   return (
     <span className="option">
@@ -98,7 +109,6 @@ function Bubble({ filled, label }: { filled: boolean; label: string }) {
   );
 }
 
-// Checkbox component - shows checked/crossed
 function Check({ checked, crossed, label }: { checked?: boolean; crossed?: boolean; label: string }) {
   return (
     <span className="option">
@@ -135,11 +145,6 @@ export default function TrapperSheetPage() {
   if (error) return <div style={{ padding: "2rem", color: "#e74c3c", fontFamily: "Helvetica, Arial, sans-serif" }}>{error}</div>;
   if (!data) return <div style={{ padding: "2rem", fontFamily: "Helvetica, Arial, sans-serif" }}>Request not found</div>;
 
-  // Split requester name
-  const nameParts = (data.requester_name || "").split(" ");
-  const firstName = nameParts[0] || "";
-  const lastName = nameParts.slice(1).join(" ") || "";
-
   // Determine property type
   const propertyType = data.property_type?.toLowerCase() || "";
   const isHouse = propertyType.includes("house") || propertyType.includes("sfh");
@@ -151,7 +156,6 @@ export default function TrapperSheetPage() {
   const county = data.county?.toLowerCase() || "";
   const isSonoma = county.includes("sonoma") || (!county && !!data.place_city?.toLowerCase().includes("sonoma"));
   const isMarin = county.includes("marin");
-  const isNapa = county.includes("napa");
 
   // Determine colony duration
   const duration = data.colony_duration?.toLowerCase() || "";
@@ -166,11 +170,15 @@ export default function TrapperSheetPage() {
   const isTrapNeeded = handleability.includes("trap") || handleability.includes("feral");
   const isMixed = handleability.includes("mixed");
 
-  // Ownership status
+  // Ownership / property owner — check both ownership_status and is_property_owner
   const ownership = data.ownership_status?.toLowerCase() || "";
-  const isOwner = ownership.includes("owner") || ownership.includes("yes");
+  const isOwner = ownership.includes("owner") || ownership.includes("yes") || data.is_property_owner === true;
   const isRenter = ownership.includes("rent");
-  const isNeighbor = ownership.includes("neighbor");
+
+  // Permission status: DB stores 'yes' but old code checked 'granted'
+  const permGranted = data.permission_status === "granted" || data.permission_status === "yes";
+  const permDenied = data.permission_status === "denied" || data.permission_status === "no";
+  const permPending = data.permission_status === "pending";
 
   // Important notes flags
   const importantNotes = (data.important_notes || []).map(n => n.toLowerCase());
@@ -192,13 +200,16 @@ export default function TrapperSheetPage() {
   const kitten12to16 = kittenAge >= 12 && kittenAge < 16;
   const kitten4plus = kittenAge >= 16;
 
+  const hasUrgencyAlert = (data.urgency_reasons && data.urgency_reasons.length > 0) || data.has_medical_concerns;
+  const totalPages = data.has_kittens ? 2 : 1;
+
   return (
     <div className="print-wrapper">
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@600;700&display=swap');
 
         @media print {
-          @page { size: letter; margin: 0.4in; }
+          @page { size: letter; margin: 0.35in; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
           .print-controls, .tippy-fab, .tippy-chat-panel { display: none !important; }
           .print-wrapper { width: 100% !important; padding: 0 !important; }
@@ -213,23 +224,20 @@ export default function TrapperSheetPage() {
             overflow: visible !important;
           }
           .print-page:last-child { page-break-after: auto; }
-          .print-header { margin-bottom: 10px !important; }
-          .section { margin-bottom: 10px !important; }
         }
 
         body { margin: 0; padding: 0; }
 
         .print-wrapper {
           font-family: Helvetica, Arial, sans-serif;
-          font-size: 10pt;
-          line-height: 1.3;
+          font-size: 9.5pt;
+          line-height: 1.25;
           color: #2c3e50;
         }
 
         .print-page {
           width: 8.5in;
-          height: 10.2in;
-          padding: 0.4in;
+          padding: 0.35in;
           box-sizing: border-box;
           background: #fff;
         }
@@ -243,39 +251,39 @@ export default function TrapperSheetPage() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-bottom: 8px;
-          margin-bottom: 12px;
+          padding-bottom: 6px;
+          margin-bottom: 6px;
           border-bottom: 3px solid #27ae60;
         }
 
         .print-header h1 {
-          font-size: 16pt;
+          font-size: 15pt;
           margin: 0;
           color: #27ae60;
         }
 
         .print-header .subtitle {
-          font-size: 9pt;
+          font-size: 8.5pt;
           color: #7f8c8d;
-          margin-top: 2px;
+          margin-top: 1px;
         }
 
         .header-right {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .header-logo {
-          height: 42px;
+          height: 36px;
           width: auto;
         }
 
         .priority-badge {
-          padding: 4px 12px;
+          padding: 3px 10px;
           border-radius: 4px;
           font-weight: 700;
-          font-size: 10pt;
+          font-size: 9.5pt;
           text-transform: uppercase;
         }
 
@@ -285,21 +293,21 @@ export default function TrapperSheetPage() {
         .priority-low { background: #6b7280; color: #fff; }
 
         .section {
-          margin-bottom: 12px;
+          margin-bottom: 6px;
         }
 
         .section-title {
-          font-size: 11pt;
+          font-size: 10pt;
           color: #27ae60;
           border-bottom: 1.5px solid #ecf0f1;
-          padding-bottom: 3px;
-          margin-bottom: 8px;
+          padding-bottom: 2px;
+          margin-bottom: 4px;
         }
 
         .field-row {
           display: flex;
-          gap: 12px;
-          margin-bottom: 8px;
+          gap: 8px;
+          margin-bottom: 4px;
         }
 
         .field {
@@ -309,26 +317,25 @@ export default function TrapperSheetPage() {
 
         .field.w2 { flex: 2; }
         .field.w3 { flex: 3; }
-        .field.w4 { flex: 4; }
         .field.half { flex: 0.5; }
 
         .field label {
           display: block;
-          font-size: 8pt;
+          font-size: 7.5pt;
           font-weight: 600;
           color: #7f8c8d;
           text-transform: uppercase;
           letter-spacing: 0.3px;
-          margin-bottom: 2px;
+          margin-bottom: 1px;
         }
 
         .field-input {
           border: 1px solid #bdc3c7;
-          border-radius: 4px;
-          padding: 6px 8px;
-          min-height: 28px;
+          border-radius: 3px;
+          padding: 3px 5px;
+          min-height: 20px;
           background: #fff;
-          font-size: 10pt;
+          font-size: 9.5pt;
         }
 
         .field-input.prefilled {
@@ -336,37 +343,35 @@ export default function TrapperSheetPage() {
           color: #2c3e50;
         }
 
-        .field-input.sm { min-height: 26px; padding: 5px 7px; }
-        .field-input.md { min-height: 55px; }
-        .field-input.lg { min-height: 80px; }
-        .field-input.xl { min-height: 110px; }
+        .field-input.sm { min-height: 18px; padding: 2px 5px; }
+        .field-input.md { min-height: 40px; }
 
         .options-row {
           display: flex;
           align-items: center;
-          gap: 4px;
-          font-size: 9.5pt;
-          margin-bottom: 6px;
+          gap: 3px;
+          font-size: 9pt;
+          margin-bottom: 3px;
           flex-wrap: wrap;
         }
 
         .options-label {
           font-weight: 600;
           color: #2c3e50;
-          min-width: 90px;
-          font-size: 9.5pt;
+          min-width: 75px;
+          font-size: 9pt;
         }
 
         .option {
           display: inline-flex;
           align-items: center;
-          gap: 4px;
-          margin-right: 12px;
+          gap: 3px;
+          margin-right: 8px;
         }
 
         .bubble {
-          width: 13px;
-          height: 13px;
+          width: 11px;
+          height: 11px;
           border: 1.5px solid #27ae60;
           border-radius: 50%;
           background: #fff;
@@ -378,8 +383,8 @@ export default function TrapperSheetPage() {
         }
 
         .checkbox {
-          width: 13px;
-          height: 13px;
+          width: 11px;
+          height: 11px;
           border: 1.5px solid #27ae60;
           border-radius: 2px;
           background: #fff;
@@ -387,7 +392,7 @@ export default function TrapperSheetPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          font-size: 9pt;
+          font-size: 8pt;
           font-weight: 700;
         }
 
@@ -404,89 +409,24 @@ export default function TrapperSheetPage() {
         .two-col {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-
-        .info-box {
-          background: #f0fdf4;
-          border: 1.5px solid #86efac;
-          border-radius: 6px;
-          padding: 8px 10px;
-          margin-bottom: 10px;
-        }
-
-        .info-box .title {
-          font-weight: 600;
-          color: #166534;
-          margin-bottom: 5px;
-          font-size: 9.5pt;
-        }
-
-        .info-card {
-          background: #f8f9fa;
-          border-radius: 6px;
-          padding: 6px 10px;
-          margin-bottom: 8px;
-          border-left: 3px solid #27ae60;
-        }
-
-        .warning-box {
-          background: #fef3c7;
-          border: 1.5px solid #fcd34d;
-          border-radius: 6px;
-          padding: 8px 10px;
-          margin-bottom: 10px;
-        }
-
-        .warning-box .title {
-          font-weight: 600;
-          color: #92400e;
-          margin-bottom: 5px;
-          font-size: 9.5pt;
-        }
-
-        .staff-box {
-          border: 1.5px dashed #94a3b8;
-          border-radius: 6px;
-          padding: 10px 12px;
-          margin-top: 10px;
-          background: #f8fafc;
-        }
-
-        .staff-box .section-title {
-          color: #7f8c8d;
-          border-bottom-color: #bdc3c7;
-        }
-
-        .quick-notes {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 6px;
-        }
-
-        .quick-note {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          font-size: 9pt;
-          padding: 2px 0;
+          gap: 12px;
         }
 
         .emergency-box {
           border: 1.5px solid #e74c3c;
           background: #fdedec;
-          padding: 6px 10px;
-          margin-bottom: 10px;
-          border-radius: 6px;
+          padding: 5px 8px;
+          margin-bottom: 6px;
+          border-radius: 5px;
         }
 
         .emergency-box .title {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 5px;
           font-weight: 600;
           color: #e74c3c;
-          font-size: 9.5pt;
+          font-size: 9pt;
         }
 
         .emergency-box .checkbox {
@@ -498,33 +438,54 @@ export default function TrapperSheetPage() {
           border-color: #e74c3c;
         }
 
-        .page-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-top: 6px;
-          margin-top: auto;
-          border-top: 1px solid #ecf0f1;
-          font-size: 8pt;
-          color: #95a5a6;
+        .warning-box {
+          background: #fef3c7;
+          border: 1.5px solid #fcd34d;
+          border-radius: 5px;
+          padding: 4px 8px;
+          margin-bottom: 6px;
         }
 
-        .date-field {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 10pt;
+        .warning-box .title {
+          font-weight: 600;
+          color: #92400e;
+          font-size: 9pt;
+          margin-bottom: 3px;
         }
 
-        .date-field .field-input {
-          width: 100px;
-          display: inline-block;
+        .info-card {
+          background: #f8f9fa;
+          border-radius: 4px;
+          padding: 4px 8px;
+          margin-bottom: 4px;
+          border-left: 3px solid #27ae60;
         }
 
-        .hint {
-          font-size: 7.5pt;
-          color: #95a5a6;
-          margin-left: 3px;
+        .info-box {
+          background: #f0fdf4;
+          border: 1.5px solid #86efac;
+          border-radius: 5px;
+          padding: 4px 8px;
+          margin-bottom: 6px;
+        }
+
+        .info-box .title {
+          font-weight: 600;
+          color: #166534;
+          font-size: 9pt;
+          margin-bottom: 3px;
+        }
+
+        .staff-box {
+          border: 1.5px dashed #94a3b8;
+          border-radius: 5px;
+          padding: 6px 8px;
+          background: #f8fafc;
+        }
+
+        .staff-box .section-title {
+          color: #7f8c8d;
+          border-bottom-color: #bdc3c7;
         }
 
         .trapper-header {
@@ -533,18 +494,47 @@ export default function TrapperSheetPage() {
           align-items: center;
           background: #166534;
           color: #fff;
-          padding: 6px 12px;
-          border-radius: 6px;
-          margin-bottom: 10px;
+          padding: 4px 10px;
+          border-radius: 5px;
+          margin-bottom: 6px;
         }
 
         .trapper-header .trapper-names {
-          font-size: 12pt;
+          font-size: 11pt;
           font-weight: 600;
         }
 
         .trapper-header .trapper-date {
-          font-size: 10pt;
+          font-size: 9.5pt;
+        }
+
+        .quick-notes {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 3px 10px;
+        }
+
+        .quick-note {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 8.5pt;
+        }
+
+        .page-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-top: 4px;
+          margin-top: 6px;
+          border-top: 1px solid #ecf0f1;
+          font-size: 7.5pt;
+          color: #95a5a6;
+        }
+
+        .hint {
+          font-size: 7pt;
+          color: #95a5a6;
         }
 
         @media screen {
@@ -611,7 +601,7 @@ export default function TrapperSheetPage() {
       <div className="print-controls">
         <h3>Trapper Assignment Sheet</h3>
         <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
-          Pre-filled from request data. Print front &amp; back.
+          Dense 1-page layout{data.has_kittens ? " + kitten page" : ""}. Print via Ctrl+P.
         </p>
         <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
         <a href={`/requests/${id}`} style={{ textDecoration: "none" }}>
@@ -625,8 +615,9 @@ export default function TrapperSheetPage() {
         </div>
       </div>
 
-      {/* ═══════════════════ PAGE 1: Contact, Location & Cats ═══════════════════ */}
+      {/* ═══════════════════ PAGE 1: Everything on one page ═══════════════════ */}
       <div className="print-page">
+        {/* Header */}
         <div className="print-header">
           <div>
             <h1>Trapper Assignment Sheet</h1>
@@ -640,11 +631,11 @@ export default function TrapperSheetPage() {
           </div>
         </div>
 
-        {/* Trapper Assignment Header */}
+        {/* Trapper Assignment Bar */}
         <div className="trapper-header">
           <div className="trapper-names">
-            {data.trappers && data.trappers.length > 0
-              ? `Assigned: ${data.trappers.map(t => t.display_name).join(", ")}`
+            {data.current_trappers && data.current_trappers.length > 0
+              ? `Assigned: ${data.current_trappers.map(t => t.trapper_name).join(", ")}`
               : "Assigned: _______________________"}
           </div>
           <div className="trapper-date">
@@ -655,420 +646,345 @@ export default function TrapperSheetPage() {
         </div>
 
         {/* Urgency Alert */}
-        {(data.urgency_reasons && data.urgency_reasons.length > 0) || data.has_medical_concerns ? (
+        {hasUrgencyAlert && (
           <div className="emergency-box">
             <div className="title">
               <span className="checkbox checked">✓</span>
-              URGENT SITUATION
-              <span className="hint">
-                {data.urgency_reasons?.map(r => formatValue(r)).join(" | ")}
-                {data.urgency_deadline && ` (Deadline: ${formatDate(data.urgency_deadline)})`}
-              </span>
+              URGENT: {data.urgency_reasons?.map(r => formatValue(r)).join(", ")}
+              {data.urgency_deadline && ` — Deadline: ${formatDate(data.urgency_deadline)}`}
             </div>
+            {data.urgency_notes && (
+              <div style={{ marginTop: "3px", fontSize: "9pt", fontStyle: "italic" }}>
+                {data.urgency_notes}
+              </div>
+            )}
             {data.has_medical_concerns && data.medical_description && (
-              <div style={{ marginTop: "4px", fontSize: "9pt" }}>
+              <div style={{ marginTop: "3px", fontSize: "9pt" }}>
                 <strong>Medical:</strong> {data.medical_description}
               </div>
             )}
           </div>
-        ) : null}
+        )}
 
-        {/* Contact Information */}
-        <div className="section">
-          <div className="section-title">Contact Information</div>
-          <div className="field-row">
-            <div className="field">
-              <label>First Name</label>
-              <div className={`field-input sm ${firstName ? "prefilled" : ""}`}>{firstName}</div>
+        {/* CONTACT + LOCATION side by side */}
+        <div className="two-col" style={{ marginBottom: "6px" }}>
+          <div className="section" style={{ marginBottom: 0 }}>
+            <div className="section-title">Contact</div>
+            <div className={`field-input sm ${data.requester_name ? "prefilled" : ""}`} style={{ fontWeight: 600, fontSize: "10pt", marginBottom: "3px" }}>
+              {data.requester_name || ""}
             </div>
-            <div className="field">
-              <label>Last Name</label>
-              <div className={`field-input sm ${lastName ? "prefilled" : ""}`}>{lastName}</div>
-            </div>
-            <div className="field">
-              <label>Phone</label>
-              <div className={`field-input sm ${data.requester_phone ? "prefilled" : ""}`}>
-                {data.requester_phone ? formatPhone(data.requester_phone) : ""}
-              </div>
-            </div>
-            <div className="field w2">
-              <label>Email</label>
-              <div className={`field-input sm ${data.requester_email ? "prefilled" : ""}`}>{data.requester_email || ""}</div>
-            </div>
-          </div>
-          <div className="options-row" style={{ marginBottom: 0 }}>
-            <span className="options-label" style={{ minWidth: "100px" }}>Preferred contact:</span>
-            <Bubble filled={data.preferred_contact_method === "call"} label="Call" />
-            <Bubble filled={data.preferred_contact_method === "text"} label="Text" />
-            <Bubble filled={data.preferred_contact_method === "email"} label="Email" />
-            {data.property_owner_contact && (
-              <span style={{ marginLeft: "10px" }}>Property owner: <strong>{data.property_owner_contact}</strong></span>
-            )}
-          </div>
-        </div>
-
-        {/* Cat Location */}
-        <div className="section">
-          <div className="section-title">Where Are the Cats?</div>
-          <div className="field-row">
-            <div className="field w3">
-              <label>Street Address</label>
-              <div className={`field-input sm ${data.place_address ? "prefilled" : ""}`}>{data.place_address || data.place_name || ""}</div>
-            </div>
-            <div className="field">
-              <label>City</label>
-              <div className={`field-input sm ${data.place_city ? "prefilled" : ""}`}>{data.place_city || ""}</div>
-            </div>
-            <div className="field half">
-              <label>ZIP</label>
-              <div className={`field-input sm ${data.place_postal_code ? "prefilled" : ""}`}>{data.place_postal_code || ""}</div>
-            </div>
-          </div>
-          <div className="options-row" style={{ marginBottom: "4px" }}>
-            <span className="options-label" style={{ minWidth: "55px" }}>County:</span>
-            <Bubble filled={isSonoma} label="Sonoma" />
-            <Bubble filled={isMarin} label="Marin" />
-            <Bubble filled={isNapa} label="Napa" />
-            <Bubble filled={!isSonoma && !isMarin && !isNapa && !!county} label={`Other: ${county || "____"}`} />
-            <span style={{ marginLeft: "20px" }}><span className="options-label" style={{ minWidth: "60px" }}>Property:</span></span>
-            <Bubble filled={isHouse} label="House" />
-            <Bubble filled={isApt} label="Apt" />
-            <Bubble filled={isBusiness} label="Business" />
-            <Bubble filled={isRural} label="Rural" />
-          </div>
-          {data.location_description && (
-            <div className="info-card" style={{ marginTop: "4px" }}>
-              <strong>Location notes:</strong> {data.location_description}
-            </div>
-          )}
-          {data.latitude && data.longitude && (
-            <div style={{ fontSize: "8pt", color: "#9ca3af" }}>
-              GPS: {data.latitude.toFixed(5)}, {data.longitude.toFixed(5)}
-            </div>
-          )}
-        </div>
-
-        {/* About the Cats */}
-        <div className="section">
-          <div className="section-title">About the Cats</div>
-          <div className="field-row" style={{ alignItems: "center", marginBottom: "6px" }}>
-            <div className="field" style={{ flex: "0 0 110px" }}>
-              <label>How many cats?</label>
-              <div className={`field-input sm ${data.estimated_cat_count ? "prefilled" : ""}`} style={{ width: "60px" }}>
-                {data.estimated_cat_count ?? ""}
-              </div>
-            </div>
-            <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
-              <span className="options-label" style={{ minWidth: "80px" }}>Eartipped:</span>
-              <Bubble filled={data.eartip_count === 0} label="None" />
-              <Bubble filled={data.eartip_count !== null && data.eartip_count > 0 && data.eartip_count < (data.estimated_cat_count || 99)} label={`Some (${data.eartip_count ?? "?"})`} />
-              <Bubble filled={data.eartip_count !== null && data.eartip_count >= (data.estimated_cat_count || 1)} label="Most/All" />
-              <Bubble filled={data.eartip_count === null} label="Unknown" />
-            </div>
-          </div>
-
-          {/* Feeding info card */}
-          <div className="info-card">
-            <div className="options-row" style={{ marginBottom: "2px" }}>
-              <span className="options-label" style={{ minWidth: "80px" }}>Feed them?</span>
-              <Bubble filled={data.is_being_fed === true} label="Yes" />
-              <Bubble filled={data.is_being_fed === false} label="No" />
-              {data.feeder_name && <span style={{ marginLeft: "10px" }}>Feeder: <strong>{data.feeder_name}</strong></span>}
+            <div className={`field-input sm ${data.requester_phone ? "prefilled" : ""}`} style={{ marginBottom: "3px" }}>
+              {data.requester_phone ? formatPhone(data.requester_phone) : ""}
+              {data.requester_email ? ` | ${data.requester_email}` : ""}
             </div>
             <div className="options-row" style={{ marginBottom: 0 }}>
-              <span className="options-label" style={{ minWidth: "80px" }}>Colony age:</span>
-              <Bubble filled={durationLessThanMonth} label="<1 mo" />
-              <Bubble filled={duration1to6} label="1-6 mo" />
-              <Bubble filled={duration6to2} label="6mo-2yr" />
-              <Bubble filled={duration2plus} label="2+ yrs" />
-              {data.feeding_frequency && <span style={{ marginLeft: "10px" }}>Schedule: <strong>{data.feeding_frequency}</strong></span>}
+              <span className="options-label" style={{ minWidth: "40px" }}>Pref:</span>
+              <Bubble filled={data.preferred_contact_method === "call"} label="Call" />
+              <Bubble filled={data.preferred_contact_method === "text"} label="Text" />
+              <Bubble filled={data.preferred_contact_method === "email"} label="Email" />
+            </div>
+            {data.property_owner_contact && data.property_owner_contact !== data.requester_name && (
+              <div style={{ fontSize: "8.5pt", marginTop: "2px" }}>Property owner: <strong>{data.property_owner_contact}</strong></div>
+            )}
+          </div>
+          <div className="section" style={{ marginBottom: 0 }}>
+            <div className="section-title">Location</div>
+            <div className={`field-input sm ${data.place_address ? "prefilled" : ""}`} style={{ fontWeight: 600, fontSize: "10pt", marginBottom: "3px" }}>
+              {data.place_address || data.place_name || ""}
+            </div>
+            <div className={`field-input sm ${data.place_city ? "prefilled" : ""}`} style={{ marginBottom: "3px" }}>
+              {[data.place_city, "CA", data.place_postal_code].filter(Boolean).join(", ")}
+            </div>
+            <div className="options-row" style={{ marginBottom: 0 }}>
+              <Bubble filled={isSonoma} label="Sonoma" />
+              <Bubble filled={isMarin} label="Marin" />
+              <span style={{ marginLeft: "8px" }}></span>
+              <Bubble filled={isHouse} label="House" />
+              <Bubble filled={isApt} label="Apt" />
+              <Bubble filled={isBusiness} label="Biz" />
+              <Bubble filled={isRural} label="Rural" />
             </div>
           </div>
+        </div>
 
-          <div className="options-row" style={{ marginBottom: 0 }}>
-            <span className="options-label" style={{ minWidth: "80px" }}>Kittens?</span>
+        {data.location_description && (
+          <div className="info-card" style={{ fontSize: "8.5pt" }}>
+            <strong>Location:</strong> {data.location_description}
+          </div>
+        )}
+
+        {/* CATS section — dense single block */}
+        <div className="section">
+          <div className="section-title">Cats</div>
+          <div className="options-row" style={{ marginBottom: "2px" }}>
+            <span style={{ fontWeight: 700, fontSize: "11pt", marginRight: "6px" }}>
+              {data.estimated_cat_count ?? "?"}
+            </span>
+            <span className="hint" style={{ marginRight: "8px" }}>
+              ({data.count_confidence ? formatValue(data.count_confidence) : "unk"})
+            </span>
+            <span className="options-label" style={{ minWidth: "55px" }}>Eartipped:</span>
+            <Bubble filled={data.eartip_count === 0} label="None" />
+            <Bubble filled={data.eartip_count !== null && data.eartip_count > 0} label={`${data.eartip_count ?? "?"}`} />
+            <Bubble filled={data.eartip_count === null} label="Unk" />
+            <span style={{ marginLeft: "8px" }}></span>
+            <span className="options-label" style={{ minWidth: "50px" }}>Colony:</span>
+            <Bubble filled={durationLessThanMonth} label="<1mo" />
+            <Bubble filled={duration1to6} label="1-6mo" />
+            <Bubble filled={duration6to2} label="6mo-2yr" />
+            <Bubble filled={duration2plus} label="2+yr" />
+          </div>
+          <div className="options-row" style={{ marginBottom: "2px" }}>
+            <span className="options-label" style={{ minWidth: "30px" }}>Fed:</span>
+            <Bubble filled={data.is_being_fed === true} label="Yes" />
+            <Bubble filled={data.is_being_fed === false} label="No" />
+            {data.feeder_name && <span style={{ fontSize: "8.5pt" }}>by &ldquo;{data.feeder_name}&rdquo;</span>}
+            {data.feeding_frequency && <span style={{ fontSize: "8.5pt", marginLeft: "4px" }}>{data.feeding_frequency}</span>}
+            {data.feeding_location && <span style={{ fontSize: "8.5pt", marginLeft: "4px" }}>@ {data.feeding_location}</span>}
+            {data.feeding_time && <span style={{ fontSize: "8.5pt", marginLeft: "4px" }}>({data.feeding_time})</span>}
+            <span style={{ marginLeft: "12px" }}></span>
+            <span className="options-label" style={{ minWidth: "50px" }}>Kittens:</span>
             <Bubble filled={data.has_kittens === true} label="Yes" />
             <Bubble filled={data.has_kittens === false} label="No" />
-            {data.has_kittens && data.kitten_count && <span style={{ marginLeft: "8px" }}>Count: <strong>{data.kitten_count}</strong></span>}
-            <span className="hint" style={{ marginLeft: "10px", color: "#27ae60", fontWeight: 600 }}>
-              If yes, see Page 2
-            </span>
+            {data.has_kittens && data.kitten_count && <span style={{ fontSize: "8.5pt", marginLeft: "3px" }}>({data.kitten_count})</span>}
+            {data.has_kittens && <span className="hint" style={{ marginLeft: "4px", color: "#27ae60", fontWeight: 600 }}>See pg 2</span>}
+          </div>
+          <div className="options-row" style={{ marginBottom: 0 }}>
+            <span className="options-label" style={{ minWidth: "70px" }}>Handleable:</span>
+            <Bubble filled={isFriendly} label="Carrier OK" />
+            <Bubble filled={isTrapNeeded} label="Trap needed" />
+            <Bubble filled={isMixed} label="Mixed" />
           </div>
         </div>
 
-        {/* Additional Details */}
-        <div className="section">
-          <div className="section-title">Additional Details</div>
-          <div className="options-row" style={{ marginBottom: "4px" }}>
-            <Check checked={data.has_medical_concerns} label="Medical concerns" />
-            <Check checked={data.permission_status === "granted"} crossed={data.permission_status === "denied"} label="Access available" />
-            <Check checked={isOwner} label="Property owner" />
-            <Check checked={hasOtherFeeders} label="Others also feeding" />
-          </div>
-          {(data.summary || data.notes) && (
-            <div className="field-input lg" style={{ whiteSpace: "pre-wrap" }}>
-              {data.summary}
-              {data.summary && data.notes && "\n"}
-              {data.notes}
+        {/* ACCESS & LOGISTICS + TRAPPING SCHEDULE side by side */}
+        <div className="two-col" style={{ marginBottom: "6px" }}>
+          <div className="section" style={{ marginBottom: 0 }}>
+            <div className="section-title">Access &amp; Logistics</div>
+            <div className="options-row">
+              <span className="options-label" style={{ minWidth: "70px" }}>Permission:</span>
+              <Bubble filled={permGranted} label="Yes" />
+              <Bubble filled={permPending} label="Pending" />
+              <Bubble filled={permDenied} label="No" />
             </div>
-          )}
-          {!data.summary && !data.notes && <div className="field-input lg"></div>}
-        </div>
-
-        {/* Staff/Office Section */}
-        <div className="staff-box">
-          <div className="section-title">Request Info (Reference)</div>
-          <div className="field-row" style={{ alignItems: "center", marginBottom: "4px" }}>
-            <div className="field" style={{ flex: "0 0 130px" }}>
-              <label>Date received</label>
-              <div className="field-input sm prefilled">{formatDate(data.created_at)}</div>
+            <div className="options-row">
+              <span className="options-label" style={{ minWidth: "70px" }}>Traps safe:</span>
+              <Bubble filled={data.traps_overnight_safe === true} label="Yes" />
+              <Bubble filled={data.traps_overnight_safe === false} label="No" />
             </div>
-            <div className="field" style={{ flex: "0 0 130px" }}>
-              <label>Status</label>
-              <div className="field-input sm prefilled">{formatValue(data.status)}</div>
+            <div className="options-row">
+              <span className="options-label" style={{ minWidth: "70px" }}>Owner:</span>
+              <Bubble filled={isOwner} label="Yes" />
+              <Bubble filled={isRenter} label="Renter" />
             </div>
-            <div className="field" style={{ flex: "0 0 120px" }}>
-              <label>Request ID</label>
-              <div className="field-input sm prefilled" style={{ fontSize: "8pt" }}>{data.request_id.slice(0, 8)}</div>
+            <div className="options-row">
+              <span className="options-label" style={{ minWidth: "70px" }}>Dogs:</span>
+              <Bubble filled={data.dogs_on_site === "yes"} label="Yes" />
+              <Bubble filled={data.dogs_on_site === "no"} label="No" />
             </div>
-            <div className="field">
-              <label>Count Confidence</label>
-              <div className={`field-input sm ${data.count_confidence ? "prefilled" : ""}`}>{formatValue(data.count_confidence) || ""}</div>
+            <div className="options-row" style={{ marginBottom: 0 }}>
+              <span className="options-label" style={{ minWidth: "70px" }}>Trap-savvy:</span>
+              <Bubble filled={data.trap_savvy === "yes"} label="Yes" />
+              <Bubble filled={data.trap_savvy === "no"} label="No" />
+              <Bubble filled={!data.trap_savvy || data.trap_savvy === "unknown"} label="Unk" />
             </div>
           </div>
-        </div>
-
-        <div className="page-footer">
-          <span>Forgotten Felines of Sonoma County &bull; (707) 576-7999 &bull; forgottenfelines.org</span>
-          <span>Page 1 of 2</span>
-        </div>
-      </div>
-
-      {/* ═══════════════════ PAGE 2: Access, Trapping & Kittens ═══════════════════ */}
-      <div className="print-page">
-        <div className="print-header">
-          <div>
-            <h1>Trapping &amp; Kitten Details</h1>
-            <div className="subtitle">
-              {data.place_address || data.place_name || "Location"} &mdash; {data.requester_name || "Requester"}
+          <div className="section" style={{ marginBottom: 0 }}>
+            <div className="section-title">Trapping Schedule</div>
+            <div className="field" style={{ marginBottom: "3px" }}>
+              <label>Best contact times</label>
+              <div className={`field-input sm ${data.best_contact_times ? "prefilled" : ""}`}>{data.best_contact_times || ""}</div>
             </div>
-          </div>
-          <img src="/logo.png" alt="FFSC" className="header-logo" />
-        </div>
-
-        {/* Requester reference */}
-        <div className="field-row" style={{ marginBottom: "10px" }}>
-          <div className="field w2">
-            <label>Caller Name (from page 1)</label>
-            <div className={`field-input sm ${data.requester_name ? "prefilled" : ""}`}>{data.requester_name || ""}</div>
-          </div>
-          <div className="field">
-            <label>Phone</label>
-            <div className={`field-input sm ${data.requester_phone ? "prefilled" : ""}`}>
-              {data.requester_phone ? formatPhone(data.requester_phone) : ""}
+            <div className="field" style={{ marginBottom: "3px" }}>
+              <label>Feeding time</label>
+              <div className={`field-input sm ${data.feeding_time ? "prefilled" : ""}`}>{data.feeding_time || ""}</div>
             </div>
-          </div>
-        </div>
-
-        {/* Property Access & Logistics */}
-        <div className="section">
-          <div className="section-title">Property Access &amp; Logistics</div>
-          <div className="two-col">
-            <div>
-              <div className="options-row">
-                <span className="options-label">Property access?</span>
-                <Bubble filled={data.permission_status === "granted"} label="Yes" />
-                <Bubble filled={data.permission_status === "pending"} label="Need perm" />
-                <Bubble filled={data.permission_status === "denied"} label="No" />
-              </div>
-              <div className="options-row">
-                <span className="options-label">Caller is owner?</span>
-                <Bubble filled={isOwner} label="Yes" />
-                <Bubble filled={isRenter} label="Renter" />
-                <Bubble filled={isNeighbor} label="Neighbor" />
-              </div>
-              <div className="options-row" style={{ marginBottom: 0 }}>
-                <span className="options-label">Dogs on site?</span>
-                <Bubble filled={data.dogs_on_site === "yes"} label="Yes" />
-                <Bubble filled={data.dogs_on_site === "no"} label="No" />
-                <span className="hint">(containable?)</span>
-              </div>
+            <div className="field" style={{ marginBottom: "3px" }}>
+              <label>Where cats eat</label>
+              <div className={`field-input sm ${data.feeding_location ? "prefilled" : ""}`}>{data.feeding_location || ""}</div>
             </div>
-            <div>
-              <div className="options-row">
-                <span className="options-label">Trap-savvy?</span>
-                <Bubble filled={data.trap_savvy === "yes"} label="Yes" />
-                <Bubble filled={data.trap_savvy === "no"} label="No" />
-                <Bubble filled={!data.trap_savvy || data.trap_savvy === "unknown"} label="Unknown" />
-              </div>
-              <div className="options-row">
-                <span className="options-label">Previous TNR?</span>
-                <Bubble filled={data.previous_tnr === "yes"} label="Yes" />
-                <Bubble filled={data.previous_tnr === "no"} label="No" />
-                <Bubble filled={data.previous_tnr === "partial"} label="Partial" />
-              </div>
-              <div className="options-row" style={{ marginBottom: 0 }}>
-                <span className="options-label">Handleable?</span>
-                <Bubble filled={isFriendly} label="Carrier OK" />
-                <Bubble filled={isTrapNeeded} label="Trap needed" />
-                <Bubble filled={isMixed} label="Mixed" />
-              </div>
-            </div>
-          </div>
-          <div className="field" style={{ marginTop: "6px" }}>
-            <label>Access notes (gate codes, parking, hazards)</label>
-            <div className={`field-input sm ${data.access_notes ? "prefilled" : ""}`}>{data.access_notes || ""}</div>
-          </div>
-        </div>
-
-        {/* Feeding & Trapping Schedule */}
-        <div className="info-box">
-          <div className="title">Best Trapping Times</div>
-          <div className="field-row" style={{ marginBottom: "6px" }}>
-            <div className="field">
-              <label>Who feeds?</label>
-              <div className={`field-input sm ${data.feeder_name ? "prefilled" : ""}`}>{data.feeder_name || ""}</div>
-            </div>
-            <div className="field">
-              <label>Feed time?</label>
-              <div className={`field-input sm ${data.feeding_frequency ? "prefilled" : ""}`}>{data.feeding_frequency || ""}</div>
-            </div>
-            <div className="field">
-              <label>Where do cats eat?</label>
-              <div className="field-input sm"></div>
-            </div>
-            <div className="field">
+            <div className="field" style={{ marginBottom: 0 }}>
               <label>Best trapping day/time</label>
               <div className={`field-input sm ${data.best_times_seen ? "prefilled" : ""}`}>{data.best_times_seen || ""}</div>
             </div>
           </div>
         </div>
 
-        {/* Important Notes */}
+        {data.access_notes && (
+          <div className="info-card" style={{ fontSize: "8.5pt" }}>
+            <strong>Access:</strong> {data.access_notes}
+          </div>
+        )}
+
+        {/* Important Notes — single row of checkboxes */}
         <div className="warning-box">
-          <div className="title">Important Notes (check all that apply)</div>
+          <div className="title">Important Notes</div>
           <div className="quick-notes">
-            <div className="quick-note"><Check checked={hasWithholdFood} label="Withhold food 24hr before" /></div>
-            <div className="quick-note"><Check checked={hasOtherFeeders} label="Other feeders in area" /></div>
-            <div className="quick-note"><Check checked={hasCrossPropLines} label="Cats cross property lines" /></div>
-            <div className="quick-note"><Check checked={hasPregnant} label="Pregnant cat suspected" /></div>
-            <div className="quick-note"><Check checked={hasInjured} label="Injured/sick cat priority" /></div>
-            <div className="quick-note"><Check checked={hasCallerHelp} label="Caller can help trap" /></div>
-            <div className="quick-note"><Check checked={hasWildlife} label="Wildlife concerns" /></div>
-            <div className="quick-note"><Check checked={hasNeighborIssues} label="Neighbor issues" /></div>
-            <div className="quick-note"><Check checked={hasUrgent} label="Urgent / time-sensitive" /></div>
+            <div className="quick-note"><Check checked={hasWithholdFood} label="Withhold food" /></div>
+            <div className="quick-note"><Check checked={hasOtherFeeders} label="Other feeders" /></div>
+            <div className="quick-note"><Check checked={hasCrossPropLines} label="Cross prop lines" /></div>
+            <div className="quick-note"><Check checked={hasPregnant} label="Pregnant" /></div>
+            <div className="quick-note"><Check checked={hasInjured} label="Injured/sick" /></div>
+            <div className="quick-note"><Check checked={hasCallerHelp} label="Caller help" /></div>
+            <div className="quick-note"><Check checked={hasWildlife} label="Wildlife" /></div>
+            <div className="quick-note"><Check checked={hasNeighborIssues} label="Neighbor" /></div>
+            <div className="quick-note"><Check checked={hasUrgent} label="Urgent" /></div>
           </div>
         </div>
 
-        {/* Kitten Section */}
+        {/* Notes area */}
         <div className="section">
-          <div className="section-title">Kitten Information</div>
-          <div className="field-row" style={{ alignItems: "center", marginBottom: "6px" }}>
-            <div className="field" style={{ flex: "0 0 120px" }}>
-              <label>How many kittens?</label>
-              <div className={`field-input sm ${data.kitten_count ? "prefilled" : ""}`} style={{ width: "60px" }}>
-                {data.kitten_count ?? ""}
-              </div>
-            </div>
-            <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
-              <span className="options-label" style={{ minWidth: "70px" }}>Age range:</span>
-              <Bubble filled={kittenUnder4} label="Under 4 wks" />
-              <Bubble filled={kitten4to8} label="4-8 wks" />
-              <Bubble filled={kitten8to12} label="8-12 wks" />
-              <Bubble filled={kitten12to16} label="12-16 wks" />
-              <Bubble filled={kitten4plus} label="4+ months" />
-            </div>
-          </div>
-
-          <div className="options-row" style={{ marginBottom: "6px" }}>
-            <span className="options-label" style={{ minWidth: "70px" }}>Behavior:</span>
-            <Bubble filled={isFriendly && data.has_kittens} label="Friendly" />
-            <Bubble filled={false} label="Shy but handleable" />
-            <Bubble filled={isTrapNeeded && data.has_kittens} label="Feral / hissy" />
-            <Bubble filled={!isFriendly && !isTrapNeeded && data.has_kittens} label="Unknown" />
-          </div>
-
-          <div className="info-card" style={{ marginBottom: "8px" }}>
-            <div className="options-row" style={{ marginBottom: "3px" }}>
-              <span className="options-label" style={{ minWidth: "70px" }}>Contained?</span>
-              <Bubble filled={false} label="Yes" />
-              <Bubble filled={false} label="Some" />
-              <Bubble filled={false} label="No" />
-              <span style={{ marginLeft: "16px" }}><span className="options-label" style={{ minWidth: "80px" }}>Mom present?</span></span>
-              <Bubble filled={false} label="Yes" />
-              <Bubble filled={false} label="No" />
-              <Bubble filled={false} label="Unsure" />
-            </div>
-            <div className="options-row" style={{ marginBottom: 0 }}>
-              <span className="options-label" style={{ minWidth: "70px" }}>Mom fixed?</span>
-              <Bubble filled={false} label="Yes" />
-              <Bubble filled={false} label="No" />
-              <Bubble filled={false} label="Unsure" />
-              <span style={{ marginLeft: "16px" }}><span className="options-label" style={{ minWidth: "80px" }}>Can bring in?</span></span>
-              <Bubble filled={false} label="Yes" />
-              <Bubble filled={false} label="Need help" />
-              <Bubble filled={false} label="No" />
-            </div>
-          </div>
-
-          <div className="field">
-            <label>Kitten details (colors, where they hide, feeding schedule)</label>
-            <div className="field-input md"></div>
+          <div className="section-title">Notes</div>
+          <div className={`field-input md ${(data.summary || data.notes) ? "prefilled" : ""}`} style={{ whiteSpace: "pre-wrap", fontSize: "9pt" }}>
+            {data.summary}
+            {data.summary && data.notes && "\n"}
+            {data.notes}
           </div>
         </div>
 
-        {/* Trapper Recon Section */}
-        <div className="staff-box" style={{ background: "#fef3c7", borderColor: "#fcd34d" }}>
-          <div className="section-title" style={{ color: "#92400e" }}>Trapper Recon (fill during site visit)</div>
+        {/* Trapper Recon — condensed */}
+        <div className="staff-box" style={{ background: "#fef3c7", borderColor: "#fcd34d", marginBottom: "6px" }}>
+          <div className="section-title" style={{ color: "#92400e" }}>Trapper Recon (site visit)</div>
           <div className="field-row">
-            <div className="field">
-              <label>Verified Cat Count</label>
+            <div className="field" style={{ flex: "0 0 70px" }}>
+              <label>Count</label>
+              <div className="field-input sm"></div>
+            </div>
+            <div className="field" style={{ flex: "0 0 100px" }}>
+              <label>A / K / Tipped</label>
               <div className="field-input sm"></div>
             </div>
             <div className="field">
-              <label>Adults / Kittens / Eartipped</label>
+              <label>Trap locations</label>
               <div className="field-input sm"></div>
             </div>
             <div className="field">
-              <label>Best Trap Locations</label>
+              <label>Cat descriptions</label>
               <div className="field-input sm"></div>
             </div>
           </div>
-          <div className="field" style={{ marginTop: "6px" }}>
-            <label>Cat Descriptions (colors, markings, pregnant)</label>
-            <div className="field-input sm"></div>
-          </div>
-          <div className="options-row" style={{ marginTop: "6px" }}>
-            <span className="option"><span className="checkbox"></span> Dogs present</span>
-            <span className="option"><span className="checkbox"></span> Other feeders</span>
+          <div className="options-row" style={{ marginTop: "3px", marginBottom: 0 }}>
+            <span className="option"><span className="checkbox"></span> Dogs</span>
+            <span className="option"><span className="checkbox"></span> Feeders</span>
             <span className="option"><span className="checkbox"></span> Wildlife</span>
-            <span className="option"><span className="checkbox"></span> Trap-savvy cats</span>
-            <span className="option"><span className="checkbox"></span> Safe overnight</span>
-            <span className="option"><span className="checkbox"></span> Gate code needed</span>
-            <span className="option"><span className="checkbox"></span> Need drop traps</span>
+            <span className="option"><span className="checkbox"></span> TrapSavvy</span>
+            <span className="option"><span className="checkbox"></span> SafeON</span>
+            <span className="option"><span className="checkbox"></span> Gate</span>
+            <span className="option"><span className="checkbox"></span> DropTrap</span>
           </div>
         </div>
 
-        {/* Trap Day Checklist */}
-        <div className="section" style={{ marginTop: "8px" }}>
-          <div className="section-title">Trap Day Checklist</div>
-          <div className="options-row">
-            <span className="option"><span className="checkbox"></span> Withhold food 24hr</span>
+        {/* Trap Day Checklist — condensed */}
+        <div className="section">
+          <div className="section-title">Trap Day</div>
+          <div className="options-row" style={{ marginBottom: 0 }}>
+            <span className="option"><span className="checkbox"></span> Food withheld</span>
             <span className="option"><span className="checkbox"></span> Contact notified</span>
-            <span className="option"><span className="checkbox"></span> Clinic slot confirmed</span>
-            <span className="option"><span className="checkbox"></span> Equipment ready</span>
-            <span style={{ marginLeft: "16px" }}>Traps set: ______</span>
-            <span style={{ marginLeft: "12px" }}># Traps: ____</span>
-            <span style={{ marginLeft: "12px" }}># Caught: ____</span>
-            <span style={{ marginLeft: "12px" }}>Return: ________</span>
+            <span className="option"><span className="checkbox"></span> Clinic confirmed</span>
+            <span className="option"><span className="checkbox"></span> Equip ready</span>
+            <span style={{ marginLeft: "8px" }}>Set: ______</span>
+            <span style={{ marginLeft: "8px" }}>#Traps: ____</span>
+            <span style={{ marginLeft: "8px" }}>#Caught: ____</span>
+            <span style={{ marginLeft: "8px" }}>Return: ______</span>
           </div>
         </div>
 
+        {/* Footer */}
         <div className="page-footer">
-          <span>Forgotten Felines of Sonoma County &bull; forgottenfelines.org</span>
-          <span>Page 2 of 2</span>
+          <span>Ref: {data.request_id.slice(0, 8)} | {formatValue(data.status)} | {formatDate(data.created_at)}</span>
+          <span>Page 1 of {totalPages}</span>
         </div>
       </div>
+
+      {/* ═══════════════════ PAGE 2: Kitten Details (only if has_kittens) ═══════════════════ */}
+      {data.has_kittens && (
+        <div className="print-page">
+          <div className="print-header">
+            <div>
+              <h1>Kitten Details</h1>
+              <div className="subtitle">
+                {data.place_address || data.place_name || "Location"} &mdash; {data.requester_name || "Requester"}
+              </div>
+            </div>
+            <img src="/logo.png" alt="FFSC" className="header-logo" />
+          </div>
+
+          {/* Kitten Info */}
+          <div className="section">
+            <div className="section-title">Kitten Information</div>
+            <div className="field-row" style={{ alignItems: "center" }}>
+              <div className="field" style={{ flex: "0 0 100px" }}>
+                <label>How many?</label>
+                <div className={`field-input sm ${data.kitten_count ? "prefilled" : ""}`} style={{ width: "50px" }}>
+                  {data.kitten_count ?? ""}
+                </div>
+              </div>
+              <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
+                <span className="options-label" style={{ minWidth: "55px" }}>Age:</span>
+                <Bubble filled={kittenUnder4} label="<4 wks" />
+                <Bubble filled={kitten4to8} label="4-8 wks" />
+                <Bubble filled={kitten8to12} label="8-12 wks" />
+                <Bubble filled={kitten12to16} label="12-16 wks" />
+                <Bubble filled={kitten4plus} label="4+ mo" />
+              </div>
+            </div>
+
+            <div className="options-row" style={{ marginTop: "4px" }}>
+              <span className="options-label" style={{ minWidth: "60px" }}>Behavior:</span>
+              <Bubble filled={data.kitten_behavior === "friendly"} label="Friendly" />
+              <Bubble filled={data.kitten_behavior === "shy"} label="Shy" />
+              <Bubble filled={data.kitten_behavior === "feral"} label="Feral" />
+              <Bubble filled={!data.kitten_behavior} label="Unknown" />
+            </div>
+
+            <div className="info-card" style={{ marginTop: "4px" }}>
+              <div className="options-row" style={{ marginBottom: "2px" }}>
+                <span className="options-label" style={{ minWidth: "65px" }}>Contained?</span>
+                <Bubble filled={data.kitten_contained === "yes"} label="Yes" />
+                <Bubble filled={data.kitten_contained === "some"} label="Some" />
+                <Bubble filled={data.kitten_contained === "no"} label="No" />
+                <span style={{ marginLeft: "12px" }}><span className="options-label" style={{ minWidth: "75px" }}>Mom present?</span></span>
+                <Bubble filled={data.mom_present === "yes"} label="Yes" />
+                <Bubble filled={data.mom_present === "no"} label="No" />
+                <Bubble filled={!data.mom_present || data.mom_present === "unsure"} label="Unsure" />
+              </div>
+              <div className="options-row" style={{ marginBottom: 0 }}>
+                <span className="options-label" style={{ minWidth: "65px" }}>Mom fixed?</span>
+                <Bubble filled={data.mom_fixed === "yes"} label="Yes" />
+                <Bubble filled={data.mom_fixed === "no"} label="No" />
+                <Bubble filled={!data.mom_fixed || data.mom_fixed === "unsure"} label="Unsure" />
+                <span style={{ marginLeft: "12px" }}><span className="options-label" style={{ minWidth: "75px" }}>Can bring in?</span></span>
+                <Bubble filled={data.can_bring_in === "yes"} label="Yes" />
+                <Bubble filled={data.can_bring_in === "need_help"} label="Need help" />
+                <Bubble filled={data.can_bring_in === "no"} label="No" />
+              </div>
+            </div>
+
+            <div className="field" style={{ marginTop: "6px" }}>
+              <label>Kitten details (colors, where they hide, feeding schedule)</label>
+              <div className={`field-input md ${data.kitten_notes ? "prefilled" : ""}`}>
+                {data.kitten_notes || ""}
+              </div>
+            </div>
+          </div>
+
+          {/* Reference contact */}
+          <div className="field-row" style={{ marginTop: "8px" }}>
+            <div className="field w2">
+              <label>Contact (from page 1)</label>
+              <div className={`field-input sm ${data.requester_name ? "prefilled" : ""}`}>
+                {data.requester_name || ""}
+                {data.requester_phone ? ` — ${formatPhone(data.requester_phone)}` : ""}
+              </div>
+            </div>
+          </div>
+
+          <div className="page-footer">
+            <span>Ref: {data.request_id.slice(0, 8)} | Forgotten Felines of Sonoma County</span>
+            <span>Page 2 of 2</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
