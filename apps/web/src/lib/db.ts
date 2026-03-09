@@ -25,21 +25,31 @@ if (!process.env.DATABASE_URL) {
 // Vercel serverless functions need smaller pools since each invocation may spawn a new instance
 const isServerless = process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
+// Use Supabase Transaction mode (port 6543) instead of Session mode (port 5432).
+// Session mode holds a backend Postgres connection for the entire client session — on Vercel,
+// each function invocation creates its own Pool, quickly exhausting the session pooler's limit
+// ("MaxClientsInSessionMode: max clients reached"). Transaction mode releases backend connections
+// after each query, preventing pool exhaustion under concurrent load.
+// Applied to ALL environments since session pooler saturation affects local dev too.
+let connectionString = process.env.DATABASE_URL;
+if (connectionString?.includes('.pooler.supabase.com:5432')) {
+  connectionString = connectionString.replace('.pooler.supabase.com:5432', '.pooler.supabase.com:6543');
+}
+
 // Create a connection pool (may be undefined if DATABASE_URL is missing)
-// Using Supabase Session Pooler which handles connection multiplexing
-const pool = process.env.DATABASE_URL
+const pool = connectionString
   ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes("localhost")
+      connectionString,
+      ssl: connectionString.includes("localhost")
         ? false
         : { rejectUnauthorized: false },
-      // Serverless: use small pool (3) to handle concurrent requests without exhausting connections
-      // The Supabase pooler handles the actual connection multiplexing
-      // Local/Server: use larger pool for performance
-      max: isServerless ? 3 : 10,
+      // Serverless: small pool (1) — each Vercel invocation is single-request,
+      // and Transaction mode pooler handles multiplexing on the backend
+      // Local/Server: larger pool for development performance
+      max: isServerless ? 1 : 10,
       // Shorter timeouts for serverless to fail fast and release connections
-      idleTimeoutMillis: isServerless ? 15000 : 30000,
-      connectionTimeoutMillis: isServerless ? 8000 : 10000,
+      idleTimeoutMillis: isServerless ? 10000 : 30000,
+      connectionTimeoutMillis: isServerless ? 5000 : 10000,
     })
   : null;
 
