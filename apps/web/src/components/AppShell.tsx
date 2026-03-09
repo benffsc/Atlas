@@ -29,7 +29,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (isLoginPage) return;
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
+      .then((raw) => {
+        const data = raw?.data || raw;
         if (data?.authenticated && data.staff) {
           setStaff(data.staff);
         }
