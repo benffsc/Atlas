@@ -132,6 +132,17 @@ CREATE TABLE source.clinichq_scrape (
 );
 ```
 
+## Scrape vs API Export: Important Difference
+
+The scraper captures the **current ClinicHQ UI state**, while the API export captures the **at-appointment-time** snapshot. This means:
+
+- **API export**: Shows client 1 (who booked the appointment at the time)
+- **Scrape**: May show client 2 (current owner after an ownership transfer)
+
+For the same `record_id`, the `client_id` and `owner_display_name` in the scrape may differ from the API data if the cat's ownership was transferred after the appointment. **Cat identity (microchip, clinichq_id) is stable** across both sources, but client-based matching should be treated as lower confidence.
+
+This also means the scrape can surface ownership transfers that aren't visible in the API data.
+
 ## Cross-Reference Strategy
 
 The scrape data joins to existing Atlas tables via multiple keys:
@@ -140,7 +151,8 @@ The scrape data joins to existing Atlas tables via multiple keys:
 |---|---|---|---|
 | `record_id` | `ops.appointments` | `source_record_id` | Best match |
 | `client_id` | `ops.clinic_accounts` | `clinichq_client_id` | Ground truth for accounts |
-| `animal_id` | `sot.cat_identifiers` | `id_value` WHERE `id_type = 'clinichq_animal_id'` | 23.9% |
+| `extracted_clinichq_id` | `sot.cat_identifiers` | `id_value` WHERE `id_type = 'clinichq_animal_id'` | 49.7% (20,480 rows) |
+| `animal_id` | `sot.cat_identifiers` | `id_value` WHERE `id_type = 'clinichq_animal_id'` | 23.9% (mostly microchips/names) |
 | `microchip` | `sot.cat_identifiers` | `id_value` WHERE `id_type = 'microchip'` | ~61.8% |
 | `appointment_date` | `ops.appointments` | `appointment_date` | Fuzzy match fallback |
 
