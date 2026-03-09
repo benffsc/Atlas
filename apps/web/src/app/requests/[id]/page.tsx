@@ -130,6 +130,11 @@ export default function RequestDetailPage() {
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
 
+  // Inline notes editing state
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
+
   // Edit mode state
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -370,6 +375,24 @@ export default function RequestDetailPage() {
       setError("Failed to rename");
     } finally {
       setSavingRename(false);
+    }
+  };
+
+  const startEditNotes = () => {
+    setNotesValue(request?.notes || "");
+    setEditingNotes(true);
+  };
+
+  const handleSaveNotes = async () => {
+    setSavingNotes(true);
+    try {
+      await postApi(`/api/requests/${requestId}`, { notes: notesValue.trim() || null }, { method: "PATCH" });
+      await refreshRequest();
+      setEditingNotes(false);
+    } catch (err) {
+      setError("Failed to save notes");
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -1045,11 +1068,30 @@ export default function RequestDetailPage() {
           {/* ─────────────────────────────────────────────────────────────────────
               CASE SUMMARY
               ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title="Case Summary" icon="📋" color="#3b82f6">
-            {request.notes ? (
+          <CaseSection title="Case Summary" icon="📋" color="#3b82f6"
+            actions={!editing && !editingNotes ? (
+              <button onClick={startEditNotes} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#6366f1", fontWeight: 500 }}>Edit</button>
+            ) : undefined}
+          >
+            {editingNotes ? (
+              <div>
+                <textarea
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                  placeholder="Add case notes..."
+                  rows={6}
+                  autoFocus
+                  style={{ ...INPUT, width: "100%", resize: "vertical" }}
+                />
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <button onClick={handleSaveNotes} disabled={savingNotes} className="btn btn-sm">{savingNotes ? "Saving..." : "Save"}</button>
+                  <button onClick={() => setEditingNotes(false)} className="btn btn-sm btn-secondary">Cancel</button>
+                </div>
+              </div>
+            ) : request.notes ? (
               <div style={{ whiteSpace: "pre-wrap", fontSize: "0.95rem", lineHeight: 1.5 }}>{request.notes}</div>
             ) : (
-              <p style={{ color: "var(--muted)", fontStyle: "italic" }}>No case notes yet. Click Edit to add details.</p>
+              <p onClick={startEditNotes} style={{ color: "var(--muted)", fontStyle: "italic", cursor: "pointer" }}>Add notes...</p>
             )}
           </CaseSection>
 
