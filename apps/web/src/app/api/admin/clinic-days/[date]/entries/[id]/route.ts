@@ -91,9 +91,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return apiBadRequest("No fields to update");
     }
 
-    // Validate status if provided
+    // Validate status if provided — must match DB CHECK constraint
     if (body.status) {
-      const validStatuses = ["completed", "no_show", "cancelled", "partial", "pending"];
+      const validStatuses = [
+        // Surgical workflow
+        "checked_in", "in_surgery", "recovering", "released", "held",
+        // Master list import
+        "completed", "no_show", "cancelled", "partial", "pending",
+      ];
       if (!validStatuses.includes(body.status)) {
         return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
       }
