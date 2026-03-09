@@ -9,6 +9,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "@/styles/atlas-map.css";
 import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
+import { formatRelativeTime } from "@/lib/formatters";
 import {
   createPinMarker,
   createCircleMarker,
@@ -1434,6 +1435,9 @@ function AtlasMapInner() {
           ).join("")
         : "";
 
+      // Last alteration time for popup
+      const lastAlterationLabel = pin.last_alteration_at ? formatRelativeTime(pin.last_alteration_at) : null;
+
       // Unit identifier for individual apartment units
       const unitLabel = pin.unit_identifier
         ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">Unit: ${pin.unit_identifier}</div>`
@@ -1491,7 +1495,7 @@ function AtlasMapInner() {
 
           ${pin.total_altered > 0 ? `
             <div style="margin-top: 8px; font-size: 12px; color: #059669;">
-              ✓ ${pin.total_altered} cats altered at this location
+              ✓ ${pin.total_altered} cats altered${lastAlterationLabel ? ` · Last: ${lastAlterationLabel}` : ''}
             </div>
           ` : ""}
 

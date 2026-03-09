@@ -683,6 +683,17 @@ export default function PlaceDetailPage() {
             </div>
           )}
 
+          {(place.partner_org.first_appointment_date || place.partner_org.last_appointment_date) && (
+            <div style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
+              {place.partner_org.first_appointment_date && (
+                <div><span style={{ color: "var(--muted)" }}>First:</span> {formatDateLocal(place.partner_org.first_appointment_date)}</div>
+              )}
+              {place.partner_org.last_appointment_date && (
+                <div><span style={{ color: "var(--muted)" }}>Last:</span> {formatDateLocal(place.partner_org.last_appointment_date)}</div>
+              )}
+            </div>
+          )}
+
           {(place.partner_org.contact_name || place.partner_org.contact_email || place.partner_org.contact_phone) && (
             <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.85rem", flexWrap: "wrap" }}>
               {place.partner_org.contact_name && (

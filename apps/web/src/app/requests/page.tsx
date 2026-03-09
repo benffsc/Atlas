@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { formatDateLocal } from "@/lib/formatters";
+import { formatDateLocal, formatRelativeTime } from "@/lib/formatters";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
 import { StatusSegmentedControl } from "@/components/ui/StatusSegmentedControl";
@@ -23,6 +23,7 @@ interface Request {
   scheduled_date: string | null;
   assigned_to: string | null;
   created_at: string;
+  updated_at: string;
   source_created_at: string | null; // Original Airtable date for legacy data
   place_name: string | null;
   place_address: string | null;
@@ -628,6 +629,9 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
             }}
           >
             <span>{formatDateLocal(request.source_created_at || request.created_at)}</span>
+            {request.updated_at && request.updated_at.slice(0,10) !== request.created_at.slice(0,10) && (
+              <span style={{ marginLeft: "0.5rem" }}>· Updated {formatRelativeTime(request.updated_at)}</span>
+            )}
           </div>
         </div>
     </div>

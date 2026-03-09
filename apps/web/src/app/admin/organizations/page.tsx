@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { formatRelativeTime } from "@/lib/formatters";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
@@ -316,6 +317,9 @@ function OrgCard({ org, onClick }: { org: Org; onClick: () => void }) {
         {org.cats_count > 0 && <span>{org.cats_count} cats</span>}
         {org.name_patterns.length > 0 && (
           <span>{org.name_patterns.length} patterns</span>
+        )}
+        {org.last_appointment_date && (
+          <span>Last: {formatRelativeTime(org.last_appointment_date)}</span>
         )}
       </div>
     </div>

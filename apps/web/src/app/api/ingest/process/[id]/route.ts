@@ -456,6 +456,68 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.recheck_cats_matched = recheckMatches.rowCount || 0;
 
+    // Step 1b-bis: First-visit with microchip in Animal Name
+    // FFS-385: Step 1b only matches EXISTING cats. For first visits where staff
+    // entered the microchip in Animal Name (no microchip field), the cat doesn't
+    // exist yet. Create the cat with that microchip via find_or_create_cat_by_microchip.
+    await saveProgress('Creating first-visit cats from name-embedded microchips...');
+    const firstVisitMicrochipCats = await query(`
+      WITH first_visit_chip AS (
+        SELECT DISTINCT ON (ci.payload->>'Animal Name')
+          TRIM(ci.payload->>'Animal Name') AS microchip_from_name,
+          NULLIF(TRIM(ci.payload->>'Number'), '') AS clinichq_animal_id,
+          NULLIF(TRIM(ci.payload->>'Sex'), '') AS sex,
+          NULLIF(TRIM(ci.payload->>'Breed'), '') AS breed,
+          NULLIF(TRIM(ci.payload->>'Primary Color'), '') AS color,
+          ci.source_row_id
+        FROM ops.staged_records ci
+        WHERE ci.source_system = 'clinichq'
+          AND ci.source_table = 'cat_info'
+          AND ci.file_upload_id = $1
+          -- No microchip in microchip field
+          AND (ci.payload->>'Microchip Number' IS NULL OR TRIM(ci.payload->>'Microchip Number') = '')
+          -- Animal Name IS a microchip (15 digits)
+          AND ci.payload->>'Animal Name' ~ '^[0-9]{15}$'
+          -- Not already matched by Step 1b (no existing cat with this microchip)
+          AND NOT EXISTS (
+            SELECT 1 FROM sot.cat_identifiers ex
+            WHERE ex.id_value = TRIM(ci.payload->>'Animal Name')
+              AND ex.id_type = 'microchip'
+          )
+        ORDER BY ci.payload->>'Animal Name', ci.created_at DESC
+      ),
+      created_cats AS (
+        INSERT INTO sot.cats (
+          cat_id, microchip, sex, breed, primary_color,
+          clinichq_animal_id, source_system, source_record_id,
+          created_at, updated_at
+        )
+        SELECT
+          gen_random_uuid(),
+          fvc.microchip_from_name,
+          LOWER(fvc.sex),
+          fvc.breed,
+          fvc.color,
+          fvc.clinichq_animal_id,
+          'clinichq',
+          fvc.source_row_id,
+          NOW(),
+          NOW()
+        FROM first_visit_chip fvc
+        RETURNING cat_id, microchip, clinichq_animal_id
+      )
+      -- Create microchip identifier (and clinichq_animal_id if available)
+      INSERT INTO sot.cat_identifiers (cat_id, id_type, id_value, source_system, created_at)
+      SELECT cc.cat_id, 'microchip', cc.microchip, 'clinichq', NOW()
+      FROM created_cats cc
+      UNION ALL
+      SELECT cc.cat_id, 'clinichq_animal_id', cc.clinichq_animal_id, 'clinichq', NOW()
+      FROM created_cats cc
+      WHERE cc.clinichq_animal_id IS NOT NULL
+      ON CONFLICT DO NOTHING
+    `, [uploadId]);
+    results.first_visit_microchip_cats_created = firstVisitMicrochipCats.rowCount || 0;
+
     // Step 1c: Create cats WITHOUT microchips using clinichq_animal_id
     // DATA_GAP_051: Cats without microchips (euthanasia cases, etc.) were being skipped
     // These cats still need records - use clinichq_animal_id as the deduplication key
@@ -916,78 +978,85 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 4d: Owner change detection (FFS-116, ported from v2 route)
     // Detects when an appointment's owner identifiers differ from the linked person's
     // known identifiers, queuing mismatches for review in ops.review_queue
-    await saveProgress('Detecting owner changes...');
-    const ownerChanges = await query(`
-      INSERT INTO ops.review_queue (
-        entity_type, entity_id, review_type, priority, status, notes,
-        old_person_id, match_confidence, change_context,
-        source_system, source_record_id
-      )
-      SELECT
-        'person',
-        a.person_id,
-        CASE
-          WHEN pi_email.id_value_norm IS NOT NULL
-               AND NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NOT NULL
-               AND pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
-               AND pi_phone.id_value_norm IS NOT NULL
-               AND sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')) IS NOT NULL
-               AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
-          THEN 'owner_transfer'
-          ELSE 'owner_change'
-        END,
-        CASE
-          WHEN pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
-               AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
-          THEN 10
-          ELSE 5
-        END,
-        'pending',
-        'Owner info change detected via batch ingest: ' ||
-          COALESCE(p.display_name, 'unknown') || ' → ' ||
-          COALESCE(TRIM(sr.payload->>'Owner First Name' || ' ' || sr.payload->>'Owner Last Name'), 'unknown'),
-        a.person_id,
-        0.60,
-        jsonb_build_object(
-          'old_name', p.display_name,
-          'new_name', TRIM(sr.payload->>'Owner First Name' || ' ' || sr.payload->>'Owner Last Name'),
-          'old_email', pi_email.id_value_norm,
-          'new_email', NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
-          'old_phone', pi_phone.id_value_norm,
-          'new_phone', sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')),
-          'appointment_number', sr.payload->>'Number',
-          'detection_source', 'batch_ingest'
-        ),
-        'clinichq',
-        sr.payload->>'Number'
-      FROM ops.staged_records sr
-      JOIN ops.appointments a ON a.appointment_number = sr.payload->>'Number'
-        AND a.person_id IS NOT NULL
-      JOIN sot.people p ON p.person_id = a.person_id
-      LEFT JOIN sot.person_identifiers pi_email ON pi_email.person_id = a.person_id
-        AND pi_email.id_type = 'email' AND pi_email.confidence >= 0.5
-      LEFT JOIN sot.person_identifiers pi_phone ON pi_phone.person_id = a.person_id
-        AND pi_phone.id_type = 'phone'
-      WHERE sr.source_system = 'clinichq'
-        AND sr.source_table = 'owner_info'
-        AND sr.file_upload_id = $1
-        -- Only flag when existing identifiers differ from new ones
-        AND (
-          -- Different email
-          (pi_email.id_value_norm IS NOT NULL
-           AND NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NOT NULL
-           AND pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
-          OR
-          -- Different phone (when email matches or is absent, phone differs)
-          (pi_phone.id_value_norm IS NOT NULL
-           AND sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')) IS NOT NULL
-           AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
-           AND (pi_email.id_value_norm IS NULL OR NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NULL
-                OR pi_email.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')))
+    // FFS-387: Wrapped in try-catch — detection is supplementary, not critical
+    await saveProgress('Detecting owner changes (legacy)...');
+    try {
+      const ownerChanges = await query(`
+        INSERT INTO ops.review_queue (
+          entity_type, entity_id, review_type, priority, status, notes,
+          old_person_id, match_confidence, change_context,
+          source_system, source_record_id
         )
-      ON CONFLICT DO NOTHING
-    `, [uploadId]);
-    results.owner_changes_detected = ownerChanges.rowCount || 0;
+        SELECT
+          'person',
+          a.person_id,
+          CASE
+            WHEN pi_email.id_value_norm IS NOT NULL
+                 AND NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NOT NULL
+                 AND pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
+                 AND pi_phone.id_value_norm IS NOT NULL
+                 AND sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')) IS NOT NULL
+                 AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+            THEN 'owner_transfer'
+            ELSE 'owner_change'
+          END,
+          CASE
+            WHEN pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')
+                 AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+            THEN 10
+            ELSE 5
+          END,
+          'pending',
+          'Owner info change detected via batch ingest: ' ||
+            COALESCE(p.display_name, 'unknown') || ' → ' ||
+            COALESCE(TRIM((sr.payload->>'Owner First Name') || ' ' || (sr.payload->>'Owner Last Name')), 'unknown'),
+          a.person_id,
+          0.60,
+          jsonb_build_object(
+            'old_name', p.display_name,
+            'new_name', TRIM((sr.payload->>'Owner First Name') || ' ' || (sr.payload->>'Owner Last Name')),
+            'old_email', pi_email.id_value_norm,
+            'new_email', NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
+            'old_phone', pi_phone.id_value_norm,
+            'new_phone', sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')),
+            'appointment_number', sr.payload->>'Number',
+            'detection_source', 'batch_ingest'
+          ),
+          'clinichq',
+          sr.payload->>'Number'
+        FROM ops.staged_records sr
+        JOIN ops.appointments a ON a.appointment_number = sr.payload->>'Number'
+          AND a.person_id IS NOT NULL
+        JOIN sot.people p ON p.person_id = a.person_id
+        LEFT JOIN sot.person_identifiers pi_email ON pi_email.person_id = a.person_id
+          AND pi_email.id_type = 'email' AND pi_email.confidence >= 0.5
+        LEFT JOIN sot.person_identifiers pi_phone ON pi_phone.person_id = a.person_id
+          AND pi_phone.id_type = 'phone'
+        WHERE sr.source_system = 'clinichq'
+          AND sr.source_table = 'owner_info'
+          AND sr.file_upload_id = $1
+          -- Only flag when existing identifiers differ from new ones
+          AND (
+            -- Different email
+            (pi_email.id_value_norm IS NOT NULL
+             AND NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NOT NULL
+             AND pi_email.id_value_norm != NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
+            OR
+            -- Different phone (when email matches or is absent, phone differs)
+            (pi_phone.id_value_norm IS NOT NULL
+             AND sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone')) IS NOT NULL
+             AND pi_phone.id_value_norm != sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Cell Phone', ''), sr.payload->>'Owner Phone'))
+             AND (pi_email.id_value_norm IS NULL OR NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '') IS NULL
+                  OR pi_email.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), '')))
+          )
+        ON CONFLICT DO NOTHING
+      `, [uploadId]);
+      results.owner_changes_detected = ownerChanges.rowCount || 0;
+    } catch (err) {
+      // Non-fatal — Step 6 (ops.detect_owner_changes) is the primary detection path
+      console.error('Step 4d owner change detection failed (non-fatal):', err);
+      results.owner_change_detection_legacy_error = err instanceof Error ? err.message : String(err);
+    }
 
     // Step 4e: Classify FFSC program bookings (FFS-260)
     // Runs after Step 4c backfills client_name, ensuring the field is populated
@@ -1503,14 +1572,17 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
 
   try {
     await saveProgress('Linking cats to places...');
-    const cats = await queryOne<{ cats_linked: number; places_involved: number }>(
-      `SELECT * FROM sot.run_cat_place_linking()`
+    const cats = await queryOne<{ cats_linked_home: number; cats_linked_appointment: number; cats_skipped: number; total_edges: number }>(
+      `SELECT * FROM sot.link_cats_to_places()`
     );
-    if (cats) linking.cats_linked_to_places = cats.cats_linked;
+    if (cats) {
+      linking.cats_linked_to_places = cats.cats_linked_home + cats.cats_linked_appointment;
+      linking.cats_skipped_place_linking = cats.cats_skipped;
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    linkingErrors.push({ step: 'run_cat_place_linking', error: msg });
-    console.error('run_cat_place_linking failed (non-fatal):', err);
+    linkingErrors.push({ step: 'link_cats_to_places', error: msg });
+    console.error('link_cats_to_places failed (non-fatal):', err);
   }
 
   try {

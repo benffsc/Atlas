@@ -266,6 +266,8 @@ export interface RequestDetail {
   completion_data: Record<string, unknown> | null;
   // MIG_2868: Extended intake data (fields without dedicated columns)
   intake_extended_data: Record<string, unknown> | null;
+  // FFS-349: Place's last clinic visit
+  place_last_appointment_date: string | null;
   // Status history and trappers (from API response)
   status_history?: Array<{
     old_status: string | null;

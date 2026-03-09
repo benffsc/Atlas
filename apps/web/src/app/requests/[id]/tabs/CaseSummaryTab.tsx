@@ -3,7 +3,7 @@
 import { TrapperAssignments } from "@/components/sections";
 import { ColonyEstimates } from "@/components/charts";
 import { ClassificationSuggestionBanner } from "@/components/admin";
-import { formatPhone } from "@/lib/formatters";
+import { formatPhone, formatRelativeTime } from "@/lib/formatters";
 import type { RequestDetail } from "../types";
 
 interface CaseSummaryTabProps {
@@ -74,6 +74,11 @@ export function CaseSummaryTab({
                 </span>
               )}
             </div>
+            {request.place_last_appointment_date && (
+              <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                Last clinic visit: {formatRelativeTime(request.place_last_appointment_date)}
+              </div>
+            )}
             {/* Safety concerns */}
             {(request.place_safety_concerns?.length || request.place_safety_notes) && (
               <div style={{

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { unwrapApiResponse } from "@/lib/api-client";
+import { formatRelativeTime } from "@/lib/formatters";
 import { formatRole } from "@/lib/display-labels";
 
 /* ------------------------------------------------------------------ */
@@ -77,6 +78,7 @@ interface CatDetails {
   is_deceased: boolean | null;
   total_appointments: number;
   first_appointment_date: string | null;
+  last_appointment_date: string | null;
 
   tests: CatTestResult[];
   appointments: CatAppointmentSummary[];
@@ -200,8 +202,8 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
               )}
             </div>
 
-            {/* Stats grid (3 columns) */}
-            <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+            {/* Stats grid */}
+            <div className="stats-grid" style={{ gridTemplateColumns: `repeat(${cat.last_appointment_date ? 4 : 3}, 1fr)` }}>
               <div className="stat-card">
                 <div className="stat-value">{cat.total_appointments ?? 0}</div>
                 <div className="stat-label">Appointments</div>
@@ -214,6 +216,12 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                 <div className="stat-value">{placeCount}</div>
                 <div className="stat-label">Places</div>
               </div>
+              {cat.last_appointment_date && (
+                <div className="stat-card">
+                  <div className="stat-value" style={{ fontSize: "0.9rem" }}>{formatRelativeTime(cat.last_appointment_date)}</div>
+                  <div className="stat-label">Last Active</div>
+                </div>
+              )}
             </div>
 
             {/* Disease / Test Results */}

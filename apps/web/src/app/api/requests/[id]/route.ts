@@ -176,6 +176,7 @@ interface RequestDetailRow {
   entry_mode: string | null;
   completion_data: Record<string, unknown> | null;
   intake_extended_data: Record<string, unknown> | null;
+  place_last_appointment_date: string | null;
 }
 
 export async function GET(
@@ -405,7 +406,10 @@ export async function GET(
         r.wellness_cat_count,
         r.entry_mode,
         r.completion_data,
-        r.intake_extended_data
+        r.intake_extended_data,
+        -- FFS-349: Place's last clinic visit
+        (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a
+         WHERE a.place_id = r.place_id OR a.inferred_place_id = r.place_id) AS place_last_appointment_date
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
