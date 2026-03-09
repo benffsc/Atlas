@@ -832,14 +832,15 @@ export default function TrapperSheetPage() {
           </div>
         </div>
 
-        {/* Notes area */}
+        {/* Notes area — staff notes prefilled, plus blank space for trapper */}
         <div className="section">
           <div className="section-title">Notes</div>
-          <div className={`field-input md ${(data.summary || data.notes) ? "prefilled" : ""}`} style={{ whiteSpace: "pre-wrap", fontSize: "9pt" }}>
-            {data.summary}
-            {data.summary && data.notes && "\n"}
-            {data.notes}
-          </div>
+          {data.notes && (
+            <div className="field-input sm prefilled" style={{ whiteSpace: "pre-wrap", fontSize: "9pt", marginBottom: "3px" }}>
+              {data.notes}
+            </div>
+          )}
+          <div className="field-input md"></div>
         </div>
 
         {/* Trapper Recon — condensed */}
