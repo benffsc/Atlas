@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isPrintRoute = pathname?.includes("/print");
+  const isPrintRoute = pathname?.includes("/print") || pathname?.includes("/trapper-sheet");
   const isLoginPage = pathname === "/login";
   const isMapPage = pathname === "/map";
 

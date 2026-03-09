@@ -28,7 +28,7 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
   const [isMobile, setIsMobile] = useState(false);
 
   // Check if this is a print route - these should have no sidebar
-  const isPrintRoute = pathname?.includes("/print");
+  const isPrintRoute = pathname?.includes("/print") || pathname?.includes("/trapper-sheet");
 
   useEffect(() => {
     const checkMobile = () => {
