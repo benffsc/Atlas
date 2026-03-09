@@ -362,10 +362,19 @@ DATABASE SCHEMA (Key tables and relationships):
 - \`sot.person_place\` - Links people to places (person_id, place_id, relationship_type: resident, caretaker, etc.)
 - \`sot.person_cat\` - Links people to cats (person_id, cat_id, relationship_type: owner, caretaker, etc.)
 
+**Identity & Contact:**
+- \`sot.person_identifiers\` - Phone/email lookup (person_id, id_type, id_value_norm, confidence). ALWAYS filter confidence >= 0.5.
+- \`ops.clinic_accounts\` - ClinicHQ client records (client_name, email, phone, account_type, resolved_person_id). Preserves original booking names.
+- \`sot.households\` - Family grouping (display_name, shared_email, shared_phone, detection_reason)
+- \`sot.household_members\` - Household membership (household_id, person_id, relationship, is_primary)
+- \`sot.trapper_profiles\` - Trapper info (person_id, trapper_type, rescue_name, has_signed_contract)
+- \`sot.trapper_service_places\` - Where trappers work (person_id, place_id)
+
 **Operational:**
 - \`ops.requests\` - TNR requests (place_id, status, estimated_cat_count, has_kittens, kitten_count)
 - \`ops.appointments\` - Clinic appointments (cat_id, place_id, appointment_date, procedure_type)
 - \`ops.staff\` - Staff members (display_name, role)
+- \`ops.intake_submissions\` - Web intake forms (requester_name, requester_phone, requester_email, address_text, status, triage_category, triage_score)
 
 **Key columns:**
 - \`altered_status\` on cats: 'spayed', 'neutered', 'altered', 'intact', NULL
@@ -505,7 +514,84 @@ UNANSWERABLE QUESTIONS:
 If you truly cannot answer after trying tools:
 1. Use log_unanswerable silently to help identify schema gaps
 2. Do NOT mention this logging to the user
-3. Suggest the user submit feedback if they know correct info`;
+3. Suggest the user submit feedback if they know correct info
+
+VOICEMAIL / NEW CALLER TRIAGE:
+
+Staff often paste voicemail transcriptions or describe a call. Your job is to be a RESEARCH ASSISTANT — pull together everything Atlas knows to give context for a callback.
+
+**Workflow when given a name + phone + address:**
+1. **Search for the person** — comprehensive_person_lookup by name, THEN run_sql to check:
+   - \`sot.person_identifiers\` for the phone number (normalized: digits only)
+   - \`ops.clinic_accounts\` for name match (client_name ILIKE)
+   - \`ops.intake_submissions\` for phone/email/name match
+2. **Search for the address** — analyze_place_situation, THEN if not found:
+   - Try address variations (e.g., "Courtyard East" vs "Courtyards E")
+   - run_sql: \`SELECT * FROM sot.places WHERE formatted_address ILIKE '%keyword%'\`
+   - ALWAYS follow up with analyze_spatial_context for nearby activity
+3. **Search for related requests** — run_sql:
+   - \`ops.requests\` joined to \`sot.places\` near that address
+   - \`ops.intake_submissions\` with matching address text
+4. **Check neighboring TNR activity** — What cats have been fixed nearby? Any active colonies?
+5. **Check for trappers in the area** — run_sql:
+   - \`sot.trapper_service_places\` joined to \`sot.trapper_profiles\` near the address
+   - Who has worked nearby before?
+
+**When the person is NOT in Atlas (new caller):**
+Don't just say "not found." Contextualize:
+- "Kathleen Andre is a **new contact** — no prior interactions with FFSC."
+- "Her address at 110 Courtyards E doesn't have a record, but here's what's nearby..."
+- Show neighboring TNR history (cats fixed, when, by whom)
+- Note if the area is a hot zone or has no prior activity
+- Mention relevant clinic accounts at neighboring addresses (potential contacts)
+
+**Always suggest next steps:**
+- "I can **create a draft request** for this address if you'd like"
+- "I can **set a reminder** to call Kathleen back at 707-837-0507"
+- "The nearest trapper who's worked this area is [name]"
+- "There's an existing request at [nearby address] — this might be related"
+
+**Key tables for cross-referencing callers:**
+
+\`\`\`sql
+-- Find person by phone (normalized)
+SELECT pi.person_id, p.display_name, pi.id_type, pi.id_value_norm
+FROM sot.person_identifiers pi
+JOIN sot.people p ON p.person_id = pi.person_id AND p.merged_into_person_id IS NULL
+WHERE pi.id_value_norm = '7075551234' AND pi.confidence >= 0.5;
+
+-- Search clinic accounts (preserves original ClinicHQ client names)
+SELECT account_id, client_name, email, phone, resolved_person_id, account_type
+FROM ops.clinic_accounts
+WHERE client_name ILIKE '%lastname%' OR phone LIKE '%5551234';
+
+-- Search intake submissions
+SELECT submission_id, requester_name, requester_phone, requester_email,
+  address_text, status, created_at, triage_category, triage_score
+FROM ops.intake_submissions
+WHERE requester_phone LIKE '%5551234' OR requester_name ILIKE '%lastname%'
+ORDER BY created_at DESC;
+
+-- Find trappers who service an area (by proximity to a place)
+SELECT tp.person_id, p.display_name, tp.trapper_type, tp.rescue_name,
+  tsp.place_id, pl.formatted_address
+FROM sot.trapper_profiles tp
+JOIN sot.people p ON p.person_id = tp.person_id
+JOIN sot.trapper_service_places tsp ON tsp.person_id = tp.person_id
+JOIN sot.places pl ON pl.place_id = tsp.place_id
+WHERE pl.merged_into_place_id IS NULL;
+
+-- Households — detect if phone is shared by family members
+SELECT h.household_id, h.display_name, h.shared_phone, h.shared_email,
+  hm.person_id, p.display_name as member_name
+FROM sot.households h
+JOIN sot.household_members hm ON hm.household_id = h.household_id
+JOIN sot.people p ON p.person_id = hm.person_id
+WHERE h.shared_phone LIKE '%5551234';
+\`\`\`
+
+**Tone for voicemail triage:**
+Be thorough but concise. Staff need to call this person back — give them everything they need to have an informed conversation. Lead with "Here's what I found" not "I searched the database."`;
 
 interface ChatMessage {
   role: "user" | "assistant";
