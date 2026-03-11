@@ -6,7 +6,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
-import { LegacyUpgradeWizard, FormSubmissionsCard } from "@/components/forms";
+import { LegacyUpgradeWizard } from "@/components/forms";
 import { LogSiteVisitModal, CompleteRequestModal, CloseRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
 import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badges";
 import { MediaGallery } from "@/components/media";
@@ -20,7 +20,6 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, REQUEST_STATUS_COLORS, getStatusColor } from "@/lib/design-tokens";
-import { buildCallSheetUrl } from "@/lib/print-documents";
 import { getOutcomeLabel, getOutcomeColor, getReasonLabel, type ResolutionOutcome } from "@/lib/request-status";
 import {
   PAGE_CONTAINER, FIELD_LABEL, FIELD_HINT, FIELD_VALUE, FIELD_VALUE_EMPTY,
@@ -825,7 +824,7 @@ export default function RequestDetailPage() {
                 </div>
               ) : (
                 <>
-                  <h1 style={{ margin: 0, fontSize: "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "Request"}</h1>
+                  <h1 style={{ margin: 0, fontSize: "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
                   <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}>✏️</button>
                 </>
               )}
@@ -1435,13 +1434,10 @@ export default function RequestDetailPage() {
             <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", fontWeight: 700 }}>Quick Actions</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               <a href={`/requests/${request.request_id}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn" style={{ width: "100%", fontSize: "0.85rem", background: "#166534" }}>Print Trapper Sheet</a>
-              <a href={buildCallSheetUrl({ name: request.requester_name, phone: request.requester_phone, email: request.requester_email, address: request.place_address })} target="_blank" rel="noopener noreferrer" className="btn" style={{ width: "100%", fontSize: "0.85rem", background: "#27ae60" }}>Print TNR Call Sheet</a>
+              <a href={`/requests/${request.request_id}/print`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ width: "100%", fontSize: "0.85rem" }}>Print Summary</a>
               {request.place_id && <button onClick={() => setShowColonyModal(true)} className="btn btn-secondary" style={{ width: "100%", fontSize: "0.85rem" }}>Create Colony</button>}
             </div>
           </div>
-
-          {/* Paper Forms */}
-          <FormSubmissionsCard entityType="request" entityId={requestId} />
 
           {/* Metadata */}
           <div className="card" style={{ padding: "1rem", fontSize: "0.8rem", color: "var(--muted)" }}>
