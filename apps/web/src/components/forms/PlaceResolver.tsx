@@ -28,6 +28,8 @@ interface PlaceResolverProps {
   onChange: (place: ResolvedPlace | null) => void;
   /** Called immediately when a Google address is selected (before place type modal) */
   onAddressPreview?: (address: string) => void;
+  /** Called when a place_kind is determined (from modal selection or existing place) */
+  onPlaceKindResolved?: (placeKind: string) => void;
   placeholder?: string;
   disabled?: boolean;
   showDescribeLocation?: boolean;
@@ -42,6 +44,7 @@ export default function PlaceResolver({
   value,
   onChange,
   onAddressPreview,
+  onPlaceKindResolved,
   placeholder = "Search for an address...",
   disabled = false,
   showDescribeLocation = false,
@@ -122,11 +125,15 @@ export default function PlaceResolver({
 
   const handleCreateFromGoogle = async () => {
     await resolver.createFromGoogle(selectedPlaceKind);
+    onPlaceKindResolved?.(selectedPlaceKind);
     setShowPlaceTypeModal(false);
     setSelectedPlaceKind("residential_house");
   };
 
   const handleSelectExistingDuplicate = () => {
+    if (resolver.duplicateCheck?.existingPlace?.place_kind) {
+      onPlaceKindResolved?.(resolver.duplicateCheck.existingPlace.place_kind);
+    }
     resolver.selectExistingDuplicate();
     setShowDuplicateModal(false);
     setAddingUnit(false);
@@ -154,6 +161,7 @@ export default function PlaceResolver({
   const handleCreateFromDescription = async () => {
     if (!locationDescription.trim()) return;
     await resolver.resolveDescription(locationDescription.trim(), descPlaceKind);
+    onPlaceKindResolved?.(descPlaceKind);
     setShowDescriptionMode(false);
     setLocationDescription("");
     setDescPlaceKind("outdoor_site");

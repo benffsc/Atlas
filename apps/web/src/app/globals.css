@@ -261,6 +261,68 @@ a:hover {
   border-color: var(--primary);
 }
 
+/* Animated expand/collapse using CSS Grid trick */
+.expandable-section {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms ease-out, opacity 200ms ease-out;
+  opacity: 0;
+}
+
+.expandable-section.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.expandable-section > .expandable-content {
+  overflow: hidden;
+}
+
+/* Role card — contact role sub-section within a form card */
+.role-card {
+  border: 1px solid var(--border, #dee2e6);
+  border-radius: 8px;
+  background: var(--section-bg, #f8f9fa);
+  transition: border-color 200ms ease-in-out, box-shadow 200ms ease-in-out;
+}
+
+.role-card:has(input:focus),
+.role-card:has([data-focused="true"]) {
+  border-color: var(--primary, #0d6efd);
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1);
+}
+
+/* Role card header label */
+.role-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border, #dee2e6);
+}
+
+.role-card-body {
+  padding: 0.75rem;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .expandable-section {
+    transition: none;
+  }
+  .expandable-section:not(.expanded) {
+    display: none;
+  }
+  .role-card {
+    transition: none;
+  }
+}
+
 /* Tables */
 .table-container {
   overflow-x: auto;

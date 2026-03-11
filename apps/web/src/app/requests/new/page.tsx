@@ -7,6 +7,7 @@ import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
@@ -76,6 +77,21 @@ const PROPERTY_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+/** Map PlaceResolver place_kind → request form property_type */
+function placeKindToPropertyType(placeKind: string): string {
+  const map: Record<string, string> = {
+    residential_house: "private_home",
+    apartment_unit: "apartment_complex",
+    apartment_building: "apartment_complex",
+    business: "business",
+    outdoor_site: "public_park",
+    neighborhood: "other",
+    clinic: "other",
+    unknown: "other",
+  };
+  return map[placeKind] || "other";
+}
+
 const PERMISSION_OPTIONS = [
   { value: "yes", label: "Yes - Permission granted" },
   { value: "pending", label: "Pending - Waiting for response" },
@@ -144,7 +160,11 @@ function NewRequestForm() {
   const [originalContactInfo, setOriginalContactInfo] = useState<{ phone: string; email: string } | null>(null);
   // Property authority
   const [hasPropertyAuthority, setHasPropertyAuthority] = useState(true);
-  const [propertyOwnerName, setPropertyOwnerName] = useState("");
+  const [propertyOwnerRef, setPropertyOwnerRef] = useState<PersonReference>({
+    person_id: null,
+    display_name: "",
+    is_resolved: false,
+  });
   const [propertyOwnerPhone, setPropertyOwnerPhone] = useState("");
   const [authorizationPending, setAuthorizationPending] = useState(false);
   const [bestContactTimes, setBestContactTimes] = useState("");
@@ -202,6 +222,12 @@ function NewRequestForm() {
   // MIG_2532: Third-party tracking (affects requester intelligence)
   const [isThirdPartyReport, setIsThirdPartyReport] = useState(false);
   const [thirdPartyRelationship, setThirdPartyRelationship] = useState("");
+  const [siteContactRef, setSiteContactRef] = useState<PersonReference>({
+    person_id: null,
+    display_name: "",
+    is_resolved: false,
+  });
+  const [siteContactPhone, setSiteContactPhone] = useState("");
 
   // FFS-298: Requester relationship to location (non-third-party)
   const [requesterRole, setRequesterRole] = useState("resident");
@@ -494,6 +520,10 @@ function NewRequestForm() {
 
   const handlePlaceResolved = (place: ResolvedPlace | null) => {
     setSelectedPlace(place);
+    // Auto-sync property type from Atlas place_kind (if available)
+    if (place?.place_kind && !propertyType) {
+      setPropertyType(placeKindToPropertyType(place.place_kind));
+    }
   };
 
   const clearPerson = () => {
@@ -569,8 +599,8 @@ function NewRequestForm() {
         raw_requester_phone: requestorPhone || null,
         raw_requester_email: requestorEmail || null,
         // Property authority
-        property_owner_name: !hasPropertyAuthority ? propertyOwnerName || null : null,
-        property_owner_phone: !hasPropertyAuthority ? propertyOwnerPhone || null : null,
+        property_owner_name: !hasPropertyAuthority ? propertyOwnerRef.display_name || null : null,
+        property_owner_phone: !hasPropertyAuthority && !propertyOwnerRef.is_resolved ? propertyOwnerPhone || null : null,
         authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
         best_contact_times: bestContactTimes || null,
         // Permission & Access
@@ -591,6 +621,8 @@ function NewRequestForm() {
         // MIG_2532: Third-party tracking
         is_third_party_report: isThirdPartyReport,
         third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
+        site_contact_person_id: isThirdPartyReport && siteContactRef.is_resolved ? siteContactRef.person_id : null,
+        requester_is_site_contact: !isThirdPartyReport,
         // FFS-298: Requester role at submission
         requester_role_at_submission: isThirdPartyReport ? (thirdPartyRelationship || 'referrer') : requesterRole,
         // MIG_2532: Service area
@@ -981,6 +1013,7 @@ function NewRequestForm() {
           <PlaceResolver
             value={selectedPlace}
             onChange={handlePlaceResolved}
+            onPlaceKindResolved={(pk) => setPropertyType(placeKindToPropertyType(pk))}
             placeholder="Type an address..."
           />
 
@@ -1305,14 +1338,13 @@ function NewRequestForm() {
           />
 
           {/* Property authority section */}
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "0.5rem" }}>
+          <div style={SECTION_DIVIDER}>
             <label
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
                 cursor: "pointer",
-                marginBottom: hasPropertyAuthority ? "0" : "1rem",
               }}
             >
               <input
@@ -1320,54 +1352,58 @@ function NewRequestForm() {
                 checked={!hasPropertyAuthority}
                 onChange={(e) => setHasPropertyAuthority(!e.target.checked)}
               />
-              <span>Requestor does NOT have authority over property</span>
+              <span>Someone else owns/manages this property</span>
             </label>
 
-            {!hasPropertyAuthority && (
-              <div style={{ marginLeft: "1.5rem", marginTop: "0.75rem" }}>
-                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-                  <div style={{ flex: "1 1 200px" }}>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                      Property Owner Name
-                    </label>
-                    <input
-                      type="text"
-                      value={propertyOwnerName}
-                      onChange={(e) => setPropertyOwnerName(e.target.value)}
-                      placeholder="Owner/manager name"
-                      style={{ width: "100%" }}
-                    />
+            <div className={`expandable-section${!hasPropertyAuthority ? " expanded" : ""}`} style={{ marginTop: "0.75rem" }}>
+              <div className="expandable-content">
+                <div className="role-card">
+                  <div className="role-card-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    Property Owner
                   </div>
-                  <div style={{ flex: "1 1 180px" }}>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                      Property Owner Phone
+                  <div className="role-card-body">
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <PersonReferencePicker
+                        value={propertyOwnerRef}
+                        onChange={setPropertyOwnerRef}
+                        placeholder="Search or type property owner name..."
+                      />
+                    </div>
+                    {!propertyOwnerRef.is_resolved && propertyOwnerRef.display_name && (
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                          Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={propertyOwnerPhone}
+                          onChange={(e) => setPropertyOwnerPhone(e.target.value)}
+                          placeholder="(707) 555-1234"
+                          style={{ width: "100%", maxWidth: "250px" }}
+                        />
+                      </div>
+                    )}
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={authorizationPending}
+                        onChange={(e) => setAuthorizationPending(e.target.checked)}
+                      />
+                      <span>Authorization pending (needs follow-up)</span>
                     </label>
-                    <input
-                      type="tel"
-                      value={propertyOwnerPhone}
-                      onChange={(e) => setPropertyOwnerPhone(e.target.value)}
-                      placeholder="(707) 555-1234"
-                      style={{ width: "100%" }}
-                    />
                   </div>
                 </div>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={authorizationPending}
-                    onChange={(e) => setAuthorizationPending(e.target.checked)}
-                  />
-                  <span>Authorization pending (needs follow-up)</span>
-                </label>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Best contact times */}
@@ -1386,7 +1422,7 @@ function NewRequestForm() {
 
           {/* Requester relationship to location */}
           {!isThirdPartyReport && (
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem" }}>
+            <div style={SECTION_DIVIDER}>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                 Requestor&apos;s relationship to location
               </label>
@@ -1407,14 +1443,13 @@ function NewRequestForm() {
           )}
 
           {/* Third-party report tracking */}
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem" }}>
+          <div style={SECTION_DIVIDER}>
             <label
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
                 cursor: "pointer",
-                marginBottom: isThirdPartyReport ? "0.75rem" : "0",
               }}
             >
               <input
@@ -1422,39 +1457,63 @@ function NewRequestForm() {
                 checked={isThirdPartyReport}
                 onChange={(e) => setIsThirdPartyReport(e.target.checked)}
               />
-              <span>Requestor is NOT the site contact (third-party report)</span>
+              <span>Someone else is the on-site contact</span>
             </label>
 
-            {isThirdPartyReport && (
-              <div
-                style={{
-                  marginLeft: "1.5rem",
-                  padding: "0.75rem",
-                  background: "var(--bg-muted)",
-                  borderRadius: "6px",
-                }}
-              >
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Relationship to site
-                </label>
-                <select
-                  value={thirdPartyRelationship}
-                  onChange={(e) => setThirdPartyRelationship(e.target.value)}
-                  style={{ width: "100%", maxWidth: "300px" }}
-                >
-                  <option value="">Select...</option>
-                  <option value="neighbor">Neighbor</option>
-                  <option value="friend_family">Friend/Family of resident</option>
-                  <option value="concerned_citizen">Concerned citizen</option>
-                  <option value="property_manager">Property manager</option>
-                  <option value="business_employee">Business employee</option>
-                  <option value="other">Other</option>
-                </select>
-                <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
-                  Helps us know who can authorize trapping and who to contact for updates
-                </p>
+            <div className={`expandable-section${isThirdPartyReport ? " expanded" : ""}`} style={{ marginTop: "0.75rem" }}>
+              <div className="expandable-content">
+                <div className="role-card">
+                  <div className="role-card-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Site Contact
+                  </div>
+                  <div className="role-card-body">
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <PersonReferencePicker
+                        value={siteContactRef}
+                        onChange={setSiteContactRef}
+                        placeholder="Search or type site contact name..."
+                      />
+                    </div>
+                    {!siteContactRef.is_resolved && siteContactRef.display_name && (
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                          Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={siteContactPhone}
+                          onChange={(e) => setSiteContactPhone(e.target.value)}
+                          placeholder="(707) 555-1234"
+                          style={{ width: "100%", maxWidth: "250px" }}
+                        />
+                      </div>
+                    )}
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                        Requestor&apos;s relationship to site
+                      </label>
+                      <select
+                        value={thirdPartyRelationship}
+                        onChange={(e) => setThirdPartyRelationship(e.target.value)}
+                        style={{ width: "100%", maxWidth: "300px" }}
+                      >
+                        <option value="">Select...</option>
+                        <option value="neighbor">Neighbor</option>
+                        <option value="friend_family">Friend/Family of resident</option>
+                        <option value="concerned_citizen">Concerned citizen</option>
+                        <option value="property_manager">Property manager</option>
+                        <option value="business_employee">Business employee</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
+                        Helps us know who can authorize trapping and who to contact for updates
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 

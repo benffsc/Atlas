@@ -28,6 +28,7 @@ export interface ResolvedPlace {
   display_name: string;
   formatted_address: string | null;
   locality: string | null;
+  place_kind?: string | null;
 }
 
 export interface DuplicateCheckResult {
@@ -141,6 +142,7 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
       display_name: place.display_name,
       formatted_address: place.subtitle || null,
       locality: null,
+      place_kind: place.metadata?.place_kind || null,
     });
     setShowDropdown(false);
     setQuery("");
