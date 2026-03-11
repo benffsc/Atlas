@@ -278,6 +278,16 @@ a:hover {
   overflow: hidden;
 }
 
+/*
+ * When fully expanded, allow dropdowns (position:absolute) to overflow.
+ * The minor visual trade-off: during the ~250ms collapse animation,
+ * overflow is already visible. In practice this is imperceptible because
+ * the grid row shrinks to 0fr so fast.
+ */
+.expandable-section.expanded > .expandable-content {
+  overflow: visible;
+}
+
 /* Role card — contact role sub-section within a form card */
 .role-card {
   border: 1px solid var(--border, #dee2e6);
