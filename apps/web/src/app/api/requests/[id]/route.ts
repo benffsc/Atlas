@@ -542,7 +542,7 @@ export async function PATCH(
     const currentSql = `
       SELECT status::TEXT, priority::TEXT, summary, notes, estimated_cat_count,
              has_kittens, hold_reason::TEXT, resolution, access_notes,
-             kitten_count, no_trapper_reason
+             kitten_count, no_trapper_reason, site_contact_person_id
       FROM ops.requests WHERE request_id = $1
     `;
     const current = await queryOne<{
@@ -557,6 +557,7 @@ export async function PATCH(
       access_notes: string | null;
       kitten_count: number | null;
       no_trapper_reason: string | null;
+      site_contact_person_id: string | null;
     }>(currentSql, [id]);
 
     if (!current) {
@@ -889,6 +890,20 @@ export async function PATCH(
       updates.push(`third_party_relationship = $${paramIndex}`);
       values.push(body.third_party_relationship);
       paramIndex++;
+    }
+
+    // Site contact (FFS-442)
+    if (body.site_contact_person_id !== undefined) {
+      if (body.site_contact_person_id === null) {
+        updates.push(`site_contact_person_id = NULL`);
+        updates.push(`requester_is_site_contact = TRUE`);
+      } else {
+        updates.push(`site_contact_person_id = $${paramIndex}`);
+        values.push(body.site_contact_person_id);
+        paramIndex++;
+        updates.push(`requester_is_site_contact = FALSE`);
+      }
+      auditChanges.push({ field: "site_contact_person_id", oldValue: current.site_contact_person_id, newValue: body.site_contact_person_id });
     }
 
     // Trapping logistics

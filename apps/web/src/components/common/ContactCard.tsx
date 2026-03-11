@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { formatPhone } from "@/lib/formatters";
 import { formatRole } from "@/lib/display-labels";
+import { fetchApi } from "@/lib/api-client";
 
 interface PersonInfo {
   personId?: string | null;
@@ -11,6 +13,12 @@ interface PersonInfo {
   phone?: string | null;
   role?: string | null;
   isSiteContact?: boolean | null;
+}
+
+interface PersonSearchResult {
+  entity_id: string;
+  display_name: string;
+  subtitle: string;
 }
 
 interface ContactCardProps {
@@ -28,6 +36,10 @@ interface ContactCardProps {
   className?: string;
   /** Callback when a person name is clicked (e.g., for preview modal). Cmd/Ctrl+Click bypasses. */
   onPersonClick?: (personId: string, e: React.MouseEvent) => void;
+  /** Enable site contact editing */
+  onSiteContactChange?: (personId: string | null) => void;
+  /** Whether the save is in progress */
+  savingSiteContact?: boolean;
 }
 
 /**
@@ -40,6 +52,7 @@ interface ContactCardProps {
  * - Two-column layout for requester + site contact
  * - Role badges
  * - Quick action buttons (Email, Call)
+ * - Inline person search for setting site contact (Dynamics 365 pattern)
  * - Responsive: stacks on mobile
  */
 export default function ContactCard({
@@ -50,6 +63,8 @@ export default function ContactCard({
   title = "Contact Information",
   className = "",
   onPersonClick,
+  onSiteContactChange,
+  savingSiteContact,
 }: ContactCardProps) {
   // Check if site contact is actually different from requester
   const hasDifferentSiteContact =
@@ -60,6 +75,69 @@ export default function ContactCard({
   // Get the primary phone for call action
   const primaryPhone = requester?.phone || siteContact?.phone;
   const primaryEmail = requester?.email || siteContact?.email;
+
+  // Inline person search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<PersonSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const doSearch = useCallback(async (q: string) => {
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const data = await fetchApi<{ results: PersonSearchResult[] }>(
+        `/api/search?q=${encodeURIComponent(q)}&type=person&limit=10`
+      );
+      setSearchResults(data.results || []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSearch(searchQuery), 250);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery, doSearch]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+        setSearchQuery("");
+        setSearchResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [searchOpen]);
+
+  // Focus input when search opens
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  const handleSelectPerson = (personId: string) => {
+    onSiteContactChange?.(personId);
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleClearSiteContact = () => {
+    onSiteContactChange?.(null);
+  };
 
   return (
     <div
@@ -110,14 +188,43 @@ export default function ContactCard({
             <PersonCard
               label="Requester"
               person={requester}
-              showSiteContactBadge={requester.isSiteContact === true}
+              showSiteContactBadge={requester.isSiteContact === true && !hasDifferentSiteContact}
               onPersonClick={onPersonClick}
             />
           )}
 
           {/* Site Contact (if different) */}
           {hasDifferentSiteContact && (
-            <PersonCard label="Site Contact" person={siteContact!} onPersonClick={onPersonClick} />
+            <div style={{ position: "relative" }}>
+              {onSiteContactChange && (
+                <div style={{ position: "absolute", top: "0.5rem", right: "0.5rem", display: "flex", gap: "0.25rem", zIndex: 1 }}>
+                  <button
+                    onClick={() => { setSearchOpen(true); setSearchQuery(""); }}
+                    disabled={savingSiteContact}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      fontSize: "0.7rem", color: "#6366f1", padding: "0.125rem 0.25rem",
+                    }}
+                    title="Change site contact"
+                  >
+                    Change
+                  </button>
+                  <button
+                    onClick={handleClearSiteContact}
+                    disabled={savingSiteContact}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      fontSize: "0.85rem", color: "#ef4444", padding: "0.125rem 0.25rem",
+                      lineHeight: 1,
+                    }}
+                    title="Remove site contact"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+              <PersonCard label="Site Contact" person={siteContact!} onPersonClick={onPersonClick} />
+            </div>
           )}
 
           {/* Empty state */}
@@ -134,6 +241,117 @@ export default function ContactCard({
             </div>
           )}
         </div>
+
+        {/* Set Site Contact button (when editable and no site contact set) */}
+        {onSiteContactChange && !hasDifferentSiteContact && !searchOpen && (
+          <button
+            onClick={() => setSearchOpen(true)}
+            disabled={savingSiteContact}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              marginTop: "0.75rem",
+              padding: "0.375rem 0.75rem",
+              background: "none",
+              border: "1px dashed var(--border, #d1d5db)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.8rem",
+              color: "var(--muted, #6b7280)",
+              width: "100%",
+              justifyContent: "center",
+            }}
+          >
+            <span style={{ fontSize: "0.9rem" }}>+</span>
+            {savingSiteContact ? "Saving..." : "Set Site Contact"}
+          </button>
+        )}
+
+        {/* Inline person search */}
+        {searchOpen && onSiteContactChange && (
+          <div ref={searchContainerRef} style={{ marginTop: "0.75rem", position: "relative" }}>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search people by name, email, or phone..."
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #3b82f6",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearchOpen(false);
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }
+              }}
+            />
+            {/* Results dropdown */}
+            {(searchResults.length > 0 || (searchQuery.length >= 2 && !searching)) && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  marginTop: "2px",
+                  background: "#fff",
+                  border: "1px solid var(--border, #e5e7eb)",
+                  borderRadius: "6px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  maxHeight: "240px",
+                  overflowY: "auto",
+                  zIndex: 50,
+                }}
+              >
+                {searchResults.length === 0 && searchQuery.length >= 2 && !searching && (
+                  <div style={{ padding: "0.75rem", color: "var(--muted)", fontSize: "0.8rem", textAlign: "center" }}>
+                    No people found
+                  </div>
+                )}
+                {searchResults.map((result) => (
+                  <button
+                    key={result.entity_id}
+                    onClick={() => handleSelectPerson(result.entity_id)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "0.5rem 0.75rem",
+                      background: "none",
+                      border: "none",
+                      borderBottom: "1px solid var(--border, #f3f4f6)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontSize: "0.85rem",
+                    }}
+                    onMouseEnter={(e) => { (e.target as HTMLElement).style.background = "#f3f4f6"; }}
+                    onMouseLeave={(e) => { (e.target as HTMLElement).style.background = "none"; }}
+                  >
+                    <div style={{ fontWeight: 500 }}>{result.display_name}</div>
+                    {result.subtitle && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted, #6b7280)", marginTop: "0.125rem" }}>
+                        {result.subtitle}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            {searching && (
+              <div style={{ padding: "0.5rem", fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>
+                Searching...
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Action Buttons */}
         {(primaryEmail || primaryPhone) && (
@@ -375,5 +593,3 @@ function getRoleBadgeColor(role: string): string {
   };
   return colors[role.toLowerCase()] || "#6b7280";
 }
-
-// formatRole imported from @/lib/display-labels
