@@ -394,7 +394,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             p_color := cd.color,
             p_source_system := 'clinichq',
             p_clinichq_animal_id := cd.clinichq_animal_id,  -- MIG_2051
-            p_ownership_type := cd.ownership_type  -- MIG_2054
+            p_ownership_type := cd.ownership_type,  -- MIG_2054
+            p_secondary_color := cd.secondary_color  -- MIG_2903
           ) as cat_id
         FROM cat_data cd
         WHERE cd.microchip IS NOT NULL
@@ -822,13 +823,18 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // Step 3: Link people to places via person_place
     // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
     await saveProgress('Linking people to places...');
+    // MIG_2906/FFS-449: Trapper-aware person-place creation.
+    // Known trappers get relationship_type='trapper_at' (0.3) instead of 'resident' (0.7)
+    // to prevent false cat-place links through the person chain.
     const personPlaceLinks = await query(`
       INSERT INTO sot.person_place (person_id, place_id, relationship_type, confidence, source_system, source_table)
       SELECT DISTINCT
         pi.person_id,
         p.place_id,
-        'resident',
-        0.7,
+        CASE WHEN sot.is_excluded_from_cat_place_linking(pi.person_id)
+             THEN 'trapper_at' ELSE 'resident' END,
+        CASE WHEN sot.is_excluded_from_cat_place_linking(pi.person_id)
+             THEN 0.3 ELSE 0.7 END,
         'clinichq',
         'owner_info'
       FROM ops.staged_records sr
@@ -1536,6 +1542,30 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `);
     results.appointment_vitals_created = appointmentVitals.rowCount || 0;
 
+    // MIG_2901: Flow appointment boolean flags → observation tables
+    // Flows has_uri, has_fleas, is_pregnant, etc. into cat_clinical_observations
+    // and cat_reproductive_observations. NOT EXISTS guards ensure idempotency.
+    await saveProgress('Flowing appointment observations...');
+    const observations = await queryOne<{ clinical_inserted: number; reproductive_inserted: number }>(
+      `SELECT * FROM ops.flow_appointment_observations()`
+    );
+    if (observations) {
+      results.clinical_observations_created = observations.clinical_inserted;
+      results.reproductive_observations_created = observations.reproductive_inserted;
+    }
+
+    // MIG_2902: Sync sot.cats columns from appointment data
+    // Fills weight_lbs, estimated_birth_date, age_group, coat_length where NULL.
+    await saveProgress('Syncing cat attributes from appointments...');
+    const catSync = await queryOne<{ weight_updated: number; age_updated: number; coat_updated: number }>(
+      `SELECT * FROM ops.sync_cats_from_appointments()`
+    );
+    if (catSync) {
+      results.cats_weight_synced = catSync.weight_updated;
+      results.cats_age_synced = catSync.age_updated;
+      results.cats_coat_synced = catSync.coat_updated;
+    }
+
     // Cat-request linking is handled by link_cats_to_requests_safe() below (line ~1607)
     // and by Step 4 of run_all_entity_linking() in the cron job.
     // Removed inline linking (MIG_2825/FFS-164): it had no place family support,
@@ -1679,6 +1709,22 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       error: msg,
     });
     console.error('Post-linking cats to requests failed (non-fatal):', err);
+  }
+
+  // MIG_2908/FFS-449: Detect unofficial trapper candidates after entity linking
+  try {
+    await saveProgress('Detecting unofficial trapper candidates...');
+    const candidates = await queryOne<{ candidates_found: number; candidates_queued: number; candidates_already_pending: number }>(
+      `SELECT * FROM sot.queue_unofficial_trapper_candidates()`
+    );
+    if (candidates) {
+      linking.trapper_candidates_found = candidates.candidates_found;
+      linking.trapper_candidates_queued = candidates.candidates_queued;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    linkingErrors.push({ step: 'queue_unofficial_trapper_candidates', error: msg });
+    console.error('queue_unofficial_trapper_candidates failed (non-fatal):', err);
   }
 
   // Geocoding: fire-and-forget so new places get coordinates for map
