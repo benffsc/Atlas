@@ -2,6 +2,40 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
+import {
+  EditableField,
+  EditableTextArea,
+  PrintHeader,
+  PrintFooter,
+  PrintControlsPanel,
+} from "@/components/print";
+import {
+  COUNTY,
+  PROPERTY_TYPE_PRINT,
+  OWNERSHIP_STATUS,
+  EARTIP_STATUS,
+  FEEDING_FREQUENCY_PRINT,
+  AWARENESS_DURATION,
+  COLONY_DURATION_PRINT,
+  HAS_PROPERTY_ACCESS_PRINT,
+  IS_PROPERTY_OWNER,
+  DOGS_ON_SITE,
+  TRAP_SAVVY,
+  PREVIOUS_TNR,
+  HANDLEABILITY,
+  IMPORTANT_NOTES,
+  KITTEN_AGE_ESTIMATE,
+  KITTEN_BEHAVIOR,
+  KITTEN_CONTAINED,
+  MOM_PRESENT,
+  MOM_FIXED,
+  CAN_BRING_IN_PRINT,
+  KITTEN_OUTCOME,
+  PRIORITY,
+  TRIAGE_CATEGORY_PRINT,
+  REFERRAL_SOURCE_PRINT,
+} from "@/lib/field-options";
 
 interface Prefill {
   first_name: string;
@@ -37,7 +71,6 @@ function FullCallSheet() {
   const [includeKittenPage, setIncludeKittenPage] = useState(true);
   const isBlank = searchParams.get("blank") === "true";
 
-  // In blank mode, auto-trigger print dialog
   useEffect(() => {
     if (isBlank) {
       const timer = setTimeout(() => window.print(), 300);
@@ -46,7 +79,7 @@ function FullCallSheet() {
   }, [isBlank]);
 
   useEffect(() => {
-    if (isBlank) return; // Skip prefill in blank mode
+    if (isBlank) return;
     const p: Prefill = { ...EMPTY_PREFILL };
     if (searchParams.get("name")) {
       const parts = (searchParams.get("name") || "").split(" ");
@@ -63,287 +96,34 @@ function FullCallSheet() {
     if (Object.values(p).some(Boolean)) setPrefill(p);
   }, [searchParams, isBlank]);
 
-  const pf = (field: keyof Prefill) => prefill[field] ? "prefilled" : "";
-
   return (
     <div className="print-wrapper">
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@600;700&display=swap');
+        ${PRINT_BASE_CSS}
+        ${PRINT_EDITABLE_CSS}
 
-        @media print {
-          @page { size: letter; margin: 0.4in; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-          .print-controls, .tippy-fab, .tippy-chat-panel { display: none !important; }
-          .print-wrapper { width: 100% !important; padding: 0 !important; }
-          .print-page {
-            width: 100% !important;
-            max-width: 100% !important;
-            height: auto !important;
-            padding: 0 !important;
-            box-shadow: none !important;
-            margin: 0 !important;
-            page-break-after: always;
-            overflow: visible !important;
-          }
-          .print-page:last-child { page-break-after: auto; }
-          .print-header { margin-bottom: 10px !important; }
-          .section { margin-bottom: 10px !important; }
-        }
-
-        body { margin: 0; padding: 0; }
-
-        .print-wrapper {
-          font-family: Helvetica, Arial, sans-serif;
-          font-size: 10pt;
-          line-height: 1.3;
-          color: #2c3e50;
-        }
-
-        .print-page {
-          width: 8.5in;
-          height: 10.2in;
-          padding: 0.4in;
-          box-sizing: border-box;
-          background: #fff;
-        }
-
-        h1, h2, h3, .section-title {
-          font-family: 'Raleway', Helvetica, sans-serif;
-          font-weight: 700;
-        }
-
-        .print-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-bottom: 8px;
-          margin-bottom: 12px;
-          border-bottom: 3px solid #27ae60;
-        }
-
-        .print-header h1 {
-          font-size: 16pt;
-          margin: 0;
-          color: #27ae60;
-        }
-
-        .print-header .subtitle {
-          font-size: 9pt;
-          color: #7f8c8d;
-          margin-top: 2px;
-        }
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .header-logo {
-          height: 42px;
-          width: auto;
-        }
-
-        .section {
-          margin-bottom: 12px;
-        }
-
-        .section-title {
-          font-size: 11pt;
-          color: #27ae60;
-          border-bottom: 1.5px solid #ecf0f1;
-          padding-bottom: 3px;
-          margin-bottom: 8px;
-        }
-
-        .field-row {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 8px;
-        }
-
-        .field {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .field.w2 { flex: 2; }
-        .field.w3 { flex: 3; }
-        .field.w4 { flex: 4; }
-        .field.half { flex: 0.5; }
-
-        .field label {
-          display: block;
-          font-size: 8pt;
-          font-weight: 600;
-          color: #7f8c8d;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-          margin-bottom: 2px;
-        }
-
-        .field-input {
-          border: 1px solid #bdc3c7;
-          border-radius: 4px;
-          padding: 6px 8px;
-          min-height: 28px;
-          background: #fff;
-          font-size: 10pt;
-        }
-
-        .field-input.prefilled {
-          background: #f0fdf4;
-          color: #2c3e50;
-        }
-
+        /* TNR Call Sheet overrides */
+        .print-wrapper { font-size: 10pt; line-height: 1.3; }
+        .print-page { height: 10.2in; }
+        .print-header { margin-bottom: 12px; }
+        .print-header h1 { font-size: 16pt; }
+        .section { margin-bottom: 12px; }
+        .section-title { font-size: 11pt; margin-bottom: 8px; padding-bottom: 3px; }
+        .field-row { gap: 12px; margin-bottom: 8px; }
+        .field label { font-size: 8pt; margin-bottom: 2px; }
+        .field-input { padding: 6px 8px; min-height: 28px; border-radius: 4px; font-size: 10pt; }
         .field-input.sm { min-height: 26px; padding: 5px 7px; }
         .field-input.md { min-height: 55px; }
         .field-input.lg { min-height: 80px; }
         .field-input.xl { min-height: 110px; }
-
-        .options-row {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 9.5pt;
-          margin-bottom: 6px;
-          flex-wrap: wrap;
-        }
-
-        .options-label {
-          font-weight: 600;
-          color: #2c3e50;
-          min-width: 90px;
-          font-size: 9.5pt;
-        }
-
-        .option {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          margin-right: 12px;
-        }
-
-        .bubble {
-          width: 13px;
-          height: 13px;
-          border: 1.5px solid #27ae60;
-          border-radius: 50%;
-          background: #fff;
-          flex-shrink: 0;
-        }
-
-        .checkbox {
-          width: 13px;
-          height: 13px;
-          border: 1.5px solid #27ae60;
-          border-radius: 2px;
-          background: #fff;
-          flex-shrink: 0;
-        }
-
-        .two-col {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-
-        .info-box {
-          background: #f0fdf4;
-          border: 1.5px solid #86efac;
-          border-radius: 6px;
-          padding: 8px 10px;
-          margin-bottom: 10px;
-        }
-
-        .info-box .title {
-          font-weight: 600;
-          color: #166534;
-          margin-bottom: 5px;
-          font-size: 9.5pt;
-        }
-
-        .info-card {
-          background: #f8f9fa;
-          border-radius: 6px;
-          padding: 6px 10px;
-          margin-bottom: 8px;
-          border-left: 3px solid #27ae60;
-        }
-
-        .warning-box {
-          background: #fef3c7;
-          border: 1.5px solid #fcd34d;
-          border-radius: 6px;
-          padding: 8px 10px;
-          margin-bottom: 10px;
-        }
-
-        .warning-box .title {
-          font-weight: 600;
-          color: #92400e;
-          margin-bottom: 5px;
-          font-size: 9.5pt;
-        }
-
-        .staff-box {
-          border: 1.5px dashed #94a3b8;
-          border-radius: 6px;
-          padding: 10px 12px;
-          margin-top: 10px;
-          background: #f8fafc;
-        }
-
-        .staff-box .section-title {
-          color: #7f8c8d;
-          border-bottom-color: #bdc3c7;
-        }
-
-        .quick-notes {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 6px;
-        }
-
-        .quick-note {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          font-size: 9pt;
-          padding: 2px 0;
-        }
-
-        .emergency-box {
-          border: 1.5px solid #e74c3c;
-          background: #fdedec;
-          padding: 6px 10px;
-          margin-bottom: 10px;
-          border-radius: 6px;
-        }
-
-        .emergency-box .title {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-weight: 600;
-          color: #e74c3c;
-          font-size: 9.5pt;
-        }
-
-        .emergency-box .checkbox {
-          border-color: #e74c3c;
-        }
-
-        .page-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-top: 6px;
-          margin-top: auto;
-          border-top: 1px solid #ecf0f1;
-          font-size: 8pt;
-          color: #95a5a6;
-        }
+        .options-row { gap: 4px; font-size: 9.5pt; margin-bottom: 6px; }
+        .options-label { min-width: 90px; font-size: 9.5pt; }
+        .option { gap: 4px; margin-right: 12px; }
+        .bubble { width: 13px; height: 13px; }
+        .checkbox { width: 13px; height: 13px; }
+        .two-col { gap: 16px; }
+        .quick-notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .quick-note { gap: 5px; font-size: 9pt; padding: 2px 0; }
 
         .date-field {
           display: inline-flex;
@@ -351,50 +131,11 @@ function FullCallSheet() {
           gap: 6px;
           font-size: 10pt;
         }
+        .date-field .field-input { width: 100px; display: inline-block; }
 
-        .date-field .field-input {
-          width: 100px;
-          display: inline-block;
-        }
-
-        .hint {
-          font-size: 7.5pt;
-          color: #95a5a6;
-          margin-left: 3px;
-        }
-
+        /* Prefill controls (screen only) */
         @media screen {
-          body { background: #f0f9f4 !important; }
-          .print-wrapper { padding: 20px; }
-          .print-page {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin: 0 auto 30px auto;
-            border-radius: 8px;
-            height: auto;
-            min-height: 10in;
-          }
-          .tippy-fab, .tippy-chat-panel { display: none !important; }
-          .print-controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #fff;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            z-index: 1000;
-            width: 280px;
-            max-height: calc(100vh - 40px);
-            overflow-y: auto;
-          }
-          .print-controls h3 {
-            margin: 0 0 12px 0;
-            font-size: 14px;
-            color: #27ae60;
-          }
-          .print-controls .ctrl-field {
-            margin-bottom: 8px;
-          }
+          .print-controls .ctrl-field { margin-bottom: 8px; }
           .print-controls .ctrl-field label {
             display: block;
             font-size: 11px;
@@ -412,65 +153,23 @@ function FullCallSheet() {
             font-size: 13px;
             box-sizing: border-box;
           }
-          .print-controls .ctrl-field textarea {
-            min-height: 50px;
-            resize: vertical;
-          }
-          .print-controls .toggle-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            font-size: 14px;
-            cursor: pointer;
-            text-transform: none;
-            letter-spacing: 0;
-          }
-          .print-controls .toggle-label input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #27ae60;
-          }
-          .print-controls button {
-            display: block;
-            width: 100%;
-            padding: 10px 16px;
-            margin-top: 10px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.2s;
-          }
-          .print-controls .print-btn {
-            background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
-            color: #fff;
-          }
-          .print-controls .print-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(39,174,96,0.4);
-          }
-          .print-controls .back-btn {
-            background: #f0f0f0;
-            color: #333;
-          }
-          .print-controls .ctrl-hint {
-            font-size: 11px;
-            color: #888;
-            margin-top: 10px;
-            line-height: 1.4;
-          }
+          .print-controls .ctrl-field textarea { min-height: 50px; resize: vertical; }
+        }
+
+        @media print {
+          .print-header { margin-bottom: 10px !important; }
+          .section { margin-bottom: 10px !important; }
         }
       `}</style>
 
-      {/* ── Print Controls Panel (hidden in blank mode) ─────────────────────────── */}
+      {/* Print Controls (hidden in blank mode) */}
       {!isBlank && (
-        <div className="print-controls">
-          <h3>TNR Call Sheet</h3>
-          <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
-            Pre-fill from voicemail, then print front &amp; back
-          </p>
+        <PrintControlsPanel
+          title="TNR Call Sheet"
+          description="Pre-fill from voicemail, then print front & back"
+          backHref="/requests"
+          backLabel="Back to Requests"
+        >
           <div className="ctrl-field">
             <label>First Name</label>
             <input value={prefill.first_name} onChange={(e) => setPrefill({ ...prefill, first_name: e.target.value })} placeholder="First name..." />
@@ -499,67 +198,48 @@ function FullCallSheet() {
             <label>Voicemail notes</label>
             <textarea value={prefill.notes} onChange={(e) => setPrefill({ ...prefill, notes: e.target.value })} placeholder="Any details mentioned..." />
           </div>
-
-          <label className="toggle-label">
+          <label>
             <input type="checkbox" checked={includeKittenPage} onChange={(e) => setIncludeKittenPage(e.target.checked)} />
             Include Kitten Section
           </label>
-
-          <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
           <a href="/requests/print?blank=true" style={{ textDecoration: "none" }}>
             <button className="back-btn" style={{ width: "100%", marginTop: "6px" }}>Print Blank Form</button>
-          </a>
-          <a href="/requests" style={{ textDecoration: "none" }}>
-            <button className="back-btn" style={{ width: "100%" }}>Back to Requests</button>
           </a>
           <div className="ctrl-hint">
             Print front &amp; back for Crystal. After callback, enter data at <strong>/intake/call-sheet</strong> &mdash; you can submit to queue or create a request directly.
           </div>
-        </div>
+        </PrintControlsPanel>
       )}
 
       {/* ═══════════════════ PAGE 1 (FRONT): Contact & Cats ═══════════════════ */}
       <div className="print-page">
-        <div className="print-header">
-          <div>
-            <h1>TNR Call Sheet</h1>
-            <div className="subtitle">Forgotten Felines of Sonoma County</div>
-          </div>
-          <div className="header-right">
+        <PrintHeader
+          title="TNR Call Sheet"
+          subtitle="Forgotten Felines of Sonoma County"
+          rightContent={
             <div className="date-field">
               <strong>Date:</strong>
-              <div className="field-input sm" style={{ width: "100px" }}></div>
+              <div className="field-input sm" style={{ width: "100px" }}>
+                <input type="text" placeholder="__/__/____" />
+              </div>
             </div>
-            <img src="/logo.png" alt="FFSC" className="header-logo" />
-          </div>
-        </div>
+          }
+        />
 
         {/* Contact Information */}
         <div className="section">
           <div className="section-title">Contact Information</div>
           <div className="field-row">
-            <div className="field">
-              <label>First Name *</label>
-              <div className={`field-input sm ${pf("first_name")}`}>{prefill.first_name}</div>
-            </div>
-            <div className="field">
-              <label>Last Name *</label>
-              <div className={`field-input sm ${pf("last_name")}`}>{prefill.last_name}</div>
-            </div>
-            <div className="field">
-              <label>Phone *</label>
-              <div className={`field-input sm ${pf("phone")}`}>{prefill.phone}</div>
-            </div>
-            <div className="field w2">
-              <label>Email</label>
-              <div className={`field-input sm ${pf("email")}`}>{prefill.email}</div>
-            </div>
+            <EditableField label="First Name *" value={prefill.first_name || null} placeholder="First" />
+            <EditableField label="Last Name *" value={prefill.last_name || null} placeholder="Last" />
+            <EditableField label="Phone *" value={prefill.phone || null} placeholder="(707) 555-0000" />
+            <EditableField label="Email" value={prefill.email || null} placeholder="email@example.com" style={{ flex: 2 }} />
           </div>
           <div className="options-row" style={{ marginBottom: 0 }}>
             <span className="options-label" style={{ minWidth: "125px" }}>Third-party report?</span>
             <span className="option"><span className="bubble"></span> Yes</span>
             <span className="option"><span className="bubble"></span> No</span>
-            <span style={{ marginLeft: "10px" }}>Relationship: ______________________</span>
+            <span style={{ marginLeft: "10px" }}>Relationship: <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "150px", font: "inherit", padding: 0 }} /></span>
           </div>
         </div>
 
@@ -567,31 +247,20 @@ function FullCallSheet() {
         <div className="section">
           <div className="section-title">Where Are the Cats?</div>
           <div className="field-row">
-            <div className="field w3">
-              <label>Street Address *</label>
-              <div className={`field-input sm ${pf("address")}`}>{prefill.address}</div>
-            </div>
-            <div className="field">
-              <label>City</label>
-              <div className={`field-input sm ${pf("city")}`}>{prefill.city}</div>
-            </div>
-            <div className="field half">
-              <label>ZIP</label>
-              <div className="field-input sm"></div>
-            </div>
+            <EditableField label="Street Address *" value={prefill.address || null} placeholder="123 Main St" style={{ flex: 3 }} />
+            <EditableField label="City" value={prefill.city || null} placeholder="Santa Rosa" />
+            <EditableField label="ZIP" placeholder="95401" style={{ flex: 0.5 }} />
           </div>
           <div className="options-row" style={{ marginBottom: 0 }}>
             <span className="options-label" style={{ minWidth: "55px" }}>County:</span>
-            <span className="option"><span className="bubble"></span> Sonoma</span>
-            <span className="option"><span className="bubble"></span> Marin</span>
-            <span className="option"><span className="bubble"></span> Napa</span>
-            <span className="option"><span className="bubble"></span> Other: ________</span>
+            {COUNTY.filter(c => c !== "Other").map(c => (
+              <span key={c} className="option"><span className="bubble"></span> {c}</span>
+            ))}
+            <span className="option"><span className="bubble"></span> Other: <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "60px", font: "inherit", padding: 0 }} /></span>
             <span style={{ marginLeft: "20px" }}><span className="options-label" style={{ minWidth: "60px" }}>Property:</span></span>
-            <span className="option"><span className="bubble"></span> House</span>
-            <span className="option"><span className="bubble"></span> Apt</span>
-            <span className="option"><span className="bubble"></span> Business</span>
-            <span className="option"><span className="bubble"></span> Rural</span>
-            <span className="option"><span className="bubble"></span> Other</span>
+            {PROPERTY_TYPE_PRINT.map(p => (
+              <span key={p} className="option"><span className="bubble"></span> {p}</span>
+            ))}
           </div>
         </div>
 
@@ -600,48 +269,42 @@ function FullCallSheet() {
           <div className="section-title">About the Cats</div>
           <div className="options-row">
             <span className="options-label" style={{ minWidth: "65px" }}>Type:</span>
-            <span className="option"><span className="bubble"></span> Stray (no owner)</span>
-            <span className="option"><span className="bubble"></span> Community cat I/someone feeds</span>
-            <span className="option"><span className="bubble"></span> Newcomer</span>
-            <span className="option"><span className="bubble"></span> Neighbor&apos;s cat</span>
-            <span className="option"><span className="bubble"></span> My pet</span>
+            {OWNERSHIP_STATUS.map(o => (
+              <span key={o} className="option"><span className="bubble"></span> {o}</span>
+            ))}
           </div>
           <div className="field-row" style={{ alignItems: "center", marginBottom: "6px" }}>
             <div className="field" style={{ flex: "0 0 110px" }}>
               <label>How many cats?</label>
-              <div className="field-input sm" style={{ width: "60px" }}></div>
+              <div className="field-input sm" style={{ width: "60px" }}><input type="text" placeholder="#" /></div>
             </div>
             <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
               <span className="options-label" style={{ minWidth: "80px" }}>Eartipped?</span>
-              <span className="option"><span className="bubble"></span> None</span>
-              <span className="option"><span className="bubble"></span> Some</span>
-              <span className="option"><span className="bubble"></span> Most/All</span>
-              <span className="option"><span className="bubble"></span> Unknown</span>
+              {EARTIP_STATUS.map(e => (
+                <span key={e} className="option"><span className="bubble"></span> {e}</span>
+              ))}
             </div>
           </div>
 
-          {/* Feeding info card - matches intake layout */}
           <div className="info-card">
             <div className="options-row" style={{ marginBottom: "2px" }}>
               <span className="options-label" style={{ minWidth: "80px" }}>Feed them?</span>
               <span className="option"><span className="bubble"></span> Yes</span>
               <span className="option"><span className="bubble"></span> No</span>
               <span style={{ marginLeft: "10px", fontWeight: 600 }}>How often?</span>
-              <span className="option"><span className="bubble"></span> Daily</span>
-              <span className="option"><span className="bubble"></span> Few times/wk</span>
-              <span className="option"><span className="bubble"></span> Occasionally</span>
+              {FEEDING_FREQUENCY_PRINT.map(f => (
+                <span key={f} className="option"><span className="bubble"></span> {f}</span>
+              ))}
             </div>
             <div className="options-row" style={{ marginBottom: 0 }}>
               <span className="options-label" style={{ minWidth: "80px" }}>How long?</span>
-              <span className="option"><span className="bubble"></span> Days</span>
-              <span className="option"><span className="bubble"></span> Weeks</span>
-              <span className="option"><span className="bubble"></span> Months</span>
-              <span className="option"><span className="bubble"></span> Year+</span>
+              {AWARENESS_DURATION.map(a => (
+                <span key={a} className="option"><span className="bubble"></span> {a === "1+ year" ? "Year+" : a}</span>
+              ))}
               <span style={{ marginLeft: "10px", fontWeight: 600 }}>Colony duration?</span>
-              <span className="option"><span className="bubble"></span> &lt;1 mo</span>
-              <span className="option"><span className="bubble"></span> 1-6 mo</span>
-              <span className="option"><span className="bubble"></span> 6mo-2yr</span>
-              <span className="option"><span className="bubble"></span> 2+ yrs</span>
+              {COLONY_DURATION_PRINT.map(c => (
+                <span key={c} className="option"><span className="bubble"></span> {c}</span>
+              ))}
             </div>
           </div>
 
@@ -649,7 +312,7 @@ function FullCallSheet() {
             <span className="options-label" style={{ minWidth: "80px" }}>Kittens?</span>
             <span className="option"><span className="bubble"></span> Yes</span>
             <span className="option"><span className="bubble"></span> No</span>
-            <span style={{ marginLeft: "8px" }}>How many? ____</span>
+            <span style={{ marginLeft: "8px" }}>How many? <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "30px", font: "inherit", padding: 0 }} /></span>
             {includeKittenPage && (
               <span className="hint" style={{ marginLeft: "10px", color: "#27ae60", fontWeight: 600 }}>
                 If yes, complete Page 2
@@ -676,16 +339,14 @@ function FullCallSheet() {
             <span className="option"><span className="checkbox"></span> Property owner</span>
             <span className="option"><span className="checkbox"></span> Others also feeding</span>
             <span style={{ marginLeft: "14px", fontWeight: 600 }}>Heard from:</span>
-            <span className="option"><span className="bubble"></span> Website</span>
-            <span className="option"><span className="bubble"></span> Social</span>
-            <span className="option"><span className="bubble"></span> Friend</span>
-            <span className="option"><span className="bubble"></span> Vet/Shelter</span>
-            <span className="option"><span className="bubble"></span> Repeat</span>
+            {REFERRAL_SOURCE_PRINT.map(r => (
+              <span key={r} className="option"><span className="bubble"></span> {r}</span>
+            ))}
           </div>
           <div style={{ fontSize: "7.5pt", color: "#7f8c8d", marginBottom: "4px" }}>
             Describe: cat colors/behavior, medical concerns, access notes, callback preferences, situation details
           </div>
-          <div className="field-input lg"></div>
+          <EditableTextArea placeholder="Details..." size="lg" />
         </div>
 
         {/* Voicemail notes (if prefilled) */}
@@ -700,14 +361,8 @@ function FullCallSheet() {
         <div className="staff-box">
           <div className="section-title">Office Use Only</div>
           <div className="field-row" style={{ alignItems: "center", marginBottom: "4px" }}>
-            <div className="field" style={{ flex: "0 0 130px" }}>
-              <label>Date received</label>
-              <div className="field-input sm"></div>
-            </div>
-            <div className="field" style={{ flex: "0 0 130px" }}>
-              <label>Received by</label>
-              <div className="field-input sm"></div>
-            </div>
+            <EditableField label="Date received" placeholder="MM/DD/YYYY" style={{ flex: "0 0 130px" }} />
+            <EditableField label="Received by" placeholder="Staff initials" style={{ flex: "0 0 130px" }} />
             <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
               <span className="options-label" style={{ minWidth: "50px" }}>Source:</span>
               <span className="option"><span className="bubble"></span> Phone</span>
@@ -717,45 +372,34 @@ function FullCallSheet() {
           </div>
           <div className="options-row" style={{ marginBottom: 0 }}>
             <span className="options-label" style={{ minWidth: "55px" }}>Priority:</span>
-            <span className="option"><span className="bubble"></span> High</span>
-            <span className="option"><span className="bubble"></span> Normal</span>
-            <span className="option"><span className="bubble"></span> Low</span>
+            {PRIORITY.map(p => (
+              <span key={p} className="option"><span className="bubble"></span> {p}</span>
+            ))}
             <span style={{ marginLeft: "16px" }}><span className="options-label" style={{ minWidth: "50px" }}>Triage:</span></span>
-            <span className="option"><span className="bubble"></span> FFR</span>
-            <span className="option"><span className="bubble"></span> Wellness</span>
-            <span className="option"><span className="bubble"></span> Owned</span>
-            <span className="option"><span className="bubble"></span> Out of area</span>
-            <span className="option"><span className="bubble"></span> Review</span>
+            {TRIAGE_CATEGORY_PRINT.map(t => (
+              <span key={t} className="option"><span className="bubble"></span> {t}</span>
+            ))}
           </div>
         </div>
 
-        <div className="page-footer">
-          <span>Forgotten Felines of Sonoma County &bull; (707) 576-7999 &bull; forgottenfelines.org</span>
-          <span>Page 1{includeKittenPage ? " of 2" : ""}</span>
-        </div>
+        <PrintFooter
+          left="Forgotten Felines of Sonoma County &bull; (707) 576-7999 &bull; forgottenfelines.org"
+          right={`Page 1${includeKittenPage ? " of 2" : ""}`}
+        />
       </div>
 
       {/* ═══════════════════ PAGE 2 (BACK): Trapping & Kittens ═══════════════════ */}
       {includeKittenPage && (
         <div className="print-page">
-          <div className="print-header">
-            <div>
-              <h1>Trapping &amp; Kitten Details</h1>
-              <div className="subtitle">Complete during callback &mdash; print on back of Page 1</div>
-            </div>
-            <img src="/logo.png" alt="FFSC" className="header-logo" />
-          </div>
+          <PrintHeader
+            title="Trapping &amp; Kitten Details"
+            subtitle="Complete during callback — print on back of Page 1"
+          />
 
           {/* Requester reference */}
           <div className="field-row" style={{ marginBottom: "10px" }}>
-            <div className="field w2">
-              <label>Caller Name (from page 1)</label>
-              <div className="field-input sm"></div>
-            </div>
-            <div className="field">
-              <label>Phone</label>
-              <div className="field-input sm"></div>
-            </div>
+            <EditableField label="Caller Name (from page 1)" placeholder="Name" style={{ flex: 2 }} />
+            <EditableField label="Phone" placeholder="(707) 555-0000" />
           </div>
 
           {/* Property Access & Logistics */}
@@ -765,70 +409,56 @@ function FullCallSheet() {
               <div>
                 <div className="options-row">
                   <span className="options-label">Property access?</span>
-                  <span className="option"><span className="bubble"></span> Yes</span>
-                  <span className="option"><span className="bubble"></span> Need perm</span>
-                  <span className="option"><span className="bubble"></span> No</span>
+                  {HAS_PROPERTY_ACCESS_PRINT.map(a => (
+                    <span key={a} className="option"><span className="bubble"></span> {a}</span>
+                  ))}
                 </div>
                 <div className="options-row">
                   <span className="options-label">Caller is owner?</span>
-                  <span className="option"><span className="bubble"></span> Yes</span>
-                  <span className="option"><span className="bubble"></span> Renter</span>
-                  <span className="option"><span className="bubble"></span> Neighbor</span>
+                  {IS_PROPERTY_OWNER.map(o => (
+                    <span key={o} className="option"><span className="bubble"></span> {o}</span>
+                  ))}
                 </div>
                 <div className="options-row" style={{ marginBottom: 0 }}>
                   <span className="options-label">Dogs on site?</span>
-                  <span className="option"><span className="bubble"></span> Yes</span>
-                  <span className="option"><span className="bubble"></span> No</span>
+                  {DOGS_ON_SITE.map(d => (
+                    <span key={d} className="option"><span className="bubble"></span> {d}</span>
+                  ))}
                   <span className="hint">(containable?)</span>
                 </div>
               </div>
               <div>
                 <div className="options-row">
                   <span className="options-label">Trap-savvy?</span>
-                  <span className="option"><span className="bubble"></span> Yes</span>
-                  <span className="option"><span className="bubble"></span> No</span>
-                  <span className="option"><span className="bubble"></span> Unknown</span>
+                  {TRAP_SAVVY.map(t => (
+                    <span key={t} className="option"><span className="bubble"></span> {t}</span>
+                  ))}
                 </div>
                 <div className="options-row">
                   <span className="options-label">Previous TNR?</span>
-                  <span className="option"><span className="bubble"></span> Yes</span>
-                  <span className="option"><span className="bubble"></span> No</span>
-                  <span className="option"><span className="bubble"></span> Partial</span>
+                  {PREVIOUS_TNR.map(p => (
+                    <span key={p} className="option"><span className="bubble"></span> {p}</span>
+                  ))}
                 </div>
                 <div className="options-row" style={{ marginBottom: 0 }}>
                   <span className="options-label">Handleable?</span>
-                  <span className="option"><span className="bubble"></span> Carrier OK</span>
-                  <span className="option"><span className="bubble"></span> Trap needed</span>
-                  <span className="option"><span className="bubble"></span> Mixed</span>
+                  {HANDLEABILITY.filter(h => h !== "Shy but handleable").map(h => (
+                    <span key={h} className="option"><span className="bubble"></span> {h}</span>
+                  ))}
                 </div>
               </div>
             </div>
-            <div className="field" style={{ marginTop: "6px" }}>
-              <label>Access notes (gate codes, parking, hazards)</label>
-              <div className="field-input sm"></div>
-            </div>
+            <EditableField label="Access notes (gate codes, parking, hazards)" placeholder="Notes..." style={{ marginTop: "6px" }} />
           </div>
 
           {/* Feeding & Trapping Schedule */}
           <div className="info-box">
             <div className="title">Best Trapping Times</div>
             <div className="field-row" style={{ marginBottom: "6px" }}>
-              <div className="field">
-                <label>Who feeds?</label>
-                <div className="field-input sm"></div>
-              </div>
-              <div className="field">
-                <label>Feed time?</label>
-                <div className="field-input sm"></div>
-              </div>
-              <div className="field">
-                <label>Where do cats eat?</label>
-                <div className="field-input sm"></div>
-              </div>
-              <div className="field">
-                <label>Best trapping day/time</label>
-                <div className="field-input sm"></div>
-              </div>
+              <EditableField label="Who feeds?" placeholder="Name" />
+              <EditableField label="Feed time?" placeholder="Time" />
+              <EditableField label="Where do cats eat?" placeholder="Location" />
+              <EditableField label="Best trapping day/time" placeholder="Day/time" />
             </div>
           </div>
 
@@ -836,15 +466,9 @@ function FullCallSheet() {
           <div className="warning-box">
             <div className="title">Important Notes (check all that apply)</div>
             <div className="quick-notes">
-              <div className="quick-note"><span className="checkbox"></span> Withhold food 24hr before</div>
-              <div className="quick-note"><span className="checkbox"></span> Other feeders in area</div>
-              <div className="quick-note"><span className="checkbox"></span> Cats cross property lines</div>
-              <div className="quick-note"><span className="checkbox"></span> Pregnant cat suspected</div>
-              <div className="quick-note"><span className="checkbox"></span> Injured/sick cat priority</div>
-              <div className="quick-note"><span className="checkbox"></span> Caller can help trap</div>
-              <div className="quick-note"><span className="checkbox"></span> Wildlife concerns</div>
-              <div className="quick-note"><span className="checkbox"></span> Neighbor issues</div>
-              <div className="quick-note"><span className="checkbox"></span> Urgent / time-sensitive</div>
+              {IMPORTANT_NOTES.map(note => (
+                <div key={note} className="quick-note"><span className="checkbox"></span> {note}</div>
+              ))}
             </div>
           </div>
 
@@ -854,68 +478,59 @@ function FullCallSheet() {
             <div className="field-row" style={{ alignItems: "center", marginBottom: "6px" }}>
               <div className="field" style={{ flex: "0 0 120px" }}>
                 <label>How many kittens?</label>
-                <div className="field-input sm" style={{ width: "60px" }}></div>
+                <div className="field-input sm" style={{ width: "60px" }}><input type="text" placeholder="#" /></div>
               </div>
               <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
                 <span className="options-label" style={{ minWidth: "70px" }}>Age range:</span>
-                <span className="option"><span className="bubble"></span> Under 4 wks</span>
-                <span className="option"><span className="bubble"></span> 4-8 wks</span>
-                <span className="option"><span className="bubble"></span> 8-12 wks</span>
-                <span className="option"><span className="bubble"></span> 12-16 wks</span>
-                <span className="option"><span className="bubble"></span> 4+ months</span>
-                <span className="option"><span className="bubble"></span> Mixed</span>
+                {KITTEN_AGE_ESTIMATE.map(a => (
+                  <span key={a} className="option"><span className="bubble"></span> {a}</span>
+                ))}
               </div>
             </div>
 
             <div className="options-row" style={{ marginBottom: "6px" }}>
               <span className="options-label" style={{ minWidth: "70px" }}>Behavior:</span>
-              <span className="option"><span className="bubble"></span> Friendly</span>
-              <span className="option"><span className="bubble"></span> Shy but handleable</span>
-              <span className="option"><span className="bubble"></span> Feral / hissy</span>
-              <span className="option"><span className="bubble"></span> Unknown</span>
+              {KITTEN_BEHAVIOR.map(b => (
+                <span key={b} className="option"><span className="bubble"></span> {b}</span>
+              ))}
             </div>
 
             <div className="info-card" style={{ marginBottom: "8px" }}>
               <div className="options-row" style={{ marginBottom: "3px" }}>
                 <span className="options-label" style={{ minWidth: "70px" }}>Contained?</span>
-                <span className="option"><span className="bubble"></span> Yes</span>
-                <span className="option"><span className="bubble"></span> Some</span>
-                <span className="option"><span className="bubble"></span> No</span>
+                {KITTEN_CONTAINED.map(c => (
+                  <span key={c} className="option"><span className="bubble"></span> {c}</span>
+                ))}
                 <span style={{ marginLeft: "16px" }}><span className="options-label" style={{ minWidth: "80px" }}>Mom present?</span></span>
-                <span className="option"><span className="bubble"></span> Yes</span>
-                <span className="option"><span className="bubble"></span> No</span>
-                <span className="option"><span className="bubble"></span> Unsure</span>
+                {MOM_PRESENT.map(m => (
+                  <span key={m} className="option"><span className="bubble"></span> {m}</span>
+                ))}
               </div>
               <div className="options-row" style={{ marginBottom: 0 }}>
                 <span className="options-label" style={{ minWidth: "70px" }}>Mom fixed?</span>
-                <span className="option"><span className="bubble"></span> Yes</span>
-                <span className="option"><span className="bubble"></span> No</span>
-                <span className="option"><span className="bubble"></span> Unsure</span>
+                {MOM_FIXED.map(m => (
+                  <span key={m} className="option"><span className="bubble"></span> {m}</span>
+                ))}
                 <span style={{ marginLeft: "16px" }}><span className="options-label" style={{ minWidth: "80px" }}>Can bring in?</span></span>
-                <span className="option"><span className="bubble"></span> Yes</span>
-                <span className="option"><span className="bubble"></span> Need help</span>
-                <span className="option"><span className="bubble"></span> No</span>
+                {CAN_BRING_IN_PRINT.map(c => (
+                  <span key={c} className="option"><span className="bubble"></span> {c}</span>
+                ))}
               </div>
             </div>
 
-            <div className="field">
-              <label>Kitten details (colors, where they hide, feeding schedule)</label>
-              <div className="field-input md"></div>
-            </div>
+            <EditableTextArea
+              label="Kitten details (colors, where they hide, feeding schedule)"
+              placeholder="Describe the kittens..."
+              size="md"
+            />
           </div>
 
           {/* Staff Assessment */}
           <div className="staff-box">
             <div className="section-title">Trapping Plan (Office Use)</div>
             <div className="field-row" style={{ alignItems: "center", marginBottom: "4px" }}>
-              <div className="field" style={{ flex: "0 0 160px" }}>
-                <label>Assigned to</label>
-                <div className="field-input sm"></div>
-              </div>
-              <div className="field" style={{ flex: "0 0 130px" }}>
-                <label>Scheduled date</label>
-                <div className="field-input sm"></div>
-              </div>
+              <EditableField label="Assigned to" placeholder="Trapper name" style={{ flex: "0 0 160px" }} />
+              <EditableField label="Scheduled date" placeholder="MM/DD/YYYY" style={{ flex: "0 0 130px" }} />
               <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
                 <span className="options-label" style={{ minWidth: "60px" }}>Callback:</span>
                 <span className="option"><span className="bubble"></span> Yes</span>
@@ -924,21 +539,17 @@ function FullCallSheet() {
             </div>
             <div className="options-row" style={{ marginBottom: "4px" }}>
               <span className="options-label" style={{ minWidth: "70px" }}>Outcome:</span>
-              <span className="option"><span className="bubble"></span> Foster intake</span>
-              <span className="option"><span className="bubble"></span> FFR candidate</span>
-              <span className="option"><span className="bubble"></span> Pending space</span>
-              <span className="option"><span className="bubble"></span> Declined</span>
+              {KITTEN_OUTCOME.map(o => (
+                <span key={o} className="option"><span className="bubble"></span> {o}</span>
+              ))}
             </div>
-            <div className="field">
-              <label>Staff notes</label>
-              <div className="field-input md"></div>
-            </div>
+            <EditableTextArea label="Staff notes" placeholder="Notes..." size="md" />
           </div>
 
-          <div className="page-footer">
-            <span>Forgotten Felines of Sonoma County &bull; forgottenfelines.org</span>
-            <span>Page 2 of 2</span>
-          </div>
+          <PrintFooter
+            left="Forgotten Felines of Sonoma County &bull; forgottenfelines.org"
+            right="Page 2 of 2"
+          />
         </div>
       )}
     </div>

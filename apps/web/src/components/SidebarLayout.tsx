@@ -351,7 +351,7 @@ export function RequestsSidebar({ children }: { children: React.ReactNode }) {
       title: "Quick Actions",
       items: [
         { label: "New Request", href: "/requests/new", icon: "➕" },
-        { label: "Print Blank Form", href: "/requests/print?blank=true", icon: "📄" },
+        { label: "Print TNR Call Sheet", href: "/requests/print?blank=true", icon: "📄" },
       ],
     },
     {

@@ -41,6 +41,8 @@ export interface CatCardData {
   trapper_name?: string | null;
   last_seen?: string | null;
   weight_lbs?: number | null;
+  ownership_type?: string | null;
+  current_status?: string | null;
   // Atlas Cat ID System (MIG_976)
   atlas_cat_id?: string | null;
   atlas_cat_id_type?: "microchip" | "hash" | null;
@@ -500,6 +502,49 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
               Unlinked
             </span>
           )}
+          {cat.ownership_type && (() => {
+            const lower = cat.ownership_type!.toLowerCase();
+            const isFeral = lower.includes("feral") || lower.includes("community") || lower.includes("stray");
+            const isOwned = lower === "owned";
+            const isFoster = lower === "foster";
+            const label = isFeral ? (lower.includes("feral") ? "Feral" : lower.includes("stray") ? "Stray" : "Community") : isOwned ? "Owned" : isFoster ? "Foster" : cat.ownership_type;
+            return (
+              <span style={{
+                padding: "3px 8px",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                background: isFeral ? "rgba(220, 38, 38, 0.1)" : isOwned ? "rgba(37, 99, 235, 0.1)" : isFoster ? "rgba(147, 51, 234, 0.1)" : "var(--section-bg)",
+                color: isFeral ? "#dc2626" : isOwned ? "#2563eb" : isFoster ? "#9333ea" : "var(--muted)",
+                borderRadius: "4px",
+              }}>
+                {label}
+              </span>
+            );
+          })()}
+          {cat.current_status && cat.current_status !== "unknown" && !cat.is_deceased && (() => {
+            const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+              adopted: { label: "Adopted", bg: "rgba(22, 163, 74, 0.1)", color: "#16a34a" },
+              in_foster: { label: "In Foster", bg: "rgba(37, 99, 235, 0.1)", color: "#2563eb" },
+              in_care: { label: "In Care", bg: "rgba(79, 70, 229, 0.1)", color: "#4f46e5" },
+              community_cat: { label: "Community Cat", bg: "rgba(217, 119, 6, 0.1)", color: "#d97706" },
+              transferred: { label: "Transferred", bg: "rgba(147, 51, 234, 0.1)", color: "#9333ea" },
+              tnr_complete: { label: "TNR Complete", bg: "rgba(13, 148, 136, 0.1)", color: "#0d9488" },
+            };
+            const cfg = STATUS_CONFIG[cat.current_status!];
+            if (!cfg) return null;
+            return (
+              <span style={{
+                padding: "3px 8px",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                background: cfg.bg,
+                color: cfg.color,
+                borderRadius: "4px",
+              }}>
+                {cfg.label}
+              </span>
+            );
+          })()}
         </div>
       )}
 

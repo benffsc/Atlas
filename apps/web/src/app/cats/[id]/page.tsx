@@ -236,6 +236,12 @@ interface CatDetail {
   // Atlas Cat ID System (MIG_976)
   atlas_cat_id: string | null;
   atlas_cat_id_type: "microchip" | "hash" | null;
+  // ShelterLuv bio (MIG_2866)
+  description: string | null;
+  // Lifecycle status (MIG_2363/2878)
+  current_status: string | null;
+  last_event_type: string | null;
+  last_event_at: string | null;
 }
 
 // Medical chart condition checklist item
@@ -635,6 +641,159 @@ function EncounterAccordion({
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Lifecycle timeline component (FFS-366)
+interface LifecycleEvent {
+  event_id: string;
+  event_type: string;
+  event_subtype: string | null;
+  event_at: string;
+  person_name: string | null;
+  place_name: string | null;
+  source_system: string;
+}
+
+const EVENT_ICONS: Record<string, string> = {
+  intake: "📥",
+  tnr_procedure: "✂️",
+  foster_start: "🏠",
+  foster_end: "↩️",
+  adoption: "💚",
+  return_to_field: "🌿",
+  transfer: "🔀",
+  mortality: "🕊️",
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  intake: "Intake",
+  tnr_procedure: "TNR Procedure",
+  foster_start: "Foster Start",
+  foster_end: "Foster End",
+  adoption: "Adoption",
+  return_to_field: "Return to Field",
+  transfer: "Transfer",
+  mortality: "Mortality",
+};
+
+function LifecycleTimeline({ catId, currentStatus, lastEventType, lastEventAt }: {
+  catId: string;
+  currentStatus: string | null;
+  lastEventType: string | null;
+  lastEventAt: string | null;
+}) {
+  const [events, setEvents] = useState<LifecycleEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // Don't render section if there's no lifecycle data at all
+  if (!currentStatus && !lastEventType) return null;
+
+  const fetchEvents = async () => {
+    if (events.length > 0) {
+      setExpanded(!expanded);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/cats/${catId}/lifecycle`);
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        setEvents(data.events || []);
+        setExpanded(true);
+      }
+    } catch (err) {
+      console.error("Failed to load lifecycle events:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="detail-section">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2>Lifecycle</h2>
+        <button
+          onClick={fetchEvents}
+          style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+        >
+          {loading ? "Loading..." : expanded ? "Collapse" : "Show Timeline"}
+        </button>
+      </div>
+
+      {/* Summary line */}
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+        {currentStatus && currentStatus !== "unknown" && (
+          <span className="badge" style={{
+            background: currentStatus === "adopted" ? "#dcfce7" : currentStatus === "in_foster" ? "#dbeafe" : currentStatus === "tnr_complete" ? "#ccfbf1" : currentStatus === "community_cat" ? "#fef3c7" : currentStatus === "deceased" ? "#f3f4f6" : "#e5e7eb",
+            color: currentStatus === "adopted" ? "#166534" : currentStatus === "in_foster" ? "#1e40af" : currentStatus === "tnr_complete" ? "#115e59" : currentStatus === "community_cat" ? "#92400e" : currentStatus === "deceased" ? "#374151" : "#374151",
+            fontSize: "0.8rem",
+            padding: "0.25rem 0.75rem",
+          }}>
+            {currentStatus.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+          </span>
+        )}
+        {lastEventAt && (
+          <span className="text-muted text-sm">
+            Last event: {formatDateLocal(lastEventAt)}
+            {lastEventType ? ` (${EVENT_LABELS[lastEventType] || lastEventType})` : ""}
+          </span>
+        )}
+      </div>
+
+      {/* Expanded timeline */}
+      {expanded && events.length > 0 && (
+        <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {events.map((event) => (
+            <div key={event.event_id} style={{
+              display: "flex",
+              gap: "0.75rem",
+              alignItems: "flex-start",
+              padding: "0.5rem 0.75rem",
+              background: "var(--section-bg)",
+              borderRadius: "6px",
+              border: "1px solid var(--border)",
+            }}>
+              <span style={{ fontSize: "1.2rem", flexShrink: 0, lineHeight: "1.5rem" }}>
+                {EVENT_ICONS[event.event_type] || "📋"}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                    {EVENT_LABELS[event.event_type] || event.event_type}
+                  </span>
+                  {event.event_subtype && (
+                    <span className="text-muted text-sm">({event.event_subtype.replace(/_/g, " ")})</span>
+                  )}
+                  <span className="text-muted text-sm">{formatDateLocal(event.event_at)}</span>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
+                  {event.person_name && (
+                    <span className="text-sm" style={{ color: "var(--primary)" }}>{event.person_name}</span>
+                  )}
+                  {event.place_name && (
+                    <span className="text-muted text-sm">{event.place_name}</span>
+                  )}
+                  <span className="badge" style={{
+                    fontSize: "0.6rem",
+                    padding: "0.1rem 0.4rem",
+                    background: event.source_system === "shelterluv" ? "#0d6efd" : event.source_system === "clinichq" ? "#198754" : "#6c757d",
+                    color: "#fff",
+                  }}>
+                    {event.source_system}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {expanded && events.length === 0 && !loading && (
+        <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>No lifecycle events recorded.</p>
       )}
     </div>
   );
@@ -2018,6 +2177,28 @@ export default function CatDetailPage() {
           </div>
         </Section>
       )}
+
+      {/* ShelterLuv Bio/Description (FFS-366) */}
+      {cat.description && (
+        <Section title="Bio">
+          <blockquote style={{
+            margin: 0,
+            padding: "0.75rem 1rem",
+            borderLeft: "3px solid var(--primary)",
+            background: "var(--section-bg)",
+            borderRadius: "0 6px 6px 0",
+            fontStyle: "italic",
+            lineHeight: 1.5,
+            whiteSpace: "pre-wrap",
+          }}>
+            {cat.description}
+          </blockquote>
+          <div className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>From ShelterLuv</div>
+        </Section>
+      )}
+
+      {/* Lifecycle Timeline (FFS-366) */}
+      <LifecycleTimeline catId={cat.cat_id} currentStatus={cat.current_status} lastEventType={cat.last_event_type} lastEventAt={cat.last_event_at} />
 
       {/* Clinical Notes from ClinicHQ scrape (FFS-369) */}
       {clinicalNotes && clinicalNotes.notes.length > 0 && (() => {

@@ -5,6 +5,9 @@ import { formatDateLocal } from "@/lib/formatters";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
+import { CatHealthBadges } from "@/components/badges";
+import type { HealthFlag } from "@/components/badges/CatHealthBadges";
+import EntityPreview from "@/components/search/EntityPreview";
 
 interface Cat {
   cat_id: string;
@@ -25,6 +28,10 @@ interface Cat {
   created_at: string;
   last_appointment_date: string | null;
   appointment_count: number;
+  is_deceased?: boolean;
+  weight_lbs?: number | null;
+  age_group?: string | null;
+  health_flags?: HealthFlag[];
 }
 
 interface CatsResponse {
@@ -41,6 +48,9 @@ const FILTER_DEFAULTS = {
   has_place: "",
   has_origin: "",
   partner_org: "",
+  disease: "",
+  condition: "",
+  is_deceased: "",
   sort: "quality",
   page: "0",
 };
@@ -67,6 +77,9 @@ function CatsPageContent() {
     if (filters.has_place) params.set("has_place", filters.has_place);
     if (filters.has_origin) params.set("has_origin", filters.has_origin);
     if (filters.partner_org) params.set("partner_org", filters.partner_org);
+    if (filters.disease) params.set("disease", filters.disease);
+    if (filters.condition) params.set("condition", filters.condition);
+    if (filters.is_deceased) params.set("is_deceased", filters.is_deceased);
     if (filters.sort) params.set("sort", filters.sort);
     params.set("limit", String(limit));
     params.set("offset", String(page * limit));
@@ -84,7 +97,7 @@ function CatsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [filters.q, filters.sex, filters.altered, filters.has_place, filters.has_origin, filters.partner_org, filters.sort, page]);
+  }, [filters.q, filters.sex, filters.altered, filters.has_place, filters.has_origin, filters.partner_org, filters.disease, filters.condition, filters.is_deceased, filters.sort, page]);
 
   useEffect(() => {
     fetchCats();
@@ -148,6 +161,24 @@ function CatsPageContent() {
           <option value="RPAS">From Rohnert Park</option>
           <option value="MH">From Marin Humane</option>
         </select>
+        <select value={filters.disease} onChange={(e) => setFilters({ disease: e.target.value, page: "0" })}>
+          <option value="">All diseases</option>
+          <option value="felv">FeLV+</option>
+          <option value="fiv">FIV+</option>
+        </select>
+        <select value={filters.condition} onChange={(e) => setFilters({ condition: e.target.value, page: "0" })}>
+          <option value="">All conditions</option>
+          <option value="pregnant">Pregnant</option>
+          <option value="lactating">Lactating</option>
+          <option value="uri">URI</option>
+          <option value="fleas">Fleas</option>
+          <option value="ear_mites">Ear Mites</option>
+        </select>
+        <select value={filters.is_deceased} onChange={(e) => setFilters({ is_deceased: e.target.value, page: "0" })}>
+          <option value="">Living & Deceased</option>
+          <option value="false">Living only</option>
+          <option value="true">Deceased only</option>
+        </select>
         <select value={filters.sort} onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}>
           <option value="quality">Sort: Data Quality</option>
           <option value="recent_appointment">Sort: Recent Appointment</option>
@@ -186,7 +217,7 @@ function CatsPageContent() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{cat.display_name}</div>
+                    <div style={{ fontWeight: 600, fontSize: "0.95rem", textDecoration: cat.is_deceased ? "line-through" : "none", color: cat.is_deceased ? "var(--text-muted)" : "inherit" }}>{cat.display_name}</div>
                     {cat.quality_tier === "A" ? (
                       <span className="badge badge-primary" style={{ fontSize: "0.7em" }}>Verified</span>
                     ) : cat.quality_tier === "B" ? (
@@ -195,6 +226,11 @@ function CatsPageContent() {
                       <span className="badge" style={{ fontSize: "0.7em", background: "#dc3545" }}>Unverified</span>
                     )}
                   </div>
+                  {(cat.health_flags?.length || cat.is_deceased) ? (
+                    <div style={{ marginTop: "4px" }}>
+                      <CatHealthBadges healthFlags={cat.health_flags} isDeceased={cat.is_deceased} />
+                    </div>
+                  ) : null}
                   <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
                     <span>{cat.sex || "Unknown sex"} / {cat.altered_status || "Unknown"}</span>
                   </div>
@@ -225,7 +261,14 @@ function CatsPageContent() {
                   {data.cats.map((cat) => (
                     <tr key={cat.cat_id} style={cat.quality_tier !== "A" ? { opacity: 0.8 } : {}}>
                       <td>
-                        <a href={`/cats/${cat.cat_id}`}>{cat.display_name}</a>
+                        <EntityPreview entityType="cat" entityId={cat.cat_id}>
+                          <a href={`/cats/${cat.cat_id}`} style={cat.is_deceased ? { textDecoration: "line-through", color: "var(--text-muted)" } : {}}>{cat.display_name}</a>
+                        </EntityPreview>
+                        {(cat.health_flags?.length || cat.is_deceased) ? (
+                          <div style={{ marginTop: "2px" }}>
+                            <CatHealthBadges healthFlags={cat.health_flags} isDeceased={cat.is_deceased} />
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         {cat.quality_tier === "A" ? (

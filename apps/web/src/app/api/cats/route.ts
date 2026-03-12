@@ -3,6 +3,13 @@ import { queryRows, query } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
+interface HealthFlag {
+  category: string;
+  key: string;
+  label: string;
+  color?: string | null;
+}
+
 interface CatListRow {
   cat_id: string;
   display_name: string;
@@ -24,6 +31,13 @@ interface CatListRow {
   appointment_count: number;
   source_system: string | null;
   photo_url: string | null;
+  // Health fields
+  is_deceased: boolean;
+  weight_lbs: number | null;
+  age_group: string | null;
+  health_flags: HealthFlag[];
+  // Lifecycle status
+  current_status: string | null;
 }
 
 // Valid sort options
@@ -46,6 +60,10 @@ export async function GET(request: NextRequest) {
   // New filters for origin and partner org
   const hasOrigin = searchParams.get("has_origin"); // true/false - has inferred_place_id
   const partnerOrg = searchParams.get("partner_org"); // SCAS, FFSC, etc.
+  // Health filters (FFS-440)
+  const disease = searchParams.get("disease"); // felv, fiv, etc.
+  const condition = searchParams.get("condition"); // uri, fleas, pregnant, etc.
+  const isDeceased = searchParams.get("is_deceased"); // true/false
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -109,6 +127,47 @@ export async function GET(request: NextRequest) {
     paramIndex++;
   }
 
+  // Health filters (FFS-440)
+  if (disease) {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM ops.cat_test_results ctr
+      WHERE ctr.cat_id = v_cat_list.cat_id
+        AND ctr.test_type = $${paramIndex}
+        AND ctr.result = 'positive'
+    )`);
+    params.push(disease);
+    paramIndex++;
+  }
+
+  if (condition) {
+    if (condition === "pregnant") {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM ops.cat_vitals cv
+        WHERE cv.cat_id = v_cat_list.cat_id AND cv.is_pregnant = true
+      )`);
+    } else if (condition === "lactating") {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM ops.cat_vitals cv
+        WHERE cv.cat_id = v_cat_list.cat_id AND cv.is_lactating = true
+      )`);
+    } else {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM ops.cat_conditions cc
+        WHERE cc.cat_id = v_cat_list.cat_id
+          AND cc.condition_type = $${paramIndex}
+          AND cc.resolved_at IS NULL
+      )`);
+      params.push(condition);
+      paramIndex++;
+    }
+  }
+
+  if (isDeceased === "true") {
+    conditions.push(`EXISTS (SELECT 1 FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id AND c.is_deceased = true)`);
+  } else if (isDeceased === "false") {
+    conditions.push(`NOT EXISTS (SELECT 1 FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id AND c.is_deceased = true)`);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   // Determine sort order
@@ -137,7 +196,73 @@ export async function GET(request: NextRequest) {
         last_visit_date::TEXT AS last_appointment_date,
         visit_count AS appointment_count,
         source_system,
-        (SELECT c.photo_url FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id) AS photo_url
+        (SELECT c.photo_url FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id) AS photo_url,
+        -- Health fields
+        COALESCE((SELECT c.is_deceased FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id), false) AS is_deceased,
+        (SELECT c.weight_lbs FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id) AS weight_lbs,
+        (SELECT c.age_group FROM sot.cats c WHERE c.cat_id = v_cat_list.cat_id) AS age_group,
+        -- health_flags: JSONB array aggregating disease + reproductive + conditions
+        COALESCE((
+          SELECT jsonb_agg(flag)
+          FROM (
+            -- Positive disease test results
+            SELECT DISTINCT ON (dt.disease_key)
+              jsonb_build_object(
+                'category', 'disease',
+                'key', dt.disease_key,
+                'label', dt.short_code || '+',
+                'color', dt.badge_color
+              ) AS flag
+            FROM ops.cat_test_results ctr
+            JOIN ops.disease_types dt ON dt.disease_key = ctr.test_type
+            WHERE ctr.cat_id = v_cat_list.cat_id
+              AND ctr.result = 'positive'
+
+            UNION ALL
+
+            -- Reproductive flags from latest vitals
+            SELECT jsonb_build_object(
+              'category', 'reproductive',
+              'key', 'pregnant',
+              'label', 'Pregnant',
+              'color', null
+            ) AS flag
+            WHERE EXISTS (
+              SELECT 1 FROM ops.cat_vitals cv
+              WHERE cv.cat_id = v_cat_list.cat_id AND cv.is_pregnant = true
+              ORDER BY cv.recorded_at DESC LIMIT 1
+            )
+
+            UNION ALL
+
+            SELECT jsonb_build_object(
+              'category', 'reproductive',
+              'key', 'lactating',
+              'label', 'Lactating',
+              'color', null
+            ) AS flag
+            WHERE EXISTS (
+              SELECT 1 FROM ops.cat_vitals cv
+              WHERE cv.cat_id = v_cat_list.cat_id AND cv.is_lactating = true
+              ORDER BY cv.recorded_at DESC LIMIT 1
+            )
+
+            UNION ALL
+
+            -- Active (unresolved) clinical conditions
+            SELECT DISTINCT ON (cc.condition_type)
+              jsonb_build_object(
+                'category', 'condition',
+                'key', cc.condition_type,
+                'label', INITCAP(REPLACE(cc.condition_type, '_', ' ')),
+                'color', null
+              ) AS flag
+            FROM ops.cat_conditions cc
+            WHERE cc.cat_id = v_cat_list.cat_id
+              AND cc.resolved_at IS NULL
+          ) flags
+        ), '[]'::jsonb) AS health_flags,
+        (SELECT vcs.current_status FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = v_cat_list.cat_id) AS current_status
       FROM sot.v_cat_list
       ${whereClause}
       ORDER BY ${orderBy}
@@ -156,6 +281,26 @@ export async function GET(request: NextRequest) {
       queryRows<CatListRow>(sql, params),
       query(countSql, params.slice(0, -2)),
     ]);
+
+    // Enrich health_flags with age_group and weight (from separate columns)
+    for (const cat of dataResult) {
+      const flags: HealthFlag[] = Array.isArray(cat.health_flags) ? cat.health_flags : [];
+      if (cat.age_group === "kitten" || cat.age_group === "senior") {
+        flags.push({
+          category: "age",
+          key: cat.age_group,
+          label: cat.age_group === "kitten" ? "Kitten" : "Senior",
+        });
+      }
+      if (cat.weight_lbs != null && cat.weight_lbs > 0) {
+        flags.push({
+          category: "weight",
+          key: "weight",
+          label: `${Number(cat.weight_lbs).toFixed(1)} lbs`,
+        });
+      }
+      cat.health_flags = flags;
+    }
 
     const total = parseInt(countResult.rows[0]?.total || "0", 10);
     return apiSuccess({ cats: dataResult }, { total, limit, offset });

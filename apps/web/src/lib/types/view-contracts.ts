@@ -45,6 +45,18 @@ export interface VCatListRow {
   appointment_count: number; // Mapped from visit_count in view
   source_system: string | null;
   photo_url: string | null;
+  // Health fields (FFS-424)
+  is_deceased: boolean;
+  weight_lbs: number | null;
+  age_group: string | null;
+  health_flags: Array<{
+    category: string;
+    key: string;
+    label: string;
+    color?: string | null;
+  }>;
+  // Lifecycle status (FFS-364)
+  current_status: string | null;
 }
 
 // =============================================================================
@@ -71,6 +83,11 @@ export interface VPersonListRow {
   primary_place: string | null;
   created_at: string;
   source_quality: string;
+  // Role & status fields (FFS-434)
+  primary_role?: string | null;
+  trapper_type?: string | null;
+  do_not_contact?: boolean;
+  entity_type?: string | null;
 }
 
 /**
@@ -125,6 +142,18 @@ export interface VPlaceListRow {
   person_count: number;
   has_cat_activity: boolean;
   created_at: string;
+  // API-enriched fields (not from view directly)
+  last_appointment_date?: string | null;
+  active_request_count?: number;
+  // Risk fields (FFS-430)
+  watch_list?: boolean;
+  disease_flags?: Array<{
+    disease_key: string;
+    short_code: string;
+    status: string;
+    color?: string | null;
+    positive_cat_count?: number;
+  }>;
 }
 
 /**

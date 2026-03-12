@@ -2,6 +2,9 @@
 
 import { CSSProperties, useState } from "react";
 import { formatRole } from "@/lib/display-labels";
+import { CatHealthBadges } from "@/components/badges";
+import type { HealthFlag } from "@/components/badges/CatHealthBadges";
+import EntityPreview from "@/components/search/EntityPreview";
 
 // Flexible cat type that accommodates different data shapes from various pages
 interface LinkedCat {
@@ -18,6 +21,9 @@ interface LinkedCat {
   last_appointment_date?: string | null;
   // From people
   data_source?: string | null;
+  // Health data (FFS-428)
+  is_deceased?: boolean;
+  health_flags?: HealthFlag[];
 }
 
 interface LinkedCatsSectionProps {
@@ -195,13 +201,20 @@ export function LinkedCatsSection({
             >
               <div>
                 <div>
-                  <span style={{ fontWeight: 500 }}>{cat.cat_name || "Unnamed cat"}</span>
+                  <EntityPreview entityType="cat" entityId={cat.cat_id}>
+                    <span style={{ fontWeight: 500, textDecoration: cat.is_deceased ? "line-through" : "none", color: cat.is_deceased ? "var(--muted, #6c757d)" : "inherit" }}>{cat.cat_name || "Unnamed cat"}</span>
+                  </EntityPreview>
                   {cat.microchip && (
                     <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
                       ({cat.microchip})
                     </span>
                   )}
                 </div>
+                {(cat.health_flags?.length || cat.is_deceased) ? (
+                  <div style={{ marginTop: "2px" }}>
+                    <CatHealthBadges healthFlags={cat.health_flags} isDeceased={cat.is_deceased} maxInline={2} />
+                  </div>
+                ) : null}
                 {cat.last_appointment_date && (
                   <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>
                     Last appt: {new Date(cat.last_appointment_date).toLocaleDateString()}

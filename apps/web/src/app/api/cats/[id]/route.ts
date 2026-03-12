@@ -40,6 +40,12 @@ interface CatDetailRow {
   atlas_cat_id_is_chipped: boolean | null;
   // ShelterLuv photo (MIG_2866)
   photo_url: string | null;
+  // ShelterLuv bio (MIG_2866)
+  description: string | null;
+  // Lifecycle status (MIG_2363/2878)
+  current_status: string | null;
+  last_event_type: string | null;
+  last_event_at: string | null;
 }
 
 interface ClinicAppointment {
@@ -192,7 +198,11 @@ export async function GET(
         s.display_name AS verified_by_name,
         NULL::TEXT AS atlas_cat_id,
         FALSE AS atlas_cat_id_is_chipped,
-        c.photo_url
+        c.photo_url,
+        c.description,
+        (SELECT vcs.current_status FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = c.cat_id) AS current_status,
+        (SELECT vcs.last_event_type FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = c.cat_id) AS last_event_type,
+        (SELECT vcs.last_event_at::TEXT FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = c.cat_id) AS last_event_at
       FROM sot.v_cat_detail v
       JOIN sot.cats c ON c.cat_id = v.cat_id
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
@@ -231,7 +241,11 @@ export async function GET(
         s.display_name AS verified_by_name,
         NULL::TEXT AS atlas_cat_id,
         FALSE AS atlas_cat_id_is_chipped,
-        c.photo_url
+        c.photo_url,
+        c.description,
+        (SELECT vcs.current_status FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = c.cat_id) AS current_status,
+        (SELECT vcs.last_event_type FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = c.cat_id) AS last_event_type,
+        (SELECT vcs.last_event_at::TEXT FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = c.cat_id) AS last_event_at
       FROM sot.cats c
       LEFT JOIN ops.staff s ON c.verified_by = s.staff_id::text
       WHERE c.cat_id = $1

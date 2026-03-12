@@ -13,3 +13,4 @@ export { ObservationForm } from './ObservationForm';
 export { OwnershipTransferWizard } from './OwnershipTransferWizard';
 export { PlaceContextEditor } from './PlaceContextEditor';
 export { default as PlaceResolver } from './PlaceResolver';
+export { FormSubmissionsCard } from './FormSubmissionsCard';

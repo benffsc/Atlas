@@ -1,9 +1,31 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi } from "@/lib/api-client";
+import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
+import { formatPrintValue, formatPrintDate } from "@/lib/print-helpers";
+import { buildCallSheetUrl } from "@/lib/print-documents";
+import {
+  Bubble,
+  Check,
+  EditableField,
+  EditableTextArea,
+  PrintHeader,
+  PrintFooter,
+  PrintControlsPanel,
+} from "@/components/print";
+import {
+  IMPORTANT_NOTES_SHORT,
+  RECON_CHECKLIST,
+  TRAP_DAY_CHECKLIST,
+  KITTEN_AGE_ESTIMATE,
+  MOM_PRESENT,
+  MOM_FIXED,
+  CAN_BRING_IN_PRINT,
+  KITTEN_CONTAINED,
+} from "@/lib/field-options";
 
 interface TrapperSheetData {
   request_id: string;
@@ -20,17 +42,14 @@ interface TrapperSheetData {
   scheduled_date: string | null;
   scheduled_time_range: string | null;
   created_at: string;
-  // Location
   place_name: string | null;
   place_address: string | null;
   place_city: string | null;
   place_postal_code: string | null;
   place_coordinates?: { lat: number; lng: number } | null;
-  // Requester
   requester_name: string | null;
   requester_phone: string | null;
   requester_email: string | null;
-  // Enhanced intake
   permission_status: string | null;
   property_owner_contact: string | null;
   access_notes: string | null;
@@ -52,7 +71,6 @@ interface TrapperSheetData {
   feeding_location: string | null;
   feeding_time: string | null;
   is_property_owner: boolean | null;
-  // Call sheet trapping logistics (MIG_2495)
   dogs_on_site: string | null;
   trap_savvy: string | null;
   previous_tnr: string | null;
@@ -62,9 +80,7 @@ interface TrapperSheetData {
   has_medical_concerns: boolean;
   medical_description: string | null;
   important_notes: string[] | null;
-  // County info
   county: string | null;
-  // Kitten details
   kitten_behavior: string | null;
   kitten_contained: string | null;
   mom_present: string | null;
@@ -72,7 +88,6 @@ interface TrapperSheetData {
   can_bring_in: string | null;
   kitten_age_estimate: string | null;
   kitten_notes: string | null;
-  // Trapper assignment
   current_trappers: Array<{
     trapper_person_id: string;
     trapper_name: string;
@@ -82,57 +97,24 @@ interface TrapperSheetData {
   }> | null;
 }
 
-function formatValue(value: string | null | undefined): string {
-  if (!value) return "";
-  return value.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "";
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
-function Bubble({ filled, label }: { filled: boolean; label: string }) {
-  return (
-    <span className="option">
-      <span className={`bubble ${filled ? "filled" : ""}`}></span> {label}
-    </span>
-  );
-}
-
-function Check({ checked, crossed, label }: { checked?: boolean; crossed?: boolean; label: string }) {
-  return (
-    <span className="option">
-      <span className={`checkbox ${checked ? "checked" : crossed ? "crossed" : ""}`}>
-        {checked ? "✓" : crossed ? "✗" : ""}
-      </span> {label}
-    </span>
-  );
-}
-
 export default function TrapperSheetPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
 
   const [data, setData] = useState<TrapperSheetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeKittenPage, setIncludeKittenPage] = useState(false);
+  const [mode, setMode] = useState<"trap" | "recon">(
+    searchParams.get("mode") === "recon" ? "recon" : "trap"
+  );
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const data = await fetchApi<TrapperSheetData>(`/api/requests/${id}`);
-        setData(data);
+        const result = await fetchApi<TrapperSheetData>(`/api/requests/${id}`);
+        setData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading request");
       } finally {
@@ -146,42 +128,36 @@ export default function TrapperSheetPage() {
   if (error) return <div style={{ padding: "2rem", color: "#e74c3c", fontFamily: "Helvetica, Arial, sans-serif" }}>{error}</div>;
   if (!data) return <div style={{ padding: "2rem", fontFamily: "Helvetica, Arial, sans-serif" }}>Request not found</div>;
 
-  // Determine property type
+  // Derived flags
   const propertyType = data.property_type?.toLowerCase() || "";
   const isHouse = propertyType.includes("house") || propertyType.includes("sfh");
   const isApt = propertyType.includes("apt") || propertyType.includes("apartment") || propertyType.includes("condo");
   const isBusiness = propertyType.includes("business") || propertyType.includes("commercial");
   const isRural = propertyType.includes("rural") || propertyType.includes("farm") || propertyType.includes("ranch");
 
-  // Determine county
   const county = data.county?.toLowerCase() || "";
   const isSonoma = county.includes("sonoma") || (!county && !!data.place_city?.toLowerCase().includes("sonoma"));
   const isMarin = county.includes("marin");
 
-  // Determine colony duration
   const duration = data.colony_duration?.toLowerCase() || "";
   const durationLessThanMonth = duration.includes("<1") || duration.includes("less than 1");
   const duration1to6 = duration.includes("1-6") || duration.includes("1 to 6");
   const duration6to2 = duration.includes("6mo") || duration.includes("6 month") || duration.includes("year");
   const duration2plus = duration.includes("2+") || duration.includes("years");
 
-  // Handleability mapping
   const handleability = data.handleability?.toLowerCase() || "";
   const isFriendly = handleability.includes("friendly") || handleability.includes("carrier") || data.cats_are_friendly === true;
   const isTrapNeeded = handleability.includes("trap") || handleability.includes("feral");
   const isMixed = handleability.includes("mixed");
 
-  // Ownership / property owner — check both ownership_status and is_property_owner
   const ownership = data.ownership_status?.toLowerCase() || "";
   const isOwner = ownership.includes("owner") || ownership.includes("yes") || data.is_property_owner === true;
   const isRenter = ownership.includes("rent");
 
-  // Permission status: DB stores 'yes' but old code checked 'granted'
   const permGranted = data.permission_status === "granted" || data.permission_status === "yes";
   const permDenied = data.permission_status === "denied" || data.permission_status === "no";
   const permPending = data.permission_status === "pending";
 
-  // Important notes flags
   const importantNotes = (data.important_notes || []).map(n => n.toLowerCase());
   const hasWithholdFood = importantNotes.some(n => n.includes("withhold"));
   const hasOtherFeeders = importantNotes.some(n => n.includes("other feeder"));
@@ -193,7 +169,6 @@ export default function TrapperSheetPage() {
   const hasNeighborIssues = importantNotes.some(n => n.includes("neighbor"));
   const hasUrgent = importantNotes.some(n => n.includes("urgent") || n.includes("time-sensitive"));
 
-  // Kitten age range
   const kittenAge = data.kitten_age_weeks || 0;
   const kittenUnder4 = kittenAge > 0 && kittenAge < 4;
   const kitten4to8 = kittenAge >= 4 && kittenAge < 8;
@@ -204,291 +179,14 @@ export default function TrapperSheetPage() {
   const hasUrgencyAlert = (data.urgency_reasons && data.urgency_reasons.length > 0) || data.has_medical_concerns;
   const showKittenPage = data.has_kittens || includeKittenPage;
   const totalPages = showKittenPage ? 2 : 1;
+  const isRecon = mode === "recon";
+  const sheetTitle = isRecon ? "Recon Sheet" : "Trapper Assignment Sheet";
 
   return (
     <div className="print-wrapper">
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@600;700&display=swap');
-
-        @media print {
-          @page { size: letter; margin: 0.25in; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-          .print-controls, .tippy-fab, .tippy-chat-panel { display: none !important; }
-          .print-wrapper { width: 100% !important; padding: 0 !important; }
-          .print-page {
-            width: 100% !important;
-            max-width: 100% !important;
-            height: auto !important;
-            padding: 0 !important;
-            box-shadow: none !important;
-            margin: 0 !important;
-            page-break-after: always;
-            overflow: visible !important;
-          }
-          .print-page:last-child { page-break-after: auto; }
-        }
-
-        body { margin: 0; padding: 0; }
-
-        .print-wrapper {
-          font-family: Helvetica, Arial, sans-serif;
-          font-size: 9.5pt;
-          line-height: 1.25;
-          color: #2c3e50;
-        }
-
-        .print-page {
-          width: 8.5in;
-          padding: 0.25in;
-          box-sizing: border-box;
-          background: #fff;
-        }
-
-        h1, h2, h3, .section-title {
-          font-family: 'Raleway', Helvetica, sans-serif;
-          font-weight: 700;
-        }
-
-        .print-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-bottom: 6px;
-          margin-bottom: 6px;
-          border-bottom: 3px solid #27ae60;
-        }
-
-        .print-header h1 {
-          font-size: 15pt;
-          margin: 0;
-          color: #27ae60;
-        }
-
-        .print-header .subtitle {
-          font-size: 8.5pt;
-          color: #7f8c8d;
-          margin-top: 1px;
-        }
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .header-logo {
-          height: 36px;
-          width: auto;
-        }
-
-        .priority-badge {
-          padding: 3px 10px;
-          border-radius: 4px;
-          font-weight: 700;
-          font-size: 9.5pt;
-          text-transform: uppercase;
-        }
-
-        .priority-urgent { background: #dc2626; color: #fff; }
-        .priority-high { background: #ea580c; color: #fff; }
-        .priority-normal { background: #16a34a; color: #fff; }
-        .priority-low { background: #6b7280; color: #fff; }
-
-        .section {
-          margin-bottom: 6px;
-        }
-
-        .section-title {
-          font-size: 10pt;
-          color: #27ae60;
-          border-bottom: 1.5px solid #ecf0f1;
-          padding-bottom: 2px;
-          margin-bottom: 4px;
-        }
-
-        .field-row {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 4px;
-        }
-
-        .field {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .field.w2 { flex: 2; }
-        .field.w3 { flex: 3; }
-        .field.half { flex: 0.5; }
-
-        .field label {
-          display: block;
-          font-size: 7.5pt;
-          font-weight: 600;
-          color: #7f8c8d;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-          margin-bottom: 1px;
-        }
-
-        .field-input {
-          border: 1px solid #bdc3c7;
-          border-radius: 3px;
-          padding: 3px 5px;
-          min-height: 20px;
-          background: #fff;
-          font-size: 9.5pt;
-        }
-
-        .field-input.prefilled {
-          background: #f0fdf4;
-          color: #2c3e50;
-        }
-
-        .field-input.sm { min-height: 18px; padding: 2px 5px; }
-        .field-input.md { min-height: 40px; }
-
-        .options-row {
-          display: flex;
-          align-items: center;
-          gap: 3px;
-          font-size: 9pt;
-          margin-bottom: 3px;
-          flex-wrap: wrap;
-        }
-
-        .options-label {
-          font-weight: 600;
-          color: #2c3e50;
-          min-width: 75px;
-          font-size: 9pt;
-        }
-
-        .option {
-          display: inline-flex;
-          align-items: center;
-          gap: 3px;
-          margin-right: 8px;
-        }
-
-        .bubble {
-          width: 11px;
-          height: 11px;
-          border: 1.5px solid #27ae60;
-          border-radius: 50%;
-          background: #fff;
-          flex-shrink: 0;
-        }
-
-        .bubble.filled {
-          background: #27ae60;
-        }
-
-        .checkbox {
-          width: 11px;
-          height: 11px;
-          border: 1.5px solid #27ae60;
-          border-radius: 2px;
-          background: #fff;
-          flex-shrink: 0;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 8pt;
-          font-weight: 700;
-        }
-
-        .checkbox.checked {
-          background: #27ae60;
-          color: #fff;
-        }
-
-        .checkbox.crossed {
-          border-color: #dc2626;
-          color: #dc2626;
-        }
-
-        .two-col {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-
-        .emergency-box {
-          border: 1.5px solid #e74c3c;
-          background: #fdedec;
-          padding: 5px 8px;
-          margin-bottom: 6px;
-          border-radius: 5px;
-        }
-
-        .emergency-box .title {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          font-weight: 600;
-          color: #e74c3c;
-          font-size: 9pt;
-        }
-
-        .emergency-box .checkbox {
-          border-color: #e74c3c;
-        }
-
-        .emergency-box .checkbox.checked {
-          background: #e74c3c;
-          border-color: #e74c3c;
-        }
-
-        .warning-box {
-          background: #fef3c7;
-          border: 1.5px solid #fcd34d;
-          border-radius: 5px;
-          padding: 4px 8px;
-          margin-bottom: 6px;
-        }
-
-        .warning-box .title {
-          font-weight: 600;
-          color: #92400e;
-          font-size: 9pt;
-          margin-bottom: 3px;
-        }
-
-        .info-card {
-          background: #f8f9fa;
-          border-radius: 4px;
-          padding: 4px 8px;
-          margin-bottom: 4px;
-          border-left: 3px solid #27ae60;
-        }
-
-        .info-box {
-          background: #f0fdf4;
-          border: 1.5px solid #86efac;
-          border-radius: 5px;
-          padding: 4px 8px;
-          margin-bottom: 6px;
-        }
-
-        .info-box .title {
-          font-weight: 600;
-          color: #166534;
-          font-size: 9pt;
-          margin-bottom: 3px;
-        }
-
-        .staff-box {
-          border: 1.5px dashed #94a3b8;
-          border-radius: 5px;
-          padding: 6px 8px;
-          background: #f8fafc;
-        }
-
-        .staff-box .section-title {
-          color: #7f8c8d;
-          border-bottom-color: #bdc3c7;
-        }
+        ${PRINT_BASE_CSS}
+        ${PRINT_EDITABLE_CSS}
 
         .trapper-header {
           display: flex;
@@ -500,155 +198,68 @@ export default function TrapperSheetPage() {
           border-radius: 5px;
           margin-bottom: 6px;
         }
-
-        .trapper-header .trapper-names {
-          font-size: 11pt;
-          font-weight: 600;
-        }
-
-        .trapper-header .trapper-date {
-          font-size: 9.5pt;
-        }
-
-        .quick-notes {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 3px 10px;
-        }
-
-        .quick-note {
-          display: flex;
-          align-items: center;
-          gap: 3px;
-          font-size: 8.5pt;
-        }
-
-        .page-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-top: 4px;
-          margin-top: 6px;
-          border-top: 1px solid #ecf0f1;
-          font-size: 7.5pt;
-          color: #95a5a6;
-        }
-
-        .hint {
-          font-size: 7pt;
-          color: #95a5a6;
-        }
-
-        @media screen {
-          body { background: #f0f9f4 !important; }
-          .print-wrapper { padding: 20px; }
-          .print-page {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin: 0 auto 30px auto;
-            border-radius: 8px;
-            height: auto;
-            min-height: 10in;
-          }
-          .tippy-fab, .tippy-chat-panel { display: none !important; }
-          .print-controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #fff;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            z-index: 1000;
-            width: 280px;
-          }
-          .print-controls h3 {
-            margin: 0 0 12px 0;
-            font-size: 14px;
-            color: #27ae60;
-          }
-          .print-controls button {
-            display: block;
-            width: 100%;
-            padding: 10px 16px;
-            margin-bottom: 8px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.2s;
-          }
-          .print-controls .print-btn {
-            background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
-            color: #fff;
-          }
-          .print-controls .print-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(39,174,96,0.4);
-          }
-          .print-controls .back-btn {
-            background: #f0f0f0;
-            color: #333;
-          }
-          .print-controls .ctrl-hint {
-            font-size: 11px;
-            color: #888;
-            margin-top: 10px;
-            line-height: 1.4;
-          }
-        }
+        .trapper-header .trapper-names { font-size: 11pt; font-weight: 600; }
+        .trapper-header .trapper-date { font-size: 9.5pt; }
       `}</style>
 
-      {/* Print Controls Panel */}
-      <div className="print-controls">
-        <h3>Trapper Assignment Sheet</h3>
-        <p style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
-          Dense 1-page layout{showKittenPage ? " + kitten page" : ""}. Print via Ctrl+P.
-        </p>
+      {/* Print Controls */}
+      <PrintControlsPanel
+        title={sheetTitle}
+        description={`Dense 1-page layout${showKittenPage ? " + kitten page" : ""}. Print via Ctrl+P.`}
+        backHref={`/requests/${id}`}
+        backLabel="Back to Request"
+      >
+        <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 600, color: "#666" }}>
+          Mode
+        </div>
+        <div className="mode-selector">
+          <button className={mode === "trap" ? "active" : ""} onClick={() => setMode("trap")}>
+            Trap
+          </button>
+          <button className={mode === "recon" ? "active" : ""} onClick={() => setMode("recon")}>
+            Recon
+          </button>
+        </div>
         {!data.has_kittens && (
-          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", marginBottom: "12px", cursor: "pointer" }}>
+          <label>
             <input type="checkbox" checked={includeKittenPage} onChange={(e) => setIncludeKittenPage(e.target.checked)} />
             Include kitten page
           </label>
         )}
-        <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
-        <a href={`/requests/${id}`} style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>Back to Request</button>
+        <div className="ctrl-hint">ID: {data.request_id.slice(0, 8)}</div>
+        <a
+          href={buildCallSheetUrl({ name: data.requester_name, phone: data.requester_phone, email: data.requester_email, address: data.place_address || data.place_name })}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "block", marginTop: "12px", textAlign: "center", fontSize: "13px", color: "#27ae60", textDecoration: "underline" }}
+        >
+          Print TNR Call Sheet
         </a>
-        <a href={`/requests/${id}/print`} style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>Full Print View</button>
-        </a>
-        <div className="ctrl-hint">
-          ID: {data.request_id.slice(0, 8)}
-        </div>
-      </div>
+      </PrintControlsPanel>
 
-      {/* ═══════════════════ PAGE 1: Everything on one page ═══════════════════ */}
+      {/* ═══════════════════ PAGE 1 ═══════════════════ */}
       <div className="print-page">
-        {/* Header */}
-        <div className="print-header">
-          <div>
-            <h1>Trapper Assignment Sheet</h1>
-            <div className="subtitle">Forgotten Felines of Sonoma County</div>
-          </div>
-          <div className="header-right">
+        <PrintHeader
+          title={sheetTitle}
+          subtitle="Forgotten Felines of Sonoma County"
+          rightContent={
             <div className={`priority-badge priority-${data.priority}`}>
               {data.priority}
             </div>
-            <img src="/logo.png" alt="FFSC" className="header-logo" />
-          </div>
-        </div>
+          }
+        />
 
-        {/* Trapper Assignment Bar */}
+        {/* Assignment / Recon Bar */}
         <div className="trapper-header">
           <div className="trapper-names">
+            {isRecon ? "Recon By: " : "Assigned: "}
             {data.current_trappers && data.current_trappers.length > 0
-              ? `Assigned: ${data.current_trappers.map(t => t.trapper_name).join(", ")}`
-              : "Assigned: _______________________"}
+              ? data.current_trappers.map(t => t.trapper_name).join(", ")
+              : "_______________________"}
           </div>
           <div className="trapper-date">
             {data.scheduled_date
-              ? `Scheduled: ${formatDate(data.scheduled_date)}${data.scheduled_time_range ? ` (${data.scheduled_time_range})` : ""}`
+              ? `Scheduled: ${formatPrintDate(data.scheduled_date)}${data.scheduled_time_range ? ` (${data.scheduled_time_range})` : ""}`
               : "Scheduled: ______________"}
           </div>
         </div>
@@ -658,8 +269,8 @@ export default function TrapperSheetPage() {
           <div className="emergency-box">
             <div className="title">
               <span className="checkbox checked">✓</span>
-              URGENT: {data.urgency_reasons?.map(r => formatValue(r)).join(", ")}
-              {data.urgency_deadline && ` — Deadline: ${formatDate(data.urgency_deadline)}`}
+              URGENT: {data.urgency_reasons?.map(r => formatPrintValue(r)).join(", ")}
+              {data.urgency_deadline && ` — Deadline: ${formatPrintDate(data.urgency_deadline)}`}
             </div>
             {data.urgency_notes && (
               <div style={{ marginTop: "3px", fontSize: "9pt", fontStyle: "italic" }}>
@@ -678,13 +289,23 @@ export default function TrapperSheetPage() {
         <div className="two-col" style={{ marginBottom: "6px" }}>
           <div className="section" style={{ marginBottom: 0 }}>
             <div className="section-title">Contact</div>
-            <div className={`field-input sm ${data.requester_name ? "prefilled" : ""}`} style={{ fontWeight: 600, fontSize: "10pt", marginBottom: "3px" }}>
-              {data.requester_name || ""}
-            </div>
-            <div className={`field-input sm ${data.requester_phone ? "prefilled" : ""}`} style={{ marginBottom: "3px" }}>
-              {data.requester_phone ? formatPhone(data.requester_phone) : ""}
-              {data.requester_email ? ` | ${data.requester_email}` : ""}
-            </div>
+            <EditableField
+              value={data.requester_name}
+              placeholder="Contact name"
+              style={{ marginBottom: "3px" }}
+            />
+            <EditableField
+              value={
+                [
+                  data.requester_phone ? formatPhone(data.requester_phone) : "",
+                  data.requester_email,
+                ]
+                  .filter(Boolean)
+                  .join(" | ") || null
+              }
+              placeholder="Phone | Email"
+              style={{ marginBottom: "3px" }}
+            />
             <div className="options-row" style={{ marginBottom: 0 }}>
               <span className="options-label" style={{ minWidth: "40px" }}>Pref:</span>
               <Bubble filled={data.preferred_contact_method === "call"} label="Call" />
@@ -697,12 +318,16 @@ export default function TrapperSheetPage() {
           </div>
           <div className="section" style={{ marginBottom: 0 }}>
             <div className="section-title">Location</div>
-            <div className={`field-input sm ${data.place_address ? "prefilled" : ""}`} style={{ fontWeight: 600, fontSize: "10pt", marginBottom: "3px" }}>
-              {data.place_address || data.place_name || ""}
-            </div>
-            <div className={`field-input sm ${data.place_city ? "prefilled" : ""}`} style={{ marginBottom: "3px" }}>
-              {[data.place_city, "CA", data.place_postal_code].filter(Boolean).join(", ")}
-            </div>
+            <EditableField
+              value={data.place_address || data.place_name}
+              placeholder="Address"
+              style={{ marginBottom: "3px" }}
+            />
+            <EditableField
+              value={[data.place_city, "CA", data.place_postal_code].filter(Boolean).join(", ") || null}
+              placeholder="City, State, ZIP"
+              style={{ marginBottom: "3px" }}
+            />
             <div className="options-row" style={{ marginBottom: 0 }}>
               <Bubble filled={isSonoma} label="Sonoma" />
               <Bubble filled={isMarin} label="Marin" />
@@ -721,7 +346,7 @@ export default function TrapperSheetPage() {
           </div>
         )}
 
-        {/* CATS section — dense single block */}
+        {/* CATS section */}
         <div className="section">
           <div className="section-title">Cats</div>
           <div className="options-row" style={{ marginBottom: "2px" }}>
@@ -729,7 +354,7 @@ export default function TrapperSheetPage() {
               {data.estimated_cat_count ?? "?"}
             </span>
             <span className="hint" style={{ marginRight: "8px" }}>
-              ({data.count_confidence ? formatValue(data.count_confidence) : "unk"})
+              ({data.count_confidence ? formatPrintValue(data.count_confidence) : "unk"})
             </span>
             <span className="options-label" style={{ minWidth: "55px" }}>Eartipped:</span>
             <Bubble filled={data.eartip_count === 0} label="None" />
@@ -799,22 +424,10 @@ export default function TrapperSheetPage() {
           </div>
           <div className="section" style={{ marginBottom: 0 }}>
             <div className="section-title">Trapping Schedule</div>
-            <div className="field" style={{ marginBottom: "3px" }}>
-              <label>Best contact times</label>
-              <div className={`field-input sm ${data.best_contact_times ? "prefilled" : ""}`}>{data.best_contact_times || ""}</div>
-            </div>
-            <div className="field" style={{ marginBottom: "3px" }}>
-              <label>Feeding time</label>
-              <div className={`field-input sm ${data.feeding_time ? "prefilled" : ""}`}>{data.feeding_time || ""}</div>
-            </div>
-            <div className="field" style={{ marginBottom: "3px" }}>
-              <label>Where cats eat</label>
-              <div className={`field-input sm ${data.feeding_location ? "prefilled" : ""}`}>{data.feeding_location || ""}</div>
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>Best trapping day/time</label>
-              <div className={`field-input sm ${data.best_times_seen ? "prefilled" : ""}`}>{data.best_times_seen || ""}</div>
-            </div>
+            <EditableField label="Best contact times" value={data.best_contact_times} placeholder="Times to reach contact" style={{ marginBottom: "3px" }} />
+            <EditableField label="Feeding time" value={data.feeding_time} placeholder="When cats are fed" style={{ marginBottom: "3px" }} />
+            <EditableField label="Where cats eat" value={data.feeding_location} placeholder="Feeding location" style={{ marginBottom: "3px" }} />
+            <EditableField label="Best trapping day/time" value={data.best_times_seen} placeholder="When cats are seen" style={{ marginBottom: 0 }} />
           </div>
         </div>
 
@@ -824,108 +437,92 @@ export default function TrapperSheetPage() {
           </div>
         )}
 
-        {/* Important Notes — single row of checkboxes */}
+        {/* Important Notes */}
         <div className="warning-box">
           <div className="title">Important Notes</div>
           <div className="quick-notes">
-            <div className="quick-note"><Check checked={hasWithholdFood} label="Withhold food" /></div>
-            <div className="quick-note"><Check checked={hasOtherFeeders} label="Other feeders" /></div>
-            <div className="quick-note"><Check checked={hasCrossPropLines} label="Cross prop lines" /></div>
-            <div className="quick-note"><Check checked={hasPregnant} label="Pregnant" /></div>
-            <div className="quick-note"><Check checked={hasInjured} label="Injured/sick" /></div>
-            <div className="quick-note"><Check checked={hasCallerHelp} label="Caller help" /></div>
-            <div className="quick-note"><Check checked={hasWildlife} label="Wildlife" /></div>
-            <div className="quick-note"><Check checked={hasNeighborIssues} label="Neighbor" /></div>
-            <div className="quick-note"><Check checked={hasUrgent} label="Urgent" /></div>
+            {IMPORTANT_NOTES_SHORT.map((label, i) => {
+              const checks = [hasWithholdFood, hasOtherFeeders, hasCrossPropLines, hasPregnant, hasInjured, hasCallerHelp, hasWildlife, hasNeighborIssues, hasUrgent];
+              return (
+                <div key={label} className="quick-note"><Check checked={checks[i]} label={label} /></div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Notes area — staff notes prefilled, plus blank space for trapper */}
+        {/* Notes */}
         <div className="section">
           <div className="section-title">Notes</div>
           {data.notes && (
-            <div className="field-input sm prefilled" style={{ whiteSpace: "pre-wrap", fontSize: "9pt", marginBottom: "3px" }}>
-              {data.notes}
-            </div>
+            <EditableTextArea value={data.notes} size="sm" style={{ marginBottom: "3px" }} />
           )}
-          <div className="field-input md"></div>
+          <EditableTextArea placeholder="Trapper notes..." size="md" />
         </div>
 
-        {/* Trapper Recon — condensed */}
+        {/* Trapper Recon */}
         <div className="staff-box" style={{ background: "#fef3c7", borderColor: "#fcd34d", marginBottom: "6px" }}>
-          <div className="section-title" style={{ color: "#92400e" }}>Trapper Recon (site visit)</div>
+          <div className="section-title" style={{ color: "#92400e" }}>
+            {isRecon ? "Recon Notes (site visit)" : "Trapper Recon (site visit)"}
+          </div>
           <div className="field-row">
             <div className="field" style={{ flex: "0 0 70px" }}>
               <label>Count</label>
-              <div className="field-input sm"></div>
+              <div className="field-input sm"><input type="text" placeholder="#" /></div>
             </div>
             <div className="field" style={{ flex: "0 0 100px" }}>
               <label>A / K / Tipped</label>
-              <div className="field-input sm"></div>
+              <div className="field-input sm"><input type="text" placeholder="0/0/0" /></div>
             </div>
-            <div className="field">
-              <label>Trap locations</label>
-              <div className="field-input sm"></div>
-            </div>
-            <div className="field">
-              <label>Cat descriptions</label>
-              <div className="field-input sm"></div>
-            </div>
+            <EditableField label="Trap locations" placeholder="Where to set traps" />
+            <EditableField label="Cat descriptions" placeholder="Colors, markings" />
           </div>
+          {isRecon && (
+            <EditableTextArea label="Recon observations" placeholder="Site conditions, access, food sources, hiding spots..." size="md" style={{ marginTop: "3px" }} />
+          )}
           <div className="options-row" style={{ marginTop: "3px", marginBottom: 0 }}>
-            <span className="option"><span className="checkbox"></span> Dogs</span>
-            <span className="option"><span className="checkbox"></span> Feeders</span>
-            <span className="option"><span className="checkbox"></span> Wildlife</span>
-            <span className="option"><span className="checkbox"></span> TrapSavvy</span>
-            <span className="option"><span className="checkbox"></span> SafeON</span>
-            <span className="option"><span className="checkbox"></span> Gate</span>
-            <span className="option"><span className="checkbox"></span> DropTrap</span>
+            {RECON_CHECKLIST.map(item => (
+              <span key={item} className="option"><span className="checkbox"></span> {item}</span>
+            ))}
           </div>
         </div>
 
-        {/* Trap Day Checklist — condensed */}
-        <div className="section">
-          <div className="section-title">Trap Day</div>
-          <div className="options-row" style={{ marginBottom: 0 }}>
-            <span className="option"><span className="checkbox"></span> Food withheld</span>
-            <span className="option"><span className="checkbox"></span> Contact notified</span>
-            <span className="option"><span className="checkbox"></span> Clinic confirmed</span>
-            <span className="option"><span className="checkbox"></span> Equip ready</span>
-            <span style={{ marginLeft: "8px" }}>Set: ______</span>
-            <span style={{ marginLeft: "8px" }}>#Traps: ____</span>
-            <span style={{ marginLeft: "8px" }}>#Caught: ____</span>
-            <span style={{ marginLeft: "8px" }}>Return: ______</span>
+        {/* Trap Day Checklist — hidden in recon mode */}
+        {!isRecon && (
+          <div className="section">
+            <div className="section-title">Trap Day</div>
+            <div className="options-row" style={{ marginBottom: 0 }}>
+              {TRAP_DAY_CHECKLIST.map(item => (
+                <span key={item} className="option"><span className="checkbox"></span> {item}</span>
+              ))}
+              <span style={{ marginLeft: "8px" }}>Set: <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "50px", font: "inherit", padding: 0 }} /></span>
+              <span style={{ marginLeft: "8px" }}>#Traps: <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "30px", font: "inherit", padding: 0 }} /></span>
+              <span style={{ marginLeft: "8px" }}>#Caught: <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "30px", font: "inherit", padding: 0 }} /></span>
+              <span style={{ marginLeft: "8px" }}>Return: <input type="text" style={{ border: "none", borderBottom: "1px solid #bdc3c7", width: "50px", font: "inherit", padding: 0 }} /></span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Footer */}
-        <div className="page-footer">
-          <span>Ref: {data.request_id.slice(0, 8)} | {formatValue(data.status)} | {formatDate(data.created_at)}</span>
-          <span>Page 1 of {totalPages}</span>
-        </div>
+        <PrintFooter
+          left={`Ref: ${data.request_id.slice(0, 8)} | ${formatPrintValue(data.status)} | ${formatPrintDate(data.created_at)}`}
+          right={`Page 1 of ${totalPages}`}
+        />
       </div>
 
       {/* ═══════════════════ PAGE 2: Kitten Details ═══════════════════ */}
       {showKittenPage && (
         <div className="print-page">
-          <div className="print-header">
-            <div>
-              <h1>Kitten Details</h1>
-              <div className="subtitle">
-                {data.place_address || data.place_name || "Location"} &mdash; {data.requester_name || "Requester"}
-              </div>
-            </div>
-            <img src="/logo.png" alt="FFSC" className="header-logo" />
-          </div>
+          <PrintHeader
+            title="Kitten Details"
+            subtitle={`${data.place_address || data.place_name || "Location"} — ${data.requester_name || "Requester"}`}
+          />
 
-          {/* Kitten Info */}
           <div className="section">
             <div className="section-title">Kitten Information</div>
             <div className="field-row" style={{ alignItems: "center" }}>
               <div className="field" style={{ flex: "0 0 100px" }}>
                 <label>How many?</label>
                 <div className={`field-input sm ${data.kitten_count ? "prefilled" : ""}`} style={{ width: "50px" }}>
-                  {data.kitten_count ?? ""}
+                  <input type="text" defaultValue={data.kitten_count?.toString() || ""} />
                 </div>
               </div>
               <div className="options-row" style={{ flex: 1, marginBottom: 0 }}>
@@ -949,49 +546,54 @@ export default function TrapperSheetPage() {
             <div className="info-card" style={{ marginTop: "4px" }}>
               <div className="options-row" style={{ marginBottom: "2px" }}>
                 <span className="options-label" style={{ minWidth: "65px" }}>Contained?</span>
-                <Bubble filled={data.kitten_contained === "yes"} label="Yes" />
-                <Bubble filled={data.kitten_contained === "some"} label="Some" />
-                <Bubble filled={data.kitten_contained === "no"} label="No" />
+                {KITTEN_CONTAINED.map(c => (
+                  <Bubble key={c} filled={data.kitten_contained === c.toLowerCase()} label={c} />
+                ))}
                 <span style={{ marginLeft: "12px" }}><span className="options-label" style={{ minWidth: "75px" }}>Mom present?</span></span>
-                <Bubble filled={data.mom_present === "yes"} label="Yes" />
-                <Bubble filled={data.mom_present === "no"} label="No" />
-                <Bubble filled={!data.mom_present || data.mom_present === "unsure"} label="Unsure" />
+                {MOM_PRESENT.map(m => (
+                  <Bubble key={m} filled={m === "Unsure" ? (!data.mom_present || data.mom_present === "unsure") : data.mom_present === m.toLowerCase()} label={m} />
+                ))}
               </div>
               <div className="options-row" style={{ marginBottom: 0 }}>
                 <span className="options-label" style={{ minWidth: "65px" }}>Mom fixed?</span>
-                <Bubble filled={data.mom_fixed === "yes"} label="Yes" />
-                <Bubble filled={data.mom_fixed === "no"} label="No" />
-                <Bubble filled={!data.mom_fixed || data.mom_fixed === "unsure"} label="Unsure" />
+                {MOM_FIXED.map(m => (
+                  <Bubble key={m} filled={m === "Unsure" ? (!data.mom_fixed || data.mom_fixed === "unsure") : data.mom_fixed === m.toLowerCase()} label={m} />
+                ))}
                 <span style={{ marginLeft: "12px" }}><span className="options-label" style={{ minWidth: "75px" }}>Can bring in?</span></span>
-                <Bubble filled={data.can_bring_in === "yes"} label="Yes" />
-                <Bubble filled={data.can_bring_in === "need_help"} label="Need help" />
-                <Bubble filled={data.can_bring_in === "no"} label="No" />
+                {CAN_BRING_IN_PRINT.map(c => (
+                  <Bubble key={c} filled={data.can_bring_in === c.toLowerCase().replace(" ", "_")} label={c} />
+                ))}
               </div>
             </div>
 
-            <div className="field" style={{ marginTop: "6px" }}>
-              <label>Kitten details (colors, where they hide, feeding schedule)</label>
-              <div className={`field-input md ${data.kitten_notes ? "prefilled" : ""}`}>
-                {data.kitten_notes || ""}
-              </div>
-            </div>
+            <EditableTextArea
+              label="Kitten details (colors, where they hide, feeding schedule)"
+              value={data.kitten_notes}
+              placeholder="Describe the kittens..."
+              size="md"
+              style={{ marginTop: "6px" }}
+            />
           </div>
 
-          {/* Reference contact */}
           <div className="field-row" style={{ marginTop: "8px" }}>
-            <div className="field w2">
-              <label>Contact (from page 1)</label>
-              <div className={`field-input sm ${data.requester_name ? "prefilled" : ""}`}>
-                {data.requester_name || ""}
-                {data.requester_phone ? ` — ${formatPhone(data.requester_phone)}` : ""}
-              </div>
-            </div>
+            <EditableField
+              label="Contact (from page 1)"
+              value={
+                [
+                  data.requester_name,
+                  data.requester_phone ? formatPhone(data.requester_phone) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" — ") || null
+              }
+              style={{ flex: 2 }}
+            />
           </div>
 
-          <div className="page-footer">
-            <span>Ref: {data.request_id.slice(0, 8)} | Forgotten Felines of Sonoma County</span>
-            <span>Page 2 of 2</span>
-          </div>
+          <PrintFooter
+            left={`Ref: ${data.request_id.slice(0, 8)} | Forgotten Felines of Sonoma County`}
+            right="Page 2 of 2"
+          />
         </div>
       )}
     </div>

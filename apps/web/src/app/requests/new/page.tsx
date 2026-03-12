@@ -175,6 +175,7 @@ function NewRequestForm() {
 
   // Permission & Access
   const [permissionStatus, setPermissionStatus] = useState("unknown");
+  const [hasPropertyAccess, setHasPropertyAccess] = useState<boolean | null>(null);
   const [accessNotes, setAccessNotes] = useState("");
   const [trapsOvernightSafe, setTrapsOvernightSafe] = useState<boolean | null>(null);
   const [accessWithoutContact, setAccessWithoutContact] = useState<boolean | null>(null);
@@ -214,6 +215,8 @@ function NewRequestForm() {
   const hasRescue = requestPurposes.includes("rescue");
 
   // About the Cats
+  const [totalCatsReported, setTotalCatsReported] = useState<number | "">("");
+  const [catName, setCatName] = useState("");
   const [estimatedCatCount, setEstimatedCatCount] = useState<number | "">("");
   const [peakCount, setPeakCount] = useState<number | "">("");  // MIG_2532: Beacon critical
   const [countConfidence, setCountConfidence] = useState("unknown");
@@ -255,6 +258,10 @@ function NewRequestForm() {
   const [momFixed, setMomFixed] = useState("");
   const [canBringIn, setCanBringIn] = useState("");
   const [kittenNotes, setKittenNotes] = useState("");
+
+  // Medical (FFS-461)
+  const [hasMedicalConcerns, setHasMedicalConcerns] = useState<boolean | null>(null);
+  const [medicalDescription, setMedicalDescription] = useState("");
 
   // Feeding
   const [isBeingFed, setIsBeingFed] = useState<boolean | null>(null);
@@ -654,21 +661,23 @@ function NewRequestForm() {
             ? propertyOwnerLinked.display_name
             : `${propertyOwnerFirstName} ${propertyOwnerLastName}`.trim() || null)
           : null,
-        property_owner_phone: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved ? propertyOwnerPhone || null : null,
+        property_owner_phone: !hasPropertyAuthority ? propertyOwnerPhone || null : null,
         // FFS-443b: Property owner person link + email
         property_owner_person_id: !hasPropertyAuthority && propertyOwnerLinked.is_resolved ? propertyOwnerLinked.person_id : null,
-        raw_property_owner_email: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved ? propertyOwnerEmail || null : null,
+        raw_property_owner_email: !hasPropertyAuthority ? propertyOwnerEmail || null : null,
         authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
         best_contact_times: bestContactTimes || null,
         // Property ownership (derived from "Someone else owns" checkbox)
         is_property_owner: hasPropertyAuthority,
         // Permission & Access
         permission_status: permissionStatus,
+        has_property_access: hasPropertyAccess,
         access_notes: accessNotes || null,
         traps_overnight_safe: trapsOvernightSafe,
         access_without_contact: accessWithoutContact,
         // About the Cats
         estimated_cat_count: estimatedCatCount !== "" ? estimatedCatCount : null,
+        total_cats_reported: totalCatsReported !== "" ? totalCatsReported : null,
         peak_count: peakCount !== "" ? peakCount : null,  // MIG_2532: Beacon critical
         wellness_cat_count: hasWellness ? (wellnessCatCount !== "" ? wellnessCatCount : null) : null,
         count_confidence: countConfidence,
@@ -677,6 +686,7 @@ function NewRequestForm() {
         eartip_count: showExactEartipCount ? (eartipCount !== "" ? eartipCount : null) : null,
         eartip_estimate: !showExactEartipCount ? eartipEstimate : null,
         cats_are_friendly: catsAreFriendly,
+        cat_name: (typeof estimatedCatCount === "number" && estimatedCatCount <= 3) ? catName || null : null,
         // MIG_2532: Third-party tracking
         is_third_party_report: isThirdPartyReport,
         third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
@@ -711,6 +721,9 @@ function NewRequestForm() {
         feeding_location: isBeingFed ? (feedingLocation || null) : null,  // MIG_2532
         feeding_time: isBeingFed ? (feedingTime || null) : null,  // MIG_2532
         best_times_seen: bestTimesSeen || null,
+        // Medical (FFS-461)
+        has_medical_concerns: hasMedicalConcerns,
+        medical_description: hasMedicalConcerns ? (medicalDescription || null) : null,
         // Urgency
         urgency_reasons: urgencyReasons.length > 0 ? urgencyReasons : null,
         urgency_deadline: urgencyDeadline || null,
@@ -1829,6 +1842,41 @@ function NewRequestForm() {
           <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1rem" }}>
             <div>
               <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
+                Does the requester have property access?
+              </label>
+              <div style={{ display: "flex", gap: "1rem" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="hasPropertyAccess"
+                    checked={hasPropertyAccess === true}
+                    onChange={() => setHasPropertyAccess(true)}
+                  />
+                  Yes
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="hasPropertyAccess"
+                    checked={hasPropertyAccess === false}
+                    onChange={() => setHasPropertyAccess(false)}
+                  />
+                  No
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="hasPropertyAccess"
+                    checked={hasPropertyAccess === null}
+                    onChange={() => setHasPropertyAccess(null)}
+                  />
+                  Unknown
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
                 Can traps be left overnight?
               </label>
               <div style={{ display: "flex", gap: "1rem" }}>
@@ -2173,6 +2221,25 @@ function NewRequestForm() {
 
                 <div style={{ flex: "1 1 140px" }}>
                   <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                    Total cats at location
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={totalCatsReported}
+                    onChange={(e) =>
+                      setTotalCatsReported(e.target.value ? parseInt(e.target.value) : "")
+                    }
+                    placeholder="0"
+                    style={{ width: "100%" }}
+                  />
+                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                    Including already fixed
+                  </p>
+                </div>
+
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
                     Peak count observed
                   </label>
                   <input
@@ -2360,6 +2427,25 @@ function NewRequestForm() {
               </label>
             </div>
           </div>
+
+          {/* Cat name - shown when small number of cats (FFS-464) */}
+          {typeof estimatedCatCount === "number" && estimatedCatCount <= 3 && estimatedCatCount >= 1 && (
+            <div style={{ marginTop: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Cat name(s)
+              </label>
+              <input
+                type="text"
+                value={catName}
+                onChange={(e) => setCatName(e.target.value)}
+                placeholder={estimatedCatCount === 1 ? "e.g., Whiskers" : "e.g., Whiskers, Shadow"}
+                style={{ width: "100%", maxWidth: "400px" }}
+              />
+              <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+                If the cats have known names
+              </p>
+            </div>
+          )}
         </div>
 
         {/* SECTION 5: Kittens */}
@@ -2720,6 +2806,36 @@ function NewRequestForm() {
               Helps trappers plan visits
             </p>
           </div>
+        </div>
+
+        {/* SECTION 6b: Medical Concerns (FFS-461) */}
+        <div className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+            <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Medical Concerns</h2>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={hasMedicalConcerns === true}
+                onChange={(e) => setHasMedicalConcerns(e.target.checked ? true : null)}
+              />
+              Has medical concerns
+            </label>
+          </div>
+
+          {hasMedicalConcerns && (
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Describe the medical concerns
+              </label>
+              <textarea
+                value={medicalDescription}
+                onChange={(e) => setMedicalDescription(e.target.value)}
+                placeholder="Injuries, illness, limping, eye issues, pregnant cats..."
+                rows={3}
+                style={{ width: "100%", resize: "vertical" }}
+              />
+            </div>
+          )}
         </div>
 
         {/* SECTION 7: Urgency */}

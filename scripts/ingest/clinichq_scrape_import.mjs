@@ -68,6 +68,7 @@ const TABLE_COLUMNS = [
   'vet_notes',
   'scraped_at_utc',
   'extracted_clinichq_id',
+  'extracted_microchip',
 ];
 
 // Columns that get updated on conflict (everything except record_id and imported_at)
@@ -84,14 +85,54 @@ function extractClinicHQId(headingRaw) {
 }
 
 /**
+ * Extract clean microchip number (9-15 digits) from multiple source columns.
+ * Fallback chain mirrors MIG_2891 SQL:
+ *   1. microchip column ("981020053773686 (PetLink) Failed" → "981020053773686")
+ *   2. animal_microchip_info (same structure)
+ *   3. animal_id when it IS a chip (9-15 digits only)
+ *   4. animal_heading_raw (exactly 15 digits to avoid false positives)
+ *   5. animal_info_raw (exactly 15 digits to avoid false positives)
+ */
+function extractMicrochip(row) {
+  // Primary: microchip column
+  if (row.microchip) {
+    const m = row.microchip.match(/^(\d{9,15})/);
+    if (m) return m[1];
+  }
+  // Fallback 1: animal_microchip_info
+  if (row.animal_microchip_info) {
+    const m = row.animal_microchip_info.match(/^(\d{9,15})/);
+    if (m) return m[1];
+  }
+  // Fallback 2: animal_id when it IS a microchip
+  if (row.animal_id && /^\d{9,15}$/.test(row.animal_id)) {
+    return row.animal_id;
+  }
+  // Fallback 3: embedded in heading (exactly 15 digits)
+  if (row.animal_heading_raw) {
+    const m = row.animal_heading_raw.match(/(\d{15})/);
+    if (m) return m[1];
+  }
+  // Fallback 4: full text block (exactly 15 digits)
+  if (row.animal_info_raw) {
+    const m = row.animal_info_raw.match(/(\d{15})/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/**
  * Convert a CSV row value to a database-ready value.
  * Empty strings → NULL, heading_labels_json → parsed JSON, scraped_at_utc → timestamp.
  * extracted_clinichq_id is computed from animal_heading_raw (not in CSV).
  */
 function transformValue(column, value, row) {
-  // Computed column — derive from animal_heading_raw
+  // Computed columns — derive from row data, not CSV
   if (column === 'extracted_clinichq_id') {
     return extractClinicHQId(row?.animal_heading_raw);
+  }
+  if (column === 'extracted_microchip') {
+    return row ? extractMicrochip(row) : null;
   }
 
   if (value === undefined || value === null || value === '') {
@@ -197,7 +238,7 @@ async function main() {
   console.log(`  CSV columns: ${csvColumns.join(', ')}`);
 
   // Validate required columns exist (exclude computed columns not in CSV)
-  const COMPUTED_COLUMNS = ['extracted_clinichq_id'];
+  const COMPUTED_COLUMNS = ['extracted_clinichq_id', 'extracted_microchip'];
   const missing = TABLE_COLUMNS.filter(c => !COMPUTED_COLUMNS.includes(c) && !csvColumns.includes(c));
   if (missing.length > 0) {
     console.error(`${red}Error:${reset} Missing CSV columns: ${missing.join(', ')}`);

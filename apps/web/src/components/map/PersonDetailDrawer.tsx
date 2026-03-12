@@ -49,6 +49,8 @@ interface PersonDetails {
   associated_places: AssociatedPlace[] | null;
   cats: PersonCat[] | null;
   last_appointment_date: string | null;
+  do_not_contact?: boolean;
+  do_not_contact_reason?: string | null;
 }
 
 interface PersonDetailDrawerProps {
@@ -209,6 +211,27 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
                     </span>
                   );
                 })}
+              </div>
+            )}
+
+            {/* DNC Banner */}
+            {person.do_not_contact && (
+              <div style={{
+                background: "#fee2e2",
+                color: "#dc2626",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                marginBottom: "0.75rem",
+                border: "1px solid #fecaca",
+              }}>
+                Do Not Contact
+                {person.do_not_contact_reason && (
+                  <span style={{ fontWeight: 400, marginLeft: "0.5rem" }}>
+                    — {person.do_not_contact_reason}
+                  </span>
+                )}
               </div>
             )}
 

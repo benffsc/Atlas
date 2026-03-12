@@ -2,6 +2,7 @@
 
 import { CSSProperties, useState } from "react";
 import { formatRole } from "@/lib/display-labels";
+import EntityPreview from "@/components/search/EntityPreview";
 
 // Flexible person type that accommodates different data shapes from various pages
 interface LinkedPerson {
@@ -219,9 +220,11 @@ export function LinkedPeopleSection({
             >
               <div>
                 <div>
-                  <span style={{ fontWeight: 500 }}>
-                    {person.display_name || "Unknown person"}
-                  </span>
+                  <EntityPreview entityType="person" entityId={person.person_id}>
+                    <span style={{ fontWeight: 500 }}>
+                      {person.display_name || "Unknown person"}
+                    </span>
+                  </EntityPreview>
                 </div>
                 {(person.email || person.phone) && (
                   <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>

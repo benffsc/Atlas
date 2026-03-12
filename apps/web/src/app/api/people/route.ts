@@ -19,6 +19,11 @@ interface PersonListRow {
   created_at: string;
   source_quality: string;
   last_appointment_date: string | null;
+  // Status fields (FFS-434)
+  primary_role: string | null;
+  trapper_type: string | null;
+  do_not_contact: boolean;
+  entity_type: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -66,7 +71,12 @@ export async function GET(request: NextRequest) {
         primary_place,
         created_at,
         source_quality,
-        (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.person_id = v.person_id) AS last_appointment_date
+        (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.person_id = v.person_id) AS last_appointment_date,
+        -- Status fields (FFS-434)
+        primary_role,
+        trapper_type,
+        COALESCE((SELECT p.do_not_contact FROM sot.people p WHERE p.person_id = v.person_id), false) AS do_not_contact,
+        entity_type
       FROM sot.v_person_list_v3 v
       ${whereClause}
       ORDER BY

@@ -43,6 +43,8 @@ interface PersonDetailRow {
   data_quality: string | null;
   primary_place_id: string | null;
   last_appointment_date: string | null;
+  primary_role: string | null;
+  trapper_type: string | null;
   partner_orgs: PartnerOrg[] | null;
   associated_places: object[] | null;
   aliases: Array<{
@@ -86,6 +88,9 @@ export async function GET(
         p.do_not_contact_reason,
         pd.data_quality,
         pd.primary_place_id,
+        -- Role fields for status badges (FFS-436)
+        (SELECT pr.role FROM sot.person_roles pr WHERE pr.person_id = p.person_id AND pr.role_status = 'active' ORDER BY pr.created_at DESC LIMIT 1) AS primary_role,
+        (SELECT pr.trapper_type FROM sot.person_roles pr WHERE pr.person_id = p.person_id AND pr.role_status = 'active' AND pr.trapper_type IS NOT NULL ORDER BY pr.created_at DESC LIMIT 1) AS trapper_type,
         p.verified_at,
         p.verified_by,
         s.display_name AS verified_by_name,

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { unwrapApiResponse } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
 import { formatRole } from "@/lib/display-labels";
+import { CatHealthBadges, buildHealthFlags } from "@/components/badges";
 
 /* ------------------------------------------------------------------ */
 /*  Type definitions matching the GET /api/cats/:id response shape     */
@@ -66,6 +67,20 @@ interface CatPlace {
   relationship_type?: string;
 }
 
+interface CatVital {
+  weight_lbs: number | null;
+  is_pregnant: boolean | null;
+  is_lactating: boolean | null;
+  is_in_heat: boolean | null;
+  recorded_at: string;
+}
+
+interface CatCondition {
+  condition_type: string;
+  severity: string | null;
+  resolved_at: string | null;
+}
+
 interface CatDetails {
   cat_id: string;
   display_name: string;
@@ -73,14 +88,21 @@ interface CatDetails {
   altered_status: string | null;
   breed: string | null;
   color: string | null;
+  secondary_color: string | null;
   coat_pattern: string | null;
   microchip: string | null;
+  ownership_type: string | null;
+  current_status: string | null;
   is_deceased: boolean | null;
   total_appointments: number;
   first_appointment_date: string | null;
   last_appointment_date: string | null;
+  age_group?: string | null;
+  weight_lbs?: number | null;
 
   tests: CatTestResult[];
+  vitals?: CatVital[];
+  conditions?: CatCondition[];
   appointments: CatAppointmentSummary[];
   stakeholders: CatStakeholder[];
   movements: CatMovement[];
@@ -194,13 +216,42 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
             <div className="cat-drawer-badges">
               <SexBadge sex={cat.sex} />
               <AlteredBadge alteredStatus={cat.altered_status} sex={cat.sex} />
+              {cat.ownership_type && (
+                <OwnershipBadge ownershipType={cat.ownership_type} />
+              )}
+              {cat.current_status && cat.current_status !== "unknown" && !cat.is_deceased && (
+                <LifecycleStatusBadge status={cat.current_status} />
+              )}
               {cat.breed && (
                 <span className="cat-drawer-breed">{cat.breed}</span>
               )}
-              {cat.color && !cat.breed && (
-                <span className="cat-drawer-breed">{cat.color}</span>
+              {cat.color && (
+                <span className="cat-drawer-breed">
+                  {cat.color}{cat.secondary_color ? ` / ${cat.secondary_color}` : ""}{cat.coat_pattern ? ` (${cat.coat_pattern})` : ""}
+                </span>
               )}
             </div>
+
+            {/* Health badges row */}
+            {(() => {
+              const latestVital = cat.vitals?.[0];
+              const flags = buildHealthFlags({
+                diseases: cat.tests?.map((t) => ({
+                  disease_key: t.test_type,
+                  result: t.result,
+                })),
+                isPregnant: latestVital?.is_pregnant ?? false,
+                isLactating: latestVital?.is_lactating ?? false,
+                conditions: cat.conditions?.filter((c) => !c.resolved_at) ?? [],
+                ageGroup: cat.age_group,
+                weightLbs: cat.weight_lbs ?? latestVital?.weight_lbs,
+              });
+              return flags.length > 0 ? (
+                <div style={{ marginTop: "8px" }}>
+                  <CatHealthBadges healthFlags={flags} isDeceased={false} maxInline={5} size="sm" />
+                </div>
+              ) : null;
+            })()}
 
             {/* Stats grid */}
             <div className="stats-grid" style={{ gridTemplateColumns: `repeat(${cat.last_appointment_date ? 4 : 3}, 1fr)` }}>
@@ -441,6 +492,54 @@ function AlteredBadge({ alteredStatus, sex }: { alteredStatus: string | null; se
       style={{ backgroundColor: bgColor, color: textColor }}
     >
       {label !== "Intact" && label !== "?" ? label + " \u2013 " : ""}{alteredLabel}
+    </span>
+  );
+}
+
+function LifecycleStatusBadge({ status }: { status: string }) {
+  const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+    adopted: { label: "Adopted", bg: "rgba(22, 163, 74, 0.1)", color: "#16a34a" },
+    in_foster: { label: "In Foster", bg: "rgba(37, 99, 235, 0.1)", color: "#2563eb" },
+    in_care: { label: "In Care", bg: "rgba(79, 70, 229, 0.1)", color: "#4f46e5" },
+    community_cat: { label: "Community Cat", bg: "rgba(217, 119, 6, 0.1)", color: "#d97706" },
+    transferred: { label: "Transferred", bg: "rgba(147, 51, 234, 0.1)", color: "#9333ea" },
+    tnr_complete: { label: "TNR Complete", bg: "rgba(13, 148, 136, 0.1)", color: "#0d9488" },
+  };
+  const cfg = STATUS_CONFIG[status];
+  if (!cfg) return null;
+  return (
+    <span className="cat-drawer-info-badge" style={{ backgroundColor: cfg.bg, color: cfg.color }}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function OwnershipBadge({ ownershipType }: { ownershipType: string }) {
+  const lower = ownershipType.toLowerCase();
+  let label = ownershipType;
+  let bgColor = "#e5e7eb";
+  let textColor = "#6b7280";
+
+  if (lower.includes("feral") || lower.includes("community") || lower.includes("stray")) {
+    label = lower.includes("feral") ? "Feral" : lower.includes("stray") ? "Stray" : "Community";
+    bgColor = "rgba(220, 38, 38, 0.1)";
+    textColor = "#dc2626";
+  } else if (lower === "owned") {
+    label = "Owned";
+    bgColor = "rgba(37, 99, 235, 0.1)";
+    textColor = "#2563eb";
+  } else if (lower === "foster") {
+    label = "Foster";
+    bgColor = "rgba(147, 51, 234, 0.1)";
+    textColor = "#9333ea";
+  }
+
+  return (
+    <span
+      className="cat-drawer-info-badge"
+      style={{ backgroundColor: bgColor, color: textColor }}
+    >
+      {label}
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { formatPhone, formatRelativeTime, formatDateLocal } from "@/lib/formatters";
 import { formatPlaceKind, formatRole } from "@/lib/display-labels";
+import { CatHealthBadges, buildHealthFlags, PlaceRiskBadges, PersonStatusBadges } from "@/components/badges";
 
 // --- Shared interfaces ---
 
@@ -20,7 +21,13 @@ export interface CatDetail {
   last_appointment_date?: string | null;
   first_appointment_date?: string | null;
   total_appointments?: number;
-  tests?: Array<{ test_type?: string; disease_key?: string; disease_display_name?: string; result?: string; disease_badge_color?: string }>;
+  tests?: Array<{ test_type?: string; disease_key?: string; disease_display_name?: string; result?: string; disease_badge_color?: string; short_code?: string }>;
+  // Health fields (FFS-427)
+  is_deceased?: boolean | null;
+  age_group?: string | null;
+  weight_lbs?: number | null;
+  vitals?: Array<{ weight_lbs?: number | null; is_pregnant?: boolean | null; is_lactating?: boolean | null }>;
+  conditions?: Array<{ condition_type: string; severity?: string | null; resolved_at?: string | null }>;
 }
 
 export interface PersonDetail {
@@ -33,6 +40,10 @@ export interface PersonDetail {
   place_count?: number;
   last_appointment_date?: string | null;
   entity_type?: string | null;
+  // Status fields (FFS-436)
+  do_not_contact?: boolean;
+  primary_role?: string | null;
+  trapper_type?: string | null;
 }
 
 export interface PlaceDetail {
@@ -47,6 +58,9 @@ export interface PlaceDetail {
   person_count?: number;
   last_appointment_date?: string | null;
   active_request_count?: number;
+  // Risk fields (FFS-432)
+  watch_list?: boolean;
+  disease_badges?: Array<{ disease_key: string; short_code: string; color: string; status: string; positive_cat_count?: number }>;
 }
 
 export interface RequestDetail {
@@ -156,15 +170,30 @@ function CatPreview({ cat }: { cat: CatDetail }) {
             bg={cat.altered_status === "altered" ? "var(--success-bg)" : "var(--warning-bg)"}
           />
         )}
-        {cat.tests?.filter(t => t.result && t.result !== "not_tested").map((t, i) => (
-          <PreviewPill
-            key={i}
-            label={`${t.disease_display_name || t.disease_key || t.test_type}: ${t.result}`}
-            color={t.disease_badge_color || "var(--muted)"}
-            bg="var(--section-bg)"
-          />
-        ))}
       </div>
+      {/* Health badges */}
+      {(() => {
+        const latestVital = cat.vitals?.[0];
+        const flags = buildHealthFlags({
+          diseases: cat.tests?.map((t) => ({
+            disease_key: t.disease_key || t.test_type || "",
+            short_code: t.short_code || t.disease_key || t.test_type,
+            display_name: t.disease_display_name,
+            color: t.disease_badge_color,
+            result: t.result || "",
+          })),
+          isPregnant: latestVital?.is_pregnant ?? false,
+          isLactating: latestVital?.is_lactating ?? false,
+          conditions: cat.conditions?.filter((c) => !c.resolved_at) ?? [],
+          ageGroup: cat.age_group,
+          weightLbs: cat.weight_lbs ?? latestVital?.weight_lbs,
+        });
+        return (flags.length > 0 || cat.is_deceased) ? (
+          <div style={{ marginBottom: "0.5rem" }}>
+            <CatHealthBadges healthFlags={flags} isDeceased={cat.is_deceased ?? false} maxInline={4} />
+          </div>
+        ) : null;
+      })()}
       {(cat.total_appointments || cat.last_appointment_date) && (
         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
           {cat.total_appointments ? `${cat.total_appointments} clinic visit${cat.total_appointments !== 1 ? "s" : ""}` : ""}
@@ -222,11 +251,16 @@ function PersonPreview({ person }: { person: PersonDetail }) {
           </>
         )}
       </div>
-      {/* Activity line + role badge */}
+      {/* Status badges */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.5rem" }}>
-        {person.entity_type && person.entity_type !== "person" && (
-          <PreviewPill label={formatRole(person.entity_type)} color="var(--primary)" bg="color-mix(in srgb, var(--primary) 15%, transparent)" />
-        )}
+        <PersonStatusBadges
+          primaryRole={person.primary_role}
+          trapperType={person.trapper_type}
+          doNotContact={person.do_not_contact}
+          entityType={person.entity_type}
+          catCount={person.cat_count}
+          size="sm"
+        />
       </div>
       {activityParts.length > 0 && (
         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
@@ -270,12 +304,22 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
         {place.formatted_address && <PreviewRow value={place.formatted_address} />}
         {place.place_kind && <PreviewRow label="Type" value={formatPlaceKind(place.place_kind)} />}
       </div>
-      {/* Activity line + request badge */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.5rem" }}>
-        {(place.active_request_count ?? 0) > 0 && (
-          <PreviewPill label="Active Request" color="var(--warning-text)" bg="var(--warning-bg)" />
-        )}
-      </div>
+      {/* Risk badges */}
+      {(place.disease_badges?.length || place.watch_list || (place.active_request_count ?? 0) > 0) ? (
+        <div style={{ marginBottom: "0.5rem" }}>
+          <PlaceRiskBadges
+            diseaseFlags={place.disease_badges?.map((d) => ({
+              disease_key: d.disease_key,
+              short_code: d.short_code,
+              status: d.status,
+              color: d.color,
+              positive_cat_count: d.positive_cat_count,
+            }))}
+            watchList={place.watch_list}
+            activeRequestCount={place.active_request_count}
+          />
+        </div>
+      ) : null}
       {activityParts.length > 0 && (
         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
           {activityParts.join(" \u00B7 ")}

@@ -6,6 +6,9 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatPlaceKind } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
+import { PlaceRiskBadges } from "@/components/badges";
+import type { DiseaseFlag } from "@/components/badges/PlaceRiskBadges";
+import EntityPreview from "@/components/search/EntityPreview";
 
 interface Place {
   place_id: string;
@@ -20,6 +23,8 @@ interface Place {
   created_at: string;
   last_appointment_date: string | null;
   active_request_count: number;
+  watch_list?: boolean;
+  disease_flags?: DiseaseFlag[];
 }
 
 interface PlacesResponse {
@@ -46,6 +51,8 @@ const FILTER_DEFAULTS = {
   q: "",
   kind: "",
   has_cats: "",
+  disease_risk: "",
+  watch_list: "",
   page: "0",
 };
 
@@ -68,6 +75,8 @@ function PlacesPageContent() {
     if (filters.q) params.set("q", filters.q);
     if (filters.kind) params.set("place_kind", filters.kind);
     if (filters.has_cats) params.set("has_cats", filters.has_cats);
+    if (filters.disease_risk) params.set("disease_risk", filters.disease_risk);
+    if (filters.watch_list) params.set("watch_list", filters.watch_list);
     params.set("limit", String(limit));
     params.set("offset", String(page * limit));
 
@@ -84,7 +93,7 @@ function PlacesPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [filters.q, filters.kind, filters.has_cats, page]);
+  }, [filters.q, filters.kind, filters.has_cats, filters.disease_risk, filters.watch_list, page]);
 
   useEffect(() => {
     fetchPlaces();
@@ -139,6 +148,16 @@ function PlacesPageContent() {
           <option value="true">Has cats</option>
           <option value="false">No cats</option>
         </select>
+        <select value={filters.disease_risk} onChange={(e) => setFilters({ disease_risk: e.target.value, page: "0" })}>
+          <option value="">All risk levels</option>
+          <option value="felv">FeLV risk</option>
+          <option value="fiv">FIV risk</option>
+        </select>
+        <select value={filters.watch_list} onChange={(e) => setFilters({ watch_list: e.target.value, page: "0" })}>
+          <option value="">All watch status</option>
+          <option value="true">On watch list</option>
+          <option value="false">Not on watch list</option>
+        </select>
         <button type="submit">Search</button>
       </form>
 
@@ -187,6 +206,15 @@ function PlacesPageContent() {
                       </span>
                     )}
                   </div>
+                  {(place.disease_flags?.length || place.watch_list || place.active_request_count > 0) ? (
+                    <div style={{ marginTop: "4px" }}>
+                      <PlaceRiskBadges
+                        diseaseFlags={place.disease_flags}
+                        watchList={place.watch_list}
+                        activeRequestCount={place.active_request_count}
+                      />
+                    </div>
+                  ) : null}
                   {place.formatted_address && (
                     <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
                       {place.formatted_address}
@@ -198,9 +226,6 @@ function PlacesPageContent() {
                     {place.locality && <span>{place.locality}</span>}
                     {place.last_appointment_date && (
                       <span>Last: {formatRelativeTime(place.last_appointment_date)}</span>
-                    )}
-                    {place.active_request_count > 0 && (
-                      <span style={{ color: "var(--warning-text)" }}>{place.active_request_count} active req</span>
                     )}
                   </div>
                 </a>
@@ -224,7 +249,17 @@ function PlacesPageContent() {
                   {data.places.map((place) => (
                     <tr key={place.place_id}>
                       <td>
-                        <a href={`/places/${place.place_id}`}>{place.display_name}</a>
+                        <EntityPreview entityType="place" entityId={place.place_id}>
+                          <a href={`/places/${place.place_id}`}>{place.display_name}</a>
+                        </EntityPreview>
+                        {(place.disease_flags?.length || place.watch_list) ? (
+                          <div style={{ marginTop: "2px" }}>
+                            <PlaceRiskBadges
+                              diseaseFlags={place.disease_flags}
+                              watchList={place.watch_list}
+                            />
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         {place.formatted_address || <span className="text-muted">&mdash;</span>}

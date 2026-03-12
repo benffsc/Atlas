@@ -5,6 +5,8 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
+import { PersonStatusBadges } from "@/components/badges";
+import EntityPreview from "@/components/search/EntityPreview";
 
 interface Person {
   person_id: string;
@@ -21,6 +23,11 @@ interface Person {
   primary_place: string | null;
   created_at: string;
   last_appointment_date: string | null;
+  // Status fields (FFS-434)
+  primary_role?: string | null;
+  trapper_type?: string | null;
+  do_not_contact?: boolean;
+  entity_type?: string | null;
 }
 
 interface PeopleResponse {
@@ -155,6 +162,17 @@ function PeoplePageContent() {
                       <span className="badge" style={{ fontSize: "0.7em", background: "#dc3545" }}>Low</span>
                     )}
                   </div>
+                  {(person.do_not_contact || person.primary_role || person.entity_type) && (
+                    <div style={{ marginTop: "4px" }}>
+                      <PersonStatusBadges
+                        primaryRole={person.primary_role}
+                        trapperType={person.trapper_type}
+                        doNotContact={person.do_not_contact}
+                        entityType={person.entity_type}
+                        catCount={person.cat_count}
+                      />
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
                     <span>
                       {person.has_email && "Email"}{person.has_email && person.has_phone && " / "}{person.has_phone && "Phone"}
@@ -190,21 +208,32 @@ function PeoplePageContent() {
                   {data.people.map((person) => (
                     <tr key={person.person_id} style={person.surface_quality === "Low" ? { opacity: 0.7 } : {}}>
                       <td>
-                        <a href={`/people/${person.person_id}`}>{person.display_name}</a>
-                        {person.account_type && person.account_type !== "person" && (
-                          <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7em", background: "#6c757d" }}>
-                            {person.account_type}
-                          </span>
-                        )}
-                        {person.is_canonical === false && (
-                          <span
-                            className="badge"
-                            style={{ marginLeft: "0.5rem", fontSize: "0.7em", background: "#dc3545" }}
-                            title="Non-canonical record (organization, placeholder, or garbage name)"
-                          >
-                            Non-canonical
-                          </span>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                          <EntityPreview entityType="person" entityId={person.person_id}>
+                            <a href={`/people/${person.person_id}`}>{person.display_name}</a>
+                          </EntityPreview>
+                          <PersonStatusBadges
+                            primaryRole={person.primary_role}
+                            trapperType={person.trapper_type}
+                            doNotContact={person.do_not_contact}
+                            entityType={person.entity_type}
+                            catCount={person.cat_count}
+                          />
+                          {person.account_type && person.account_type !== "person" && !person.entity_type && (
+                            <span className="badge" style={{ fontSize: "0.7em", background: "#6c757d" }}>
+                              {person.account_type}
+                            </span>
+                          )}
+                          {person.is_canonical === false && (
+                            <span
+                              className="badge"
+                              style={{ fontSize: "0.7em", background: "#dc3545" }}
+                              title="Non-canonical record (organization, placeholder, or garbage name)"
+                            >
+                              Non-canonical
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         {person.surface_quality === "High" ? (

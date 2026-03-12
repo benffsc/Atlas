@@ -3,6 +3,14 @@ import { queryRows, query, queryOne } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
 
+interface DiseaseFlag {
+  disease_key: string;
+  short_code: string;
+  status: string;
+  color: string | null;
+  positive_cat_count: number;
+}
+
 interface PlaceListRow {
   place_id: string;
   display_name: string;
@@ -16,6 +24,9 @@ interface PlaceListRow {
   created_at: string;
   last_appointment_date: string | null;
   active_request_count: number;
+  // Risk fields (FFS-430)
+  watch_list: boolean;
+  disease_flags: DiseaseFlag[];
 }
 
 export async function GET(request: NextRequest) {
@@ -24,6 +35,8 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get("q") || null;
   const placeKind = searchParams.get("place_kind");
   const hasCats = searchParams.get("has_cats");
+  const diseaseRisk = searchParams.get("disease_risk"); // felv, fiv, etc.
+  const watchList = searchParams.get("watch_list"); // true/false
   const { limit, offset } = parsePagination(searchParams);
 
   const conditions: string[] = [];
@@ -52,6 +65,25 @@ export async function GET(request: NextRequest) {
     conditions.push("cat_count = 0");
   }
 
+  // Disease risk filter (FFS-441)
+  if (diseaseRisk) {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM ops.place_disease_status pds
+      WHERE pds.place_id = v.place_id
+        AND pds.disease_type_key = $${paramIndex}
+        AND pds.status NOT IN ('false_flag', 'cleared')
+    )`);
+    params.push(diseaseRisk);
+    paramIndex++;
+  }
+
+  // Watch list filter (FFS-441)
+  if (watchList === "true") {
+    conditions.push(`EXISTS (SELECT 1 FROM sot.places p WHERE p.place_id = v.place_id AND p.watch_list = true)`);
+  } else if (watchList === "false") {
+    conditions.push(`NOT EXISTS (SELECT 1 FROM sot.places p WHERE p.place_id = v.place_id AND p.watch_list = true)`);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   try {
@@ -68,7 +100,22 @@ export async function GET(request: NextRequest) {
         has_cat_activity,
         created_at,
         (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.place_id = v.place_id OR a.inferred_place_id = v.place_id) AS last_appointment_date,
-        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = v.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) AS active_request_count
+        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = v.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) AS active_request_count,
+        -- Risk fields (FFS-430)
+        COALESCE((SELECT p.watch_list FROM sot.places p WHERE p.place_id = v.place_id), false) AS watch_list,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'disease_key', pds.disease_type_key,
+            'short_code', dt.short_code,
+            'status', pds.status,
+            'color', dt.badge_color,
+            'positive_cat_count', pds.positive_cat_count
+          ))
+          FROM ops.place_disease_status pds
+          JOIN ops.disease_types dt ON dt.disease_key = pds.disease_type_key
+          WHERE pds.place_id = v.place_id
+            AND pds.status NOT IN ('false_flag')
+        ), '[]'::jsonb) AS disease_flags
       FROM sot.v_place_list v
       ${whereClause}
       ORDER BY display_name ASC

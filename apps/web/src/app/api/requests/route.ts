@@ -363,14 +363,16 @@ export async function POST(request: NextRequest) {
         body.is_being_fed ?? null, body.feeder_name ?? null, feedingFrequency, body.feeding_location ?? null, body.feeding_time ?? null,
         body.best_times_seen ?? null,
         // Medical: $45-$46
-        body.has_medical_concerns ?? false, body.medical_description ?? null,
+        body.has_medical_concerns ?? null, body.medical_description ?? null,
         // Property & Access: $47-$61
         body.property_type ?? null, body.location_description ?? null, body.is_property_owner ?? null, body.has_property_access ?? null,
         body.access_notes ?? null, body.permission_status ?? null, body.traps_overnight_safe ?? null, body.access_without_contact ?? null,
         body.property_owner_name ?? null, body.property_owner_phone ?? null, body.authorization_pending ?? null, body.best_contact_times ?? null,
         body.dogs_on_site ?? null, body.trap_savvy ?? null, body.previous_tnr ?? null,
         // Third party & location meta: $62-$65
-        body.is_third_party_report ?? false, body.third_party_relationship ?? null, body.county ?? null, body.is_emergency ?? false,
+        body.is_third_party_report ?? false, body.third_party_relationship ?? null, body.county ?? null,
+        // FFS-466: Derive is_emergency from urgency_reasons if not explicitly set
+        body.is_emergency ?? (body.urgency_reasons?.includes("emergency") ? true : false),
         // Urgency: $66-$68
         body.urgency_reasons ?? null, body.urgency_deadline ?? null, body.urgency_notes ?? null,
         // Triage: $69-$70

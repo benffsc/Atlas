@@ -1053,7 +1053,7 @@ function RequestsPageContent() {
               fontSize: "0.9rem",
             }}
           >
-            Print Call Sheet
+            Print TNR Call Sheet
           </a>
           <a
             href="/requests/new"

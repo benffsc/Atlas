@@ -2,6 +2,9 @@
 
 import { CSSProperties, useState } from "react";
 import { formatRole } from "@/lib/display-labels";
+import { PlaceRiskBadges } from "@/components/badges";
+import type { DiseaseFlag } from "@/components/badges/PlaceRiskBadges";
+import EntityPreview from "@/components/search/EntityPreview";
 
 // Flexible place type that accommodates different data shapes from various pages
 interface LinkedPlace {
@@ -22,6 +25,9 @@ interface LinkedPlace {
   lng?: number | null;
   // Source tracking
   source_system?: string | null;
+  // Risk data (FFS-433)
+  watch_list?: boolean;
+  disease_flags?: DiseaseFlag[];
 }
 
 interface LinkedPlacesSectionProps {
@@ -193,9 +199,11 @@ export function LinkedPlacesSection({
             >
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ fontWeight: 500 }}>
-                    {place.display_name || place.formatted_address || "Unknown place"}
-                  </span>
+                  <EntityPreview entityType="place" entityId={place.place_id}>
+                    <span style={{ fontWeight: 500 }}>
+                      {place.display_name || place.formatted_address || "Unknown place"}
+                    </span>
+                  </EntityPreview>
                   {place.is_primary && (
                     <span
                       className="badge"
@@ -205,6 +213,11 @@ export function LinkedPlacesSection({
                     </span>
                   )}
                 </div>
+                {(place.disease_flags?.length || place.watch_list) ? (
+                  <div style={{ marginTop: "2px" }}>
+                    <PlaceRiskBadges diseaseFlags={place.disease_flags} watchList={place.watch_list} />
+                  </div>
+                ) : null}
                 {place.formatted_address && place.display_name !== place.formatted_address && (
                   <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>
                     {place.formatted_address}

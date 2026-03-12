@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { EntityPreviewContent, useEntityDetail } from "./EntityPreviewContent";
 import type { EntityType } from "./EntityPreviewContent";
 
@@ -10,10 +11,15 @@ interface EntityPreviewProps {
   children: React.ReactNode;
 }
 
+const CARD_WIDTH = 320;
+const CARD_MAX_HEIGHT = 400;
+const GAP = 8;
+
 export default function EntityPreview({ entityType, entityId, children }: EntityPreviewProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { detail, loading } = useEntityDetail(
@@ -21,15 +27,44 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
     isHovering ? entityId : null,
   );
 
+  const computePosition = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+
+    // Prefer below trigger; flip above if not enough space
+    const spaceBelow = vh - rect.bottom - GAP;
+    const spaceAbove = rect.top - GAP;
+    const cardHeight = cardRef.current?.offsetHeight || CARD_MAX_HEIGHT;
+
+    let top: number;
+    if (spaceBelow >= cardHeight || spaceBelow >= spaceAbove) {
+      // Position below
+      top = rect.bottom + GAP;
+    } else {
+      // Position above
+      top = rect.top - GAP - cardHeight;
+    }
+
+    // Clamp left so card stays in viewport
+    let left = rect.left;
+    if (left + CARD_WIDTH > vw - GAP) {
+      left = vw - CARD_WIDTH - GAP;
+    }
+    if (left < GAP) {
+      left = GAP;
+    }
+
+    // Clamp top within viewport
+    top = Math.max(GAP, Math.min(top, vh - cardHeight - GAP));
+
+    setPosition({ top, left });
+  };
+
   const handleMouseEnter = () => {
     hoverTimeoutRef.current = setTimeout(() => {
-      if (triggerRef.current) {
-        const rect = triggerRef.current.getBoundingClientRect();
-        setPosition({
-          top: rect.bottom + window.scrollY + 8,
-          left: Math.max(8, rect.left + window.scrollX),
-        });
-      }
+      computePosition();
       setIsHovering(true);
     }, 300);
   };
@@ -40,6 +75,13 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
     }
     setIsHovering(false);
   };
+
+  // Recompute position when card renders (actual height may differ from estimate)
+  useEffect(() => {
+    if (isHovering && cardRef.current) {
+      computePosition();
+    }
+  }, [isHovering, loading, detail]);
 
   useEffect(() => {
     return () => {
@@ -56,20 +98,23 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
     >
       {children}
 
-      {isHovering && position && (
+      {isHovering && typeof document !== "undefined" && createPortal(
         <div
+          ref={cardRef}
           style={{
-            position: "absolute",
-            top: position.top,
-            left: position.left,
-            zIndex: 1000,
+            position: "fixed",
+            top: position?.top ?? -9999,
+            left: position?.left ?? -9999,
+            zIndex: 9999,
             background: "var(--background)",
             border: "1px solid var(--border)",
             borderRadius: "8px",
             boxShadow: "0 4px 16px rgba(0, 0, 0, 0.15)",
             padding: "0.75rem",
             minWidth: 280,
-            maxWidth: 360,
+            maxWidth: CARD_WIDTH,
+            maxHeight: CARD_MAX_HEIGHT,
+            overflowY: "auto",
             fontSize: "0.875rem",
           }}
           onMouseEnter={() => setIsHovering(true)}
@@ -80,7 +125,8 @@ export default function EntityPreview({ entityType, entityId, children }: Entity
             detail={detail}
             loading={loading}
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

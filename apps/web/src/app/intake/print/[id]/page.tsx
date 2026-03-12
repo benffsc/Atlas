@@ -3,6 +3,8 @@
 import { useState, useEffect, use } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi } from "@/lib/api-client";
+import { PRINT_BASE_CSS } from "@/lib/print-styles";
+import { PrintFooter, PrintControlsPanel } from "@/components/print";
 import {
   URGENT_SITUATION_EXAMPLES,
   getOwnershipLabel as getOwnershipLabelFromLib,
@@ -55,7 +57,6 @@ interface IntakeSubmission {
   review_notes: string | null;
   reviewed_by: string | null;
   custom_fields: Record<string, string | boolean | number> | null;
-  // Legacy fields
   is_legacy: boolean;
   legacy_status: string | null;
   legacy_submission_status: string | null;
@@ -63,7 +64,6 @@ interface IntakeSubmission {
   legacy_notes: string | null;
   submission_status: string | null;
   appointment_date: string | null;
-  // Additional fields
   feeds_cat: boolean | null;
   feeding_frequency: string | null;
   feeding_duration: string | null;
@@ -85,7 +85,7 @@ function formatValue(value: string | null | undefined): string {
 }
 
 function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
+  if (!dateStr) return "\u2014";
   try {
     return new Date(dateStr).toLocaleDateString("en-US", {
       weekday: "short",
@@ -110,6 +110,12 @@ function getPriorityColor(priority: string | null, triage: string | null): strin
   if (priority === "high") return "#e74c3c";
   if (triage === "high_priority" || triage === "ffr_high") return "#e67e22";
   return "#27ae60";
+}
+
+function CheckItem({ value, label }: { value: boolean | null; label: string }) {
+  const cls = value ? "check-yes" : value === false ? "check-no" : "check-na";
+  const icon = value ? "\u2713" : value === false ? "\u2717" : "?";
+  return <span className={`check-item ${cls}`}>{icon} {label}</span>;
 }
 
 export default function PrintSubmissionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -139,7 +145,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
   const fullName = `${submission.first_name} ${submission.last_name}`;
   const isLegacy = submission.is_legacy;
 
-  // Helper to get custom field value with label
   const getCustomFieldDisplay = (key: string): { label: string; value: string } | null => {
     const fieldDef = customFieldDefs.find(f => f.field_key === key);
     const rawValue = submission.custom_fields?.[key];
@@ -156,76 +161,28 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
     return { label: fieldDef.field_label, value: displayValue };
   };
 
-  // Get all filled custom fields
   const filledCustomFields = customFieldDefs
     .map(f => getCustomFieldDisplay(f.field_key))
     .filter((f): f is { label: string; value: string } => f !== null);
 
-  // Get status for display
   const displayStatus = submission.submission_status || submission.legacy_submission_status || "New";
   const appointmentDate = submission.appointment_date || submission.legacy_appointment_date;
 
   return (
     <div className="print-wrapper">
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@600;700&display=swap');
+        ${PRINT_BASE_CSS}
 
-        @media print {
-          @page { size: letter; margin: 0.5in; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .print-controls { display: none !important; }
-          .print-page {
-            padding: 0 !important;
-            box-shadow: none !important;
-            margin: 0 !important;
-            page-break-after: always;
-          }
-          .print-page:last-child { page-break-after: auto; }
-        }
+        /* ── Submission report overrides ── */
+        .print-wrapper { font-size: 10pt; line-height: 1.35; }
+        .print-page { min-height: 10in; padding: 0.4in; }
+        .print-header { padding-bottom: 12px; margin-bottom: 16px; align-items: flex-start; }
+        .print-header h1 { font-size: 18pt; }
+        .print-header .subtitle { font-size: 10pt; }
+        .section { margin-bottom: 14px; }
+        .section-title { font-size: 11pt; margin-bottom: 10px; padding-bottom: 4px; border-bottom-width: 2px; }
 
-        body { margin: 0; padding: 0; }
-
-        .print-wrapper {
-          font-family: Helvetica, Arial, sans-serif;
-          font-size: 10pt;
-          line-height: 1.35;
-          color: #2c3e50;
-        }
-
-        .print-page {
-          width: 8.5in;
-          min-height: 10in;
-          padding: 0.5in;
-          box-sizing: border-box;
-          background: #fff;
-        }
-
-        h1, h2, h3, .section-title {
-          font-family: 'Raleway', Helvetica, sans-serif;
-          font-weight: 700;
-        }
-
-        .print-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding-bottom: 12px;
-          margin-bottom: 16px;
-          border-bottom: 3px solid #3498db;
-        }
-
-        .print-header h1 {
-          font-size: 18pt;
-          margin: 0;
-          color: #2c3e50;
-        }
-
-        .print-header .subtitle {
-          font-size: 10pt;
-          color: #7f8c8d;
-          margin-top: 2px;
-        }
-
+        /* ── Status strip ── */
         .status-strip {
           display: flex;
           gap: 16px;
@@ -235,7 +192,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           margin-bottom: 16px;
           align-items: center;
         }
-
         .status-badge {
           padding: 4px 12px;
           border-radius: 20px;
@@ -244,88 +200,43 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
-
-        .status-new { background: #3498db; color: white; }
+        .status-new { background: #27ae60; color: white; }
         .status-in_progress { background: #f39c12; color: white; }
-        .status-scheduled { background: #27ae60; color: white; }
+        .status-scheduled { background: #2563eb; color: white; }
         .status-complete { background: #95a5a6; color: white; }
         .status-archived { background: #7f8c8d; color: white; }
+        .meta-item { font-size: 9pt; color: #7f8c8d; }
+        .meta-item strong { color: #2c3e50; }
 
-        .meta-item {
-          font-size: 9pt;
-          color: #7f8c8d;
-        }
-
-        .meta-item strong {
-          color: #2c3e50;
-        }
-
-        .section {
-          margin-bottom: 14px;
-        }
-
-        .section-title {
-          font-size: 11pt;
-          color: #3498db;
-          border-bottom: 2px solid #ecf0f1;
-          padding-bottom: 4px;
-          margin-bottom: 10px;
-        }
-
+        /* ── Cards ── */
         .card {
           background: #f8f9fa;
           border-radius: 8px;
           padding: 12px;
           margin-bottom: 12px;
         }
+        .card-highlight { border-left: 4px solid #27ae60; }
+        .card-warning { background: #fef9e7; border-left: 4px solid #f39c12; }
+        .card-emergency { background: #fdedec; border-left: 4px solid #e74c3c; }
 
-        .card-highlight {
-          border-left: 4px solid #3498db;
-        }
-
-        .card-warning {
-          background: #fef9e7;
-          border-left: 4px solid #f39c12;
-        }
-
-        .card-emergency {
-          background: #fdedec;
-          border-left: 4px solid #e74c3c;
-        }
-
+        /* ── Info grid ── */
         .info-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
           gap: 8px 20px;
         }
-
-        .info-grid-3 {
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        .info-item {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
+        .info-grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .info-item { display: flex; flex-direction: column; gap: 2px; }
         .info-label {
           font-size: 8pt;
           color: #7f8c8d;
           text-transform: uppercase;
           letter-spacing: 0.3px;
         }
+        .info-value { font-size: 10pt; color: #2c3e50; font-weight: 500; }
+        .info-value.large { font-size: 12pt; }
 
-        .info-value {
-          font-size: 10pt;
-          color: #2c3e50;
-          font-weight: 500;
-        }
-
-        .info-value.large {
-          font-size: 12pt;
-        }
-
+        /* ── Tags ── */
         .tag {
           display: inline-block;
           padding: 2px 8px;
@@ -333,12 +244,12 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           font-size: 9pt;
           font-weight: 500;
         }
-
         .tag-blue { background: #e8f4fd; color: #2980b9; }
-        .tag-green { background: #e8f8f5; color: #27ae60; }
+        .tag-green { background: #f0fdf4; color: #27ae60; }
         .tag-orange { background: #fef5e7; color: #e67e22; }
         .tag-purple { background: #f4ecf7; color: #8e44ad; }
 
+        /* ── Description / notes ── */
         .description-box {
           background: white;
           border: 1px solid #e0e0e0;
@@ -349,38 +260,6 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           font-size: 10pt;
           line-height: 1.4;
         }
-
-        .checklist {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px 12px;
-          padding-right: 4px;
-        }
-
-        .check-item {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 9pt;
-        }
-
-        .check-yes { color: #27ae60; }
-        .check-no { color: #e74c3c; }
-        .check-na { color: #7f8c8d; }
-
-        .staff-section {
-          background: #f0f3f4;
-          border: 2px dashed #bdc3c7;
-          border-radius: 8px;
-          padding: 12px;
-          margin-top: 12px;
-        }
-
-        .staff-section .section-title {
-          color: #7f8c8d;
-          border-bottom-color: #bdc3c7;
-        }
-
         .notes-box {
           background: white;
           border: 1px solid #ddd;
@@ -390,6 +269,14 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           font-size: 9pt;
         }
 
+        /* ── Checklist ── */
+        .checklist { display: flex; flex-wrap: wrap; gap: 6px 12px; padding-right: 4px; }
+        .check-item { display: flex; align-items: center; gap: 4px; font-size: 9pt; }
+        .check-yes { color: #27ae60; }
+        .check-no { color: #e74c3c; }
+        .check-na { color: #7f8c8d; }
+
+        /* ── Legacy ── */
         .legacy-banner {
           background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
           color: white;
@@ -402,86 +289,50 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           gap: 8px;
         }
 
-        .footer {
-          margin-top: auto;
-          padding-top: 10px;
-          border-top: 1px solid #ecf0f1;
-          font-size: 8pt;
-          color: #95a5a6;
-          display: flex;
-          justify-content: space-between;
+        /* ── Foster info ── */
+        .foster-card {
+          background: #f0fdf4;
+          border-left: 4px solid #27ae60;
+          border-radius: 8px;
+          padding: 10px 12px;
+        }
+        .foster-card strong { color: #166534; }
+        .foster-card ul {
+          margin: 8px 0 0 0;
+          padding-left: 20px;
+          font-size: 9pt;
+          line-height: 1.5;
         }
 
-        @media screen {
-          body { background: #ecf0f1 !important; }
-          .print-wrapper { padding: 20px; }
-          .print-page {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin: 0 auto 30px auto;
-            border-radius: 8px;
-          }
-          .print-controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #fff;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            z-index: 1000;
-          }
-          .print-controls button {
-            display: block;
-            width: 100%;
-            padding: 12px 20px;
-            margin-bottom: 10px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
-          }
-          .print-controls .print-btn {
-            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-            color: #fff;
-          }
-          .print-controls .print-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(52,152,219,0.4);
-          }
-          .print-controls .back-btn {
-            background: #f0f0f0;
-            color: #333;
-          }
+        @media print {
+          .print-page { padding: 0 !important; }
         }
       `}</style>
 
-      {/* Controls */}
-      <div className="print-controls">
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", fontSize: "13px", cursor: "pointer" }}>
+      {/* ── Controls ── */}
+      <PrintControlsPanel
+        title="Print Submission"
+        backHref="/intake/queue"
+        backLabel="← Back to Queue"
+      >
+        <label>
           <input
             type="checkbox"
             checked={hideStaffNotes}
             onChange={(e) => setHideStaffNotes(e.target.checked)}
-            style={{ width: "16px", height: "16px", accentColor: "#3498db" }}
           />
           Hide staff notes (public-safe)
         </label>
-        <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
-        <a href={`/intake/queue`} style={{ textDecoration: "none" }}>
-          <button className="back-btn" style={{ width: "100%" }}>← Back to Queue</button>
-        </a>
-      </div>
+      </PrintControlsPanel>
 
-      {/* PAGE 1 */}
+      {/* ==================== PAGE 1 ==================== */}
       <div className="print-page" style={{ display: "flex", flexDirection: "column" }}>
         {/* Header */}
         <div className="print-header">
           <div>
             <h1>Help Request</h1>
             <div className="subtitle">
-              {fullName} • Submitted {formatDate(submission.submitted_at)}
+              {fullName} &bull; Submitted {formatDate(submission.submitted_at)}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -501,7 +352,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* Emergency Alert - Moved to top */}
+        {/* Emergency Alert */}
         {submission.is_emergency && (
           <div className="card card-emergency" style={{ marginBottom: "14px" }}>
             <strong style={{ color: "#e74c3c" }}>URGENT SITUATION</strong>
@@ -535,13 +386,13 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             <strong>Third-Party Report</strong>
             <div style={{ fontSize: "9pt", marginTop: "4px" }}>
               {submission.third_party_relationship && <span>Relationship: {submission.third_party_relationship}</span>}
-              {submission.property_owner_name && <span> • Property Owner: {submission.property_owner_name}</span>}
-              {submission.property_owner_phone && <span> • Contact: {formatPhone(submission.property_owner_phone)}</span>}
+              {submission.property_owner_name && <span> &bull; Property Owner: {submission.property_owner_name}</span>}
+              {submission.property_owner_phone && <span> &bull; Contact: {formatPhone(submission.property_owner_phone)}</span>}
             </div>
           </div>
         )}
 
-        {/* Contact & Location - Combined Card */}
+        {/* Contact & Location */}
         <div className="card card-highlight">
           <div className="info-grid info-grid-3">
             <div className="info-item">
@@ -550,7 +401,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             </div>
             <div className="info-item">
               <span className="info-label">Phone</span>
-              <span className="info-value">{submission.phone ? formatPhone(submission.phone) : "—"}</span>
+              <span className="info-value">{submission.phone ? formatPhone(submission.phone) : "\u2014"}</span>
             </div>
             <div className="info-item">
               <span className="info-label">Email</span>
@@ -568,7 +419,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
               </div>
               <div className="info-item">
                 <span className="info-label">City / County</span>
-                <span className="info-value">{submission.cats_city || "—"} {submission.county ? `(${formatValue(submission.county)})` : ""}</span>
+                <span className="info-value">{submission.cats_city || "\u2014"} {submission.county ? `(${formatValue(submission.county)})` : ""}</span>
               </div>
             </div>
           </div>
@@ -576,9 +427,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
         {/* Cat Information */}
         <div className="section">
-          <div className="section-title">
-            About the Cats
-          </div>
+          <div className="section-title">About the Cats</div>
           <div className="info-grid">
             <div className="info-item">
               <span className="info-label">Type of Cat</span>
@@ -594,7 +443,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             </div>
             <div className="info-item">
               <span className="info-label">How Long Aware</span>
-              <span className="info-value">{formatValue(submission.awareness_duration) || "—"}</span>
+              <span className="info-value">{formatValue(submission.awareness_duration) || "\u2014"}</span>
             </div>
             {submission.has_kittens && (
               <>
@@ -615,36 +464,22 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
         {/* Situation Checklist */}
         <div className="section">
-          <div className="section-title">
-            Situation Details
-          </div>
+          <div className="section-title">Situation Details</div>
           <div className="checklist" style={{ marginBottom: "10px" }}>
-            <span className={`check-item ${submission.has_medical_concerns ? "check-yes" : submission.has_medical_concerns === false ? "check-no" : "check-na"}`}>
-              {submission.has_medical_concerns ? "✓" : submission.has_medical_concerns === false ? "✗" : "?"} Medical concerns
-            </span>
-            <span className={`check-item ${submission.cats_being_fed ? "check-yes" : submission.cats_being_fed === false ? "check-no" : "check-na"}`}>
-              {submission.cats_being_fed ? "✓" : submission.cats_being_fed === false ? "✗" : "?"} Cats being fed
-            </span>
-            <span className={`check-item ${submission.has_property_access ? "check-yes" : submission.has_property_access === false ? "check-no" : "check-na"}`}>
-              {submission.has_property_access ? "✓" : submission.has_property_access === false ? "✗" : "?"} Property access
-            </span>
-            <span className={`check-item ${submission.is_property_owner ? "check-yes" : submission.is_property_owner === false ? "check-no" : "check-na"}`}>
-              {submission.is_property_owner ? "✓" : submission.is_property_owner === false ? "✗" : "?"} Property owner
-            </span>
+            <CheckItem value={submission.has_medical_concerns} label="Medical concerns" />
+            <CheckItem value={submission.cats_being_fed} label="Cats being fed" />
+            <CheckItem value={submission.has_property_access} label="Property access" />
+            <CheckItem value={submission.is_property_owner} label="Property owner" />
             {submission.feeds_cat !== null && (
-              <span className={`check-item ${submission.feeds_cat ? "check-yes" : "check-no"}`}>
-                {submission.feeds_cat ? "✓" : "✗"} Feeds cat
-              </span>
+              <CheckItem value={submission.feeds_cat} label="Feeds cat" />
             )}
           </div>
-
-          {/* Situation Description */}
           <div className="description-box">
             {submission.situation_description || "No additional details provided."}
           </div>
         </div>
 
-        {/* Additional Info (feeding, custom fields) - Condensed */}
+        {/* Additional Info Tags */}
         {(submission.feeding_frequency || submission.referral_source || filledCustomFields.length > 0) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
             {submission.feeding_frequency && (
@@ -659,12 +494,10 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* Legacy Info Section - Hidden when hideStaffNotes is true */}
+        {/* Legacy Info */}
         {!hideStaffNotes && isLegacy && (submission.legacy_notes || submission.legacy_status) && (
           <div className="section">
-            <div className="section-title">
-              Legacy Information
-            </div>
+            <div className="section-title">Legacy Information</div>
             <div className="info-grid">
               {submission.legacy_status && (
                 <div className="info-item">
@@ -690,12 +523,10 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* Staff Section - Hidden when hideStaffNotes is true */}
+        {/* Staff Section */}
         {!hideStaffNotes && (
-          <div className="staff-section">
-            <div className="section-title">
-              Staff Notes
-            </div>
+          <div className="staff-box">
+            <div className="section-title">Staff Notes</div>
             <div className="info-grid" style={{ marginBottom: "8px" }}>
               <div className="info-item">
                 <span className="info-label">Priority</span>
@@ -705,7 +536,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
               </div>
               <div className="info-item">
                 <span className="info-label">Triage Score</span>
-                <span className="info-value">{submission.triage_score ?? "—"}</span>
+                <span className="info-value">{submission.triage_score ?? "\u2014"}</span>
               </div>
             </div>
             <div className="notes-box" style={{ minHeight: "40px" }}>
@@ -715,20 +546,22 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         )}
 
         {/* Footer */}
-        <div className="footer">
-          <span>Forgotten Felines of Sonoma County • Helping community cats since 1990</span>
-          <span>Printed {new Date().toLocaleDateString()}</span>
+        <div style={{ marginTop: "auto" }}>
+          <PrintFooter
+            left="Forgotten Felines of Sonoma County • Helping community cats since 1990"
+            right={`Printed ${new Date().toLocaleDateString()}`}
+          />
         </div>
       </div>
 
-      {/* PAGE 2: Kitten Details (only if has kittens) */}
+      {/* ==================== PAGE 2: Kitten Details ==================== */}
       {submission.has_kittens && (
         <div className="print-page" style={{ display: "flex", flexDirection: "column" }}>
           <div className="print-header">
             <div>
               <h1>Kitten Details</h1>
               <div className="subtitle">
-                {fullName} • {submission.cats_address}
+                {fullName} &bull; {submission.cats_address}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -762,9 +595,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           </div>
 
           <div className="section">
-            <div className="section-title">
-              Mom Cat Status
-            </div>
+            <div className="section-title">Mom Cat Status</div>
             <div className="info-grid">
               <div className="info-item">
                 <span className="info-label">Mom Present?</span>
@@ -792,9 +623,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
           {submission.kitten_notes && (
             <div className="section">
-              <div className="section-title">
-                Additional Kitten Notes
-              </div>
+              <div className="section-title">Additional Kitten Notes</div>
               <div className="description-box">
                 {submission.kitten_notes}
               </div>
@@ -802,9 +631,9 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           )}
 
           {/* Foster Program Info */}
-          <div className="card" style={{ background: "#e8f6f3", borderLeft: "4px solid #1abc9c" }}>
-            <strong style={{ color: "#16a085" }}>About Our Foster Program</strong>
-            <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px", fontSize: "9pt", lineHeight: "1.5" }}>
+          <div className="foster-card">
+            <strong>About Our Foster Program</strong>
+            <ul>
               <li><strong>Age matters:</strong> Under 12 weeks is ideal for socialization</li>
               <li><strong>Behavior matters:</strong> Friendly kittens are prioritized for foster</li>
               <li><strong>Mom helps:</strong> Spayed mom with kittens increases foster likelihood</li>
@@ -812,20 +641,18 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             </ul>
           </div>
 
-          {/* Staff Kitten Assessment - Hidden when hideStaffNotes is true */}
+          {/* Staff Kitten Assessment */}
           {!hideStaffNotes && (
-            <div className="staff-section">
-              <div className="section-title">
-                Kitten Assessment
-              </div>
+            <div className="staff-box" style={{ marginTop: "12px" }}>
+              <div className="section-title">Kitten Assessment</div>
               <div className="info-grid" style={{ marginBottom: "10px" }}>
                 <div className="info-item">
                   <span className="info-label">Outcome</span>
-                  <span className="info-value">{formatValue(submission.kitten_outcome) || "—"}</span>
+                  <span className="info-value">{formatValue(submission.kitten_outcome) || "\u2014"}</span>
                 </div>
                 <div className="info-item">
                   <span className="info-label">Foster Readiness</span>
-                  <span className="info-value">{formatValue(submission.foster_readiness) || "—"}</span>
+                  <span className="info-value">{formatValue(submission.foster_readiness) || "\u2014"}</span>
                 </div>
               </div>
               {submission.kitten_urgency_factors && submission.kitten_urgency_factors.length > 0 && (
@@ -846,9 +673,11 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             </div>
           )}
 
-          <div className="footer" style={{ marginTop: "auto" }}>
-            <span>Forgotten Felines of Sonoma County • Kitten Program</span>
-            <span>Page 2 of 2</span>
+          <div style={{ marginTop: "auto" }}>
+            <PrintFooter
+              left="Forgotten Felines of Sonoma County • Kitten Program"
+              right="Page 2 of 2"
+            />
           </div>
         </div>
       )}

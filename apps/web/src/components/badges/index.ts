@@ -30,6 +30,18 @@ export { Badge } from './Badge';
 // Data quality badges
 export { DataQualityBadge, AIParsedBadge, BeaconBadge, SourceBadge } from './DataQualityBadge';
 
+// Cat health badges
+export { CatHealthBadges, buildHealthFlags } from './CatHealthBadges';
+export type { HealthFlag, CatHealthBadgesProps, CatHealthData } from './CatHealthBadges';
+
+// Place risk badges
+export { PlaceRiskBadges } from './PlaceRiskBadges';
+export type { DiseaseFlag, PlaceRiskBadgesProps } from './PlaceRiskBadges';
+
+// Person status badges
+export { PersonStatusBadges } from './PersonStatusBadges';
+export type { PersonStatusBadgesProps } from './PersonStatusBadges';
+
 // Property and place type badges
 export { PropertyTypeBadge, getPropertyTypeLabel } from './PropertyTypeBadge';
 export type { PropertyType } from './PropertyTypeBadge';
