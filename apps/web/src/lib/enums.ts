@@ -165,6 +165,7 @@ export const PERSON_PLACE_ROLE = [
   // Referral/contact
   "referrer",
   "neighbor",
+  "site_contact",
   // Work/volunteer
   "works_at",
   "volunteers_at",

@@ -320,7 +320,10 @@ export async function POST(request: NextRequest) {
         -- Trapping logistics (FFS-151)
         best_trapping_time, ownership_status, important_notes,
         -- Raw requester contact (FFS-146)
-        raw_requester_name, raw_requester_phone, raw_requester_email
+        raw_requester_name, raw_requester_phone, raw_requester_email,
+        -- Person slots parity (FFS-443b)
+        property_owner_person_id, raw_property_owner_email,
+        raw_site_contact_name, raw_site_contact_phone, raw_site_contact_email
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13,
@@ -335,7 +338,9 @@ export async function POST(request: NextRequest) {
         $69, $70,
         $71, $72,
         $73, $74, $75,
-        $76, $77, $78
+        $76, $77, $78,
+        $79, $80,
+        $81, $82, $83
       )
       RETURNING request_id::TEXT`,
       [
@@ -376,6 +381,9 @@ export async function POST(request: NextRequest) {
         body.best_trapping_time ?? null, body.ownership_status ?? null, body.important_notes ?? null,
         // Raw requester contact (FFS-146): $76-$78
         body.raw_requester_name ?? null, body.raw_requester_phone ?? null, body.raw_requester_email ?? null,
+        // Person slots parity (FFS-443b): $79-$83
+        body.property_owner_person_id ?? null, body.raw_property_owner_email ?? null,
+        body.raw_site_contact_name ?? null, body.raw_site_contact_phone ?? null, body.raw_site_contact_email ?? null,
       ]
     );
 
@@ -412,6 +420,79 @@ export async function POST(request: NextRequest) {
         }
       } catch (resolveError) {
         console.warn("[POST /api/requests] Auto-resolve requester failed (non-blocking):", resolveError);
+      }
+    }
+
+    // FFS-443b: Auto-resolve property owner person from raw contact info
+    // Requires name + (phone OR email) per INV-5
+    if (!body.property_owner_person_id && body.property_owner_name && (body.property_owner_phone || body.raw_property_owner_email)) {
+      try {
+        const nameParts = body.property_owner_name.trim().split(/\s+/);
+        const firstName = nameParts[0] || null;
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+        const resolved = await queryOne<{ person_id: string }>(
+          `SELECT person_id::TEXT FROM sot.find_or_create_person(
+            $1, $2, $3, $4, NULL, 'atlas_ui'
+          )`,
+          [body.raw_property_owner_email ?? null, body.property_owner_phone ?? null, firstName, lastName]
+        );
+
+        if (resolved?.person_id) {
+          // Store property_owner_person_id on the request
+          await queryOne(
+            `UPDATE ops.requests SET property_owner_person_id = $1 WHERE request_id = $2`,
+            [resolved.person_id, result.request_id]
+          );
+
+          // Link property owner to the request's place
+          if (body.place_id) {
+            await queryOne(
+              `INSERT INTO sot.person_place_relationships (person_id, place_id, relationship_type, source_system)
+               VALUES ($1::UUID, $2::UUID, 'property_owner', 'atlas_ui')
+               ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING`,
+              [resolved.person_id, body.place_id]
+            );
+          }
+        }
+      } catch (resolveError) {
+        console.warn("[POST /api/requests] Auto-resolve property owner failed (non-blocking):", resolveError);
+      }
+    }
+
+    // FFS-443b: Auto-resolve site contact person from raw contact info
+    // Requires phone OR email per INV-5
+    if (!body.site_contact_person_id && (body.raw_site_contact_phone || body.raw_site_contact_email)) {
+      try {
+        const nameParts = (body.raw_site_contact_name || "").trim().split(/\s+/);
+        const firstName = nameParts[0] || null;
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+        const resolved = await queryOne<{ person_id: string }>(
+          `SELECT person_id::TEXT FROM sot.find_or_create_person(
+            $1, $2, $3, $4, NULL, 'atlas_ui'
+          )`,
+          [body.raw_site_contact_email ?? null, body.raw_site_contact_phone ?? null, firstName, lastName]
+        );
+
+        if (resolved?.person_id) {
+          await queryOne(
+            `UPDATE ops.requests SET site_contact_person_id = $1 WHERE request_id = $2`,
+            [resolved.person_id, result.request_id]
+          );
+
+          // Also link site contact to the request's place
+          if (body.place_id) {
+            await queryOne(
+              `INSERT INTO sot.person_place_relationships (person_id, place_id, relationship_type, source_system)
+               VALUES ($1::UUID, $2::UUID, 'site_contact', 'atlas_ui')
+               ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING`,
+              [resolved.person_id, body.place_id]
+            );
+          }
+        }
+      } catch (resolveError) {
+        console.warn("[POST /api/requests] Auto-resolve site contact failed (non-blocking):", resolveError);
       }
     }
 

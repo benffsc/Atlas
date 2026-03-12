@@ -160,12 +160,16 @@ function NewRequestForm() {
   const [originalContactInfo, setOriginalContactInfo] = useState<{ phone: string; email: string } | null>(null);
   // Property authority
   const [hasPropertyAuthority, setHasPropertyAuthority] = useState(true);
-  const [propertyOwnerRef, setPropertyOwnerRef] = useState<PersonReference>({
+  const [propertyOwnerLinked, setPropertyOwnerLinked] = useState<PersonReference>({
     person_id: null,
     display_name: "",
     is_resolved: false,
   });
+  const [propertyOwnerFirstName, setPropertyOwnerFirstName] = useState("");
+  const [propertyOwnerLastName, setPropertyOwnerLastName] = useState("");
   const [propertyOwnerPhone, setPropertyOwnerPhone] = useState("");
+  const [propertyOwnerEmail, setPropertyOwnerEmail] = useState("");
+  const [showPropertyOwnerSearch, setShowPropertyOwnerSearch] = useState(false);
   const [authorizationPending, setAuthorizationPending] = useState(false);
   const [bestContactTimes, setBestContactTimes] = useState("");
 
@@ -222,12 +226,16 @@ function NewRequestForm() {
   // MIG_2532: Third-party tracking (affects requester intelligence)
   const [isThirdPartyReport, setIsThirdPartyReport] = useState(false);
   const [thirdPartyRelationship, setThirdPartyRelationship] = useState("");
-  const [siteContactRef, setSiteContactRef] = useState<PersonReference>({
+  const [siteContactLinked, setSiteContactLinked] = useState<PersonReference>({
     person_id: null,
     display_name: "",
     is_resolved: false,
   });
+  const [siteContactFirstName, setSiteContactFirstName] = useState("");
+  const [siteContactLastName, setSiteContactLastName] = useState("");
   const [siteContactPhone, setSiteContactPhone] = useState("");
+  const [siteContactEmail, setSiteContactEmail] = useState("");
+  const [showSiteContactSearch, setShowSiteContactSearch] = useState(false);
 
   // FFS-298: Requester relationship to location (non-third-party)
   const [requesterRole, setRequesterRole] = useState("resident");
@@ -285,6 +293,18 @@ function NewRequestForm() {
     email: requestorEmail,
     phone: requestorPhone,
     enabled: !selectedPerson,
+  });
+
+  // FFS-443b: Dedup banners for property owner and site contact
+  const propertyOwnerSuggestion = usePersonSuggestion({
+    email: propertyOwnerEmail,
+    phone: propertyOwnerPhone,
+    enabled: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved,
+  });
+  const siteContactSuggestion = usePersonSuggestion({
+    email: siteContactEmail,
+    phone: siteContactPhone,
+    enabled: isThirdPartyReport && !siteContactLinked.is_resolved,
   });
 
   // Computed: should show exact ear-tip count vs estimate
@@ -514,6 +534,36 @@ function NewRequestForm() {
     personSuggestion.selectPerson(person);
   };
 
+  // FFS-443b: Handle suggestion select for property owner
+  const handlePropertyOwnerSuggestionSelect = (person: Parameters<typeof propertyOwnerSuggestion.selectPerson>[0]) => {
+    const nameParts = person.display_name.split(" ");
+    setPropertyOwnerLinked({
+      person_id: person.person_id,
+      display_name: person.display_name,
+      is_resolved: true,
+    });
+    setPropertyOwnerFirstName(nameParts[0] || "");
+    setPropertyOwnerLastName(nameParts.slice(1).join(" ") || "");
+    setPropertyOwnerPhone(person.phone || propertyOwnerPhone);
+    setPropertyOwnerEmail(person.email || propertyOwnerEmail);
+    propertyOwnerSuggestion.selectPerson(person);
+  };
+
+  // FFS-443b: Handle suggestion select for site contact
+  const handleSiteContactSuggestionSelect = (person: Parameters<typeof siteContactSuggestion.selectPerson>[0]) => {
+    const nameParts = person.display_name.split(" ");
+    setSiteContactLinked({
+      person_id: person.person_id,
+      display_name: person.display_name,
+      is_resolved: true,
+    });
+    setSiteContactFirstName(nameParts[0] || "");
+    setSiteContactLastName(nameParts.slice(1).join(" ") || "");
+    setSiteContactPhone(person.phone || siteContactPhone);
+    setSiteContactEmail(person.email || siteContactEmail);
+    siteContactSuggestion.selectPerson(person);
+  };
+
   const clearPlace = () => {
     setSelectedPlace(null);
   };
@@ -599,8 +649,15 @@ function NewRequestForm() {
         raw_requester_phone: requestorPhone || null,
         raw_requester_email: requestorEmail || null,
         // Property authority
-        property_owner_name: !hasPropertyAuthority ? propertyOwnerRef.display_name || null : null,
-        property_owner_phone: !hasPropertyAuthority && !propertyOwnerRef.is_resolved ? propertyOwnerPhone || null : null,
+        property_owner_name: !hasPropertyAuthority
+          ? (propertyOwnerLinked.is_resolved
+            ? propertyOwnerLinked.display_name
+            : `${propertyOwnerFirstName} ${propertyOwnerLastName}`.trim() || null)
+          : null,
+        property_owner_phone: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved ? propertyOwnerPhone || null : null,
+        // FFS-443b: Property owner person link + email
+        property_owner_person_id: !hasPropertyAuthority && propertyOwnerLinked.is_resolved ? propertyOwnerLinked.person_id : null,
+        raw_property_owner_email: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved ? propertyOwnerEmail || null : null,
         authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
         best_contact_times: bestContactTimes || null,
         // Permission & Access
@@ -621,7 +678,12 @@ function NewRequestForm() {
         // MIG_2532: Third-party tracking
         is_third_party_report: isThirdPartyReport,
         third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
-        site_contact_person_id: isThirdPartyReport && siteContactRef.is_resolved ? siteContactRef.person_id : null,
+        site_contact_person_id: isThirdPartyReport && siteContactLinked.is_resolved ? siteContactLinked.person_id : null,
+        raw_site_contact_name: isThirdPartyReport && !siteContactLinked.is_resolved
+          ? `${siteContactFirstName} ${siteContactLastName}`.trim() || null
+          : null,
+        raw_site_contact_phone: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactPhone || null : null,
+        raw_site_contact_email: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactEmail || null : null,
         requester_is_site_contact: !isThirdPartyReport,
         // FFS-298: Requester role at submission
         requester_role_at_submission: isThirdPartyReport ? (thirdPartyRelationship || 'referrer') : requesterRole,
@@ -1363,26 +1425,137 @@ function NewRequestForm() {
                     Property Owner
                   </div>
                   <div className="role-card-body">
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <PersonReferencePicker
-                        value={propertyOwnerRef}
-                        onChange={setPropertyOwnerRef}
-                        placeholder="Search or type property owner name..."
-                      />
-                    </div>
-                    {!propertyOwnerRef.is_resolved && propertyOwnerRef.display_name && (
-                      <div style={{ marginBottom: "0.75rem" }}>
-                        <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                          Phone
-                        </label>
-                        <input
-                          type="tel"
-                          value={propertyOwnerPhone}
-                          onChange={(e) => setPropertyOwnerPhone(e.target.value)}
-                          placeholder="(707) 555-1234"
-                          style={{ width: "100%", maxWidth: "250px" }}
-                        />
+                    {propertyOwnerLinked.is_resolved ? (
+                      /* Linked to existing person */
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "0.5rem 0.75rem",
+                          background: "var(--background, #fff)",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border, #dee2e6)",
+                          marginBottom: "0.75rem",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
+                          {propertyOwnerLinked.display_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPropertyOwnerLinked({ person_id: null, display_name: "", is_resolved: false });
+                            setPropertyOwnerFirstName("");
+                            setPropertyOwnerLastName("");
+                            setPropertyOwnerPhone("");
+                            setPropertyOwnerEmail("");
+                          }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted, #6b7280)", fontSize: "1rem", padding: "0 4px", lineHeight: 1 }}
+                        >
+                          &times;
+                        </button>
                       </div>
+                    ) : (
+                      /* Manual entry with optional search */
+                      <>
+                        {showPropertyOwnerSearch ? (
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <PersonReferencePicker
+                              value={propertyOwnerLinked}
+                              onChange={(ref) => {
+                                setPropertyOwnerLinked(ref);
+                                if (ref.is_resolved) {
+                                  const parts = ref.display_name.split(" ");
+                                  setPropertyOwnerFirstName(parts[0] || "");
+                                  setPropertyOwnerLastName(parts.slice(1).join(" ") || "");
+                                  setShowPropertyOwnerSearch(false);
+                                }
+                              }}
+                              placeholder="Search by name, phone, or email..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPropertyOwnerSearch(false)}
+                              style={{ background: "none", border: "none", color: "var(--text-muted, #6b7280)", cursor: "pointer", fontSize: "0.8rem", marginTop: "0.25rem", padding: 0 }}
+                            >
+                              Cancel search
+                            </button>
+                          </div>
+                        ) : (
+                          <p
+                            style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--primary, #0d6efd)", cursor: "pointer" }}
+                            onClick={() => setShowPropertyOwnerSearch(true)}
+                          >
+                            Link to existing person in Atlas
+                          </p>
+                        )}
+                        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                              First Name
+                            </label>
+                            <input
+                              type="text"
+                              value={propertyOwnerFirstName}
+                              onChange={(e) => setPropertyOwnerFirstName(e.target.value)}
+                              placeholder="First name"
+                              style={{ width: "100%" }}
+                            />
+                          </div>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                              Last Name
+                            </label>
+                            <input
+                              type="text"
+                              value={propertyOwnerLastName}
+                              onChange={(e) => setPropertyOwnerLastName(e.target.value)}
+                              placeholder="Last name"
+                              style={{ width: "100%" }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                            Phone
+                          </label>
+                          <input
+                            type="tel"
+                            value={propertyOwnerPhone}
+                            onChange={(e) => setPropertyOwnerPhone(e.target.value)}
+                            placeholder="(707) 555-1234"
+                            style={{ width: "100%", maxWidth: "250px" }}
+                          />
+                        </div>
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                            Email
+                          </label>
+                          <input
+                            type="email"
+                            value={propertyOwnerEmail}
+                            onChange={(e) => setPropertyOwnerEmail(e.target.value)}
+                            placeholder="owner@example.com"
+                            style={{ width: "100%", maxWidth: "300px" }}
+                          />
+                        </div>
+                        {/* Identifier hint */}
+                        {!propertyOwnerPhone && !propertyOwnerEmail && (propertyOwnerFirstName || propertyOwnerLastName) && (
+                          <p className="text-muted" style={{ fontSize: "0.8rem", margin: "0 0 0.5rem" }}>
+                            Add a phone or email to link this person in Atlas
+                          </p>
+                        )}
+                        {/* Dedup banner */}
+                        <PersonSuggestionBanner
+                          suggestions={propertyOwnerSuggestion.suggestions}
+                          loading={propertyOwnerSuggestion.loading}
+                          dismissed={propertyOwnerSuggestion.dismissed}
+                          onDismiss={propertyOwnerSuggestion.dismiss}
+                          onSelect={handlePropertyOwnerSuggestionSelect}
+                        />
+                      </>
                     )}
                     <label
                       style={{
@@ -1468,26 +1641,137 @@ function NewRequestForm() {
                     Site Contact
                   </div>
                   <div className="role-card-body">
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <PersonReferencePicker
-                        value={siteContactRef}
-                        onChange={setSiteContactRef}
-                        placeholder="Search or type site contact name..."
-                      />
-                    </div>
-                    {!siteContactRef.is_resolved && siteContactRef.display_name && (
-                      <div style={{ marginBottom: "0.75rem" }}>
-                        <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                          Phone
-                        </label>
-                        <input
-                          type="tel"
-                          value={siteContactPhone}
-                          onChange={(e) => setSiteContactPhone(e.target.value)}
-                          placeholder="(707) 555-1234"
-                          style={{ width: "100%", maxWidth: "250px" }}
-                        />
+                    {siteContactLinked.is_resolved ? (
+                      /* Linked to existing person */
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "0.5rem 0.75rem",
+                          background: "var(--background, #fff)",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border, #dee2e6)",
+                          marginBottom: "0.75rem",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
+                          {siteContactLinked.display_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSiteContactLinked({ person_id: null, display_name: "", is_resolved: false });
+                            setSiteContactFirstName("");
+                            setSiteContactLastName("");
+                            setSiteContactPhone("");
+                            setSiteContactEmail("");
+                          }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted, #6b7280)", fontSize: "1rem", padding: "0 4px", lineHeight: 1 }}
+                        >
+                          &times;
+                        </button>
                       </div>
+                    ) : (
+                      /* Manual entry with optional search */
+                      <>
+                        {showSiteContactSearch ? (
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <PersonReferencePicker
+                              value={siteContactLinked}
+                              onChange={(ref) => {
+                                setSiteContactLinked(ref);
+                                if (ref.is_resolved) {
+                                  const parts = ref.display_name.split(" ");
+                                  setSiteContactFirstName(parts[0] || "");
+                                  setSiteContactLastName(parts.slice(1).join(" ") || "");
+                                  setShowSiteContactSearch(false);
+                                }
+                              }}
+                              placeholder="Search by name, phone, or email..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSiteContactSearch(false)}
+                              style={{ background: "none", border: "none", color: "var(--text-muted, #6b7280)", cursor: "pointer", fontSize: "0.8rem", marginTop: "0.25rem", padding: 0 }}
+                            >
+                              Cancel search
+                            </button>
+                          </div>
+                        ) : (
+                          <p
+                            style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--primary, #0d6efd)", cursor: "pointer" }}
+                            onClick={() => setShowSiteContactSearch(true)}
+                          >
+                            Link to existing person in Atlas
+                          </p>
+                        )}
+                        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                              First Name
+                            </label>
+                            <input
+                              type="text"
+                              value={siteContactFirstName}
+                              onChange={(e) => setSiteContactFirstName(e.target.value)}
+                              placeholder="First name"
+                              style={{ width: "100%" }}
+                            />
+                          </div>
+                          <div style={{ flex: "1 1 150px" }}>
+                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                              Last Name
+                            </label>
+                            <input
+                              type="text"
+                              value={siteContactLastName}
+                              onChange={(e) => setSiteContactLastName(e.target.value)}
+                              placeholder="Last name"
+                              style={{ width: "100%" }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                            Phone
+                          </label>
+                          <input
+                            type="tel"
+                            value={siteContactPhone}
+                            onChange={(e) => setSiteContactPhone(e.target.value)}
+                            placeholder="(707) 555-1234"
+                            style={{ width: "100%", maxWidth: "250px" }}
+                          />
+                        </div>
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                            Email
+                          </label>
+                          <input
+                            type="email"
+                            value={siteContactEmail}
+                            onChange={(e) => setSiteContactEmail(e.target.value)}
+                            placeholder="contact@example.com"
+                            style={{ width: "100%", maxWidth: "300px" }}
+                          />
+                        </div>
+                        {/* Identifier hint */}
+                        {!siteContactPhone && !siteContactEmail && (siteContactFirstName || siteContactLastName) && (
+                          <p className="text-muted" style={{ fontSize: "0.8rem", margin: "0 0 0.5rem" }}>
+                            Add a phone or email to link this person in Atlas
+                          </p>
+                        )}
+                        {/* Dedup banner */}
+                        <PersonSuggestionBanner
+                          suggestions={siteContactSuggestion.suggestions}
+                          loading={siteContactSuggestion.loading}
+                          dismissed={siteContactSuggestion.dismissed}
+                          onDismiss={siteContactSuggestion.dismiss}
+                          onSelect={handleSiteContactSuggestionSelect}
+                        />
+                      </>
                     )}
                     <div style={{ marginTop: "0.5rem" }}>
                       <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>

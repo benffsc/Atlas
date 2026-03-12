@@ -112,6 +112,15 @@ export const createRequestSchema = z.object({
   is_third_party_report: optBool(),
   third_party_relationship: optStr(200),
 
+  // Raw site contact fallbacks (FFS-443)
+  raw_site_contact_name: optStr(200),
+  raw_site_contact_phone: optStr(30),
+  raw_site_contact_email: optStr(200),
+
+  // Property owner person link (FFS-443b)
+  property_owner_person_id: optStr(50),
+  raw_property_owner_email: optStr(200),
+
   // Location Meta
   county: optStr(100),
   is_emergency: optBool(),
