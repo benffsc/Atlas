@@ -647,7 +647,7 @@ export default function ClinicHQUploadModal({
               {Object.keys(processingProgress).filter((k) => !k.startsWith("_")).length > 0 && (
                 <div style={{ fontSize: "0.75rem" }}>
                   {Object.entries(processingProgress)
-                    .filter(([k]) => !k.startsWith("_"))
+                    .filter(([k, v]) => !k.startsWith("_") && typeof v !== "object")
                     .map(([key, value]) => (
                       <div
                         key={key}
@@ -743,7 +743,7 @@ export default function ClinicHQUploadModal({
                     {r.post_processing && Object.keys(r.post_processing).length > 0 && (
                       <div style={{ marginLeft: "20px", marginTop: "4px", fontSize: "0.75rem" }}>
                         {Object.entries(r.post_processing)
-                          .filter(([k]) => !k.startsWith("_"))
+                          .filter(([k, v]) => !k.startsWith("_") && typeof v !== "object")
                           .map(([key, value]) => (
                             <div key={key} style={{ color: "var(--muted, #737373)" }}>
                               {key.replace(/_/g, " ")}: <strong>{String(value)}</strong>
