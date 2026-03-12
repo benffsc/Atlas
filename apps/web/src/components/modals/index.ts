@@ -29,6 +29,9 @@ export { TripReportModal } from './TripReportModal';
 export { default as RecordBirthModal } from './RecordBirthModal';
 export { default as ReportDeceasedModal } from './ReportDeceasedModal';
 
+// Person modals
+export { default as CreatePersonModal } from './CreatePersonModal';
+
 // Detail view modals
 export { default as AppointmentDetailModal } from './AppointmentDetailModal';
 export { LookupViewerModal } from './LookupViewerModal';

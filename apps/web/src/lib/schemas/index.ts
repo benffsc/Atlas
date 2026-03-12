@@ -58,6 +58,19 @@ export const UpdatePersonSchema = z.object({
 
 export type UpdatePersonInput = z.infer<typeof UpdatePersonSchema>;
 
+export const CreatePersonSchema = z.object({
+  first_name: z.string().min(1, "First name is required").max(200).trim(),
+  last_name: z.string().max(200).trim().optional().nullable(),
+  email: z.string().email("Invalid email").max(200).trim().optional().nullable(),
+  phone: z.string().max(30).trim().optional().nullable(),
+  entity_type: z.enum(PERSON_ENTITY_TYPE).optional().nullable(),
+}).refine(
+  (data) => (data.email && data.email.trim()) || (data.phone && data.phone.replace(/\D/g, '').length >= 7),
+  { message: "Email or phone required to create a person", path: ["email"] }
+);
+
+export type CreatePersonInput = z.infer<typeof CreatePersonSchema>;
+
 // =============================================================================
 // CAT SCHEMAS
 // =============================================================================

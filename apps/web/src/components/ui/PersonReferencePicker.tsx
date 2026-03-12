@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { fetchApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
+import { formatPhoneAsYouType } from "@/lib/formatters";
+import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
+import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 
 export interface PersonReference {
   person_id: string | null;
@@ -22,6 +25,19 @@ interface PersonReferencePickerProps {
   label?: string;
   required?: boolean;
   inputStyle?: React.CSSProperties;
+  allowCreate?: boolean;
+}
+
+interface CreatePersonResponse {
+  person: {
+    person_id: string;
+    display_name: string;
+  };
+  resolution: {
+    decision_type: string;
+    is_new: boolean;
+    is_match: boolean;
+  };
 }
 
 export function PersonReferencePicker({
@@ -31,6 +47,7 @@ export function PersonReferencePicker({
   label,
   required,
   inputStyle: customInputStyle,
+  allowCreate = false,
 }: PersonReferencePickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonSearchResult[]>([]);
@@ -39,9 +56,21 @@ export function PersonReferencePicker({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Inline creation state
+  const [showCreateFields, setShowCreateFields] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPhone, setCreatePhone] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const createRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
+
+  // Dedup check for inline creation
+  const { suggestions: createSuggestions, loading: suggestLoading, dismissed: suggestDismissed, dismiss: suggestDismiss } =
+    usePersonSuggestion({ email: createEmail, phone: createPhone, enabled: showCreateFields });
 
   const baseInputStyle: React.CSSProperties = {
     width: "100%",
@@ -80,6 +109,8 @@ export function PersonReferencePicker({
     const newValue = e.target.value;
     setQuery(newValue);
     setSelectedIndex(-1);
+    setShowCreateFields(false);
+    setCreateError(null);
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -107,6 +138,7 @@ export function PersonReferencePicker({
     setResults([]);
     setShowDropdown(false);
     setHasSearched(false);
+    setShowCreateFields(false);
   };
 
   const handleUseFreeText = () => {
@@ -118,6 +150,7 @@ export function PersonReferencePicker({
     setResults([]);
     setShowDropdown(false);
     setHasSearched(false);
+    setShowCreateFields(false);
   };
 
   const handleClear = () => {
@@ -126,7 +159,66 @@ export function PersonReferencePicker({
     setResults([]);
     setShowDropdown(false);
     setHasSearched(false);
+    setShowCreateFields(false);
+    setCreateEmail("");
+    setCreatePhone("");
+    setCreateError(null);
     setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleStartCreate = () => {
+    setShowDropdown(false);
+    setShowCreateFields(true);
+    setCreateEmail("");
+    setCreatePhone("");
+    setCreateError(null);
+  };
+
+  const handleCancelCreate = () => {
+    setShowCreateFields(false);
+    setCreateEmail("");
+    setCreatePhone("");
+    setCreateError(null);
+  };
+
+  const handleCreate = async () => {
+    const hasEmail = createEmail.includes("@");
+    const hasPhone = createPhone.replace(/\D/g, "").length >= 7;
+    if (!hasEmail && !hasPhone) {
+      setCreateError("Email or phone is required");
+      return;
+    }
+
+    // Parse name from query
+    const nameParts = query.trim().split(/\s+/);
+    const firstName = nameParts[0] || query.trim();
+    const lastName = nameParts.slice(1).join(" ") || null;
+
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const resp = await postApi<CreatePersonResponse>("/api/people", {
+        first_name: firstName,
+        last_name: lastName,
+        email: createEmail.trim() || null,
+        phone: createPhone.trim() || null,
+      });
+
+      onChange({
+        person_id: resp.person.person_id,
+        display_name: resp.person.display_name,
+        is_resolved: true,
+      });
+      setQuery("");
+      setResults([]);
+      setShowCreateFields(false);
+      setCreateEmail("");
+      setCreatePhone("");
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create person");
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -138,7 +230,12 @@ export function PersonReferencePicker({
       return;
     }
 
-    const totalItems = results.length + (query.trim().length >= 2 ? 1 : 0); // +1 for "Use" option
+    // Count total dropdown items: results + "Create" option (if allowCreate) + "Use" option
+    const hasCreateOption = allowCreate && hasSearched && results.length === 0 && query.trim().length >= 2;
+    const hasUseOption = query.trim().length >= 2;
+    let totalItems = results.length;
+    if (hasCreateOption) totalItems++;
+    if (hasUseOption) totalItems++;
 
     switch (e.key) {
       case "ArrowDown":
@@ -153,7 +250,9 @@ export function PersonReferencePicker({
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < results.length) {
           handleSelect(results[selectedIndex]);
-        } else if (selectedIndex === results.length && query.trim().length >= 2) {
+        } else if (hasCreateOption && selectedIndex === results.length) {
+          handleStartCreate();
+        } else if (hasUseOption && selectedIndex === totalItems - 1) {
           handleUseFreeText();
         } else if (query.trim().length > 0) {
           handleUseFreeText();
@@ -174,6 +273,10 @@ export function PersonReferencePicker({
       ) {
         return;
       }
+      // Don't close dropdown if create fields are shown
+      if (showCreateFields && createRef.current?.contains(document.activeElement)) {
+        return;
+      }
       setShowDropdown(false);
     }, 200);
   };
@@ -181,13 +284,16 @@ export function PersonReferencePicker({
   // Outside-click close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node) &&
+        !dropdownRef.current.contains(target) &&
         inputRef.current &&
-        !inputRef.current.contains(e.target as Node)
+        !inputRef.current.contains(target) &&
+        (!createRef.current || !createRef.current.contains(target))
       ) {
         setShowDropdown(false);
+        // Don't close create fields from outside click — they're below the input
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -321,16 +427,40 @@ export function PersonReferencePicker({
               </div>
             ))}
 
-            {/* "Use as free text" option */}
-            {query.trim().length >= 2 && (
+            {/* "Create new person" option — shown when allowCreate, searched, no results */}
+            {allowCreate && hasSearched && results.length === 0 && query.trim().length >= 2 && (
               <div
-                onClick={handleUseFreeText}
+                onClick={handleStartCreate}
                 onMouseEnter={() => setSelectedIndex(results.length)}
                 style={{
                   padding: "8px 12px",
                   cursor: "pointer",
                   background:
                     selectedIndex === results.length
+                      ? "rgba(13, 110, 253, 0.1)"
+                      : "transparent",
+                  color: "#2563eb",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                }}
+              >
+                + Create &ldquo;{query.trim()}&rdquo; as new person
+              </div>
+            )}
+
+            {/* "Use as free text" option */}
+            {query.trim().length >= 2 && (
+              <div
+                onClick={handleUseFreeText}
+                onMouseEnter={() => {
+                  const createIdx = (allowCreate && hasSearched && results.length === 0) ? 1 : 0;
+                  setSelectedIndex(results.length + createIdx);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  background:
+                    selectedIndex === results.length + ((allowCreate && hasSearched && results.length === 0) ? 1 : 0)
                       ? "rgba(13, 110, 253, 0.1)"
                       : "transparent",
                   color: "var(--text-muted, #6b7280)",
@@ -342,8 +472,8 @@ export function PersonReferencePicker({
               </div>
             )}
 
-            {/* No results message (only when we have searched and got nothing) */}
-            {hasSearched && results.length === 0 && query.trim().length >= 2 && (
+            {/* No results message (only when we have searched and got nothing and no create) */}
+            {hasSearched && results.length === 0 && query.trim().length >= 2 && !allowCreate && (
               <div
                 style={{
                   padding: "8px 12px",
@@ -357,6 +487,101 @@ export function PersonReferencePicker({
           </div>
         )}
       </div>
+
+      {/* Inline creation fields — shown below input when user clicks "Create" */}
+      {showCreateFields && (
+        <div
+          ref={createRef}
+          style={{
+            marginTop: "8px",
+            padding: "12px",
+            border: "1px solid #93c5fd",
+            borderRadius: "8px",
+            background: "#eff6ff",
+          }}
+        >
+          <div style={{ fontSize: "0.8rem", color: "#1e40af", fontWeight: 600, marginBottom: "8px" }}>
+            Create &ldquo;{query.trim()}&rdquo; — add contact info:
+          </div>
+
+          {/* Dedup banner */}
+          <PersonSuggestionBanner
+            suggestions={createSuggestions}
+            loading={suggestLoading}
+            dismissed={suggestDismissed}
+            onDismiss={suggestDismiss}
+            onSelect={(person) => {
+              onChange({
+                person_id: person.person_id,
+                display_name: person.display_name,
+                is_resolved: true,
+              });
+              setQuery("");
+              setShowCreateFields(false);
+              setCreateEmail("");
+              setCreatePhone("");
+            }}
+          />
+
+          <div style={{ display: "grid", gap: "8px" }}>
+            <input
+              type="email"
+              value={createEmail}
+              onChange={(e) => setCreateEmail(e.target.value)}
+              placeholder="Email"
+              style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
+            />
+            <input
+              type="tel"
+              value={createPhone}
+              onChange={(e) => setCreatePhone(formatPhoneAsYouType(e.target.value))}
+              placeholder="Phone"
+              style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
+            />
+          </div>
+
+          {createError && (
+            <div style={{ color: "#dc3545", fontSize: "0.8rem", marginTop: "6px" }}>
+              {createError}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating}
+              style={{
+                padding: "4px 12px",
+                background: creating ? "#9ca3af" : "#2563eb",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "0.8rem",
+                fontWeight: 500,
+                cursor: creating ? "not-allowed" : "pointer",
+              }}
+            >
+              {creating ? "Creating..." : "Create"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelCreate}
+              style={{
+                padding: "4px 12px",
+                background: "transparent",
+                color: "var(--text-muted, #6b7280)",
+                border: "1px solid var(--border, #e5e7eb)",
+                borderRadius: "6px",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

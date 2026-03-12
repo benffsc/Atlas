@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PersonStatusBadges } from "@/components/badges";
 import EntityPreview from "@/components/search/EntityPreview";
+import { CreatePersonModal } from "@/components/modals";
 
 interface Person {
   person_id: string;
@@ -44,8 +46,10 @@ const FILTER_DEFAULTS = {
 };
 
 function PeoplePageContent() {
+  const router = useRouter();
   const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
   const isMobile = useIsMobile();
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [data, setData] = useState<PeopleResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,15 +98,41 @@ function PeoplePageContent() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>People</h1>
-        {!isDefault && (
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {!isDefault && (
+            <button
+              onClick={clearFilters}
+              style={{ fontSize: "0.875rem", background: "none", border: "1px solid var(--border)", borderRadius: "4px", padding: "0.25rem 0.75rem", cursor: "pointer" }}
+            >
+              Clear Filters
+            </button>
+          )}
           <button
-            onClick={clearFilters}
-            style={{ fontSize: "0.875rem", background: "none", border: "1px solid var(--border)", borderRadius: "4px", padding: "0.25rem 0.75rem", cursor: "pointer" }}
+            onClick={() => setShowCreateModal(true)}
+            style={{
+              fontSize: "0.875rem",
+              background: "#2563eb",
+              color: "#fff",
+              border: "none",
+              borderRadius: "4px",
+              padding: "0.35rem 0.75rem",
+              cursor: "pointer",
+              fontWeight: 500,
+            }}
           >
-            Clear Filters
+            + New Person
           </button>
-        )}
+        </div>
       </div>
+
+      <CreatePersonModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={(personId) => {
+          setShowCreateModal(false);
+          router.push(`/people/${personId}`);
+        }}
+      />
 
       <form onSubmit={handleSearch} className="filters">
         <input

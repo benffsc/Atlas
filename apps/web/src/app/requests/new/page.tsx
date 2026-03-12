@@ -1480,6 +1480,7 @@ function NewRequestForm() {
                           <div style={{ marginBottom: "0.75rem" }}>
                             <PersonReferencePicker
                               value={propertyOwnerLinked}
+                              allowCreate
                               onChange={(ref) => {
                                 setPropertyOwnerLinked(ref);
                                 if (ref.is_resolved) {
@@ -1694,6 +1695,7 @@ function NewRequestForm() {
                           <div style={{ marginBottom: "0.75rem" }}>
                             <PersonReferencePicker
                               value={siteContactLinked}
+                              allowCreate
                               onChange={(ref) => {
                                 setSiteContactLinked(ref);
                                 if (ref.is_resolved) {

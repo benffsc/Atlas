@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
-import { queryRows, query } from "@/lib/db";
-import { parsePagination } from "@/lib/api-validation";
-import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { queryRows, query, queryOne } from "@/lib/db";
+import { parsePagination, parseBody } from "@/lib/api-validation";
+import { apiSuccess, apiServerError, apiUnprocessable } from "@/lib/api-response";
+import { CreatePersonSchema } from "@/lib/schemas";
+import { shouldBePerson } from "@/lib/guards";
 
 interface PersonListRow {
   person_id: string;
@@ -103,5 +105,81 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching people:", error);
     return apiServerError("Failed to fetch people");
+  }
+}
+
+// =============================================================================
+// POST /api/people — Create a new person via data_engine_resolve_identity
+// =============================================================================
+
+interface ResolutionResult {
+  decision_type: string;
+  person_id: string | null;
+  display_name: string | null;
+  confidence: number;
+  reason: string;
+  match_details: Record<string, unknown>;
+  decision_id: string;
+}
+
+export async function POST(request: NextRequest) {
+  const parsed = await parseBody(request, CreatePersonSchema);
+  if ("error" in parsed) return parsed.error;
+
+  const { first_name, last_name, email, phone, entity_type } = parsed.data;
+
+  // Client-side gate (server SQL gate is authoritative, but this gives fast feedback)
+  const gate = shouldBePerson(first_name, last_name || null, email || null, phone || null);
+  if (!gate.valid) {
+    return apiUnprocessable(gate.reason);
+  }
+
+  try {
+    // Call data_engine_resolve_identity directly for full decision info
+    const result = await queryOne<ResolutionResult>(
+      `SELECT * FROM sot.data_engine_resolve_identity($1, $2, $3, $4, $5, $6)`,
+      [email || null, phone || null, first_name, last_name || null, null, "atlas_ui"]
+    );
+
+    if (!result || !result.person_id) {
+      // Rejection from SQL gate
+      return apiUnprocessable(result?.reason || "Person creation rejected by data engine");
+    }
+
+    // If entity_type provided, update the person record
+    if (entity_type) {
+      await query(
+        `UPDATE sot.people SET entity_type = $1, updated_at = NOW() WHERE person_id = $2`,
+        [entity_type, result.person_id]
+      );
+    }
+
+    // Fetch the final person record for response
+    const person = await queryOne<{
+      person_id: string;
+      display_name: string;
+      first_name: string | null;
+      last_name: string | null;
+      entity_type: string | null;
+      is_verified: boolean;
+    }>(
+      `SELECT person_id, display_name, first_name, last_name, entity_type, is_verified
+       FROM sot.people WHERE person_id = $1`,
+      [result.person_id]
+    );
+
+    return apiSuccess({
+      person,
+      resolution: {
+        decision_type: result.decision_type,
+        is_new: result.decision_type === "new_entity",
+        is_match: result.decision_type === "auto_match" || result.decision_type === "review_pending",
+        confidence: result.confidence,
+        reason: result.reason,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating person:", error);
+    return apiServerError("Failed to create person");
   }
 }
