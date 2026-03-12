@@ -687,10 +687,9 @@ function NewRequestForm() {
         raw_site_contact_phone: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactPhone || null : null,
         raw_site_contact_email: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactEmail || null : null,
         requester_is_site_contact: !isThirdPartyReport,
-        // FFS-298: Requester role at submission
-        // When third-party, the role is the relationship (neighbor, business_employee, etc.)
-        // third_party_relationship stores the relationship type separately
-        requester_role_at_submission: isThirdPartyReport ? 'third_party' : requesterRole,
+        // FFS-298: Requester role at submission (always from the requester dropdown)
+        // third_party_relationship stores the site contact's role separately
+        requester_role_at_submission: requesterRole,
         // MIG_2532: Service area
         county: county || "Sonoma",
         // Kittens
@@ -1597,27 +1596,25 @@ function NewRequestForm() {
             />
           </div>
 
-          {/* Requester relationship to location */}
-          {!isThirdPartyReport && (
-            <div style={SECTION_DIVIDER}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Requestor&apos;s relationship to location
-              </label>
-              <select
-                value={requesterRole}
-                onChange={(e) => setRequesterRole(e.target.value)}
-                style={{ width: "100%", maxWidth: "300px" }}
-              >
-                <option value="resident">Resident</option>
-                <option value="property_owner">Property owner</option>
-                <option value="colony_caretaker">Colony caretaker</option>
-                <option value="neighbor">Neighbor</option>
-                <option value="concerned_citizen">Concerned citizen</option>
-                <option value="volunteer">Volunteer</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-          )}
+          {/* Requester relationship to location — always visible */}
+          <div style={SECTION_DIVIDER}>
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
+              Requestor&apos;s relationship to location
+            </label>
+            <select
+              value={requesterRole}
+              onChange={(e) => setRequesterRole(e.target.value)}
+              style={{ width: "100%", maxWidth: "300px" }}
+            >
+              <option value="resident">Resident</option>
+              <option value="property_owner">Property owner</option>
+              <option value="colony_caretaker">Colony caretaker</option>
+              <option value="neighbor">Neighbor</option>
+              <option value="concerned_citizen">Concerned citizen</option>
+              <option value="volunteer">Volunteer</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
 
           {/* Third-party report tracking */}
           <div style={SECTION_DIVIDER}>
@@ -1779,7 +1776,7 @@ function NewRequestForm() {
                     )}
                     <div style={{ marginTop: "0.5rem" }}>
                       <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                        Requestor&apos;s relationship to site
+                        Site contact&apos;s role at location
                       </label>
                       <select
                         value={thirdPartyRelationship}
@@ -1787,15 +1784,16 @@ function NewRequestForm() {
                         style={{ width: "100%", maxWidth: "300px" }}
                       >
                         <option value="">Select...</option>
-                        <option value="neighbor">Neighbor</option>
-                        <option value="friend_family">Friend/Family of resident</option>
-                        <option value="concerned_citizen">Concerned citizen</option>
+                        <option value="resident">Resident</option>
+                        <option value="property_owner">Property owner</option>
                         <option value="property_manager">Property manager</option>
+                        <option value="colony_caretaker">Colony caretaker</option>
                         <option value="business_employee">Business employee</option>
+                        <option value="neighbor">Neighbor</option>
                         <option value="other">Other</option>
                       </select>
                       <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
-                        Helps us know who can authorize trapping and who to contact for updates
+                        Their role at the site — helps us know who to contact for access
                       </p>
                     </div>
                   </div>
