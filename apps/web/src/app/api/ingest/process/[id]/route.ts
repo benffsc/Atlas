@@ -1387,6 +1387,8 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     results.marked_altered = (alteredSpayed.rowCount || 0) + (alteredNeutered.rowCount || 0);
 
     // Enrich appointments with weight and age from cat_info records
+    // FFS-477 FIX: Look up cat_info upload_id from same batch (not $1 which is appointment_info)
+    // Also accept decimal Age Months (e.g. 4.5, 5.5) with ROUND()
     await saveProgress('Enriching appointments with weight/age...');
     const enrichedWithWeight = await query(`
       UPDATE ops.appointments a
@@ -1402,18 +1404,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           ELSE a.cat_age_years
         END,
         cat_age_months = CASE
-          WHEN ci.payload->>'Age Months' ~ '^[0-9]+$'
-          THEN (ci.payload->>'Age Months')::INTEGER
+          WHEN ci.payload->>'Age Months' ~ '^[0-9]+\\.?[0-9]*$'
+          THEN ROUND((ci.payload->>'Age Months')::NUMERIC)::INTEGER
           ELSE a.cat_age_months
         END,
         updated_at = NOW()
       FROM ops.staged_records ci
+      JOIN ops.file_uploads fu_ci ON fu_ci.upload_id = ci.file_upload_id
+      JOIN ops.file_uploads fu_me ON fu_me.batch_id = fu_ci.batch_id
       WHERE ci.source_system = 'clinichq'
         AND ci.source_table = 'cat_info'
-        AND ci.file_upload_id = $1
+        AND fu_me.upload_id = $1
         AND ci.payload->>'Microchip Number' = SPLIT_PART(a.clinichq_appointment_id, '_', 2)
         AND TO_DATE(ci.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
-        AND a.cat_weight_lbs IS NULL
+        AND (a.cat_weight_lbs IS NULL OR a.cat_age_years IS NULL OR a.cat_age_months IS NULL)
     `, [uploadId]);
     results.enriched_with_weight = enrichedWithWeight.rowCount || 0;
 
