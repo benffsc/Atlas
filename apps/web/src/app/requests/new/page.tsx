@@ -660,6 +660,8 @@ function NewRequestForm() {
         raw_property_owner_email: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved ? propertyOwnerEmail || null : null,
         authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
         best_contact_times: bestContactTimes || null,
+        // Property ownership (derived from "Someone else owns" checkbox)
+        is_property_owner: hasPropertyAuthority,
         // Permission & Access
         permission_status: permissionStatus,
         access_notes: accessNotes || null,
@@ -686,7 +688,9 @@ function NewRequestForm() {
         raw_site_contact_email: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactEmail || null : null,
         requester_is_site_contact: !isThirdPartyReport,
         // FFS-298: Requester role at submission
-        requester_role_at_submission: isThirdPartyReport ? (thirdPartyRelationship || 'referrer') : requesterRole,
+        // When third-party, the role is the relationship (neighbor, business_employee, etc.)
+        // third_party_relationship stores the relationship type separately
+        requester_role_at_submission: isThirdPartyReport ? 'third_party' : requesterRole,
         // MIG_2532: Service area
         county: county || "Sonoma",
         // Kittens
