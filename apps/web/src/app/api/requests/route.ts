@@ -401,9 +401,9 @@ export async function POST(request: NextRequest) {
         const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
         const resolved = await queryOne<{ person_id: string }>(
-          `SELECT person_id::TEXT FROM sot.find_or_create_person(
+          `SELECT sot.find_or_create_person(
             $1, $2, $3, $4, NULL, 'atlas_ui'
-          )`,
+          )::TEXT AS person_id`,
           [
             body.raw_requester_email ?? null,
             body.raw_requester_phone ?? null,
@@ -432,9 +432,9 @@ export async function POST(request: NextRequest) {
         const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
         const resolved = await queryOne<{ person_id: string }>(
-          `SELECT person_id::TEXT FROM sot.find_or_create_person(
+          `SELECT sot.find_or_create_person(
             $1, $2, $3, $4, NULL, 'atlas_ui'
-          )`,
+          )::TEXT AS person_id`,
           [body.raw_property_owner_email ?? null, body.property_owner_phone ?? null, firstName, lastName]
         );
 
@@ -469,9 +469,9 @@ export async function POST(request: NextRequest) {
         const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
         const resolved = await queryOne<{ person_id: string }>(
-          `SELECT person_id::TEXT FROM sot.find_or_create_person(
+          `SELECT sot.find_or_create_person(
             $1, $2, $3, $4, NULL, 'atlas_ui'
-          )`,
+          )::TEXT AS person_id`,
           [body.raw_site_contact_email ?? null, body.raw_site_contact_phone ?? null, firstName, lastName]
         );
 
