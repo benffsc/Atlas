@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE } from "@/lib/enums";
 
@@ -16,17 +17,6 @@ interface HandoffRequestModalProps {
   originalAddress: string | null;
   originalRequesterName: string | null;
   onSuccess?: (newRequestId: string) => void;
-}
-
-interface PersonSearchResult {
-  entity_id: string;
-  entity_type: "person";
-  display_name: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
 }
 
 const HANDOFF_REASONS = HANDOFF_REASON.map((value) => ({
@@ -52,16 +42,14 @@ export function HandoffRequestModal({
   const [customReason, setCustomReason] = useState("");
   const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
 
-  // Person search state
-  const [personSearch, setPersonSearch] = useState("");
-  const [personResults, setPersonResults] = useState<PersonSearchResult[]>([]);
-  const [searchingPeople, setSearchingPeople] = useState(false);
-  const [selectedPerson, setSelectedPerson] = useState<PersonSearchResult | null>(null);
-  const [showResults, setShowResults] = useState(false);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
+  // Person selection via PersonReferencePicker
+  const [caretakerPerson, setCaretakerPerson] = useState<PersonReference>({
+    person_id: null,
+    display_name: "",
+    is_resolved: false,
+  });
 
-  // Manual entry fields (used when no person selected)
+  // Manual entry fields (used when no person selected, or to override)
   const [newRequesterFirstName, setNewRequesterFirstName] = useState("");
   const [newRequesterLastName, setNewRequesterLastName] = useState("");
   const [newRequesterPhone, setNewRequesterPhone] = useState("");
@@ -100,19 +88,8 @@ export function HandoffRequestModal({
   const personSuggestion = usePersonSuggestion({
     email: newRequesterEmail,
     phone: newRequesterPhone,
-    enabled: !selectedPerson && !linkToExisting,
+    enabled: !caretakerPerson.is_resolved && !linkToExisting,
   });
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
-        setShowResults(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -120,9 +97,7 @@ export function HandoffRequestModal({
       setHandoffReason("");
       setCustomReason("");
       setResolvedPlace(null);
-      setPersonSearch("");
-      setPersonResults([]);
-      setSelectedPerson(null);
+      setCaretakerPerson({ person_id: null, display_name: "", is_resolved: false });
       setNewRequesterFirstName("");
       setNewRequesterLastName("");
       setNewRequesterPhone("");
@@ -169,70 +144,47 @@ export function HandoffRequestModal({
     return () => clearTimeout(timer);
   }, [requestSearchQuery, linkToExisting, requestId]);
 
-  const searchPeople = async (query: string) => {
-    if (query.length < 2) {
-      setPersonResults([]);
-      setShowResults(false);
-      return;
+  // When a person is resolved via PersonReferencePicker (search or inline create),
+  // auto-fill name fields and look up their contact info
+  const handlePersonChange = async (ref: PersonReference) => {
+    setCaretakerPerson(ref);
+
+    if (ref.is_resolved && ref.person_id) {
+      // Look up person details to auto-fill name/phone/email
+      try {
+        const data = await fetchApi<{
+          display_name: string;
+          contact: { emails: string[]; phones: string[] };
+        }>(`/api/people/${ref.person_id}/summary`);
+        const parts = (data.display_name || ref.display_name).split(" ");
+        setNewRequesterFirstName(parts[0] || "");
+        setNewRequesterLastName(parts.slice(1).join(" ") || "");
+        if (data.contact?.phones?.[0]) setNewRequesterPhone(data.contact.phones[0]);
+        if (data.contact?.emails?.[0]) setNewRequesterEmail(data.contact.emails[0]);
+      } catch {
+        // Auto-fill from display_name as fallback
+        const parts = ref.display_name.split(" ");
+        setNewRequesterFirstName(parts[0] || "");
+        setNewRequesterLastName(parts.slice(1).join(" ") || "");
+      }
+      personSuggestion.reset();
+    } else if (!ref.is_resolved && ref.display_name) {
+      // Free text entry — parse name
+      const parts = ref.display_name.split(" ");
+      setNewRequesterFirstName(parts[0] || "");
+      setNewRequesterLastName(parts.slice(1).join(" ") || "");
     }
-    setSearchingPeople(true);
-    setShowResults(true);
-    try {
-      const data = await fetchApi<{ results: PersonSearchResult[] }>(`/api/search?q=${encodeURIComponent(query)}&type=person&limit=8`);
-      setPersonResults(data.results || []);
-    } catch (err) {
-      console.error("Failed to search people:", err);
-    } finally {
-      setSearchingPeople(false);
-    }
   };
 
-  const handleSearchChange = (value: string) => {
-    setPersonSearch(value);
-    setSelectedPerson(null); // Clear selection when typing
-
-    // Debounce search
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      searchPeople(value);
-    }, 300);
-  };
-
-  const handleSelectPerson = (person: PersonSearchResult) => {
-    setSelectedPerson(person);
-    setPersonSearch(person.display_name);
-    setShowResults(false);
-
-    // Auto-fill fields from selected person
-    setNewRequesterFirstName(person.first_name || "");
-    setNewRequesterLastName(person.last_name || "");
-    setNewRequesterPhone(person.phone || "");
-    setNewRequesterEmail(person.email || "");
-  };
-
-  const clearSelection = () => {
-    setSelectedPerson(null);
-    setPersonSearch("");
-    setNewRequesterFirstName("");
-    setNewRequesterLastName("");
-    setNewRequesterPhone("");
-    setNewRequesterEmail("");
-    personSuggestion.reset();
-  };
-
-  const handleSuggestionSelect = (person: { person_id: string; display_name: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null }) => {
-    handleSelectPerson({
-      entity_id: person.person_id,
-      entity_type: "person",
+  const handleSuggestionSelect = (person: { person_id: string; display_name: string }) => {
+    setCaretakerPerson({
+      person_id: person.person_id,
       display_name: person.display_name,
-      first_name: person.first_name,
-      last_name: person.last_name,
-      email: person.email,
-      phone: person.phone,
-      address: null,
+      is_resolved: true,
     });
+    const parts = person.display_name.split(" ");
+    setNewRequesterFirstName(parts[0] || "");
+    setNewRequesterLastName(parts.slice(1).join(" ") || "");
     personSuggestion.selectPerson(person as Parameters<typeof personSuggestion.selectPerson>[0]);
   };
 
@@ -262,9 +214,9 @@ export function HandoffRequestModal({
         return;
       }
 
-      // Need either a selected person or first+last name
-      if (!selectedPerson && (!newRequesterFirstName.trim() || !newRequesterLastName.trim())) {
-        setError("Please search for an existing person or enter their first and last name");
+      // Need either a resolved person or first+last name
+      if (!caretakerPerson.is_resolved && (!newRequesterFirstName.trim() || !newRequesterLastName.trim())) {
+        setError("Please search for an existing person, create a new one, or enter their first and last name");
         return;
       }
     }
@@ -280,8 +232,8 @@ export function HandoffRequestModal({
         existing_target_request_id: linkToExisting ? targetRequestId : undefined,
         new_address: resolvedPlace?.formatted_address || resolvedPlace?.display_name || "",
         new_place_id: resolvedPlace?.place_id || null,
-        // If person selected, pass their ID; otherwise pass name fields
-        existing_person_id: selectedPerson?.entity_id || null,
+        // If person resolved (via search or inline create), pass their ID
+        existing_person_id: caretakerPerson.person_id || null,
         new_requester_first_name: newRequesterFirstName || null,
         new_requester_last_name: newRequesterLastName || null,
         new_requester_phone: newRequesterPhone || null,
@@ -525,112 +477,18 @@ export function HandoffRequestModal({
             New Caretaker Details
           </h3>
 
-          {/* Person Search */}
-          <div style={{ marginBottom: "16px" }} ref={searchContainerRef}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                marginBottom: "6px",
-              }}
-            >
-              Search for Existing Person
-            </label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="text"
-                value={personSearch}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onFocus={() => personResults.length > 0 && setShowResults(true)}
-                placeholder="Type a name to search..."
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  paddingRight: selectedPerson ? "36px" : "12px",
-                  border: `1px solid ${selectedPerson ? "#0d9488" : "var(--border)"}`,
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: selectedPerson ? "#f0fdfa" : "var(--input-bg, #fff)",
-                }}
-              />
-              {selectedPerson && (
-                <button
-                  type="button"
-                  onClick={clearSelection}
-                  style={{
-                    position: "absolute",
-                    right: "8px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "#666",
-                    fontSize: "1.2rem",
-                    lineHeight: 1,
-                  }}
-                >
-                  &times;
-                </button>
-              )}
-
-              {/* Search Results Dropdown */}
-              {showResults && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    background: "var(--card-bg, #fff)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    marginTop: "4px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    zIndex: 10,
-                    maxHeight: "200px",
-                    overflow: "auto",
-                  }}
-                >
-                  {searchingPeople ? (
-                    <div style={{ padding: "12px", color: "var(--muted)", fontSize: "0.9rem" }}>
-                      Searching...
-                    </div>
-                  ) : personResults.length > 0 ? (
-                    personResults.map((person) => (
-                      <div
-                        key={person.entity_id}
-                        onClick={() => handleSelectPerson(person)}
-                        style={{
-                          padding: "10px 12px",
-                          cursor: "pointer",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdfa")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                      >
-                        <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>
-                          {person.display_name}
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {[person.email, person.phone, person.address]
-                            .filter(Boolean)
-                            .join(" • ")}
-                        </div>
-                      </div>
-                    ))
-                  ) : personSearch.length >= 2 ? (
-                    <div style={{ padding: "12px", color: "var(--muted)", fontSize: "0.9rem" }}>
-                      No people found. Enter details below to create new.
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </div>
-            {selectedPerson && (
+          {/* Person Search with inline creation */}
+          <div style={{ marginBottom: "16px" }}>
+            <PersonReferencePicker
+              value={caretakerPerson}
+              onChange={handlePersonChange}
+              label="Search for Existing Person"
+              placeholder="Type a name to search..."
+              allowCreate
+            />
+            {caretakerPerson.is_resolved && (
               <div style={{ marginTop: "6px", fontSize: "0.8rem", color: "#0d9488" }}>
-                Selected existing person - fields auto-filled below
+                Person linked - fields auto-filled below
               </div>
             )}
           </div>
@@ -776,7 +634,7 @@ export function HandoffRequestModal({
           />
 
           {/* Warning: no person record will be created without contact info */}
-          {!selectedPerson && !newRequesterPhone.trim() && !newRequesterEmail.trim() && (newRequesterFirstName.trim() || newRequesterLastName.trim()) && (
+          {!caretakerPerson.is_resolved && !newRequesterPhone.trim() && !newRequesterEmail.trim() && (newRequesterFirstName.trim() || newRequesterLastName.trim()) && (
             <div
               style={{
                 padding: "10px 14px",
