@@ -124,7 +124,28 @@ export default function TrappersPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: "1.5rem" }}>Trappers</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <h1 style={{ margin: 0 }}>Trappers</h1>
+        <a
+          href="https://form.jotform.com/260715379111151"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.5rem 1rem",
+            background: "#198754",
+            color: "#fff",
+            borderRadius: "6px",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            textDecoration: "none",
+          }}
+        >
+          + New Community Trapper Agreement
+        </a>
+      </div>
 
       {/* Aggregate Stats */}
       {agg && (

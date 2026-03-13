@@ -23,13 +23,15 @@ import {
  *
  * Auth: Bearer token via WEBHOOK_SECRET or CRON_SECRET env var.
  *
- * Payload:
+ * Payload (matches Airtable "Community Trapper Agreements" schema):
  * {
  *   first_name: string (required)
  *   last_name: string (required)
  *   email: string (required)
  *   phone?: string
  *   address?: string
+ *   availability?: string       // Trapper's availability schedule
+ *   signature?: string          // Contract signature (URL or base64)
  *   contract_areas?: string     // Areas they're authorized to trap
  *   rescue_name?: string        // If they run a rescue
  *   notes?: string
@@ -46,6 +48,8 @@ interface TrapperOnboardingPayload {
   email: string;
   phone?: string;
   address?: string;
+  availability?: string;
+  signature?: string;
   contract_areas?: string;
   rescue_name?: string;
   notes?: string;
@@ -71,6 +75,8 @@ function validatePayload(
     email: email.trim().toLowerCase(),
     phone: (body.phone as string)?.trim() || undefined,
     address: (body.address as string)?.trim() || undefined,
+    availability: (body.availability as string)?.trim() || undefined,
+    signature: (body.signature || body.Signature) as string | undefined,
     contract_areas: (body.contract_areas || body.contractAreas) as
       | string
       | undefined,
@@ -133,6 +139,15 @@ export async function POST(request: NextRequest) {
     );
 
     // Step 3: Create/update trapper profile
+    // Build notes from availability + any explicit notes
+    const profileNotes = [
+      payload.availability ? `Availability: ${payload.availability}` : null,
+      payload.notes,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const hasSigned = !!payload.signature;
     const profile = await queryOne<{ person_id: string }>(
       `INSERT INTO sot.trapper_profiles (
          person_id, trapper_type, is_active,
@@ -140,11 +155,11 @@ export async function POST(request: NextRequest) {
          rescue_name, notes, source_system
        ) VALUES (
          $1, 'community_trapper', true,
-         true, $2, $3,
-         $4, $5, 'atlas_sync'
+         $2, $3, $4,
+         $5, $6, 'atlas_sync'
        )
        ON CONFLICT (person_id) DO UPDATE SET
-         has_signed_contract = true,
+         has_signed_contract = EXCLUDED.has_signed_contract OR sot.trapper_profiles.has_signed_contract,
          contract_signed_date = COALESCE(EXCLUDED.contract_signed_date, sot.trapper_profiles.contract_signed_date),
          contract_areas = COALESCE(EXCLUDED.contract_areas, sot.trapper_profiles.contract_areas),
          rescue_name = COALESCE(EXCLUDED.rescue_name, sot.trapper_profiles.rescue_name),
@@ -157,10 +172,11 @@ export async function POST(request: NextRequest) {
        RETURNING person_id`,
       [
         personId,
-        payload.contract_signed_date || null,
+        hasSigned,
+        payload.contract_signed_date || (hasSigned ? new Date().toISOString().slice(0, 10) : null),
         payload.contract_areas || null,
         payload.rescue_name || null,
-        payload.notes || null,
+        profileNotes || null,
       ]
     );
 
@@ -180,6 +196,8 @@ export async function POST(request: NextRequest) {
           email: payload.email,
           source_record_id: payload.source_record_id,
           match_type: identityResult.match_type,
+          has_signature: !!payload.signature,
+          availability: payload.availability || null,
         }),
       ]
     );
