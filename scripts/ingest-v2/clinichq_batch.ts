@@ -624,8 +624,16 @@ async function upsertClinicAccount(params: {
       owner_first_name, owner_last_name, owner_email, owner_phone, owner_address,
       account_type, classification_reason, first_appointment_date, last_appointment_date
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, CURRENT_DATE)
-    ON CONFLICT ON CONSTRAINT clinic_accounts_name_email_key DO UPDATE SET
-      appointment_count = ops.clinic_accounts.appointment_count + 1,
+    ON CONFLICT (
+      LOWER(COALESCE(owner_first_name, '')),
+      LOWER(COALESCE(owner_last_name, '')),
+      LOWER(COALESCE(owner_email, '')),
+      LOWER(COALESCE(owner_phone, '')),
+      account_type
+    ) WHERE merged_into_account_id IS NULL
+      AND (source_record_id IS NULL OR source_record_id = '')
+    DO UPDATE SET
+      appointment_count = COALESCE(ops.clinic_accounts.appointment_count, 0) + 1,
       last_seen_at = NOW(),
       last_appointment_date = CURRENT_DATE,
       updated_at = NOW()

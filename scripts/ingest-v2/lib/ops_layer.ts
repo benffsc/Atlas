@@ -148,8 +148,16 @@ export async function upsertClinicAccount(params: UpsertClinicAccountParams): Pr
       first_appointment_date,
       last_appointment_date
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE, CURRENT_DATE)
-    ON CONFLICT ON CONSTRAINT clinic_accounts_name_email_key DO UPDATE SET
-      appointment_count = ops.clinic_accounts.appointment_count + 1,
+    ON CONFLICT (
+      LOWER(COALESCE(owner_first_name, '')),
+      LOWER(COALESCE(owner_last_name, '')),
+      LOWER(COALESCE(owner_email, '')),
+      LOWER(COALESCE(owner_phone, '')),
+      account_type
+    ) WHERE merged_into_account_id IS NULL
+      AND (source_record_id IS NULL OR source_record_id = '')
+    DO UPDATE SET
+      appointment_count = COALESCE(ops.clinic_accounts.appointment_count, 0) + 1,
       last_seen_at = NOW(),
       last_appointment_date = CURRENT_DATE,
       updated_at = NOW()
@@ -168,8 +176,10 @@ export async function upsertClinicAccount(params: UpsertClinicAccountParams): Pr
   if (!result) {
     const existing = await queryOne<{ account_id: string }>(`
       SELECT account_id FROM ops.clinic_accounts
-      WHERE owner_first_name = $1 AND owner_last_name = $2
-        AND (owner_email = $3 OR (owner_email IS NULL AND $3 IS NULL))
+      WHERE LOWER(COALESCE(owner_first_name, '')) = LOWER(COALESCE($1, ''))
+        AND LOWER(COALESCE(owner_last_name, '')) = LOWER(COALESCE($2, ''))
+        AND LOWER(COALESCE(owner_email, '')) = LOWER(COALESCE($3, ''))
+        AND merged_into_account_id IS NULL
       LIMIT 1
     `, [params.ownerFirstName, params.ownerLastName, params.ownerEmail]);
 

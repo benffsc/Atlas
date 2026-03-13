@@ -426,7 +426,7 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
               {/* Action button for file uploads */}
               {isFileUpload && key === "clinichq" && (
                 <Link
-                  href="/admin/v2-ingest"
+                  href="/admin/data?tab=processing"
                   style={{
                     display: "block",
                     width: "100%",
