@@ -53,6 +53,22 @@ interface TestResult {
   sample_record: Record<string, unknown> | null;
 }
 
+interface SyncRecord {
+  record_id: string;
+  config_name: string;
+  airtable_record_id: string;
+  raw_fields: Record<string, unknown>;
+  mapped_fields: Record<string, unknown>;
+  status: "synced" | "rejected" | "error";
+  entity_id: string | null;
+  match_type: string | null;
+  rejection_reason: string | null;
+  error_message: string | null;
+  identity_result: Record<string, unknown> | null;
+  processed_at: string;
+  archived_at: string | null;
+}
+
 export default function SyncConfigDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -66,6 +82,15 @@ export default function SyncConfigDetailPage() {
   const [triggerResult, setTriggerResult] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  // Audit records state
+  const [records, setRecords] = useState<SyncRecord[]>([]);
+  const [recordsTotal, setRecordsTotal] = useState(0);
+  const [recordsFilter, setRecordsFilter] = useState<string>("all");
+  const [showArchived, setShowArchived] = useState(false);
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
+  const [archiving, setArchiving] = useState(false);
+  const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 
   // Editable form state
   const [form, setForm] = useState({
@@ -103,9 +128,47 @@ export default function SyncConfigDetailPage() {
     }
   }, [id]);
 
+  const fetchRecords = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (recordsFilter !== "all") params.set("status", recordsFilter);
+      if (showArchived) params.set("archived", "true");
+      params.set("limit", "50");
+      const qs = params.toString();
+      const result = await fetchApi<{ records: SyncRecord[]; total: number }>(
+        `/api/admin/airtable-syncs/${id}/records?${qs}`
+      );
+      setRecords(result.records || []);
+      setRecordsTotal(result.total || 0);
+      setSelectedRecords(new Set());
+    } catch (err) {
+      console.error("Failed to fetch records:", err);
+    }
+  }, [id, recordsFilter, showArchived]);
+
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
+
+  const handleArchive = async (action: "archive" | "unarchive") => {
+    if (selectedRecords.size === 0) return;
+    setArchiving(true);
+    try {
+      await postApi(`/api/admin/airtable-syncs/${id}/records`, {
+        record_ids: Array.from(selectedRecords),
+        action,
+      }, { method: "PATCH" });
+      fetchRecords();
+    } catch (err) {
+      console.error("Archive failed:", err);
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -569,6 +632,213 @@ export default function SyncConfigDetailPage() {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Audit Records */}
+      <div style={sectionStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+          <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
+            Submission Records ({recordsTotal})
+          </h3>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            {selectedRecords.size > 0 && (
+              <button
+                onClick={() => handleArchive(showArchived ? "unarchive" : "archive")}
+                disabled={archiving}
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  fontSize: "0.75rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "4px",
+                  background: "#6c757d",
+                  color: "#fff",
+                  cursor: archiving ? "wait" : "pointer",
+                }}
+              >
+                {archiving ? "..." : showArchived ? `Unarchive (${selectedRecords.size})` : `Archive (${selectedRecords.size})`}
+              </button>
+            )}
+            <label style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={e => setShowArchived(e.target.checked)}
+              />
+              Show archived
+            </label>
+          </div>
+        </div>
+
+        {/* Status filter chips */}
+        <div style={{ display: "flex", gap: "0.25rem", marginBottom: "0.75rem" }}>
+          {["all", "synced", "rejected", "error"].map(s => (
+            <button
+              key={s}
+              onClick={() => setRecordsFilter(s)}
+              style={{
+                padding: "0.2rem 0.6rem",
+                fontSize: "0.7rem",
+                border: "1px solid var(--border)",
+                borderRadius: "12px",
+                background: recordsFilter === s ? "var(--primary)" : "var(--background)",
+                color: recordsFilter === s ? "var(--primary-foreground)" : "var(--foreground)",
+                cursor: "pointer",
+                textTransform: "capitalize",
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {records.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+            No records{recordsFilter !== "all" ? ` with status "${recordsFilter}"` : ""}
+          </div>
+        ) : (
+          <div>
+            <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  <th style={{ padding: "0.4rem", width: "24px" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRecords.size === records.length && records.length > 0}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedRecords(new Set(records.map(r => r.record_id)));
+                        } else {
+                          setSelectedRecords(new Set());
+                        }
+                      }}
+                    />
+                  </th>
+                  <th style={{ textAlign: "left", padding: "0.4rem" }}>When</th>
+                  <th style={{ textAlign: "left", padding: "0.4rem" }}>Status</th>
+                  <th style={{ textAlign: "left", padding: "0.4rem" }}>Details</th>
+                  <th style={{ textAlign: "left", padding: "0.4rem" }}>Person</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map(rec => {
+                  const mapped = rec.mapped_fields as Record<string, unknown>;
+                  const name = [mapped?.first_name, mapped?.last_name].filter(Boolean).join(" ") || "—";
+                  const email = (mapped?.email as string) || "";
+                  const isExpanded = expandedRecord === rec.record_id;
+
+                  return (
+                    <tr key={rec.record_id} style={{ borderBottom: "1px solid var(--border)", opacity: rec.archived_at ? 0.5 : 1 }}>
+                      <td style={{ padding: "0.4rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedRecords.has(rec.record_id)}
+                          onChange={e => {
+                            const next = new Set(selectedRecords);
+                            e.target.checked ? next.add(rec.record_id) : next.delete(rec.record_id);
+                            setSelectedRecords(next);
+                          }}
+                        />
+                      </td>
+                      <td style={{ padding: "0.4rem", fontSize: "0.75rem" }}>
+                        {new Date(rec.processed_at).toLocaleString()}
+                      </td>
+                      <td style={{ padding: "0.4rem" }}>
+                        <span style={{
+                          fontSize: "0.7rem",
+                          padding: "0.1rem 0.4rem",
+                          borderRadius: "3px",
+                          background: rec.status === "synced" ? "#28a745" : rec.status === "rejected" ? "#ffc107" : "#dc3545",
+                          color: rec.status === "rejected" ? "#000" : "#fff",
+                        }}>
+                          {rec.status}
+                        </span>
+                        {rec.archived_at && (
+                          <span style={{ fontSize: "0.65rem", color: "var(--muted)", marginLeft: "0.25rem" }}>archived</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.4rem" }}>
+                        <button
+                          onClick={() => setExpandedRecord(isExpanded ? null : rec.record_id)}
+                          style={{
+                            padding: "0.1rem 0.4rem",
+                            fontSize: "0.7rem",
+                            border: "1px solid var(--border)",
+                            borderRadius: "3px",
+                            background: "var(--background)",
+                            color: "var(--foreground)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {isExpanded ? "Hide" : "Show"}
+                        </button>
+                        {rec.rejection_reason && (
+                          <span style={{ fontSize: "0.7rem", color: "#856404", marginLeft: "0.5rem" }}>
+                            {rec.rejection_reason}
+                          </span>
+                        )}
+                        {rec.error_message && (
+                          <span style={{ fontSize: "0.7rem", color: "#dc3545", marginLeft: "0.5rem" }}>
+                            {rec.error_message}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.4rem" }}>
+                        <div style={{ fontSize: "0.8rem" }}>{name}</div>
+                        {email && <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>{email}</div>}
+                        {rec.entity_id && (
+                          <div style={{ fontSize: "0.65rem", fontFamily: "monospace", color: "var(--muted)" }}>
+                            {rec.entity_id.slice(0, 8)}... ({rec.match_type})
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Expanded detail panel — shown below the table for the selected record */}
+            {expandedRecord && (() => {
+              const rec = records.find(r => r.record_id === expandedRecord);
+              if (!rec) return null;
+              return (
+                <div style={{
+                  marginTop: "0.5rem",
+                  padding: "0.75rem",
+                  background: "rgba(0,0,0,0.04)",
+                  borderRadius: "6px",
+                  fontSize: "0.75rem",
+                }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div>
+                      <strong>Mapped Fields</strong>
+                      <pre style={{ margin: "0.25rem 0 0", fontSize: "0.7rem", overflow: "auto", maxHeight: "200px" }}>
+                        {JSON.stringify(rec.mapped_fields, null, 2)}
+                      </pre>
+                    </div>
+                    <div>
+                      <strong>Raw Fields (from Airtable)</strong>
+                      <pre style={{ margin: "0.25rem 0 0", fontSize: "0.7rem", overflow: "auto", maxHeight: "200px" }}>
+                        {JSON.stringify(rec.raw_fields, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                  {rec.identity_result && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <strong>Identity Resolution</strong>
+                      <pre style={{ margin: "0.25rem 0 0", fontSize: "0.7rem", overflow: "auto", maxHeight: "150px" }}>
+                        {JSON.stringify(rec.identity_result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                  <div style={{ marginTop: "0.5rem", color: "var(--muted)" }}>
+                    Airtable Record: {rec.airtable_record_id}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         )}
       </div>
     </div>

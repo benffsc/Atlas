@@ -128,6 +128,12 @@ export interface RecordResult {
   entityId?: string;
   matchType?: string;
   error?: string;
+  /** 'synced' | 'rejected' | 'error' — for audit trail */
+  auditStatus?: "synced" | "rejected" | "error";
+  /** Why identity resolution rejected this record */
+  rejectionReason?: string;
+  /** Full identity resolution response (always logged when called) */
+  identityResult?: Record<string, unknown>;
 }
 
 /** Result of an entire sync run */
@@ -255,6 +261,9 @@ export class AirtableSyncEngine {
       return result;
     }
 
+    // Create the run row upfront so per-record logs reference it
+    const runId = await this.createRun(config, triggerType);
+
     try {
       // 1. Poll Airtable
       const records = await this.pollRecords(config);
@@ -282,6 +291,8 @@ export class AirtableSyncEngine {
               success: false,
               recordId: record.id,
               error: validationError,
+              auditStatus: "rejected",
+              rejectionReason: validationError,
             };
           } else {
             // Execute pipeline
@@ -299,12 +310,16 @@ export class AirtableSyncEngine {
             success: false,
             recordId: record.id,
             error: `Sync failed: ${msg}`,
+            auditStatus: "error",
           };
         }
 
         results.push(recordResult);
 
-        // 4. Writeback to Airtable (overwrites "processing" with final status)
+        // 4. Log to audit trail (every record, regardless of outcome)
+        await this.logRecord(config, record, mapped, recordResult, runId);
+
+        // 5. Writeback to Airtable (overwrites "processing" with final status)
         await this.writebackRecord(
           config,
           record.id,
@@ -322,8 +337,8 @@ export class AirtableSyncEngine {
         results,
       };
 
-      // 5. Log run + update config tracking
-      await this.logRun(config, triggerType, syncResult);
+      // 6. Complete run + update config tracking
+      await this.completeRun(runId, syncResult);
       await this.updateConfigLastSync(config, syncResult);
 
       return syncResult;
@@ -342,7 +357,7 @@ export class AirtableSyncEngine {
         error: msg,
       };
 
-      await this.logRun(config, triggerType, syncResult);
+      await this.completeRun(runId, syncResult);
       await this.updateConfigLastSync(config, syncResult);
 
       return syncResult;
@@ -605,6 +620,8 @@ export class AirtableSyncEngine {
         success: false,
         recordId: record.id,
         error: "Missing required fields: first_name and last_name",
+        auditStatus: "rejected",
+        rejectionReason: "Missing required fields: first_name and last_name",
       };
     }
 
@@ -613,6 +630,8 @@ export class AirtableSyncEngine {
         success: false,
         recordId: record.id,
         error: "Missing or invalid email address",
+        auditStatus: "rejected",
+        rejectionReason: "Missing or invalid email address",
       };
     }
 
@@ -633,6 +652,8 @@ export class AirtableSyncEngine {
         success: false,
         recordId: record.id,
         error: "Identity resolution returned no result",
+        auditStatus: "error",
+        rejectionReason: "Identity resolution returned no result",
       };
     }
 
@@ -641,6 +662,9 @@ export class AirtableSyncEngine {
         success: false,
         recordId: record.id,
         error: `Identity resolution rejected: ${identityResult.reason || "no person_id returned"}`,
+        auditStatus: "rejected",
+        rejectionReason: identityResult.reason || "no person_id returned",
+        identityResult: identityResult as unknown as Record<string, unknown>,
       };
     }
 
@@ -657,6 +681,8 @@ export class AirtableSyncEngine {
       recordId: record.id,
       entityId: personId,
       matchType,
+      auditStatus: "synced",
+      identityResult: identityResult as unknown as Record<string, unknown>,
     };
   }
 
@@ -812,9 +838,72 @@ export class AirtableSyncEngine {
   }
 
   // --------------------------------------------------------------------------
-  // Run logging
+  // Run + record logging
   // --------------------------------------------------------------------------
 
+  /** Create a run row upfront so per-record logs can reference it */
+  private async createRun(
+    config: SyncConfig,
+    triggerType: string
+  ): Promise<string | null> {
+    try {
+      const row = await queryOne<{ run_id: string }>(
+        `INSERT INTO ops.airtable_sync_runs (
+           config_id, config_name, trigger_type,
+           started_at, records_found, records_synced, records_errored,
+           results, duration_ms
+         ) VALUES ($1, $2, $3, NOW(), 0, 0, 0, '[]', 0)
+         RETURNING run_id`,
+        [config.config_id, config.name, triggerType]
+      );
+      return row?.run_id ?? null;
+    } catch (err) {
+      console.error("[SYNC-ENGINE] Failed to create run:", err);
+      return null;
+    }
+  }
+
+  /** Update a run row with final results */
+  private async completeRun(
+    runId: string | null,
+    result: SyncRunResult
+  ): Promise<void> {
+    if (!runId) return;
+    try {
+      await query(
+        `UPDATE ops.airtable_sync_runs SET
+           completed_at = NOW(),
+           records_found = $1,
+           records_synced = $2,
+           records_errored = $3,
+           results = $4,
+           duration_ms = $5,
+           error_summary = $6
+         WHERE run_id = $7`,
+        [
+          result.recordsFound,
+          result.recordsSynced,
+          result.recordsErrored,
+          JSON.stringify(
+            result.results.map((r) => ({
+              recordId: r.recordId,
+              success: r.success,
+              entityId: r.entityId,
+              matchType: r.matchType,
+              error: r.error,
+            }))
+          ),
+          result.durationMs,
+          result.error || null,
+          runId,
+        ]
+      );
+    } catch (err) {
+      console.error("[SYNC-ENGINE] Failed to complete run:", err);
+    }
+  }
+
+  /** For legacy code paths that don't process records (skip/inactive) */
   private async logRun(
     config: SyncConfig,
     triggerType: string,
@@ -855,6 +944,43 @@ export class AirtableSyncEngine {
       );
     } catch (err) {
       console.error("[SYNC-ENGINE] Failed to log run:", err);
+    }
+  }
+
+  /** Log a single record to the audit trail (every record, every outcome) */
+  private async logRecord(
+    config: SyncConfig,
+    record: AirtableRecord,
+    mapped: Record<string, unknown>,
+    result: RecordResult,
+    runId?: string | null
+  ): Promise<void> {
+    const status = result.auditStatus || (result.success ? "synced" : "error");
+    try {
+      await queryOne(
+        `INSERT INTO ops.airtable_sync_records (
+           config_id, config_name, run_id,
+           airtable_record_id, raw_fields, mapped_fields,
+           status, entity_id, match_type,
+           rejection_reason, error_message, identity_result
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          config.config_id,
+          config.name,
+          runId || null,
+          record.id,
+          JSON.stringify(record.fields),
+          JSON.stringify(mapped),
+          status,
+          result.entityId || null,
+          result.matchType || null,
+          result.rejectionReason || null,
+          status === "error" ? result.error || null : null,
+          result.identityResult ? JSON.stringify(result.identityResult) : null,
+        ]
+      );
+    } catch (err) {
+      console.error("[SYNC-ENGINE] Failed to log record:", err);
     }
   }
 
