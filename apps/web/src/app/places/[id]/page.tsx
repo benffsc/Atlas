@@ -17,7 +17,7 @@ import { MediaGallery, HeroGallery, type MediaItem } from "@/components/media";
 import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
-import { formatDateLocal, formatPhone } from "@/lib/formatters";
+import { formatDateLocal, formatPhone, formatRelativeTime } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { formatPlaceKind } from "@/lib/display-labels";
 
@@ -94,6 +94,8 @@ interface PlaceDetail {
   verified_at: string | null;
   verified_by: string | null;
   verified_by_name: string | null;
+  last_appointment_date: string | null;
+  active_request_count: number;
   contexts?: PlaceContext[];
   partner_org?: PartnerOrgInfo | null;
 }
@@ -612,6 +614,19 @@ export default function PlaceDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Activity */}
+      {place.last_appointment_date && (
+        <div className="bg-white rounded-lg border">
+          <div className="px-4 py-3 border-b">
+            <h4 className="text-sm font-semibold text-gray-900">Activity</h4>
+          </div>
+          <div className="p-4">
+            <StatRow label="Last Clinic Visit" value={formatRelativeTime(place.last_appointment_date) || "—"} />
+            <StatRow label="Last Visit Date" value={formatDateLocal(place.last_appointment_date)} />
+          </div>
+        </div>
+      )}
 
       {/* Record Info */}
       <div className="bg-white rounded-lg border">

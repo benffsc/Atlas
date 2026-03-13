@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { formatDateLocal, formatRelativeTime } from "@/lib/formatters";
+import { formatDateLocal, formatRelativeTime, getActivityColor } from "@/lib/formatters";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
 import { StatusSegmentedControl } from "@/components/ui/StatusSegmentedControl";
@@ -618,11 +618,12 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
             )}
           </div>
 
-          {/* Date */}
+          {/* Date & Last Activity */}
           <div
             style={{
               display: "flex",
-              justifyContent: "flex-end",
+              justifyContent: "space-between",
+              alignItems: "center",
               fontSize: "0.7rem",
               color: "var(--text-muted)",
               marginTop: "4px",
@@ -630,7 +631,9 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
           >
             <span>{formatDateLocal(request.source_created_at || request.created_at)}</span>
             {request.updated_at && request.updated_at.slice(0,10) !== request.created_at.slice(0,10) && (
-              <span style={{ marginLeft: "0.5rem" }}>· Updated {formatRelativeTime(request.updated_at)}</span>
+              <span style={{ color: getActivityColor(request.updated_at) || "var(--text-muted)" }}>
+                Activity {formatRelativeTime(request.updated_at)}
+              </span>
             )}
           </div>
         </div>

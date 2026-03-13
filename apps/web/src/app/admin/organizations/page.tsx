@@ -431,6 +431,24 @@ function OrgDetailModal({
           <StatCard label="Patterns" value={org.name_patterns.length} />
         </div>
 
+        {/* Activity Dates */}
+        {(org.first_appointment_date || org.last_appointment_date) && (
+          <div style={{ display: "flex", gap: "1.5rem", marginBottom: "1.5rem", fontSize: "0.875rem" }}>
+            {org.first_appointment_date && (
+              <div>
+                <span style={{ color: "var(--muted)" }}>First activity:</span>{" "}
+                {new Date(org.first_appointment_date).toLocaleDateString()}
+              </div>
+            )}
+            {org.last_appointment_date && (
+              <div>
+                <span style={{ color: "var(--muted)" }}>Last activity:</span>{" "}
+                {formatRelativeTime(org.last_appointment_date)} ({new Date(org.last_appointment_date).toLocaleDateString()})
+              </div>
+            )}
+          </div>
+        )}
+
         {editing ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div>
