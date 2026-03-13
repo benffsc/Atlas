@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 // Auto-Stale Intakes Cron (FFS-127)
 //
 // Marks old intakes as archived when they've gone stale:
-// - Status 'new' with no activity for 30+ days
-// - Status 'in_progress' with no contact for 14+ days
+// - Status 'new' with no activity for 30+ days (configurable via app_config)
+// - Status 'in_progress' with no contact for 14+ days (configurable via app_config)
 //
 // Creates a journal entry for each auto-staled intake.
 // Runs daily at 6 AM UTC.
@@ -14,10 +15,6 @@ import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 export const maxDuration = 60;
 
 const CRON_SECRET = process.env.CRON_SECRET;
-
-// Thresholds
-const NEW_STALE_DAYS = 30;
-const IN_PROGRESS_STALE_DAYS = 14;
 const BATCH_LIMIT = 200;
 
 interface StaleSubmission {
@@ -40,6 +37,10 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // Read thresholds from app_config (falls back to defaults if table missing)
+    const newStaleDays = await getServerConfig<number>("request.stale_days", 30);
+    const inProgressStaleDays = await getServerConfig<number>("request.in_progress_stale_days", 14);
+
     // Find stale intakes
     const staleSubmissions = await queryRows<StaleSubmission>(
       `
@@ -50,9 +51,9 @@ export async function GET(request: NextRequest) {
         EXTRACT(DAY FROM NOW() - COALESCE(s.last_contacted_at, s.submitted_at, s.created_at))::INT AS days_idle,
         CASE
           WHEN s.submission_status = 'new'
-            THEN 'No activity for ' || EXTRACT(DAY FROM NOW() - COALESCE(s.last_contacted_at, s.submitted_at, s.created_at))::INT || ' days (threshold: ${NEW_STALE_DAYS})'
+            THEN 'No activity for ' || EXTRACT(DAY FROM NOW() - COALESCE(s.last_contacted_at, s.submitted_at, s.created_at))::INT || ' days (threshold: ' || $1 || ')'
           WHEN s.submission_status = 'in_progress'
-            THEN 'No contact for ' || EXTRACT(DAY FROM NOW() - COALESCE(s.last_contacted_at, s.submitted_at, s.created_at))::INT || ' days (threshold: ${IN_PROGRESS_STALE_DAYS})'
+            THEN 'No contact for ' || EXTRACT(DAY FROM NOW() - COALESCE(s.last_contacted_at, s.submitted_at, s.created_at))::INT || ' days (threshold: ' || $2 || ')'
         END AS reason
       FROM ops.intake_submissions s
       WHERE s.submission_status IN ('new', 'in_progress')
@@ -60,15 +61,15 @@ export async function GET(request: NextRequest) {
         AND s.converted_to_request_id IS NULL
         AND (
           (s.submission_status = 'new'
-            AND COALESCE(s.last_contacted_at, s.submitted_at, s.created_at) < NOW() - INTERVAL '${NEW_STALE_DAYS} days')
+            AND COALESCE(s.last_contacted_at, s.submitted_at, s.created_at) < NOW() - make_interval(days => $1))
           OR
           (s.submission_status = 'in_progress'
-            AND COALESCE(s.last_contacted_at, s.submitted_at, s.created_at) < NOW() - INTERVAL '${IN_PROGRESS_STALE_DAYS} days')
+            AND COALESCE(s.last_contacted_at, s.submitted_at, s.created_at) < NOW() - make_interval(days => $2))
         )
       ORDER BY COALESCE(s.last_contacted_at, s.submitted_at, s.created_at) ASC
-      LIMIT ${BATCH_LIMIT}
+      LIMIT $3
       `,
-      []
+      [newStaleDays, inProgressStaleDays, BATCH_LIMIT]
     );
 
     if (staleSubmissions.length === 0) {

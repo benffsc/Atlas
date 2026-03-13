@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import DOMPurify from "dompurify";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { usePermission } from "@/hooks/usePermission";
 
 interface EmailTemplate {
   template_id: string;
@@ -47,6 +48,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 export default function EmailTemplatesAdminPage() {
+  const isAdmin = usePermission("admin.email");
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -86,8 +88,6 @@ export default function EmailTemplatesAdminPage() {
       setLoading(false);
     }
   };
-
-  const isAdmin = userRole === "admin";
 
   const openSuggestModal = (template: EmailTemplate) => {
     setSuggestingTemplate(template);

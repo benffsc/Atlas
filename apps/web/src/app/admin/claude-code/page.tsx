@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { usePermission } from "@/hooks/usePermission";
 import { postApi } from "@/lib/api-client";
 
 interface Message {
@@ -13,6 +14,7 @@ interface Message {
 
 export default function ClaudeCodeAdminPage() {
   const { user, isLoading: userLoading } = useCurrentUser();
+  const hasAccess = usePermission("admin.access");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +29,7 @@ export default function ClaudeCodeAdminPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Check if user is admin
+  // Check if user has admin access
   if (userLoading) {
     return (
       <div style={{ padding: "24px", textAlign: "center", color: "var(--muted)" }}>
@@ -36,7 +38,7 @@ export default function ClaudeCodeAdminPage() {
     );
   }
 
-  if (!user || user.auth_role !== "admin") {
+  if (!user || !hasAccess) {
     return (
       <div style={{ padding: "24px" }}>
         <div

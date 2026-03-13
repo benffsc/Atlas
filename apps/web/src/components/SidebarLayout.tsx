@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { useNavItems } from "@/hooks/useNavItems";
 
 export interface NavItem {
   label: string;
@@ -221,69 +222,75 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
   );
 }
 
-// Pre-configured sidebar for Admin pages - Simplified for new Data Hub architecture
+// Hardcoded fallback for admin sidebar (used when DB fetch fails or on first load)
+const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
+  {
+    title: "Dashboard",
+    items: [
+      { label: "Overview", href: "/admin", icon: "📊" },
+      { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
+    ],
+  },
+  {
+    title: "Data",
+    items: [
+      { label: "Data Hub", href: "/admin/data", icon: "📊" },
+      { label: "Upload Data", href: "/admin/data?tab=processing", icon: "📤" },
+      { label: "Review Queue", href: "/admin/data?tab=review", icon: "📋" },
+    ],
+  },
+  {
+    title: "Beacon",
+    items: [
+      { label: "Atlas Map", href: "/map", icon: "🗺️" },
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "🐱" },
+      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
+      { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
+    ],
+  },
+  {
+    title: "Email",
+    items: [
+      { label: "Email Hub", href: "/admin/email", icon: "📧" },
+      { label: "Templates", href: "/admin/email-templates", icon: "📝" },
+      { label: "Batches", href: "/admin/email-batches", icon: "📨" },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { label: "Staff", href: "/admin/staff", icon: "👥" },
+      { label: "Organizations", href: "/admin/organizations", icon: "🏢" },
+      { label: "Equipment", href: "/admin/equipment", icon: "🪤" },
+      { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
+      { label: "Ecology Config", href: "/admin/ecology", icon: "🌿" },
+      { label: "AI Access", href: "/admin/ai-access", icon: "🔐" },
+      { label: "App Config", href: "/admin/config", icon: "⚙️" },
+      { label: "Navigation", href: "/admin/nav", icon: "🧭" },
+      { label: "Roles", href: "/admin/roles", icon: "🛡️" },
+    ],
+  },
+  {
+    title: "Linear",
+    items: [
+      { label: "Dashboard", href: "/admin/linear", icon: "📐" },
+      { label: "Issues", href: "/admin/linear/issues", icon: "📋" },
+      { label: "Sessions", href: "/admin/linear/sessions", icon: "🤖" },
+    ],
+  },
+  {
+    title: "Developer",
+    items: [
+      { label: "Claude Code", href: "/admin/claude-code", icon: "🤖" },
+      { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "📚" },
+      { label: "Tippy Corrections", href: "/admin/tippy-corrections", icon: "✏️" },
+    ],
+  },
+];
+
+// Pre-configured sidebar for Admin pages — reads from DB with hardcoded fallback
 export function AdminSidebar({ children }: { children: React.ReactNode }) {
-  const sections: NavSection[] = [
-    {
-      title: "Dashboard",
-      items: [
-        { label: "Overview", href: "/admin", icon: "📊" },
-        { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
-      ],
-    },
-    {
-      title: "Data",
-      items: [
-        { label: "Data Hub", href: "/admin/data", icon: "📊" },
-        { label: "Upload Data", href: "/admin/data?tab=processing", icon: "📤" },
-        { label: "Review Queue", href: "/admin/data?tab=review", icon: "📋" },
-      ],
-    },
-    {
-      title: "Beacon",
-      items: [
-        { label: "Atlas Map", href: "/map", icon: "🗺️" },
-        { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "🐱" },
-        { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
-        { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
-      ],
-    },
-    {
-      title: "Email",
-      items: [
-        { label: "Email Hub", href: "/admin/email", icon: "📧" },
-        { label: "Templates", href: "/admin/email-templates", icon: "📝" },
-        { label: "Batches", href: "/admin/email-batches", icon: "📨" },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { label: "Staff", href: "/admin/staff", icon: "👥" },
-        { label: "Organizations", href: "/admin/organizations", icon: "🏢" },
-        { label: "Equipment", href: "/admin/equipment", icon: "🪤" },
-        { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
-        { label: "Ecology Config", href: "/admin/ecology", icon: "🌿" },
-        { label: "AI Access", href: "/admin/ai-access", icon: "🔐" },
-      ],
-    },
-    {
-      title: "Linear",
-      items: [
-        { label: "Dashboard", href: "/admin/linear", icon: "📐" },
-        { label: "Issues", href: "/admin/linear/issues", icon: "📋" },
-        { label: "Sessions", href: "/admin/linear/sessions", icon: "🤖" },
-      ],
-    },
-    {
-      title: "Developer",
-      items: [
-        { label: "Claude Code", href: "/admin/claude-code", icon: "🤖" },
-        { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "📚" },
-        { label: "Tippy Corrections", href: "/admin/tippy-corrections", icon: "✏️" },
-      ],
-    },
-  ];
+  const { sections } = useNavItems("admin", ADMIN_SIDEBAR_FALLBACK);
 
   return (
     <SidebarLayout sections={sections} title="Admin" backLink={{ label: "Home", href: "/" }}>
@@ -330,10 +337,12 @@ export const mainSidebarSections: NavSection[] = [
   },
 ];
 
-// Main app sidebar for all pages
+// Main app sidebar for all pages — reads from DB with hardcoded fallback
 export function MainSidebar({ children }: { children: React.ReactNode }) {
+  const { sections } = useNavItems("main", mainSidebarSections);
+
   return (
-    <SidebarLayout sections={mainSidebarSections} title="Atlas">
+    <SidebarLayout sections={sections} title="Atlas">
       {children}
     </SidebarLayout>
   );

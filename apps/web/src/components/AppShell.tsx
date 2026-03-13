@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { GlobalSearch } from "@/components/search";
 import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout";
+import { usePermission } from "@/hooks/usePermission";
 
 interface Staff {
   staff_id: string;
@@ -65,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const isAdmin = staff?.auth_role === "admin";
+  const isAdmin = usePermission("admin.access");
 
   const isActive = (href: string) => {
     if (href === "/" && pathname === "/") return true;

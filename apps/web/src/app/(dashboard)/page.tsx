@@ -7,6 +7,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
 import { KpiStrip, ActionPanel, DASHBOARD_LAYER_GROUPS, getDefaultEnabledLayers } from "@/components/dashboard";
+import { usePermission } from "@/hooks/usePermission";
 import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 import type { EntityType } from "@/components/search/EntityPreviewContent";
@@ -133,6 +134,7 @@ export default function Home() {
 
 function HomeInner() {
   const isMobile = useIsMobile();
+  const isAdmin = usePermission("admin.access");
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -365,7 +367,7 @@ function HomeInner() {
           intake={intake}
           loadingRequests={loadingRequests}
           loadingIntake={loadingIntake}
-          isAdmin={staff?.auth_role === "admin"}
+          isAdmin={isAdmin}
           staffPersonId={staff?.person_id ?? null}
           showMyRequests={showMyRequests}
           onToggleMyRequests={() => setShowMyRequests(!showMyRequests)}
