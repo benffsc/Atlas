@@ -617,9 +617,12 @@ export class AirtableSyncEngine {
     }
 
     // Step 1: Resolve identity
+    // data_engine_resolve_identity returns: resolved_person_id, decision_type,
+    // display_name, confidence, reason, match_details, decision_id
     const identityResult = await queryOne<{
-      person_id: string;
-      match_type: string;
+      resolved_person_id: string | null;
+      decision_type: string;
+      reason: string | null;
     }>(
       `SELECT * FROM sot.data_engine_resolve_identity($1, $2, $3, $4, $5, $6)`,
       [email, phone || null, firstName, lastName, address || null, config.source_system]
@@ -633,18 +636,27 @@ export class AirtableSyncEngine {
       };
     }
 
-    const personId = identityResult.person_id;
+    if (identityResult.decision_type === "rejected" || !identityResult.resolved_person_id) {
+      return {
+        success: false,
+        recordId: record.id,
+        error: `Identity resolution rejected: ${identityResult.reason || "no person_id returned"}`,
+      };
+    }
+
+    const personId = identityResult.resolved_person_id;
+    const matchType = identityResult.decision_type;
 
     // Step 2: Execute post_steps in order
     for (const step of config.post_steps) {
-      await this.executePostStep(step, personId, mapped, record, identityResult.match_type);
+      await this.executePostStep(step, personId, mapped, record, matchType);
     }
 
     return {
       success: true,
       recordId: record.id,
       entityId: personId,
-      matchType: identityResult.match_type,
+      matchType,
     };
   }
 
