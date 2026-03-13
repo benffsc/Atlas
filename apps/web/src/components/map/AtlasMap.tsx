@@ -2419,8 +2419,8 @@ function AtlasMapInner() {
                   </div>
                 ))}
 
-                {/* Fuzzy search results from API (places, people, etc.) */}
-                {atlasSearchResults.filter(r => !searchResults.some(sr => sr.label === r.display_name)).map((result, i) => (
+                {/* Fuzzy search results from API (places, people, etc.) — deduplicated by entity_id (FFS-483) */}
+                {atlasSearchResults.filter((r, i, arr) => !searchResults.some(sr => sr.label === r.display_name) && arr.findIndex(a => a.entity_id === r.entity_id) === i).map((result, i) => (
                   <div
                     key={`atlas-${i}`}
                     onClick={() => handleAtlasSearchSelect(result)}
