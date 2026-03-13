@@ -165,10 +165,10 @@ export const FEEDING_FREQUENCY_OPTIONS = [
 // FEEDING DURATION - How long has caller been feeding?
 // =============================================================================
 export const FEEDING_DURATION_OPTIONS = [
-  { value: "days", label: "Days" },
-  { value: "weeks", label: "Weeks" },
-  { value: "months", label: "Months" },
-  { value: "years", label: "Years" },
+  { value: "just_started", label: "Just started (days)" },
+  { value: "few_weeks", label: "A few weeks" },
+  { value: "few_months", label: "A few months" },
+  { value: "over_year", label: "Over a year" },
 ] as const;
 
 // =============================================================================
