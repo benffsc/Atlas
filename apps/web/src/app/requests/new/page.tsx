@@ -13,12 +13,17 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
 import { INPUT, MB_LG, MB_XL, FLEX_WRAP, SECTION_DIVIDER } from "../styles";
 import {
+  PROPERTY_TYPE_OPTIONS,
   OWNERSHIP_OPTIONS,
   HANDLEABILITY_OPTIONS,
   FIXED_STATUS_OPTIONS,
   IMPORTANT_NOTE_OPTIONS,
   URGENCY_REASON_OPTIONS,
-} from "@/lib/intake-options";
+  PERMISSION_STATUS_OPTIONS,
+  COLONY_DURATION_OPTIONS,
+  COUNT_CONFIDENCE_OPTIONS,
+  EARTIP_ESTIMATE_OPTIONS,
+} from "@/lib/form-options";
 import {
   EntryModeSelector,
   ActiveRequestWarning,
@@ -66,24 +71,6 @@ interface PersonDetails {
   addresses?: PersonAddress[];
 }
 
-const PROPERTY_TYPE_OPTIONS = [
-  { value: "private_home", label: "Private Home" },
-  { value: "condo_townhome", label: "Condo/Townhome" },
-  { value: "duplex_multiplex", label: "Duplex/Multiplex" },
-  { value: "apartment_complex", label: "Apartment Complex" },
-  { value: "mobile_home_park", label: "Mobile Home Park" },
-  { value: "farm_ranch", label: "Farm/Ranch" },
-  { value: "rural_unincorporated", label: "Rural/Unincorporated" },
-  { value: "business", label: "Business/Commercial" },
-  { value: "industrial", label: "Industrial/Warehouse" },
-  { value: "public_park", label: "Public Park/Open Space" },
-  { value: "school_campus", label: "School/Campus" },
-  { value: "church_religious", label: "Church/Religious" },
-  { value: "government_municipal", label: "Government/Municipal" },
-  { value: "vacant_lot", label: "Vacant Lot/Undeveloped" },
-  { value: "other", label: "Other" },
-];
-
 /** Map PlaceResolver place_kind → request form property_type */
 function placeKindToPropertyType(placeKind: string): string {
   const map: Record<string, string> = {
@@ -100,39 +87,7 @@ function placeKindToPropertyType(placeKind: string): string {
   return map[placeKind] || "";
 }
 
-const PERMISSION_OPTIONS = [
-  { value: "yes", label: "Yes - Permission granted" },
-  { value: "pending", label: "Pending - Waiting for response" },
-  { value: "no", label: "No - Permission denied" },
-  { value: "not_needed", label: "Not needed - Public property" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const COLONY_DURATION_OPTIONS = [
-  { value: "under_1_month", label: "Less than 1 month" },
-  { value: "1_to_6_months", label: "1-6 months" },
-  { value: "6_to_24_months", label: "6 months - 2 years" },
-  { value: "over_2_years", label: "More than 2 years" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const COUNT_CONFIDENCE_OPTIONS = [
-  { value: "exact", label: "Exact count" },
-  { value: "good_estimate", label: "Good estimate" },
-  { value: "rough_guess", label: "Rough guess" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const EARTIP_ESTIMATE_OPTIONS = [
-  { value: "none", label: "None ear-tipped" },
-  { value: "few", label: "A few (less than 25%)" },
-  { value: "some", label: "Some (25-50%)" },
-  { value: "most", label: "Most (50-75%)" },
-  { value: "all", label: "All or almost all (75%+)" },
-  { value: "unknown", label: "Unknown" },
-];
-
-// URGENCY_REASON_OPTIONS imported from @/lib/intake-options
+// All options now imported from @/lib/form-options (FFS-486)
 
 function NewRequestForm() {
   const router = useRouter();
@@ -1840,7 +1795,7 @@ function NewRequestForm() {
                 onChange={(e) => setPermissionStatus(e.target.value)}
                 style={{ width: "100%" }}
               >
-                {PERMISSION_OPTIONS.map((opt) => (
+                {PERMISSION_STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>

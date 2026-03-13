@@ -21,6 +21,15 @@
 
 // Import from single source of truth
 import { ALL_STATUSES, type RequestStatus as RequestStatusType } from "./request-status";
+import {
+  PROPERTY_TYPE_OPTIONS as _PROPERTY_TYPE_OPTIONS,
+  COLONY_DURATION_OPTIONS as _COLONY_DURATION_OPTIONS,
+  COUNT_CONFIDENCE_OPTIONS as _COUNT_CONFIDENCE_OPTIONS,
+  EARTIP_ESTIMATE_OPTIONS as _EARTIP_ESTIMATE_OPTIONS,
+  FEEDING_FREQUENCY_OPTIONS as _FEEDING_FREQUENCY_OPTIONS,
+  PERMISSION_STATUS_OPTIONS as _PERMISSION_STATUS_OPTIONS,
+  getValues,
+} from "./form-options";
 
 // Re-export for API validation
 // See @/lib/request-status.ts for the full status system documentation
@@ -47,62 +56,18 @@ export const NO_TRAPPER_REASON = [
   "no_capacity",
 ] as const;
 
-export const PERMISSION_STATUS = [
-  "yes",
-  "no",
-  "pending",
-  "not_needed",
-  "unknown",
-] as const;
+// Derived from centralized form-options.ts registry (FFS-486)
+export const PERMISSION_STATUS = getValues(_PERMISSION_STATUS_OPTIONS) as unknown as readonly ["yes", "no", "pending", "not_needed", "unknown"];
 
-export const COLONY_DURATION = [
-  "under_1_month",
-  "1_to_6_months",
-  "6_to_24_months",
-  "over_2_years",
-  "unknown",
-] as const;
+export const COLONY_DURATION = getValues(_COLONY_DURATION_OPTIONS) as unknown as readonly ["under_1_month", "1_to_6_months", "6_to_24_months", "over_2_years", "unknown"];
 
-export const COUNT_CONFIDENCE = [
-  "exact",
-  "good_estimate",
-  "rough_guess",
-  "unknown",
-] as const;
+export const COUNT_CONFIDENCE = getValues(_COUNT_CONFIDENCE_OPTIONS) as unknown as readonly ["exact", "good_estimate", "rough_guess", "unknown"];
 
-export const EARTIP_ESTIMATE = [
-  "none",
-  "few",
-  "some",
-  "most",
-  "all",
-  "unknown",
-] as const;
+export const EARTIP_ESTIMATE = getValues(_EARTIP_ESTIMATE_OPTIONS) as unknown as readonly ["none", "few", "some", "most", "all", "unknown"];
 
-export const FEEDING_FREQUENCY = [
-  "daily",
-  "few_times_week",
-  "occasionally",
-  "rarely",
-] as const;
+export const FEEDING_FREQUENCY = getValues(_FEEDING_FREQUENCY_OPTIONS) as unknown as readonly ["daily", "few_times_week", "occasionally", "rarely"];
 
-export const PROPERTY_TYPE = [
-  "private_home",
-  "condo_townhome",
-  "duplex_multiplex",
-  "apartment_complex",
-  "mobile_home_park",
-  "farm_ranch",
-  "rural_unincorporated",
-  "business",
-  "industrial",
-  "public_park",
-  "school_campus",
-  "church_religious",
-  "government_municipal",
-  "vacant_lot",
-  "other",
-] as const;
+export const PROPERTY_TYPE = getValues(_PROPERTY_TYPE_OPTIONS) as unknown as readonly ["private_home", "condo_townhome", "duplex_multiplex", "apartment_complex", "mobile_home_park", "farm_ranch", "rural_unincorporated", "business", "industrial", "public_park", "school_campus", "church_religious", "government_municipal", "vacant_lot", "other"];
 
 // =============================================================================
 // HANDOFF ENUMS
