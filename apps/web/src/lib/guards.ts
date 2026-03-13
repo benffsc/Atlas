@@ -125,6 +125,8 @@ const BUSINESS_KEYWORDS = [
   'church', 'temple', 'library', 'museum', 'cemetery',
   // Corporate indicators
   'corporation',
+  // TNR org abbreviations (MIG_2926/FFS-522)
+  'scas', 'hssc', 'arlgp', 'snap', 'paws', 'aspca', 'rpas', 'lmfm', 'nbas',
 ];
 
 /**
@@ -385,7 +387,11 @@ export function classifyOwnerName(displayName: string): NameClassification {
   }
 
   // All uppercase single word > 3 chars (likely abbreviation)
+  // MIG_2926: Check business keywords first — org abbreviations like SCAS, HSSC
   if (words.length === 1 && name === name.toUpperCase() && name.length > 3) {
+    if (businessScore >= 0.8) {
+      return 'organization';
+    }
     return 'garbage';
   }
 
