@@ -11,6 +11,7 @@ import { useRequestCounts } from "@/hooks/useRequestCounts";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
 import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
+import { useTriageFlags } from "@/hooks/useTriageFlags";
 import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
 
 interface Request {
@@ -79,14 +80,6 @@ function ColonySizeBadge({ count }: { count: number | null }) {
   );
 }
 
-const FLAG_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  no_trapper: { label: "Needs trapper", bg: COLORS.warningLight, color: getStatusColor('warning').text },
-  client_trapping: { label: "Client trapping", bg: COLORS.successLight, color: COLORS.successDark },
-  no_geometry: { label: "No map pin", bg: COLORS.infoLight, color: COLORS.infoDark },
-  stale_30d: { label: "Stale 30d", bg: COLORS.errorLight, color: getStatusColor('error').text },
-  no_requester: { label: "No requester", bg: "#e0e7ff", color: "#3730a3" },
-};
-
 function DataQualityFlags({
   flags,
   requestId,
@@ -100,6 +93,7 @@ function DataQualityFlags({
   actionMenuOpen?: boolean;
   onToggleMenu?: (requestId: string | null) => void;
 }) {
+  const { flagConfig: FLAG_CONFIG } = useTriageFlags();
   if (!flags || flags.length === 0) return null;
   return (
     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
