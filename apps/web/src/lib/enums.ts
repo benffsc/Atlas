@@ -65,7 +65,7 @@ export const COUNT_CONFIDENCE = getValues(_COUNT_CONFIDENCE_OPTIONS) as unknown 
 
 export const EARTIP_ESTIMATE = getValues(_EARTIP_ESTIMATE_OPTIONS) as unknown as readonly ["none", "few", "some", "most", "all", "unknown"];
 
-export const FEEDING_FREQUENCY = getValues(_FEEDING_FREQUENCY_OPTIONS) as unknown as readonly ["daily", "few_times_week", "occasionally", "rarely"];
+export const FEEDING_FREQUENCY = getValues(_FEEDING_FREQUENCY_OPTIONS) as unknown as readonly ["daily", "free_fed", "few_times_week", "occasionally", "rarely", "not_fed"];
 
 export const PROPERTY_TYPE = getValues(_PROPERTY_TYPE_OPTIONS) as unknown as readonly ["private_home", "condo_townhome", "duplex_multiplex", "apartment_complex", "mobile_home_park", "farm_ranch", "rural_unincorporated", "business", "industrial", "public_park", "school_campus", "church_religious", "government_municipal", "vacant_lot", "other"];
 

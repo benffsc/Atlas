@@ -80,6 +80,9 @@ export const CALL_TYPE_OPTIONS = [
   { value: "colony_tnr", label: "Colony / FFR Request", description: "Multiple outdoor cats needing FFR" },
   { value: "kitten_rescue", label: "Kitten Situation", description: "Kittens found, may need foster" },
   { value: "medical_concern", label: "Medical Concern / Injured", description: "Cat appears injured or sick" },
+  { value: "relocation", label: "Cat Relocation", description: "Cats need to be moved to a different location" },
+  { value: "caretaker_support", label: "Caretaker Support", description: "Existing colony caretaker needs help or supplies" },
+  { value: "info_only", label: "Information / Resources", description: "Caller seeking information, not requesting service" },
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================
@@ -180,10 +183,12 @@ export const COLONY_DURATION_OPTIONS = [
 ] as const satisfies readonly FormOption[];
 
 export const FEEDING_FREQUENCY_OPTIONS = [
-  { value: "daily", label: "Daily", shortLabel: "Daily" },
+  { value: "daily", label: "Daily (scheduled times)", shortLabel: "Daily" },
+  { value: "free_fed", label: "Free-fed (food always out)", shortLabel: "Free-fed" },
   { value: "few_times_week", label: "A few times a week", shortLabel: "Few times/wk" },
   { value: "occasionally", label: "Occasionally", shortLabel: "Occasionally" },
-  { value: "rarely", label: "Rarely / Not at all", shortLabel: "Rarely" },
+  { value: "rarely", label: "Rarely", shortLabel: "Rarely" },
+  { value: "not_fed", label: "Not being fed", shortLabel: "Not fed", description: "No one is feeding these cats" },
 ] as const satisfies readonly FormOption[];
 
 export const FEEDING_DURATION_OPTIONS = [
@@ -337,9 +342,12 @@ export const KITTEN_READINESS_OPTIONS = [
 ] as const satisfies readonly FormOption[];
 
 export const KITTEN_URGENCY_OPTIONS = [
-  { value: "bottle_babies", label: "Bottle babies", shortLabel: "Bottle babies" },
+  { value: "bottle_babies", label: "Bottle babies (need bottle feeding)", shortLabel: "Bottle babies" },
+  { value: "orphaned", label: "Orphaned (no mom present)", shortLabel: "Orphaned" },
+  { value: "fading", label: "Fading / declining health", shortLabel: "Fading" },
   { value: "medical_needs", label: "Medical needs", shortLabel: "Medical needs" },
   { value: "unsafe_location", label: "Unsafe location", shortLabel: "Unsafe location" },
+  { value: "exposed_elements", label: "Exposed to elements (no shelter)", shortLabel: "Exposed" },
   { value: "mom_unfixed", label: "Mom unfixed", shortLabel: "Mom unfixed" },
 ] as const satisfies readonly FormOption[];
 
@@ -355,7 +363,13 @@ export const URGENCY_REASON_OPTIONS = [
   { value: "eviction", label: "Eviction/property issue" },
   { value: "moving", label: "Requester moving soon" },
   { value: "pregnant", label: "Pregnant cat(s)" },
+  { value: "nursing_mother", label: "Nursing mother with kittens" },
   { value: "weather", label: "Weather concerns" },
+  { value: "hoarding", label: "Hoarding situation" },
+  { value: "property_threat", label: "Property threat (construction, demolition, sale)" },
+  { value: "no_caretaker", label: "Colony with no caretaker" },
+  { value: "colony_growth", label: "Rapid colony growth / reproduction" },
+  { value: "public_health", label: "Public health concern" },
 ] as const satisfies readonly FormOption[];
 
 export const URGENT_SITUATION_EXAMPLES =
@@ -396,10 +410,13 @@ export const REFERRAL_SOURCE_OPTIONS = [
   { value: "website", label: "FFSC Website", shortLabel: "Website" },
   { value: "google", label: "Google search", shortLabel: "Google" },
   { value: "facebook", label: "Facebook", shortLabel: "Facebook" },
+  { value: "instagram", label: "Instagram", shortLabel: "Instagram" },
   { value: "nextdoor", label: "Nextdoor", shortLabel: "Nextdoor" },
   { value: "friend_family", label: "Friend or family", shortLabel: "Friend" },
   { value: "vet", label: "Veterinarian", shortLabel: "Vet/Shelter" },
   { value: "shelter", label: "Shelter / Animal services", shortLabel: "Vet/Shelter" },
+  { value: "animal_control", label: "Animal control / City services", shortLabel: "Animal ctrl" },
+  { value: "community_event", label: "Community event / Workshop", shortLabel: "Event" },
   { value: "repeat_caller", label: "Have called before", shortLabel: "Repeat" },
   { value: "other", label: "Other", shortLabel: "Other" },
 ] as const satisfies readonly FormOption[];
@@ -418,6 +435,10 @@ export const IMPORTANT_NOTE_OPTIONS = [
   { value: "wildlife_concerns", label: "Wildlife concerns (raccoons etc.)", shortLabel: "Wildlife" },
   { value: "neighbor_issues", label: "Neighbor issues / complaints", shortLabel: "Neighbor" },
   { value: "urgent_time_sensitive", label: "Urgent / time-sensitive", shortLabel: "Urgent" },
+  { value: "hoarding_situation", label: "Possible hoarding situation", shortLabel: "Hoarding" },
+  { value: "property_sale_construction", label: "Property being sold/demolished", shortLabel: "Property threat" },
+  { value: "no_colony_caretaker", label: "No known caretaker for colony", shortLabel: "No caretaker" },
+  { value: "school_campus_nearby", label: "School/campus nearby", shortLabel: "School nearby" },
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================
