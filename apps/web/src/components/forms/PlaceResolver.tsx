@@ -8,16 +8,13 @@ import {
 } from "@/hooks/usePlaceResolver";
 import { formatPlaceKind } from "@/lib/display-labels";
 
-// ── Place kind options (union of requests/new + places/new) ──
+// ── Place kind options (for "describe location" fallback only) ──
 
-const PLACE_KIND_OPTIONS = [
-  { value: "residential_house", label: "House", description: "Single family home" },
-  { value: "apartment_unit", label: "Apartment", description: "Unit in apartment building" },
-  { value: "apartment_building", label: "Apt Building", description: "Multi-unit building" },
-  { value: "business", label: "Business", description: "Store, restaurant, office" },
+const DESCRIBE_PLACE_KIND_OPTIONS = [
   { value: "outdoor_site", label: "Outdoor Site", description: "Park, lot, open area" },
   { value: "neighborhood", label: "Neighborhood", description: "General area, colony" },
-  { value: "clinic", label: "Clinic/Vet", description: "Veterinary clinic or shelter" },
+  { value: "residential_house", label: "House", description: "Single family home" },
+  { value: "business", label: "Business", description: "Store, restaurant, office" },
   { value: "unknown", label: "Other", description: "Not sure or other type" },
 ];
 
@@ -26,9 +23,9 @@ const PLACE_KIND_OPTIONS = [
 interface PlaceResolverProps {
   value: ResolvedPlace | null;
   onChange: (place: ResolvedPlace | null) => void;
-  /** Called immediately when a Google address is selected (before place type modal) */
+  /** Called immediately when a Google address is selected (before resolution completes) */
   onAddressPreview?: (address: string) => void;
-  /** Called when a place_kind is determined (from modal selection or existing place) */
+  /** Called when a place_kind is determined (from existing place match) */
   onPlaceKindResolved?: (placeKind: string) => void;
   placeholder?: string;
   disabled?: boolean;
@@ -56,12 +53,7 @@ export default function PlaceResolver({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Place type modal state
-  const [showPlaceTypeModal, setShowPlaceTypeModal] = useState(false);
-  const [selectedPlaceKind, setSelectedPlaceKind] = useState("residential_house");
-
-  // Duplicate modal state
-  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  // Unit creation state (for inline duplicate handling)
   const [addingUnit, setAddingUnit] = useState(false);
   const [unitIdentifier, setUnitIdentifier] = useState("");
 
@@ -84,27 +76,6 @@ export default function PlaceResolver({
     }
   }, [resolver.selectedPlace]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show duplicate modal when duplicate detected
-  useEffect(() => {
-    if (resolver.duplicateCheck) {
-      setShowDuplicateModal(true);
-    }
-  }, [resolver.duplicateCheck]);
-
-  // Show place type modal when Google place selected without duplicate
-  useEffect(() => {
-    if (resolver.pendingGoogle && !resolver.duplicateCheck && !resolver.checkingDuplicate) {
-      setShowPlaceTypeModal(true);
-    }
-  }, [resolver.pendingGoogle, resolver.duplicateCheck, resolver.checkingDuplicate]);
-
-  // Call onAddressPreview when a Google address is selected (before place type modal)
-  useEffect(() => {
-    if (resolver.pendingGoogle?.description && onAddressPreview) {
-      onAddressPreview(resolver.pendingGoogle.description);
-    }
-  }, [resolver.pendingGoogle, onAddressPreview]);
-
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -123,39 +94,38 @@ export default function PlaceResolver({
 
   // ── Handlers ──
 
-  const handleCreateFromGoogle = async () => {
-    await resolver.createFromGoogle(selectedPlaceKind);
-    onPlaceKindResolved?.(selectedPlaceKind);
-    setShowPlaceTypeModal(false);
-    setSelectedPlaceKind("residential_house");
+  const handleSelectGoogle = async (prediction: Parameters<typeof resolver.selectGooglePlace>[0]) => {
+    // Notify parent immediately with the address text
+    onAddressPreview?.(prediction.description);
+
+    // Resolve inline — no modal
+    const placeKind = await resolver.selectGooglePlace(prediction);
+    if (placeKind) {
+      onPlaceKindResolved?.(placeKind);
+    }
   };
 
   const handleSelectExistingDuplicate = () => {
-    if (resolver.duplicateCheck?.existingPlace?.place_kind) {
-      onPlaceKindResolved?.(resolver.duplicateCheck.existingPlace.place_kind);
-    }
-    resolver.selectExistingDuplicate();
-    setShowDuplicateModal(false);
+    // Already selected by the resolver — just dismiss the info banner
+    resolver.dismissDuplicate();
     setAddingUnit(false);
     setUnitIdentifier("");
   };
 
   const handleCreateUnit = async () => {
-    if (!unitIdentifier.trim() || !resolver.duplicateCheck?.existingPlace) return;
+    if (!unitIdentifier.trim() || !resolver.duplicateInfo?.existingPlace) return;
     await resolver.createUnit(
-      resolver.duplicateCheck.existingPlace.place_id,
+      resolver.duplicateInfo.existingPlace.place_id,
       unitIdentifier.trim()
     );
-    setShowDuplicateModal(false);
     setAddingUnit(false);
     setUnitIdentifier("");
   };
 
-  const handleCancelDuplicate = () => {
-    setShowDuplicateModal(false);
+  const handleDismissDuplicate = () => {
+    resolver.dismissDuplicate();
     setAddingUnit(false);
     setUnitIdentifier("");
-    resolver.clearDuplicateCheck();
   };
 
   const handleCreateFromDescription = async () => {
@@ -171,6 +141,47 @@ export default function PlaceResolver({
     resolver.clearSelection();
     onChange(null);
   };
+
+  // ── Render: Resolving state (inline spinner while creating place) ──
+
+  if (resolver.resolving) {
+    return (
+      <div className={className}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            padding: "0.75rem",
+            background: "var(--bg-secondary, #f8f9fa)",
+            borderRadius: "6px",
+            border: "1px solid var(--border, #dee2e6)",
+          }}
+        >
+          <div
+            style={{
+              width: "16px",
+              height: "16px",
+              border: "2px solid var(--border, #dee2e6)",
+              borderTopColor: "var(--primary, #0d6efd)",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {resolver.resolvingAddress || "Resolving address..."}
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "var(--muted, #6c757d)" }}>
+              Setting up location...
+            </div>
+          </div>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   // ── Render: Selected place chip ──
 
@@ -218,6 +229,108 @@ export default function PlaceResolver({
             </button>
           )}
         </div>
+
+        {/* Inline duplicate info banner */}
+        {resolver.duplicateInfo && resolver.duplicateInfo.existingPlace && (
+          <div
+            style={{
+              marginTop: "0.5rem",
+              padding: "0.75rem",
+              background: "#fff8e1",
+              border: "1px solid #ffe082",
+              borderRadius: "6px",
+              fontSize: "0.9rem",
+            }}
+          >
+            {!addingUnit ? (
+              <>
+                <div style={{ marginBottom: "0.5rem", fontWeight: 500 }}>
+                  This address already exists in Atlas
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "var(--muted, #6c757d)", marginBottom: "0.5rem" }}>
+                  {resolver.duplicateInfo.existingPlace.display_name}
+                  {resolver.duplicateInfo.existingPlace.cat_count > 0 && ` — ${resolver.duplicateInfo.existingPlace.cat_count} cats`}
+                  {resolver.duplicateInfo.existingPlace.request_count > 0 && ` — ${resolver.duplicateInfo.existingPlace.request_count} requests`}
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleSelectExistingDuplicate}
+                    style={{ fontSize: "0.85rem", padding: "0.3rem 0.75rem" }}
+                  >
+                    Use Existing
+                  </button>
+                  {resolver.duplicateInfo.canAddUnit && (
+                    <button
+                      type="button"
+                      onClick={() => setAddingUnit(true)}
+                      style={{
+                        fontSize: "0.85rem",
+                        padding: "0.3rem 0.75rem",
+                        background: "transparent",
+                        border: "1px solid var(--border, #dee2e6)",
+                        color: "inherit",
+                      }}
+                    >
+                      Add Unit
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDismissDuplicate}
+                    style={{
+                      fontSize: "0.85rem",
+                      padding: "0.3rem 0.75rem",
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--muted, #6c757d)",
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: "0.5rem", fontWeight: 500 }}>
+                  Add unit to {resolver.duplicateInfo.existingPlace.display_name}
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={unitIdentifier}
+                    onChange={(e) => setUnitIdentifier(e.target.value)}
+                    placeholder="e.g., Apt 5, Unit B, #12"
+                    style={{ flex: 1, fontSize: "0.9rem" }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreateUnit}
+                    disabled={!unitIdentifier.trim() || resolver.creating}
+                    style={{ fontSize: "0.85rem", padding: "0.3rem 0.75rem", whiteSpace: "nowrap" }}
+                  >
+                    {resolver.creating ? "Creating..." : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAddingUnit(false); setUnitIdentifier(""); }}
+                    style={{
+                      fontSize: "0.85rem",
+                      padding: "0.3rem 0.75rem",
+                      background: "transparent",
+                      border: "1px solid var(--border, #dee2e6)",
+                      color: "inherit",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -246,7 +359,7 @@ export default function PlaceResolver({
           />
 
           {/* Loading indicator */}
-          {(resolver.searching || resolver.checkingDuplicate) && (
+          {resolver.searching && (
             <div
               style={{
                 position: "absolute",
@@ -256,7 +369,7 @@ export default function PlaceResolver({
                 color: "var(--muted, #6c757d)",
               }}
             >
-              {resolver.checkingDuplicate ? "Checking..." : "..."}
+              ...
             </div>
           )}
 
@@ -291,7 +404,7 @@ export default function PlaceResolver({
               onChange={(e) => setDescPlaceKind(e.target.value)}
               style={{ width: "100%", marginBottom: "0.5rem" }}
             >
-              {PLACE_KIND_OPTIONS.map((opt) => (
+              {DESCRIBE_PLACE_KIND_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label} — {opt.description}
                 </option>
@@ -430,7 +543,7 @@ export default function PlaceResolver({
                   <button
                     key={prediction.place_id}
                     type="button"
-                    onClick={() => resolver.selectGooglePlace(prediction)}
+                    onClick={() => handleSelectGoogle(prediction)}
                     className="dropdown-item"
                     style={{ display: "block", width: "100%", textAlign: "left", cursor: "pointer" }}
                   >
@@ -446,280 +559,6 @@ export default function PlaceResolver({
             )}
           </div>
         )}
-
-      {/* ── Place Type Modal ── */}
-      {showPlaceTypeModal && resolver.pendingGoogle && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => {
-            setShowPlaceTypeModal(false);
-            resolver.clearDuplicateCheck();
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              padding: "1.5rem",
-              maxWidth: "500px",
-              width: "90%",
-              maxHeight: "90vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: "0.5rem" }}>What type of location is this?</h2>
-            <p className="text-muted text-sm" style={{ marginBottom: "1rem" }}>
-              {resolver.pendingGoogle.description}
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {PLACE_KIND_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.75rem",
-                    background:
-                      selectedPlaceKind === opt.value ? "var(--primary, #0d6efd)" : "transparent",
-                    color: selectedPlaceKind === opt.value ? "#fff" : "inherit",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    border: "1px solid var(--border, #dee2e6)",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="placeKind"
-                    value={opt.value}
-                    checked={selectedPlaceKind === opt.value}
-                    onChange={() => setSelectedPlaceKind(opt.value)}
-                    style={{ display: "none" }}
-                  />
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{opt.label}</div>
-                    <div
-                      style={{
-                        fontSize: "0.8rem",
-                        opacity: selectedPlaceKind === opt.value ? 0.9 : 0.6,
-                      }}
-                    >
-                      {opt.description}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            {resolver.error && (
-              <div
-                style={{
-                  background: "#fee2e2",
-                  color: "#dc2626",
-                  padding: "0.75rem",
-                  borderRadius: "6px",
-                  marginTop: "1rem",
-                  fontSize: "0.9rem",
-                  border: "1px solid #fca5a5",
-                }}
-              >
-                {resolver.error}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
-              <button type="button" onClick={handleCreateFromGoogle} disabled={resolver.creating}>
-                {resolver.creating ? "Creating..." : "Create Location"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPlaceTypeModal(false);
-                  resolver.clearDuplicateCheck();
-                }}
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--border, #dee2e6)",
-                  color: "inherit",
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Duplicate Address Modal ── */}
-      {showDuplicateModal && resolver.duplicateCheck && resolver.pendingGoogle && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={handleCancelDuplicate}
-        >
-          <div
-            className="card"
-            style={{
-              padding: "1.5rem",
-              maxWidth: "550px",
-              width: "90%",
-              maxHeight: "90vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Warning icon */}
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                background: "#ffc107",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 1rem",
-                color: "#000",
-                fontSize: "1.5rem",
-              }}
-            >
-              !
-            </div>
-            <h2 style={{ marginBottom: "0.5rem", textAlign: "center" }}>
-              Address Already Exists
-            </h2>
-            <p className="text-muted" style={{ textAlign: "center", marginBottom: "1rem" }}>
-              This address is already in our system.
-            </p>
-
-            {/* Existing place info */}
-            <div
-              style={{
-                padding: "1rem",
-                border: "1px solid var(--border, #dee2e6)",
-                borderRadius: "8px",
-                marginBottom: "1rem",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                <span style={{ fontWeight: 600 }}>
-                  {resolver.duplicateCheck.existingPlace?.display_name}
-                </span>
-                {resolver.duplicateCheck.existingPlace?.place_kind && (
-                  <span
-                    style={{
-                      fontSize: "0.65rem",
-                      padding: "0.1rem 0.4rem",
-                      borderRadius: "9999px",
-                      background: "var(--bg-secondary, #f3f4f6)",
-                      color: "var(--muted, #6c757d)",
-                    }}
-                  >
-                    {formatPlaceKind(resolver.duplicateCheck.existingPlace.place_kind)}
-                  </span>
-                )}
-              </div>
-              <div className="text-muted text-sm">
-                {resolver.duplicateCheck.existingPlace?.formatted_address}
-              </div>
-            </div>
-
-            {!addingUnit ? (
-              <>
-                <p style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
-                  Would you like to use this existing location, or are you adding a new
-                  unit/apartment at this address?
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  <button type="button" onClick={handleSelectExistingDuplicate}>
-                    Use Existing Location
-                  </button>
-                  {resolver.duplicateCheck.canAddUnit && (
-                    <button
-                      type="button"
-                      onClick={() => setAddingUnit(true)}
-                      style={{
-                        background: "transparent",
-                        border: "1px solid var(--border, #dee2e6)",
-                        color: "inherit",
-                      }}
-                    >
-                      Add Unit to This Address
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleCancelDuplicate}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--muted, #6c757d)",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p style={{ marginBottom: "0.75rem", fontSize: "0.95rem" }}>
-                  Enter the unit identifier for this location:
-                </p>
-                <div style={{ marginBottom: "1rem" }}>
-                  <input
-                    type="text"
-                    value={unitIdentifier}
-                    onChange={(e) => setUnitIdentifier(e.target.value)}
-                    placeholder="e.g., Apt 5, Unit B, #12, Space 101"
-                    style={{ width: "100%" }}
-                    autoFocus
-                  />
-                </div>
-                <div style={{ display: "flex", gap: "0.75rem" }}>
-                  <button
-                    type="button"
-                    onClick={handleCreateUnit}
-                    disabled={!unitIdentifier.trim() || resolver.creating}
-                  >
-                    {resolver.creating ? "Creating..." : "Create Unit"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddingUnit(false);
-                      setUnitIdentifier("");
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid var(--border, #dee2e6)",
-                      color: "inherit",
-                    }}
-                  >
-                    Back
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

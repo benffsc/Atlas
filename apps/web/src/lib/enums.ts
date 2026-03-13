@@ -88,12 +88,19 @@ export const FEEDING_FREQUENCY = [
 
 export const PROPERTY_TYPE = [
   "private_home",
+  "condo_townhome",
+  "duplex_multiplex",
   "apartment_complex",
   "mobile_home_park",
-  "business",
   "farm_ranch",
-  "public_park",
+  "rural_unincorporated",
+  "business",
   "industrial",
+  "public_park",
+  "school_campus",
+  "church_religious",
+  "government_municipal",
+  "vacant_lot",
   "other",
 ] as const;
 

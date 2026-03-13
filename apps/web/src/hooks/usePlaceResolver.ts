@@ -72,10 +72,13 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
   // Selection state
   const [selectedPlace, setSelectedPlace] = useState<ResolvedPlace | null>(null);
 
-  // Google place pending resolution
-  const [pendingGoogle, setPendingGoogle] = useState<GooglePrediction | null>(null);
-  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
-  const [duplicateCheck, setDuplicateCheck] = useState<DuplicateCheckResult | null>(null);
+  // Inline resolution state (replaces modal flow)
+  const [resolving, setResolving] = useState(false);
+  const [resolvingAddress, setResolvingAddress] = useState<string | null>(null);
+
+  // Duplicate state (inline, not modal)
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateCheckResult | null>(null);
+  const [pendingGoogleForUnit, setPendingGoogleForUnit] = useState<GooglePrediction | null>(null);
 
   // Creation state
   const [creating, setCreating] = useState(false);
@@ -149,72 +152,67 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     setError(null);
   }, []);
 
-  const selectGooglePlace = useCallback(async (prediction: GooglePrediction) => {
-    setPendingGoogle(prediction);
+  /**
+   * Select a Google Place and resolve it inline — no modal.
+   * Runs duplicate check + Google details + place creation in parallel.
+   * Returns the resolved place_kind (from existing place) or null (new place).
+   */
+  const selectGooglePlace = useCallback(async (prediction: GooglePrediction): Promise<string | null> => {
     setShowDropdown(false);
     setError(null);
+    setResolving(true);
+    setResolvingAddress(prediction.description);
+    setDuplicateInfo(null);
 
-    if (!autoCheckDuplicate) {
-      // Skip duplicate check — go straight to pending state for place type selection
-      return;
-    }
-
-    setCheckingDuplicate(true);
     try {
-      const result = await fetchApi<DuplicateCheckResult>(
-        `/api/places/check-duplicate?address=${encodeURIComponent(prediction.description)}`
-      );
-      if (result.isDuplicate && result.existingPlace) {
-        setDuplicateCheck(result);
-        return; // Caller should show duplicate modal
+      // Run duplicate check and Google details fetch in parallel
+      const [dupResult, detailsResult] = await Promise.allSettled([
+        autoCheckDuplicate
+          ? fetchApi<DuplicateCheckResult>(
+              `/api/places/check-duplicate?address=${encodeURIComponent(prediction.description)}`
+            )
+          : Promise.resolve(null),
+        fetchApi<{ place: Record<string, unknown> }>(
+          `/api/places/details?place_id=${encodeURIComponent(prediction.place_id)}`
+        ),
+      ]);
+
+      // Check for duplicate
+      const dupCheck = dupResult.status === "fulfilled" ? dupResult.value : null;
+      if (dupCheck?.isDuplicate && dupCheck.existingPlace) {
+        // Show inline duplicate info — let user decide
+        setDuplicateInfo(dupCheck);
+        setPendingGoogleForUnit(prediction);
+        setResolving(false);
+        setResolvingAddress(null);
+
+        // Auto-select the existing place (staff can switch to "add unit" if needed)
+        setSelectedPlace({
+          place_id: dupCheck.existingPlace.place_id,
+          display_name: dupCheck.existingPlace.display_name,
+          formatted_address: dupCheck.existingPlace.formatted_address,
+          locality: null,
+          place_kind: dupCheck.existingPlace.place_kind,
+        });
+        setQuery("");
+        return dupCheck.existingPlace.place_kind || null;
       }
-      // No duplicate found — caller should show place type modal
-    } catch (err) {
-      console.error("Duplicate check error:", err);
-      // On error, proceed without blocking
-    } finally {
-      setCheckingDuplicate(false);
-    }
-  }, [autoCheckDuplicate]);
 
-  const selectExistingDuplicate = useCallback(() => {
-    if (duplicateCheck?.existingPlace) {
-      setSelectedPlace({
-        place_id: duplicateCheck.existingPlace.place_id,
-        display_name: duplicateCheck.existingPlace.display_name,
-        formatted_address: duplicateCheck.existingPlace.formatted_address,
-        locality: null,
-      });
-      setDuplicateCheck(null);
-      setPendingGoogle(null);
-      setQuery("");
-    }
-  }, [duplicateCheck]);
+      // No duplicate — create new place
+      if (detailsResult.status === "rejected") {
+        throw new Error("Failed to fetch address details from Google");
+      }
 
-  const createFromGoogle = useCallback(async (placeKind: string) => {
-    if (!pendingGoogle) {
-      setError("No location selected");
-      return;
-    }
-
-    setCreating(true);
-    setError(null);
-    try {
-      // Fetch full Google details
-      const { place: googleDetails } = await fetchApi<{ place: Record<string, unknown> }>(
-        `/api/places/details?place_id=${encodeURIComponent(pendingGoogle.place_id)}`
-      );
-
+      const googleDetails = detailsResult.value.place;
       const geo = googleDetails.geometry as { location?: { lat: number; lng: number } } | undefined;
 
-      // Create place via centralized endpoint
       const newPlace = await postApi<{ place_id: string; display_name: string }>(
         "/api/places",
         {
-          display_name: pendingGoogle.structured_formatting.main_text,
-          google_place_id: pendingGoogle.place_id,
+          display_name: prediction.structured_formatting.main_text,
+          google_place_id: prediction.place_id,
           formatted_address: googleDetails.formatted_address,
-          place_kind: placeKind,
+          place_kind: "unknown",
           location: geo?.location
             ? { lat: geo.location.lat, lng: geo.location.lng }
             : null,
@@ -227,19 +225,23 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
         display_name: newPlace.display_name,
         formatted_address: googleDetails.formatted_address as string,
         locality: null,
+        place_kind: "unknown",
       });
-      setPendingGoogle(null);
       setQuery("");
+      return null;
     } catch (err) {
-      console.error("Failed to create place:", err);
+      console.error("Failed to resolve place:", err);
       setError(err instanceof Error ? err.message : "Failed to create place");
+      return null;
     } finally {
-      setCreating(false);
+      setResolving(false);
+      setResolvingAddress(null);
     }
-  }, [pendingGoogle]);
+  }, [autoCheckDuplicate]);
 
+  /** Create a unit under the duplicate place */
   const createUnit = useCallback(async (parentPlaceId: string, unitIdentifier: string) => {
-    if (!pendingGoogle || !duplicateCheck?.existingPlace) {
+    if (!pendingGoogleForUnit || !duplicateInfo?.existingPlace) {
       setError("Missing place data for unit creation");
       return;
     }
@@ -248,7 +250,7 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     setError(null);
     try {
       const { place: googleDetails } = await fetchApi<{ place: Record<string, unknown> }>(
-        `/api/places/details?place_id=${encodeURIComponent(pendingGoogle.place_id)}`
+        `/api/places/details?place_id=${encodeURIComponent(pendingGoogleForUnit.place_id)}`
       );
 
       const geo = googleDetails.geometry as { location?: { lat: number; lng: number } } | undefined;
@@ -256,8 +258,8 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
       const newPlace = await postApi<{ place_id: string; display_name: string; formatted_address?: string }>(
         "/api/places",
         {
-          display_name: `${duplicateCheck.existingPlace.display_name} ${unitIdentifier}`,
-          formatted_address: `${duplicateCheck.existingPlace.formatted_address.replace(/, USA$/, "")} ${unitIdentifier}`,
+          display_name: `${duplicateInfo.existingPlace.display_name} ${unitIdentifier}`,
+          formatted_address: `${duplicateInfo.existingPlace.formatted_address.replace(/, USA$/, "")} ${unitIdentifier}`,
           place_kind: "apartment_unit",
           parent_place_id: parentPlaceId,
           unit_identifier: unitIdentifier,
@@ -272,11 +274,11 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
         display_name: newPlace.display_name,
         formatted_address:
           newPlace.formatted_address ||
-          `${duplicateCheck.existingPlace.formatted_address} ${unitIdentifier}`,
+          `${duplicateInfo.existingPlace.formatted_address} ${unitIdentifier}`,
         locality: null,
       });
-      setDuplicateCheck(null);
-      setPendingGoogle(null);
+      setDuplicateInfo(null);
+      setPendingGoogleForUnit(null);
       setQuery("");
     } catch (err) {
       console.error("Failed to create unit:", err);
@@ -284,7 +286,7 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     } finally {
       setCreating(false);
     }
-  }, [pendingGoogle, duplicateCheck]);
+  }, [pendingGoogleForUnit, duplicateInfo]);
 
   const resolveDescription = useCallback(async (description: string, placeKind: string) => {
     setCreating(true);
@@ -319,11 +321,13 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     setSelectedPlace(null);
     setQuery("");
     setError(null);
+    setDuplicateInfo(null);
+    setPendingGoogleForUnit(null);
   }, []);
 
-  const clearDuplicateCheck = useCallback(() => {
-    setDuplicateCheck(null);
-    setPendingGoogle(null);
+  const dismissDuplicate = useCallback(() => {
+    setDuplicateInfo(null);
+    setPendingGoogleForUnit(null);
   }, []);
 
   const setPlace = useCallback((place: ResolvedPlace | null) => {
@@ -351,18 +355,19 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
     // Actions
     selectAtlasPlace,
     selectGooglePlace,
-    selectExistingDuplicate,
-    createFromGoogle,
     createUnit,
     resolveDescription,
 
-    // Duplicate detection
-    duplicateCheck,
-    checkingDuplicate,
-    clearDuplicateCheck,
+    // Inline resolution state
+    resolving,
+    resolvingAddress,
+
+    // Duplicate (inline)
+    duplicateInfo,
+    pendingGoogleForUnit,
+    dismissDuplicate,
 
     // State
-    pendingGoogle,
     creating,
     error,
     setError,

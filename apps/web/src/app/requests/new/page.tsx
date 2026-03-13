@@ -68,12 +68,19 @@ interface PersonDetails {
 
 const PROPERTY_TYPE_OPTIONS = [
   { value: "private_home", label: "Private Home" },
+  { value: "condo_townhome", label: "Condo/Townhome" },
+  { value: "duplex_multiplex", label: "Duplex/Multiplex" },
   { value: "apartment_complex", label: "Apartment Complex" },
   { value: "mobile_home_park", label: "Mobile Home Park" },
-  { value: "business", label: "Business" },
   { value: "farm_ranch", label: "Farm/Ranch" },
-  { value: "public_park", label: "Public Park" },
-  { value: "industrial", label: "Industrial" },
+  { value: "rural_unincorporated", label: "Rural/Unincorporated" },
+  { value: "business", label: "Business/Commercial" },
+  { value: "industrial", label: "Industrial/Warehouse" },
+  { value: "public_park", label: "Public Park/Open Space" },
+  { value: "school_campus", label: "School/Campus" },
+  { value: "church_religious", label: "Church/Religious" },
+  { value: "government_municipal", label: "Government/Municipal" },
+  { value: "vacant_lot", label: "Vacant Lot/Undeveloped" },
   { value: "other", label: "Other" },
 ];
 
@@ -83,13 +90,14 @@ function placeKindToPropertyType(placeKind: string): string {
     residential_house: "private_home",
     apartment_unit: "apartment_complex",
     apartment_building: "apartment_complex",
+    mobile_home_space: "mobile_home_park",
     business: "business",
     outdoor_site: "public_park",
-    neighborhood: "other",
+    neighborhood: "rural_unincorporated",
     clinic: "other",
-    unknown: "other",
+    unknown: "",
   };
-  return map[placeKind] || "other";
+  return map[placeKind] || "";
 }
 
 const PERMISSION_OPTIONS = [
