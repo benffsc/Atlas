@@ -666,23 +666,25 @@ export function CreateColonyModal({
                               </button>
                             )}
 
-                            {isExpanded && (
-                              <div
-                                style={{
-                                  marginTop: "8px",
-                                  padding: "8px",
-                                  background: "rgba(0,0,0,0.05)",
-                                  borderRadius: "4px",
-                                  fontSize: "0.75rem",
-                                }}
-                              >
-                                {person.role_evidence.map((ev, i) => (
-                                  <div key={i} style={{ marginBottom: "4px" }}>
-                                    • {ev}
-                                  </div>
-                                ))}
+                            <div className={`expandable-section${isExpanded ? " expanded" : ""}`}>
+                              <div className="expandable-content">
+                                <div
+                                  style={{
+                                    marginTop: "8px",
+                                    padding: "8px",
+                                    background: "rgba(0,0,0,0.05)",
+                                    borderRadius: "4px",
+                                    fontSize: "0.75rem",
+                                  }}
+                                >
+                                  {person.role_evidence.map((ev, i) => (
+                                    <div key={i} style={{ marginBottom: "4px" }}>
+                                      • {ev}
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            )}
+                            </div>
 
                             {isSelected && (
                               <div style={{ marginTop: "10px" }}>

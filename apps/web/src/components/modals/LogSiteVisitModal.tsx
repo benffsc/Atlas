@@ -471,8 +471,8 @@ export function LogSiteVisitModal({
             </div>
 
             {/* ===== FULL MODE FIELDS (shown when mode === 'full') ===== */}
-            {mode === "full" && (
-              <>
+            <div className={`expandable-section${mode === "full" ? " expanded" : ""}`}>
+              <div className="expandable-content">
                 {/* Visit Date & Times */}
                 <div
                   style={{
@@ -640,8 +640,8 @@ export function LogSiteVisitModal({
                     </label>
                   </div>
                 )}
-              </>
-            )}
+              </div>
+            </div>
 
             {/* Notes (always shown) */}
             <div style={{ marginBottom: "16px" }}>

@@ -325,133 +325,134 @@ export default function CompleteRequestModal({
               Log final cat counts for Beacon population estimates
             </p>
 
-            {showObservation && (
-              <div
-                style={{
-                  marginTop: SPACING.md,
-                  padding: SPACING.lg,
-                  background: "var(--section-bg, #f8f9fa)",
-                  borderRadius: BORDERS.radius.lg,
-                }}
-              >
-                {placeName && (
-                  <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem", color: "var(--foreground)" }}>
-                    Location: <strong>{placeName}</strong>
-                  </p>
-                )}
+            <div className={`expandable-section${showObservation ? " expanded" : ""}`}>
+              <div className="expandable-content">
+                <div
+                  style={{
+                    marginTop: SPACING.md,
+                    padding: SPACING.lg,
+                    background: "var(--section-bg, #f8f9fa)",
+                    borderRadius: BORDERS.radius.lg,
+                  }}
+                >
+                  {placeName && (
+                    <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem", color: "var(--foreground)" }}>
+                      Location: <strong>{placeName}</strong>
+                    </p>
+                  )}
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "0.8rem",
-                        fontWeight: 500,
-                        marginBottom: SPACING.xs,
-                      }}
-                    >
-                      Cats Observed
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={observation.cats_seen_total}
-                      onChange={(e) =>
-                        setObservation({
-                          ...observation,
-                          cats_seen_total: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      style={{
-                        width: "100%",
-                        padding: `${SPACING.xs} ${SPACING.sm}`,
-                        border: "1px solid var(--border)",
-                        borderRadius: BORDERS.radius.md,
-                        fontSize: "0.9rem",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "0.8rem",
-                        fontWeight: 500,
-                        marginBottom: SPACING.xs,
-                      }}
-                    >
-                      Ear-Tipped
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={observation.cats_seen_total}
-                      value={observation.eartipped_seen}
-                      onChange={(e) =>
-                        setObservation({
-                          ...observation,
-                          eartipped_seen: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      style={{
-                        width: "100%",
-                        padding: `${SPACING.xs} ${SPACING.sm}`,
-                        border: "1px solid var(--border)",
-                        borderRadius: BORDERS.radius.md,
-                        fontSize: "0.9rem",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md, marginTop: SPACING.md }}>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "0.8rem",
-                        fontWeight: 500,
-                        marginBottom: SPACING.xs,
-                      }}
-                    >
-                      Time of Day
-                    </label>
-                    <select
-                      value={observation.time_of_day}
-                      onChange={(e) =>
-                        setObservation({
-                          ...observation,
-                          time_of_day: e.target.value,
-                        })
-                      }
-                      style={{
-                        width: "100%",
-                        padding: `${SPACING.xs} ${SPACING.sm}`,
-                        border: "1px solid var(--border)",
-                        borderRadius: BORDERS.radius.md,
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      <option value="morning">Morning</option>
-                      <option value="afternoon">Afternoon</option>
-                      <option value="evening">Evening</option>
-                      <option value="night">Night</option>
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: SPACING.xs }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: SPACING.xs, fontSize: "0.8rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          marginBottom: SPACING.xs,
+                        }}
+                      >
+                        Cats Observed
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={observation.is_at_feeding_station}
+                        type="number"
+                        min="0"
+                        value={observation.cats_seen_total}
                         onChange={(e) =>
                           setObservation({
                             ...observation,
-                            is_at_feeding_station: e.target.checked,
+                            cats_seen_total: parseInt(e.target.value) || 0,
                           })
                         }
+                        style={{
+                          width: "100%",
+                          padding: `${SPACING.xs} ${SPACING.sm}`,
+                          border: "1px solid var(--border)",
+                          borderRadius: BORDERS.radius.md,
+                          fontSize: "0.9rem",
+                          boxSizing: "border-box",
+                        }}
                       />
+                    </div>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          marginBottom: SPACING.xs,
+                        }}
+                      >
+                        Ear-Tipped
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={observation.cats_seen_total}
+                        value={observation.eartipped_seen}
+                        onChange={(e) =>
+                          setObservation({
+                            ...observation,
+                            eartipped_seen: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        style={{
+                          width: "100%",
+                          padding: `${SPACING.xs} ${SPACING.sm}`,
+                          border: "1px solid var(--border)",
+                          borderRadius: BORDERS.radius.md,
+                          fontSize: "0.9rem",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md, marginTop: SPACING.md }}>
+                    <div>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          marginBottom: SPACING.xs,
+                        }}
+                      >
+                        Time of Day
+                      </label>
+                      <select
+                        value={observation.time_of_day}
+                        onChange={(e) =>
+                          setObservation({
+                            ...observation,
+                            time_of_day: e.target.value,
+                          })
+                        }
+                        style={{
+                          width: "100%",
+                          padding: `${SPACING.xs} ${SPACING.sm}`,
+                          border: "1px solid var(--border)",
+                          borderRadius: BORDERS.radius.md,
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        <option value="morning">Morning</option>
+                        <option value="afternoon">Afternoon</option>
+                        <option value="evening">Evening</option>
+                        <option value="night">Night</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: SPACING.xs }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: SPACING.xs, fontSize: "0.8rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={observation.is_at_feeding_station}
+                          onChange={(e) =>
+                            setObservation({
+                              ...observation,
+                              is_at_feeding_station: e.target.checked,
+                            })
+                          }
+                        />
                       At feeding station
                     </label>
                   </div>
@@ -490,7 +491,8 @@ export default function CompleteRequestModal({
                   />
                 </div>
               </div>
-            )}
+              </div>
+            </div>
           </div>
         )}
 

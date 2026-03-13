@@ -390,58 +390,60 @@ export function CloseRequestModal({
           </div>
 
           {/* Simple cat counts for Beacon — only for successful/partial with a place */}
-          {showCatCounts && (
-            <div style={{
-              padding: SPACING.md,
-              background: "var(--section-bg, #f8f9fa)",
-              borderRadius: BORDERS.radius.lg,
-              marginBottom: SPACING.lg,
-            }}>
-              <p style={{ margin: `0 0 ${SPACING.sm}`, fontSize: "0.85rem", fontWeight: 500 }}>
-                Last known cat count (optional)
-              </p>
-              <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.8rem", color: "var(--muted)" }}>
-                Helps Beacon track colony size over time
-                {placeName && <> at <strong>{placeName}</strong></>}
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
-                    Cats Seen
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={catsSeen}
-                    onChange={(e) => setCatsSeen(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
-                    placeholder="0"
-                    style={{
-                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
-                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
-                      fontSize: "0.9rem", boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
-                    Ear-Tipped
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={eartipsSeen}
-                    onChange={(e) => setEartipsSeen(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
-                    placeholder="0"
-                    style={{
-                      width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
-                      border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
-                      fontSize: "0.9rem", boxSizing: "border-box",
-                    }}
-                  />
+          <div className={`expandable-section${showCatCounts ? " expanded" : ""}`}>
+            <div className="expandable-content">
+              <div style={{
+                padding: SPACING.md,
+                background: "var(--section-bg, #f8f9fa)",
+                borderRadius: BORDERS.radius.lg,
+                marginBottom: SPACING.lg,
+              }}>
+                <p style={{ margin: `0 0 ${SPACING.sm}`, fontSize: "0.85rem", fontWeight: 500 }}>
+                  Last known cat count (optional)
+                </p>
+                <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.8rem", color: "var(--muted)" }}>
+                  Helps Beacon track colony size over time
+                  {placeName && <> at <strong>{placeName}</strong></>}
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.md }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
+                      Cats Seen
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={catsSeen}
+                      onChange={(e) => setCatsSeen(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      style={{
+                        width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
+                        border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
+                        fontSize: "0.9rem", boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: SPACING.xs }}>
+                      Ear-Tipped
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={eartipsSeen}
+                      onChange={(e) => setEartipsSeen(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      style={{
+                        width: "100%", padding: `${SPACING.xs} ${SPACING.sm}`,
+                        border: "1px solid var(--border)", borderRadius: BORDERS.radius.md,
+                        fontSize: "0.9rem", boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
           <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 500, marginBottom: SPACING.xs }}>
             Resolution Notes
