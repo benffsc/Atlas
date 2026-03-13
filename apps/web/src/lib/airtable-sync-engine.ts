@@ -493,10 +493,16 @@ export class AirtableSyncEngine {
     const wb = config.writeback_config;
     const fields: Record<string, unknown> = {};
 
-    if (result.success) {
+    // Rejections are Atlas business logic (e.g. should_be_person gate),
+    // not Airtable errors. From Airtable's perspective the record was
+    // successfully received and processed — write "synced" so it doesn't
+    // retry. The rejection detail lives in the DB audit trail.
+    const isRejection = result.auditStatus === "rejected";
+
+    if (result.success || isRejection) {
       fields[wb.status_field] = wb.success_status;
       fields[wb.synced_at_field] = new Date().toISOString();
-      fields[wb.error_field] = null;
+      fields[wb.error_field] = isRejection ? `Rejected: ${result.rejectionReason}` : null;
       if (result.entityId) {
         fields[wb.entity_id_field] = result.entityId;
       }
