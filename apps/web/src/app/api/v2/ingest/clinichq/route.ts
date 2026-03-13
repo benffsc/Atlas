@@ -4,6 +4,13 @@ import * as XLSX from "xlsx";
 import crypto from "crypto";
 import { apiBadRequest, apiServerError, apiSuccess } from "@/lib/api-response";
 
+// ==========================================================================
+// DEPRECATED: This V2 ingest route references the dropped constraint
+// 'clinic_accounts_name_email_key' (removed in MIG_2403) and bypasses
+// the dedup protections added in MIG_2920 (FFS-483).
+// Use /api/ingest/process/[id] instead. This route will fail if called.
+// ==========================================================================
+
 // Serverless function timeout
 export const maxDuration = 300; // 5 minutes
 

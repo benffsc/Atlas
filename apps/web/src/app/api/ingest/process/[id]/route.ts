@@ -773,7 +773,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
             updated_at = NOW()
         FROM created_people cp
         WHERE ca.owner_first_name = cp.first_name
-          AND ca.owner_last_name = cp.last_name
+          AND COALESCE(ca.owner_last_name, '') = COALESCE(cp.last_name, '')
           AND (
             (cp.email IS NOT NULL AND ca.owner_email = cp.email)
             OR (cp.phone IS NOT NULL AND ca.owner_phone = cp.phone)
@@ -963,7 +963,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       FROM ops.staged_records sr
       JOIN ops.clinic_accounts ca ON (
         ca.owner_first_name = sr.payload->>'Owner First Name'
-        AND ca.owner_last_name = sr.payload->>'Owner Last Name'
+        AND COALESCE(ca.owner_last_name, '') = COALESCE(sr.payload->>'Owner Last Name', '')
         AND (
           (sr.payload->>'Owner Email' IS NOT NULL AND ca.owner_email = LOWER(TRIM(sr.payload->>'Owner Email')))
           OR (sr.payload->>'Owner Phone' IS NOT NULL AND ca.owner_phone = sot.norm_phone_us(sr.payload->>'Owner Phone'))
