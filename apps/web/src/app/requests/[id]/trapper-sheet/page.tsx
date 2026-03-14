@@ -17,15 +17,24 @@ import {
   PrintControlsPanel,
 } from "@/components/print";
 import {
+  getShortLabels,
+  RECON_CHECKLIST_OPTIONS,
+  TRAP_DAY_CHECKLIST_OPTIONS,
+  MOM_FIXED_OPTIONS,
+  CAN_BRING_IN_OPTIONS,
+  KITTEN_CONTAINED_OPTIONS,
+} from "@/lib/form-options";
+import {
   IMPORTANT_NOTES_SHORT,
-  RECON_CHECKLIST,
-  TRAP_DAY_CHECKLIST,
-  KITTEN_AGE_ESTIMATE,
   MOM_PRESENT,
-  MOM_FIXED,
-  CAN_BRING_IN_PRINT,
-  KITTEN_CONTAINED,
 } from "@/lib/field-options";
+
+// Derived from centralized registry (form-options.ts)
+const RECON_CHECKLIST = getShortLabels(RECON_CHECKLIST_OPTIONS);
+const TRAP_DAY_CHECKLIST = getShortLabels(TRAP_DAY_CHECKLIST_OPTIONS);
+const MOM_FIXED = getShortLabels(MOM_FIXED_OPTIONS);
+const CAN_BRING_IN_PRINT = getShortLabels(CAN_BRING_IN_OPTIONS);
+const KITTEN_CONTAINED = getShortLabels(KITTEN_CONTAINED_OPTIONS);
 
 interface TrapperSheetData {
   request_id: string;

@@ -1,27 +1,22 @@
 /**
- * Shared field option constants for the form system.
+ * Curated print-form option subsets.
  *
- * Single source of truth for all option lists used across:
- *   - Print pages (abbreviated labels for space)
- *   - TemplateRenderer (full labels)
- *   - Submission validation (canonical values)
+ * These arrays have FEWER options than form-options.ts because paper forms
+ * have limited space for bubbles/checkboxes. If the full option list fits
+ * on paper, derive it from form-options.ts via getShortLabels() instead.
  *
- * Mirrors ops.form_field_definitions.options in the DB.
- * If you add/change an option here, also update MIG_2899 seed data.
+ * All other option arrays live in form-options.ts (FFS-486/499).
  */
 
-// ── Contact ──
+// ── Location (curated for print space) ──
 
-export const PREFERRED_CONTACT_METHOD = ["Call", "Text", "Email"] as const;
-
-// ── Location ──
-
+/** Print forms show 4 counties; digital form (form-options.ts) has 6 */
 export const COUNTY = ["Sonoma", "Marin", "Napa", "Other"] as const;
 
-export const PROPERTY_TYPE = ["House", "Apartment", "Business", "Rural", "Other"] as const;
-/** Abbreviated for print — matches PROPERTY_TYPE order */
+/** 5 property types for print; form-options.ts has 15 grouped options */
 export const PROPERTY_TYPE_PRINT = ["House", "Apt", "Biz", "Rural", "Other"] as const;
 
+/** 5 ownership statuses for print; form-options.ts has 6 */
 export const OWNERSHIP_STATUS = [
   "Stray (no owner)",
   "Community cat I feed",
@@ -30,46 +25,23 @@ export const OWNERSHIP_STATUS = [
   "My pet",
 ] as const;
 
-export const IS_PROPERTY_OWNER = ["Yes", "Renter", "Neighbor"] as const;
+// ── Cat Info (curated for print space) ──
 
-export const HAS_PROPERTY_ACCESS = ["Yes", "Need Permission", "No"] as const;
-export const HAS_PROPERTY_ACCESS_PRINT = ["Yes", "Need perm", "No"] as const;
-
-// ── Cat Info ──
-
-export const COUNT_CONFIDENCE = ["Exact", "Estimate", "Unknown"] as const;
-
-export const CATS_FRIENDLY = ["Yes", "No", "Mixed", "Unknown"] as const;
-
-export const HANDLEABILITY = ["Carrier OK", "Shy but handleable", "Trap needed", "Mixed"] as const;
-
-export const FIXED_STATUS = ["None fixed", "Some fixed", "All fixed", "Unknown"] as const;
-
-export const COLONY_DURATION = ["<1 month", "1-6 months", "6mo-2yr", "2+ years", "Unknown"] as const;
-export const COLONY_DURATION_PRINT = ["<1mo", "1-6mo", "6mo-2yr", "2+yr"] as const;
-
-export const FEEDING_FREQUENCY = ["Daily", "Few times/week", "Occasionally", "Rarely"] as const;
-export const FEEDING_FREQUENCY_PRINT = ["Daily", "Few times/wk", "Occasionally"] as const;
-
-export const AWARENESS_DURATION = ["Days", "Weeks", "Months", "1+ year"] as const;
-
+/** 4 eartip statuses for print; form-options.ts has 6 */
 export const EARTIP_STATUS = ["None", "Some", "Most/All", "Unknown"] as const;
 
-export const HOME_ACCESS = ["Yes", "Sometimes", "Never"] as const;
+/** 4 handleability options for print; form-options.ts has 5 (adds "Unknown") */
+export const HANDLEABILITY = ["Carrier OK", "Shy but handleable", "Trap needed", "Mixed"] as const;
 
-// ── Logistics ──
+/** 4 colony durations for print; form-options.ts has 5 (adds "Unknown") */
+export const COLONY_DURATION_PRINT = ["<1mo", "1-6mo", "6mo-2yr", "2+yr"] as const;
 
-export const YES_NO = ["Yes", "No"] as const;
-export const YES_NO_UNKNOWN = ["Yes", "No", "Unknown"] as const;
+/** 3 feeding frequencies for print; form-options.ts has 6 */
+export const FEEDING_FREQUENCY_PRINT = ["Daily", "Few times/wk", "Occasionally"] as const;
 
-export const DOGS_ON_SITE = ["Yes", "No"] as const;
-export const TRAP_SAVVY = ["Yes", "No", "Unknown"] as const;
-export const PREVIOUS_TNR = ["Yes", "No", "Partial"] as const;
-export const TRAPS_OVERNIGHT_SAFE = ["Yes", "No"] as const;
-export const PERMISSION_STATUS = ["Yes", "Pending", "No"] as const;
+// ── Kitten (curated for print space) ──
 
-// ── Kitten ──
-
+/** 6 kitten age estimates for print; form-options.ts has 8 (more granular) */
 export const KITTEN_AGE_ESTIMATE = [
   "Under 4 wks",
   "4-8 wks",
@@ -79,6 +51,7 @@ export const KITTEN_AGE_ESTIMATE = [
   "Mixed",
 ] as const;
 
+/** 4 kitten behaviors for print; form-options.ts has 5 (adds "Mixed") */
 export const KITTEN_BEHAVIOR = [
   "Friendly",
   "Shy but handleable",
@@ -86,29 +59,10 @@ export const KITTEN_BEHAVIOR = [
   "Unknown",
 ] as const;
 
-/** Intake form uses more granular behavior options for kittens */
-export const KITTEN_BEHAVIOR_INTAKE = [
-  "Friendly (handleable)",
-  "Shy but can pick up",
-  "Shy/hissy (young)",
-  "Unhandleable (older)",
-  "Unknown",
-] as const;
-
-export const KITTEN_CONTAINED = ["Yes", "Some", "No"] as const;
-export const KITTEN_CONTAINED_INTAKE = ["Yes, all caught", "Some caught", "No"] as const;
-
+/** 3 mom present options for print; form-options.ts has 4 (adds "Comes/goes") */
 export const MOM_PRESENT = ["Yes", "No", "Unsure"] as const;
-export const MOM_FIXED = ["Yes", "No", "Unsure"] as const;
-export const CAN_BRING_IN = ["Yes", "Need Help", "No"] as const;
-export const CAN_BRING_IN_PRINT = ["Yes", "Need help", "No"] as const;
 
-export const KITTEN_OUTCOME = ["Foster intake", "FFR candidate", "Pending space", "Declined"] as const;
-export const KITTEN_READINESS = [
-  "High (friendly, ideal age)",
-  "Medium (needs work)",
-  "Low (FFR likely)",
-] as const;
+/** 4 kitten urgency factors for print; form-options.ts has 7 */
 export const KITTEN_URGENCY = [
   "Bottle babies",
   "Medical needs",
@@ -116,37 +70,14 @@ export const KITTEN_URGENCY = [
   "Mom unfixed",
 ] as const;
 
-// ── Medical ──
+// ── Referral (curated for print space) ──
 
-export const URGENCY_REASONS = [
-  "Injured cat",
-  "Sick cat",
-  "Abandoned kittens",
-  "Pregnant cat",
-  "Immediate danger",
-] as const;
-
-// ── Staff ──
-
-export const PRIORITY = ["High", "Normal", "Low"] as const;
-export const TRIAGE_CATEGORY = ["FFR", "Wellness", "Owned", "Out of Area", "Review"] as const;
-export const TRIAGE_CATEGORY_PRINT = ["FFR", "Wellness", "Owned", "Out of area", "Review"] as const;
-export const INTAKE_SOURCE = ["Phone", "Paper", "Walk-in", "Website"] as const;
-
-// ── Referral ──
-
-export const REFERRAL_SOURCE = [
-  "Website",
-  "Social Media",
-  "Friend",
-  "Vet/Shelter",
-  "Repeat Caller",
-  "Other",
-] as const;
+/** 5 referral sources for print; form-options.ts has 12 */
 export const REFERRAL_SOURCE_PRINT = ["Website", "Social", "Friend", "Vet/Shelter", "Repeat"] as const;
 
-// ── Important Notes (multi-select checkboxes) ──
+// ── Important Notes (curated for print space) ──
 
+/** 9 important notes for call sheet print; form-options.ts has 13 */
 export const IMPORTANT_NOTES = [
   "Withhold food 24hr before",
   "Other feeders in area",
@@ -159,7 +90,7 @@ export const IMPORTANT_NOTES = [
   "Urgent / time-sensitive",
 ] as const;
 
-/** Abbreviated for trapper sheet */
+/** Abbreviated for trapper sheet — matches IMPORTANT_NOTES order */
 export const IMPORTANT_NOTES_SHORT = [
   "Withhold food",
   "Other feeders",
@@ -170,23 +101,4 @@ export const IMPORTANT_NOTES_SHORT = [
   "Wildlife",
   "Neighbor",
   "Urgent",
-] as const;
-
-// ── Recon checklist (trapper-specific) ──
-
-export const RECON_CHECKLIST = [
-  "Dogs",
-  "Feeders",
-  "Wildlife",
-  "TrapSavvy",
-  "SafeON",
-  "Gate",
-  "DropTrap",
-] as const;
-
-export const TRAP_DAY_CHECKLIST = [
-  "Food withheld",
-  "Contact notified",
-  "Clinic confirmed",
-  "Equip ready",
 ] as const;

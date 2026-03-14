@@ -4,10 +4,6 @@ import { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
-import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
-import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS } from "@/lib/design-tokens";
 import { MB_LG, MB_XL, SECTION_DIVIDER } from "../styles";
@@ -18,6 +14,7 @@ import {
   IMPORTANT_NOTE_OPTIONS,
 } from "@/lib/form-options";
 import {
+  PersonSection,
   PlaceSection,
   PropertyAccessSection,
   CatDetailsSection,
@@ -25,6 +22,7 @@ import {
   UrgencyNotesSection,
 } from "@/components/request-sections";
 import type {
+  PersonSectionValue,
   PlaceSectionValue,
   PropertyAccessValue,
   CatDetailsSectionValue,
@@ -53,32 +51,10 @@ interface DuplicateMatch {
   distance_m: number | null;
 }
 
-interface SearchResult {
-  entity_type: string;
-  entity_id: string;
-  display_name: string;
-  subtitle: string;
-  match_strength: string;
-}
-
-
-interface PersonAddress {
-  place_id: string;
-  formatted_address: string;
-  display_name: string | null;
-  role: string;
-  confidence: number | null;
-}
-
-interface PersonDetails {
-  person_id: string;
-  display_name: string;
-  email?: string;
-  phone?: string;
-  addresses?: PersonAddress[];
-}
-
-// All options now imported from @/lib/form-options (FFS-486)
+const EMPTY_PERSON_VALUE: PersonSectionValue = {
+  person_id: null, display_name: "", is_resolved: false,
+  first_name: "", last_name: "", email: "", phone: "",
+};
 
 function NewRequestForm() {
   const router = useRouter();
@@ -98,32 +74,15 @@ function NewRequestForm() {
   const [propertyType, setPropertyType] = useState("");
   const [locationDescription, setLocationDescription] = useState("");
 
-  // Contact - Requestor
-  const [requestorMode, setRequestorMode] = useState<"search" | "create">("search");
-  const [personSearch, setPersonSearch] = useState("");
-  const [personResults, setPersonResults] = useState<SearchResult[]>([]);
-  const [selectedPerson, setSelectedPerson] = useState<PersonDetails | null>(null);
-  const [searchingPeople, setSearchingPeople] = useState(false);
-  // Requestor fields (editable for both search and create modes)
+  // Contact - Requestor (individual vars for effect compat: intake preload, dup check, auto-fill)
+  const [requestorPersonId, setRequestorPersonId] = useState<string | null>(null);
   const [requestorFirstName, setRequestorFirstName] = useState("");
   const [requestorLastName, setRequestorLastName] = useState("");
   const [requestorPhone, setRequestorPhone] = useState("");
   const [requestorEmail, setRequestorEmail] = useState("");
-  // Contact info editing (for existing person)
-  const [editingContactInfo, setEditingContactInfo] = useState(false);
-  const [originalContactInfo, setOriginalContactInfo] = useState<{ phone: string; email: string } | null>(null);
   // Property authority
   const [hasPropertyAuthority, setHasPropertyAuthority] = useState(true);
-  const [propertyOwnerLinked, setPropertyOwnerLinked] = useState<PersonReference>({
-    person_id: null,
-    display_name: "",
-    is_resolved: false,
-  });
-  const [propertyOwnerFirstName, setPropertyOwnerFirstName] = useState("");
-  const [propertyOwnerLastName, setPropertyOwnerLastName] = useState("");
-  const [propertyOwnerPhone, setPropertyOwnerPhone] = useState("");
-  const [propertyOwnerEmail, setPropertyOwnerEmail] = useState("");
-  const [showPropertyOwnerSearch, setShowPropertyOwnerSearch] = useState(false);
+  const [propertyOwnerValue, setPropertyOwnerValue] = useState<PersonSectionValue>(EMPTY_PERSON_VALUE);
   const [authorizationPending, setAuthorizationPending] = useState(false);
   const [bestContactTimes, setBestContactTimes] = useState("");
 
@@ -171,16 +130,7 @@ function NewRequestForm() {
   // MIG_2532: Third-party tracking (affects requester intelligence)
   const [isThirdPartyReport, setIsThirdPartyReport] = useState(false);
   const [thirdPartyRelationship, setThirdPartyRelationship] = useState("");
-  const [siteContactLinked, setSiteContactLinked] = useState<PersonReference>({
-    person_id: null,
-    display_name: "",
-    is_resolved: false,
-  });
-  const [siteContactFirstName, setSiteContactFirstName] = useState("");
-  const [siteContactLastName, setSiteContactLastName] = useState("");
-  const [siteContactPhone, setSiteContactPhone] = useState("");
-  const [siteContactEmail, setSiteContactEmail] = useState("");
-  const [showSiteContactSearch, setShowSiteContactSearch] = useState(false);
+  const [siteContactValue, setSiteContactValue] = useState<PersonSectionValue>(EMPTY_PERSON_VALUE);
 
   // FFS-298: Requester relationship to location (non-third-party)
   const [requesterRole, setRequesterRole] = useState("resident");
@@ -236,25 +186,6 @@ function NewRequestForm() {
     review_reason?: string;
     errors?: Record<string, string>;
   } | null>(null);
-
-  // Person suggestion by email/phone (duplicate prevention)
-  const personSuggestion = usePersonSuggestion({
-    email: requestorEmail,
-    phone: requestorPhone,
-    enabled: !selectedPerson,
-  });
-
-  // FFS-443b: Dedup banners for property owner and site contact
-  const propertyOwnerSuggestion = usePersonSuggestion({
-    email: propertyOwnerEmail,
-    phone: propertyOwnerPhone,
-    enabled: !hasPropertyAuthority && !propertyOwnerLinked.is_resolved,
-  });
-  const siteContactSuggestion = usePersonSuggestion({
-    email: siteContactEmail,
-    phone: siteContactPhone,
-    enabled: isThirdPartyReport && !siteContactLinked.is_resolved,
-  });
 
   // Computed: should show exact ear-tip count vs estimate
   const showExactEartipCount = typeof estimatedCatCount === "number" && estimatedCatCount <= 5;
@@ -348,30 +279,6 @@ function NewRequestForm() {
       .catch((err) => console.error("Failed to load intake:", err));
   }, [searchParams]);
 
-  // Debounced person search
-  useEffect(() => {
-    if (personSearch.length < 2 || selectedPerson) {
-      setPersonResults([]);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setSearchingPeople(true);
-      try {
-        const data = await fetchApi<{ results: SearchResult[] }>(
-          `/api/search?q=${encodeURIComponent(personSearch)}&type=person&limit=5`
-        );
-        setPersonResults(data.results || []);
-      } catch (err) {
-        console.error("Person search error:", err);
-      } finally {
-        setSearchingPeople(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [personSearch, selectedPerson]);
-
   // Smart matching - check for duplicate requests when place or contact info changes
   const checkDuplicates = useCallback(async () => {
     // Need at least one criterion to check
@@ -418,113 +325,6 @@ function NewRequestForm() {
     }
   }, [requestorFirstName, requestorLastName]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectPerson = async (result: SearchResult) => {
-    try {
-      // Fetch person details and addresses in parallel
-      const [person, addressData] = await Promise.all([
-        fetchApi<{ person_id: string; display_name: string; identifiers?: { id_type: string; id_value: string }[] }>(`/api/people/${result.entity_id}`),
-        fetchApi<{ addresses: PersonAddress[] }>(`/api/people/${result.entity_id}/addresses`).catch(() => ({ addresses: [] as PersonAddress[] })),
-      ]);
-
-      // Extract email and phone from identifiers (API returns id_value, not id_value_norm)
-      const emailId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "email");
-      const phoneId = person.identifiers?.find((id: { id_type: string }) => id.id_type === "phone");
-
-      const email = emailId?.id_value || "";
-      const phone = phoneId?.id_value || "";
-
-      // Get addresses if available
-      const addresses: PersonAddress[] = addressData.addresses || [];
-      setSelectedPerson({
-        person_id: person.person_id,
-        display_name: person.display_name,
-        email,
-        phone,
-        addresses,
-      });
-      // Pre-fill the fields
-      const nameParts = person.display_name?.split(" ") || [];
-      setRequestorFirstName(nameParts[0] || "");
-      setRequestorLastName(nameParts.slice(1).join(" ") || "");
-      setRequestorEmail(email);
-      setRequestorPhone(phone);
-      // Track original values for change detection
-      setOriginalContactInfo({ phone, email });
-      setEditingContactInfo(false);
-      setPersonSearch("");
-      setPersonResults([]);
-    } catch (err) {
-      console.error("Failed to fetch person details:", err);
-    }
-  };
-
-  const handleSuggestionSelect = (person: Parameters<typeof personSuggestion.selectPerson>[0]) => {
-    const nameParts = person.display_name.split(" ");
-    setSelectedPerson({
-      person_id: person.person_id,
-      display_name: person.display_name,
-      email: person.email || "",
-      phone: person.phone || "",
-      addresses: person.addresses?.map(a => ({
-        place_id: a.place_id,
-        formatted_address: a.formatted_address,
-        display_name: null,
-        role: a.role,
-        confidence: null,
-      })),
-    });
-    setRequestorFirstName(nameParts[0] || "");
-    setRequestorLastName(nameParts.slice(1).join(" ") || "");
-    setRequestorEmail(person.email || requestorEmail);
-    setRequestorPhone(person.phone || requestorPhone);
-    setOriginalContactInfo({ phone: person.phone || "", email: person.email || "" });
-    setEditingContactInfo(false);
-    setRequestorMode("search");
-    personSuggestion.selectPerson(person);
-  };
-
-  // FFS-443b: Handle suggestion select for property owner
-  const handlePropertyOwnerSuggestionSelect = (person: Parameters<typeof propertyOwnerSuggestion.selectPerson>[0]) => {
-    const nameParts = person.display_name.split(" ");
-    setPropertyOwnerLinked({
-      person_id: person.person_id,
-      display_name: person.display_name,
-      is_resolved: true,
-    });
-    setPropertyOwnerFirstName(nameParts[0] || "");
-    setPropertyOwnerLastName(nameParts.slice(1).join(" ") || "");
-    setPropertyOwnerPhone(person.phone || propertyOwnerPhone);
-    setPropertyOwnerEmail(person.email || propertyOwnerEmail);
-    propertyOwnerSuggestion.selectPerson(person);
-  };
-
-  // FFS-443b: Handle suggestion select for site contact
-  const handleSiteContactSuggestionSelect = (person: Parameters<typeof siteContactSuggestion.selectPerson>[0]) => {
-    const nameParts = person.display_name.split(" ");
-    setSiteContactLinked({
-      person_id: person.person_id,
-      display_name: person.display_name,
-      is_resolved: true,
-    });
-    setSiteContactFirstName(nameParts[0] || "");
-    setSiteContactLastName(nameParts.slice(1).join(" ") || "");
-    setSiteContactPhone(person.phone || siteContactPhone);
-    setSiteContactEmail(person.email || siteContactEmail);
-    siteContactSuggestion.selectPerson(person);
-  };
-
-  const clearPerson = () => {
-    setSelectedPerson(null);
-    setPersonSearch("");
-    setRequestorFirstName("");
-    setRequestorLastName("");
-    setRequestorEmail("");
-    setRequestorPhone("");
-    setEditingContactInfo(false);
-    setOriginalContactInfo(null);
-    personSuggestion.reset();
-  };
-
   const toggleImportantNote = (note: string) => {
     setImportantNotes((prev) =>
       prev.includes(note) ? prev.filter((n) => n !== note) : [...prev, note]
@@ -534,6 +334,39 @@ function NewRequestForm() {
   // ─── Section Adapter Values (FFS-493) ─────────────────────────────────────
   // Bridge individual state vars → section component value objects.
   // State stays flat (no refactor of submit/effects), components read these.
+
+  const requestorPersonValue: PersonSectionValue = {
+    person_id: requestorPersonId,
+    display_name: [requestorFirstName, requestorLastName].filter(Boolean).join(" "),
+    is_resolved: !!requestorPersonId,
+    first_name: requestorFirstName,
+    last_name: requestorLastName,
+    email: requestorEmail,
+    phone: requestorPhone,
+  };
+
+  const handleRequestorPersonChange = useCallback(
+    (v: PersonSectionValue) => {
+      setRequestorPersonId(v.person_id);
+      setRequestorFirstName(v.first_name);
+      setRequestorLastName(v.last_name);
+      setRequestorEmail(v.email);
+      setRequestorPhone(v.phone);
+    },
+    []
+  );
+
+  const handleRequestorAddressSelected = useCallback(
+    (address: { place_id: string; formatted_address: string }) => {
+      setSelectedPlace({
+        place_id: address.place_id,
+        display_name: address.formatted_address,
+        formatted_address: address.formatted_address,
+        locality: null,
+      });
+    },
+    []
+  );
 
   const placeValue: PlaceSectionValue = {
     place: selectedPlace,
@@ -692,22 +525,21 @@ function NewRequestForm() {
         property_type: propertyType || null,
         location_description: locationDescription || null,
         // Contact - Requestor
-        requester_person_id: selectedPerson?.person_id || null,
-        raw_requester_name: !selectedPerson && (requestorFirstName || requestorLastName)
+        requester_person_id: requestorPersonId,
+        raw_requester_name: !requestorPersonId && (requestorFirstName || requestorLastName)
           ? `${requestorFirstName} ${requestorLastName}`.trim()
           : null,
         raw_requester_phone: requestorPhone || null,
         raw_requester_email: requestorEmail || null,
         // Property authority
         property_owner_name: !hasPropertyAuthority
-          ? (propertyOwnerLinked.is_resolved
-            ? propertyOwnerLinked.display_name
-            : `${propertyOwnerFirstName} ${propertyOwnerLastName}`.trim() || null)
+          ? (propertyOwnerValue.is_resolved
+            ? propertyOwnerValue.display_name
+            : [propertyOwnerValue.first_name, propertyOwnerValue.last_name].filter(Boolean).join(" ") || null)
           : null,
-        property_owner_phone: !hasPropertyAuthority ? propertyOwnerPhone || null : null,
-        // FFS-443b: Property owner person link + email
-        property_owner_person_id: !hasPropertyAuthority && propertyOwnerLinked.is_resolved ? propertyOwnerLinked.person_id : null,
-        raw_property_owner_email: !hasPropertyAuthority ? propertyOwnerEmail || null : null,
+        property_owner_phone: !hasPropertyAuthority ? propertyOwnerValue.phone || null : null,
+        property_owner_person_id: !hasPropertyAuthority && propertyOwnerValue.is_resolved ? propertyOwnerValue.person_id : null,
+        raw_property_owner_email: !hasPropertyAuthority ? propertyOwnerValue.email || null : null,
         authorization_pending: !hasPropertyAuthority ? authorizationPending : false,
         best_contact_times: bestContactTimes || null,
         // Property ownership (derived from "Someone else owns" checkbox)
@@ -733,12 +565,12 @@ function NewRequestForm() {
         // MIG_2532: Third-party tracking
         is_third_party_report: isThirdPartyReport,
         third_party_relationship: isThirdPartyReport ? thirdPartyRelationship || null : null,
-        site_contact_person_id: isThirdPartyReport && siteContactLinked.is_resolved ? siteContactLinked.person_id : null,
-        raw_site_contact_name: isThirdPartyReport && !siteContactLinked.is_resolved
-          ? `${siteContactFirstName} ${siteContactLastName}`.trim() || null
+        site_contact_person_id: isThirdPartyReport && siteContactValue.is_resolved ? siteContactValue.person_id : null,
+        raw_site_contact_name: isThirdPartyReport && !siteContactValue.is_resolved
+          ? [siteContactValue.first_name, siteContactValue.last_name].filter(Boolean).join(" ") || null
           : null,
-        raw_site_contact_phone: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactPhone || null : null,
-        raw_site_contact_email: isThirdPartyReport && !siteContactLinked.is_resolved ? siteContactEmail || null : null,
+        raw_site_contact_phone: isThirdPartyReport && !siteContactValue.is_resolved ? siteContactValue.phone || null : null,
+        raw_site_contact_email: isThirdPartyReport && !siteContactValue.is_resolved ? siteContactValue.email || null : null,
         requester_is_site_contact: !isThirdPartyReport,
         // FFS-298: Requester role at submission (always from the requester dropdown)
         // third_party_relationship stores the site contact's role separately
@@ -1081,8 +913,6 @@ function NewRequestForm() {
           <PlaceSection
             value={placeValue}
             onChange={handlePlaceChange}
-            knownAddresses={selectedPerson?.addresses}
-            knownAddressesLabel={selectedPerson?.display_name}
           />
 
           {/* Smart matching - show warning if active requests found at this location */}
@@ -1105,253 +935,14 @@ function NewRequestForm() {
         <div id="section-2" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
           <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Requestor</h2>
 
-          {/* Mode toggle */}
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="requestorMode"
-                checked={requestorMode === "search"}
-                onChange={() => { setRequestorMode("search"); clearPerson(); }}
-              />
-              Search existing person
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="requestorMode"
-                checked={requestorMode === "create"}
-                onChange={() => { setRequestorMode("create"); setSelectedPerson(null); }}
-              />
-              Create new person
-            </label>
-          </div>
-
-          {/* Search mode */}
-          {requestorMode === "search" && !selectedPerson && (
-            <div style={{ position: "relative", marginBottom: "1rem" }}>
-              <input
-                type="text"
-                value={personSearch}
-                onChange={(e) => setPersonSearch(e.target.value)}
-                placeholder="Search by name, phone, or email..."
-                style={{ width: "100%" }}
-              />
-              {searchingPeople && (
-                <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
-                  Searching...
-                </p>
-              )}
-              {personResults.length > 0 && (
-                <div className="dropdown-menu">
-                  {personResults.map((result) => (
-                    <button
-                      key={result.entity_id}
-                      type="button"
-                      onClick={() => selectPerson(result)}
-                      className="dropdown-item"
-                    >
-                      <div>{result.display_name}</div>
-                      {result.subtitle && (
-                        <div className="text-muted text-sm">{result.subtitle}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {personSearch.length >= 2 && personResults.length === 0 && !searchingPeople && (
-                <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
-                  No matching people found.{" "}
-                  <button
-                    type="button"
-                    onClick={() => setRequestorMode("create")}
-                    style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0 }}
-                  >
-                    Create new person
-                  </button>
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Selected person badge */}
-          {selectedPerson && (
-            <div
-              style={{
-                padding: "0.75rem 1rem",
-                borderRadius: "8px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                border: "1px solid var(--primary)",
-                background: "rgba(var(--primary-rgb), 0.05)",
-                marginBottom: "1rem",
-              }}
-            >
-              <div>
-                <strong>{selectedPerson.display_name}</strong>
-              </div>
-              <button type="button" onClick={clearPerson} style={{ padding: "0.25rem 0.5rem" }}>
-                Change Person
-              </button>
-            </div>
-          )}
-
-          {/* Contact fields - different display for existing vs new person */}
-          {selectedPerson && !editingContactInfo ? (
-            /* Read-only contact display for existing person */
-            <div style={MB_LG}>
-              <div
-                style={{
-                  padding: "1rem",
-                  background: "var(--bg-muted)",
-                  borderRadius: "8px",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-                  <div>
-                    <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Phone</div>
-                    <div style={{ fontWeight: 500 }}>
-                      {selectedPerson.phone ? formatPhone(selectedPerson.phone) : <span className="text-muted">Not on file</span>}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Email</div>
-                    <div style={{ fontWeight: 500 }}>
-                      {selectedPerson.email || <span className="text-muted">Not on file</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingContactInfo(true)}
-                style={{
-                  padding: "0.4rem 0.75rem",
-                  fontSize: "0.9rem",
-                  background: "transparent",
-                  border: "1px solid var(--border)",
-                  color: "inherit",
-                }}
-              >
-                Update Contact Info
-              </button>
-            </div>
-          ) : (
-            /* Editable contact fields for new person OR when editing existing */
-            <>
-              {selectedPerson && editingContactInfo && (
-                <div
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    background: "#e3f2fd",
-                    borderRadius: "6px",
-                    marginBottom: "0.75rem",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Editing contact info for <strong>{selectedPerson.display_name}</strong>
-                  {" "}&mdash; changes will be tracked
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 180px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    First Name {requestorMode === "create" && "*"}
-                  </label>
-                  <input
-                    type="text"
-                    value={requestorFirstName}
-                    onChange={(e) => setRequestorFirstName(e.target.value)}
-                    placeholder="First name"
-                    style={{ width: "100%" }}
-                    disabled={selectedPerson !== null && !editingContactInfo}
-                  />
-                </div>
-                <div style={{ flex: "1 1 180px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Last Name {requestorMode === "create" && "*"}
-                  </label>
-                  <input
-                    type="text"
-                    value={requestorLastName}
-                    onChange={(e) => setRequestorLastName(e.target.value)}
-                    placeholder="Last name"
-                    style={{ width: "100%" }}
-                    disabled={selectedPerson !== null && !editingContactInfo}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={requestorPhone}
-                    onChange={(e) => setRequestorPhone(e.target.value)}
-                    placeholder="(707) 555-1234"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                <div style={{ flex: "1 1 250px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={requestorEmail}
-                    onChange={(e) => setRequestorEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-              </div>
-
-              {/* Cancel edit button when editing existing person */}
-              {selectedPerson && editingContactInfo && (
-                <div style={MB_LG}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Restore original values
-                      if (originalContactInfo) {
-                        setRequestorPhone(originalContactInfo.phone);
-                        setRequestorEmail(originalContactInfo.email);
-                      }
-                      setEditingContactInfo(false);
-                    }}
-                    style={{
-                      padding: "0.4rem 0.75rem",
-                      fontSize: "0.9rem",
-                      background: "transparent",
-                      border: "1px solid var(--border)",
-                      color: "inherit",
-                    }}
-                  >
-                    Cancel Edit
-                  </button>
-                  {(requestorPhone !== originalContactInfo?.phone || requestorEmail !== originalContactInfo?.email) && (
-                    <span className="text-sm" style={{ marginLeft: "0.75rem", color: "#28a745" }}>
-                      Changes will be saved with request
-                    </span>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Person suggestion banner (email/phone duplicate prevention) */}
-          <PersonSuggestionBanner
-            suggestions={personSuggestion.suggestions}
-            loading={personSuggestion.loading}
-            dismissed={personSuggestion.dismissed}
-            onDismiss={personSuggestion.dismiss}
-            onSelect={handleSuggestionSelect}
+          <PersonSection
+            role="requestor"
+            value={requestorPersonValue}
+            onChange={handleRequestorPersonChange}
+            onAddressSelected={handleRequestorAddressSelected}
+            allowCreate
+            required
+            compact
           />
 
           {/* Property authority section */}
@@ -1374,163 +965,30 @@ function NewRequestForm() {
 
             <div className={`expandable-section${!hasPropertyAuthority ? " expanded" : ""}`} style={{ marginTop: "0.75rem" }}>
               <div className="expandable-content">
-                <div className="role-card">
-                  <div className="role-card-header">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Property Owner
-                  </div>
-                  <div className="role-card-body">
-                    {propertyOwnerLinked.is_resolved ? (
-                      /* Linked to existing person */
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "0.5rem 0.75rem",
-                          background: "var(--background, #fff)",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border, #dee2e6)",
-                          marginBottom: "0.75rem",
-                        }}
-                      >
-                        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
-                          {propertyOwnerLinked.display_name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPropertyOwnerLinked({ person_id: null, display_name: "", is_resolved: false });
-                            setPropertyOwnerFirstName("");
-                            setPropertyOwnerLastName("");
-                            setPropertyOwnerPhone("");
-                            setPropertyOwnerEmail("");
-                          }}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted, #6b7280)", fontSize: "1rem", padding: "0 4px", lineHeight: 1 }}
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    ) : (
-                      /* Manual entry with optional search */
-                      <>
-                        {showPropertyOwnerSearch ? (
-                          <div style={{ marginBottom: "0.75rem" }}>
-                            <PersonReferencePicker
-                              value={propertyOwnerLinked}
-                              allowCreate
-                              onChange={(ref) => {
-                                setPropertyOwnerLinked(ref);
-                                if (ref.is_resolved) {
-                                  const parts = ref.display_name.split(" ");
-                                  setPropertyOwnerFirstName(parts[0] || "");
-                                  setPropertyOwnerLastName(parts.slice(1).join(" ") || "");
-                                  setShowPropertyOwnerSearch(false);
-                                }
-                              }}
-                              placeholder="Search by name, phone, or email..."
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPropertyOwnerSearch(false)}
-                              style={{ background: "none", border: "none", color: "var(--text-muted, #6b7280)", cursor: "pointer", fontSize: "0.8rem", marginTop: "0.25rem", padding: 0 }}
-                            >
-                              Cancel search
-                            </button>
-                          </div>
-                        ) : (
-                          <p
-                            style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--primary, #0d6efd)", cursor: "pointer" }}
-                            onClick={() => setShowPropertyOwnerSearch(true)}
-                          >
-                            Link to existing person in Atlas
-                          </p>
-                        )}
-                        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-                          <div style={{ flex: "1 1 150px" }}>
-                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                              First Name
-                            </label>
-                            <input
-                              type="text"
-                              value={propertyOwnerFirstName}
-                              onChange={(e) => setPropertyOwnerFirstName(e.target.value)}
-                              placeholder="First name"
-                              style={{ width: "100%" }}
-                            />
-                          </div>
-                          <div style={{ flex: "1 1 150px" }}>
-                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                              Last Name
-                            </label>
-                            <input
-                              type="text"
-                              value={propertyOwnerLastName}
-                              onChange={(e) => setPropertyOwnerLastName(e.target.value)}
-                              placeholder="Last name"
-                              style={{ width: "100%" }}
-                            />
-                          </div>
-                        </div>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                            Phone
-                          </label>
-                          <input
-                            type="tel"
-                            value={propertyOwnerPhone}
-                            onChange={(e) => setPropertyOwnerPhone(e.target.value)}
-                            placeholder="(707) 555-1234"
-                            style={{ width: "100%", maxWidth: "250px" }}
-                          />
-                        </div>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={propertyOwnerEmail}
-                            onChange={(e) => setPropertyOwnerEmail(e.target.value)}
-                            placeholder="owner@example.com"
-                            style={{ width: "100%", maxWidth: "300px" }}
-                          />
-                        </div>
-                        {/* Identifier hint */}
-                        {!propertyOwnerPhone && !propertyOwnerEmail && (propertyOwnerFirstName || propertyOwnerLastName) && (
-                          <p className="text-muted" style={{ fontSize: "0.8rem", margin: "0 0 0.5rem" }}>
-                            Add a phone or email to link this person in Atlas
-                          </p>
-                        )}
-                        {/* Dedup banner */}
-                        <PersonSuggestionBanner
-                          suggestions={propertyOwnerSuggestion.suggestions}
-                          loading={propertyOwnerSuggestion.loading}
-                          dismissed={propertyOwnerSuggestion.dismissed}
-                          onDismiss={propertyOwnerSuggestion.dismiss}
-                          onSelect={handlePropertyOwnerSuggestionSelect}
-                        />
-                      </>
-                    )}
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        cursor: "pointer",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={authorizationPending}
-                        onChange={(e) => setAuthorizationPending(e.target.checked)}
-                      />
-                      <span>Authorization pending (needs follow-up)</span>
-                    </label>
-                  </div>
-                </div>
+                <PersonSection
+                  role="property_owner"
+                  value={propertyOwnerValue}
+                  onChange={setPropertyOwnerValue}
+                  allowCreate
+                  compact
+                />
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={authorizationPending}
+                    onChange={(e) => setAuthorizationPending(e.target.checked)}
+                  />
+                  <span>Authorization pending (needs follow-up)</span>
+                </label>
               </div>
             </div>
           </div>
@@ -1549,7 +1007,7 @@ function NewRequestForm() {
             />
           </div>
 
-          {/* Requester relationship to location — always visible */}
+          {/* Requester relationship to location */}
           <div style={SECTION_DIVIDER}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
               Requestor&apos;s relationship to location
@@ -1589,168 +1047,34 @@ function NewRequestForm() {
 
             <div className={`expandable-section${isThirdPartyReport ? " expanded" : ""}`} style={{ marginTop: "0.75rem" }}>
               <div className="expandable-content">
-                <div className="role-card">
-                  <div className="role-card-header">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    Site Contact
-                  </div>
-                  <div className="role-card-body">
-                    {siteContactLinked.is_resolved ? (
-                      /* Linked to existing person */
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "0.5rem 0.75rem",
-                          background: "var(--background, #fff)",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border, #dee2e6)",
-                          marginBottom: "0.75rem",
-                        }}
-                      >
-                        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
-                          {siteContactLinked.display_name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSiteContactLinked({ person_id: null, display_name: "", is_resolved: false });
-                            setSiteContactFirstName("");
-                            setSiteContactLastName("");
-                            setSiteContactPhone("");
-                            setSiteContactEmail("");
-                          }}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted, #6b7280)", fontSize: "1rem", padding: "0 4px", lineHeight: 1 }}
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    ) : (
-                      /* Manual entry with optional search */
-                      <>
-                        {showSiteContactSearch ? (
-                          <div style={{ marginBottom: "0.75rem" }}>
-                            <PersonReferencePicker
-                              value={siteContactLinked}
-                              allowCreate
-                              onChange={(ref) => {
-                                setSiteContactLinked(ref);
-                                if (ref.is_resolved) {
-                                  const parts = ref.display_name.split(" ");
-                                  setSiteContactFirstName(parts[0] || "");
-                                  setSiteContactLastName(parts.slice(1).join(" ") || "");
-                                  setShowSiteContactSearch(false);
-                                }
-                              }}
-                              placeholder="Search by name, phone, or email..."
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowSiteContactSearch(false)}
-                              style={{ background: "none", border: "none", color: "var(--text-muted, #6b7280)", cursor: "pointer", fontSize: "0.8rem", marginTop: "0.25rem", padding: 0 }}
-                            >
-                              Cancel search
-                            </button>
-                          </div>
-                        ) : (
-                          <p
-                            style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "var(--primary, #0d6efd)", cursor: "pointer" }}
-                            onClick={() => setShowSiteContactSearch(true)}
-                          >
-                            Link to existing person in Atlas
-                          </p>
-                        )}
-                        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-                          <div style={{ flex: "1 1 150px" }}>
-                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                              First Name
-                            </label>
-                            <input
-                              type="text"
-                              value={siteContactFirstName}
-                              onChange={(e) => setSiteContactFirstName(e.target.value)}
-                              placeholder="First name"
-                              style={{ width: "100%" }}
-                            />
-                          </div>
-                          <div style={{ flex: "1 1 150px" }}>
-                            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                              Last Name
-                            </label>
-                            <input
-                              type="text"
-                              value={siteContactLastName}
-                              onChange={(e) => setSiteContactLastName(e.target.value)}
-                              placeholder="Last name"
-                              style={{ width: "100%" }}
-                            />
-                          </div>
-                        </div>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                            Phone
-                          </label>
-                          <input
-                            type="tel"
-                            value={siteContactPhone}
-                            onChange={(e) => setSiteContactPhone(e.target.value)}
-                            placeholder="(707) 555-1234"
-                            style={{ width: "100%", maxWidth: "250px" }}
-                          />
-                        </div>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={siteContactEmail}
-                            onChange={(e) => setSiteContactEmail(e.target.value)}
-                            placeholder="contact@example.com"
-                            style={{ width: "100%", maxWidth: "300px" }}
-                          />
-                        </div>
-                        {/* Identifier hint */}
-                        {!siteContactPhone && !siteContactEmail && (siteContactFirstName || siteContactLastName) && (
-                          <p className="text-muted" style={{ fontSize: "0.8rem", margin: "0 0 0.5rem" }}>
-                            Add a phone or email to link this person in Atlas
-                          </p>
-                        )}
-                        {/* Dedup banner */}
-                        <PersonSuggestionBanner
-                          suggestions={siteContactSuggestion.suggestions}
-                          loading={siteContactSuggestion.loading}
-                          dismissed={siteContactSuggestion.dismissed}
-                          onDismiss={siteContactSuggestion.dismiss}
-                          onSelect={handleSiteContactSuggestionSelect}
-                        />
-                      </>
-                    )}
-                    <div style={{ marginTop: "0.5rem" }}>
-                      <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                        Site contact&apos;s role at location
-                      </label>
-                      <select
-                        value={thirdPartyRelationship}
-                        onChange={(e) => setThirdPartyRelationship(e.target.value)}
-                        style={{ width: "100%", maxWidth: "300px" }}
-                      >
-                        <option value="">Select...</option>
-                        <option value="resident">Resident</option>
-                        <option value="property_owner">Property owner</option>
-                        <option value="property_manager">Property manager</option>
-                        <option value="colony_caretaker">Colony caretaker</option>
-                        <option value="business_employee">Business employee</option>
-                        <option value="neighbor">Neighbor</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
-                        Their role at the site — helps us know who to contact for access
-                      </p>
-                    </div>
-                  </div>
+                <PersonSection
+                  role="site_contact"
+                  value={siteContactValue}
+                  onChange={setSiteContactValue}
+                  allowCreate
+                  compact
+                />
+                <div style={{ marginTop: "0.5rem" }}>
+                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                    Site contact&apos;s role at location
+                  </label>
+                  <select
+                    value={thirdPartyRelationship}
+                    onChange={(e) => setThirdPartyRelationship(e.target.value)}
+                    style={{ width: "100%", maxWidth: "300px" }}
+                  >
+                    <option value="">Select...</option>
+                    <option value="resident">Resident</option>
+                    <option value="property_owner">Property owner</option>
+                    <option value="property_manager">Property manager</option>
+                    <option value="colony_caretaker">Colony caretaker</option>
+                    <option value="business_employee">Business employee</option>
+                    <option value="neighbor">Neighbor</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
+                    Their role at the site — helps us know who to contact for access
+                  </p>
                 </div>
               </div>
             </div>

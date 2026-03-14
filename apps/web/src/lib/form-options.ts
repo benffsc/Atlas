@@ -53,6 +53,11 @@ export function getShortLabel(options: readonly FormOption[], value: string): st
   return opt?.shortLabel ?? opt?.label ?? value;
 }
 
+/** Get labels as a simple string array (for print form fields that use full labels) */
+export function getLabels(options: readonly FormOption[]): string[] {
+  return options.map((o) => o.label);
+}
+
 /** Get short labels as a simple string array (for print form checkboxes/bubbles) */
 export function getShortLabels(options: readonly FormOption[]): string[] {
   return options.map((o) => o.shortLabel ?? o.label);
