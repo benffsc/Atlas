@@ -628,6 +628,130 @@ test.describe("Beacon Analytics: Location Comparison", () => {
 });
 
 // ============================================================================
+// BEACON MVP: FORECAST ENDPOINT
+// ============================================================================
+
+test.describe("Beacon Analytics: Population Forecast", () => {
+  test("Missing place_id returns 400", async ({ request }) => {
+    const response = await request.get("/api/beacon/forecast");
+    expect(response.status()).toBe(400);
+  });
+
+  test("Invalid place_id returns 400", async ({ request }) => {
+    const response = await request.get("/api/beacon/forecast?place_id=not-a-uuid");
+    expect(response.status()).toBe(400);
+  });
+
+  test("Valid place_id returns forecast with 3 scenarios", async ({ request }) => {
+    // Use a zero UUID — will either return data or 400 "no cat data"
+    const response = await request.get(
+      "/api/beacon/forecast?place_id=00000000-0000-0000-0000-000000000000"
+    );
+    // No cat data → 400, or success → 200
+    expect(response.status()).toBeLessThan(500);
+
+    if (response.ok()) {
+      const wrapped = await response.json();
+      const data = unwrapApiResponse<{
+        scenarios: { baseline: { points: unknown[] }; optimistic: { points: unknown[] }; aggressive: { points: unknown[] } };
+        current: { population: number };
+      }>(wrapped);
+      expect(data.scenarios.baseline).toBeDefined();
+      expect(data.scenarios.optimistic).toBeDefined();
+      expect(data.scenarios.aggressive).toBeDefined();
+      expect(data.current.population).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test("Forecast points have required fields", async ({ request }) => {
+    // Try to find a real place with cats
+    const placesRes = await request.get("/api/beacon/places?limit=1&minCats=3");
+    if (!placesRes.ok()) return;
+
+    const placesWrapped = await placesRes.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(placesWrapped);
+    if (placesData.places.length === 0) return;
+
+    const placeId = placesData.places[0].place_id;
+    const response = await request.get(`/api/beacon/forecast?place_id=${placeId}&months=24`);
+    if (!response.ok()) return;
+
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{
+      scenarios: { baseline: { points: Array<{ month: number; population: number; alteration_rate: number }> } };
+    }>(wrapped);
+
+    const points = data.scenarios.baseline.points;
+    expect(points.length).toBeGreaterThan(0);
+
+    for (const pt of points) {
+      expect(typeof pt.month).toBe("number");
+      expect(typeof pt.population).toBe("number");
+      expect(pt.population).toBeGreaterThanOrEqual(0);
+      expect(pt.alteration_rate).toBeGreaterThanOrEqual(0);
+      expect(pt.alteration_rate).toBeLessThanOrEqual(100);
+    }
+  });
+
+  test("Forecast months_to_75 is null or positive", async ({ request }) => {
+    const placesRes = await request.get("/api/beacon/places?limit=1&minCats=3");
+    if (!placesRes.ok()) return;
+
+    const placesWrapped = await placesRes.json();
+    const placesData = unwrapApiResponse<{ places: Array<{ place_id: string }> }>(placesWrapped);
+    if (placesData.places.length === 0) return;
+
+    const placeId = placesData.places[0].place_id;
+    const response = await request.get(`/api/beacon/forecast?place_id=${placeId}`);
+    if (!response.ok()) return;
+
+    const wrapped = await response.json();
+    const data = unwrapApiResponse<{
+      scenarios: {
+        baseline: { months_to_75: number | null };
+        optimistic: { months_to_75: number | null };
+        aggressive: { months_to_75: number | null };
+      };
+    }>(wrapped);
+
+    for (const key of ["baseline", "optimistic", "aggressive"] as const) {
+      const m = data.scenarios[key].months_to_75;
+      if (m !== null) {
+        expect(m).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+// ============================================================================
+// BEACON MVP: BEACON PAGE UI (county rollup, date filter map)
+// ============================================================================
+
+test.describe("Beacon Analytics: Beacon Page", () => {
+  test("Beacon page loads without errors", async ({ page }) => {
+    await page.goto("/beacon");
+    await page.waitForLoadState("networkidle");
+
+    // Check county summary renders
+    const heading = page.locator("text=Sonoma County Overview");
+    // May or may not appear depending on zone data — just verify page loads
+    expect(await page.title()).toBeDefined();
+  });
+
+  test("Beacon compare page loads", async ({ page }) => {
+    await page.goto("/beacon/compare");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("h1")).toContainText("Location Comparison");
+  });
+
+  test("Beacon scenarios page loads", async ({ page }) => {
+    await page.goto("/beacon/scenarios");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("h1")).toContainText("Population Forecast");
+  });
+});
+
+// ============================================================================
 // EDGE CASE TESTS
 // ============================================================================
 

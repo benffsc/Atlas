@@ -9,4 +9,6 @@ export { ColonyEstimates } from './ColonyEstimates';
 export { ColonySourcesBreakdown } from './ColonySourcesBreakdown';
 export { PopulationTimeline } from './PopulationTimeline';
 export { PopulationTrendChart } from './PopulationTrendChart';
+export { PopulationEstimateCard } from './PopulationEstimateCard';
+export { TemporalTrendChart } from './TemporalTrendChart';
 export { YoYComparisonChart } from './YoYComparisonChart';

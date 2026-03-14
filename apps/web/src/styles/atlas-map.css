@@ -3136,3 +3136,32 @@
   text-align: center;
   box-shadow: 0 10px 25px rgba(0,0,0,0.2);
 }
+
+/* ============================================================
+   Fullscreen Mode — Browser Fullscreen API
+   ============================================================ */
+
+.atlas-map-container:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none;
+  max-height: none;
+  background: var(--map-popup-bg, #ffffff);
+}
+
+.atlas-map-container:fullscreen .leaflet-container {
+  height: 100% !important;
+}
+
+/* Webkit prefix for Safari */
+.atlas-map-container:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none;
+  max-height: none;
+  background: var(--map-popup-bg, #ffffff);
+}
+
+.atlas-map-container:-webkit-full-screen .leaflet-container {
+  height: 100% !important;
+}

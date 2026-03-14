@@ -7,7 +7,7 @@ import type { JournalEntry } from "@/components/sections";
 import { QuickNotes, BackButton, EditHistory, QuickActions, usePlaceQuickActionState, SubmissionsSection } from "@/components/common";
 import { AddressAutocomplete, PlaceContextEditor } from "@/components/forms";
 import { PlaceAlterationHistory, CatPresenceReconciliation } from "@/components/admin";
-import { ColonyEstimates, PopulationTrendChart, PopulationTimeline } from "@/components/charts";
+import { ColonyEstimates, PopulationTrendChart, PopulationTimeline, TemporalTrendChart, PopulationEstimateCard } from "@/components/charts";
 import { HistoricalContextCard, SiteStatsCard } from "@/components/cards";
 import { VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/components/badges";
 import { CreateColonyModal } from "@/components/modals";
@@ -1108,6 +1108,14 @@ export default function PlaceDetailPage() {
 
         {/* Ecology Tab */}
         <TabPanel tabId="ecology" activeTab={activeTab}>
+            <Section title="Monthly TNR Trends">
+              <TemporalTrendChart placeId={id} months={24} />
+            </Section>
+
+            <Section title="Population Estimate">
+              <PopulationEstimateCard placeId={id} />
+            </Section>
+
             <Section title="Population Events">
               <PopulationTimeline placeId={id} />
             </Section>

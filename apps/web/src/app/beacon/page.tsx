@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { SeasonalAlertsCard } from "@/components/cards";
 import { YoYComparisonChart } from "@/components/charts";
@@ -30,6 +30,19 @@ interface ZonesResponse {
     status_breakdown: Record<string, number>;
     total_estimated_population: number;
   };
+}
+
+interface DateFilteredPlace {
+  place_id: string;
+  formatted_address: string;
+  display_name: string | null;
+  lat: number;
+  lng: number;
+  service_zone: string | null;
+  cat_count: number;
+  altered_count: number;
+  alteration_rate_pct: number | null;
+  colony_status: string;
 }
 
 interface DateFilteredSummary {
@@ -80,6 +93,7 @@ export default function BeaconPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dateFiltered, setDateFiltered] = useState<DateFilteredSummary | null>(null);
+  const [dateFilteredPlaces, setDateFilteredPlaces] = useState<DateFilteredPlace[]>([]);
   const [dateFilterLoading, setDateFilterLoading] = useState(false);
 
   useEffect(() => {
@@ -97,14 +111,18 @@ export default function BeaconPage() {
   const applyDateFilter = useCallback(() => {
     if (!dateFrom && !dateTo) {
       setDateFiltered(null);
+      setDateFilteredPlaces([]);
       return;
     }
     setDateFilterLoading(true);
     const params = new URLSearchParams();
     if (dateFrom) params.set("from", dateFrom);
     if (dateTo) params.set("to", dateTo);
-    fetchApi<{ summary: DateFilteredSummary }>(`/api/beacon/map?${params}`)
-      .then((d) => setDateFiltered(d.summary))
+    fetchApi<{ places: DateFilteredPlace[]; summary: DateFilteredSummary }>(`/api/beacon/map?${params}`)
+      .then((d) => {
+        setDateFiltered(d.summary);
+        setDateFilteredPlaces(d.places || []);
+      })
       .catch(() => null)
       .finally(() => setDateFilterLoading(false));
   }, [dateFrom, dateTo]);
@@ -266,7 +284,7 @@ export default function BeaconPage() {
           </button>
           {(dateFrom || dateTo) && (
             <button
-              onClick={() => { setDateFrom(""); setDateTo(""); setDateFiltered(null); }}
+              onClick={() => { setDateFrom(""); setDateTo(""); setDateFiltered(null); setDateFilteredPlaces([]); }}
               style={{
                 padding: "0.4rem 0.75rem",
                 borderRadius: "4px",
@@ -307,7 +325,107 @@ export default function BeaconPage() {
             />
           </div>
         )}
+
+        {/* Date-Filtered Map */}
+        {dateFilteredPlaces.length > 0 && (
+          <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                Filtered Map ({dateFilteredPlaces.length} sites)
+              </span>
+              <span style={{
+                display: "inline-block",
+                padding: "0.1rem 0.5rem",
+                borderRadius: "9999px",
+                fontSize: "0.7rem",
+                fontWeight: 500,
+                background: "#dbeafe",
+                color: "#1e40af",
+              }}>
+                {dateFrom || "start"} — {dateTo || "now"}
+              </span>
+            </div>
+            <DateFilteredMap places={dateFilteredPlaces} />
+          </div>
+        )}
       </div>
+
+      {/* County-Level Summary */}
+      {!zonesLoading && zones?.summary && (
+        <div
+          className="card"
+          style={{
+            padding: "1.25rem",
+            marginBottom: "2rem",
+            background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+            border: "1px solid #93c5fd",
+          }}
+        >
+          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "#1e40af" }}>
+            Sonoma County Overview
+          </h2>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+            gap: "1rem",
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e40af" }}>
+                {zones.summary.total_places.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#3b82f6" }}>Active Sites</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>
+                {zones.summary.total_cats.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#8b5cf6" }}>Total Cats</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#16a34a" }}>
+                {zones.summary.total_altered.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#22c55e" }}>Altered</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                fontSize: "1.5rem", fontWeight: 700,
+                color: zones.summary.alteration_rate_pct !== null && zones.summary.alteration_rate_pct >= 70
+                  ? "#16a34a"
+                  : zones.summary.alteration_rate_pct !== null && zones.summary.alteration_rate_pct >= 50
+                  ? "#f59e0b"
+                  : "#dc2626",
+              }}>
+                {zones.summary.alteration_rate_pct !== null ? `${zones.summary.alteration_rate_pct}%` : "—"}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>County Rate</div>
+            </div>
+            {zones.summary.status_breakdown && Object.keys(zones.summary.status_breakdown).length > 0 && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ display: "flex", gap: "4px", justifyContent: "center", flexWrap: "wrap" }}>
+                  {Object.entries(zones.summary.status_breakdown).map(([status, count]) => {
+                    const cfg = STATUS_COLORS[status] || STATUS_COLORS.no_data;
+                    return (
+                      <span key={status} style={{
+                        display: "inline-block",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "9999px",
+                        fontSize: "0.65rem",
+                        fontWeight: 500,
+                        background: cfg.bg,
+                        color: cfg.text,
+                      }}>
+                        {count} {cfg.label}
+                      </span>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>Zone Status</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Zone Rollups */}
       {!zonesLoading && zones && zones.zones.length > 0 && (
@@ -439,9 +557,15 @@ export default function BeaconPage() {
           icon="📅"
         />
         <AnalyticsCard
+          title="Location Comparison"
+          description="Side-by-side TNR metrics for up to 10 locations"
+          href="/beacon/compare"
+          icon="📊"
+        />
+        <AnalyticsCard
           title="Population Forecasts"
-          description="Projected colony growth and TNR impact scenarios"
-          href="/admin/beacon/forecasts"
+          description="10-year population projections and TNR impact scenarios"
+          href="/beacon/scenarios"
           icon="📈"
         />
       </div>
@@ -619,5 +743,79 @@ function ZoneStatusBadge({ status }: { status: string }) {
     >
       {cfg.label}
     </span>
+  );
+}
+
+/** Lightweight inline map for date-filtered beacon places (no Leaflet dependency — uses canvas) */
+function DateFilteredMap({ places }: { places: DateFilteredPlace[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || places.length === 0) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width;
+    const h = rect.height;
+
+    // Compute bounds from data
+    const lats = places.map(p => p.lat).filter(Boolean);
+    const lngs = places.map(p => p.lng).filter(Boolean);
+    if (lats.length === 0) return;
+
+    const minLat = Math.min(...lats) - 0.02;
+    const maxLat = Math.max(...lats) + 0.02;
+    const minLng = Math.min(...lngs) - 0.02;
+    const maxLng = Math.max(...lngs) + 0.02;
+
+    const toX = (lng: number) => ((lng - minLng) / (maxLng - minLng)) * (w - 20) + 10;
+    const toY = (lat: number) => ((maxLat - lat) / (maxLat - minLat)) * (h - 20) + 10;
+
+    // Background
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw places
+    places.forEach(p => {
+      if (!p.lat || !p.lng) return;
+      const x = toX(p.lng);
+      const y = toY(p.lat);
+      const radius = Math.min(Math.max(p.cat_count * 0.5, 3), 12);
+
+      const color = p.colony_status === "managed" ? "#16a34a"
+        : p.colony_status === "in_progress" ? "#f59e0b"
+        : p.colony_status === "needs_work" ? "#ea580c"
+        : p.colony_status === "needs_attention" ? "#dc2626"
+        : "#9ca3af";
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = color + "cc";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  }, [places]);
+
+  if (places.length === 0) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        width: "100%",
+        height: "200px",
+        borderRadius: "6px",
+        border: "1px solid var(--border)",
+      }}
+    />
   );
 }
