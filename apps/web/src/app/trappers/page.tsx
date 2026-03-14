@@ -327,6 +327,8 @@ function TrapperCard({
   onClick: () => void;
 }) {
   const isInactive = trapper.role_status !== "active";
+  const isDormant = !isInactive && (!trapper.last_activity_date ||
+    Math.floor((Date.now() - new Date(trapper.last_activity_date).getTime()) / 86400000) > DORMANT_DAYS);
   const relTime = formatRelativeTime(trapper.last_activity_date);
   const actColor = getActivityColor(trapper.last_activity_date);
 
@@ -335,11 +337,11 @@ function TrapperCard({
       onClick={onClick}
       style={{
         padding: "1rem",
-        border: "1px solid var(--card-border, #e5e7eb)",
+        border: `1px solid ${isDormant ? "#fbbf24" : "var(--card-border, #e5e7eb)"}`,
         borderRadius: "8px",
         cursor: "pointer",
         opacity: isInactive ? 0.6 : 1,
-        background: isInactive ? "#f9fafb" : "var(--card-bg, #fff)",
+        background: isInactive ? "#f9fafb" : isDormant ? "#fffbeb" : "var(--card-bg, #fff)",
         transition: "border-color 0.15s",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#0d6efd")}
@@ -360,6 +362,18 @@ function TrapperCard({
           {trapper.display_name}
         </a>
         <TrapperBadge trapperType={trapper.trapper_type} size="sm" inactive={isInactive} />
+        {isDormant && (
+          <span style={{
+            fontSize: "0.6rem",
+            padding: "0.1rem 0.3rem",
+            borderRadius: "3px",
+            background: "#fef3c7",
+            color: "#92400e",
+            fontWeight: 500,
+          }}>
+            DORMANT
+          </span>
+        )}
         {!isInactive && trapper.availability_status !== "available" && (
           <AvailabilityBadge status={trapper.availability_status} />
         )}
@@ -416,11 +430,14 @@ const FILTER_DEFAULTS = {
   tier: "all",
   availability: "all",
   active: "true",
+  dormant: "false",
   sort: "total_cats_caught",
   search: "",
   view: "table",
   page: "0",
 };
+
+const DORMANT_DAYS = 90;
 
 function TrappersPageInner() {
   const { filters, setFilter, setFilters } = useUrlFilters(FILTER_DEFAULTS);
@@ -452,11 +469,18 @@ function TrappersPageInner() {
 
     try {
       const result = await fetchApi<TrappersResponse>(`/api/trappers?${params.toString()}`);
-      // Client-side availability filter (not in API to keep it simple)
+      // Client-side filters (not in API to keep it simple)
       if (filters.availability !== "all") {
         result.trappers = result.trappers.filter(
           (t) => t.availability_status === filters.availability
         );
+      }
+      if (filters.dormant === "true") {
+        result.trappers = result.trappers.filter((t) => {
+          if (!t.last_activity_date) return true;
+          const daysSince = Math.floor((Date.now() - new Date(t.last_activity_date).getTime()) / 86400000);
+          return daysSince > DORMANT_DAYS;
+        });
       }
       setData(result);
     } catch (err) {
@@ -464,7 +488,7 @@ function TrappersPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [filters.type, filters.tier, filters.active, filters.availability, filters.sort, filters.search, page]);
+  }, [filters.type, filters.tier, filters.active, filters.availability, filters.dormant, filters.sort, filters.search, page]);
 
   useEffect(() => {
     fetchTrappers();
@@ -718,6 +742,23 @@ function TrappersPageInner() {
           Active only
         </label>
 
+        <label style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.35rem",
+          fontSize: "0.8rem",
+          cursor: "pointer",
+          userSelect: "none",
+          color: filters.dormant === "true" ? "#dc2626" : "inherit",
+        }}>
+          <input
+            type="checkbox"
+            checked={filters.dormant === "true"}
+            onChange={(e) => setFilters({ dormant: e.target.checked ? "true" : "false", page: "0" })}
+          />
+          Dormant (90d+)
+        </label>
+
         <select
           value={filters.sort}
           onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}
@@ -842,8 +883,12 @@ function TrappersPageInner() {
               <tbody>
                 {data.trappers.map((trapper) => {
                   const isInactive = trapper.role_status !== "active";
+                  const isDormant = !isInactive && (!trapper.last_activity_date ||
+                    Math.floor((Date.now() - new Date(trapper.last_activity_date).getTime()) / 86400000) > DORMANT_DAYS);
                   const rowStyle = isInactive
                     ? { opacity: 0.6, background: "#f9fafb" }
+                    : isDormant
+                    ? { background: "#fffbeb" }
                     : {};
                   const relTime = formatRelativeTime(trapper.last_activity_date);
                   const actColor = getActivityColor(trapper.last_activity_date);
@@ -861,6 +906,23 @@ function TrappersPageInner() {
                         >
                           {trapper.display_name}
                         </a>
+                        {isDormant && (
+                          <span
+                            title={`No activity in ${DORMANT_DAYS}+ days`}
+                            style={{
+                              fontSize: "0.6rem",
+                              padding: "0.1rem 0.3rem",
+                              borderRadius: "3px",
+                              background: "#fef3c7",
+                              color: "#92400e",
+                              fontWeight: 500,
+                              marginLeft: "0.35rem",
+                              verticalAlign: "middle",
+                            }}
+                          >
+                            DORMANT
+                          </span>
+                        )}
                       </td>
                       <td>
                         <ContactInfo phone={trapper.phone} email={trapper.email} />
