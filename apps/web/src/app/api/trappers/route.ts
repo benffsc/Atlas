@@ -21,6 +21,7 @@ interface TrapperRow {
   phone: string | null;
   tier: string | null;
   has_signed_contract: boolean;
+  availability_status: string;
 }
 
 interface AggregateStats {
@@ -117,7 +118,8 @@ export async function GET(request: NextRequest) {
           s.email,
           s.phone,
           vt.tier,
-          COALESCE(tp.has_signed_contract, FALSE) AS has_signed_contract
+          COALESCE(tp.has_signed_contract, FALSE) AS has_signed_contract,
+          COALESCE(s.availability_status, 'available') AS availability_status
         FROM ops.v_trapper_full_stats s
         LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = s.person_id
         LEFT JOIN sot.trapper_profiles tp ON tp.person_id = s.person_id
@@ -163,7 +165,8 @@ export async function GET(request: NextRequest) {
           sot.get_email(p.person_id) AS email,
           sot.get_phone(p.person_id) AS phone,
           NULL::TEXT AS tier,
-          FALSE AS has_signed_contract
+          FALSE AS has_signed_contract,
+          'available' AS availability_status
         FROM sot.people p
         JOIN sot.person_roles pr ON pr.person_id = p.person_id
         ${basicWhere}
@@ -244,8 +247,22 @@ export async function PATCH(request: NextRequest) {
       return apiBadRequest("person_id is required");
     }
 
-    if (!action || !["status", "type"].includes(action)) {
-      return apiBadRequest("action must be 'status' or 'type'");
+    if (!action || !["status", "type", "availability"].includes(action)) {
+      return apiBadRequest("action must be 'status', 'type', or 'availability'");
+    }
+
+    if (action === "availability") {
+      if (!["available", "busy", "on_leave"].includes(value)) {
+        return apiBadRequest("availability value must be available, busy, or on_leave");
+      }
+
+      await queryOne(
+        `UPDATE sot.trapper_profiles SET availability_status = $2, updated_at = NOW()
+         WHERE person_id = $1`,
+        [person_id, value]
+      );
+
+      return apiSuccess({ success: true, person_id, action, value });
     }
 
     if (action === "status") {

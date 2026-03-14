@@ -26,6 +26,7 @@ interface Trapper {
   phone: string | null;
   tier: string | null;
   has_signed_contract: boolean;
+  availability_status: string;
 }
 
 interface AggregateStats {
@@ -108,6 +109,190 @@ function ContactInfo({ phone, email }: { phone: string | null; email: string | n
   );
 }
 
+const AVAILABILITY_LABELS: Record<string, string> = {
+  available: "Available",
+  busy: "Busy",
+  on_leave: "On Leave",
+};
+
+const AVAILABILITY_STYLES: Record<string, { bg: string; color: string }> = {
+  available: { bg: "#d1fae5", color: "#065f46" },
+  busy: { bg: "#fef3c7", color: "#92400e" },
+  on_leave: { bg: "#e5e7eb", color: "#374151" },
+};
+
+function AvailabilityBadge({
+  status,
+  onClick,
+}: {
+  status: string;
+  onClick?: () => void;
+}) {
+  const style = AVAILABILITY_STYLES[status] || AVAILABILITY_STYLES.available;
+  return (
+    <span
+      onClick={onClick}
+      style={{
+        display: "inline-block",
+        padding: "0.15rem 0.5rem",
+        borderRadius: "9999px",
+        fontSize: "0.7rem",
+        fontWeight: 600,
+        background: style.bg,
+        color: style.color,
+        cursor: onClick ? "pointer" : "default",
+      }}
+      title={onClick ? "Click to change availability" : undefined}
+    >
+      {AVAILABILITY_LABELS[status] || status}
+    </span>
+  );
+}
+
+interface ConfirmAction {
+  personId: string;
+  personName: string;
+  field: "type" | "status" | "availability";
+  oldValue: string;
+  newValue: string;
+}
+
+const FIELD_LABELS: Record<string, Record<string, string>> = {
+  type: {
+    coordinator: "Coordinator",
+    head_trapper: "Head Trapper",
+    ffsc_trapper: "FFSC Trapper",
+    community_trapper: "Community",
+  },
+  status: {
+    active: "Active",
+    inactive: "Inactive",
+    suspended: "Suspended",
+    revoked: "Revoked",
+  },
+  availability: AVAILABILITY_LABELS,
+};
+
+function ConfirmModal({
+  action,
+  onConfirm,
+  onCancel,
+}: {
+  action: ConfirmAction;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const fieldName = action.field === "type" ? "trapper type" : action.field === "status" ? "role status" : "availability";
+  const labels = FIELD_LABELS[action.field] || {};
+  const oldLabel = labels[action.oldValue] || action.oldValue;
+  const newLabel = labels[action.newValue] || action.newValue;
+
+  const isDangerous =
+    (action.field === "status" && ["suspended", "revoked"].includes(action.newValue)) ||
+    (action.field === "type" && action.oldValue.startsWith("ffsc") && !action.newValue.startsWith("ffsc"));
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "12px",
+          padding: "1.5rem",
+          maxWidth: "420px",
+          width: "90%",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem" }}>
+          {isDangerous ? "Warning" : "Confirm Change"}
+        </h3>
+        <p style={{ margin: "0 0 1rem", color: "#374151", lineHeight: 1.5 }}>
+          Change <strong>{action.personName}</strong>&apos;s {fieldName} from{" "}
+          <span
+            style={{
+              padding: "0.1rem 0.4rem",
+              borderRadius: "4px",
+              background: "#f3f4f6",
+              fontWeight: 500,
+            }}
+          >
+            {oldLabel}
+          </span>{" "}
+          to{" "}
+          <span
+            style={{
+              padding: "0.1rem 0.4rem",
+              borderRadius: "4px",
+              background: isDangerous ? "#fef2f2" : "#ecfdf5",
+              fontWeight: 500,
+              color: isDangerous ? "#991b1b" : "#065f46",
+            }}
+          >
+            {newLabel}
+          </span>
+          ?
+        </p>
+        {isDangerous && (
+          <p
+            style={{
+              margin: "0 0 1rem",
+              padding: "0.5rem 0.75rem",
+              background: "#fef2f2",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              color: "#991b1b",
+            }}
+          >
+            This action has significant implications for trapper permissions and attribution.
+          </p>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "0.4rem 1rem",
+              borderRadius: "6px",
+              border: "1px solid #d1d5db",
+              background: "#fff",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "0.4rem 1rem",
+              borderRadius: "6px",
+              border: "none",
+              background: isDangerous ? "#dc2626" : "#2563eb",
+              color: "#fff",
+              cursor: "pointer",
+              fontWeight: 500,
+              fontSize: "0.875rem",
+            }}
+          >
+            {isDangerous ? "Yes, Change" : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ActiveAssignmentsBadge({ count }: { count: number }) {
   const color = count === 0 ? "#198754" : count <= 2 ? "#fd7e14" : "#dc3545";
   const bg = count === 0 ? "#d1fae5" : count <= 2 ? "#fff3cd" : "#f8d7da";
@@ -172,6 +357,9 @@ function TrapperCard({
           {trapper.display_name}
         </a>
         <TrapperBadge trapperType={trapper.trapper_type} size="sm" inactive={isInactive} />
+        {!isInactive && trapper.availability_status !== "available" && (
+          <AvailabilityBadge status={trapper.availability_status} />
+        )}
         {trapper.role_status !== "active" && (
           <span
             style={{
@@ -237,6 +425,7 @@ function TrappersPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [searchInput, setSearchInput] = useState(filters.search);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -282,10 +471,35 @@ function TrappersPageInner() {
     }, 300);
   };
 
-  const updateTrapper = async (personId: string, action: "status" | "type", value: string) => {
-    setUpdating(personId);
+  const requestChange = (
+    trapper: Trapper,
+    field: "type" | "status" | "availability",
+    newValue: string
+  ) => {
+    const oldValue =
+      field === "type" ? trapper.trapper_type
+        : field === "status" ? trapper.role_status
+        : trapper.availability_status;
+    if (newValue === oldValue) return;
+    setConfirmAction({
+      personId: trapper.person_id,
+      personName: trapper.display_name,
+      field,
+      oldValue,
+      newValue,
+    });
+  };
+
+  const executeChange = async () => {
+    if (!confirmAction) return;
+    setUpdating(confirmAction.personId);
+    setConfirmAction(null);
     try {
-      await postApi("/api/trappers", { person_id: personId, action, value }, { method: "PATCH" });
+      await postApi(
+        "/api/trappers",
+        { person_id: confirmAction.personId, action: confirmAction.field, value: confirmAction.newValue },
+        { method: "PATCH" }
+      );
       fetchTrappers();
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : "Update failed"}`);
@@ -465,6 +679,15 @@ function TrappersPageInner() {
         </div>
       </div>
 
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <ConfirmModal
+          action={confirmAction}
+          onConfirm={executeChange}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
+
       {loading && <div className="loading">Loading trappers...</div>}
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
@@ -501,6 +724,7 @@ function TrappersPageInner() {
                   <th>Status</th>
                   <th>Tier</th>
                   <th style={{ textAlign: "center" }}>Contract</th>
+                  <th>Availability</th>
                   <th style={{ textAlign: "right" }}>
                     <span title="Cats attributed via request assignments - the primary performance metric">
                       Total Caught
@@ -547,9 +771,7 @@ function TrappersPageInner() {
                       <td>
                         <select
                           value={trapper.trapper_type}
-                          onChange={(e) =>
-                            updateTrapper(trapper.person_id, "type", e.target.value)
-                          }
+                          onChange={(e) => requestChange(trapper, "type", e.target.value)}
                           disabled={updating === trapper.person_id}
                           style={{
                             fontSize: "0.75rem",
@@ -568,9 +790,7 @@ function TrappersPageInner() {
                       <td>
                         <select
                           value={trapper.role_status}
-                          onChange={(e) =>
-                            updateTrapper(trapper.person_id, "status", e.target.value)
-                          }
+                          onChange={(e) => requestChange(trapper, "status", e.target.value)}
                           disabled={updating === trapper.person_id}
                           style={{
                             fontSize: "0.75rem",
@@ -616,6 +836,25 @@ function TrappersPageInner() {
                         ) : (
                           <span style={{ color: "#d1d5db" }}>{"\u2014"}</span>
                         )}
+                      </td>
+                      <td>
+                        <select
+                          value={trapper.availability_status}
+                          onChange={(e) => requestChange(trapper, "availability", e.target.value)}
+                          disabled={updating === trapper.person_id || isInactive}
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "0.2rem 0.4rem",
+                            borderRadius: "4px",
+                            border: "1px solid #ddd",
+                            background: AVAILABILITY_STYLES[trapper.availability_status]?.bg || "#fff",
+                            color: AVAILABILITY_STYLES[trapper.availability_status]?.color || "#333",
+                          }}
+                        >
+                          <option value="available">Available</option>
+                          <option value="busy">Busy</option>
+                          <option value="on_leave">On Leave</option>
+                        </select>
                       </td>
                       <td
                         style={{
