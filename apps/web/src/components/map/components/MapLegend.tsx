@@ -9,11 +9,13 @@
 
 import { generateLegendPinSvg } from "@/lib/map-markers";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
+import { MAP_COLORS } from "@/lib/map-colors";
 
 interface MapLegendProps {
   showLegend: boolean;
   onToggle: () => void;
   isMobile?: boolean;
+  colors?: typeof MAP_COLORS;
 }
 
 const ACTIVE_PINS = [
@@ -28,15 +30,20 @@ const REFERENCE_PINS = [
   { color: "#94a3b8", label: "Minimal Data", pinStyle: "minimal" },
 ];
 
-const DISEASE_BADGES = [
-  { color: "#dc2626", code: "F", label: "FeLV" },
-  { color: "#ea580c", code: "V", label: "FIV" },
-  { color: "#ca8a04", code: "R", label: "Ringworm" },
-  { color: "#7c3aed", code: "H", label: "Heartworm" },
-  { color: "#be185d", code: "P", label: "Panleukopenia" },
+const DEFAULT_DISEASE_BADGES = [
+  { colorKey: "felv" as const, code: "F", label: "FeLV", fallback: "#dc2626" },
+  { colorKey: "fiv" as const, code: "V", label: "FIV", fallback: "#ea580c" },
+  { colorKey: "ringworm" as const, code: "R", label: "Ringworm", fallback: "#ca8a04" },
+  { colorKey: "heartworm" as const, code: "H", label: "Heartworm", fallback: "#7c3aed" },
+  { colorKey: "panleukopenia" as const, code: "P", label: "Panleukopenia", fallback: "#be185d" },
 ];
 
-export function MapLegend({ showLegend, onToggle, isMobile }: MapLegendProps) {
+export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendProps) {
+  const diseaseBadges = DEFAULT_DISEASE_BADGES.map((badge) => ({
+    color: colors?.disease?.[badge.colorKey] ?? badge.fallback,
+    code: badge.code,
+    label: badge.label,
+  }));
   return (
     <div
       className="map-legend"
@@ -191,7 +198,7 @@ export function MapLegend({ showLegend, onToggle, isMobile }: MapLegendProps) {
           >
             Disease Badges
           </div>
-          {DISEASE_BADGES.map(({ color, code, label }) => (
+          {diseaseBadges.map(({ color, code, label }) => (
             <div key={code} className="map-legend-item">
               <span
                 className="map-legend-swatch"

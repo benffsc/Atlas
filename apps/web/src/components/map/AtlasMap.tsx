@@ -20,7 +20,7 @@ import {
   createReferencePinMarker,
   createAnnotationMarker,
 } from "@/lib/map-markers";
-import { MAP_COLORS, getPriorityColor } from "@/lib/map-colors";
+import { useMapColors } from "@/hooks/useMapColors";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
 import {
   buildPlacePopup,
@@ -205,6 +205,9 @@ function AtlasMapInner() {
     if (fromUrl) return fromUrl;
     return Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.defaultEnabled]));
   });
+
+  // Admin-configurable map colors (falls back to hardcoded MAP_COLORS)
+  const { colors } = useMapColors();
 
   // Sync layer state to URL
   useEffect(() => {
@@ -790,7 +793,7 @@ function AtlasMapInner() {
     const layer = L.layerGroup();
     places.forEach((place) => {
       if (!place.lat || !place.lng) return;
-      const color = getPriorityColor(place.priority);
+      const color = colors.priority[place.priority as keyof typeof colors.priority] || colors.priority.unknown;
       const size = place.priority === "high" ? 16 : place.priority === "medium" ? 14 : 12;
 
       const marker = L.marker([place.lat, place.lng], {
@@ -814,7 +817,7 @@ function AtlasMapInner() {
 
     layer.addTo(mapRef.current);
     layersRef.current.places = layer;
-  }, [places, enabledLayers.places]);
+  }, [places, enabledLayers.places, colors]);
 
   // Update Google pins layer
   useEffect(() => {
@@ -828,7 +831,7 @@ function AtlasMapInner() {
     googlePins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
 
-      const color = pin.display_color || MAP_COLORS.layers.google_pins;
+      const color = pin.display_color || colors.layers.google_pins;
       const isAlert = pin.staff_alert || false;
       const size = isAlert ? 36 : 28;
 
@@ -854,7 +857,7 @@ function AtlasMapInner() {
 
     layer.addTo(mapRef.current);
     layersRef.current.google_pins = layer;
-  }, [googlePins, enabledLayers.google_pins]);
+  }, [googlePins, enabledLayers.google_pins, colors]);
 
   // Update TNR Priority layer
   useEffect(() => {
@@ -868,7 +871,7 @@ function AtlasMapInner() {
     tnrPriority.forEach((place) => {
       if (!place.lat || !place.lng) return;
 
-      const color = MAP_COLORS.priority[place.tnr_priority as keyof typeof MAP_COLORS.priority] || MAP_COLORS.priority.unknown;
+      const color = colors.priority[place.tnr_priority as keyof typeof colors.priority] || colors.priority.unknown;
       const size = place.tnr_priority === "critical" ? 36 : place.tnr_priority === "high" ? 32 : 28;
 
       const marker = L.marker([place.lat, place.lng], {
@@ -889,7 +892,7 @@ function AtlasMapInner() {
 
     layer.addTo(mapRef.current);
     layersRef.current.tnr_priority = layer;
-  }, [tnrPriority, enabledLayers.tnr_priority]);
+  }, [tnrPriority, enabledLayers.tnr_priority, colors]);
 
   // Update Zones layer
   useEffect(() => {
@@ -905,7 +908,7 @@ function AtlasMapInner() {
       if (zone.boundary) {
         try {
           const geojson = JSON.parse(zone.boundary);
-          const color = MAP_COLORS.layers.zones;
+          const color = colors.layers.zones;
           const polygon = L.geoJSON(geojson, {
             style: {
               color,
@@ -931,7 +934,7 @@ function AtlasMapInner() {
 
     layer.addTo(mapRef.current);
     layersRef.current.zones = layer;
-  }, [zones, enabledLayers.zones]);
+  }, [zones, enabledLayers.zones, colors]);
 
   // Update Volunteers layer
   useEffect(() => {
@@ -945,7 +948,7 @@ function AtlasMapInner() {
     volunteers.forEach((vol) => {
       if (!vol.lat || !vol.lng) return;
 
-      const color = MAP_COLORS.volunteerRoles[vol.role as keyof typeof MAP_COLORS.volunteerRoles] || MAP_COLORS.layers.volunteers;
+      const color = colors.volunteerRoles[vol.role as keyof typeof colors.volunteerRoles] || colors.layers.volunteers;
 
       const marker = L.marker([vol.lat, vol.lng], {
         icon: createStarMarker(color, { size: 24 }),
@@ -964,7 +967,7 @@ function AtlasMapInner() {
 
     layer.addTo(mapRef.current);
     layersRef.current.volunteers = layer;
-  }, [volunteers, enabledLayers.volunteers]);
+  }, [volunteers, enabledLayers.volunteers, colors]);
 
   // Update Clinic Clients layer
   useEffect(() => {
@@ -979,7 +982,7 @@ function AtlasMapInner() {
       if (!client.lat || !client.lng) return;
 
       const marker = L.marker([client.lat, client.lng], {
-        icon: createClinicMarker(MAP_COLORS.layers.clinic_clients, { size: 14 }),
+        icon: createClinicMarker(colors.layers.clinic_clients, { size: 14 }),
       });
 
       marker.bindPopup(buildClinicClientPopup({
@@ -995,7 +998,7 @@ function AtlasMapInner() {
 
     layer.addTo(mapRef.current);
     layersRef.current.clinic_clients = layer;
-  }, [clinicClients, enabledLayers.clinic_clients]);
+  }, [clinicClients, enabledLayers.clinic_clients, colors]);
 
   // Update Historical Sources layer
   useEffect(() => {
@@ -2862,6 +2865,7 @@ function AtlasMapInner() {
         showLegend={showLegend}
         onToggle={() => setShowLegend(prev => !prev)}
         isMobile={isMobile}
+        colors={colors}
       />
 
       {/* CSS animations are in atlas-map.css */}

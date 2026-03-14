@@ -1,9 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { SeasonalAlertsCard } from "@/components/cards";
 import { YoYComparisonChart } from "@/components/charts";
+
+interface ZoneRollup {
+  zone_id: string;
+  zone_code: string;
+  zone_name: string;
+  place_count: number;
+  total_cats: number;
+  altered_cats: number;
+  alteration_rate_pct: number | null;
+  zone_status: string;
+  active_requests: number;
+  alterations_last_90d: number;
+  estimated_population: number | null;
+}
+
+interface ZonesResponse {
+  zones: ZoneRollup[];
+  summary: {
+    total_zones: number;
+    total_places: number;
+    total_cats: number;
+    total_altered: number;
+    alteration_rate_pct: number | null;
+    status_breakdown: Record<string, number>;
+    total_estimated_population: number;
+  };
+}
+
+interface DateFilteredSummary {
+  total_places: number;
+  total_cats: number;
+  total_altered: number;
+  alteration_rate_pct: number | null;
+  status_breakdown: Record<string, number>;
+}
 
 interface BeaconSummaryResponse {
   summary: {
@@ -40,13 +75,39 @@ interface BeaconSummaryResponse {
 export default function BeaconPage() {
   const [data, setData] = useState<BeaconSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zones, setZones] = useState<ZonesResponse | null>(null);
+  const [zonesLoading, setZonesLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateFiltered, setDateFiltered] = useState<DateFilteredSummary | null>(null);
+  const [dateFilterLoading, setDateFilterLoading] = useState(false);
 
   useEffect(() => {
     fetchApi<BeaconSummaryResponse>("/api/beacon/summary")
       .then((data) => setData({ summary: data.summary, insights: data.insights }))
       .catch(() => null)
       .finally(() => setLoading(false));
+
+    fetchApi<ZonesResponse>("/api/beacon/zones")
+      .then(setZones)
+      .catch(() => null)
+      .finally(() => setZonesLoading(false));
   }, []);
+
+  const applyDateFilter = useCallback(() => {
+    if (!dateFrom && !dateTo) {
+      setDateFiltered(null);
+      return;
+    }
+    setDateFilterLoading(true);
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    fetchApi<{ summary: DateFilteredSummary }>(`/api/beacon/map?${params}`)
+      .then((d) => setDateFiltered(d.summary))
+      .catch(() => null)
+      .finally(() => setDateFilterLoading(false));
+  }, [dateFrom, dateTo]);
 
   const summary = data?.summary;
   const insights = data?.insights;
@@ -155,6 +216,163 @@ export default function BeaconPage() {
           (Levy et al., 2014; McCarthy et al., 2013).
         </p>
       </div>
+
+      {/* Date Range Filter */}
+      <div
+        className="card"
+        style={{ padding: "1.25rem", marginBottom: "2rem" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>Date Filter</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{
+              padding: "0.4rem 0.6rem",
+              borderRadius: "4px",
+              border: "1px solid var(--border)",
+              fontSize: "0.85rem",
+            }}
+          />
+          <span style={{ color: "var(--text-muted)" }}>to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={{
+              padding: "0.4rem 0.6rem",
+              borderRadius: "4px",
+              border: "1px solid var(--border)",
+              fontSize: "0.85rem",
+            }}
+          />
+          <button
+            onClick={applyDateFilter}
+            disabled={dateFilterLoading}
+            style={{
+              padding: "0.4rem 1rem",
+              borderRadius: "4px",
+              border: "none",
+              background: "var(--foreground)",
+              color: "var(--background)",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              opacity: dateFilterLoading ? 0.6 : 1,
+            }}
+          >
+            {dateFilterLoading ? "Loading..." : "Apply"}
+          </button>
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(""); setDateTo(""); setDateFiltered(null); }}
+              style={{
+                padding: "0.4rem 0.75rem",
+                borderRadius: "4px",
+                border: "1px solid var(--border)",
+                background: "transparent",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                color: "var(--text-muted)",
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {dateFiltered && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: "0.75rem",
+              marginTop: "1rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <MiniStat label="Places" value={dateFiltered.total_places} />
+            <MiniStat label="Cats Seen" value={dateFiltered.total_cats} />
+            <MiniStat label="Altered" value={dateFiltered.total_altered} />
+            <MiniStat
+              label="Alteration Rate"
+              value={dateFiltered.alteration_rate_pct !== null ? `${dateFiltered.alteration_rate_pct}%` : "N/A"}
+            />
+            <MiniStat label="Managed" value={dateFiltered.status_breakdown?.managed || 0} />
+            <MiniStat
+              label="Needs Attention"
+              value={dateFiltered.status_breakdown?.needs_attention || 0}
+              color="#dc2626"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Zone Rollups */}
+      {!zonesLoading && zones && zones.zones.length > 0 && (
+        <div style={{ marginBottom: "2rem" }}>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>
+            Zone TNR Progress
+          </h2>
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "0.85rem",
+              }}
+            >
+              <thead>
+                <tr style={{ borderBottom: "2px solid var(--border)" }}>
+                  <th style={{ textAlign: "left", padding: "0.5rem 0.75rem" }}>Zone</th>
+                  <th style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>Places</th>
+                  <th style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>Cats</th>
+                  <th style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>Altered</th>
+                  <th style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>Rate</th>
+                  <th style={{ textAlign: "center", padding: "0.5rem 0.75rem" }}>Status</th>
+                  <th style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>90d Alts</th>
+                  <th style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>Active Reqs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {zones.zones.map((z) => (
+                  <tr key={z.zone_id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>
+                      {z.zone_name || z.zone_code}
+                    </td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{z.place_count}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{z.total_cats}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{z.altered_cats}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>
+                      {z.alteration_rate_pct !== null ? `${z.alteration_rate_pct}%` : "—"}
+                    </td>
+                    <td style={{ textAlign: "center", padding: "0.5rem 0.75rem" }}>
+                      <ZoneStatusBadge status={z.zone_status} />
+                    </td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{z.alterations_last_90d}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{z.active_requests}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {zones.summary && (
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid var(--border)", fontWeight: 600 }}>
+                    <td style={{ padding: "0.5rem 0.75rem" }}>Total</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{zones.summary.total_places}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{zones.summary.total_cats}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{zones.summary.total_altered}</td>
+                    <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>
+                      {zones.summary.alteration_rate_pct !== null ? `${zones.summary.alteration_rate_pct}%` : "—"}
+                    </td>
+                    <td colSpan={3} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Seasonal Alerts Section */}
       <div style={{ marginBottom: "2rem" }}>
@@ -355,5 +573,51 @@ function AnalyticsCard({
         </div>
       )}
     </a>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  color?: string;
+}) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: "1.25rem", fontWeight: 700, color: color || "var(--text)" }}>
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </div>
+      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{label}</div>
+    </div>
+  );
+}
+
+const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  managed: { bg: "#dcfce7", text: "#166534", label: "Managed" },
+  in_progress: { bg: "#fef3c7", text: "#92400e", label: "In Progress" },
+  needs_work: { bg: "#fed7aa", text: "#9a3412", label: "Needs Work" },
+  needs_attention: { bg: "#fecaca", text: "#991b1b", label: "Needs Attention" },
+  no_data: { bg: "#f3f4f6", text: "#6b7280", label: "No Data" },
+};
+
+function ZoneStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_COLORS[status] || STATUS_COLORS.no_data;
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "0.15rem 0.5rem",
+        borderRadius: "9999px",
+        fontSize: "0.75rem",
+        fontWeight: 500,
+        background: cfg.bg,
+        color: cfg.text,
+      }}
+    >
+      {cfg.label}
+    </span>
   );
 }
