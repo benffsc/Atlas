@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
-import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { PersonSection } from "@/components/request-sections";
+import type { PersonSectionValue } from "@/components/request-sections";
 import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE } from "@/lib/enums";
 
 interface HandoffRequestModalProps {
@@ -42,18 +41,16 @@ export function HandoffRequestModal({
   const [customReason, setCustomReason] = useState("");
   const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
 
-  // Person selection via PersonReferencePicker
-  const [caretakerPerson, setCaretakerPerson] = useState<PersonReference>({
+  // Person selection via PersonSection
+  const [personValue, setPersonValue] = useState<PersonSectionValue>({
     person_id: null,
     display_name: "",
     is_resolved: false,
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
   });
-
-  // Manual entry fields (used when no person selected, or to override)
-  const [newRequesterFirstName, setNewRequesterFirstName] = useState("");
-  const [newRequesterLastName, setNewRequesterLastName] = useState("");
-  const [newRequesterPhone, setNewRequesterPhone] = useState("");
-  const [newRequesterEmail, setNewRequesterEmail] = useState("");
 
   const [summary, setSummary] = useState("");
   const [notes, setNotes] = useState("");
@@ -84,24 +81,13 @@ export function HandoffRequestModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Person suggestion by email/phone (duplicate prevention)
-  const personSuggestion = usePersonSuggestion({
-    email: newRequesterEmail,
-    phone: newRequesterPhone,
-    enabled: !caretakerPerson.is_resolved && !linkToExisting,
-  });
-
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setHandoffReason("");
       setCustomReason("");
       setResolvedPlace(null);
-      setCaretakerPerson({ person_id: null, display_name: "", is_resolved: false });
-      setNewRequesterFirstName("");
-      setNewRequesterLastName("");
-      setNewRequesterPhone("");
-      setNewRequesterEmail("");
+      setPersonValue({ person_id: null, display_name: "", is_resolved: false, first_name: "", last_name: "", email: "", phone: "" });
       setSummary("");
       setNotes("");
       setEstimatedCatCount("");
@@ -122,7 +108,6 @@ export function HandoffRequestModal({
       setSearchingRequests(false);
       setError("");
       setSuccess(false);
-      personSuggestion.reset();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -143,50 +128,6 @@ export function HandoffRequestModal({
     }, 300);
     return () => clearTimeout(timer);
   }, [requestSearchQuery, linkToExisting, requestId]);
-
-  // When a person is resolved via PersonReferencePicker (search or inline create),
-  // auto-fill name fields and look up their contact info
-  const handlePersonChange = async (ref: PersonReference) => {
-    setCaretakerPerson(ref);
-
-    if (ref.is_resolved && ref.person_id) {
-      // Look up person details to auto-fill name/phone/email
-      try {
-        const data = await fetchApi<{
-          display_name: string;
-          contact: { emails: string[]; phones: string[] };
-        }>(`/api/people/${ref.person_id}/summary`);
-        const parts = (data.display_name || ref.display_name).split(" ");
-        setNewRequesterFirstName(parts[0] || "");
-        setNewRequesterLastName(parts.slice(1).join(" ") || "");
-        if (data.contact?.phones?.[0]) setNewRequesterPhone(data.contact.phones[0]);
-        if (data.contact?.emails?.[0]) setNewRequesterEmail(data.contact.emails[0]);
-      } catch {
-        // Auto-fill from display_name as fallback
-        const parts = ref.display_name.split(" ");
-        setNewRequesterFirstName(parts[0] || "");
-        setNewRequesterLastName(parts.slice(1).join(" ") || "");
-      }
-      personSuggestion.reset();
-    } else if (!ref.is_resolved && ref.display_name) {
-      // Free text entry — parse name
-      const parts = ref.display_name.split(" ");
-      setNewRequesterFirstName(parts[0] || "");
-      setNewRequesterLastName(parts.slice(1).join(" ") || "");
-    }
-  };
-
-  const handleSuggestionSelect = (person: { person_id: string; display_name: string }) => {
-    setCaretakerPerson({
-      person_id: person.person_id,
-      display_name: person.display_name,
-      is_resolved: true,
-    });
-    const parts = person.display_name.split(" ");
-    setNewRequesterFirstName(parts[0] || "");
-    setNewRequesterLastName(parts.slice(1).join(" ") || "");
-    personSuggestion.selectPerson(person as Parameters<typeof personSuggestion.selectPerson>[0]);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +156,7 @@ export function HandoffRequestModal({
       }
 
       // Need either a resolved person or first+last name
-      if (!caretakerPerson.is_resolved && (!newRequesterFirstName.trim() || !newRequesterLastName.trim())) {
+      if (!personValue.is_resolved && (!personValue.first_name.trim() || !personValue.last_name.trim())) {
         setError("Please search for an existing person, create a new one, or enter their first and last name");
         return;
       }
@@ -233,11 +174,11 @@ export function HandoffRequestModal({
         new_address: resolvedPlace?.formatted_address || resolvedPlace?.display_name || "",
         new_place_id: resolvedPlace?.place_id || null,
         // If person resolved (via search or inline create), pass their ID
-        existing_person_id: caretakerPerson.person_id || null,
-        new_requester_first_name: newRequesterFirstName || null,
-        new_requester_last_name: newRequesterLastName || null,
-        new_requester_phone: newRequesterPhone || null,
-        new_requester_email: newRequesterEmail || null,
+        existing_person_id: personValue.person_id || null,
+        new_requester_first_name: personValue.first_name || null,
+        new_requester_last_name: personValue.last_name || null,
+        new_requester_phone: personValue.phone || null,
+        new_requester_email: personValue.email || null,
         summary: summary || null,
         notes: notes || null,
         estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
@@ -477,77 +418,40 @@ export function HandoffRequestModal({
             New Caretaker Details
           </h3>
 
-          {/* Person Search with inline creation */}
-          <div style={{ marginBottom: "16px" }}>
-            <PersonReferencePicker
-              value={caretakerPerson}
-              onChange={handlePersonChange}
-              label="Search for Existing Person"
-              placeholder="Type a name to search..."
-              allowCreate
-            />
-            {caretakerPerson.is_resolved && (
-              <div style={{ marginTop: "6px", fontSize: "0.8rem", color: "#0d9488" }}>
-                Person linked - fields auto-filled below
-              </div>
-            )}
-          </div>
+          {/* Person search, name, contact, dedup — via PersonSection */}
+          <PersonSection
+            role="caretaker"
+            value={personValue}
+            onChange={setPersonValue}
+            allowCreate
+            compact
+            required
+            onAddressSelected={(addr) => setResolvedPlace({
+              place_id: addr.place_id,
+              display_name: addr.formatted_address,
+              formatted_address: addr.formatted_address,
+              locality: null,
+            })}
+          />
 
-          {/* First Name / Last Name */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  marginBottom: "6px",
-                }}
-              >
-                First Name *
-              </label>
-              <input
-                type="text"
-                value={newRequesterFirstName}
-                onChange={(e) => setNewRequesterFirstName(e.target.value)}
-                placeholder="First name"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-              />
+          {/* Warning: no person record will be created without contact info */}
+          {!personValue.is_resolved && !personValue.phone.trim() && !personValue.email.trim() && (personValue.first_name.trim() || personValue.last_name.trim()) && (
+            <div
+              style={{
+                padding: "10px 14px",
+                background: "#fffbeb",
+                border: "1px solid #fcd34d",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                fontSize: "0.85rem",
+                color: "#92400e",
+              }}
+            >
+              <strong>No phone or email:</strong> Without contact info, no person record will be linked to this request.
+              The handoff will still work, but the new caretaker won&apos;t be trackable in the system.
+              Add a phone or email if available.
             </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  marginBottom: "6px",
-                }}
-              >
-                Last Name *
-              </label>
-              <input
-                type="text"
-                value={newRequesterLastName}
-                onChange={(e) => setNewRequesterLastName(e.target.value)}
-                placeholder="Last name"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-              />
-            </div>
-          </div>
+          )}
 
           {/* New Address */}
           <div style={{ marginBottom: "16px" }}>
@@ -567,90 +471,6 @@ export function HandoffRequestModal({
               placeholder="Start typing an address..."
             />
           </div>
-
-          {/* Contact Info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  marginBottom: "6px",
-                }}
-              >
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={newRequesterPhone}
-                onChange={(e) => setNewRequesterPhone(e.target.value)}
-                placeholder="Phone number"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  marginBottom: "6px",
-                }}
-              >
-                Email
-              </label>
-              <input
-                type="email"
-                value={newRequesterEmail}
-                onChange={(e) => setNewRequesterEmail(e.target.value)}
-                placeholder="Email address"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Person suggestion banner (duplicate prevention) */}
-          <PersonSuggestionBanner
-            suggestions={personSuggestion.suggestions}
-            loading={personSuggestion.loading}
-            dismissed={personSuggestion.dismissed}
-            onDismiss={personSuggestion.dismiss}
-            onSelect={handleSuggestionSelect}
-          />
-
-          {/* Warning: no person record will be created without contact info */}
-          {!caretakerPerson.is_resolved && !newRequesterPhone.trim() && !newRequesterEmail.trim() && (newRequesterFirstName.trim() || newRequesterLastName.trim()) && (
-            <div
-              style={{
-                padding: "10px 14px",
-                background: "#fffbeb",
-                border: "1px solid #fcd34d",
-                borderRadius: "8px",
-                marginBottom: "16px",
-                fontSize: "0.85rem",
-                color: "#92400e",
-              }}
-            >
-              <strong>No phone or email:</strong> Without contact info, no person record will be linked to this request.
-              The handoff will still work, but the new caretaker won&apos;t be trackable in the system.
-              Add a phone or email if available.
-            </div>
-          )}
 
           {/* Person Role & Property Context */}
           <div style={{ marginBottom: "16px", padding: "12px", background: "var(--card-bg, #f8f9fa)", borderRadius: "8px", border: "1px solid var(--border)" }}>

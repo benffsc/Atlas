@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
-import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
+import { PersonSection } from "@/components/request-sections";
+import type { PersonSectionValue } from "@/components/request-sections";
 
 interface RedirectRequestModalProps {
   isOpen: boolean;
@@ -38,9 +38,15 @@ export function RedirectRequestModal({
   const [redirectReason, setRedirectReason] = useState("");
   const [customReason, setCustomReason] = useState("");
   const [newAddressPlace, setNewAddressPlace] = useState<ResolvedPlace | null>(null);
-  const [newRequesterName, setNewRequesterName] = useState("");
-  const [newRequesterPhone, setNewRequesterPhone] = useState("");
-  const [newRequesterEmail, setNewRequesterEmail] = useState("");
+  const [personValue, setPersonValue] = useState<PersonSectionValue>({
+    person_id: null,
+    display_name: "",
+    is_resolved: false,
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+  });
   const [summary, setSummary] = useState("");
   const [notes, setNotes] = useState("");
   const [estimatedCatCount, setEstimatedCatCount] = useState<number | "">("");
@@ -65,22 +71,13 @@ export function RedirectRequestModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Person suggestion by email/phone (duplicate prevention)
-  const personSuggestion = usePersonSuggestion({
-    email: newRequesterEmail,
-    phone: newRequesterPhone,
-    enabled: !linkToExisting,
-  });
-
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setRedirectReason("");
       setCustomReason("");
       setNewAddressPlace(null);
-      setNewRequesterName("");
-      setNewRequesterPhone("");
-      setNewRequesterEmail("");
+      setPersonValue({ person_id: null, display_name: "", is_resolved: false, first_name: "", last_name: "", email: "", phone: "" });
       setSummary("");
       setNotes("");
       setEstimatedCatCount("");
@@ -97,7 +94,6 @@ export function RedirectRequestModal({
       setRequestSearchResults([]);
       setError("");
       setSuccess(false);
-      personSuggestion.reset();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -118,13 +114,6 @@ export function RedirectRequestModal({
     }, 300);
     return () => clearTimeout(timer);
   }, [requestSearchQuery, linkToExisting, requestId]);
-
-  const handleSuggestionSelect = (person: Parameters<typeof personSuggestion.selectPerson>[0]) => {
-    setNewRequesterName(person.display_name);
-    setNewRequesterPhone(person.phone || "");
-    setNewRequesterEmail(person.email || "");
-    personSuggestion.selectPerson(person);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,9 +151,10 @@ export function RedirectRequestModal({
         existing_target_request_id: linkToExisting ? targetRequestId : undefined,
         new_address: newAddressPlace?.formatted_address || newAddressPlace?.display_name || "",
         new_place_id: newAddressPlace?.place_id || undefined,
-        new_requester_name: newRequesterName || null,
-        new_requester_phone: newRequesterPhone || null,
-        new_requester_email: newRequesterEmail || null,
+        existing_person_id: personValue.person_id || null,
+        new_requester_name: [personValue.first_name, personValue.last_name].filter(Boolean).join(" ") || personValue.display_name || null,
+        new_requester_phone: personValue.phone || null,
+        new_requester_email: personValue.email || null,
         summary: summary || null,
         notes: notes || null,
         estimated_cat_count: estimatedCatCount === "" ? null : estimatedCatCount,
@@ -396,96 +386,20 @@ export function RedirectRequestModal({
             />
           </div>
 
-          {/* New Contact Info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  marginBottom: "6px",
-                }}
-              >
-                Contact Name
-              </label>
-              <input
-                type="text"
-                value={newRequesterName}
-                onChange={(e) => setNewRequesterName(e.target.value)}
-                placeholder="Name"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
-                  marginBottom: "6px",
-                }}
-              >
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={newRequesterPhone}
-                onChange={(e) => setNewRequesterPhone(e.target.value)}
-                placeholder="Phone number"
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontSize: "0.9rem",
-                  background: "var(--input-bg, #fff)",
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                marginBottom: "6px",
-              }}
-            >
-              Email
-            </label>
-            <input
-              type="email"
-              value={newRequesterEmail}
-              onChange={(e) => setNewRequesterEmail(e.target.value)}
-              placeholder="Email address"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                background: "var(--input-bg, #fff)",
-              }}
-            />
-          </div>
-
-          {/* Person suggestion banner (duplicate prevention) */}
-          <PersonSuggestionBanner
-            suggestions={personSuggestion.suggestions}
-            loading={personSuggestion.loading}
-            dismissed={personSuggestion.dismissed}
-            onDismiss={personSuggestion.dismiss}
-            onSelect={handleSuggestionSelect}
+          {/* Contact person — search, name, phone/email, dedup via PersonSection */}
+          <PersonSection
+            role="requestor"
+            label="Contact Person"
+            value={personValue}
+            onChange={setPersonValue}
+            allowCreate
+            compact
+            onAddressSelected={(addr) => setNewAddressPlace({
+              place_id: addr.place_id,
+              display_name: addr.formatted_address,
+              formatted_address: addr.formatted_address,
+              locality: null,
+            })}
           />
 
           {/* Cat Count & Summary */}

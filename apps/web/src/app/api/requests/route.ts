@@ -425,6 +425,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // FFS-498: Link pre-resolved property owner to place
+    if (body.property_owner_person_id && body.place_id) {
+      try {
+        await queryOne(
+          `SELECT sot.link_person_to_place(
+            p_person_id := $1::UUID,
+            p_place_id := $2::UUID,
+            p_relationship_type := 'property_owner',
+            p_evidence_type := 'manual',
+            p_source_system := 'atlas_ui',
+            p_confidence := 0.9
+          )`,
+          [body.property_owner_person_id, body.place_id]
+        );
+      } catch (linkError) {
+        console.warn("[POST /api/requests] Link property owner to place failed (non-blocking):", linkError);
+      }
+    }
+
     // FFS-443b: Auto-resolve property owner person from raw contact info
     // Requires name + (phone OR email) per INV-5
     if (!body.property_owner_person_id && body.property_owner_name && (body.property_owner_phone || body.raw_property_owner_email)) {
@@ -447,18 +466,42 @@ export async function POST(request: NextRequest) {
             [resolved.person_id, result.request_id]
           );
 
-          // Link property owner to the request's place
+          // FFS-498: Link property owner to place via centralized function
           if (body.place_id) {
             await queryOne(
-              `INSERT INTO sot.person_place_relationships (person_id, place_id, relationship_type, source_system)
-               VALUES ($1::UUID, $2::UUID, 'property_owner', 'atlas_ui')
-               ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING`,
+              `SELECT sot.link_person_to_place(
+                p_person_id := $1::UUID,
+                p_place_id := $2::UUID,
+                p_relationship_type := 'property_owner',
+                p_evidence_type := 'manual',
+                p_source_system := 'atlas_ui',
+                p_confidence := 0.9
+              )`,
               [resolved.person_id, body.place_id]
             );
           }
         }
       } catch (resolveError) {
         console.warn("[POST /api/requests] Auto-resolve property owner failed (non-blocking):", resolveError);
+      }
+    }
+
+    // FFS-498: Link pre-resolved site contact to place
+    if (body.site_contact_person_id && body.place_id) {
+      try {
+        await queryOne(
+          `SELECT sot.link_person_to_place(
+            p_person_id := $1::UUID,
+            p_place_id := $2::UUID,
+            p_relationship_type := 'site_contact',
+            p_evidence_type := 'manual',
+            p_source_system := 'atlas_ui',
+            p_confidence := 0.9
+          )`,
+          [body.site_contact_person_id, body.place_id]
+        );
+      } catch (linkError) {
+        console.warn("[POST /api/requests] Link site contact to place failed (non-blocking):", linkError);
       }
     }
 
@@ -483,12 +526,17 @@ export async function POST(request: NextRequest) {
             [resolved.person_id, result.request_id]
           );
 
-          // Also link site contact to the request's place
+          // FFS-498: Link site contact to place via centralized function
           if (body.place_id) {
             await queryOne(
-              `INSERT INTO sot.person_place_relationships (person_id, place_id, relationship_type, source_system)
-               VALUES ($1::UUID, $2::UUID, 'site_contact', 'atlas_ui')
-               ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING`,
+              `SELECT sot.link_person_to_place(
+                p_person_id := $1::UUID,
+                p_place_id := $2::UUID,
+                p_relationship_type := 'site_contact',
+                p_evidence_type := 'manual',
+                p_source_system := 'atlas_ui',
+                p_confidence := 0.9
+              )`,
               [resolved.person_id, body.place_id]
             );
           }

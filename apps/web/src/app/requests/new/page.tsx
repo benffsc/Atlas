@@ -3,27 +3,34 @@
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/common";
-import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
-import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
-import { INPUT, MB_LG, MB_XL, FLEX_WRAP, SECTION_DIVIDER } from "../styles";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS } from "@/lib/design-tokens";
+import { MB_LG, MB_XL, SECTION_DIVIDER } from "../styles";
 import {
-  PROPERTY_TYPE_OPTIONS,
   OWNERSHIP_OPTIONS,
   HANDLEABILITY_OPTIONS,
   FIXED_STATUS_OPTIONS,
   IMPORTANT_NOTE_OPTIONS,
-  URGENCY_REASON_OPTIONS,
-  PERMISSION_STATUS_OPTIONS,
-  COLONY_DURATION_OPTIONS,
-  COUNT_CONFIDENCE_OPTIONS,
-  EARTIP_ESTIMATE_OPTIONS,
 } from "@/lib/form-options";
+import {
+  PlaceSection,
+  PropertyAccessSection,
+  CatDetailsSection,
+  KittenAssessmentSection,
+  UrgencyNotesSection,
+} from "@/components/request-sections";
+import type {
+  PlaceSectionValue,
+  PropertyAccessValue,
+  CatDetailsSectionValue,
+  KittenAssessmentValue,
+  UrgencyNotesValue,
+} from "@/components/request-sections";
 import {
   EntryModeSelector,
   ActiveRequestWarning,
@@ -69,22 +76,6 @@ interface PersonDetails {
   email?: string;
   phone?: string;
   addresses?: PersonAddress[];
-}
-
-/** Map PlaceResolver place_kind → request form property_type */
-function placeKindToPropertyType(placeKind: string): string {
-  const map: Record<string, string> = {
-    residential_house: "private_home",
-    apartment_unit: "apartment_complex",
-    apartment_building: "apartment_complex",
-    mobile_home_space: "mobile_home_park",
-    business: "business",
-    outdoor_site: "public_park",
-    neighborhood: "rural_unincorporated",
-    clinic: "other",
-    unknown: "",
-  };
-  return map[placeKind] || "";
 }
 
 // All options now imported from @/lib/form-options (FFS-486)
@@ -158,18 +149,6 @@ function NewRequestForm() {
   // Request Purpose (multi-select)
   const [requestPurposes, setRequestPurposes] = useState<string[]>(["tnr"]);
   const [wellnessCatCount, setWellnessCatCount] = useState<number | "">("");
-
-  // Helper to toggle purpose selection
-  const togglePurpose = (purpose: string) => {
-    setRequestPurposes(prev => {
-      if (prev.includes(purpose)) {
-        // Don't allow empty selection - keep at least one
-        if (prev.length === 1) return prev;
-        return prev.filter(p => p !== purpose);
-      }
-      return [...prev, purpose];
-    });
-  };
 
   // Computed: check if specific purposes are selected
   const hasTnr = requestPurposes.includes("tnr");
@@ -534,18 +513,6 @@ function NewRequestForm() {
     siteContactSuggestion.selectPerson(person);
   };
 
-  const clearPlace = () => {
-    setSelectedPlace(null);
-  };
-
-  const handlePlaceResolved = (place: ResolvedPlace | null) => {
-    setSelectedPlace(place);
-    // Auto-sync property type from Atlas place_kind (if available)
-    if (place?.place_kind && !propertyType) {
-      setPropertyType(placeKindToPropertyType(place.place_kind));
-    }
-  };
-
   const clearPerson = () => {
     setSelectedPerson(null);
     setPersonSearch("");
@@ -558,27 +525,140 @@ function NewRequestForm() {
     personSuggestion.reset();
   };
 
-  // Use a known address from the selected person as the cat location
-  const useKnownAddress = (address: PersonAddress) => {
-    setSelectedPlace({
-      place_id: address.place_id,
-      display_name: address.display_name || address.formatted_address,
-      formatted_address: address.formatted_address,
-      locality: null,
-    });
-  };
-
-  const toggleUrgencyReason = (reason: string) => {
-    setUrgencyReasons((prev) =>
-      prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]
-    );
-  };
-
   const toggleImportantNote = (note: string) => {
     setImportantNotes((prev) =>
       prev.includes(note) ? prev.filter((n) => n !== note) : [...prev, note]
     );
   };
+
+  // ─── Section Adapter Values (FFS-493) ─────────────────────────────────────
+  // Bridge individual state vars → section component value objects.
+  // State stays flat (no refactor of submit/effects), components read these.
+
+  const placeValue: PlaceSectionValue = {
+    place: selectedPlace,
+    propertyType,
+    county,
+    whereOnProperty: locationDescription,
+  };
+
+  const handlePlaceChange = useCallback(
+    (v: PlaceSectionValue) => {
+      setSelectedPlace(v.place);
+      setPropertyType(v.propertyType);
+      setCounty(v.county);
+      setLocationDescription(v.whereOnProperty);
+    },
+    []
+  );
+
+  const propertyAccessValue: PropertyAccessValue = {
+    permissionStatus,
+    hasPropertyAccess,
+    trapsOvernightSafe,
+    accessWithoutContact,
+    accessNotes,
+  };
+
+  const handlePropertyAccessChange = useCallback(
+    (v: PropertyAccessValue) => {
+      setPermissionStatus(v.permissionStatus);
+      setHasPropertyAccess(v.hasPropertyAccess);
+      setTrapsOvernightSafe(v.trapsOvernightSafe);
+      setAccessWithoutContact(v.accessWithoutContact);
+      setAccessNotes(v.accessNotes);
+    },
+    []
+  );
+
+  const catDetailsValue: CatDetailsSectionValue = {
+    estimatedCatCount,
+    totalCatsReported,
+    peakCount,
+    countConfidence,
+    colonyDuration,
+    awarenessDuration,
+    eartipCount,
+    eartipEstimate,
+    catsAreFriendly,
+    catName,
+    catDescription,
+    wellnessCatCount,
+    requestPurposes,
+  };
+
+  const handleCatDetailsChange = useCallback(
+    (v: CatDetailsSectionValue) => {
+      setEstimatedCatCount(v.estimatedCatCount);
+      setTotalCatsReported(v.totalCatsReported);
+      setPeakCount(v.peakCount);
+      setCountConfidence(v.countConfidence);
+      setColonyDuration(v.colonyDuration);
+      setAwarenessDuration(v.awarenessDuration);
+      setEartipCount(v.eartipCount);
+      setEartipEstimate(v.eartipEstimate);
+      setCatsAreFriendly(v.catsAreFriendly);
+      setCatName(v.catName);
+      setCatDescription(v.catDescription);
+      setWellnessCatCount(v.wellnessCatCount);
+      setRequestPurposes(v.requestPurposes);
+    },
+    []
+  );
+
+  const kittenValue: KittenAssessmentValue = {
+    hasKittens,
+    kittenCount,
+    kittenAgeWeeks,
+    kittenAgeEstimate,
+    kittenMixedAgesDescription,
+    kittenBehavior,
+    kittenContained,
+    momPresent,
+    momFixed,
+    canBringIn,
+    kittenNotes,
+  };
+
+  const handleKittenChange = useCallback(
+    (v: KittenAssessmentValue) => {
+      setHasKittens(v.hasKittens);
+      setKittenCount(v.kittenCount);
+      setKittenAgeWeeks(v.kittenAgeWeeks);
+      setKittenAgeEstimate(v.kittenAgeEstimate);
+      setKittenMixedAgesDescription(v.kittenMixedAgesDescription);
+      setKittenBehavior(v.kittenBehavior);
+      setKittenContained(v.kittenContained);
+      setMomPresent(v.momPresent);
+      setMomFixed(v.momFixed);
+      setCanBringIn(v.canBringIn);
+      setKittenNotes(v.kittenNotes);
+    },
+    []
+  );
+
+  const urgencyNotesValue: UrgencyNotesValue = {
+    priority,
+    urgencyReasons,
+    urgencyDeadline,
+    urgencyNotes,
+    summary,
+    notes,
+    internalNotes,
+  };
+
+  const handleUrgencyNotesChange = useCallback(
+    (v: UrgencyNotesValue) => {
+      setPriority(v.priority);
+      setUrgencyReasons(v.urgencyReasons);
+      setUrgencyDeadline(v.urgencyDeadline);
+      setUrgencyNotes(v.urgencyNotes);
+      setSummary(v.summary);
+      setNotes(v.notes);
+      setInternalNotes(v.internalNotes);
+    },
+    []
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -996,66 +1076,13 @@ function NewRequestForm() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* SECTION 1: Location */}
-        <div id="section-1" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Cat Location</h2>
-
-          {/* Known addresses from selected person */}
-          {selectedPerson?.addresses && selectedPerson.addresses.length > 0 && !selectedPlace && (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "1rem",
-                background: "var(--success-bg, #d4edda)",
-                border: "2px solid var(--success, #28a745)",
-                borderRadius: "8px",
-              }}
-            >
-              <p style={{ margin: "0 0 0.75rem", fontWeight: 600, color: "var(--success, #155724)" }}>
-                📍 Quick fill from {selectedPerson.display_name}'s known addresses:
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {selectedPerson.addresses.map((addr) => (
-                  <button
-                    key={addr.place_id}
-                    type="button"
-                    onClick={() => useKnownAddress(addr)}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "0.75rem",
-                      background: "var(--card-bg, #fff)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      color: "var(--foreground, #212529)",
-                    }}
-                  >
-                    <span>
-                      <span style={{ display: "block", color: "var(--foreground, #212529)" }}>{addr.formatted_address}</span>
-                      {addr.role && (
-                        <span style={{ color: "var(--muted, #6c757d)", fontSize: "0.85rem" }}>({addr.role})</span>
-                      )}
-                    </span>
-                    <span style={{ color: "var(--primary)", fontWeight: 500, fontSize: "0.85rem" }}>
-                      Use this address
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p style={{ margin: "0.75rem 0 0", color: "var(--muted, #6c757d)", fontSize: "0.85rem" }}>
-                Or search for a different address below
-              </p>
-            </div>
-          )}
-
-          <PlaceResolver
-            value={selectedPlace}
-            onChange={handlePlaceResolved}
-            onPlaceKindResolved={(pk) => setPropertyType(placeKindToPropertyType(pk))}
-            placeholder="Type an address..."
+        {/* SECTION 1: Location (FFS-493) */}
+        <div id="section-1">
+          <PlaceSection
+            value={placeValue}
+            onChange={handlePlaceChange}
+            knownAddresses={selectedPerson?.addresses}
+            knownAddressesLabel={selectedPerson?.display_name}
           />
 
           {/* Smart matching - show warning if active requests found at this location */}
@@ -1068,61 +1095,10 @@ function NewRequestForm() {
           )}
 
           {checkingDuplicates && (
-            <p className="text-muted text-sm" style={{ marginTop: "0.5rem" }}>
+            <p className="text-muted text-sm" style={{ marginTop: "0.5rem", marginBottom: "1rem" }}>
               Checking for existing requests...
             </p>
           )}
-
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "1rem" }}>
-            <div style={{ flex: "1 1 150px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                County
-              </label>
-              <select
-                value={county}
-                onChange={(e) => setCounty(e.target.value)}
-                style={{ width: "100%" }}
-              >
-                <option value="Sonoma">Sonoma</option>
-                <option value="Marin">Marin</option>
-                <option value="Napa">Napa</option>
-                <option value="Mendocino">Mendocino</option>
-                <option value="Lake">Lake</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Property Type
-              </label>
-              <select
-                value={propertyType}
-                onChange={(e) => setPropertyType(e.target.value)}
-                style={{ width: "100%" }}
-              >
-                <option value="">Select...</option>
-                {PROPERTY_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ flex: "2 1 300px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Where on property?
-              </label>
-              <input
-                type="text"
-                value={locationDescription}
-                onChange={(e) => setLocationDescription(e.target.value)}
-                placeholder="e.g., behind dumpster, in barn, backyard..."
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
         </div>
 
         {/* SECTION 2: Requestor */}
@@ -1781,148 +1757,12 @@ function NewRequestForm() {
           </div>
         </div>
 
-        {/* SECTION 3: Permission & Access */}
-        <div id="section-3" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Permission & Access</h2>
-
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-            <div style={{ flex: "1 1 250px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Permission Status
-              </label>
-              <select
-                value={permissionStatus}
-                onChange={(e) => setPermissionStatus(e.target.value)}
-                style={{ width: "100%" }}
-              >
-                {PERMISSION_STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                Does the requester have property access?
-              </label>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="hasPropertyAccess"
-                    checked={hasPropertyAccess === true}
-                    onChange={() => setHasPropertyAccess(true)}
-                  />
-                  Yes
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="hasPropertyAccess"
-                    checked={hasPropertyAccess === false}
-                    onChange={() => setHasPropertyAccess(false)}
-                  />
-                  No
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="hasPropertyAccess"
-                    checked={hasPropertyAccess === null}
-                    onChange={() => setHasPropertyAccess(null)}
-                  />
-                  Unknown
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                Can traps be left overnight?
-              </label>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="trapsOvernight"
-                    checked={trapsOvernightSafe === true}
-                    onChange={() => setTrapsOvernightSafe(true)}
-                  />
-                  Yes
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="trapsOvernight"
-                    checked={trapsOvernightSafe === false}
-                    onChange={() => setTrapsOvernightSafe(false)}
-                  />
-                  No
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="trapsOvernight"
-                    checked={trapsOvernightSafe === null}
-                    onChange={() => setTrapsOvernightSafe(null)}
-                  />
-                  Unknown
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                Can trapper access without requester?
-              </label>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="accessWithout"
-                    checked={accessWithoutContact === true}
-                    onChange={() => setAccessWithoutContact(true)}
-                  />
-                  Yes
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="accessWithout"
-                    checked={accessWithoutContact === false}
-                    onChange={() => setAccessWithoutContact(false)}
-                  />
-                  No
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                  <input
-                    type="radio"
-                    name="accessWithout"
-                    checked={accessWithoutContact === null}
-                    onChange={() => setAccessWithoutContact(null)}
-                  />
-                  Unknown
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Access Notes
-            </label>
-            <textarea
-              value={accessNotes}
-              onChange={(e) => setAccessNotes(e.target.value)}
-              placeholder="Gate codes, dogs on property, parking instructions, hazards..."
-              rows={2}
-              style={{ width: "100%", resize: "vertical" }}
-            />
-          </div>
+        {/* SECTION 3: Permission & Access (FFS-493) */}
+        <div id="section-3">
+          <PropertyAccessSection
+            value={propertyAccessValue}
+            onChange={handlePropertyAccessChange}
+          />
         </div>
 
         {/* SECTION 3b: Trapping Logistics (FFS-151) - collapsible */}
@@ -2116,537 +1956,30 @@ function NewRequestForm() {
           )}
         </div>
 
-        {/* SECTION 4: About the Cats */}
-        <div id="section-4" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>About the Cats</h2>
-
-          {/* Request Purpose Selector - Multi-select */}
-          <div style={{ marginBottom: "1.25rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-              What does this request involve? <span className="text-muted" style={{ fontWeight: 400 }}>(select all that apply)</span>
-            </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-              {[
-                { value: "tnr", label: "FFR", desc: "Cats need spay/neuter" },
-                { value: "wellness", label: "Wellness", desc: "Check on altered cats" },
-                { value: "relocation", label: "Relocation", desc: "Trapping to move cats" },
-                { value: "rescue", label: "Rescue", desc: "Emergency assistance" },
-              ].map((opt) => {
-                const isSelected = requestPurposes.includes(opt.value);
-                return (
-                  <label
-                    key={opt.value}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      padding: "0.6rem 1rem",
-                      border: isSelected ? "2px solid var(--primary)" : "1px solid var(--border)",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      background: isSelected ? "rgba(var(--primary-rgb), 0.05)" : "transparent",
-                      minWidth: "110px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => togglePurpose(opt.value)}
-                      style={{ display: "none" }}
-                    />
-                    <span style={{ fontWeight: 600 }}>{opt.label}</span>
-                    <span className="text-muted" style={{ fontSize: "0.75rem" }}>{opt.desc}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* TNR / Relocation / Rescue - Cats needing work */}
-          {(hasTnr || hasRelocation || hasRescue) && (
-            <>
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 140px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    {hasTnr ? "Cats needing FFR" : "Cats to trap"}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={estimatedCatCount}
-                    onChange={(e) =>
-                      setEstimatedCatCount(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="0"
-                    style={{ width: "100%" }}
-                  />
-                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                    {hasTnr ? "Unfixed cats" : "Total to trap"}
-                  </p>
-                </div>
-
-                <div style={{ flex: "1 1 140px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Total cats at location
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={totalCatsReported}
-                    onChange={(e) =>
-                      setTotalCatsReported(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="0"
-                    style={{ width: "100%" }}
-                  />
-                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                    Including already fixed
-                  </p>
-                </div>
-
-                <div style={{ flex: "1 1 140px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Peak count observed
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={peakCount}
-                    onChange={(e) =>
-                      setPeakCount(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="0"
-                    style={{ width: "100%" }}
-                  />
-                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                    Most cats seen at once
-                  </p>
-                </div>
-
-                <div style={{ flex: "1 1 180px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    How confident is this count?
-                  </label>
-                  <select
-                    value={countConfidence}
-                    onChange={(e) => setCountConfidence(e.target.value)}
-                    style={{ width: "100%" }}
-                  >
-                    {COUNT_CONFIDENCE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    How long have cats been here?
-                  </label>
-                  <select
-                    value={colonyDuration}
-                    onChange={(e) => setColonyDuration(e.target.value)}
-                    style={{ width: "100%" }}
-                  >
-                    {COLONY_DURATION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ flex: "1 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    How long has requester known?
-                  </label>
-                  <select
-                    value={awarenessDuration}
-                    onChange={(e) => setAwarenessDuration(e.target.value)}
-                    style={{ width: "100%" }}
-                  >
-                    {COLONY_DURATION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                    Helps assess colony stability
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Wellness - Altered cats to check */}
-          {hasWellness && (
-            <div
-              style={{
-                padding: "1rem",
-                background: "var(--bg-muted)",
-                borderRadius: "8px",
-                marginBottom: "1rem",
-              }}
-            >
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-                <div style={{ flex: "1 1 160px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Altered cats for wellness
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={wellnessCatCount}
-                    onChange={(e) =>
-                      setWellnessCatCount(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="0"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                <div style={{ flex: "2 1 300px" }}>
-                  <p className="text-muted text-sm" style={{ margin: 0 }}>
-                    Already ear-tipped cats to check on. These won&apos;t count toward FFR work.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Smart ear-tip input - only for TNR (context for how many are already done) */}
-          {hasTnr && (
-            <div style={MB_LG}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Ear-tipped at location {showExactEartipCount ? "(exact count)" : "(estimate)"}
-              </label>
-              {showExactEartipCount ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max={typeof estimatedCatCount === "number" ? estimatedCatCount : undefined}
-                    value={eartipCount}
-                    onChange={(e) =>
-                      setEartipCount(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="0"
-                    style={{ width: "80px" }}
-                  />
-                  <span className="text-muted">
-                    already fixed (context only, not part of this request)
-                  </span>
-                </div>
-              ) : (
-                <select
-                  value={eartipEstimate}
-                  onChange={(e) => setEartipEstimate(e.target.value)}
-                  style={{ width: "100%", maxWidth: "300px" }}
-                >
-                  {EARTIP_ESTIMATE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                For context only &mdash; these cats are already done and won&apos;t count toward this request
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-              Are the cats friendly?
-            </label>
-            <div style={{ display: "flex", gap: "1rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="friendly"
-                  checked={catsAreFriendly === true}
-                  onChange={() => setCatsAreFriendly(true)}
-                />
-                Yes, friendly
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="friendly"
-                  checked={catsAreFriendly === false}
-                  onChange={() => setCatsAreFriendly(false)}
-                />
-                No, unhandleable
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="friendly"
-                  checked={catsAreFriendly === null}
-                  onChange={() => setCatsAreFriendly(null)}
-                />
-                Mixed/Unknown
-              </label>
-            </div>
-          </div>
-
-          {/* Cat name - shown when small number of cats (FFS-464) */}
-          {typeof estimatedCatCount === "number" && estimatedCatCount <= 3 && estimatedCatCount >= 1 && (
-            <div style={{ marginTop: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Cat name(s)
-              </label>
-              <input
-                type="text"
-                value={catName}
-                onChange={(e) => setCatName(e.target.value)}
-                placeholder={estimatedCatCount === 1 ? "e.g., Whiskers" : "e.g., Whiskers, Shadow"}
-                style={{ width: "100%", maxWidth: "400px" }}
-              />
-              <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                If the cats have known names
-              </p>
-            </div>
-          )}
+        {/* SECTION 4: About the Cats (FFS-493) */}
+        <div id="section-4">
+          <CatDetailsSection
+            value={catDetailsValue}
+            onChange={handleCatDetailsChange}
+          />
         </div>
 
-        {/* SECTION 5: Kittens */}
-        <div id="section-5" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-            <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Kittens</h2>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={hasKittens}
-                onChange={(e) => setHasKittens(e.target.checked)}
-              />
-              Kittens present
-            </label>
-          </div>
-
+        {/* SECTION 5: Kittens (FFS-493) */}
+        <div id="section-5">
+          <KittenAssessmentSection
+            value={kittenValue}
+            onChange={handleKittenChange}
+          />
           {hasKittens && (
-            <>
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 120px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    How many?
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={kittenCount}
-                    onChange={(e) =>
-                      setKittenCount(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="0"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-
-                <div style={{ flex: "1 1 120px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Age (weeks)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="52"
-                    value={kittenAgeWeeks}
-                    onChange={(e) =>
-                      setKittenAgeWeeks(e.target.value ? parseInt(e.target.value) : "")
-                    }
-                    placeholder="e.g., 6"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-
-                <div style={{ flex: "2 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Age range
-                  </label>
-                  <select
-                    value={kittenAgeEstimate}
-                    onChange={(e) => setKittenAgeEstimate(e.target.value)}
-                    style={{ width: "100%" }}
-                  >
-                    <option value="">Select...</option>
-                    <option value="under_4_weeks">Under 4 weeks (bottle babies)</option>
-                    <option value="4_to_8_weeks">4-8 weeks (weaning)</option>
-                    <option value="8_to_12_weeks">8-12 weeks (ideal foster)</option>
-                    <option value="12_to_16_weeks">12-16 weeks (socialization critical)</option>
-                    <option value="over_16_weeks">Over 16 weeks / 4+ months</option>
-                    <option value="mixed">Mixed ages</option>
-                  </select>
-                </div>
-              </div>
-
-              {kittenAgeEstimate === "mixed" && (
-                <div style={MB_LG}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Describe the ages
-                  </label>
-                  <input
-                    type="text"
-                    value={kittenMixedAgesDescription}
-                    onChange={(e) => setKittenMixedAgesDescription(e.target.value)}
-                    placeholder='e.g., "3 at ~8 weeks, 2 at ~6 months"'
-                    style={{ width: "100%" }}
-                  />
-                </div>
-              )}
-
-              <div style={MB_LG}>
-                <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                  Kitten behavior/socialization
-                </label>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  {[
-                    { value: "friendly", label: "Friendly - can be handled, approaches people" },
-                    { value: "shy_handleable", label: "Shy but handleable - scared but can be picked up" },
-                    { value: "shy_young", label: "Shy/hissy (young) - may be socializable" },
-                    { value: "unhandleable_older", label: "Unhandleable (older) - very scared, hard to handle" },
-                    { value: "unknown", label: "Unknown - haven't been able to assess" },
-                  ].map((opt) => (
-                    <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                      <input
-                        type="radio"
-                        name="kittenBehavior"
-                        value={opt.value}
-                        checked={kittenBehavior === opt.value}
-                        onChange={(e) => setKittenBehavior(e.target.value)}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Kittens contained/caught?
-                  </label>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    {[
-                      { value: "yes", label: "Yes" },
-                      { value: "no", label: "No" },
-                      { value: "some", label: "Some" },
-                    ].map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="kittenContained"
-                          value={opt.value}
-                          checked={kittenContained === opt.value}
-                          onChange={(e) => setKittenContained(e.target.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Mom cat present?
-                  </label>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    {[
-                      { value: "yes", label: "Yes" },
-                      { value: "no", label: "No" },
-                      { value: "unsure", label: "Unsure" },
-                    ].map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="momPresent"
-                          value={opt.value}
-                          checked={momPresent === opt.value}
-                          onChange={(e) => setMomPresent(e.target.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {momPresent === "yes" && (
-                  <div>
-                    <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                      Mom fixed (ear-tipped)?
-                    </label>
-                    <div style={{ display: "flex", gap: "1rem" }}>
-                      {[
-                        { value: "yes", label: "Yes" },
-                        { value: "no", label: "No" },
-                        { value: "unsure", label: "Unsure" },
-                      ].map((opt) => (
-                        <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                          <input
-                            type="radio"
-                            name="momFixed"
-                            value={opt.value}
-                            checked={momFixed === opt.value}
-                            onChange={(e) => setMomFixed(e.target.value)}
-                          />
-                          {opt.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Can bring them in?
-                  </label>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    {[
-                      { value: "yes", label: "Yes" },
-                      { value: "need_help", label: "Need help" },
-                      { value: "no", label: "No" },
-                    ].map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="canBringIn"
-                          value={opt.value}
-                          checked={canBringIn === opt.value}
-                          onChange={(e) => setCanBringIn(e.target.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Kitten notes
-                </label>
-                <textarea
-                  value={kittenNotes}
-                  onChange={(e) => setKittenNotes(e.target.value)}
-                  placeholder="Colors, where they hide, feeding times, trap-savvy, etc..."
-                  rows={2}
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <div style={{ background: "var(--warning-bg, #fffbeb)", border: "1px solid var(--warning-border, #ffc107)", borderRadius: "6px", padding: "0.75rem", marginTop: "1rem", fontSize: "0.85rem" }}>
-                <strong>Foster triage factors:</strong>
-                <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
-                  <li>Age: Under 12 weeks ideal, 12+ weeks need socialization</li>
-                  <li>Behavior: Friendly/handleable kittens prioritized</li>
-                  <li>Mom: Spayed mom with kittens increases foster likelihood</li>
-                  <li>Ease: Already contained = easier intake</li>
-                </ul>
-              </div>
-            </>
+            <div style={{ background: "var(--warning-bg, #fffbeb)", border: "1px solid var(--warning-border, #ffc107)", borderRadius: "6px", padding: "0.75rem", marginTop: "-12px", marginBottom: "20px", fontSize: "0.85rem" }}>
+              <strong>Foster triage factors:</strong>
+              <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
+                <li>Age: Under 12 weeks ideal, 12+ weeks need socialization</li>
+                <li>Behavior: Friendly/handleable kittens prioritized</li>
+                <li>Mom: Spayed mom with kittens increases foster likelihood</li>
+                <li>Ease: Already contained = easier intake</li>
+              </ul>
+            </div>
           )}
         </div>
 
@@ -2803,142 +2136,13 @@ function NewRequestForm() {
           )}
         </div>
 
-        {/* SECTION 7: Urgency */}
-        <div id="section-7" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Urgency</h2>
-
-          <div style={MB_LG}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-              Priority Level
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              style={{ width: "100%", maxWidth: "200px" }}
-            >
-              <option value="low">Low</option>
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
-
-          <div style={MB_LG}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-              Urgency factors (select all that apply)
-            </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-              {URGENCY_REASON_OPTIONS.map((reason) => (
-                <label
-                  key={reason.value}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.5rem 0.75rem",
-                    border: "1px solid var(--border)",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    background: urgencyReasons.includes(reason.value)
-                      ? "var(--primary)"
-                      : "transparent",
-                    color: urgencyReasons.includes(reason.value) ? "#fff" : "inherit",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={urgencyReasons.includes(reason.value)}
-                    onChange={() => toggleUrgencyReason(reason.value)}
-                    style={{ display: "none" }}
-                  />
-                  {reason.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Deadline (if any)
-              </label>
-              <input
-                type="date"
-                value={urgencyDeadline}
-                onChange={(e) => setUrgencyDeadline(e.target.value)}
-                style={{ width: "100%" }}
-              />
-              <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                Moving date, eviction, etc.
-              </p>
-            </div>
-
-            <div style={{ flex: "2 1 300px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                Urgency notes
-              </label>
-              <textarea
-                value={urgencyNotes}
-                onChange={(e) => setUrgencyNotes(e.target.value)}
-                placeholder="Additional context about urgency..."
-                rows={2}
-                style={{ width: "100%", resize: "vertical" }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* SECTION 8: Additional Details */}
-        <div id="section-8" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Additional Details</h2>
-
-          <div style={MB_LG}>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Request Title
-            </label>
-            <input
-              type="text"
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              placeholder="e.g., '5 cats at Oak Street colony' or 'Rescue injured cat'"
-              style={{ width: "100%" }}
-            />
-            <small style={{ color: "#666", fontSize: "0.8rem" }}>
-              This will be the display name for this request
-            </small>
-          </div>
-
-          <div style={MB_LG}>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Case Info
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Detailed situation description, history with these cats, special circumstances..."
-              rows={4}
-              style={{ width: "100%", resize: "vertical" }}
-            />
-            <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-              Case details that can be shared with volunteers or referenced later
-            </p>
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-              Internal Notes
-            </label>
-            <textarea
-              value={internalNotes}
-              onChange={(e) => setInternalNotes(e.target.value)}
-              placeholder="Staff working notes, follow-up reminders, private observations..."
-              rows={3}
-              style={{ width: "100%", resize: "vertical" }}
-            />
-            <p className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-              Private notes for staff only &mdash; not shared with clients
-            </p>
-          </div>
+        {/* SECTION 7+8: Urgency & Additional Details (FFS-493) */}
+        <div id="section-7">
+          <UrgencyNotesSection
+            value={urgencyNotesValue}
+            onChange={handleUrgencyNotesChange}
+            showDetails={true}
+          />
         </div>
 
         {/* SECTION: Completion Data (only shown in Quick Complete mode) */}
