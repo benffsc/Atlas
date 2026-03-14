@@ -12,6 +12,7 @@ import { apiSuccess, apiServerError } from "@/lib/api-response";
  *   - layers: comma-separated list of layers to include
  *     NEW (simplified):
  *     - atlas_pins: Consolidated Atlas data (places + people + cats + Google history)
+ *     - date_filtered: Date-range filtered place data (FFS-538)
  *     LEGACY (still supported):
  *     - places: Places with cat activity
  *     - google_pins: Google Maps entries with parsed signals
@@ -20,6 +21,8 @@ import { apiSuccess, apiServerError } from "@/lib/api-response";
  *
  *   - zone: filter by service_zone (optional)
  *   - bounds: lat1,lng1,lat2,lng2 bounding box (optional)
+ *   - from: start date for date_filtered layer (YYYY-MM-DD)
+ *   - to: end date for date_filtered layer (YYYY-MM-DD)
  *   - risk_filter: 'all' | 'disease' | 'watch_list' | 'needs_tnr' | 'needs_trapper' (for atlas_pins)
  *   - data_filter: 'all' | 'has_atlas' | 'has_google' | 'has_people' (for atlas_pins)
  *   - disease_filter: comma-separated disease keys to filter atlas_pins (e.g. 'felv,fiv')
@@ -35,6 +38,8 @@ export async function GET(req: NextRequest) {
   const diseaseFilterParam = searchParams.get("disease_filter") || "";
   const diseaseFilterKeys = diseaseFilterParam ? diseaseFilterParam.split(",").map(k => k.trim()).filter(Boolean) : [];
   const county = searchParams.get("county") || "sonoma";
+  const dateFrom = searchParams.get("from"); // YYYY-MM-DD
+  const dateTo = searchParams.get("to"); // YYYY-MM-DD
 
   // Sonoma County bounds for default filtering
   const SONOMA_BOUNDS = { south: 37.8, north: 39.4, west: -123.6, east: -122.3 };
@@ -85,6 +90,24 @@ export async function GET(req: NextRequest) {
       last_alteration_at: string | null;
       pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
       pin_tier: "active" | "reference";
+    }>;
+    // DATE-FILTERED layer (FFS-538)
+    date_filtered?: Array<{
+      place_id: string;
+      formatted_address: string;
+      display_name: string | null;
+      lat: number;
+      lng: number;
+      service_zone: string | null;
+      place_kind: string | null;
+      cat_count: number;
+      altered_count: number;
+      intact_count: number;
+      alteration_rate_pct: number | null;
+      appointment_count: number;
+      request_count: number;
+      last_activity_date: string | null;
+      colony_status: string;
     }>;
     // LEGACY layers (still supported)
     places?: Array<{
@@ -383,6 +406,59 @@ export async function GET(req: NextRequest) {
           pin_style: "minimal" as const,
           pin_tier: "reference" as const,
         }));
+      }
+    }
+
+    // =========================================================================
+    // DATE-FILTERED layer (FFS-538: Beacon date-range slider)
+    // Uses beacon.map_data_filtered() for temporal filtering
+    // =========================================================================
+    if (layers.includes("date_filtered")) {
+      try {
+        const dateFilteredData = await queryRows<{
+          place_id: string;
+          formatted_address: string;
+          display_name: string | null;
+          lat: number;
+          lng: number;
+          service_zone: string | null;
+          place_kind: string | null;
+          cat_count: number;
+          altered_count: number;
+          intact_count: number;
+          alteration_rate_pct: number | null;
+          appointment_count: number;
+          request_count: number;
+          last_activity_date: string | null;
+          colony_status: string;
+        }>(
+          `SELECT
+            place_id::TEXT,
+            formatted_address,
+            display_name,
+            lat,
+            lng,
+            service_zone,
+            place_kind,
+            cat_count,
+            altered_count,
+            intact_count,
+            alteration_rate_pct,
+            appointment_count,
+            request_count,
+            last_activity_date::TEXT,
+            colony_status
+          FROM beacon.map_data_filtered($1, $2, $3)
+          WHERE 1=1
+            ${boundsCondition.replace(/lat /g, "lat ").replace(/lng /g, "lng ")}
+          ORDER BY cat_count DESC
+          LIMIT 5000`,
+          [dateFrom || null, dateTo || null, zone || null]
+        );
+        result.date_filtered = dateFilteredData;
+      } catch (e) {
+        console.warn("date_filtered layer failed:", e);
+        result.date_filtered = [];
       }
     }
 

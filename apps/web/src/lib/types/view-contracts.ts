@@ -307,6 +307,129 @@ export interface VAppointmentDetailRow {
 }
 
 // =============================================================================
+// BEACON ANALYTICS VIEWS (MIG_2934)
+// =============================================================================
+
+/**
+ * Contract for beacon.v_zone_alteration_rollup
+ * @see sql/schema/v2/MIG_2934__beacon_p0_analytics.sql
+ * @route /api/beacon/zones
+ */
+export interface VZoneAlterationRollupRow {
+  zone_id: string;
+  zone_code: string;
+  zone_name: string;
+  service_zone: string;
+  centroid_lat: number;
+  centroid_lng: number;
+  place_count: number;
+  total_cats: number;
+  altered_cats: number;
+  intact_cats: number;
+  unknown_status_cats: number;
+  alteration_rate_pct: number | null;
+  zone_status: string;
+  total_requests: number;
+  active_requests: number;
+  total_appointments: number;
+  last_appointment_date: string | null;
+  appointments_last_90d: number;
+  alterations_last_90d: number;
+  estimated_population: number | null;
+  adequate_estimates: number;
+  total_estimates: number;
+}
+
+/**
+ * Contract for beacon.place_temporal_trends()
+ * @see sql/schema/v2/MIG_2934__beacon_p0_analytics.sql
+ * @route /api/beacon/trends/[placeId]
+ */
+export interface BeaconTemporalTrendRow {
+  month: string;
+  month_label: string;
+  new_cats_seen: number;
+  alterations: number;
+  cumulative_cats: number;
+  cumulative_altered: number;
+  alteration_rate_pct: number | null;
+}
+
+/**
+ * Contract for beacon.compare_places()
+ * @see sql/schema/v2/MIG_2934__beacon_p0_analytics.sql
+ * @route /api/beacon/compare
+ */
+export interface BeaconPlaceComparisonRow {
+  place_id: string;
+  display_name: string | null;
+  formatted_address: string;
+  lat: number;
+  lng: number;
+  service_zone: string | null;
+  total_cats: number;
+  altered_cats: number;
+  intact_cats: number;
+  unknown_status_cats: number;
+  alteration_rate_pct: number | null;
+  colony_status: string;
+  total_requests: number;
+  active_requests: number;
+  total_appointments: number;
+  last_appointment_date: string | null;
+  first_appointment_date: string | null;
+  estimated_population: number | null;
+  ci_lower: number | null;
+  ci_upper: number | null;
+  sample_adequate: boolean | null;
+  people_count: number;
+  days_since_last_activity: number | null;
+}
+
+/**
+ * Contract for beacon.map_data_filtered()
+ * @see sql/schema/v2/MIG_2934__beacon_p0_analytics.sql
+ * @route /api/beacon/map-data (with from/to params)
+ */
+export interface BeaconMapDataFilteredRow {
+  place_id: string;
+  formatted_address: string;
+  display_name: string | null;
+  lat: number;
+  lng: number;
+  service_zone: string | null;
+  place_kind: string | null;
+  cat_count: number;
+  altered_count: number;
+  intact_count: number;
+  alteration_rate_pct: number | null;
+  appointment_count: number;
+  request_count: number;
+  last_activity_date: string | null;
+  colony_status: string;
+}
+
+/**
+ * Contract for beacon.estimate_colony_population()
+ * @see sql/schema/v2/MIG_2365__colony_estimation.sql
+ * @route /api/beacon/population/[placeId]
+ */
+export interface BeaconPopulationEstimate {
+  place_id: string;
+  estimated_population: number;
+  ci_lower: number;
+  ci_upper: number;
+  marked_count: number;
+  capture_count: number;
+  recapture_count: number;
+  sample_adequate: boolean;
+  confidence_level: string;
+  observation_start: string;
+  observation_end: string;
+  last_calculated_at: string;
+}
+
+// =============================================================================
 // HELPER TYPES
 // =============================================================================
 
