@@ -13,11 +13,16 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report",
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:workflow": "playwright test --grep @workflow",
+    "test:e2e:data": "playwright test --grep @data-quality",
     "test:e2e:visual": "playwright test e2e/visual-regression.spec.ts",
     "test:e2e:visual:update": "playwright test e2e/visual-regression.spec.ts --update-snapshots",
     "test:e2e:ci": "CLEANUP_TEST_DATA=1 playwright test",
     "test:e2e:tippy": "INCLUDE_REAL_API=1 playwright test --grep @real-api",
-    "test:e2e:vision": "INCLUDE_VISION_API=1 playwright test --grep @vision-api"
+    "test:e2e:tippy:archive": "INCLUDE_REAL_API=1 playwright test --grep @real-api --reporter=json,html 2>&1 | tee test-results/tippy-archive/tippy-run-$(date +%Y-%m-%d-%H%M).json",
+    "test:e2e:vision": "INCLUDE_VISION_API=1 playwright test --grep @vision-api",
+    "test:e2e:archive": "playwright test --grep-invert '@real-api|@vision-api' --reporter=json,html 2>&1 | tee test-results/archive/run-$(date +%Y-%m-%d-%H%M).json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

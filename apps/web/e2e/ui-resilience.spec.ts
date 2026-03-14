@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { navigateTo, findRealEntity, waitForLoaded } from './ui-test-helpers';
+import { unwrapApiResponse } from './helpers/api-response';
 
 /**
  * UI Resilience Tests
@@ -10,22 +12,20 @@ import { test, expect } from '@playwright/test';
  * - Error states are handled gracefully
  *
  * IMPORTANT: These tests are READ-ONLY and do not modify any data.
+ * Updated for Atlas 2.5 architecture (FFS-552).
  */
 
 test.describe('Dangerous Action Protection', () => {
 
   test('delete/archive buttons have confirmation dialogs', async ({ page, request }) => {
-    // Get a request to test with
-    const requestsResponse = await request.get('/api/requests?limit=5');
-    const requestsData = await requestsResponse.json();
-
-    if (!requestsData.requests?.length) {
+    const requestId = await findRealEntity(request, 'requests');
+    if (!requestId) {
       test.skip();
       return;
     }
 
-    await page.goto(`/requests/${requestsData.requests[0].request_id}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/requests/${requestId}`);
+    await waitForLoaded(page);
 
     // Look for dangerous action buttons (but DON'T click them for real)
     const deleteButtons = page.locator('button:has-text("Delete"), button:has-text("Archive"), button:has-text("Remove")');
@@ -34,9 +34,7 @@ test.describe('Dangerous Action Protection', () => {
     console.log(`Found ${dangerousButtonCount} potentially dangerous buttons`);
 
     // If there are dangerous buttons, verify they exist (we won't click them)
-    // In a real app, these should have confirmation dialogs
     if (dangerousButtonCount > 0) {
-      // Just verify they're visible - don't click
       const firstDangerousButton = deleteButtons.first();
       const isVisible = await firstDangerousButton.isVisible();
       console.log(`Dangerous button visible: ${isVisible}`);
@@ -44,17 +42,14 @@ test.describe('Dangerous Action Protection', () => {
   });
 
   test('status dropdown exists but we dont change it', async ({ page, request }) => {
-    // Get a request
-    const requestsResponse = await request.get('/api/requests?limit=5');
-    const requestsData = await requestsResponse.json();
-
-    if (!requestsData.requests?.length) {
+    const requestId = await findRealEntity(request, 'requests');
+    if (!requestId) {
       test.skip();
       return;
     }
 
-    await page.goto(`/requests/${requestsData.requests[0].request_id}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/requests/${requestId}`);
+    await waitForLoaded(page);
 
     // Look for status selects/dropdowns
     const statusElements = page.locator('select, [role="combobox"], [class*="status"]');
@@ -70,11 +65,8 @@ test.describe('Form Validation (Read-Only)', () => {
 
   test('intake form has required field indicators', async ({ page }) => {
     // Go to intake form page (public form, not admin)
-    await page.goto('/intake');
-    await page.waitForLoadState('networkidle');
-
-    // Check if page loaded (might redirect or show form)
-    await expect(page.locator('body')).toBeVisible();
+    await navigateTo(page, '/intake');
+    await waitForLoaded(page);
 
     // Look for required field indicators (asterisks, "required" text)
     const bodyText = await page.textContent('body');
@@ -85,8 +77,8 @@ test.describe('Form Validation (Read-Only)', () => {
   });
 
   test('empty form submission is prevented by browser validation', async ({ page }) => {
-    await page.goto('/intake');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/intake');
+    await waitForLoaded(page);
 
     // Look for a submit button
     const submitButton = page.locator('button[type="submit"], input[type="submit"]').first();
@@ -107,47 +99,39 @@ test.describe('Form Validation (Read-Only)', () => {
 test.describe('Navigation Safety', () => {
 
   test('rapid back/forward navigation is safe', async ({ page }) => {
-    // Visit several pages
-    await page.goto('/requests');
-    await page.waitForLoadState('networkidle');
+    // Visit several pages (use page.goto for proper history entries)
+    await navigateTo(page, '/requests');
+    await page.waitForLoadState('domcontentloaded');
 
-    await page.goto('/places');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/places', { waitUntil: 'domcontentloaded' });
+    await page.goto('/people', { waitUntil: 'domcontentloaded' });
 
-    await page.goto('/people');
-    await page.waitForLoadState('networkidle');
-
-    // Go back rapidly
+    // Go back
     await page.goBack();
-    await page.goBack();
+    await page.waitForLoadState('domcontentloaded');
 
     // Go forward
     await page.goForward();
+    await page.waitForLoadState('domcontentloaded');
 
     // Page should still be functional
-    await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toBeVisible();
   });
 
   test('refresh on detail page reloads correctly', async ({ page, request }) => {
-    // Get a place
-    const placesResponse = await request.get('/api/places?limit=5');
-    const placesData = await placesResponse.json();
-
-    if (!placesData.places?.length) {
+    const placeId = await findRealEntity(request, 'places');
+    if (!placeId) {
       test.skip();
       return;
     }
 
-    const placeId = placesData.places[0].place_id;
-
     // Go to place detail
-    await page.goto(`/places/${placeId}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/places/${placeId}`);
+    await waitForLoaded(page);
 
     // Refresh the page
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Should still show the same place
     await expect(page.locator('body')).toBeVisible();
@@ -157,26 +141,22 @@ test.describe('Navigation Safety', () => {
   });
 
   test('opening multiple tabs of same page is safe', async ({ page, context, request }) => {
-    // Get a request
-    const requestsResponse = await request.get('/api/requests?limit=5');
-    const requestsData = await requestsResponse.json();
-
-    if (!requestsData.requests?.length) {
+    const requestId = await findRealEntity(request, 'requests');
+    if (!requestId) {
       test.skip();
       return;
     }
 
-    const requestId = requestsData.requests[0].request_id;
     const url = `/requests/${requestId}`;
 
     // Open first tab
-    await page.goto(url);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, url);
+    await waitForLoaded(page);
 
     // Open second tab with same URL
     const page2 = await context.newPage();
     await page2.goto(url);
-    await page2.waitForLoadState('networkidle');
+    await page2.waitForLoadState('domcontentloaded');
 
     // Both tabs should work
     await expect(page.locator('body')).toBeVisible();
@@ -191,11 +171,9 @@ test.describe('Error Handling (Read-Only)', () => {
 
   test('invalid entity ID shows appropriate error', async ({ page }) => {
     // Try to access a non-existent entity
-    await page.goto('/places/invalid-uuid-that-does-not-exist');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/places/invalid-uuid-that-does-not-exist');
 
     // Should show some kind of error or not found message
-    // (not crash or show broken page)
     await expect(page.locator('body')).toBeVisible();
 
     const bodyText = await page.textContent('body');
@@ -208,8 +186,7 @@ test.describe('Error Handling (Read-Only)', () => {
   });
 
   test('non-existent route shows 404', async ({ page }) => {
-    await page.goto('/this-route-definitely-does-not-exist-12345');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/this-route-definitely-does-not-exist-12345');
 
     // Should show 404 or redirect, not crash
     await expect(page.locator('body')).toBeVisible();
@@ -217,8 +194,8 @@ test.describe('Error Handling (Read-Only)', () => {
 
   test('API errors dont crash the UI', async ({ page }) => {
     // Go to a page that loads data
-    await page.goto('/places');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/places');
+    await waitForLoaded(page);
 
     // Page should be functional even if some data fails to load
     await expect(page.locator('body')).toBeVisible();
@@ -237,8 +214,8 @@ test.describe('Error Handling (Read-Only)', () => {
 test.describe('Click Safety Verification', () => {
 
   test('verify we can identify clickable elements without clicking', async ({ page }) => {
-    await page.goto('/requests');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/requests');
+    await waitForLoaded(page);
 
     // Count different types of interactive elements
     const buttons = await page.locator('button').count();
@@ -260,17 +237,14 @@ test.describe('Click Safety Verification', () => {
   });
 
   test('expandable sections can be toggled safely', async ({ page, request }) => {
-    // Get a place (these often have expandable sections)
-    const placesResponse = await request.get('/api/places?limit=5');
-    const placesData = await placesResponse.json();
-
-    if (!placesData.places?.length) {
+    const placeId = await findRealEntity(request, 'places');
+    if (!placeId) {
       test.skip();
       return;
     }
 
-    await page.goto(`/places/${placesData.places[0].place_id}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/places/${placeId}`);
+    await waitForLoaded(page);
 
     // Look for expand/collapse buttons (these are safe to click)
     const expandButtons = page.locator('button:has-text("Show"), button:has-text("Expand"), button:has-text("More"), [class*="expand"], [class*="collapse"]');
@@ -291,11 +265,11 @@ test.describe('Click Safety Verification', () => {
   });
 
   test('tab navigation works without modifying data', async ({ page }) => {
-    await page.goto('/requests');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/requests');
+    await waitForLoaded(page);
 
-    // Look for tabs
-    const tabs = page.locator('[role="tab"], [class*="tab"]');
+    // Look for tabs (Atlas 2.5: uses role="tab")
+    const tabs = page.locator('[role="tab"]');
     const tabCount = await tabs.count();
 
     if (tabCount > 1) {
@@ -317,17 +291,14 @@ test.describe('Click Safety Verification', () => {
 test.describe('Keyboard Navigation Safety', () => {
 
   test('escape key closes modals without saving', async ({ page, request }) => {
-    // Get a request
-    const requestsResponse = await request.get('/api/requests?limit=5');
-    const requestsData = await requestsResponse.json();
-
-    if (!requestsData.requests?.length) {
+    const requestId = await findRealEntity(request, 'requests');
+    if (!requestId) {
       test.skip();
       return;
     }
 
-    await page.goto(`/requests/${requestsData.requests[0].request_id}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/requests/${requestId}`);
+    await waitForLoaded(page);
 
     // Press Escape - should close any open modals without saving
     await page.keyboard.press('Escape');
@@ -338,8 +309,8 @@ test.describe('Keyboard Navigation Safety', () => {
   });
 
   test('tab key navigates through elements', async ({ page }) => {
-    await page.goto('/requests');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/requests');
+    await waitForLoaded(page);
 
     // Press Tab a few times - should navigate through focusable elements
     await page.keyboard.press('Tab');

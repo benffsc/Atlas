@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 interface TrapperRow {
   person_id: string;
@@ -251,6 +252,22 @@ export async function PATCH(request: NextRequest) {
       return apiBadRequest("action must be 'status', 'type', or 'availability'");
     }
 
+    // Get current values for audit trail
+    const current = await queryOne<{ role_status: string; trapper_type: string; availability_status: string }>(
+      `SELECT
+        COALESCE(pr.role_status, 'unknown') AS role_status,
+        COALESCE(pr.trapper_type, 'unknown') AS trapper_type,
+        COALESCE(tp.availability_status, 'available') AS availability_status
+      FROM sot.person_roles pr
+      LEFT JOIN sot.trapper_profiles tp ON tp.person_id = pr.person_id
+      WHERE pr.person_id = $1 AND pr.role = 'trapper'
+      ORDER BY CASE pr.role_status WHEN 'active' THEN 0 ELSE 1 END
+      LIMIT 1`,
+      [person_id]
+    );
+
+    const auditCtx = { editSource: "web_ui" as const, reason: reason || undefined };
+
     if (action === "availability") {
       if (!["available", "busy", "on_leave"].includes(value)) {
         return apiBadRequest("availability value must be available, busy, or on_leave");
@@ -261,6 +278,9 @@ export async function PATCH(request: NextRequest) {
          WHERE person_id = $1`,
         [person_id, value]
       );
+
+      await logFieldEdit("person", person_id, "availability_status",
+        current?.availability_status || "available", value, auditCtx);
 
       return apiSuccess({ success: true, person_id, action, value });
     }
@@ -274,6 +294,9 @@ export async function PATCH(request: NextRequest) {
         `SELECT ops.update_trapper_status($1, $2, $3, $4)`,
         [person_id, value, reason || null, "staff"]
       );
+
+      await logFieldEdit("person", person_id, "role_status",
+        current?.role_status || "unknown", value, auditCtx);
     } else if (action === "type") {
       if (!["coordinator", "head_trapper", "ffsc_trapper", "community_trapper"].includes(value)) {
         return apiBadRequest("type value must be coordinator, head_trapper, ffsc_trapper, or community_trapper");
@@ -283,6 +306,9 @@ export async function PATCH(request: NextRequest) {
         `SELECT ops.change_trapper_type($1, $2, $3, $4)`,
         [person_id, value, reason || null, "staff"]
       );
+
+      await logFieldEdit("person", person_id, "trapper_type",
+        current?.trapper_type || "unknown", value, auditCtx);
     }
 
     return apiSuccess({ success: true, person_id, action, value });

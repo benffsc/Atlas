@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { unwrapApiResponse } from './helpers/api-response';
+import { navigateTo, waitForLoaded } from './ui-test-helpers';
 
 /**
  * Stress tests for Place Context System and Tippy Integration
@@ -132,9 +133,29 @@ test.describe('Place Context UI Tests', () => {
 });
 
 test.describe('Tippy API Stress Tests (Mocked)', () => {
+  // Helper: use page.evaluate(fetch()) so page.route() mocks actually intercept
+  async function tippyFetch(
+    page: import('@playwright/test').Page,
+    data: Record<string, unknown>
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    return page.evaluate(
+      async (payload: Record<string, unknown>) => {
+        const res = await fetch('/api/tippy/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json().catch(() => ({}));
+        return { status: res.status, body };
+      },
+      data
+    );
+  }
+
   test('tippy chat API handles place context query', async ({ page }) => {
-    // Mock Tippy response to avoid hitting real AI
-    // IMPORTANT: Use page.request (not standalone request fixture) so page.route() mock applies
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+
     await page.route('**/api/tippy/chat', async (route) => {
       await route.fulfill({
         status: 200,
@@ -147,20 +168,19 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
       });
     });
 
-    const response = await page.request.post('/api/tippy/chat', {
-      data: {
-        message: 'Show me colony sites in Petaluma',
-        sessionId: `test-${Date.now()}`,
-      },
+    const result = await tippyFetch(page, {
+      message: 'Show me colony sites in Petaluma',
+      sessionId: `test-${Date.now()}`,
     });
 
-    if (response.ok()) {
-      const data = unwrapApiResponse<Record<string, any>>(await response.json());
-      expect(data).toBeDefined();
-    }
+    expect(result.status).toBe(200);
+    expect(result.body).toBeDefined();
   });
 
   test('tippy chat API handles foster query', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+
     await page.route('**/api/tippy/chat', async (route) => {
       await route.fulfill({
         status: 200,
@@ -173,20 +193,19 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
       });
     });
 
-    const response = await page.request.post('/api/tippy/chat', {
-      data: {
-        message: 'How many cats have been fostered?',
-        sessionId: `test-${Date.now()}`,
-      },
+    const result = await tippyFetch(page, {
+      message: 'How many cats have been fostered?',
+      sessionId: `test-${Date.now()}`,
     });
 
-    if (response.ok()) {
-      const data = unwrapApiResponse<Record<string, any>>(await response.json());
-      expect(data).toBeDefined();
-    }
+    expect(result.status).toBe(200);
+    expect(result.body).toBeDefined();
   });
 
   test('tippy chat API handles cat journey query', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+
     await page.route('**/api/tippy/chat', async (route) => {
       await route.fulfill({
         status: 200,
@@ -199,17 +218,13 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
       });
     });
 
-    const response = await page.request.post('/api/tippy/chat', {
-      data: {
-        message: 'What is the journey of a cat named Whiskers?',
-        sessionId: `test-${Date.now()}`,
-      },
+    const result = await tippyFetch(page, {
+      message: 'What is the journey of a cat named Whiskers?',
+      sessionId: `test-${Date.now()}`,
     });
 
-    if (response.ok()) {
-      const data = unwrapApiResponse<Record<string, any>>(await response.json());
-      expect(data).toBeDefined();
-    }
+    expect(result.status).toBe(200);
+    expect(result.body).toBeDefined();
   });
 });
 

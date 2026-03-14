@@ -90,6 +90,7 @@ export async function PATCH(
       has_signed_contract,
       contract_signed_date,
       contract_areas,
+      certified_date,
     } = body;
 
     // Build SET clauses dynamically based on provided fields
@@ -120,6 +121,10 @@ export async function PATCH(
     if (contract_areas !== undefined) {
       setClauses.push(`contract_areas = $${paramIndex++}`);
       values.push(contract_areas);
+    }
+    if (certified_date !== undefined) {
+      setClauses.push(`certified_date = $${paramIndex++}`);
+      values.push(certified_date || null);
     }
 
     if (setClauses.length === 0) {

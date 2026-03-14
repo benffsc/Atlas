@@ -131,11 +131,11 @@ export async function passPasswordGate(page: Page) {
       localStorage.setItem('atlas_authenticated', JSON.stringify({ expiry }));
     });
 
-    // Check if password gate form is visible
-    const gate = page.locator('[data-testid="password-gate"]');
-    if (await gate.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await page.fill('[data-testid="access-code-input"]', ACCESS_CODE);
-      await page.click('[data-testid="access-code-submit"]');
+    // Check if password gate form is visible (PasswordGate has no data-testid)
+    const gateInput = page.locator('input[type="password"][placeholder="Access code"]');
+    if (await gateInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await gateInput.fill(ACCESS_CODE);
+      await page.locator('button[type="submit"]').click();
       await page.waitForTimeout(500);
     }
   } catch {
@@ -303,8 +303,8 @@ export async function waitForLoaded(page: Page) {
   } catch {
     // No loading indicator, continue
   }
-  // Wait for main content
-  await expect(page.locator('main, .profile-tabs, h1').first()).toBeVisible({ timeout: 10000 });
+  // Wait for main content (Atlas 2.5: uses TabBar with role="tablist", not .profile-tabs)
+  await expect(page.locator('main, [role="tablist"], h1').first()).toBeVisible({ timeout: 10000 });
 }
 
 /**

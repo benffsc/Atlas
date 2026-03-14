@@ -24,3 +24,7 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 /e2e/.auth/
+
+# Keep archive directory structure (results are gitignored via /test-results/ above)
+# Run `npm run test:e2e:archive` to save timestamped results
+# Run `npm run test:e2e:tippy:archive` to save Tippy results with logging

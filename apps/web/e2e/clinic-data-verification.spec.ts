@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigateTo } from './ui-test-helpers';
 import { unwrapApiResponse } from './helpers/api-response';
 
 /**
@@ -67,8 +68,8 @@ test.describe('Clinic Data Cross-Reference', () => {
     const cat = data.cats[randomIndex] as Cat;
 
     // Navigate to cat detail
-    await page.goto(`/cats/${cat.cat_id}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/cats/${cat.cat_id}`);
+    await page.waitForLoadState('domcontentloaded');
 
     // Page should load
     await expect(page.locator('body')).toBeVisible();
@@ -106,8 +107,8 @@ test.describe('Clinic Data Cross-Reference', () => {
     }
 
     // Navigate to person detail
-    await page.goto(`/people/${personWithCats.person_id}`);
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, `/people/${personWithCats.person_id}`);
+    await page.waitForLoadState('domcontentloaded');
 
     // Page should show the person
     await expect(page.locator('body')).toBeVisible();

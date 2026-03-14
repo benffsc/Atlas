@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigateTo } from './ui-test-helpers';
 import { unwrapApiResponse } from './helpers/api-response';
 
 /**
@@ -62,8 +63,8 @@ test.describe('Data Consistency', () => {
       const place = placesData.places[0];
 
       // Navigate to place detail
-      await page.goto(`/places/${place.place_id}`);
-      await page.waitForLoadState('networkidle');
+      await navigateTo(page, `/places/${place.place_id}`);
+      await page.waitForLoadState('domcontentloaded');
 
       // Page should load without error
       await expect(page.locator('body')).toBeVisible();
@@ -85,8 +86,8 @@ test.describe('Data Consistency', () => {
       const req = requestsData.requests[0];
 
       // Navigate to request detail
-      await page.goto(`/requests/${req.request_id}`);
-      await page.waitForLoadState('networkidle');
+      await navigateTo(page, `/requests/${req.request_id}`);
+      await page.waitForLoadState('domcontentloaded');
 
       // Page should load without error
       await expect(page.locator('body')).toBeVisible();
@@ -105,8 +106,8 @@ test.describe('Data Consistency', () => {
       const person = peopleData.people[0];
 
       // Navigate to person detail
-      await page.goto(`/people/${person.person_id}`);
-      await page.waitForLoadState('networkidle');
+      await navigateTo(page, `/people/${person.person_id}`);
+      await page.waitForLoadState('domcontentloaded');
 
       // Page should load without error
       await expect(page.locator('body')).toBeVisible();
