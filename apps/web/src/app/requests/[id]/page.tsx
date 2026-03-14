@@ -1232,7 +1232,7 @@ export default function RequestDetailPage() {
               ASSIGNED TRAPPERS
               ───────────────────────────────────────────────────────────────────── */}
           <CaseSection title="Assigned Trappers" icon="👤" color="#ec4899">
-            <TrapperAssignments requestId={requestId} onAssignmentChange={refreshRequest} />
+            <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshRequest} />
             {request.scheduled_date && (
               <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", display: "flex", gap: "1rem", alignItems: "center" }}>
                 <span style={{ fontWeight: 600 }}>📅 Scheduled:</span>

@@ -39,11 +39,38 @@ interface PersonSearchResult {
   subtitle: string;
 }
 
+interface SuggestedTrapper {
+  person_id: string;
+  trapper_name: string;
+  trapper_type: string;
+  service_type: string;
+  role: string | null;
+  match_reason: string;
+}
+
 type AssignMode = "official" | "search";
 
 // Module-level cache for the trapper roster — shared across all instances
 let trapperCache: { data: AvailableTrapper[]; fetchedAt: number } | null = null;
 const TRAPPER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const MATCH_REASON_LABELS: Record<string, string> = {
+  direct_service_place: "Services this area",
+  previous_assignment: "Worked here before",
+};
+
+const MATCH_REASON_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  direct_service_place: { bg: "rgba(16, 185, 129, 0.1)", border: "rgba(16, 185, 129, 0.3)", text: "#059669" },
+  previous_assignment: { bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.3)", text: "#4f46e5" },
+};
+
+const SERVICE_TYPE_LABELS: Record<string, string> = {
+  primary_territory: "Primary",
+  regular: "Regular",
+  occasional: "Occasional",
+  home_rescue: "Home Rescue",
+  historical: "Historical",
+};
 
 const NO_TRAPPER_REASON_LABELS: Record<string, string> = {
   client_trapping: "Client trapping",
@@ -54,11 +81,12 @@ const NO_TRAPPER_REASON_LABELS: Record<string, string> = {
 
 interface Props {
   requestId: string;
+  placeId?: string | null;
   compact?: boolean;
   onAssignmentChange?: () => void;
 }
 
-export function TrapperAssignments({ requestId, compact = false, onAssignmentChange }: Props) {
+export function TrapperAssignments({ requestId, placeId, compact = false, onAssignmentChange }: Props) {
   const [trappers, setTrappers] = useState<TrapperAssignment[]>([]);
   const [history, setHistory] = useState<AssignmentHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +110,9 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   const [savingReason, setSavingReason] = useState(false);
   const [unassigningId, setUnassigningId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Suggested trappers based on place
+  const [suggestedTrappers, setSuggestedTrappers] = useState<SuggestedTrapper[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -128,6 +159,21 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
     }
   };
 
+  const fetchSuggestions = async () => {
+    if (!placeId) return;
+    setLoadingSuggestions(true);
+    try {
+      const data = await fetchApi<{ suggestions: SuggestedTrapper[] }>(
+        `/api/requests/${requestId}/suggested-trappers`
+      );
+      setSuggestedTrappers(data.suggestions || []);
+    } catch (err) {
+      console.error("Failed to fetch suggested trappers:", err);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
   // Search for any person (when no official trappers exist or need to find someone specific)
   const searchPeople = async (query: string) => {
     if (query.length < 2) {
@@ -161,6 +207,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
       });
       // Journal audit entry (fire-and-forget)
       const trapperName =
+        suggestedTrappers.find((s) => s.person_id === selectedTrapperId)?.trapper_name ||
         availableTrappers.find((t) => t.person_id === selectedTrapperId)?.display_name ||
         personResults.find((p) => p.entity_id === selectedTrapperId)?.display_name ||
         "Unknown";
@@ -270,6 +317,7 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
   useEffect(() => {
     if (showAddForm) {
       fetchAvailableTrappers();
+      fetchSuggestions();
     }
   }, [showAddForm, trappers]);
 
@@ -373,6 +421,73 @@ export function TrapperAssignments({ requestId, compact = false, onAssignmentCha
       marginBottom: "1rem",
       border: "1px solid var(--border)"
     }}>
+      {/* Suggested trappers based on place */}
+      {suggestedTrappers.length > 0 && (
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 600, color: "#059669" }}>
+            Suggested for this location
+          </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+            {suggestedTrappers.map((s) => {
+              const colors = MATCH_REASON_COLORS[s.match_reason] || MATCH_REASON_COLORS.previous_assignment;
+              return (
+                <div
+                  key={s.person_id}
+                  onClick={() => { setSelectedTrapperId(s.person_id); }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "6px",
+                    border: selectedTrapperId === s.person_id
+                      ? "2px solid var(--accent, #0d6efd)"
+                      : "1px solid var(--border)",
+                    background: selectedTrapperId === s.person_id ? "rgba(13, 110, 253, 0.05)" : "var(--background)",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) => {
+                    if (selectedTrapperId !== s.person_id) e.currentTarget.style.background = "rgba(0,0,0,0.03)";
+                  }}
+                  onMouseOut={(e) => {
+                    if (selectedTrapperId !== s.person_id) e.currentTarget.style.background = "var(--background)";
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{s.trapper_name}</span>
+                    <TrapperBadge trapperType={s.trapper_type} size="sm" />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                    {s.service_type && s.service_type !== "historical" && (
+                      <span style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem", borderRadius: "3px", background: colors.bg, color: colors.text, fontWeight: 500 }}>
+                        {SERVICE_TYPE_LABELS[s.service_type] || s.service_type}
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: "0.7rem",
+                      padding: "0.1rem 0.4rem",
+                      borderRadius: "3px",
+                      background: colors.bg,
+                      border: `1px solid ${colors.border}`,
+                      color: colors.text,
+                      fontWeight: 500,
+                    }}>
+                      {MATCH_REASON_LABELS[s.match_reason] || s.match_reason}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ borderBottom: "1px solid var(--border)", margin: "0.75rem 0" }} />
+        </div>
+      )}
+      {loadingSuggestions && suggestedTrappers.length === 0 && placeId && (
+        <div style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#666" }}>
+          Checking for suggested trappers...
+        </div>
+      )}
+
       {/* Mode tabs */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
         <button

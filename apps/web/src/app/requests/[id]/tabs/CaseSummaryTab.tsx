@@ -381,7 +381,7 @@ export function CaseSummaryTab({
       {/* Assigned Trappers Card */}
       <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
         <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Assigned Trappers</h2>
-        <TrapperAssignments requestId={requestId} onAssignmentChange={onAssignmentChange} />
+        <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={onAssignmentChange} />
       </div>
 
       {/* Ready to Email Card (MIG_605) */}
