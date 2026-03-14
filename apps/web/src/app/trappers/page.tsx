@@ -411,6 +411,8 @@ function TrapperCard({
 const FILTER_DEFAULTS = {
   type: "all",
   tier: "all",
+  availability: "all",
+  active: "true",
   sort: "total_cats_caught",
   search: "",
   view: "table",
@@ -439,6 +441,7 @@ function TrappersPageInner() {
     const params = new URLSearchParams();
     if (filters.type !== "all") params.set("type", filters.type);
     if (filters.tier !== "all") params.set("tier", filters.tier);
+    if (filters.active === "true") params.set("active", "true");
     params.set("sort", filters.sort);
     params.set("limit", String(limit));
     params.set("offset", String(page * limit));
@@ -446,13 +449,19 @@ function TrappersPageInner() {
 
     try {
       const result = await fetchApi<TrappersResponse>(`/api/trappers?${params.toString()}`);
+      // Client-side availability filter (not in API to keep it simple)
+      if (filters.availability !== "all") {
+        result.trappers = result.trappers.filter(
+          (t) => t.availability_status === filters.availability
+        );
+      }
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
-  }, [filters.type, filters.tier, filters.sort, filters.search, page]);
+  }, [filters.type, filters.tier, filters.active, filters.availability, filters.sort, filters.search, page]);
 
   useEffect(() => {
     fetchTrappers();
@@ -620,6 +629,32 @@ function TrappersPageInner() {
           <option value="2">Tier 2: Contract</option>
           <option value="3">Tier 3: Informal</option>
         </select>
+
+        <select
+          value={filters.availability}
+          onChange={(e) => setFilters({ availability: e.target.value, page: "0" })}
+        >
+          <option value="all">All Availability</option>
+          <option value="available">Available</option>
+          <option value="busy">Busy</option>
+          <option value="on_leave">On Leave</option>
+        </select>
+
+        <label style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.35rem",
+          fontSize: "0.8rem",
+          cursor: "pointer",
+          userSelect: "none",
+        }}>
+          <input
+            type="checkbox"
+            checked={filters.active === "true"}
+            onChange={(e) => setFilters({ active: e.target.checked ? "true" : "false", page: "0" })}
+          />
+          Active only
+        </label>
 
         <select
           value={filters.sort}

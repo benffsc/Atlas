@@ -7,6 +7,8 @@ import { TrapperStatsCard } from "@/components/cards";
 import { BackButton } from "@/components/common";
 import PlaceResolver, { type ResolvedPlace } from "@/components/forms/PlaceResolver";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { JournalSection } from "@/components/sections";
+import type { JournalEntry } from "@/components/sections";
 
 interface TrapperStats {
   person_id: string;
@@ -143,6 +145,7 @@ export default function TrapperDetailPage() {
   const [profile, setProfile] = useState<TrapperProfile | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [changeHistory, setChangeHistory] = useState<ChangeHistoryEntry[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -246,6 +249,17 @@ export default function TrapperDetailPage() {
     }
   }, [id]);
 
+  const fetchJournalEntries = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ entries: JournalEntry[] }>(
+        `/api/journal?person_id=${id}&include_related=true&limit=50`
+      );
+      setJournalEntries(data.entries || []);
+    } catch (err) {
+      console.error("Failed to fetch journal entries:", err);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
 
@@ -255,12 +269,13 @@ export default function TrapperDetailPage() {
       await Promise.all([
         fetchStats(), fetchManualCatches(), fetchServiceAreas(),
         fetchProfile(), fetchAssignments(), fetchChangeHistory(),
+        fetchJournalEntries(),
       ]);
       setLoading(false);
     };
 
     loadData();
-  }, [id, fetchStats, fetchManualCatches, fetchServiceAreas, fetchProfile, fetchAssignments, fetchChangeHistory]);
+  }, [id, fetchStats, fetchManualCatches, fetchServiceAreas, fetchProfile, fetchAssignments, fetchChangeHistory, fetchJournalEntries]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -1236,6 +1251,16 @@ export default function TrapperDetailPage() {
         ) : (
           <p className="text-muted">No request assignments.</p>
         )}
+      </Section>
+
+      {/* Journal — FFS-567 */}
+      <Section title="Journal">
+        <JournalSection
+          entries={journalEntries}
+          entityType="person"
+          entityId={id}
+          onEntryAdded={fetchJournalEntries}
+        />
       </Section>
 
       {/* Change History — FFS-548 */}
