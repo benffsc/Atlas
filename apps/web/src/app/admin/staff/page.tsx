@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 
 interface Staff {
   staff_id: string;
@@ -48,6 +49,11 @@ export default function StaffManagementPage() {
   const [editMode, setEditMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [linkedPerson, setLinkedPerson] = useState<PersonReference>({
+    person_id: null,
+    display_name: "",
+    is_resolved: false,
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -111,7 +117,48 @@ export default function StaffManagementPage() {
       hired_date: "",
       ai_access_level: "read_only",
     });
+    setLinkedPerson({ person_id: null, display_name: "", is_resolved: false });
     setShowAddModal(true);
+  };
+
+  const handlePersonLinked = async (ref: PersonReference) => {
+    setLinkedPerson(ref);
+    if (ref.is_resolved && ref.person_id) {
+      // Fetch person details to pre-fill form
+      try {
+        const data = await fetchApi<{ person_id: string; display_name: string; identifiers: Array<{ id_type: string; id_value: string }> | null }>(
+          `/api/people/${ref.person_id}`
+        );
+        const nameParts = (data.display_name || ref.display_name).split(/\s+/);
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(" ") || "";
+        const email = data.identifiers?.find((i) => i.id_type === "email")?.id_value || "";
+        const phone = data.identifiers?.find((i) => i.id_type === "phone")?.id_value || "";
+        setFormData((prev) => ({
+          ...prev,
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          phone: phone,
+        }));
+      } catch {
+        // Fall back to just the display name
+        const nameParts = ref.display_name.split(/\s+/);
+        setFormData((prev) => ({
+          ...prev,
+          first_name: nameParts[0] || "",
+          last_name: nameParts.slice(1).join(" ") || "",
+        }));
+      }
+    } else if (!ref.is_resolved && ref.display_name) {
+      // Free text name entry
+      const nameParts = ref.display_name.split(/\s+/);
+      setFormData((prev) => ({
+        ...prev,
+        first_name: nameParts[0] || "",
+        last_name: nameParts.slice(1).join(" ") || "",
+      }));
+    }
   };
 
   const handleSave = async () => {
@@ -129,8 +176,14 @@ export default function StaffManagementPage() {
         setSelectedStaff(null);
         fetchStaff();
       } else {
-        // Create new
-        await postApi("/api/staff", formData);
+        // Create new — include person_id if linked to existing person
+        const payload = {
+          ...formData,
+          ...(linkedPerson.is_resolved && linkedPerson.person_id
+            ? { person_id: linkedPerson.person_id }
+            : {}),
+        };
+        await postApi("/api/staff", payload);
         setShowAddModal(false);
         fetchStaff();
       }
@@ -250,6 +303,17 @@ export default function StaffManagementPage() {
                           <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>{s.role}</div>
                         </div>
                         <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          {s.person_id && (
+                            <span style={{
+                              fontSize: "0.65rem",
+                              padding: "0.125rem 0.4rem",
+                              background: "#dcfce7",
+                              color: "#166534",
+                              borderRadius: "3px",
+                            }}>
+                              Linked
+                            </span>
+                          )}
                           {s.ai_access_level && s.ai_access_level !== "none" && (
                             <span style={{
                               fontSize: "0.65rem",
@@ -511,10 +575,28 @@ export default function StaffManagementPage() {
               padding: "1.5rem",
               maxWidth: "500px",
               width: "90%",
+              maxHeight: "85vh",
+              overflow: "auto",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{ margin: "0 0 1rem" }}>Add Staff Member</h2>
+
+            {/* Person search — link to existing or create new */}
+            <div style={{ marginBottom: "1rem" }}>
+              <PersonReferencePicker
+                value={linkedPerson}
+                onChange={handlePersonLinked}
+                label="Person"
+                placeholder="Search existing people or type a name..."
+                allowCreate
+              />
+              {linkedPerson.is_resolved && linkedPerson.person_id && (
+                <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem", color: "#166534", background: "#dcfce7", padding: "0.4rem 0.75rem", borderRadius: "6px" }}>
+                  Linked to existing person record. Name, email, and phone pre-filled below.
+                </p>
+              )}
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div>

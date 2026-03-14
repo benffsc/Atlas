@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
       role,
       department,
       hired_date,
+      person_id: linkedPersonId,
     } = body;
 
     if (!first_name) {
@@ -133,19 +134,27 @@ export async function POST(request: NextRequest) {
       return apiServerError("Failed to create staff member");
     }
 
-    // If email provided, create/link person
-    // Note: FFSC organizational emails (@forgottenfelines.com) will be rejected
-    // by the Data Engine consolidated gate (MIG_919, INV-17). This is correct
-    // behavior - FFSC staff are internal accounts, not external contacts in sot_people.
-    if (email) {
-      // Check if this is an org email that will be rejected
+    // Link to existing person or create new one
+    if (linkedPersonId) {
+      // Direct link to existing person (from PersonReferencePicker)
+      await execute(`
+        UPDATE ops.staff SET person_id = $1 WHERE staff_id = $2
+      `, [linkedPersonId, result.staff_id]);
+
+      await execute(`
+        INSERT INTO sot.person_roles (person_id, role, role_status, source_system, notes)
+        VALUES ($1, 'staff', 'active', 'web_app', $2)
+        ON CONFLICT (person_id, role) DO UPDATE SET role_status = 'active', updated_at = NOW()
+      `, [linkedPersonId, role]);
+    } else if (email) {
+      // No linked person — try to create/find via Data Engine
+      // FFSC org emails are rejected by the Data Engine gate — this is correct
       const emailNorm = email.toLowerCase().trim();
       const isOrgEmail = emailNorm.endsWith('@forgottenfelines.com') ||
                          emailNorm.endsWith('@forgottenfelines.org') ||
                          /^(info|office|contact|admin|support|help)@/i.test(emailNorm);
 
       if (!isOrgEmail) {
-        // Only attempt person creation for non-org emails
         const personResult = await queryOne<{ person_id: string }>(`
           SELECT sot.find_or_create_person(
             $1, $2, $3, $4, NULL, 'web_app'
@@ -157,7 +166,6 @@ export async function POST(request: NextRequest) {
             UPDATE ops.staff SET person_id = $1 WHERE staff_id = $2
           `, [personResult.person_id, result.staff_id]);
 
-          // Add staff role
           await execute(`
             INSERT INTO sot.person_roles (person_id, role, role_status, source_system, notes)
             VALUES ($1, 'staff', 'active', 'web_app', $2)
@@ -165,7 +173,6 @@ export async function POST(request: NextRequest) {
           `, [personResult.person_id, role]);
         }
       }
-      // For org emails: staff record created successfully, no person linking needed
     }
 
     return apiSuccess({
