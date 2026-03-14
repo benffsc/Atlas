@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
+import {
+  CALL_TYPE_OPTIONS,
+  OWNERSHIP_OPTIONS,
+  FIXED_STATUS_OPTIONS,
+  HANDLEABILITY_OPTIONS,
+  KITTEN_AGE_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS,
+} from "@/lib/form-options";
 
 /**
  * Parse city and zip from a Google formatted address string.
@@ -159,62 +167,7 @@ const STEPS = [
   { id: 6, title: "Notes & Submit", icon: "6" },
 ];
 
-const CALL_TYPES = [
-  { value: "colony_tnr", label: "Multiple Outdoor Cats (Colony TNR)", description: "2+ cats need spay/neuter" },
-  { value: "single_stray", label: "Single Stray Cat", description: "One unfamiliar cat" },
-  { value: "kitten_rescue", label: "Kittens Found", description: "Kittens need help" },
-  { value: "pet_spay_neuter", label: "Own Pet", description: "Caller's own cat needs spay/neuter" },
-  { value: "wellness_check", label: "Wellness / Medical", description: "Already-fixed cat needs care" },
-  { value: "medical_concern", label: "Medical Emergency", description: "Urgent medical situation" },
-];
-
-const OWNERSHIP_OPTIONS = [
-  { value: "community_colony", label: "Community/Colony Cat", description: "Outdoor cat being fed by someone" },
-  { value: "unknown_stray", label: "Stray (No Known Caretaker)", description: "No one claims or feeds this cat" },
-  { value: "newcomer", label: "Newcomer", description: "Cat just appeared recently" },
-  { value: "neighbors_cat", label: "Neighbor's Cat", description: "Belongs to a neighbor" },
-  { value: "my_cat", label: "Caller's Own Pet", description: "Caller owns this cat" },
-  { value: "unsure", label: "Unsure", description: "Caller doesn't know" },
-];
-
-const FIXED_STATUS_OPTIONS = [
-  { value: "none_fixed", label: "None have ear tips", description: "No cats appear to be fixed" },
-  { value: "some_fixed", label: "Some have ear tips", description: "A few cats are already fixed" },
-  { value: "most_fixed", label: "Most have ear tips", description: "Majority are already fixed" },
-  { value: "all_fixed", label: "All have ear tips", description: "All cats appear fixed" },
-  { value: "unknown", label: "Unknown / Can't Tell", description: "Caller can't see ear tips" },
-];
-
-const HANDLEABILITY_OPTIONS = [
-  { value: "friendly_carrier", label: "Friendly - Can use carrier", description: "Cat approaches people, can be picked up" },
-  { value: "shy_handleable", label: "Shy but handleable", description: "Nervous but can be caught with patience" },
-  { value: "unhandleable_trap", label: "Feral - Needs trap", description: "Runs away, hisses, needs humane trap" },
-  { value: "some_friendly", label: "Mixed (some friendly)", description: "Some cats friendly, some feral" },
-  { value: "unknown", label: "Unknown", description: "Caller hasn't tried to approach" },
-];
-
-const KITTEN_AGE_OPTIONS = [
-  { value: "newborn", label: "Newborn (eyes closed)" },
-  { value: "2_3_weeks", label: "2-3 weeks (eyes open, wobbly)" },
-  { value: "4_5_weeks", label: "4-5 weeks (walking, playing)" },
-  { value: "6_8_weeks", label: "6-8 weeks (weaning age)" },
-  { value: "8_12_weeks", label: "8-12 weeks (adoption ready)" },
-  { value: "over_12_weeks", label: "Over 12 weeks (older kittens)" },
-  { value: "mixed_ages", label: "Mixed ages" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const REFERRAL_OPTIONS = [
-  { value: "google", label: "Google Search" },
-  { value: "website", label: "FFSC Website" },
-  { value: "facebook", label: "Facebook" },
-  { value: "nextdoor", label: "Nextdoor" },
-  { value: "friend_family", label: "Friend/Family" },
-  { value: "vet", label: "Vet Referral" },
-  { value: "shelter", label: "Shelter Referral" },
-  { value: "repeat_caller", label: "Repeat Caller" },
-  { value: "other", label: "Other" },
-];
+// FFS-494: All option arrays now imported from @/lib/form-options (single source of truth)
 
 // Instruction box component
 function InstructionBox({ title, children }: { title: string; children: React.ReactNode }) {
@@ -622,7 +575,7 @@ export default function PhoneIntakePage() {
             </InstructionBox>
 
             <FormField label="Type of Call" required>
-              {CALL_TYPES.map((type) => (
+              {CALL_TYPE_OPTIONS.map((type) => (
                 <OptionCard
                   key={type.value}
                   selected={form.call_type === type.value}
@@ -1186,7 +1139,7 @@ export default function PhoneIntakePage() {
                 style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
               >
                 <option value="">Select...</option>
-                {REFERRAL_OPTIONS.map((opt) => (
+                {REFERRAL_SOURCE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>

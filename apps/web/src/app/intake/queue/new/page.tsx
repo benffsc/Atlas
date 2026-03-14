@@ -1,29 +1,27 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
-import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { BackButton } from "@/components/common";
-import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
-import { fetchApi, postApi } from "@/lib/api-client";
+import { postApi } from "@/lib/api-client";
+import {
+  PersonSection,
+  KittenAssessmentSection,
+} from "@/components/request-sections";
+import type {
+  PersonSectionValue,
+  KittenAssessmentValue,
+} from "@/components/request-sections";
 import {
   OWNERSHIP_OPTIONS,
   FIXED_STATUS_OPTIONS,
-  FEEDING_FREQUENCY_OPTIONS,
-  FEEDING_DURATION_OPTIONS,
-  CAT_INSIDE_OPTIONS,
-  KITTEN_AGE_OPTIONS,
-  KITTEN_BEHAVIOR_OPTIONS,
-  MOM_PRESENT_OPTIONS,
-  MOM_FIXED_OPTIONS,
-  REFERRAL_SOURCE_OPTIONS,
   URGENT_SITUATION_EXAMPLES,
   COUNT_CONFIDENCE_OPTIONS,
   COLONY_DURATION_OPTIONS,
 } from "@/lib/intake-options";
+import { KITTEN_URGENCY_OPTIONS } from "@/lib/form-options";
 
 // Maps to paper form fields exactly
 interface IntakeFormData {
@@ -147,30 +145,23 @@ const initialFormData: IntakeFormData = {
   review_notes: "",
 };
 
-interface PlaceDetails {
-  place_id: string;
-  formatted_address: string;
-  name: string;
-  geometry: {
-    location: {
-      lat: number;
-      lng: number;
-    };
-  };
-  address_components: Array<{
-    long_name: string;
-    short_name: string;
-    types: string[];
-  }>;
-}
+// Kitten option overrides — match intake form values (different from KittenAssessmentSection defaults)
+const INTAKE_KITTEN_AGE_OPTIONS = [
+  { value: "under_4_weeks", label: "Under 4 wks" },
+  { value: "4_to_8_weeks", label: "4-8 wks" },
+  { value: "8_to_12_weeks", label: "8-12 wks" },
+  { value: "12_to_16_weeks", label: "12-16 wks" },
+  { value: "over_16_weeks", label: "4+ months" },
+  { value: "mixed", label: "Mixed ages" },
+] as const;
 
-interface PersonSuggestion {
-  person_id: string;
-  display_name: string;
-  emails: string | null;
-  phones: string | null;
-  cat_count: number;
-}
+const INTAKE_KITTEN_BEHAVIOR_OPTIONS = [
+  { value: "friendly", label: "Friendly (handleable)" },
+  { value: "shy_handleable", label: "Shy but can pick up" },
+  { value: "shy_young", label: "Shy/hissy (young)" },
+  { value: "unhandleable_older", label: "Unhandleable (older)" },
+  { value: "unknown", label: "Unknown" },
+] as const;
 
 export default function NewIntakeEntryPage() {
   const router = useRouter();
@@ -178,98 +169,63 @@ export default function NewIntakeEntryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Person search state
-  const [personSuggestions, setPersonSuggestions] = useState<PersonSuggestion[]>([]);
-  const [showPersonDropdown, setShowPersonDropdown] = useState(false);
-  const [personSearchLoading, setPersonSearchLoading] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
-  const personSearchTimeout = useRef<NodeJS.Timeout>();
-  const personDropdownRef = useRef<HTMLDivElement>(null);
-
   // Place selection state
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [resolvedPlace, setResolvedPlace] = useState<ResolvedPlace | null>(null);
-
-  // Person suggestion by email/phone (duplicate prevention)
-  const personSuggestion = usePersonSuggestion({
-    email: form.email,
-    phone: form.phone,
-    enabled: !selectedPersonId,
-  });
 
   const updateForm = (updates: Partial<IntakeFormData>) => {
     setForm(prev => ({ ...prev, ...updates }));
   };
 
-  // Person search - debounced
-  const searchPeople = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setPersonSuggestions([]);
-      setShowPersonDropdown(false);
-      return;
-    }
-
-    setPersonSearchLoading(true);
-    try {
-      const data = await fetchApi<{ people: PersonSuggestion[] }>(`/api/people/search?q=${encodeURIComponent(query)}&limit=5`);
-      setPersonSuggestions(data.people || []);
-      setShowPersonDropdown(data.people?.length > 0);
-    } catch (err) {
-      console.error("Person search error:", err);
-    } finally {
-      setPersonSearchLoading(false);
-    }
-  }, []);
-
-  // Handle contact field changes with person search
-  const handleContactChange = (field: keyof IntakeFormData, value: string) => {
-    // Auto-format phone as user types
-    const processedValue = field === "phone" ? formatPhoneAsYouType(value) : value;
-    updateForm({ [field]: processedValue });
-    setSelectedPersonId(null);
-
-    if (field === "first_name" || field === "last_name" || field === "email" || field === "phone") {
-      if (personSearchTimeout.current) {
-        clearTimeout(personSearchTimeout.current);
-      }
-      const searchQuery = field === "email" || field === "phone"
-        ? processedValue
-        : `${form.first_name} ${form.last_name}`.trim() || processedValue;
-
-      personSearchTimeout.current = setTimeout(() => {
-        searchPeople(searchQuery);
-      }, 300);
-    }
+  // --- Person section adapter ---
+  const personValue: PersonSectionValue = {
+    person_id: null,
+    display_name: [form.first_name, form.last_name].filter(Boolean).join(" "),
+    is_resolved: false,
+    first_name: form.first_name,
+    last_name: form.last_name,
+    email: form.email,
+    phone: form.phone,
   };
 
-  // Select existing person
-  const selectPerson = (person: PersonSuggestion) => {
-    const nameParts = person.display_name.split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
-
-    setForm(prev => ({
-      ...prev,
-      first_name: firstName,
-      last_name: lastName,
-      email: person.emails?.split(", ")[0] || prev.email,
-      phone: person.phones?.split(", ")[0] || prev.phone,
-    }));
-    setSelectedPersonId(person.person_id);
-    setShowPersonDropdown(false);
-    setPersonSuggestions([]);
-  };
-
-  // Handle suggestion select from identity banner
-  const handleSuggestionSelect = (person: Parameters<typeof personSuggestion.selectPerson>[0]) => {
-    selectPerson({
-      person_id: person.person_id,
-      display_name: person.display_name,
-      emails: person.email,
-      phones: person.phone,
-      cat_count: person.cat_count,
+  const handlePersonChange = (newValue: PersonSectionValue) => {
+    updateForm({
+      first_name: newValue.first_name,
+      last_name: newValue.last_name,
+      email: newValue.email,
+      phone: newValue.phone,
     });
-    personSuggestion.selectPerson(person);
+  };
+
+  // --- Kitten assessment adapter ---
+  const kittenValue: KittenAssessmentValue = {
+    hasKittens: form.has_kittens,
+    kittenCount: form.kitten_count,
+    kittenAgeWeeks: form.kitten_age_weeks,
+    kittenAgeEstimate: form.kitten_age_estimate,
+    kittenMixedAgesDescription: form.kitten_mixed_ages_description,
+    kittenBehavior: form.kitten_behavior,
+    kittenContained: form.kitten_contained,
+    momPresent: form.mom_present,
+    momFixed: form.mom_fixed,
+    canBringIn: form.can_bring_in,
+    kittenNotes: form.kitten_notes,
+  };
+
+  const handleKittenChange = (newValue: KittenAssessmentValue) => {
+    updateForm({
+      has_kittens: newValue.hasKittens,
+      kitten_count: newValue.kittenCount,
+      kitten_age_weeks: newValue.kittenAgeWeeks,
+      kitten_age_estimate: newValue.kittenAgeEstimate,
+      kitten_mixed_ages_description: newValue.kittenMixedAgesDescription,
+      kitten_behavior: newValue.kittenBehavior,
+      kitten_contained: newValue.kittenContained,
+      mom_present: newValue.momPresent,
+      mom_fixed: newValue.momFixed,
+      can_bring_in: newValue.canBringIn,
+      kitten_notes: newValue.kittenNotes,
+    });
   };
 
   // Handle place resolved from PlaceResolver
@@ -282,17 +238,6 @@ export default function NewIntakeEntryPage() {
       });
     }
   };
-
-  // Close person dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (personDropdownRef.current && !personDropdownRef.current.contains(e.target as Node)) {
-        setShowPersonDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const toggleUrgencyFactor = (factor: string) => {
     setForm(prev => ({
@@ -470,128 +415,13 @@ export default function NewIntakeEntryPage() {
         {/* Section 1: Contact Info */}
         <div className="card" style={{ marginBottom: "1rem", padding: "1rem" }}>
           <h3 style={{ margin: "0 0 1rem 0" }}>1. Contact Info</h3>
-
-          {/* Existing person indicator */}
-          {selectedPersonId && (
-            <div style={{
-              background: "#d4edda",
-              border: "1px solid #c3e6cb",
-              borderRadius: "6px",
-              padding: "0.5rem 0.75rem",
-              marginBottom: "0.75rem",
-              fontSize: "0.85rem",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-              <span>Linked to existing person record</span>
-              <button
-                type="button"
-                onClick={() => setSelectedPersonId(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#666" }}
-              >
-                Clear
-              </button>
-            </div>
-          )}
-
-          <div style={{ position: "relative" }} ref={personDropdownRef}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: "1rem" }}>
-              <div>
-                <label className="text-sm">First Name *</label>
-                <input
-                  type="text"
-                  value={form.first_name}
-                  onChange={(e) => handleContactChange("first_name", e.target.value)}
-                  required
-                  autoComplete="off"
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <div>
-                <label className="text-sm">Last Name *</label>
-                <input
-                  type="text"
-                  value={form.last_name}
-                  onChange={(e) => handleContactChange("last_name", e.target.value)}
-                  required
-                  autoComplete="off"
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <div>
-                <label className="text-sm">Phone</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => handleContactChange("phone", e.target.value)}
-                  autoComplete="off"
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <div>
-                <label className="text-sm">Email *</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => handleContactChange("email", e.target.value)}
-                  required
-                  autoComplete="off"
-                  style={{ width: "100%" }}
-                />
-              </div>
-            </div>
-
-            {/* Person suggestions dropdown */}
-            {showPersonDropdown && personSuggestions.length > 0 && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                background: "#fff",
-                border: "1px solid #dee2e6",
-                borderRadius: "6px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                zIndex: 1000,
-                maxHeight: "200px",
-                overflowY: "auto",
-              }}>
-                <div style={{ padding: "0.5rem 0.75rem", background: "#f8f9fa", borderBottom: "1px solid #dee2e6", fontSize: "0.75rem", color: "#666" }}>
-                  Existing contacts found:
-                </div>
-                {personSuggestions.map((person) => (
-                  <div
-                    key={person.person_id}
-                    onClick={() => selectPerson(person)}
-                    style={{
-                      padding: "0.75rem",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #eee",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f7ff")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <div style={{ fontWeight: 500 }}>{person.display_name}</div>
-                    <div style={{ fontSize: "0.8rem", color: "#666" }}>
-                      {person.emails && <span>{person.emails}</span>}
-                      {person.emails && person.phones && <span> · </span>}
-                      {person.phones && <span>{formatPhone(person.phones)}</span>}
-                      {person.cat_count > 0 && <span style={{ marginLeft: "0.5rem", color: "#0d6efd" }}>({person.cat_count} cats)</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Person suggestion banner (email/phone duplicate prevention) */}
-          <PersonSuggestionBanner
-            suggestions={personSuggestion.suggestions}
-            loading={personSuggestion.loading}
-            dismissed={personSuggestion.dismissed}
-            onDismiss={personSuggestion.dismiss}
-            onSelect={handleSuggestionSelect}
+          <PersonSection
+            role="requestor"
+            value={personValue}
+            onChange={handlePersonChange}
+            allowCreate
+            compact
+            required
           />
         </div>
 
@@ -963,172 +793,13 @@ export default function NewIntakeEntryPage() {
         {form.has_kittens && (
           <div className="card" style={{ marginBottom: "1rem", padding: "1rem", background: "#e3f2fd", border: "2px solid #2196f3" }}>
             <h3 style={{ margin: "0 0 1rem 0", color: "#1565c0" }}>6. Kitten Details</h3>
-
-            <div style={{ display: "flex", gap: "2rem", marginBottom: "1rem" }}>
-              <div>
-                <label className="text-sm">Age (weeks):</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.kitten_age_weeks}
-                  onChange={(e) => updateForm({ kitten_age_weeks: e.target.value ? parseInt(e.target.value) : "" })}
-                  style={{ width: "60px", marginLeft: "0.5rem" }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Age range *</label>
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                {[
-                  { value: "under_4_weeks", label: "Under 4 wks" },
-                  { value: "4_to_8_weeks", label: "4-8 wks" },
-                  { value: "8_to_12_weeks", label: "8-12 wks" },
-                  { value: "12_to_16_weeks", label: "12-16 wks" },
-                  { value: "over_16_weeks", label: "4+ months" },
-                  { value: "mixed", label: "Mixed ages" },
-                ].map(opt => (
-                  <label key={opt.value} style={{ cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="kitten_age"
-                      value={opt.value}
-                      checked={form.kitten_age_estimate === opt.value}
-                      onChange={() => updateForm({ kitten_age_estimate: opt.value })}
-                    />
-                    {" "}{opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {form.kitten_age_estimate === "mixed" && (
-              <div style={{ marginBottom: "1rem" }}>
-                <label className="text-sm">If mixed ages, describe:</label>
-                <input
-                  type="text"
-                  value={form.kitten_mixed_ages_description}
-                  onChange={(e) => updateForm({ kitten_mixed_ages_description: e.target.value })}
-                  placeholder='e.g., "3 at 8 weeks, 2 at 5 months"'
-                  style={{ width: "100%", marginTop: "0.25rem" }}
-                />
-              </div>
-            )}
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Behavior *</label>
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                {[
-                  { value: "friendly", label: "Friendly (handleable)" },
-                  { value: "shy_handleable", label: "Shy but can pick up" },
-                  { value: "shy_young", label: "Shy/hissy (young)" },
-                  { value: "unhandleable_older", label: "Unhandleable (older)" },
-                  { value: "unknown", label: "Unknown" },
-                ].map(opt => (
-                  <label key={opt.value} style={{ cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="kitten_behavior"
-                      value={opt.value}
-                      checked={form.kitten_behavior === opt.value}
-                      onChange={() => updateForm({ kitten_behavior: opt.value })}
-                    />
-                    {" "}{opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              <div>
-                <label className="text-sm" style={{ marginRight: "0.5rem" }}>Kittens contained?</label>
-                {[
-                  { value: "yes", label: "Yes, all caught" },
-                  { value: "some", label: "Some caught" },
-                  { value: "no", label: "No" },
-                ].map(opt => (
-                  <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer", display: "block" }}>
-                    <input
-                      type="radio"
-                      name="contained"
-                      value={opt.value}
-                      checked={form.kitten_contained === opt.value}
-                      onChange={() => updateForm({ kitten_contained: opt.value })}
-                    />
-                    {" "}{opt.label}
-                  </label>
-                ))}
-              </div>
-              <div>
-                <label className="text-sm" style={{ marginRight: "0.5rem" }}>Mom cat present?</label>
-                {[
-                  { value: "yes", label: "Yes" },
-                  { value: "no", label: "No" },
-                  { value: "unsure", label: "Unsure" },
-                ].map(opt => (
-                  <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer", display: "block" }}>
-                    <input
-                      type="radio"
-                      name="mom"
-                      value={opt.value}
-                      checked={form.mom_present === opt.value}
-                      onChange={() => updateForm({ mom_present: opt.value })}
-                    />
-                    {" "}{opt.label}
-                  </label>
-                ))}
-              </div>
-              {form.mom_present === "yes" && (
-                <div>
-                  <label className="text-sm" style={{ marginRight: "0.5rem" }}>Mom fixed (ear-tip)?</label>
-                  {[
-                    { value: "yes", label: "Yes" },
-                    { value: "no", label: "No" },
-                    { value: "unsure", label: "Unsure" },
-                  ].map(opt => (
-                    <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer", display: "block" }}>
-                      <input
-                        type="radio"
-                        name="mom_fixed"
-                        value={opt.value}
-                        checked={form.mom_fixed === opt.value}
-                        onChange={() => updateForm({ mom_fixed: opt.value })}
-                      />
-                      {" "}{opt.label}
-                    </label>
-                  ))}
-                </div>
-              )}
-              <div>
-                <label className="text-sm" style={{ marginRight: "0.5rem" }}>Can bring them in?</label>
-                {[
-                  { value: "yes", label: "Yes" },
-                  { value: "need_help", label: "Need help" },
-                  { value: "no", label: "No" },
-                ].map(opt => (
-                  <label key={opt.value} style={{ marginRight: "0.5rem", cursor: "pointer", display: "block" }}>
-                    <input
-                      type="radio"
-                      name="bring_in"
-                      value={opt.value}
-                      checked={form.can_bring_in === opt.value}
-                      onChange={() => updateForm({ can_bring_in: opt.value })}
-                    />
-                    {" "}{opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm">Kitten details (colors, where they hide, feeding times, trap-savvy):</label>
-              <textarea
-                value={form.kitten_notes}
-                onChange={(e) => updateForm({ kitten_notes: e.target.value })}
-                rows={3}
-                style={{ width: "100%", marginTop: "0.25rem", resize: "vertical" }}
-              />
-            </div>
+            <KittenAssessmentSection
+              value={kittenValue}
+              onChange={handleKittenChange}
+              ageOptions={INTAKE_KITTEN_AGE_OPTIONS}
+              behaviorOptions={INTAKE_KITTEN_BEHAVIOR_OPTIONS}
+              compact
+            />
           </div>
         )}
 
@@ -1228,12 +899,7 @@ export default function NewIntakeEntryPage() {
             <div style={{ marginBottom: "1rem" }}>
               <label className="text-sm" style={{ display: "block", marginBottom: "0.5rem" }}>Urgency Factors (check all that apply)</label>
               <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                {[
-                  { value: "bottle_babies", label: "Bottle babies" },
-                  { value: "medical_needs", label: "Medical needs" },
-                  { value: "unsafe_location", label: "Unsafe location" },
-                  { value: "mom_unfixed", label: "Mom unfixed" },
-                ].map(opt => (
+                {KITTEN_URGENCY_OPTIONS.map(opt => (
                   <label key={opt.value} style={{ cursor: "pointer" }}>
                     <input
                       type="checkbox"

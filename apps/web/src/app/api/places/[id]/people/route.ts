@@ -1,23 +1,8 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows, execute } from "@/lib/db";
-import { requireValidUUID } from "@/lib/api-validation";
+import { requireValidUUID, requireValidEnum } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiConflict, apiForbidden } from "@/lib/api-response";
-
-const VALID_ROLES = [
-  "resident",
-  "owner",
-  "tenant",
-  "manager",
-  "requester",
-  "contact",
-  "emergency_contact",
-  "former_resident",
-  "visitor",
-  "employee",
-  "other",
-] as const;
-
-type PersonPlaceRole = (typeof VALID_ROLES)[number];
+import { PERSON_PLACE_ROLE } from "@/lib/enums";
 
 
 /**
@@ -51,10 +36,8 @@ export async function POST(
     // Validate person_id is a valid UUID
     requireValidUUID(person_id, "person");
 
-    // Validate role against enum values
-    if (!VALID_ROLES.includes(role as PersonPlaceRole)) {
-      return apiBadRequest(`Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`);
-    }
+    // Validate role against centralized enum (CLAUDE.md rule 48)
+    requireValidEnum(role, PERSON_PLACE_ROLE, "role");
 
     // Validate place exists
     const place = await queryOne<{ place_id: string }>(
@@ -76,7 +59,25 @@ export async function POST(
       return apiNotFound("Person", person_id);
     }
 
-    // Insert relationship with ON CONFLICT DO NOTHING
+    // FFS-498: Use centralized sot.link_person_to_place() instead of inline INSERT
+    const linkResult = await queryOne<{ link_person_to_place: string | null }>(
+      `SELECT sot.link_person_to_place(
+        p_person_id := $1::UUID,
+        p_place_id := $2::UUID,
+        p_relationship_type := $3,
+        p_evidence_type := 'manual',
+        p_source_system := 'atlas_ui',
+        p_confidence := 0.9
+      )`,
+      [person_id, placeId, role]
+    );
+
+    const linkId = linkResult?.link_person_to_place;
+    if (!linkId) {
+      return apiConflict("This person-place-role relationship already exists");
+    }
+
+    // Fetch the created relationship for the response
     const relationship = await queryOne<{
       relationship_id: string;
       person_id: string;
@@ -87,28 +88,31 @@ export async function POST(
       source_system: string;
       created_at: string;
     }>(
-      // V2: Uses sot.person_place instead of sot.person_place_relationships, relationship_type instead of role
-      `INSERT INTO sot.person_place (
-         person_id, place_id, relationship_type, source_system, confidence, note, created_by
-       ) VALUES (
-         $1, $2, $3, 'atlas_ui', 0.9, $4, 'atlas_ui'
-       )
-       ON CONFLICT (person_id, place_id, relationship_type) DO NOTHING
-       RETURNING
-         relationship_id,
-         person_id,
-         place_id,
-         relationship_type::text AS role,
-         confidence,
-         note,
-         source_system,
-         created_at::text AS created_at`,
-      [person_id, placeId, role, note || null]
+      `SELECT
+        relationship_id,
+        person_id,
+        place_id,
+        relationship_type::text AS role,
+        confidence,
+        note,
+        source_system,
+        created_at::text AS created_at
+      FROM sot.person_place
+      WHERE relationship_id = $1`,
+      [linkId]
     );
 
-    // If ON CONFLICT fired, the relationship already exists
     if (!relationship) {
-      return apiConflict("This person-place-role relationship already exists");
+      return apiServerError("Relationship created but could not be retrieved");
+    }
+
+    // Update note if provided (link_person_to_place doesn't accept note)
+    if (note) {
+      await execute(
+        `UPDATE sot.person_place SET note = $1 WHERE relationship_id = $2`,
+        [note, linkId]
+      );
+      relationship.note = note;
     }
 
     // Log to entity_edits for audit trail
@@ -160,10 +164,8 @@ export async function DELETE(
     // Validate person_id is a valid UUID
     requireValidUUID(person_id, "person");
 
-    // Validate role against enum values
-    if (!VALID_ROLES.includes(role as PersonPlaceRole)) {
-      return apiBadRequest(`Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`);
-    }
+    // Validate role against centralized enum (CLAUDE.md rule 48)
+    requireValidEnum(role, PERSON_PLACE_ROLE, "role");
 
     // Validate place exists
     const place = await queryOne<{ place_id: string }>(
