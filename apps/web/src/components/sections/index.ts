@@ -18,3 +18,12 @@ export { LinkedPlacesSection } from './LinkedPlacesSection';
 export { default as ObservationsSection } from './ObservationsSection';
 export { PlaceLinksSection } from './PlaceLinksSection';
 export { TrapperAssignments } from './TrapperAssignments';
+
+// Trapper detail sections (Phase 3 extraction)
+export { AssignmentHistorySection } from './AssignmentHistorySection';
+export { ChangeHistorySection } from './ChangeHistorySection';
+export { ContractHistorySection } from './ContractHistorySection';
+export { ContractProfileSection } from './ContractProfileSection';
+export { ManualCatchesSection } from './ManualCatchesSection';
+export { PerformanceBannerSection } from './PerformanceBannerSection';
+export { ServiceAreasSection } from './ServiceAreasSection';
