@@ -111,11 +111,13 @@ interface PlaceDetailDrawerProps {
   coordinates?: { lat: number; lng: number };
   showQuickActions?: boolean;
   shifted?: boolean;
+  onAddToComparison?: (placeId: string) => void;
+  comparisonCount?: number;
 }
 
 type NotesTab = "original" | "ai" | "journal";
 
-export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted }: PlaceDetailDrawerProps) {
+export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted, onAddToComparison, comparisonCount }: PlaceDetailDrawerProps) {
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -348,9 +350,29 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
             <span className="drawer-subtitle">{place.display_name}</span>
           )}
         </div>
-        <button className="drawer-close" onClick={onClose}>
-          &times;
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {onAddToComparison && placeId && (
+            <button
+              onClick={() => onAddToComparison(placeId)}
+              disabled={(comparisonCount || 0) >= 3}
+              title={(comparisonCount || 0) >= 3 ? "Max 3 places" : "Add to comparison"}
+              style={{
+                background: "none",
+                border: "1px solid #d1d5db",
+                borderRadius: 4,
+                padding: "4px 8px",
+                cursor: (comparisonCount || 0) >= 3 ? "not-allowed" : "pointer",
+                fontSize: "0.75rem",
+                color: "#6b7280",
+              }}
+            >
+              Compare
+            </button>
+          )}
+          <button className="drawer-close" onClick={onClose}>
+            &times;
+          </button>
+        </div>
       </div>
 
       {/* Content */}

@@ -17,6 +17,10 @@ interface TrapperRow {
   felv_positive_rate_pct: number | null;
   first_activity_date: string | null;
   last_activity_date: string | null;
+  email: string | null;
+  phone: string | null;
+  tier: string | null;
+  has_signed_contract: boolean;
 }
 
 interface AggregateStats {
@@ -39,6 +43,7 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type"); // ffsc, community, or all
   const active = searchParams.get("active"); // true to only show active trappers
   const search = searchParams.get("search"); // search by name
+  const tierFilter = searchParams.get("tier"); // 1, 2, 3
   const sortBy = searchParams.get("sort") || "total_clinic_cats";
   const limit = parseInt(searchParams.get("limit") || "50", 10);
   const offset = parseInt(searchParams.get("offset") || "0", 10);
@@ -47,17 +52,25 @@ export async function GET(request: NextRequest) {
     // Build WHERE clause for filtering
     const conditions: string[] = [];
     if (type === "ffsc") {
-      conditions.push("is_ffsc_trapper = TRUE");
+      conditions.push("s.is_ffsc_trapper = TRUE");
     } else if (type === "community") {
-      conditions.push("is_ffsc_trapper = FALSE");
+      conditions.push("s.is_ffsc_trapper = FALSE");
+    }
+    // Tier filter
+    if (tierFilter === "1") {
+      conditions.push("vt.tier = 'Tier 1: FFSC'");
+    } else if (tierFilter === "2") {
+      conditions.push("vt.tier = 'Tier 2: Contract Community'");
+    } else if (tierFilter === "3") {
+      conditions.push("(vt.tier LIKE 'Tier 3%' OR (vt.tier IS NULL AND s.trapper_type = 'community_trapper'))");
     }
     // Active filter: show trappers with any activity
     if (active === "true") {
-      conditions.push("(active_assignments > 0 OR total_clinic_cats > 0 OR total_cats_caught > 0)");
+      conditions.push("(s.active_assignments > 0 OR s.total_clinic_cats > 0 OR s.total_cats_caught > 0)");
     }
     // Search filter: match by display_name (case-insensitive)
     if (search && search.trim().length > 0) {
-      conditions.push(`LOWER(display_name) LIKE LOWER('%' || $3 || '%')`);
+      conditions.push(`LOWER(s.display_name) LIKE LOWER('%' || $3 || '%')`);
     }
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -87,25 +100,31 @@ export async function GET(request: NextRequest) {
     try {
       trappers = await queryRows<TrapperRow>(
         `SELECT
-          person_id,
-          display_name,
-          trapper_type,
-          role_status,
-          is_ffsc_trapper,
-          active_assignments,
-          completed_assignments,
-          total_cats_caught,
-          total_clinic_cats,
-          unique_clinic_days,
-          avg_cats_per_day,
-          felv_positive_rate_pct,
-          first_activity_date,
-          last_activity_date
-        FROM ops.v_trapper_full_stats
+          s.person_id,
+          s.display_name,
+          s.trapper_type,
+          s.role_status,
+          s.is_ffsc_trapper,
+          s.active_assignments,
+          s.completed_assignments,
+          s.total_cats_caught,
+          s.total_clinic_cats,
+          s.unique_clinic_days,
+          s.avg_cats_per_day,
+          s.felv_positive_rate_pct,
+          s.first_activity_date,
+          s.last_activity_date,
+          s.email,
+          s.phone,
+          vt.tier,
+          COALESCE(tp.has_signed_contract, FALSE) AS has_signed_contract
+        FROM ops.v_trapper_full_stats s
+        LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = s.person_id
+        LEFT JOIN sot.trapper_profiles tp ON tp.person_id = s.person_id
         ${whereClause}
         ORDER BY
-          CASE WHEN role_status = 'active' THEN 0 ELSE 1 END,
-          ${orderColumn} DESC NULLS LAST
+          CASE WHEN s.role_status = 'active' THEN 0 ELSE 1 END,
+          s.${orderColumn} DESC NULLS LAST
         LIMIT $1 OFFSET $2`,
         queryParams
       );
@@ -140,7 +159,11 @@ export async function GET(request: NextRequest) {
           0 AS avg_cats_per_day,
           NULL::NUMERIC AS felv_positive_rate_pct,
           NULL::DATE AS first_activity_date,
-          NULL::DATE AS last_activity_date
+          NULL::DATE AS last_activity_date,
+          sot.get_email(p.person_id) AS email,
+          sot.get_phone(p.person_id) AS phone,
+          NULL::TEXT AS tier,
+          FALSE AS has_signed_contract
         FROM sot.people p
         JOIN sot.person_roles pr ON pr.person_id = p.person_id
         ${basicWhere}

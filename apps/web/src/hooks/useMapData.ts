@@ -41,6 +41,10 @@ export interface UseMapDataOptions {
   diseaseFilter?: string[];
   /** County filter: "sonoma" (default) or "all" */
   county?: string;
+  /** Start date for temporal filtering (ISO date string YYYY-MM-DD) */
+  fromDate?: string;
+  /** End date for temporal filtering (ISO date string YYYY-MM-DD) */
+  toDate?: string;
   /** Viewport bounds for efficient loading */
   bounds?: MapDataBounds;
   /** Set to false to disable fetching */
@@ -171,6 +175,12 @@ function buildMapDataKey(options: UseMapDataOptions): string | null {
   }
   if (options.county && options.county !== "sonoma") {
     params.set("county", options.county);
+  }
+  if (options.fromDate) {
+    params.set("from", options.fromDate);
+  }
+  if (options.toDate) {
+    params.set("to", options.toDate);
   }
   if (options.bounds) {
     params.set(

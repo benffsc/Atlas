@@ -267,6 +267,15 @@ export async function GET(req: NextRequest) {
           )`;
         }
 
+        // Date range filter: only show pins with activity in date range
+        let dateCondition = "";
+        if (dateFrom) {
+          dateCondition += ` AND (last_alteration_at IS NULL OR last_alteration_at >= '${dateFrom}'::date)`;
+        }
+        if (dateTo) {
+          dateCondition += ` AND (last_alteration_at IS NULL OR last_alteration_at <= '${dateTo}'::date)`;
+        }
+
         const atlasPins = await queryRows<{
           id: string;
           address: string;
@@ -331,6 +340,7 @@ export async function GET(req: NextRequest) {
             ${riskCondition}
             ${dataCondition}
             ${diseaseCondition}
+            ${dateCondition}
           ORDER BY
             CASE pin_style
               WHEN 'disease' THEN 1
@@ -758,7 +768,8 @@ export async function GET(req: NextRequest) {
             JOIN ops.appointments a ON a.cat_id = cp.cat_id
             WHERE p.merged_into_place_id IS NULL
               AND p.location IS NOT NULL
-              AND a.appointment_date > NOW() - INTERVAL '2 years'
+              AND a.appointment_date > ${dateFrom ? `'${dateFrom}'::date` : `NOW() - INTERVAL '2 years'`}
+              ${dateTo ? `AND a.appointment_date <= '${dateTo}'::date` : ""}
               ${zoneFilter}
             GROUP BY p.place_id, p.formatted_address, p.location, p.service_zone
           )

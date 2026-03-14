@@ -22,7 +22,9 @@ export {
 // Components
 export { MapControls } from "./components/MapControls";
 export { MapLegend } from "./components/MapLegend";
+export { DateRangeFilter } from "./components/DateRangeFilter";
 export { useClusterMarker, renderClusterMarkers } from "./components/MapClusterMarker";
+export { LocationComparisonPanel } from "./components/LocationComparisonPanel";
 
 // Types
 export type {

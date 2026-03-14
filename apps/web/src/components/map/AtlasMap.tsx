@@ -37,6 +37,8 @@ import {
   PlacementPanel,
   MapLegend,
   MapControls,
+  DateRangeFilter,
+  LocationComparisonPanel,
   PRIMARY_LAYER_CONFIGS,
   LEGACY_LAYER_CONFIGS,
   LAYER_CONFIGS,
@@ -199,7 +201,10 @@ function AtlasMapInner() {
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [showLegend, setShowLegend] = useState(!isMobile);
   const [isSatellite, setIsSatellite] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedZone, setSelectedZone] = useState("All Zones");
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
   const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(() => {
     const fromUrl = parseLayersParam(searchParams.get("layers"));
     if (fromUrl) return fromUrl;
@@ -264,6 +269,11 @@ function AtlasMapInner() {
   }, [enabledLayers]);
 
   const dataFilter: DataFilter = "all";
+
+  const handleDateRangeChange = useCallback((from: string | null, to: string | null) => {
+    setDateFrom(from);
+    setDateTo(to);
+  }, []);
 
   // Conditionally show disease filter group (only when Disease Risk sub-layer is active)
   const atlasMapLayerGroups = useMemo(() => {
@@ -343,6 +353,24 @@ function AtlasMapInner() {
   // Person and Cat drawer state
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+
+  // Location comparison state
+  const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
+
+  const handleAddToComparison = useCallback((placeId: string) => {
+    setComparisonPlaceIds(prev => {
+      if (prev.includes(placeId) || prev.length >= 3) return prev;
+      return [...prev, placeId];
+    });
+  }, []);
+
+  const handleRemoveFromComparison = useCallback((placeId: string) => {
+    setComparisonPlaceIds(prev => prev.filter(id => id !== placeId));
+  }, []);
+
+  const handleClearComparison = useCallback(() => {
+    setComparisonPlaceIds([]);
+  }, []);
 
   // Street View state
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
@@ -482,6 +510,33 @@ function AtlasMapInner() {
       setTimeout(() => mapRef.current?.invalidateSize(), 350);
     }
   }, [streetViewFullscreen]);
+
+  // Sync fullscreen state with browser fullscreen API
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  // Invalidate map size when entering/exiting fullscreen
+  useEffect(() => {
+    if (mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 350);
+    }
+  }, [isFullscreen]);
+
+  const handleFullscreenToggle = useCallback(() => {
+    if (!document.fullscreenElement) {
+      const mapContainer = document.querySelector('.atlas-map-container');
+      if (mapContainer) {
+        mapContainer.requestFullscreen().catch(console.error);
+      }
+    } else {
+      document.exitFullscreen().catch(console.error);
+    }
+  }, []);
 
   // Keep cone-only ref in sync with state
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
@@ -626,6 +681,8 @@ function AtlasMapInner() {
     riskFilter,
     dataFilter,
     diseaseFilter,
+    fromDate: dateFrom || undefined,
+    toDate: dateTo || undefined,
     enabled: layers.length > 0,
   });
 
@@ -2028,12 +2085,16 @@ function AtlasMapInner() {
             setShowAddPointMenu(false);
           }
           break;
+        case "f":
+        case "F":
+          handleFullscreenToggle();
+          break;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addPointMode, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId]);
+  }, [addPointMode, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId, handleFullscreenToggle]);
 
   // Add Point mode: map click handler and cursor
   useEffect(() => {
@@ -2238,7 +2299,7 @@ function AtlasMapInner() {
 
   return (
     <div
-      className={streetViewCoords && !streetViewConeOnly && !streetViewFullscreen ? "atlas-map-sv-active" : ""}
+      className={`atlas-map-container${streetViewCoords && !streetViewConeOnly && !streetViewFullscreen ? " atlas-map-sv-active" : ""}`}
       style={{ position: "relative", height: "100dvh", width: "100%", display: "flex", flexDirection: "column" }}
     >
       {/* Map container */}
@@ -2536,6 +2597,15 @@ function AtlasMapInner() {
       </div>
       )}
 
+      {/* Date range filter (hidden during Street View) */}
+      {!streetViewCoords && (
+        <DateRangeFilter
+          fromDate={dateFrom}
+          toDate={dateTo}
+          onDateRangeChange={handleDateRangeChange}
+        />
+      )}
+
       {/* Right side controls */}
       <MapControls
         isMobile={isMobile}
@@ -2552,6 +2622,8 @@ function AtlasMapInner() {
         onMyLocation={handleMyLocation}
         isSatellite={isSatellite}
         onSatelliteToggle={() => setIsSatellite(!isSatellite)}
+        isFullscreen={isFullscreen}
+        onFullscreenToggle={handleFullscreenToggle}
         onZoomIn={() => mapRef.current?.zoomIn()}
         onZoomOut={() => mapRef.current?.zoomOut()}
       />
@@ -2858,6 +2930,8 @@ function AtlasMapInner() {
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>A</kbd> add point
         <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
+        <span style={{ margin: "0 6px" }}>·</span>
+        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>F</kbd> fullscreen
       </div>}
 
       {/* Map Legend */}
@@ -2866,6 +2940,13 @@ function AtlasMapInner() {
         onToggle={() => setShowLegend(prev => !prev)}
         isMobile={isMobile}
         colors={colors}
+      />
+
+      {/* Location Comparison Panel */}
+      <LocationComparisonPanel
+        placeIds={comparisonPlaceIds}
+        onRemovePlace={handleRemoveFromComparison}
+        onClear={handleClearComparison}
       />
 
       {/* CSS animations are in atlas-map.css */}
@@ -3017,6 +3098,8 @@ function AtlasMapInner() {
                         places.find(p => p.id === selectedPlaceId);
             return pin?.lat && pin?.lng ? { lat: pin.lat, lng: pin.lng } : undefined;
           })()}
+          onAddToComparison={handleAddToComparison}
+          comparisonCount={comparisonPlaceIds.length}
         />
       )}
 

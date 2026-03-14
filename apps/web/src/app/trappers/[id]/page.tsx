@@ -133,6 +133,17 @@ export default function TrapperDetailPage() {
   const [addingCatch, setAddingCatch] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  // Profile edit state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editProfile, setEditProfile] = useState<{
+    notes: string;
+    rescue_name: string;
+    has_signed_contract: boolean;
+    contract_signed_date: string;
+    contract_areas: string;
+  }>({ notes: "", rescue_name: "", has_signed_contract: false, contract_signed_date: "", contract_areas: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
+
   const fetchStats = useCallback(async () => {
     try {
       const data = await fetchApi<TrapperStats>(`/api/people/${id}/trapper-stats`);
@@ -245,6 +256,44 @@ export default function TrapperDetailPage() {
     }
   };
 
+  const startEditProfile = () => {
+    if (!profile) return;
+    setEditProfile({
+      notes: profile.notes || "",
+      rescue_name: profile.rescue_name || "",
+      has_signed_contract: profile.has_signed_contract,
+      contract_signed_date: profile.contract_signed_date || "",
+      contract_areas: (profile.contract_areas || []).join(", "),
+    });
+    setEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const areas = editProfile.contract_areas
+        .split(",")
+        .map(a => a.trim())
+        .filter(Boolean);
+
+      await postApi(`/api/people/${id}/trapper-profile`, {
+        notes: editProfile.notes || null,
+        rescue_name: editProfile.rescue_name || null,
+        has_signed_contract: editProfile.has_signed_contract,
+        contract_signed_date: editProfile.contract_signed_date || null,
+        contract_areas: areas.length > 0 ? areas : null,
+      }, { method: "PATCH" });
+
+      await fetchProfile();
+      setEditingProfile(false);
+    } catch (err) {
+      console.error("Failed to save profile:", err);
+      alert(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading trapper details...</div>;
   }
@@ -295,103 +344,220 @@ export default function TrapperDetailPage() {
       {/* Contract & Profile — FFS-532 */}
       {profile && (
         <Section title="Contract & Profile">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
-            {/* Contract Status */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Contract
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.75rem" }}>
+            {!editingProfile ? (
+              <button
+                onClick={startEditProfile}
+                style={{
+                  fontSize: "0.8rem",
+                  padding: "0.35rem 0.75rem",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Edit Profile
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  style={{ fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}
+                >
+                  {savingProfile ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={() => setEditingProfile(false)}
+                  disabled={savingProfile}
+                  style={{
+                    fontSize: "0.8rem",
+                    padding: "0.35rem 0.75rem",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
-              <span style={{
-                display: "inline-block",
-                padding: "0.25rem 0.75rem",
-                borderRadius: "9999px",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                background: profile.has_signed_contract ? "#dcfce7" : "#fee2e2",
-                color: profile.has_signed_contract ? "#166534" : "#b91c1c",
-              }}>
-                {profile.has_signed_contract ? "Signed" : "Not Signed"}
-              </span>
-              {profile.contract_signed_date && (
-                <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>
-                  {new Date(profile.contract_signed_date).toLocaleDateString()}
-                </div>
-              )}
-            </div>
-
-            {/* Tier */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Classification
-              </div>
-              <div style={{ fontWeight: 500 }}>
-                {profile.tier || "—"}
-              </div>
-              {profile.is_legacy_informal && (
-                <div style={{ fontSize: "0.8rem", color: "#b45309", marginTop: "0.25rem" }}>
-                  Legacy informal
-                </div>
-              )}
-              {profile.rescue_name && (
-                <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                  Rescue: {profile.rescue_name}
-                </div>
-              )}
-            </div>
-
-            {/* Status */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Status
-              </div>
-              <span style={{
-                display: "inline-block",
-                padding: "0.25rem 0.75rem",
-                borderRadius: "9999px",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                background: profile.is_active ? "#dcfce7" : "#fee2e2",
-                color: profile.is_active ? "#166534" : "#b91c1c",
-              }}>
-                {profile.is_active ? "Active" : "Inactive"}
-              </span>
-              {profile.certified_date && (
-                <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>
-                  Certified: {new Date(profile.certified_date).toLocaleDateString()}
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Notes / Availability */}
-          {profile.notes && (
-            <div style={{ marginTop: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Notes & Availability
-              </div>
-              <div style={{ fontSize: "0.9rem", whiteSpace: "pre-wrap" }}>
-                {profile.notes}
-              </div>
-            </div>
-          )}
-
-          {/* Contract Areas */}
-          {profile.contract_areas && profile.contract_areas.length > 0 && (
-            <div style={{ marginTop: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                Contracted Areas
-              </div>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                {profile.contract_areas.map((area, i) => (
-                  <span key={i} style={{
-                    padding: "0.25rem 0.5rem",
-                    background: "#e2e8f0",
-                    borderRadius: "4px",
+          {!editingProfile ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+                {/* Contract Status */}
+                <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+                    Contract
+                  </div>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "9999px",
                     fontSize: "0.85rem",
+                    fontWeight: 500,
+                    background: profile.has_signed_contract ? "#dcfce7" : "#fee2e2",
+                    color: profile.has_signed_contract ? "#166534" : "#b91c1c",
                   }}>
-                    {area}
+                    {profile.has_signed_contract ? "Signed" : "Not Signed"}
                   </span>
-                ))}
+                  {profile.contract_signed_date && (
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+                      {new Date(profile.contract_signed_date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tier */}
+                <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+                    Classification
+                  </div>
+                  <div style={{ fontWeight: 500 }}>
+                    {profile.tier || "—"}
+                  </div>
+                  {profile.is_legacy_informal && (
+                    <div style={{ fontSize: "0.8rem", color: "#b45309", marginTop: "0.25rem" }}>
+                      Legacy informal
+                    </div>
+                  )}
+                  {profile.rescue_name && (
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                      Rescue: {profile.rescue_name}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+                    Status
+                  </div>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "9999px",
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    background: profile.is_active ? "#dcfce7" : "#fee2e2",
+                    color: profile.is_active ? "#166534" : "#b91c1c",
+                  }}>
+                    {profile.is_active ? "Active" : "Inactive"}
+                  </span>
+                  {profile.certified_date && (
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+                      Certified: {new Date(profile.certified_date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes / Availability */}
+              {profile.notes && (
+                <div style={{ marginTop: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+                    Notes & Availability
+                  </div>
+                  <div style={{ fontSize: "0.9rem", whiteSpace: "pre-wrap" }}>
+                    {profile.notes}
+                  </div>
+                </div>
+              )}
+
+              {/* Contract Areas */}
+              {profile.contract_areas && profile.contract_areas.length > 0 && (
+                <div style={{ marginTop: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+                    Contracted Areas
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    {profile.contract_areas.map((area, i) => (
+                      <span key={i} style={{
+                        padding: "0.25rem 0.5rem",
+                        background: "#e2e8f0",
+                        borderRadius: "4px",
+                        fontSize: "0.85rem",
+                      }}>
+                        {area}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            /* Edit mode form */
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {/* Contract signed */}
+              <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={editProfile.has_signed_contract}
+                    onChange={(e) => setEditProfile(prev => ({ ...prev, has_signed_contract: e.target.checked }))}
+                  />
+                  <span style={{ fontWeight: 500 }}>Contract Signed</span>
+                </label>
+                {editProfile.has_signed_contract && (
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <label style={{ display: "block", fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
+                      Date Signed
+                    </label>
+                    <input
+                      type="date"
+                      value={editProfile.contract_signed_date}
+                      onChange={(e) => setEditProfile(prev => ({ ...prev, contract_signed_date: e.target.value }))}
+                      style={{ padding: "0.4rem", width: "200px" }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Contract Areas */}
+              <div>
+                <label style={{ display: "block", fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                  Contract Areas
+                </label>
+                <textarea
+                  value={editProfile.contract_areas}
+                  onChange={(e) => setEditProfile(prev => ({ ...prev, contract_areas: e.target.value }))}
+                  placeholder="Comma-separated areas (e.g. Santa Rosa, Petaluma, Rohnert Park)"
+                  rows={2}
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                  Separate multiple areas with commas
+                </div>
+              </div>
+
+              {/* Rescue Name */}
+              <div>
+                <label style={{ display: "block", fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                  Rescue Name
+                </label>
+                <input
+                  type="text"
+                  value={editProfile.rescue_name}
+                  onChange={(e) => setEditProfile(prev => ({ ...prev, rescue_name: e.target.value }))}
+                  placeholder="e.g. Cat Rescue of Cloverdale"
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: "block", fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                  Notes & Availability
+                </label>
+                <textarea
+                  value={editProfile.notes}
+                  onChange={(e) => setEditProfile(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Availability, preferences, special notes..."
+                  rows={4}
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
               </div>
             </div>
           )}
