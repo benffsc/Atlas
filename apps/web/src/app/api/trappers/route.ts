@@ -37,6 +37,9 @@ interface AggregateStats {
   all_site_visits: number;
   first_visit_success_rate_pct_all: number | null;
   all_cats_caught: number;
+  available_trappers: number;
+  busy_trappers: number;
+  on_leave_trappers: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -206,6 +209,9 @@ export async function GET(request: NextRequest) {
         all_site_visits: 0,
         first_visit_success_rate_pct_all: null,
         all_cats_caught: 0,
+        available_trappers: 0,
+        busy_trappers: 0,
+        on_leave_trappers: 0,
       };
     }
 
@@ -224,6 +230,9 @@ export async function GET(request: NextRequest) {
           all_site_visits: 0,
           first_visit_success_rate_pct_all: null,
           all_cats_caught: 0,
+          available_trappers: 0,
+          busy_trappers: 0,
+          on_leave_trappers: 0,
         },
       },
       {

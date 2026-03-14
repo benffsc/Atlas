@@ -41,6 +41,9 @@ interface AggregateStats {
   all_site_visits: number;
   first_visit_success_rate_pct_all: number | null;
   all_cats_caught: number;
+  available_trappers?: number;
+  busy_trappers?: number;
+  on_leave_trappers?: number;
 }
 
 interface TrappersResponse {
@@ -544,62 +547,121 @@ function TrappersPageInner() {
         </a>
       </div>
 
-      {/* Aggregate Stats */}
+      {/* Workload Dashboard — FFS-533 */}
       {agg && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-            gap: "1rem",
-            marginBottom: "2rem",
-          }}
-        >
-          <StatCard
-            label="Active Trappers"
-            value={agg.total_active_trappers}
-            sublabel={`${agg.ffsc_trappers} FFSC, ${agg.community_trappers} Community`}
-          />
-          <StatCard
-            label="Total Cats Caught"
-            value={agg.all_cats_caught}
-            sublabel="via request assignments"
-          />
-          <StatCard
-            label="Direct Bookings"
-            value={agg.all_clinic_cats}
-            sublabel="self-booked appointments"
-          />
-          <StatCard label="Clinic Days" value={agg.all_clinic_days} />
-          <StatCard
-            label="Avg Cats/Day"
-            value={agg.avg_cats_per_day_all || "\u2014"}
-          />
-          <StatCard
-            label="FeLV Rate"
-            value={
-              agg.felv_positive_rate_pct_all !== null
-                ? `${agg.felv_positive_rate_pct_all}%`
-                : "\u2014"
-            }
-          />
-        </div>
-      )}
+        <>
+          {/* Row 1: Capacity overview */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <StatCard
+              label="Active Trappers"
+              value={agg.total_active_trappers}
+              sublabel={`${agg.ffsc_trappers} FFSC, ${agg.community_trappers} Community`}
+            />
+            <StatCard
+              label="Available"
+              value={agg.available_trappers ?? agg.total_active_trappers}
+              sublabel="ready for assignments"
+            />
+            <StatCard
+              label="Busy"
+              value={agg.busy_trappers ?? 0}
+              sublabel="currently working"
+            />
+            <StatCard
+              label="On Leave"
+              value={agg.on_leave_trappers ?? 0}
+              sublabel="temporarily unavailable"
+            />
+            <StatCard label="Inactive" value={agg.inactive_trappers} />
+          </div>
 
-      {/* Explanation */}
-      <div
-        style={{
-          padding: "0.75rem 1rem",
-          background: "#e7f3ff",
-          borderRadius: "6px",
-          marginBottom: "1rem",
-          fontSize: "0.85rem",
-          color: "#0c5460",
-        }}
-      >
-        <strong>Understanding the metrics:</strong>{" "}
-        <span style={{ color: "#17a2b8" }}>Total Caught</span> = cats attributed via request assignments (the primary metric).{" "}
-        <span style={{ color: "#6c757d" }}>Direct Bookings</span> = appointments booked directly under the trapper&apos;s email (often lower since homeowners book their own appointments).
-      </div>
+          {/* Row 2: Workload distribution (computed from current page data) */}
+          {data && data.trappers.length > 0 && (() => {
+            const active = data.trappers.filter(t => t.role_status === "active");
+            const overloaded = active.filter(t => t.active_assignments >= 3);
+            const moderate = active.filter(t => t.active_assignments > 0 && t.active_assignments < 3);
+            const free = active.filter(t => t.active_assignments === 0 && t.availability_status === "available");
+            const noActivity90d = active.filter(t => {
+              if (!t.last_activity_date) return true;
+              const daysSince = Math.floor((Date.now() - new Date(t.last_activity_date).getTime()) / 86400000);
+              return daysSince > 90;
+            });
+
+            return (
+              <div style={{
+                display: "flex",
+                gap: "1.5rem",
+                padding: "0.75rem 1rem",
+                background: "#f8f9fa",
+                borderRadius: "8px",
+                marginBottom: "1rem",
+                fontSize: "0.85rem",
+                flexWrap: "wrap",
+              }}>
+                <span>
+                  <strong style={{ color: "#16a34a" }}>{free.length}</strong>{" "}
+                  <span style={{ color: "#666" }}>free for assignment</span>
+                </span>
+                <span>
+                  <strong style={{ color: "#f59e0b" }}>{moderate.length}</strong>{" "}
+                  <span style={{ color: "#666" }}>1-2 active</span>
+                </span>
+                <span>
+                  <strong style={{ color: "#dc2626" }}>{overloaded.length}</strong>{" "}
+                  <span style={{ color: "#666" }}>3+ active (heavy load)</span>
+                </span>
+                {noActivity90d.length > 0 && (
+                  <span>
+                    <strong style={{ color: "#9ca3af" }}>{noActivity90d.length}</strong>{" "}
+                    <span style={{ color: "#999" }}>no activity 90d+</span>
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Row 3: Performance stats */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <StatCard
+              label="Total Cats Caught"
+              value={agg.all_cats_caught}
+              sublabel="via request assignments"
+            />
+            <StatCard
+              label="Direct Bookings"
+              value={agg.all_clinic_cats}
+              sublabel="self-booked appointments"
+            />
+            <StatCard label="Clinic Days" value={agg.all_clinic_days} />
+            <StatCard
+              label="Avg Cats/Day"
+              value={agg.avg_cats_per_day_all || "\u2014"}
+            />
+            <StatCard
+              label="FeLV Rate"
+              value={
+                agg.felv_positive_rate_pct_all !== null
+                  ? `${agg.felv_positive_rate_pct_all}%`
+                  : "\u2014"
+              }
+            />
+          </div>
+        </>
+      )}
 
       {/* Filters + Search + View Toggle */}
       <div
