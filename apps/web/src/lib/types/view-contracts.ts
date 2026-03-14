@@ -414,6 +414,32 @@ export interface BeaconMapDataFilteredRow {
  * @see sql/schema/v2/MIG_2365__colony_estimation.sql
  * @route /api/beacon/population/[placeId]
  */
+/**
+ * Contract for beacon.v_service_zone_summary
+ * @see sql/schema/v2/MIG_2937__service_zone_summary.sql
+ * @route /api/beacon/service-zones
+ */
+export interface VServiceZoneSummaryRow {
+  service_zone: string;
+  total_places: number;
+  geocoded_places: number;
+  centroid_lat: number | null;
+  centroid_lng: number | null;
+  total_cats: number;
+  altered_cats: number;
+  intact_cats: number;
+  unknown_status_cats: number;
+  alteration_rate_pct: number | null;
+  zone_status: string;
+  total_requests: number;
+  active_requests: number;
+  total_appointments: number;
+  last_appointment_date: string | null;
+  appointments_last_90d: number;
+  alterations_last_90d: number;
+  people_count: number;
+}
+
 export interface BeaconPopulationEstimate {
   place_id: string;
   estimated_population: number;
