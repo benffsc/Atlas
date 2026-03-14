@@ -22,3 +22,6 @@ export { AliasesSectionAdapter } from './AliasesSectionAdapter';
 export { DataSourcesSectionAdapter } from './DataSourcesSectionAdapter';
 export { TrapperStatsCardAdapter } from './TrapperStatsCardAdapter';
 export { TrapperJournalAdapter } from './TrapperJournalAdapter';
+export { FosterOverviewAdapter } from './FosterOverviewAdapter';
+export { FosterCatsAdapter } from './FosterCatsAdapter';
+export { FosterAgreementsAdapter } from './FosterAgreementsAdapter';

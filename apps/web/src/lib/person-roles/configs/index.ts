@@ -2,16 +2,16 @@ import type { RoleType, RoleConfig, MergedConfig, SectionDefinition, TabDefiniti
 import type { PersonDetailData } from "@/hooks/usePersonDetail";
 import { BASE_CONFIG } from "./base";
 import { TRAPPER_CONFIG } from "./trapper";
+import { FOSTER_CONFIG } from "./foster";
 
 /**
  * Registry of all role configs.
- * To add a new role (e.g., foster), create configs/foster.ts and register here.
+ * To add a new role, create configs/<role>.ts and register here.
  */
 const ROLE_CONFIGS: Record<RoleType, RoleConfig> = {
   base: BASE_CONFIG,
   trapper: TRAPPER_CONFIG,
-  // Future roles:
-  foster: { role: "foster", sections: [], tabs: [], stats: [], actions: [], badges: [] },
+  foster: FOSTER_CONFIG,
   volunteer: { role: "volunteer", sections: [], tabs: [], stats: [], actions: [], badges: [] },
   caretaker: { role: "caretaker", sections: [], tabs: [], stats: [], actions: [], badges: [] },
   staff: { role: "staff", sections: [], tabs: [], stats: [], actions: [], badges: [] },
@@ -78,7 +78,7 @@ export function getRoleConfig(roles: RoleType[]): MergedConfig {
   // Build tab list: trapper first (if present), then main, then others
   const tabs = Array.from(tabMap.values());
   tabs.sort((a, b) => {
-    const order: Record<string, number> = { trapper: 0, main: 1, details: 2, history: 3, admin: 4 };
+    const order: Record<string, number> = { trapper: 0, foster: 0.5, main: 1, details: 2, history: 3, admin: 4 };
     return (order[a.id] ?? 99) - (order[b.id] ?? 99);
   });
 

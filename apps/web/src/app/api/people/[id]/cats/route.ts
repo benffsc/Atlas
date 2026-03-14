@@ -33,6 +33,15 @@ export async function GET(
   try {
     requireValidUUID(id, "person");
 
+    // Optional relationship type filter
+    const { searchParams } = new URL(request.url);
+    const relationshipFilter = searchParams.get("relationship");
+
+    const relationshipClause = relationshipFilter
+      ? `AND pc.relationship_type = $2`
+      : "";
+    const queryParams = relationshipFilter ? [id, relationshipFilter] : [id];
+
     const sql = `
       SELECT
         pcr.cat_id,
@@ -54,6 +63,7 @@ export async function GET(
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
       LEFT JOIN ops.appointments a ON a.appointment_id = pc.appointment_id
       WHERE pc.person_id = $1
+        ${relationshipClause}
       ORDER BY
         CASE pc.relationship_type
           WHEN 'owner' THEN 1
@@ -67,7 +77,7 @@ export async function GET(
         c.display_name
     `;
 
-    const cats = await queryRows<PersonCatRelationship>(sql, [id]);
+    const cats = await queryRows<PersonCatRelationship>(sql, queryParams);
 
     // Group cats by cat_id and aggregate relationships
     const catMap = new Map<string, {

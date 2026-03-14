@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { useUrlFilters } from "@/hooks/useUrlFilters";
 
 interface Staff {
   staff_id: string;
@@ -39,12 +40,20 @@ const AI_ACCESS_LEVELS = [
   { value: "full", label: "Full Access", description: "All capabilities including admin tools" },
 ];
 
-export default function StaffManagementPage() {
+const FILTER_DEFAULTS = {
+  department: "",
+  search: "",
+  role: "",
+  showInactive: "false",
+};
+
+function StaffManagementContent() {
+  const { filters, setFilter, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
+
   const [staff, setStaff] = useState<Staff[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
+  const [allRoles, setAllRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showInactive, setShowInactive] = useState(false);
-  const [departmentFilter, setDepartmentFilter] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -54,6 +63,8 @@ export default function StaffManagementPage() {
     display_name: "",
     is_resolved: false,
   });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -72,22 +83,54 @@ export default function StaffManagementPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (showInactive) params.set("active", "false");
-      if (departmentFilter) params.set("department", departmentFilter);
+      if (filters.showInactive === "true") params.set("active", "false");
+      if (filters.department) params.set("department", filters.department);
 
       const data = await fetchApi<{ staff: Staff[]; departments: string[] }>(`/api/staff?${params.toString()}`);
-      setStaff(data.staff || []);
+      const staffList = data.staff || [];
+      setStaff(staffList);
       setDepartments(data.departments || []);
+      // Extract unique roles from staff data
+      const roles = [...new Set(staffList.map(s => s.role).filter(Boolean))].sort();
+      setAllRoles(roles);
     } catch (err) {
       console.error("Failed to fetch staff:", err);
     } finally {
       setLoading(false);
     }
-  }, [showInactive, departmentFilter]);
+  }, [filters.showInactive, filters.department]);
 
   useEffect(() => {
     fetchStaff();
   }, [fetchStaff]);
+
+  const handleSearchChange = (value: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setFilter("search", value);
+    }, 300);
+  };
+
+  const copyToClipboard = (text: string, staffId: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(staffId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  // Client-side filtering for search and role
+  const filteredStaff = staff.filter(s => {
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const match = s.display_name.toLowerCase().includes(q) ||
+        (s.email && s.email.toLowerCase().includes(q)) ||
+        (s.phone && s.phone.includes(q)) ||
+        s.role.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (filters.role && s.role !== filters.role) return false;
+    return true;
+  });
 
   const openEdit = (s: Staff) => {
     setSelectedStaff(s);
@@ -209,8 +252,8 @@ export default function StaffManagementPage() {
     }
   };
 
-  // Group staff by department
-  const groupedStaff = staff.reduce((acc, s) => {
+  // Group filtered staff by department
+  const groupedStaff = filteredStaff.reduce((acc, s) => {
     const dept = s.department || "Other";
     if (!acc[dept]) acc[dept] = [];
     acc[dept].push(s);
@@ -236,12 +279,25 @@ export default function StaffManagementPage() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center" }}>
+      {/* Search + Filters */}
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="Search name, email, phone, role..."
+          defaultValue={filters.search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          style={{
+            padding: "0.5rem 0.75rem",
+            border: "1px solid var(--border)",
+            borderRadius: "6px",
+            fontSize: "0.875rem",
+            minWidth: "220px",
+          }}
+        />
         <select
-          value={departmentFilter}
-          onChange={(e) => setDepartmentFilter(e.target.value)}
-          style={{ padding: "0.5rem", minWidth: "150px" }}
+          value={filters.department}
+          onChange={(e) => setFilter("department", e.target.value)}
+          style={{ padding: "0.5rem", minWidth: "150px", border: "1px solid var(--border)", borderRadius: "6px" }}
         >
           <option value="">All Departments</option>
           {departments.map((d) => (
@@ -249,25 +305,83 @@ export default function StaffManagementPage() {
           ))}
         </select>
 
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.85rem" }}>
           <input
             type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
+            checked={filters.showInactive === "true"}
+            onChange={(e) => setFilter("showInactive", e.target.checked ? "true" : "false")}
           />
           Show inactive
         </label>
 
+        {!isDefault && (
+          <button
+            onClick={clearFilters}
+            style={{
+              padding: "0.35rem 0.75rem",
+              fontSize: "0.8rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
+
         <span style={{ marginLeft: "auto", color: "var(--muted)", fontSize: "0.875rem" }}>
-          {staff.length} staff members
+          {filteredStaff.length} of {staff.length} staff
         </span>
       </div>
+
+      {/* Role Filter Chips */}
+      {allRoles.length > 0 && (
+        <div style={{ display: "flex", gap: "0.375rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <button
+            onClick={() => setFilter("role", "")}
+            style={{
+              padding: "0.2rem 0.6rem",
+              fontSize: "0.75rem",
+              borderRadius: "9999px",
+              border: "1px solid var(--border)",
+              background: !filters.role ? "var(--foreground)" : "transparent",
+              color: !filters.role ? "var(--background)" : "inherit",
+              cursor: "pointer",
+            }}
+          >
+            All Roles
+          </button>
+          {allRoles.map((role) => {
+            const count = staff.filter(s => s.role === role).length;
+            const isActive = filters.role === role;
+            return (
+              <button
+                key={role}
+                onClick={() => setFilter("role", isActive ? "" : role)}
+                style={{
+                  padding: "0.2rem 0.6rem",
+                  fontSize: "0.75rem",
+                  borderRadius: "9999px",
+                  border: "1px solid var(--border)",
+                  background: isActive ? "var(--foreground)" : "transparent",
+                  color: isActive ? "var(--background)" : "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                {role} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
           Loading...
         </div>
-      ) : staff.length === 0 ? (
+      ) : filteredStaff.length === 0 ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
           No staff found
         </div>
@@ -333,17 +447,64 @@ export default function StaffManagementPage() {
                           )}
                         </div>
                       </div>
-                      {s.email && (
-                        <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {s.email}
-                        </div>
-                      )}
-                      {s.phone && (
-                        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {formatPhone(s.phone)}
-                          {s.work_extension && ` ext. ${s.work_extension}`}
-                        </div>
-                      )}
+                      {/* Contact actions */}
+                      <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        {s.email && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                            <a
+                              href={`mailto:${s.email}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ fontSize: "0.8rem", color: "var(--primary)", textDecoration: "none" }}
+                              title={`Email ${s.email}`}
+                            >
+                              {s.email}
+                            </a>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(s.email!, s.staff_id + "-email"); }}
+                              style={{
+                                padding: "0.1rem 0.3rem",
+                                fontSize: "0.65rem",
+                                background: copiedId === s.staff_id + "-email" ? "#dcfce7" : "transparent",
+                                border: "1px solid var(--border)",
+                                borderRadius: "3px",
+                                cursor: "pointer",
+                                color: copiedId === s.staff_id + "-email" ? "#166534" : "var(--text-muted)",
+                              }}
+                              title="Copy email"
+                            >
+                              {copiedId === s.staff_id + "-email" ? "Copied" : "Copy"}
+                            </button>
+                          </div>
+                        )}
+                        {s.phone && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                            <a
+                              href={`tel:${s.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ fontSize: "0.8rem", color: "var(--primary)", textDecoration: "none" }}
+                              title={`Call ${formatPhone(s.phone)}`}
+                            >
+                              {formatPhone(s.phone)}
+                              {s.work_extension && ` ext. ${s.work_extension}`}
+                            </a>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(s.phone!, s.staff_id + "-phone"); }}
+                              style={{
+                                padding: "0.1rem 0.3rem",
+                                fontSize: "0.65rem",
+                                background: copiedId === s.staff_id + "-phone" ? "#dcfce7" : "transparent",
+                                border: "1px solid var(--border)",
+                                borderRadius: "3px",
+                                cursor: "pointer",
+                                color: copiedId === s.staff_id + "-phone" ? "#166534" : "var(--text-muted)",
+                              }}
+                              title="Copy phone"
+                            >
+                              {copiedId === s.staff_id + "-phone" ? "Copied" : "Copy"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -704,5 +865,13 @@ export default function StaffManagementPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function StaffManagementPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>}>
+      <StaffManagementContent />
+    </Suspense>
   );
 }

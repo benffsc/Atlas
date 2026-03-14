@@ -141,6 +141,27 @@ export interface VolunteerRolesData {
   };
 }
 
+// ---- Foster-Specific Types ----
+
+export interface FosterCat {
+  cat_id: string;
+  cat_name: string | null;
+  microchip: string | null;
+  breed: string | null;
+  source_system: string | null;
+  confidence: number | null;
+  linked_at: string | null;
+}
+
+export interface FosterAgreement {
+  agreement_id: string;
+  agreement_type: string;
+  signed_at: string | null;
+  source_system: string;
+  notes: string | null;
+  created_at: string;
+}
+
 // ---- Trapper-Specific Types ----
 
 export interface TrapperStats {
@@ -271,6 +292,10 @@ export interface PersonDetailData {
   changeHistory: ChangeHistoryEntry[];
   contracts: Contract[];
 
+  // Foster-specific data (fetched when foster role detected)
+  fosterCats: FosterCat[];
+  fosterAgreements: FosterAgreement[];
+
   // State
   loading: boolean;
   error: string | null;
@@ -285,6 +310,7 @@ export interface PersonDetailData {
   refetchJournal: () => Promise<void>;
   refetchRequests: () => Promise<void>;
   refetchTrapperData: () => Promise<void>;
+  refetchFosterData: () => Promise<void>;
   refetchAll: () => Promise<void>;
 }
 
@@ -307,6 +333,10 @@ export function usePersonDetail(
   const [requests, setRequests] = useState<RelatedRequest[]>([]);
   const [trapperInfo, setTrapperInfo] = useState<TrapperInfo | null>(null);
   const [volunteerRoles, setVolunteerRoles] = useState<VolunteerRolesData | null>(null);
+
+  // Foster data
+  const [fosterCats, setFosterCats] = useState<FosterCat[]>([]);
+  const [fosterAgreements, setFosterAgreements] = useState<FosterAgreement[]>([]);
 
   // Trapper data
   const [trapperStats, setTrapperStats] = useState<TrapperStats | null>(null);
@@ -441,6 +471,52 @@ export function usePersonDetail(
     }
   }, [id]);
 
+  // ---- Foster Fetchers ----
+
+  const fetchFosterCats = useCallback(async () => {
+    try {
+      const data = await fetchApi<{
+        cats: Array<{
+          cat_id: string;
+          cat_name: string | null;
+          microchip: string | null;
+          data_source: string | null;
+          relationships: Array<{
+            type: string;
+            confidence: string;
+            source_system: string;
+            effective_date: string | null;
+          }>;
+        }>;
+      }>(`/api/people/${id}/cats?relationship=foster`);
+      // Transform grouped response into flat FosterCat list
+      const cats: FosterCat[] = (data.cats || []).map(c => {
+        const rel = c.relationships?.[0];
+        return {
+          cat_id: c.cat_id,
+          cat_name: c.cat_name,
+          microchip: c.microchip,
+          breed: null,
+          source_system: rel?.source_system || c.data_source,
+          confidence: rel?.confidence != null ? Number(rel.confidence) : null,
+          linked_at: rel?.effective_date || null,
+        };
+      });
+      setFosterCats(cats);
+    } catch (err) {
+      console.error("Failed to fetch foster cats:", err);
+    }
+  }, [id]);
+
+  const fetchFosterAgreements = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ agreements: FosterAgreement[] }>(`/api/people/${id}/foster-agreements`);
+      setFosterAgreements(data.agreements || []);
+    } catch (err) {
+      console.error("Failed to fetch foster agreements:", err);
+    }
+  }, [id]);
+
   // ---- Composite Fetchers ----
 
   const refetchTrapperData = useCallback(async () => {
@@ -455,6 +531,10 @@ export function usePersonDetail(
     ]);
   }, [fetchTrapperStats, fetchManualCatches, fetchServiceAreas, fetchProfile, fetchAssignments, fetchChangeHistory, fetchContracts]);
 
+  const refetchFosterData = useCallback(async () => {
+    await Promise.all([fetchFosterCats(), fetchFosterAgreements()]);
+  }, [fetchFosterCats, fetchFosterAgreements]);
+
   const refetchAll = useCallback(async () => {
     await Promise.all([
       fetchPerson(),
@@ -463,8 +543,9 @@ export function usePersonDetail(
       fetchTrapperInfo(),
       fetchVolunteerRoles(),
       refetchTrapperData(),
+      refetchFosterData(),
     ]);
-  }, [fetchPerson, fetchJournal, fetchRequests, fetchTrapperInfo, fetchVolunteerRoles, refetchTrapperData]);
+  }, [fetchPerson, fetchJournal, fetchRequests, fetchTrapperInfo, fetchVolunteerRoles, refetchTrapperData, refetchFosterData]);
 
   // ---- Initial Load ----
 
@@ -478,9 +559,12 @@ export function usePersonDetail(
       // Always fetch base data
       const baseFetches = [fetchPerson(), fetchJournal(), fetchRequests(), fetchTrapperInfo(), fetchVolunteerRoles()];
 
-      // If we know it's a trapper, fetch trapper data in parallel
+      // If we know the role, fetch role-specific data in parallel
       if (options?.initialRole === "trapper") {
         baseFetches.push(refetchTrapperData());
+      }
+      if (options?.initialRole === "foster") {
+        baseFetches.push(refetchFosterData());
       }
 
       await Promise.all(baseFetches);
@@ -498,6 +582,18 @@ export function usePersonDetail(
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trapperInfo]);
+
+  // Fetch foster data when foster role is detected (for person page)
+  useEffect(() => {
+    if (
+      volunteerRoles?.roles?.some(r => r.role === "foster" && r.role_status === "active") &&
+      fosterCats.length === 0 &&
+      !options?.initialRole
+    ) {
+      refetchFosterData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volunteerRoles]);
 
   // Derived values
   const primaryEmail = person?.identifiers?.find(i => i.id_type === "email" && (i.confidence ?? 1) >= 0.5)?.id_value;
@@ -517,6 +613,8 @@ export function usePersonDetail(
     assignments,
     changeHistory,
     contracts,
+    fosterCats,
+    fosterAgreements,
     loading,
     error,
     primaryEmail,
@@ -526,6 +624,7 @@ export function usePersonDetail(
     refetchJournal: fetchJournal,
     refetchRequests: fetchRequests,
     refetchTrapperData,
+    refetchFosterData,
     refetchAll,
   };
 }

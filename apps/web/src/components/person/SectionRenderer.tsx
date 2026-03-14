@@ -12,7 +12,7 @@ interface SectionRendererProps {
   /** Full data from usePersonDetail */
   data: PersonDetailData;
   /** Callback after mutations */
-  onDataChange?: (what?: "person" | "journal" | "trapper" | "all") => void;
+  onDataChange?: (what?: "person" | "journal" | "trapper" | "foster" | "all") => void;
 }
 
 /**

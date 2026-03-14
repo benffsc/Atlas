@@ -16,7 +16,7 @@ export interface SectionProps {
   /** Full person detail data from usePersonDetail */
   data: PersonDetailData;
   /** Callback to refetch specific data after mutations */
-  onDataChange?: (what?: "person" | "journal" | "trapper" | "all") => void;
+  onDataChange?: (what?: "person" | "journal" | "trapper" | "foster" | "all") => void;
 }
 
 /**

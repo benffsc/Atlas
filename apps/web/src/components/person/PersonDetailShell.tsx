@@ -39,6 +39,9 @@ import { AliasesSectionAdapter } from "./sections/AliasesSectionAdapter";
 import { DataSourcesSectionAdapter } from "./sections/DataSourcesSectionAdapter";
 import { TrapperStatsCardAdapter } from "./sections/TrapperStatsCardAdapter";
 import { TrapperJournalAdapter } from "./sections/TrapperJournalAdapter";
+import { FosterOverviewAdapter } from "./sections/FosterOverviewAdapter";
+import { FosterCatsAdapter } from "./sections/FosterCatsAdapter";
+import { FosterAgreementsAdapter } from "./sections/FosterAgreementsAdapter";
 
 // Import trapper sections
 import { PerformanceBannerSection } from "@/components/sections/PerformanceBannerSection";
@@ -79,6 +82,10 @@ const SECTION_COMPONENTS: Record<string, React.ComponentType<import("@/lib/perso
   "assignment-history": AssignmentHistorySection,
   "trapper-journal": TrapperJournalAdapter,
   "change-history": ChangeHistorySection,
+  // Foster sections
+  "foster-overview": FosterOverviewAdapter,
+  "foster-cats": FosterCatsAdapter,
+  "foster-agreements": FosterAgreementsAdapter,
 };
 
 function resolveComponents(sections: SectionDefinition[]): SectionDefinition[] {
@@ -131,6 +138,8 @@ export function PersonDetailShell({
 
   const defaultTab = initialRole === "trapper" && config.tabs.some(t => t.id === "trapper")
     ? "trapper"
+    : initialRole === "foster" && config.tabs.some(t => t.id === "foster")
+    ? "foster"
     : "main";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
@@ -147,10 +156,11 @@ export function PersonDetailShell({
   const [pendingPlace, setPendingPlace] = useState<ResolvedPlace | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
 
-  const handleDataChange = useCallback((what?: "person" | "journal" | "trapper" | "all") => {
+  const handleDataChange = useCallback((what?: "person" | "journal" | "trapper" | "foster" | "all") => {
     if (what === "person") data.refetchPerson();
     else if (what === "journal") data.refetchJournal();
     else if (what === "trapper") data.refetchTrapperData();
+    else if (what === "foster") data.refetchFosterData();
     else data.refetchAll();
   }, [data]);
 
@@ -288,6 +298,9 @@ export function PersonDetailShell({
           <a href={`/people/${id}`} style={{ fontSize: "0.8rem", color: "var(--muted)" }}>View person record</a>
           <a href={`/map?layers=trapper_territories&trapper=${id}`} style={{ fontSize: "0.8rem", color: "var(--muted)" }}>View on Map</a>
         </>
+      )}
+      {initialRole === "foster" && (
+        <a href={`/people/${id}`} style={{ fontSize: "0.8rem", color: "var(--muted)" }}>View person record</a>
       )}
     </>
   );

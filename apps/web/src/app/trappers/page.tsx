@@ -6,6 +6,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { TrapperBadge } from "@/components/badges/TrapperBadge";
 import { formatPhone, formatRelativeTime, getActivityColor } from "@/lib/formatters";
+import { generateCsv, downloadCsv } from "@/lib/csv-export";
 
 interface Trapper {
   person_id: string;
@@ -451,6 +452,14 @@ function TrappersPageInner() {
   const [searchInput, setSearchInput] = useState(filters.search);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Batch selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchAction, setBatchAction] = useState<{
+    field: "status" | "availability";
+    value: string;
+  } | null>(null);
+  const [batchUpdating, setBatchUpdating] = useState(false);
+
   const limit = 25;
   const page = parseInt(filters.page) || 0;
 
@@ -542,6 +551,85 @@ function TrappersPageInner() {
     } finally {
       setUpdating(null);
     }
+  };
+
+  // Selection helpers
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (!data) return;
+    if (selectedIds.size === data.trappers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(data.trappers.map((t) => t.person_id)));
+    }
+  };
+
+  // Clear selection when data changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [data]);
+
+  const executeBatchAction = async () => {
+    if (!batchAction || selectedIds.size === 0) return;
+    setBatchUpdating(true);
+    try {
+      const promises = Array.from(selectedIds).map((personId) =>
+        postApi(
+          "/api/trappers",
+          { person_id: personId, action: batchAction.field, value: batchAction.value },
+          { method: "PATCH" }
+        )
+      );
+      await Promise.all(promises);
+      setBatchAction(null);
+      setSelectedIds(new Set());
+      fetchTrappers();
+    } catch (err) {
+      alert(`Batch error: ${err instanceof Error ? err.message : "Update failed"}`);
+    } finally {
+      setBatchUpdating(false);
+    }
+  };
+
+  const exportCsv = () => {
+    if (!data) return;
+    const trappers = selectedIds.size > 0
+      ? data.trappers.filter((t) => selectedIds.has(t.person_id))
+      : data.trappers;
+
+    const headers = [
+      "Name", "Email", "Phone", "Type", "Tier", "Status", "Availability",
+      "Total Caught", "Direct Bookings", "Clinic Days", "Avg Cats/Day",
+      "Active Assignments", "Completed", "Last Activity",
+    ];
+    const rows = trappers.map((t) => [
+      t.display_name,
+      t.email,
+      t.phone ? formatPhone(t.phone) : "",
+      t.trapper_type,
+      t.tier || "",
+      t.role_status,
+      t.availability_status,
+      t.total_cats_caught,
+      t.total_clinic_cats,
+      t.unique_clinic_days,
+      t.avg_cats_per_day,
+      t.active_assignments,
+      t.completed_assignments,
+      t.last_activity_date || "",
+    ]);
+
+    const csv = generateCsv(headers, rows);
+    const date = new Date().toISOString().split("T")[0];
+    downloadCsv(csv, `trappers-${date}.csv`);
   };
 
   const agg = data?.aggregates;
@@ -817,6 +905,157 @@ function TrappersPageInner() {
         </div>
       </div>
 
+      {/* Batch Toolbar + CSV Export */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        marginBottom: "1rem",
+        flexWrap: "wrap",
+      }}>
+        {selectedIds.size > 0 && (
+          <>
+            <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
+              {selectedIds.size} selected
+            </span>
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  const [field, value] = e.target.value.split(":");
+                  setBatchAction({ field: field as "status" | "availability", value });
+                }
+                e.target.value = "";
+              }}
+              style={{
+                padding: "0.3rem 0.5rem",
+                fontSize: "0.8rem",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+              }}
+            >
+              <option value="">Batch Change...</option>
+              <optgroup label="Status">
+                <option value="status:active">Set Active</option>
+                <option value="status:inactive">Set Inactive</option>
+              </optgroup>
+              <optgroup label="Availability">
+                <option value="availability:available">Set Available</option>
+                <option value="availability:busy">Set Busy</option>
+                <option value="availability:on_leave">Set On Leave</option>
+              </optgroup>
+            </select>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              style={{
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.75rem",
+                background: "transparent",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+                cursor: "pointer",
+                color: "#666",
+              }}
+            >
+              Clear
+            </button>
+            <div style={{ borderLeft: "1px solid #ddd", height: "1.5rem", margin: "0 0.25rem" }} />
+          </>
+        )}
+        <button
+          onClick={exportCsv}
+          disabled={!data || data.trappers.length === 0}
+          style={{
+            padding: "0.3rem 0.75rem",
+            fontSize: "0.8rem",
+            background: "transparent",
+            border: "1px solid #ddd",
+            borderRadius: "4px",
+            cursor: data && data.trappers.length > 0 ? "pointer" : "not-allowed",
+            opacity: data && data.trappers.length > 0 ? 1 : 0.5,
+            marginLeft: selectedIds.size > 0 ? "0" : "auto",
+          }}
+        >
+          Export CSV{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+        </button>
+      </div>
+
+      {/* Batch Confirm Modal */}
+      {batchAction && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setBatchAction(null)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "420px",
+              width: "90%",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem" }}>
+              Batch Change — {selectedIds.size} Trappers
+            </h3>
+            <p style={{ margin: "0 0 1rem", color: "#374151", lineHeight: 1.5 }}>
+              Set <strong>{batchAction.field}</strong> to{" "}
+              <span style={{
+                padding: "0.1rem 0.4rem",
+                borderRadius: "4px",
+                background: "#ecfdf5",
+                fontWeight: 500,
+                color: "#065f46",
+              }}>
+                {(FIELD_LABELS[batchAction.field] || {})[batchAction.value] || batchAction.value}
+              </span>
+              {" "}for {selectedIds.size} selected trapper{selectedIds.size > 1 ? "s" : ""}?
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <button
+                onClick={() => setBatchAction(null)}
+                disabled={batchUpdating}
+                style={{
+                  padding: "0.4rem 1rem",
+                  borderRadius: "6px",
+                  border: "1px solid #d1d5db",
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBatchAction}
+                disabled={batchUpdating}
+                style={{
+                  padding: "0.4rem 1rem",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                }}
+              >
+                {batchUpdating ? "Updating..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal */}
       {confirmAction && (
         <ConfirmModal
@@ -856,6 +1095,14 @@ function TrappersPageInner() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th style={{ width: "2rem", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={data.trappers.length > 0 && selectedIds.size === data.trappers.length}
+                      onChange={toggleSelectAll}
+                      title="Select all"
+                    />
+                  </th>
                   <th>Name</th>
                   <th>Contact</th>
                   <th>Type</th>
@@ -895,6 +1142,13 @@ function TrappersPageInner() {
 
                   return (
                     <tr key={trapper.person_id} style={rowStyle}>
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(trapper.person_id)}
+                          onChange={() => toggleSelection(trapper.person_id)}
+                        />
+                      </td>
                       <td>
                         <a
                           href={`/trappers/${trapper.person_id}`}
