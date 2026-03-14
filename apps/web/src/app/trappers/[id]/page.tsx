@@ -587,6 +587,85 @@ export default function TrapperDetailPage() {
         </div>
       </div>
 
+      {/* Performance Summary — FFS-570 */}
+      {(() => {
+        const tenure = stats.first_activity_date
+          ? Math.floor((Date.now() - new Date(stats.first_activity_date).getTime()) / 86400000)
+          : 0;
+        const tenureLabel = tenure > 365
+          ? `${Math.floor(tenure / 365)}y ${Math.floor((tenure % 365) / 30)}mo`
+          : tenure > 30
+          ? `${Math.floor(tenure / 30)} months`
+          : `${tenure} days`;
+        const daysSinceLast = stats.last_activity_date
+          ? Math.floor((Date.now() - new Date(stats.last_activity_date).getTime()) / 86400000)
+          : null;
+        const isDormant = daysSinceLast !== null && daysSinceLast > 90;
+        const catsPerMonth = tenure > 30 && stats.total_cats_caught > 0
+          ? (stats.total_cats_caught / (tenure / 30)).toFixed(1)
+          : null;
+
+        return (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "0.75rem",
+            marginBottom: "1.5rem",
+            padding: "1rem",
+            background: isDormant ? "#fffbeb" : "#f0fdf4",
+            borderRadius: "10px",
+            border: `1px solid ${isDormant ? "#fde68a" : "#bbf7d0"}`,
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#166534" }}>
+                {stats.total_cats_caught}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#666" }}>Total Caught</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {stats.active_assignments}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#666" }}>Active Assignments</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {stats.unique_clinic_days}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#666" }}>Clinic Days</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {tenureLabel}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#666" }}>Tenure</div>
+            </div>
+            {catsPerMonth && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0d6efd" }}>
+                  {catsPerMonth}
+                </div>
+                <div style={{ fontSize: "0.7rem", color: "#666" }}>Cats/Month</div>
+              </div>
+            )}
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: isDormant ? "#b45309" : daysSinceLast !== null && daysSinceLast < 30 ? "#166534" : "#666",
+              }}>
+                {daysSinceLast !== null ? (
+                  daysSinceLast === 0 ? "Today" : `${daysSinceLast}d`
+                ) : "—"}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: isDormant ? "#b45309" : "#666" }}>
+                {isDormant ? "Dormant" : "Since Last Activity"}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Contract & Profile — FFS-532 */}
       {profile && (
         <Section title="Contract & Profile">
